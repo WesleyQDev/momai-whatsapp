@@ -2,12 +2,20 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
-## 0.3.1 - 2026-02-21
-Melhorias na Interface e Estabilidade de Ambiente
+## 0.3.2 - 2026-02-21
+Correções Críticas de Setup e Dependências
 
-## ✨ Melhorias
+### 🐛 Correções
+- **Falha de Inicialização (python-dotenv):** Adicionada a dependência missing `python-dotenv` ao core, corrigindo o erro `ModuleNotFoundError: No module named 'dotenv'` que impedia o boot do backend no Linux.
+- **Sincronização Forçada de Ambiente:** Melhorada a lógica do `SyncLock` para detectar mudanças de versão do aplicativo. Agora o MomAI forçará a atualização das dependências sempre que uma nova versão for instalada, evitando que o bootstrap pule atualizações cruciais.
+
+---
+
+## 0.3.1 - 2026-02-21
+Melhorias na Interface e Versionamento
+
+### ✨ Melhorias
 - **Versionamento Dinâmico:** A versão exibida na janela "Sobre" (TitleBar) agora é carregada dinamicamente das configurações do aplicativo, garantindo que sempre reflita a versão real da release.
-- **Estabilidade do Ambiente Python:** Adicionada a dependência missing `python-dotenv` ao core, corrigindo a falha de inicialização `ModuleNotFoundError: No module named 'dotenv'` encontrada no Linux.
 
 ---
 

@@ -97,6 +97,11 @@ function getSyncLock(corePath: string): SyncResult | null {
     if (!existsSync(SYNC_LOCK_FILE)) return null
     const data = JSON.parse(readFileSync(SYNC_LOCK_FILE, 'utf-8'))
 
+    const currentVersion = app.getVersion()
+    if (data.lastVersion !== currentVersion) {
+      return null // Force sync on version change
+    }
+
     // Check if pyproject.toml was modified since last successful check
     const pyprojectPath = join(corePath, 'pyproject.toml')
     if (existsSync(pyprojectPath)) {
@@ -106,11 +111,6 @@ function getSyncLock(corePath: string): SyncResult | null {
       }
     }
 
-    // Backup: 7 day limit if we can't check file stats properly
-    const oneWeek = 7 * 24 * 60 * 60 * 1000
-    if (Date.now() - data.lastChecked < oneWeek) {
-      return { success: true, needsSync: false, lastChecked: data.lastChecked }
-    }
     return null
   } catch {
     return null
@@ -141,7 +141,14 @@ function getCoreDependencies(corePath: string): string[] {
 
 function setSyncLock(success: boolean): void {
   try {
-    writeFileSync(SYNC_LOCK_FILE, JSON.stringify({ lastChecked: Date.now(), success }))
+    writeFileSync(
+      SYNC_LOCK_FILE,
+      JSON.stringify({
+        lastChecked: Date.now(),
+        lastVersion: app.getVersion(),
+        success
+      })
+    )
   } catch {}
 }
 
