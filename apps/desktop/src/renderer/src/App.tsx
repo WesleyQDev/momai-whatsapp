@@ -123,6 +123,49 @@ function App(): React.JSX.Element {
     return () => window.removeEventListener('momai_settings_sync', handleSync)
   }, [])
 
+  // AUDIO FALLBACK PLAYER (Plays audio if backend cannot use PortAudio)
+  useEffect(() => {
+    let audioCtx: AudioContext | null = null
+    let nextStartTime = 0
+
+    const handleAudioChunk = (_: any, base64Data: string) => {
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
+          nextStartTime = audioCtx.currentTime
+        }
+
+        // Decode base64 to Float32Array
+        const binary = atob(base64Data)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+        const samples = new Float32Array(bytes.buffer)
+
+        // Create buffer and play
+        const audioBuffer = audioCtx.createBuffer(1, samples.length, 24000)
+        audioBuffer.getChannelData(0).set(samples)
+
+        const source = audioCtx.createBufferSource()
+        source.buffer = audioBuffer
+        source.connect(audioCtx.destination)
+
+        // Scheduling to avoid clicks
+        const startTime = Math.max(nextStartTime, audioCtx.currentTime)
+        source.start(startTime)
+        nextStartTime = startTime + audioBuffer.duration
+      } catch (err) {
+        console.error('Audio fallback player error:', err)
+      }
+    }
+
+    const remove = window.electron.ipcRenderer.on('play-audio-chunk', handleAudioChunk)
+    
+    return () => {
+      remove()
+      if (audioCtx) audioCtx.close()
+    }
+  }, [])
+
   useEffect(() => {
     const savedTheme = localStorage.getItem('momai_theme') || 'dark'
     document.documentElement.setAttribute('data-theme', savedTheme)

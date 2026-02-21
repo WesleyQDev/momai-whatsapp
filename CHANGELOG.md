@@ -2,6 +2,12 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 0.4.1 - 2026-02-21
+Correção de Dependência de Áudio
+
+## 🐛 Correções
+- **Fallback de Áudio para Frontend:** Adicionado fallback para o frontend tocar áudio quando a biblioteca PortAudio não está disponível no sistema. Isso permite que o MomAI inicie normalmente mesmo sem dependências de áudio nativas, utilizando o navegador para reprodução de áudio.
+
 ## 0.4.0 - 2026-02-21
 Portabilidade de Áudio e Limpeza de Dependências
 

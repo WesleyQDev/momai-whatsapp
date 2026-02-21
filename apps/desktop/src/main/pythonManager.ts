@@ -511,9 +511,19 @@ export async function startPythonBackend(): Promise<void> {
     })
 
     setPythonProcess(pythonProcess)
-    pythonProcess.stdout?.setEncoding('utf8')
     pythonProcess.stdout?.on('data', (data) => {
-      const line = data.trim()
+      const line = data.toString().trim()
+      
+      // Intercept audio chunks for frontend playback fallback
+      if (line.startsWith('[AUDIO_CHUNK]')) {
+        const audioB64 = line.replace('[AUDIO_CHUNK]', '').trim()
+        const mainWindow = getMainWindow()
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('play-audio-chunk', audioB64)
+        }
+        return
+      }
+
       logger.info(`[Python] ${line}`)
 
       // Parse init progress from Python stdout: [Init 10%] api: message

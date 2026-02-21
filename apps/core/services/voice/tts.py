@@ -1,5 +1,10 @@
 import warnings
-import sounddevice as sd
+try:
+    import sounddevice as sd
+    HAS_SOUNDDEVICE = True
+except OSError:
+    HAS_SOUNDDEVICE = False
+    
 import numpy as np
 import threading
 import time
@@ -116,14 +121,22 @@ class TTSManager:
             return
 
         try:
-            # Open sounddevice stream
-            self.active_stream = sd.OutputStream(
-                samplerate=24000,
-                channels=1,
-                dtype='float32',
-            )
-            self.active_stream.start()
-            stream = self.active_stream
+            # Open sounddevice stream if available
+            if HAS_SOUNDDEVICE:
+                try:
+                    self.active_stream = sd.OutputStream(
+                        samplerate=24000,
+                        channels=1,
+                        dtype='float32',
+                    )
+                    self.active_stream.start()
+                    stream = self.active_stream
+                except Exception as e:
+                    logger.error(f"[TTS] Failed to open sounddevice stream: {e}. Falling back to frontend playback.")
+                    stream = None
+            else:
+                logger.info("[TTS] Sounddevice not available. Using frontend playback fallback.")
+                stream = None
 
             while not self.stop_event.is_set():
                 try:
@@ -159,24 +172,31 @@ class TTSManager:
                             # Convert tensor to numpy float32
                             samples = audio_chunk.numpy().astype(np.float32)
                             
-                            # Write in small sub-chunks (~50ms each) for responsive interruption
-                            # 1200 samples at 24kHz = 50ms
-                            sub_chunk_size = 1200
-                            offset = 0
-                            while offset < len(samples):
-                                with self.state_lock:
-                                    if self.session_id != current_session_id or self.stop_event.is_set():
+                            if stream:
+                                # Write in small sub-chunks (~50ms each) for responsive interruption
+                                # 1200 samples at 24kHz = 50ms
+                                sub_chunk_size = 1200
+                                offset = 0
+                                while offset < len(samples):
+                                    with self.state_lock:
+                                        if self.session_id != current_session_id or self.stop_event.is_set():
+                                            interrupted = True
+                                            break
+                                    end = min(offset + sub_chunk_size, len(samples))
+                                    try:
+                                        stream.write(samples[offset:end])
+                                    except Exception as e:
+                                        logger.error(f"[TTS Stream] Write error: {e}")
                                         interrupted = True
                                         break
-                                end = min(offset + sub_chunk_size, len(samples))
-                                try:
-                                    stream.write(samples[offset:end])
-                                except Exception as e:
-                                    logger.error(f"[TTS Stream] Write error: {e}")
-                                    interrupted = True
-                                    break
-                                offset = end
-                    
+                                    offset = end
+                            else:
+                                # FRONTEND FALLBACK: Send audio samples via log
+                                # We send as base64 to avoid corrupting the log stream
+                                import base64
+                                audio_b64 = base64.b64encode(samples.tobytes()).decode('utf-8')
+                                print(f"[AUDIO_CHUNK] {audio_b64}", flush=True)
+
                     self._is_playing = False
                     if self.on_speech_stop:
                         self.on_speech_stop()
