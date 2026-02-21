@@ -4,7 +4,6 @@ Acompanhe todas as atualizações e mudanças da MomAI.
 
 ## 0.3.5 - 2026-02-21
 Correções e Melhorias de Compatibilidade Linux
-
 ### 🐛 Correções
 - **Suporte a Binários Linux para Llama.cpp:** Corrigido problema crítico onde o downloader tentava baixar binários Windows no Linux. Agora o sistema detecta corretamente o sistema operacional e baixa os binários apropriados (Ubuntu x64 CPU/Vulkan).
 - **Detecção de Hardware GPU no Linux:** Corrigida a detecção de GPUs NVIDIA no Linux para usar Vulkan como backend (não há binário CUDA oficial para Linux/Ubuntu no llama.cpp).
@@ -18,7 +17,7 @@ Correções e Melhorias de Compatibilidade Linux
 ## 0.3.4 - 2026-02-21
 Correção de Bug Crítico de Setup
 
-### 🐛 Correções
+## 🐛 Correções
 - **Ambiente Virtual Recriado Ignorado:** Corrigido bug onde a criação de um novo ambiente virtual não invalidava o SyncLock, causando salto da instalação de dependências. Agora, ao criar um novo venv, o lock é invalidado para garantir que as dependências sejam sempre instaladas.
 
 ---
@@ -26,7 +25,7 @@ Correção de Bug Crítico de Setup
 ## 0.3.3 - 2026-02-21
 Correções Críticas de Setup e Dependências
 
-### 🐛 Correções
+## 🐛 Correções
 - **Falha de Inicialização (python-dotenv):** Adicionada a dependência missing `python-dotenv` ao core, corrigindo o erro `ModuleNotFoundError: No module named 'dotenv'` que impedia o boot do backend no Linux.
 - **Sincronização Forçada de Ambiente:** Melhorada a lógica do `SyncLock` para detectar mudanças de versão do aplicativo. Agora o MomAI forçará a atualização das dependências sempre que uma nova versão for instalada, evitando que o bootstrap pule atualizações cruciais.
 
@@ -35,7 +34,7 @@ Correções Críticas de Setup e Dependências
 ## 0.3.1 - 2026-02-21
 Melhorias na Interface e Versionamento
 
-### ✨ Melhorias
+## ✨ Melhorias
 - **Versionamento Dinâmico:** A versão exibida na janela "Sobre" (TitleBar) agora é carregada dinamicamente das configurações do aplicativo, garantindo que sempre reflita a versão real da release.
 
 ---
