@@ -4,7 +4,7 @@ Acompanhe todas as atualizações e mudanças da MomAI.
 
 ## 0.3.5 - 2026-02-21
 Correções e Melhorias de Compatibilidade Linux
-### 🐛 Correções
+## 🐛 Correções
 - **Suporte a Binários Linux para Llama.cpp:** Corrigido problema crítico onde o downloader tentava baixar binários Windows no Linux. Agora o sistema detecta corretamente o sistema operacional e baixa os binários apropriados (Ubuntu x64 CPU/Vulkan).
 - **Detecção de Hardware GPU no Linux:** Corrigida a detecção de GPUs NVIDIA no Linux para usar Vulkan como backend (não há binário CUDA oficial para Linux/Ubuntu no llama.cpp).
 - **Monitor de Processo Pai no Linux:** Corrigido problema onde o processo Python ficava órfão quando o Electron crashava no Linux. Agora o `monitor_parent()` funciona em todas as plataformas.
@@ -12,15 +12,11 @@ Correções e Melhorias de Compatibilidade Linux
 - **Locale do Sistema:** Removido locale hardcoded `pt_BR.UTF-8` que poderia falhar em sistemas sem essa locale. Agora usa a locale do sistema ou `C.UTF-8` como fallback.
 - **Caminhos XDG Corrigidos:** Corrigido o script de diagnóstico `diagnostic.sh` para usar `XDG_DATA_HOME` (consistent com Electron) em vez de `XDG_CONFIG_HOME` para venv e logs.
 
----
-
 ## 0.3.4 - 2026-02-21
 Correção de Bug Crítico de Setup
 
 ## 🐛 Correções
 - **Ambiente Virtual Recriado Ignorado:** Corrigido bug onde a criação de um novo ambiente virtual não invalidava o SyncLock, causando salto da instalação de dependências. Agora, ao criar um novo venv, o lock é invalidado para garantir que as dependências sejam sempre instaladas.
-
----
 
 ## 0.3.3 - 2026-02-21
 Correções Críticas de Setup e Dependências
@@ -29,15 +25,11 @@ Correções Críticas de Setup e Dependências
 - **Falha de Inicialização (python-dotenv):** Adicionada a dependência missing `python-dotenv` ao core, corrigindo o erro `ModuleNotFoundError: No module named 'dotenv'` que impedia o boot do backend no Linux.
 - **Sincronização Forçada de Ambiente:** Melhorada a lógica do `SyncLock` para detectar mudanças de versão do aplicativo. Agora o MomAI forçará a atualização das dependências sempre que uma nova versão for instalada, evitando que o bootstrap pule atualizações cruciais.
 
----
-
 ## 0.3.1 - 2026-02-21
 Melhorias na Interface e Versionamento
 
 ## ✨ Melhorias
 - **Versionamento Dinâmico:** A versão exibida na janela "Sobre" (TitleBar) agora é carregada dinamicamente das configurações do aplicativo, garantindo que sempre reflita a versão real da release.
-
----
 
 ## 0.3.0 - 2026-02-21
 Suporte ao FortScript no build de produção
@@ -45,8 +37,6 @@ Suporte ao FortScript no build de produção
 ## ✨ Melhorias
 - **Modo Economia (FortScript) em Produção:** Corrigido problema onde o monitor de recursos (FortScript) não funcionava na versão instalada. A pasta `fortscript` agora é incluída corretamente no pacote e as dependências necessárias foram adicionadas ao ambiente virtual do core.
 - **Correção de "Read-only file system" no Linux:** Resolvido o erro de bootstrap que impedia o MomAI de iniciar em ambientes Linux (AppImage) ao tentar rodar `pip install -e`. Agora o sistema identifica as dependências e as instala diretamente, evitando tentativas de escrita na partição montada do AppImage.
-
----
 
 ## 0.2.10 - 2026-02-21
 Correção crítica de instalação no Linux e Melhorias de Renderização
