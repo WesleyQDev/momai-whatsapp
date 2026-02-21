@@ -1,5 +1,6 @@
 import warnings
-import pyaudio
+import sounddevice as sd
+import numpy as np
 import threading
 import time
 import logging
@@ -57,7 +58,6 @@ class TTSManager:
 
         # Threads and instances
         self.worker_thread: Optional[threading.Thread] = None
-        self.pyaudio_instance = None
         self.active_stream = None
         self.pipeline = None
         self._is_playing = False
@@ -75,8 +75,6 @@ class TTSManager:
             # Import here to avoid overhead if not used immediately
             from kokoro import KPipeline
             import torch
-            
-            self.pyaudio_instance = pyaudio.PyAudio()
             
             # KPipeline handles downloading the model if repo_id is provided.
             # We try to force offline first to respect privacy.
@@ -118,12 +116,13 @@ class TTSManager:
             return
 
         try:
-            self.active_stream = self.pyaudio_instance.open(
-                format=pyaudio.paFloat32,
+            # Open sounddevice stream
+            self.active_stream = sd.OutputStream(
+                samplerate=24000,
                 channels=1,
-                rate=24000,
-                output=True,
+                dtype='float32',
             )
+            self.active_stream.start()
             stream = self.active_stream
 
             while not self.stop_event.is_set():
@@ -157,20 +156,23 @@ class TTSManager:
                                 break
 
                         if audio_chunk is not None:
+                            # Convert tensor to numpy float32
+                            samples = audio_chunk.numpy().astype(np.float32)
+                            
                             # Write in small sub-chunks (~50ms each) for responsive interruption
-                            raw = audio_chunk.numpy().tobytes()
-                            # 1200 samples * 4 bytes/float32 = 4800 bytes = ~50ms at 24kHz
-                            sub_chunk_size = 4800
+                            # 1200 samples at 24kHz = 50ms
+                            sub_chunk_size = 1200
                             offset = 0
-                            while offset < len(raw):
+                            while offset < len(samples):
                                 with self.state_lock:
                                     if self.session_id != current_session_id or self.stop_event.is_set():
                                         interrupted = True
                                         break
-                                end = min(offset + sub_chunk_size, len(raw))
+                                end = min(offset + sub_chunk_size, len(samples))
                                 try:
-                                    stream.write(raw[offset:end])
-                                except Exception:
+                                    stream.write(samples[offset:end])
+                                except Exception as e:
+                                    logger.error(f"[TTS Stream] Write error: {e}")
                                     interrupted = True
                                     break
                                 offset = end
@@ -191,7 +193,7 @@ class TTSManager:
         finally:
             if stream:
                 try:
-                    stream.stop_stream()
+                    stream.stop()
                     stream.close()
                 except:
                     pass
@@ -380,8 +382,6 @@ class TTSManager:
         if self.worker_thread:
             self.worker_thread.join(timeout=2)
             self.worker_thread = None
-        if self.pyaudio_instance:
-            self.pyaudio_instance.terminate()
         logger.info("[TTS] System shut down.")
 
 

@@ -1,6 +1,6 @@
 [project]
 name = "core"
-version = "0.3.6"
+version = "0.3.7"
 description = "MomAI Core"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -12,12 +12,9 @@ dependencies = [
     "langchain-groq>=1.1.1",
     "duckduckgo-search>=8.1.1",
     "ddgs>=9.10.0",
-    "pygetwindow>=0.0.9",
     "langchain-openai>=1.1.7",
     "psutil>=7.2.1",
     "speechrecognition>=3.14.5",
-    "pyaudio>=0.2.14",
-    "pvporcupine>=4.0.1",
     "sounddevice>=0.5.4",
     "langgraph>=1.0.6",
     "apscheduler>=3.11.2",

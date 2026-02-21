@@ -125,33 +125,16 @@ async def get_diagnostic():
             }
         )
 
-    try:
-        import pvporcupine
 
-        checks.append(
-            {
-                "name": "wake_word",
-                "status": "pass",
-                "message": "Porcupine wake word engine available",
-            }
-        )
-    except ImportError:
-        checks.append(
-            {
-                "name": "wake_word",
-                "status": "warn",
-                "message": "Porcupine not installed",
-            }
-        )
 
     try:
-        import pyaudio
+        import sounddevice
 
         checks.append(
             {
                 "name": "audio",
                 "status": "pass",
-                "message": "PyAudio available",
+                "message": "Sounddevice available",
             }
         )
     except ImportError:
@@ -159,7 +142,7 @@ async def get_diagnostic():
             {
                 "name": "audio",
                 "status": "fail",
-                "message": "PyAudio not installed - VC++ Redistributable may be required",
+                "message": "Sounddevice not installed",
             }
         )
 

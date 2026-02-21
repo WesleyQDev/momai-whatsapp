@@ -2,6 +2,13 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 0.4.0 - 2026-02-21
+Portabilidade de Áudio e Limpeza de Dependências
+
+## ✨ Melhorias
+- **Portabilidade de Áudio (Linux e Windows):** Substituição do `pyaudio` pelo `sounddevice` em todo o núcleo (Core). O `sounddevice` utiliza `CFFI`, o que elimina a necessidade de compiladores (`gcc`) ou ferramentas de build na máquina do usuário, tornando a instalação automática do ambiente Python muito mais confiável.
+- **Remoção de Dependências Obsoletas:** Removidos pacotes como `pvporcupine`, `pygetwindow` e `pyrect` que não eram mais utilizados, reduzindo o tamanho do ambiente e evitando conflitos de instalação.
+
 ## 0.3.6 - 2026-02-21
 Correção Crítica - AppImage Read-Only File System
 
