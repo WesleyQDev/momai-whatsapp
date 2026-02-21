@@ -2,6 +2,12 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 0.3.6 - 2026-02-21
+Correção Crítica - AppImage Read-Only File System
+
+## 🐛 Correções
+- **Fix Read-Only File System no AppImage:** Corrigido problema crítico onde a instalação de dependências falhava com "Read-only file system" ao tentar criar `core.egg-info`. Agora o sistema detecta automaticamente quando o diretório do core é somente-leitura e copia os arquivos para um diretório temporário antes de instalar.
+
 ## 0.3.5 - 2026-02-21
 Correções e Melhorias de Compatibilidade Linux
 ## 🐛 Correções

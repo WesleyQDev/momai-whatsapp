@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { spawn, execSync } from 'child_process'
 import { join, resolve } from 'path'
 import { createConnection } from 'net'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, unlinkSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, unlinkSync, rmSync } from 'fs'
 import {
   state,
   setPythonProcess,
@@ -203,6 +203,36 @@ function isRunningFromSnap(): boolean {
   return !!process.env.SNAP_NAME
 }
 
+function getWritableCorePath(originalCorePath: string): string {
+  const isWritable = checkWritePermission(originalCorePath)
+  
+  if (isWritable) {
+    return originalCorePath
+  }
+
+  logger.info('[Bootstrap] Core path is read-only, copying to temp directory...')
+  
+  const tempDir = join(process.env.TEMP || '/tmp', 'momai-core-temp')
+  
+  try {
+    if (existsSync(tempDir)) {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
+    
+    if (process.platform === 'win32') {
+      execSync(`xcopy "${originalCorePath}" "${tempDir}\\" /E /I /Y`, { stdio: 'ignore' })
+    } else {
+      execSync(`cp -r "${originalCorePath}" "${tempDir}"`, { stdio: 'ignore' })
+    }
+    
+    logger.info(`[Bootstrap] Core copied to writable temp: ${tempDir}`)
+    return tempDir
+  } catch (e) {
+    logger.error('[Bootstrap] Failed to copy core to temp:', e)
+    return originalCorePath
+  }
+}
+
 async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
   const isDev = is.dev && process.env['ELECTRON_RENDERER_URL']
 
@@ -343,17 +373,18 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
     logger.info('[Bootstrap] Sincronizando dependências do core...')
     sendInitProgress('Instalando dependências...', 15)
 
+    const writableCorePath = getWritableCorePath(corePath)
+
     try {
       const installArgs = ['pip', 'install', '--no-progress']
       if (isDev) {
-        installArgs.push('-e', corePath)
+        installArgs.push('-e', writableCorePath)
       } else {
-        const deps = getCoreDependencies(corePath)
+        const deps = getCoreDependencies(writableCorePath)
         if (deps.length > 0) {
           installArgs.push(...deps)
         } else {
-          // Fallback but without -e to avoid Read-only file system error
-          installArgs.push(corePath)
+          installArgs.push(writableCorePath)
         }
       }
 
