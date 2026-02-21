@@ -1,5 +1,12 @@
 import queue
-import sounddevice as sd
+
+try:
+    import sounddevice as sd
+
+    HAS_SOUNDDEVICE = True
+except OSError:
+    HAS_SOUNDDEVICE = False
+    sd = None
 import numpy as np
 import threading
 import logging
@@ -533,6 +540,11 @@ class WakeWordDetector:
 
     def start(self):
         """Start the detector in a background thread."""
+        if not HAS_SOUNDDEVICE:
+            logger.warning(
+                "[WakeWord] Sounddevice not available. Detector will not start."
+            )
+            return
         with self.lock:
             if not self.running:
                 self.running = True

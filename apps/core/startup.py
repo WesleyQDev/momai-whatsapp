@@ -192,21 +192,27 @@ async def init_system_task() -> None:
             )
 
         await app_state.send_init_event("brain", "Starting voice detector...", 85)
-        app_state.ww = app_state.WakeWordDetector(
-            keyword="Luna",
-            callback=on_wake_word,
-            status_callback=on_voice_status,
-            partial_callback=on_voice_partial,
-            bypass_condition=should_bypass_wake_word,
-            variants=[
-                "Luna",
-                "Loona",
-                "Luhna",
-                "Lana",
-                "Lonna",
-            ],
-        )
-        if settings.wake_word_enabled:
+
+        if app_state.WakeWordDetector is None:
+            logger.warning(
+                "[startup] WakeWordDetector not available (sounddevice missing)"
+            )
+        else:
+            app_state.ww = app_state.WakeWordDetector(
+                keyword="Luna",
+                callback=on_wake_word,
+                status_callback=on_voice_status,
+                partial_callback=on_voice_partial,
+                bypass_condition=should_bypass_wake_word,
+                variants=[
+                    "Luna",
+                    "Loona",
+                    "Luhna",
+                    "Lana",
+                    "Lonna",
+                ],
+            )
+        if settings.wake_word_enabled and app_state.ww is not None:
             app_state.ww.start()
 
         # 6. Final Sync - Aguarda o LLM e Voz apenas no final se necessário

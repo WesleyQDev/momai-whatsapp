@@ -1,5 +1,12 @@
 import numpy as np
-import sounddevice as sd
+
+try:
+    import sounddevice as sd
+
+    HAS_SOUNDDEVICE = True
+except OSError:
+    HAS_SOUNDDEVICE = False
+    sd = None
 import threading
 import queue
 import time
@@ -35,6 +42,9 @@ class QuickTranscriber:
         Grava áudio até detectar silêncio por ~1 segundo.
         Retorna o áudio gravado ou None se não houve fala suficiente.
         """
+        if not HAS_SOUNDDEVICE:
+            logger.warning("[QuickTranscriber] Sounddevice not available.")
+            return None
         audio_buffer = []
         silence_counter = 0
         speech_chunk_count = 0

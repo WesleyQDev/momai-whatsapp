@@ -75,9 +75,13 @@ def initialize_ai_stack() -> None:
 
     generate = gen_func
     initialize_llm = init_llm
-    from services.voice.detector import WakeWordDetector as WWD
+    try:
+        from services.voice.detector import WakeWordDetector as WWD
 
-    WakeWordDetector = WWD
+        WakeWordDetector = WWD
+    except OSError as e:
+        logger.warning(f"[app_state] Could not load WakeWordDetector: {e}")
+        WakeWordDetector = None
     from services.reminders.manager import ReminderManager as RM
 
     ReminderManager = RM
