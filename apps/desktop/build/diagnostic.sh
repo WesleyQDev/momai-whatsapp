@@ -122,10 +122,10 @@ echo ""
 # -----------------------------------------------
 echo "[CHECK 6] Previous Error Logs"
 echo "------------------------------"
-LOG_PATH="${XDG_CONFIG_HOME:-$HOME/.config}/MomAI/logs/main.log"
+LOG_PATH="${XDG_DATA_HOME:-$HOME/.local/share}/MomAI/logs/main.log"
 
 # Also check userData path used by Electron on Linux
-ELECTRON_LOG="$HOME/.config/MomAI/logs/main.log"
+ELECTRON_LOG="$HOME/.local/share/MomAI/logs/main.log"
 
 if [ -f "$ELECTRON_LOG" ]; then
     echo "[INFO] Log file found at: $ELECTRON_LOG"
@@ -142,7 +142,7 @@ echo ""
 # -----------------------------------------------
 echo "[CHECK 7] Python Virtual Environment"
 echo "------------------------------"
-VENV_PATH="${XDG_CONFIG_HOME:-$HOME/.config}/MomAI/python_env"
+VENV_PATH="${XDG_DATA_HOME:-$HOME/.local/share}/MomAI/python_env"
 if [ -f "$VENV_PATH/bin/python" ]; then
     echo "[PASS] Virtual environment exists"
     PASS=$((PASS+1))

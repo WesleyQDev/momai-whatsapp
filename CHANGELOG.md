@@ -2,6 +2,19 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 0.3.5 - 2026-02-21
+Correções e Melhorias de Compatibilidade Linux
+
+### 🐛 Correções
+- **Suporte a Binários Linux para Llama.cpp:** Corrigido problema crítico onde o downloader tentava baixar binários Windows no Linux. Agora o sistema detecta corretamente o sistema operacional e baixa os binários apropriados (Ubuntu x64 CPU/Vulkan).
+- **Detecção de Hardware GPU no Linux:** Corrigida a detecção de GPUs NVIDIA no Linux para usar Vulkan como backend (não há binário CUDA oficial para Linux/Ubuntu no llama.cpp).
+- **Monitor de Processo Pai no Linux:** Corrigido problema onde o processo Python ficava órfão quando o Electron crashava no Linux. Agora o `monitor_parent()` funciona em todas as plataformas.
+- **Mensagem de Erro Read-Only Melhorada:** Adicionada detecção de AppImage e Snap com mensagens de erro específicas quando o filesystem é somente-leitura.
+- **Locale do Sistema:** Removido locale hardcoded `pt_BR.UTF-8` que poderia falhar em sistemas sem essa locale. Agora usa a locale do sistema ou `C.UTF-8` como fallback.
+- **Caminhos XDG Corrigidos:** Corrigido o script de diagnóstico `diagnostic.sh` para usar `XDG_DATA_HOME` (consistent com Electron) em vez de `XDG_CONFIG_HOME` para venv e logs.
+
+---
+
 ## 0.3.4 - 2026-02-21
 Correção de Bug Crítico de Setup
 

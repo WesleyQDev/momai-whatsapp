@@ -242,12 +242,19 @@ async def lifespan(app):
 
     def monitor_parent() -> None:
         """Exits if parent process (Electron) dies."""
-        parent = psutil.Process(os.getpid()).parent()
-        if parent:
-            parent.wait()
+        try:
+            parent = psutil.Process(os.getpid()).parent()
+            if parent:
+                parent.wait()
+                os._exit(0)
+        except psutil.NoSuchProcess:
             os._exit(0)
+        except Exception:
+            pass
 
     if os.name == "nt":
+        threading.Thread(target=monitor_parent, daemon=True).start()
+    else:
         threading.Thread(target=monitor_parent, daemon=True).start()
 
     yield

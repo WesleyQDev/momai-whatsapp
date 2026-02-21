@@ -195,6 +195,14 @@ function checkWritePermission(dir: string): boolean {
   }
 }
 
+function isRunningFromAppImage(): boolean {
+  return !!process.env.APPIMAGE || !!process.env.ARGV0
+}
+
+function isRunningFromSnap(): boolean {
+  return !!process.env.SNAP_NAME
+}
+
 async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
   const isDev = is.dev && process.env['ELECTRON_RENDERER_URL']
 
@@ -253,10 +261,20 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
   }
 
   if (!checkWritePermission(userDataPath)) {
+    const isAppImage = isRunningFromAppImage()
+    const isSnap = isRunningFromSnap()
+    
+    let errorDetails = `Path: ${userDataPath}. Check antivirus or run as administrator.`
+    if (isAppImage) {
+      errorDetails = `Running from AppImage with read-only filesystem. Extract the AppImage to a writable location or use the --appimage-extract option.`
+    } else if (isSnap) {
+      errorDetails = `Running from Snap with read-only filesystem. Use classic confinement or install via other method.`
+    }
+    
     const error: BootstrapError = {
       type: 'permission_denied',
       message: 'Cannot write to user data directory',
-      details: `Path: ${userDataPath}. Check antivirus or run as administrator.`
+      details: errorDetails
     }
     return error
   }
@@ -391,6 +409,7 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
 
 function buildEnv(venvPath: string, dataDir: string, uvExe: string) {
   const isWin = process.platform === 'win32'
+  const systemLocale = process.env.LC_ALL || process.env.LANG || 'C.UTF-8'
   const base: Record<string, string | undefined> = {
     PATH: process.env.PATH,
     TEMP: process.env.TEMP,
@@ -403,7 +422,7 @@ function buildEnv(venvPath: string, dataDir: string, uvExe: string) {
     PYTHONOPTIMIZE: '1',
     PYTHONDONTWRITEBYTECODE: '0',
     FORCE_COLOR: '1',
-    LC_ALL: 'pt_BR.UTF-8'
+    LC_ALL: systemLocale
   }
 
   if (isWin) {
