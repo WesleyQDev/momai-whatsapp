@@ -2,7 +2,7 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
-## 0.3.2 - 2026-02-21
+## 0.3.3 - 2026-02-21
 Correções Críticas de Setup e Dependências
 
 ### 🐛 Correções
