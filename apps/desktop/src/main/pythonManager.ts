@@ -289,6 +289,14 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
         child.on('close', (code) => {
           if (code === 0) {
             logger.info('[Bootstrap] Venv criado com sucesso.')
+            try {
+              if (existsSync(SYNC_LOCK_FILE)) {
+                unlinkSync(SYNC_LOCK_FILE)
+                logger.info('[Bootstrap] Sync lock invalidado para forçar reinstall das dependências.')
+              }
+            } catch (e) {
+              logger.warn('[Bootstrap] Não foi possível invalidar sync lock:', e)
+            }
             resolve()
           } else {
             logger.error(`[Bootstrap] uv venv failed with code ${code}`)

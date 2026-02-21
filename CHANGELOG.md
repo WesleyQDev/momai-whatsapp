@@ -2,6 +2,14 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 0.3.4 - 2026-02-21
+Correção de Bug Crítico de Setup
+
+### 🐛 Correções
+- **Ambiente Virtual Recriado Ignorado:** Corrigido bug onde a criação de um novo ambiente virtual não invalidava o SyncLock, causando salto da instalação de dependências. Agora, ao criar um novo venv, o lock é invalidado para garantir que as dependências sejam sempre instaladas.
+
+---
+
 ## 0.3.3 - 2026-02-21
 Correções Críticas de Setup e Dependências
 
