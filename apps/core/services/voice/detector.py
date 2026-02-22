@@ -1,26 +1,46 @@
 import queue
-
-try:
-    import sounddevice as sd
-
-    HAS_SOUNDDEVICE = True
-except OSError:
-    HAS_SOUNDDEVICE = False
-    sd = None
-import numpy as np
 import threading
 import logging
 import time
-import torch
 import re
-from faster_whisper import WhisperModel
+
+# Heavy imports are deferred to __init__ for faster startup
+sd = None
+np = None
+torch = None
+WhisperModel = None
+HAS_SOUNDDEVICE = None  # Will be set on first check
 
 # Configure logger
 logger = logging.getLogger("uvicorn.error")
 
-# Import once at module level for performance
+# Light imports at module level
 import app_state
 import services.voice.tts as tts
+
+
+def _ensure_heavy_imports():
+    """Lazy-load heavy dependencies (torch, numpy, sounddevice, faster_whisper)."""
+    global sd, np, torch, WhisperModel, HAS_SOUNDDEVICE
+    if np is not None:
+        return  # Already imported
+
+    import numpy as _np
+    np = _np
+
+    import torch as _torch
+    torch = _torch
+
+    from faster_whisper import WhisperModel as _WM
+    WhisperModel = _WM
+
+    try:
+        import sounddevice as _sd
+        sd = _sd
+        HAS_SOUNDDEVICE = True
+    except OSError:
+        HAS_SOUNDDEVICE = False
+        sd = None
 
 
 class WakeWordDetector:
@@ -54,6 +74,8 @@ class WakeWordDetector:
         """
         Initializes the Wake Word detector using Faster-Whisper.
         """
+        _ensure_heavy_imports()
+
         self.keyword = keyword.lower()
         self.variants = (
             [keyword.lower()] if not variants else [v.lower() for v in variants]

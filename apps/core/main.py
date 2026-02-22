@@ -1,16 +1,9 @@
 import os
 import logging
-import time
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-from dotenv import load_dotenv
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-from api.router import api_router
 from runtime import configure_logging, install_uvicorn_access_filter, patch_thread_start
-from startup import lifespan
 
 configure_logging()
 install_uvicorn_access_filter()
@@ -18,18 +11,31 @@ patch_thread_start()
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(lifespan=lifespan)
-load_dotenv()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def create_app():
+    from dotenv import load_dotenv
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+    from api.router import api_router
+    from startup import lifespan
 
-app.include_router(api_router)
+    load_dotenv()
+
+    application = FastAPI(lifespan=lifespan)
+
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    application.include_router(api_router)
+    return application
+
+
+app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
@@ -47,19 +53,8 @@ if __name__ == "__main__":
         port=port,
         reload=should_reload,
         loop="asyncio",
-        http="h11",
+        http="httptools",
         factory=False,
-        use_colors=not should_reload,
-        log_config=None,
-    )
-    uvicorn.run(
-        "main:app",
-        host=host,
-        port=port,
-        reload=should_reload,
-        loop="asyncio",
-        http="h11",
-        factory=True,
         use_colors=not should_reload,
         log_config=None,
     )

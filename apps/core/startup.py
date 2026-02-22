@@ -230,12 +230,21 @@ async def init_system_task() -> None:
                         app_state.main_loop,
                     )
 
-                if app_state.WakeWordDetector is None:
+                # Lazy import: WakeWordDetector pulls torch/numpy/whisper
+                try:
+                    from services.voice.detector import WakeWordDetector
+                except Exception as import_err:
+                    app_state.logger.warning(
+                        f"[startup] WakeWordDetector import failed (sounddevice missing?): {import_err}"
+                    )
+                    WakeWordDetector = None
+
+                if WakeWordDetector is None:
                     app_state.logger.warning(
                         "[startup] WakeWordDetector not available (sounddevice missing)"
                     )
                 else:
-                    app_state.ww = app_state.WakeWordDetector(
+                    app_state.ww = WakeWordDetector(
                         keyword="Luna",
                         callback=on_wake_word,
                         status_callback=on_voice_status,

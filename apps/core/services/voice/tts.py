@@ -1,13 +1,4 @@
 import warnings
-
-try:
-    import sounddevice as sd
-
-    HAS_SOUNDDEVICE = True
-except OSError:
-    HAS_SOUNDDEVICE = False
-
-import numpy as np
 import threading
 import time
 import logging
@@ -17,6 +8,11 @@ import io
 import os
 from typing import Optional, Any
 
+# Heavy imports deferred for faster startup
+sd = None
+np = None
+HAS_SOUNDDEVICE = None
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -24,14 +20,31 @@ warnings.filterwarnings("ignore", category=UserWarning)
 logger = logging.getLogger("momai.tts")
 
 ONNX_PROVIDER = "CPUExecutionProvider"
-try:
-    import onnxruntime
 
-    if "CUDAExecutionProvider" in onnxruntime.get_available_providers():
-        ONNX_PROVIDER = "CUDAExecutionProvider"
-        logger.info("[TTS] Using GPU acceleration for TTS")
-except Exception:
-    pass
+
+def _ensure_tts_imports():
+    """Lazy-load heavy TTS dependencies."""
+    global sd, np, HAS_SOUNDDEVICE, ONNX_PROVIDER
+    if np is not None:
+        return
+
+    import numpy as _np
+    np = _np
+
+    try:
+        import sounddevice as _sd
+        sd = _sd
+        HAS_SOUNDDEVICE = True
+    except OSError:
+        HAS_SOUNDDEVICE = False
+
+    try:
+        import onnxruntime
+        if "CUDAExecutionProvider" in onnxruntime.get_available_providers():
+            ONNX_PROVIDER = "CUDAExecutionProvider"
+            logger.info("[TTS] Using GPU acceleration for TTS")
+    except Exception:
+        pass
 
 LANG_CODE_MAP = {
     "p": "pt-br",
@@ -106,6 +119,7 @@ class TTSManager:
 
     def _initialize_kokoro(self):
         """Initializes the TTS pipeline using kokoro-onnx."""
+        _ensure_tts_imports()
         try:
             logger.info("[TTS] Loading Kokoro-ONNX...")
 

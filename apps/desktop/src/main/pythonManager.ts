@@ -94,7 +94,7 @@ function waitForPort(port: number, host: string, timeout = 60000): Promise<void>
       }
 
       const sock = createConnection(port, host)
-      sock.setTimeout(500) // Don't hang on connection attempt
+      sock.setTimeout(200) // Fast timeout for connection attempt
 
       const cleanup = () => {
         sock.removeAllListeners()
@@ -107,11 +107,11 @@ function waitForPort(port: number, host: string, timeout = 60000): Promise<void>
       })
       sock.on('error', () => {
         cleanup()
-        setTimeout(check, 1000)
+        setTimeout(check, 300) // Fast retry
       })
       sock.on('timeout', () => {
         cleanup()
-        setTimeout(check, 1000)
+        setTimeout(check, 300) // Fast retry
       })
     }
     check()
