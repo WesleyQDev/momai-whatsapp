@@ -1,37 +1,72 @@
 import warnings
+
 try:
     import sounddevice as sd
+
     HAS_SOUNDDEVICE = True
 except OSError:
     HAS_SOUNDDEVICE = False
-    
+
 import numpy as np
 import threading
 import time
 import logging
 import queue
+import asyncio
 import io
 import os
 from typing import Optional, Any
 
-# Disable Hugging Face network checks globally for faster, offline-first execution
-# os.environ["HF_HUB_OFFLINE"] = "1"
-os.environ["TOKENIZERS_PARALLELISM"] = "false" # Avoid warnings in multi-threaded env
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-# Suppress specific warnings for a cleaner output
-warnings.filterwarnings(
-    "ignore",
-    message="dropout option adds dropout after all but last recurrent layer",
-    category=UserWarning
-)
-warnings.filterwarnings(
-    "ignore",
-    message="`torch.nn.utils.weight_norm` is deprecated",
-    category=FutureWarning
-)
+warnings.filterwarnings("ignore", category=UserWarning)
 
-# Configure logger
 logger = logging.getLogger("momai.tts")
+
+ONNX_PROVIDER = "CPUExecutionProvider"
+try:
+    import onnxruntime
+
+    if "CUDAExecutionProvider" in onnxruntime.get_available_providers():
+        ONNX_PROVIDER = "CUDAExecutionProvider"
+        logger.info("[TTS] Using GPU acceleration for TTS")
+except Exception:
+    pass
+
+LANG_CODE_MAP = {
+    "p": "pt-br",
+    "a": "en-us",
+    "b": "en-gb",
+    "e": "es",
+    "i": "it",
+    "f": "fr",
+    "j": "ja",
+    "z": "zh",
+    "h": "hi",
+}
+
+VOICE_PREFIX_MAP = {
+    "pf": ("pt-br", "female"),
+    "pm": ("pt-br", "male"),
+    "af": ("en-us", "female"),
+    "am": ("en-us", "male"),
+    "bf": ("en-gb", "female"),
+    "bm": ("en-gb", "male"),
+    "ef": ("es", "female"),
+    "em": ("es", "male"),
+    "if": ("it", "female"),
+    "im": ("it", "male"),
+    "ff": ("fr", "female"),
+    "jf": ("ja", "female"),
+    "jm": ("ja", "male"),
+    "zf": ("zh", "female"),
+    "zm": ("zh", "male"),
+    "hf": ("hi", "female"),
+    "hm": ("hi", "male"),
+}
+
+DEFAULT_VOICE = "pf_dora"
+DEFAULT_LANG = "pt-br"
 
 
 class TTSManager:
@@ -47,8 +82,8 @@ class TTSManager:
             return
 
         self.initialized = True
-        self.voice = "pf_dora"  # Local voice (Portuguese Female)
-        self.lang_code = 'p'    # Local lang code (Portuguese)
+        self.voice = DEFAULT_VOICE
+        self.lang_code = DEFAULT_LANG
         self.enabled = True
         self.text_queue = queue.Queue()
         self.stop_event = threading.Event()
@@ -56,146 +91,193 @@ class TTSManager:
         self.has_tts = False
         self._error = None
 
-        # Session control to avoid race conditions
         self.session_id = 0
         self.state_lock = threading.Lock()
         self.start_lock = threading.Lock()
 
-        # Threads and instances
         self.worker_thread: Optional[threading.Thread] = None
         self.active_stream = None
-        self.pipeline = None
+        self.kokoro = None
         self._is_playing = False
         self.on_speech_start = None
         self.on_speech_stop = None
 
-        # Start initialization in background
         threading.Thread(target=self._initialize_kokoro, daemon=True).start()
 
     def _initialize_kokoro(self):
-        """Initializes the TTS pipeline in a background thread."""
+        """Initializes the TTS pipeline using kokoro-onnx."""
         try:
-            logger.info("[TTS] Loading local voice system (Kokoro)...")
-            
-            # Import here to avoid overhead if not used immediately
-            from kokoro import KPipeline
-            import torch
-            
-            # KPipeline handles downloading the model if repo_id is provided.
-            # We try to force offline first to respect privacy.
-            try:
-                # Attempt to load with offline mode enabled
-                os.environ["HF_HUB_OFFLINE"] = "1"
-                self.pipeline = KPipeline(lang_code=self.lang_code, repo_id='hexgrad/Kokoro-82M')
-            except BaseException:
-                # If it fails, it might be missing. Enable network temporarily to download.
-                logger.info("[TTS] Model 'Kokoro-82M' not found in cache or G2P missing. Enabling network for initial download...")
-                os.environ["HF_HUB_OFFLINE"] = "0"
+            logger.info("[TTS] Loading Kokoro-ONNX...")
+
+            from kokoro_onnx import Kokoro
+            import onnxruntime as ort
+
+            model_dir = os.path.join(os.path.dirname(__file__), "models")
+            os.makedirs(model_dir, exist_ok=True)
+
+            model_path = os.path.join(model_dir, "kokoro-v1.0.onnx")
+            voices_path = os.path.join(model_dir, "voices-v1.0.bin")
+
+            if not os.path.exists(model_path):
+                logger.info("[TTS] Downloading Kokoro model...")
                 try:
-                    self.pipeline = KPipeline(lang_code=self.lang_code, repo_id='hexgrad/Kokoro-82M')
-                except BaseException as e:
-                    logger.error(f"❌ [TTS] Critical error initializing Kokoro: {e}")
-                    self._error = str(e)
-                    self.has_tts = False
-            finally:
-                # Always return to offline mode after initialization
-                os.environ["HF_HUB_OFFLINE"] = "1"
-            
+                    from huggingface_hub import hf_hub_download
+
+                    model_path = hf_hub_download(
+                        repo_id="thewh1teagle/kokoro-onnx",
+                        filename="kokoro-v1.0.onnx",
+                        local_dir=model_dir,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[TTS] HF download failed: {e}, trying direct download..."
+                    )
+                    import urllib.request
+
+                    url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"
+                    urllib.request.urlretrieve(url, model_path)
+
+            if not os.path.exists(voices_path):
+                logger.info("[TTS] Downloading voices file...")
+                try:
+                    from huggingface_hub import hf_hub_download
+
+                    voices_path = hf_hub_download(
+                        repo_id="thewh1teagle/kokoro-onnx",
+                        filename="voices-v1.0.bin",
+                        local_dir=model_dir,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[TTS] HF download failed: {e}, trying direct download..."
+                    )
+                    import urllib.request
+
+                    url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
+                    urllib.request.urlretrieve(url, voices_path)
+
+            providers = [ONNX_PROVIDER]
+            if ONNX_PROVIDER == "CPUExecutionProvider":
+                providers.append("CPUExecutionProvider")
+
+            self.kokoro = Kokoro(model_path, voices_path)
+
             self.has_tts = True
             self.ready_event.set()
-            logger.info("✅ [TTS] Voice system ready!")
+            logger.info("✅ [TTS] Kokoro-ONNX ready!")
         except Exception as e:
             self._error = str(e)
             self.has_tts = False
-            self.ready_event.set()  # Unblock waiters even on error
-            logger.error(f"❌ [TTS] Error loading voice system: {e}")
+            self.ready_event.set()
+            logger.error(f"❌ [TTS] Error loading Kokoro-ONNX: {e}")
 
     def _speech_worker(self):
-        """Processes the speech queue, generating and playing audio using Kokoro."""
+        """Processes the speech queue, generating and playing audio using Kokoro-ONNX."""
         stream = None
         self.ready_event.wait()
 
         if self._error or not self.has_tts:
-            logger.warning(
-                f"[TTS] Worker stopping: system unavailable ({self._error})")
+            logger.warning(f"[TTS] Worker stopping: system unavailable ({self._error})")
             return
 
         try:
-            # Open sounddevice stream if available
             if HAS_SOUNDDEVICE:
                 try:
                     self.active_stream = sd.OutputStream(
                         samplerate=24000,
                         channels=1,
-                        dtype='float32',
+                        dtype="float32",
                     )
                     self.active_stream.start()
                     stream = self.active_stream
                 except Exception as e:
-                    logger.error(f"[TTS] Failed to open sounddevice stream: {e}. Falling back to frontend playback.")
+                    logger.error(
+                        f"[TTS] Failed to open sounddevice stream: {e}. Falling back to frontend playback."
+                    )
                     stream = None
             else:
-                logger.info("[TTS] Sounddevice not available. Using frontend playback fallback.")
+                logger.info(
+                    "[TTS] Sounddevice not available. Using frontend playback fallback."
+                )
                 stream = None
 
             while not self.stop_event.is_set():
                 try:
-                    # Get text from queue
                     text = self.text_queue.get(timeout=0.5)
                     if text is None:
                         break
 
-                    # Capture current session ID
                     with self.state_lock:
                         current_session_id = self.session_id
 
                     logger.debug(
-                        f"[TTS Work] Processing: {text[:30]}... (Session {current_session_id})")
+                        f"[TTS Work] Processing: {text[:30]}... (Session {current_session_id})"
+                    )
 
                     self._is_playing = True
                     if self.on_speech_start:
                         self.on_speech_start()
 
-                    # Generate and play chunks
-                    interrupted = False
-                    audio_generator = self.pipeline(text, voice=self.voice)
-                    for _, _, audio_chunk in audio_generator:
-                        if interrupted:
-                            break
-                        # Check if session changed OR stop event set
-                        with self.state_lock:
-                            if self.session_id != current_session_id or self.stop_event.is_set():
-                                interrupted = True
-                                break
+                    lang = LANG_CODE_MAP.get(self.lang_code, "en-us")
 
-                        if audio_chunk is not None:
-                            # Convert tensor to numpy float32
-                            samples = audio_chunk.numpy().astype(np.float32)
-                            
+                    audio_stream = self.kokoro.create_stream(
+                        text, voice=self.voice, speed=1.0, lang=lang
+                    )
+
+                    audio_played = False
+
+                    async def process_stream():
+                        nonlocal audio_played
+                        async for samples, sr in audio_stream:
+                            if samples is None or len(samples) == 0:
+                                continue
+
+                            with self.state_lock:
+                                if (
+                                    self.session_id != current_session_id
+                                    or self.stop_event.is_set()
+                                ):
+                                    break
+
+                            audio_float32 = samples.astype(np.float32)
+                            audio_played = True
+
                             if stream:
-                                # Write in small sub-chunks (~50ms each) for responsive interruption
-                                # 1200 samples at 24kHz = 50ms
                                 sub_chunk_size = 1200
                                 offset = 0
-                                while offset < len(samples):
+                                while offset < len(audio_float32):
                                     with self.state_lock:
-                                        if self.session_id != current_session_id or self.stop_event.is_set():
-                                            interrupted = True
+                                        if (
+                                            self.session_id != current_session_id
+                                            or self.stop_event.is_set()
+                                        ):
                                             break
-                                    end = min(offset + sub_chunk_size, len(samples))
+                                    end = min(offset + sub_chunk_size, len(audio_float32))
                                     try:
-                                        stream.write(samples[offset:end])
+                                        stream.write(audio_float32[offset:end])
                                     except Exception as e:
                                         logger.error(f"[TTS Stream] Write error: {e}")
-                                        interrupted = True
                                         break
                                     offset = end
                             else:
-                                # FRONTEND FALLBACK: Send audio samples via log
-                                # We send as base64 to avoid corrupting the log stream
                                 import base64
-                                audio_b64 = base64.b64encode(samples.tobytes()).decode('utf-8')
+
+                                audio_b64 = base64.b64encode(
+                                    audio_float32.tobytes()
+                                ).decode("utf-8")
                                 print(f"[AUDIO_CHUNK] {audio_b64}", flush=True)
+
+                    # Run the async generator in the worker's thread using a temporary loop or existing loop
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        loop.run_until_complete(process_stream())
+                        loop.close()
+                    except Exception as e:
+                        logger.error(f"[TTS Async Run] {e}")
+
+                    if not audio_played:
+                        logger.warning("[TTS] No audio generated")
 
                     self._is_playing = False
                     if self.on_speech_stop:
@@ -206,10 +288,10 @@ class TTSManager:
                 except Exception as e:
                     if not self.stop_event.is_set():
                         logger.error(f"[TTS Work Error] {e}")
-                        try:
-                            self.text_queue.task_done()
-                        except ValueError:
-                            pass
+                    try:
+                        self.text_queue.task_done()
+                    except ValueError:
+                        pass
         finally:
             if stream:
                 try:
@@ -229,39 +311,39 @@ class TTSManager:
     def start(self):
         """Starts the worker thread if necessary."""
         with self.start_lock:
-            # Check if we should wait for init
             if not self.ready_event.is_set():
                 logger.debug("[TTS] Waiting for initialization...")
                 if not self.ready_event.wait(timeout=10):
                     logger.error("[TTS] Initialization timeout")
                     return
 
-            # If thread exists and is alive, nothing to do
             if self.worker_thread is not None and self.worker_thread.is_alive():
                 return
 
-            # Always clear any previous thread reference to avoid reuse
             if self.worker_thread is not None:
-                logger.debug(f"[TTS] Cleaning up dead thread: {self.worker_thread.name}")
+                logger.debug(
+                    f"[TTS] Cleaning up dead thread: {self.worker_thread.name}"
+                )
                 self.worker_thread = None
 
-            # Create and start a fresh thread
             logger.info("[TTS] Starting new worker thread...")
             self.stop_event.clear()
-            
+
             new_thread = threading.Thread(
-                target=self._speech_worker, daemon=True, name=f"TTS-Worker-{id(self)}")
-            
+                target=self._speech_worker, daemon=True, name=f"TTS-Worker-{id(self)}"
+            )
+
             try:
-                # Start the thread first
                 new_thread.start()
-                
-                # Only assign to self.worker_thread after successful start
                 self.worker_thread = new_thread
                 logger.debug(f"[TTS] Thread started successfully: {new_thread.name}")
             except RuntimeError as e:
-                if "threads can only be started once" in str(e) or "started once" in str(e):
-                    logger.warning(f"[TTS] Thread start race condition intercepted: {e}")
+                if "threads can only be started once" in str(
+                    e
+                ) or "started once" in str(e):
+                    logger.warning(
+                        f"[TTS] Thread start race condition intercepted: {e}"
+                    )
                     self.worker_thread = new_thread
                 else:
                     logger.error(f"[TTS] Thread start failed: {e}")
@@ -273,26 +355,20 @@ class TTSManager:
         with self.state_lock:
             self.session_id += 1
 
-        # Use the same lock as start() to prevent race conditions
         with self.start_lock:
-            # Signal thread to stop
             self.stop_event.set()
 
-            # Abort active stream immediately for instant silence
             if self.active_stream:
                 try:
                     self.active_stream.abort_stream()
                 except:
                     pass
-            
-            # Wait for thread to finish
+
             if self.worker_thread and self.worker_thread.is_alive():
                 self.worker_thread.join(timeout=2)
-            
-            # Clear thread reference
+
             self.worker_thread = None
 
-        # Clear text queue
         try:
             while not self.text_queue.empty():
                 self.text_queue.get_nowait()
@@ -303,73 +379,42 @@ class TTSManager:
         logger.info("[TTS] Playback stopped and queue cleared.")
 
     def set_voice(self, voice_name: str):
-        """
-        Sets the voice for Kokoro.
-        Automatically updates lang_code based on voice prefix.
-        
-        Available PT-BR voices: pf_dora, pm_alex, pm_santa
-        Available US voices: af_heart, af_alloy, af_bella, am_adam, etc.
-        """
+        """Sets the voice for Kokoro-ONNX."""
         if not voice_name:
             return
 
-        # Legacy voices mapping (Edge TTS -> Kokoro)
         legacy_map = {
             "pt-BR-FranciscaNeural": "pf_dora",
             "pt-BR-AntonioNeural": "pm_alex",
             "en-US-JennyNeural": "af_heart",
-            "en-US-GuyNeural": "am_adam"
+            "en-US-GuyNeural": "am_adam",
         }
-        
+
         if voice_name in legacy_map:
-            logger.info(f"[TTS] Mapping legacy voice '{voice_name}' to '{legacy_map[voice_name]}'")
+            logger.info(
+                f"[TTS] Mapping legacy voice '{voice_name}' to '{legacy_map[voice_name]}'"
+            )
             voice_name = legacy_map[voice_name]
 
-        # Basic validation for Kokoro format (prefix_name)
         if "_" not in voice_name:
-            logger.warning(f"[TTS] Invalid voice format '{voice_name}'. Falling back to 'pf_dora'")
-            voice_name = "pf_dora"
+            logger.warning(
+                f"[TTS] Invalid voice format '{voice_name}'. Falling back to '{DEFAULT_VOICE}'"
+            )
+            voice_name = DEFAULT_VOICE
 
         self.voice = voice_name
-        
-        # Determine lang_code from voice prefix
-        # Examples: pf_dora -> p, af_heart -> a, bf_alice -> b, ef_dora -> e
+
         prefix = voice_name[:2]
-        new_lang = 'p' # Default
-        
-        lang_map = {
-            'af': 'a', 'am': 'a', # American English
-            'bf': 'b', 'bm': 'b', # British English
-            'pf': 'p', 'pm': 'p', # Portuguese
-            'ef': 'e', 'em': 'e', # Spanish
-            'jf': 'j', 'jm': 'j', # Japanese
-            'zf': 'z', 'zm': 'z', # Chinese
-            'ff': 'f',            # French
-            'hf': 'h', 'hm': 'h', # Hindi
-            'if': 'i', 'im': 'i', # Italian
-        }
-        
-        new_lang = lang_map.get(prefix, self.lang_code)
-        
-        if new_lang != self.lang_code:
-            logger.info(f"[TTS] Language changed to '{new_lang}' based on voice '{voice_name}'")
-            self.lang_code = new_lang
-            # Re-initialize pipeline for new language
-            if self.has_tts:
-                try:
-                    from kokoro import KPipeline
-                    # Try offline first
-                    os.environ["HF_HUB_OFFLINE"] = "1"
-                    self.pipeline = KPipeline(lang_code=self.lang_code, repo_id='hexgrad/Kokoro-82M')
-                except BaseException:
-                    try:
-                        logger.info(f"[TTS] Language model for '{new_lang}' might be missing. Enabling network for download...")
-                        os.environ["HF_HUB_OFFLINE"] = "0"
-                        self.pipeline = KPipeline(lang_code=self.lang_code, repo_id='hexgrad/Kokoro-82M')
-                    except BaseException as e:
-                        logger.error(f"[TTS] Failed to initialize pipeline for lang '{new_lang}': {e}")
-                finally:
-                    os.environ["HF_HUB_OFFLINE"] = "1"
+        if prefix in VOICE_PREFIX_MAP:
+            new_lang, _ = VOICE_PREFIX_MAP[prefix]
+            lang_code = next(
+                (k for k, v in LANG_CODE_MAP.items() if v == new_lang), "p"
+            )
+            if lang_code != self.lang_code:
+                logger.info(
+                    f"[TTS] Language changed to '{new_lang}' based on voice '{voice_name}'"
+                )
+                self.lang_code = lang_code
 
     def set_enabled(self, enabled: bool):
         """Enables or disables TTS."""
@@ -386,9 +431,7 @@ class TTSManager:
         if not self.enabled or not text.strip():
             return
 
-        # Auto-start worker if needed
         self.start()
-
         self.text_queue.put(text.strip())
 
     def wait_for_completion(self):
@@ -398,17 +441,14 @@ class TTSManager:
     def shutdown(self):
         """Graceful shutdown of the system."""
         self.stop_event.set()
-        self.text_queue.put(None)  # Sentinel
+        self.text_queue.put(None)
         if self.worker_thread:
             self.worker_thread.join(timeout=2)
             self.worker_thread = None
         logger.info("[TTS] System shut down.")
 
 
-# Global instance
 tts = TTSManager()
-
-# Compatibility Functions
 
 
 def start_workers():
@@ -433,7 +473,6 @@ async def speak_stream(text_stream):
     if isinstance(text_stream, str):
         tts.speak(text_stream)
     else:
-        # Handle async iterator if possible
         async for chunk in text_stream:
             if chunk:
                 tts.speak(chunk)
@@ -445,4 +484,3 @@ def wait_speech_complete():
 
 def shutdown():
     tts.shutdown()
-
