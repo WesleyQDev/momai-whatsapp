@@ -8,10 +8,19 @@ import json
 from pathlib import Path
 from datetime import datetime, timedelta
 
+
+def _get_base_dir():
+    env_path = os.environ.get("MOMAI_CORE_PATH")
+    if env_path:
+        return Path(env_path)
+    return Path(__file__).parent.parent
+
+
 # Settings
 LLAMA_VERSION = "b8082"  # Manual override (momentarily disabled updates)
 BASE_URL_TEMPLATE = "https://github.com/ggerganov/llama.cpp/releases/download/{version}"
-BIN_PATH = Path(__file__).parent.parent / "bin"
+BASE_DIR = _get_base_dir()
+BIN_PATH = BASE_DIR / "bin"
 
 # Cache settings
 CACHE_FILE = BIN_PATH / ".version_cache.json"

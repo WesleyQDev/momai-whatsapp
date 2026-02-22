@@ -500,6 +500,8 @@ export async function startPythonBackend(): Promise<void> {
 
     const { uvExe } = result
     const env = buildEnv(venvPath, dataDir, uvExe)
+    env.MOMAI_CORE_PATH = corePath
+    
     let stderrBuffer = ''
 
     setPythonStartTime(Date.now())

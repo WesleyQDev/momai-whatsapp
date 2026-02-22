@@ -1,4 +1,5 @@
 import asyncio
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
@@ -9,6 +10,14 @@ from api.deps import get_db
 from api.schemas import InstallRequest
 from database.models import Settings
 import utils.downloader as downloader
+
+
+def _get_base_dir():
+    env_path = os.environ.get("MOMAI_CORE_PATH")
+    if env_path:
+        return Path(env_path)
+    return Path(__file__).parent.parent.parent
+
 
 router = APIRouter()
 
@@ -22,7 +31,7 @@ async def get_setup_status(db: Session = Depends(get_db)):
         user_backend_pref = settings.local_backend if settings else "auto"
 
         engine_ok = downloader.check_engine_installed()
-        models_path = Path(__file__).parent.parent.parent / "models"
+        models_path = _get_base_dir() / "models"
         models_ok = any(models_path.glob("*.gguf"))
 
         install_info = downloader.get_installed_info()
@@ -48,7 +57,7 @@ async def get_setup_status(db: Session = Depends(get_db)):
             "installed_version": install_info.get("version") if install_info else None,
             "installed_build": install_info.get("build_type") if install_info else None,
             "installed_backends": installed_backends,
-            "current_local_backend": resolved_backend
+            "current_local_backend": resolved_backend,
         }
 
     return await asyncio.to_thread(_get_status)
@@ -62,18 +71,24 @@ async def install_engine(req: InstallRequest | None = None):
 
     def sync_report_progress(percent: int) -> None:
         asyncio.run_coroutine_threadsafe(
-            app_state.broadcast_to_sockets({
-                "type": "setup_progress",
-                "data": {"step": "download_engine", "percent": percent}
-            }),
-            loop
+            app_state.broadcast_to_sockets(
+                {
+                    "type": "setup_progress",
+                    "data": {"step": "download_engine", "percent": percent},
+                }
+            ),
+            loop,
         )
 
     try:
-        success = await asyncio.to_thread(downloader.setup_local_engine, sync_report_progress, forced)
+        success = await asyncio.to_thread(
+            downloader.setup_local_engine, sync_report_progress, forced
+        )
 
         if success:
-            await app_state.broadcast_to_sockets({"type": "setup_complete", "data": {"step": "download_engine"}})
+            await app_state.broadcast_to_sockets(
+                {"type": "setup_complete", "data": {"step": "download_engine"}}
+            )
             return {"status": "ok"}
         return {"status": "error", "message": "Falha no download ou instalacao"}
     except Exception as exc:
@@ -85,6 +100,7 @@ async def uninstall_engine(backend: str | None = None):
     """Remove o motor local."""
     try:
         from ai.providers.local_llama import stop_server
+
         stop_server()
     except Exception:
         pass

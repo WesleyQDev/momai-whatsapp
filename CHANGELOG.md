@@ -2,6 +2,18 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 0.4.3 - 2026-02-21
+Correção de Caminhos no Linux (AppImage)
+
+## 🐛 Correções
+- **Caminhos de Arquivos no AppImage (Linux):** Corrigido problema onde o aplicativo tentava escrever em caminhos somente-leitura dentro do AppImage. Agora o Electron passa o caminho do core via variável de ambiente `MOMAI_CORE_PATH`, permitindo que o Python use o diretório temporário correto para downloading de modelos ebinários.
+
+## 0.4.2 - 2026-02-21
+Correção de Fallback de Áudio
+
+## 🐛 Correções
+- **Sounddevice não encontrado em todos os módulos:** Corrigido erro `OSError: PortAudio library not found` que ainda ocorria em outros módulos de áudio. Adicionado fallback em `detector.py` e `quick_transcriber.py`, permitindo que o aplicativo inicie normalmente mesmo sem a biblioteca PortAudio instalada.
+
 ## 0.4.1 - 2026-02-21
 Correção de Dependência de Áudio
 
