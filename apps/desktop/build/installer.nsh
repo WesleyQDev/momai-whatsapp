@@ -83,7 +83,7 @@ Function MomAIClearDataPage
   Push 700
   Call MomAI_SetFont
 
-  ${NSD_CreateLabel} 0 25u 100% 50u "AVISO: MomAI esta em fase de teste.${CRLF}Se encontrar erros, considere reinstalar${CRLF}ou reporte o erro diretamente no site."
+  ${NSD_CreateLabel} 0 25u 100% 50u "AVISO: MomAI esta em fase de teste.$CRLFSe encontrar erros, considere reinstalar$CRLFOu reporte o erro diretamente no site."
   Pop $0
   Push $0
   Push 10
