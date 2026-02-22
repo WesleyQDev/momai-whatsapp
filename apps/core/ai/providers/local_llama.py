@@ -102,7 +102,7 @@ def get_paths():
     backend = "cpu"  # Default fallback
 
     if preferred_backend != "auto":
-        # Prioritize user preference even if not yet installed, 
+        # Prioritize user preference even if not yet installed,
         # so ensure_engine_installed can detect the absence and install it.
         backend = preferred_backend
     else:
@@ -112,12 +112,12 @@ def get_paths():
 
     exe_name = "llama-server.exe" if platform.system() == "Windows" else "llama-server"
     exe_path = base_dir / "bin" / backend / exe_name
-    
+
     # If the optimal backend is not installed, but another one IS installed,
-    # we should ideally download the optimal one. 
-    # But if we strictly want fallback when offline, we can check network or just 
+    # we should ideally download the optimal one.
+    # But if we strictly want fallback when offline, we can check network or just
     # rely on the download step which will fail correctly if offline.
-    # By removing the silent fallback loop here, 'auto' will actually trigger 
+    # By removing the silent fallback loop here, 'auto' will actually trigger
     # downloading the GPU engine if it detects a GPU but it's not installed yet.
     if preferred_backend == "auto" and not exe_path.exists():
         # Only fallback if NO network/can't install, but we do this gracefully in load_model
@@ -184,9 +184,23 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
             old_offline = os.environ.get("HF_HUB_OFFLINE")
             os.environ["HF_HUB_OFFLINE"] = "0"
             try:
-                model_path = hf_hub_download(
-                    repo_id=repo_id, filename=filename, local_dir=paths["models"]
-                )
+                # Try to use progress tracking if available
+                try:
+                    from huggingface_hub import hf_hub_download
+
+                    model_path = hf_hub_download(
+                        repo_id=repo_id,
+                        filename=filename,
+                        local_dir=paths["models"],
+                        progress_callback=lambda current, total: report(
+                            f"Downloading model: {current / 1024 / 1024:.1f}MB / {total / 1024 / 1024:.1f}MB"
+                        ),
+                    )
+                except TypeError:
+                    # Older huggingface_hub doesn't support progress_callback
+                    model_path = hf_hub_download(
+                        repo_id=repo_id, filename=filename, local_dir=paths["models"]
+                    )
                 report("Download successful!")
             finally:
                 # Restore offline mode
@@ -199,10 +213,12 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
         abs_exe_path = str(paths["exe"].resolve())
 
         if not paths["exe"].exists():
-            report(f"Local engine ({paths['backend']}) not found. Attempting auto-installation...")
+            report(
+                f"Local engine ({paths['backend']}) not found. Attempting auto-installation..."
+            )
             success = downloader.ensure_engine_installed(
                 progress_callback=lambda p: report(f"Downloading engine: {p}%"),
-                backend=paths["backend"]
+                backend=paths["backend"],
             )
             if not success:
                 report("ERROR: Failed to install llama-server!")

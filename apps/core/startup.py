@@ -40,25 +40,47 @@ async def init_system_task() -> None:
         # Inicia o motor de IA em paralelo
         app_state.orchestrator.initialize_llm(on_brain_init)
 
-        # 2. Carrega skills
-        app_state.extension_manager.load_all()
-        skill_count = len(app_state.extension_manager.get_all_skills())
-        await app_state.send_init_event(
-            "extensions", f"{skill_count} skills loaded", 45
-        )
+        # 2. Carrega skills em paralelo (thread separada)
+        def load_extensions():
+            try:
+                app_state.extension_manager.load_all()
+                skill_count = len(app_state.extension_manager.get_all_skills())
+                if app_state.main_loop:
+                    asyncio.run_coroutine_threadsafe(
+                        app_state.send_init_event(
+                            "extensions", f"{skill_count} skills loaded", 45
+                        ),
+                        app_state.main_loop,
+                    )
+            except Exception as e:
+                app_state.logger.warning(f"[startup] Extensions load error: {e}")
 
-        # Indexing tools and skills
-        try:
-            from utils.indexer import index_all_system_tools, index_all_skills
+        threading.Thread(target=load_extensions, daemon=True).start()
 
-            await app_state.send_init_event("brain", "Indexing tools...", 50)
-            await index_all_system_tools()
-            await app_state.send_init_event("brain", "Indexing skills...", 55)
-            await index_all_skills()
-        except Exception as exc:
-            app_state.logger.warning("[Main] Indexing error: %s", exc)
+        # 3. Indexing tools em paralelo
+        def index_tools():
+            try:
+                from utils.indexer import index_all_system_tools, index_all_skills
 
-        # 3. Apply settings
+                if app_state.main_loop:
+                    asyncio.run_coroutine_threadsafe(
+                        app_state.send_init_event("brain", "Indexing tools...", 50),
+                        app_state.main_loop,
+                    )
+                asyncio.run(index_all_system_tools())
+
+                if app_state.main_loop:
+                    asyncio.run_coroutine_threadsafe(
+                        app_state.send_init_event("brain", "Indexing skills...", 55),
+                        app_state.main_loop,
+                    )
+                asyncio.run(index_all_skills())
+            except Exception as exc:
+                app_state.logger.warning("[Main] Indexing error: %s", exc)
+
+        threading.Thread(target=index_tools, daemon=True).start()
+
+        # 4. Apply settings
         await app_state.send_init_event("brain", "Applying settings...", 65)
         app_state.tts.tts.set_voice(settings.tts_voice)
         app_state.tts.tts.set_enabled(settings.tts_enabled)
@@ -68,7 +90,7 @@ async def init_system_task() -> None:
         resource_manager.start()
         await app_state.send_init_event("extensions", "Resource monitor enabled", 70)
 
-        # 4. Checkpointer Setup
+        # 5. Checkpointer Setup
         try:
             from ai.orchestrator import AsyncSqliteSaver, CHECKPOINT_PATH
             import sqlite3
@@ -80,7 +102,6 @@ async def init_system_task() -> None:
             conn = sqlite3.connect(CHECKPOINT_PATH)
             conn.execute("PRAGMA journal_mode=WAL")
 
-            # Restore table creation logic
             def _get_columns(table_name: str) -> set[str]:
                 cols = set()
                 try:
@@ -154,69 +175,82 @@ async def init_system_task() -> None:
         except Exception as exc:
             app_state.logger.exception("[Main] Checkpointer Error: %s", exc)
 
-        # 5. Services
-        app_state.reminder_manager = app_state.ReminderManager(
-            broadcast_callback=app_state.broadcast_to_sockets,
-            tts_callback=app_state.tts.speak_sentence,
-        )
-        app_state.reminder_manager.start()
-
-        def on_wake_word(text: str) -> None:
-            if app_state.main_loop:
-                asyncio.run_coroutine_threadsafe(
-                    app_state.process_voice_command(text), app_state.main_loop
+        # 6. Services - iniciar em paralelo
+        def start_reminder_manager():
+            try:
+                app_state.reminder_manager = app_state.ReminderManager(
+                    broadcast_callback=app_state.broadcast_to_sockets,
+                    tts_callback=app_state.tts.speak_sentence,
                 )
+                app_state.reminder_manager.start()
+            except Exception as e:
+                app_state.logger.warning(f"[startup] Reminder manager error: {e}")
 
-        def on_voice_status(status: str) -> None:
-            if app_state.main_loop:
-                asyncio.run_coroutine_threadsafe(
-                    app_state.broadcast_to_sockets(
-                        {"type": "voice_status", "status": status}
-                    ),
-                    app_state.main_loop,
-                )
+        threading.Thread(target=start_reminder_manager, daemon=True).start()
 
-        def on_voice_partial(text: str) -> None:
-            if app_state.main_loop:
-                asyncio.run_coroutine_threadsafe(
-                    app_state.broadcast_to_sockets(
-                        {"type": "voice_partial", "text": text}
-                    ),
-                    app_state.main_loop,
-                )
+        # 7. Wake Word - iniciar em paralelo
+        def start_wake_word():
+            try:
 
-        def should_bypass_wake_word() -> bool:
-            state = app_state.get_graph_state()
-            return app_state.is_call_mode() or (
-                state["view"] is not None and state["bypass_wake_word"]
-            )
+                def on_wake_word(text: str) -> None:
+                    if app_state.main_loop:
+                        asyncio.run_coroutine_threadsafe(
+                            app_state.process_voice_command(text), app_state.main_loop
+                        )
 
-        await app_state.send_init_event("brain", "Starting voice detector...", 85)
+                def on_voice_status(status: str) -> None:
+                    if app_state.main_loop:
+                        asyncio.run_coroutine_threadsafe(
+                            app_state.broadcast_to_sockets(
+                                {"type": "voice_status", "status": status}
+                            ),
+                            app_state.main_loop,
+                        )
 
-        if app_state.WakeWordDetector is None:
-            logger.warning(
-                "[startup] WakeWordDetector not available (sounddevice missing)"
-            )
-        else:
-            app_state.ww = app_state.WakeWordDetector(
-                keyword="Luna",
-                callback=on_wake_word,
-                status_callback=on_voice_status,
-                partial_callback=on_voice_partial,
-                bypass_condition=should_bypass_wake_word,
-                variants=[
-                    "Luna",
-                    "Loona",
-                    "Luhna",
-                    "Lana",
-                    "Lonna",
-                    "Lona"
-                ],
-            )
-        if settings.wake_word_enabled and app_state.ww is not None:
-            app_state.ww.start()
+                def on_voice_partial(text: str) -> None:
+                    if app_state.main_loop:
+                        asyncio.run_coroutine_threadsafe(
+                            app_state.broadcast_to_sockets(
+                                {"type": "voice_partial", "text": text}
+                            ),
+                            app_state.main_loop,
+                        )
 
-        # 6. Final Sync - Aguarda o LLM e Voz apenas no final se necessário
+                def should_bypass_wake_word() -> bool:
+                    state = app_state.get_graph_state()
+                    return app_state.is_call_mode() or (
+                        state["view"] is not None and state["bypass_wake_word"]
+                    )
+
+                if app_state.main_loop:
+                    asyncio.run_coroutine_threadsafe(
+                        app_state.send_init_event(
+                            "brain", "Starting voice detector...", 85
+                        ),
+                        app_state.main_loop,
+                    )
+
+                if app_state.WakeWordDetector is None:
+                    app_state.logger.warning(
+                        "[startup] WakeWordDetector not available (sounddevice missing)"
+                    )
+                else:
+                    app_state.ww = app_state.WakeWordDetector(
+                        keyword="Luna",
+                        callback=on_wake_word,
+                        status_callback=on_voice_status,
+                        partial_callback=on_voice_partial,
+                        bypass_condition=should_bypass_wake_word,
+                        variants=["Luna", "Loona", "Luhna", "Lana", "Lonna", "Lona"],
+                    )
+                if settings.wake_word_enabled and app_state.ww is not None:
+                    app_state.ww.start()
+            except Exception as e:
+                app_state.logger.warning(f"[startup] Wake word error: {e}")
+
+        threading.Thread(target=start_wake_word, daemon=True).start()
+
+        # 8. Final Sync - Aguarda o LLM e Voz apenas no final se necessário
         await app_state.send_init_event("brain", "Finalizing brain connection...", 90)
         await asyncio.to_thread(
             app_state.orchestrator.llm_ready_event.wait, timeout=30.0
@@ -229,7 +263,7 @@ async def init_system_task() -> None:
         await app_state.send_init_event("ready", "System ready.", 100)
         app_state.system_ready.set()
 
-        # 7. Check Daily Briefing
+        # 9. Check Daily Briefing
         from services.system.briefing import check_and_run_daily_briefing
 
         asyncio.create_task(check_and_run_daily_briefing())
@@ -244,6 +278,7 @@ async def init_system_task() -> None:
 async def lifespan(app):
     app_state.main_loop = asyncio.get_running_loop()
 
+    # Start all initialization tasks in parallel
     asyncio.create_task(init_system_task())
     asyncio.create_task(app_state.broadcast_resource_usage())
 

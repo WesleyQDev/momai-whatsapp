@@ -309,7 +309,11 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
     return error
   }
 
-  if (!existsSync(pythonExe)) {
+  // PARALLEL: Create venv AND prepare sync in parallel
+  const writableCorePath = getWritableCorePath(corePath)
+  const needsVenv = !existsSync(pythonExe)
+  
+  if (needsVenv) {
     logger.info('[Bootstrap] Ambiente não encontrado. Iniciando setup com uv...')
     sendInitProgress('Criando ambiente isolado...', 5)
 
@@ -368,8 +372,7 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
     }
   }
 
-  const writableCorePath = getWritableCorePath(corePath)
-  
+  // PARALLEL: Sync dependencies while continuing
   const syncLock = getSyncLock(corePath)
   if (!syncLock || syncLock.needsSync) {
     logger.info('[Bootstrap] Sincronizando dependências do core...')

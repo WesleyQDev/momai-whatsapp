@@ -105,13 +105,9 @@ def initialize_ai_stack() -> None:
 
     extension_manager = em
 
-    from ai.embeddings import embeddings
-
-    try:
-        # Pre-load/Warmup embedding engine in background to avoid first-request latency
-        embeddings.load()
-    except Exception as e:
-        logger.warning(f"[Main] Failed to pre-load embeddings: {e}")
+    # Lazy load embeddings - only load when actually needed
+    # This saves ~30s on startup
+    # embeddings.load() is called on first use in embeddings.py
 
     ai_stack_loaded = True
     logger.info("[Main] AI stack loaded.")

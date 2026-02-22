@@ -310,7 +310,7 @@ export default function SplashScreen({
           <div className="flex flex-col gap-4 max-w-md">
             <div className="flex justify-between items-end text-[10px] font-bold tracking-[0.15em] uppercase text-text/30">
               <span className={bootstrapError ? 'text-red-400' : localIsStalled ? 'text-yellow-400' : localIsRetrying ? 'text-blue-400' : 'text-accent/80'}>
-                {bootstrapError ? 'Error' : localIsRetrying ? 'Reiniciando...' : localIsStalled ? 'Isso está demorando mais que o normal...' : initMessage || 'Loading...'}
+                {bootstrapError ? 'Error' : localIsRetrying ? 'Reiniciando...' : localIsStalled ? 'Isso está demorando mais que o normal (Aguarde mais um pouco)...' : initMessage || 'Loading...'}
               </span>
               <span className="font-mono opacity-60">{elapsedTime}s</span>
             </div>

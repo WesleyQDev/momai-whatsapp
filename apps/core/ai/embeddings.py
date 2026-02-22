@@ -62,7 +62,9 @@ class EmbeddingEngine:
             hw_info = get_hardware_info()
             backend = hw_info.get("backend", "cpu")
 
-        exe_name = "llama-server.exe" if platform.system() == "Windows" else "llama-server"
+        exe_name = (
+            "llama-server.exe" if platform.system() == "Windows" else "llama-server"
+        )
         exe_path = BASE_DIR / "bin" / backend / exe_name
 
         return {"exe": str(exe_path), "models": str(BASE_DIR / "models")}
@@ -78,9 +80,21 @@ class EmbeddingEngine:
             old_offline = os.environ.get("HF_HUB_OFFLINE")
             os.environ["HF_HUB_OFFLINE"] = "0"
             try:
-                hf_hub_download(
-                    repo_id=MODEL_REPO, filename=MODEL_FILE, local_dir=MODELS_DIR
-                )
+                # Try to use progress tracking if available
+                try:
+                    hf_hub_download(
+                        repo_id=MODEL_REPO,
+                        filename=MODEL_FILE,
+                        local_dir=MODELS_DIR,
+                        progress_callback=lambda current, total: print(
+                            f"[Embeddings] Download: {current / 1024 / 1024:.1f}MB / {total / 1024 / 1024:.1f}MB"
+                        ),
+                    )
+                except TypeError:
+                    # Older huggingface_hub doesn't support progress_callback
+                    hf_hub_download(
+                        repo_id=MODEL_REPO, filename=MODEL_FILE, local_dir=MODELS_DIR
+                    )
             finally:
                 # Restore offline mode
                 if old_offline is not None:
