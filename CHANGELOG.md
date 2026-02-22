@@ -2,11 +2,11 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
-## 0.4.3 - 2026-02-21
-Correção de Caminhos no Linux (AppImage)
+## 0.4.4 - 2026-02-21
+Correção de Caminho do Core no Linux
 
 ## 🐛 Correções
-- **Caminhos de Arquivos no AppImage (Linux):** Corrigido problema onde o aplicativo tentava escrever em caminhos somente-leitura dentro do AppImage. Agora o Electron passa o caminho do core via variável de ambiente `MOMAI_CORE_PATH`, permitindo que o Python use o diretório temporário correto para downloading de modelos ebinários.
+- **Caminho do Core não era passado corretamente:** Corrigido bug onde o Electron copiava o core para um diretório temporário gravável, mas ainda passava o caminho original (somente-leitura) ao iniciar o Python. Agora o `MOMAI_CORE_PATH` aponta para o diretório correto.
 
 ## 0.4.2 - 2026-02-21
 Correção de Fallback de Áudio

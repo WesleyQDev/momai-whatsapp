@@ -368,12 +368,12 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
     }
   }
 
+  const writableCorePath = getWritableCorePath(corePath)
+  
   const syncLock = getSyncLock(corePath)
   if (!syncLock || syncLock.needsSync) {
     logger.info('[Bootstrap] Sincronizando dependências do core...')
     sendInitProgress('Instalando dependências...', 15)
-
-    const writableCorePath = getWritableCorePath(corePath)
 
     try {
       const installArgs = ['pip', 'install', '--no-progress']
@@ -435,7 +435,7 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
     logger.info('[Bootstrap] Sincronização ignorada (verificado recentemente).')
   }
 
-  return { pythonExe, corePath, uvExe, venvPath }
+  return { pythonExe, corePath: writableCorePath, uvExe, venvPath }
 }
 
 function buildEnv(venvPath: string, dataDir: string, uvExe: string) {
