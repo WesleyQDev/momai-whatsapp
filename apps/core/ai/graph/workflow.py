@@ -224,12 +224,13 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
             "1. FIRST, check if the answer is already in the # CONTEÚDO DAS NOTAS DO USUÁRIO or # EXTERNAL MEMORY provided above.\n"
             "2. IF YOU HAVE THE ANSWER, you can respond directly without calling any tool.\n"
             "3. IF the user wants to schedule, view or delete a reminder/alarm, use the reminder tools directly (create_reminder etc).\n"
-            "4. OTHERWISE, call 'activate_skill(skill_id, task_description)' for the FIRST step.\n"
-            "5. MANDATORY: DO NOT NARRATE. Do not say what you will do. If you need a tool, just call it.\n"
-            "6. Your output must be ONLY the tool call or ONLY the final answer.\n"
-            "7. After each skill finishes, you will receive the result and can call ANOTHER skill if needed.\n"
-            "8. ONLY provide the final response to the user after you have gathered all necessary information.\n"
-            "9. NEVER invent personal data. If no skill matches and it's not in your memory, say you don't have access."
+            "4. IF the user wants to search the internet, use web_search or news_search DIRECTLY. Do NOT delegate to the websearch skill.\n"
+            "5. OTHERWISE, call 'activate_skill(skill_id, task_description)' for skills not listed above.\n"
+            "6. MANDATORY: DO NOT NARRATE. Do not say what you will do. If you need a tool, just call it.\n"
+            "7. Your output must be ONLY the tool call or ONLY the final answer.\n"
+            "8. After each skill finishes, you will receive the result and can call ANOTHER skill if needed.\n"
+            "9. ONLY provide the final response to the user after you have gathered all necessary information.\n"
+            "10. NEVER invent personal data. If no skill matches and it's not in your memory, say you don't have access."
         )
 
         from langchain_core.tools import tool
@@ -241,7 +242,11 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
 
         manager_tools = [activate_skill]
         all_reg = get_all_tools_registry()
-        for t_name in ["show_interface", "close_interface", "create_reminder", "list_reminders", "delete_reminder"]:
+        for t_name in [
+            "show_interface", "close_interface",
+            "create_reminder", "list_reminders", "delete_reminder",
+            "web_search", "news_search",
+        ]:
             if all_reg.get(t_name):
                 manager_tools.append(all_reg[t_name])
 
@@ -250,6 +255,8 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
             "search": 3,
             "duckduckgo_search": 3,
             "duckduckgo_news": 3,
+            "web_search": 3,
+            "news_search": 3,
             "default": 10
         }
         
@@ -350,6 +357,8 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
             "search": 3,
             "duckduckgo_search": 3,
             "duckduckgo_news": 3,
+            "web_search": 3,
+            "news_search": 3,
             "default": 10
         }
         
@@ -412,13 +421,15 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
             ],
             "skill_id": None,
             "task": None,
+            "tool_results": None,
         }
 
     def search_counter_node(state: AgentState):
         """Extract search count from tool_usage and emit for UI."""
         usage = state.get("tool_usage", {}) or {}
         # Sum all search-related tool calls
-        count = usage.get("search", 0) + usage.get("duckduckgo_search", 0) + usage.get("duckduckgo_news", 0)
+        count = (usage.get("search", 0) + usage.get("duckduckgo_search", 0) + usage.get("duckduckgo_news", 0)
+                 + usage.get("web_search", 0) + usage.get("news_search", 0))
         
         if count > 0:
             log_event("SearchCount", f"Total searches: {count}")
@@ -546,11 +557,16 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
 
     def prepare_tool_results(state: AgentState):
         """Convert ToolMessage results to format for specialist."""
-        tool_results = []
-        for msg in state["messages"]:
+        new_results = []
+        for msg in reversed(state["messages"]):
             if isinstance(msg, ToolMessage):
-                tool_results.append(msg.content)
-        return {"tool_results": tool_results, "next_step": None}
+                new_results.insert(0, msg.content)
+            else:
+                break
+                
+        existing = state.get("tool_results") or []
+        existing.extend(new_results)
+        return {"tool_results": existing, "next_step": None}
 
     workflow = StateGraph(AgentState)
     workflow.add_node("router", discovery_router)
@@ -592,6 +608,9 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
 
     def route_extract_sources(state: AgentState):
         """Route after source extraction: back to specialist if they still have tools to call, else back to manager."""
+        if state.get("skill_id"):
+            return "specialist_worker"
+            
         last_msg = state["messages"][-1]
         # If the last worker response has tool calls, we must go back to tools (via specialist)
         if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
@@ -601,8 +620,8 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
         return "momai_agent"
 
     def route_search_counter(state: AgentState):
-        """After search counter, go back to manager to see if more steps are needed."""
-        return "momai_agent"
+        """After search counter, the specialist has answered, so we finish."""
+        return END
 
     workflow.add_conditional_edges("momai_agent", route_manager)
     workflow.add_conditional_edges("specialist_worker", route_specialist)

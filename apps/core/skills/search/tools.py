@@ -1,9 +1,20 @@
+import asyncio
 from ddgs import DDGS
 from langchain_core.tools import tool
 
 
+def _sync_web_search(query: str, max_results: int = 3):
+    """Sync wrapper for DDGS text search."""
+    return DDGS(timeout=3).text(query, max_results=max_results)
+
+
+def _sync_news_search(query: str, max_results: int = 3):
+    """Sync wrapper for DDGS news search."""
+    return DDGS(timeout=3).news(query, max_results=max_results)
+
+
 @tool
-def web_search(query: str) -> str:
+async def web_search(query: str) -> str:
     """
     Search the internet for real-time information.
 
@@ -14,8 +25,7 @@ def web_search(query: str) -> str:
         A string with search results or a dict with result + extras.
     """
     try:
-        with DDGS(timeout=5) as ddgs:
-            results = ddgs.text(query, max_results=3)
+        results = await asyncio.to_thread(_sync_web_search, query)
 
         if not results:
             return {"result": "No results found.", "extras": None}
@@ -39,7 +49,7 @@ def web_search(query: str) -> str:
 
 
 @tool
-def news_search(query: str) -> str:
+async def news_search(query: str) -> str:
     """
     Search for recent news and current events.
 
@@ -50,8 +60,7 @@ def news_search(query: str) -> str:
         A string with news results or a dict with result + extras.
     """
     try:
-        with DDGS(timeout=5) as ddgs:
-            results = ddgs.news(query, max_results=3)
+        results = await asyncio.to_thread(_sync_news_search, query)
 
         if not results:
             return {"result": "No news found.", "extras": None}
@@ -87,3 +96,4 @@ def news_search(query: str) -> str:
         }
     except Exception as e:
         return {"result": f"News search error: {str(e)}", "extras": None}
+
