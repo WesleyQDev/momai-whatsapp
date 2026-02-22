@@ -2,6 +2,19 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 0.5.0 - 2026-02-22
+Sistema de Chat Avançado, TTS e Workflows de IA
+
+## ✨ Melhorias
+- **Sistema de Chat Completo:** Implementado sistema de chat dedicado com API REST, componentes de UI e hooks de gerenciamento de estado. Inclui suporte a histórico de conversas, interações por voz e integração com grafos de IA.
+- **Hook useChat:** Novo hook React para gerenciamento abrangente de estado de chat e API, incluindo histórico, voz e interações com grafo.
+- **Workflow de IA com LangGraph:** Implementado novo fluxo de trabalho de IA usando LangGraph para descoberta de skills, integração de memória e orquestração de ferramentas.
+- **Text-to-Speech (TTS) com Kokoro-ONNX:** Novo serviço de síntese de voz usando Kokoro-ONNX para geração de áudio e sounddevice para reprodução.
+- **Núcleo Desktop Melhorado:** Aprimoramentos no gerenciamento de janelas, UI e capacidades de processamento de voz.
+- **Página de Doações:** Adicionada nova página com link para apoiar o projeto.
+- **Melhorias de Bootstrap:** Adicionada animação de carregamento no container de chat e processamento paralelo aprimorado durante a configuração do ambiente Python.
+- **Tratamento de Erros Aprimorado:** Melhorado o tratamento de erros e relatório de status no backend Python.
+
 ## 0.4.4 - 2026-02-21
 Correção de Caminho do Core no Linux
 
