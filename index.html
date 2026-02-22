@@ -236,6 +236,12 @@
                 const span = el.querySelector('span:not(.version-badge)');
                 if (span) span.textContent = 'Download';
             });
+
+            const winBtn = document.getElementById('winDownloadBtn');
+            if (winBtn) winBtn.href = winUrl;
+
+            const linuxBtn = document.getElementById('linuxDownloadBtn');
+            if (linuxBtn) linuxBtn.href = linuxUrl;
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -412,7 +418,7 @@
                     
                     <div class="platform-list">
                         <!-- Windows -->
-                        <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" class="platform-btn">
+                        <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" id="winDownloadBtn" class="platform-btn">
                             <div class="platform-info">
                                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1V11.724H0V3.449ZM0 12.333H9.75V21.9L0 20.55V12.333ZM10.709 1.956L24 0V11.724H10.709V1.956ZM10.709 12.333H24V24L10.709 22.044V12.333Z"/></svg>
                                 <span class="platform-name">Windows</span>
@@ -421,7 +427,7 @@
                         </a>
 
                         <!-- Linux -->
-                        <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" class="platform-btn">
+                        <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" id="linuxDownloadBtn" class="platform-btn">
                             <div class="platform-info">
                                 <svg viewBox="0 0 128 128"><path d="M64 6.75c-15.34 0-27.78 12.44-27.78 27.78 0 4.14 1 8.04 2.75 11.53-7.53 5.44-12.42 14.31-12.42 24.31 0 11.85 6.84 22.1 16.81 26.88-1.56 1.44-2.56 3.47-2.56 5.75 0 4.28 3.47 7.75 7.75 7.75h30.89c4.28 0 7.75-3.47 7.75-7.75 0-2.28-1-4.31-2.56-5.75 9.97-4.78 16.81-15.03 16.81-26.88 0-10-4.89-18.87-12.42-24.31 1.75-3.49 2.75-7.39 2.75-11.53 0-15.34-12.44-27.78-27.78-27.78z" fill="#333"/><path d="M64 121.25c15.34 0 27.78-12.44 27.78-27.78 0-4.14-1-8.04-2.75-11.53 7.53-5.44 12.42-14.31 12.42-24.31 0-11.85-6.84-22.1-16.81-26.88 1.56-1.44 2.56-3.47 2.56-5.75 0-4.28-3.47-7.75-7.75-7.75H48.56c-4.28 0-7.75 3.47-7.75 7.75 0 2.28 1 4.31 2.56 5.75-9.97 4.78-16.81 15.03-16.81 26.88 0 10 4.89 18.87 12.42 24.31-1.75 3.49-2.75 7.39-2.75 11.53 0 15.34 12.44 27.78 27.78 27.78z" fill="#f5f5f5"/><path d="M78 45c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6 6 2.69 6 6zM56 45c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6 6 2.69 6 6z" fill="#333"/><path d="M48.5 78.5c0 8.56 6.94 15.5 15.5 15.5s15.5-6.94 15.5-15.5H48.5z" fill="#ff9800"/></svg>
                                 <span class="platform-name">Linux</span>
