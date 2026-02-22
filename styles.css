@@ -292,6 +292,31 @@ nav {
   color: var(--text);
 }
 
+@keyframes pulse-lilac {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(197, 138, 249, 0.7);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px 5px rgba(197, 138, 249, 0.4);
+  }
+}
+
+.nav-links a.donate-link {
+  color: #c58af9;
+  font-weight: 500;
+  animation: pulse-lilac 2s ease-in-out infinite;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  background: rgba(197, 138, 249, 0.15);
+}
+
+.nav-links a.donate-link:hover {
+  color: #c58af9;
+  background: rgba(197, 138, 249, 0.25);
+}
+
 .nav-right {
   display: flex;
   align-items: center;

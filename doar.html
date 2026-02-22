@@ -3,142 +3,185 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reportar Erro — MomAI</title>
-    <meta name="description" content="Reportar um erro encontrado na MomAI. Ajude-nos a melhorar a experiência.">
+    <title>Doar — MomAI</title>
+    <meta name="description" content="Apoie o projeto MomAI - Uma assistente de IA 100% privada e gratuita.">
     <link rel="icon" type="image/png" href="icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,slnt,wdth,wght,ROND@8..144,-10..0,25..150,400..500,0..100&family=Google+Sans+Text:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <style>
-        .form-section {
-            min-height: calc(100vh - 200px);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 6rem 2rem;
-            max-width: 600px;
-            margin: 0 auto;
+        @keyframes pulse-lilac {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(197, 138, 249, 0.7);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 0 20px 5px rgba(197, 138, 249, 0.4);
+            }
         }
-        
-        .form-section h1 {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
+
+        .nav-links a.donate-link {
+            color: #c58af9;
+            font-weight: 500;
+            animation: pulse-lilac 2s ease-in-out infinite;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            background: rgba(197, 138, 249, 0.15);
+        }
+
+        .nav-links a.donate-link:hover {
+            color: #c58af9;
+            background: rgba(197, 138, 249, 0.25);
+        }
+
+        .donate-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 6rem 2rem 4rem;
             text-align: center;
-            background: var(--gradient-primary);
+        }
+
+        .donate-header {
+            margin-bottom: 3rem;
+        }
+
+        .donate-header h1 {
+            font-family: 'Google Sans Flex', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 400;
+            letter-spacing: -1px;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #c58af9 0%, #f981d3 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        
-        .form-section .subtitle {
-            text-align: center;
-            margin-bottom: 2rem;
+
+        .donate-header p {
             color: var(--text-secondary);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.7;
         }
-        
-        .error-form {
-            width: 100%;
-            background: var(--card-bg);
-            border-radius: 16px;
-            padding: 2rem;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--border-color);
-            backdrop-filter: blur(10px);
+
+        .heart-icon {
+            display: inline-block;
+            animation: heartbeat 1.5s ease-in-out infinite;
+            margin-bottom: 1rem;
         }
-        
-        [data-theme="light"] .error-form {
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--border-color);
+
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            15% { transform: scale(1.2); }
+            30% { transform: scale(1); }
+            45% { transform: scale(1.15); }
+            60% { transform: scale(1); }
         }
-        
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-            color: var(--text);
-        }
-        
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
+
+        .pix-card {
             background: var(--bg-tertiary);
-            color: var(--text);
-            font-size: 1rem;
-            font-family: inherit;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            border-radius: 20px;
+            padding: 2.5rem;
+            border: 1px solid var(--feature-border);
+            margin-top: 2rem;
         }
-        
-        .form-group input:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-glow);
+
+        .nubank-logo-small {
+            height: 18px;
+            width: auto;
+            margin-right: 8px;
+            vertical-align: middle;
         }
-        
-        .form-group textarea {
-            min-height: 150px;
-            resize: vertical;
-        }
-        
-        .form-group input::placeholder,
-        .form-group textarea::placeholder {
-            color: var(--text-tertiary);
-        }
-        
-        .submit-btn {
-            width: 100%;
-            padding: 1rem;
-            background: #ffffff;
-            color: #000000;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
+
+        .pix-card h2 {
+            font-size: 1.3rem;
             font-weight: 500;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 1.5rem;
+            color: var(--text);
         }
-        
-        [data-theme="light"] .submit-btn {
-            background: var(--accent);
-            color: #ffffff;
+
+        .pix-info {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            text-align: left;
         }
-        
-        .submit-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px var(--accent-glow);
-        }
-        
-        .submit-btn:active {
-            transform: translateY(0);
-        }
-        
-        .form-note {
-            margin-top: 1rem;
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-            text-align: center;
-        }
-        
-        .form-examples {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            text-align: center;
-            margin-bottom: 2rem;
-            padding: 0.75rem 1rem;
-            background: var(--accent-glow);
-            border-radius: 8px;
+
+        .pix-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 12px;
             border: 1px solid var(--border-color);
+        }
+
+        .pix-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .pix-value {
+            font-weight: 500;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .copy-btn {
+            background: linear-gradient(135deg, #c58af9 0%, #9333ea 100%);
+            color: white;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .copy-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(147, 51, 234, 0.4);
+        }
+
+        .copy-btn.copied {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        }
+
+        .pix-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.7;
+            margin-top: 1.5rem;
+            text-align: left;
+        }
+
+        .thank-you {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, rgba(197, 138, 249, 0.1) 0%, rgba(249, 129, 211, 0.1) 100%);
+            border-radius: 12px;
+            border: 1px solid rgba(197, 138, 249, 0.2);
+        }
+
+        .thank-you p {
+            margin-top: 0;
+            color: var(--text);
+            font-weight: 500;
+            text-align: center;
         }
     </style>
 </head>
-<body>
+<body> 
 
     <!-- Background Effects -->
     <div class="bg-effects">
@@ -149,7 +192,6 @@
     </div>
 
     <script>
-        // Generate stars like Sailor Moon
         const bgStars = document.getElementById('bgStars');
         const starCount = 80;
         
@@ -192,7 +234,7 @@
                 <li><a href="blog.html">Blog</a></li>
                 <li><a href="changelog.html">Changelog</a></li>
                 <li><a href="contato.html">Contato</a></li>
-<li><a href="form.html">Reportar Erro</a></li>
+                <li><a href="form.html">Reportar Erro</a></li>
                 <li><a href="doar.html" class="donate-link">Doar</a></li>
             </ul>
         </div>
@@ -225,7 +267,6 @@
     </nav>
 
     <script>
-        // Theme Toggle
         const themeToggle = document.getElementById('themeToggle');
         const html = document.documentElement;
         
@@ -259,7 +300,6 @@
             });
         });
 
-        // --- OS Detection ---
         function detectPlatform() {
             const ua = navigator.userAgent.toLowerCase();
             const platform = (navigator.platform || '').toLowerCase();
@@ -332,14 +372,9 @@
 
         function applyDownloadUrls(winUrl, linuxUrl, os, version) {
             displayVersion(version);
-
             const primaryUrl = os === 'linux' ? linuxUrl : winUrl;
-            
-            // Navbar download buttons remain minimalist
             document.querySelectorAll('nav .btn-download').forEach(el => {
                 el.href = primaryUrl;
-                const span = el.querySelector('span:not(.version-badge)');
-                if (span) span.textContent = 'Download';
             });
         }
 
@@ -348,31 +383,73 @@
         });
     </script>
 
-    <!-- Form Section -->
-    <section class="form-section">
-        <h1>Reportar Erro</h1>
-        <p class="subtitle">Reportando o problema</p>
-        <p class="form-examples">Exemplos: problemas ao iniciar a MomAI, erros de download, falhas na execução, comportamentos inesperados, lentidão, travamentos, etc.</p>
-        
-        <form class="error-form" action="https://formsubmit.co/wesleyqueirozdeveloper@gmail.com" method="POST">
-            <input type="hidden" name="_subject" value="Novo relatório de erro - MomAI">
-            <input type="hidden" name="_captcha" value="false">
-            
-            <div class="form-group">
-                <label for="titulo">Título</label>
-                <input type="text" id="titulo" name="titulo" placeholder="Ex: Problema ao iniciar a aplicação" required>
+    <!-- Donate Content -->
+    <div class="donate-container">
+        <div class="donate-header">
+            <div class="heart-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="#f981d3">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                </svg>
             </div>
+            <h1>Apoie o Projeto MomAI</h1>
+            <p>A MomAI não é o produto de uma grande empresa, mas sim o esforço de uma única pessoa dedicada a criar uma alternativa de IA 100% privada, gratuita e acessível para todos.</p>
+        </div>
+
+        <div class="pix-card">
+            <h2>❤️ Um café para o desenvolvedor?</h2>
             
-            <div class="form-group">
-                <label for="descricao">Descrição</label>
-                <textarea id="descricao" name="descricao" placeholder="Descreva o erro detalhadamente: o que aconteceu, quando aconteceu, quais etapas você seguiu, etc." required></textarea>
+            <div class="pix-info">
+                <div class="pix-row">
+                    <span class="pix-label">Chave (E-mail)</span>
+                    <span class="pix-value">
+                        wesleyqueirozdeveloper@gmail.com
+                        <button class="copy-btn" onclick="copyPix()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            <span>Copiar</span>
+                        </button>
+                    </span>
+                </div>
+                <div class="pix-row">
+                    <span class="pix-label">Favorecido</span>
+                    <span class="pix-value">
+                        <svg class="nubank-logo-small" viewBox="0 0 263.84207 145.56737" width="24" height="14">
+                            <path d="M 47.627598,13.88565 C 55.970918,5.12022 67.038188,0 80.040158,0 c 25.329302,0 42.122862,18.49361 45.335812,46.19831 1.04173,8.99702 1.03217,21.68146 1.02172,36.37338 -0.002,1.50662 -0.002,3.03464 -0.002,4.58175 v 55.03839 H 91.563068 v -40.70812 c 0,0 -0.071,-34.84036 -0.28386,-41.3518 -0.93482,-28.35945 -17.72383,-46.17911 -43.65497,-46.19826 -7.8236,8.26577 -12.01559,18.3721 -12.63381,33.82498 -0.085,2.15531 -0.0636,9.79491 -0.0354,19.86367 0.0146,5.2168 0.031,11.08592 0.0354,17.18204 0.0258,26.53388 0,57.39341 0,57.39341 H 0.15770145 V 79.54842 c 0,-2.14668 -0.03915,-4.31155 -0.07839,-6.48506 -0.0789999971,-4.37205 -0.158626,-8.77775 0.07839,-13.14025 C 0.55125245,52.65062 1.8093225,45.5014 5.2028685,38.85995 12.970658,23.64481 28.886888,13.84835 45.854848,13.84835 c 0.59274,0 1.18593,0.0137 1.77275,0.0364 z" fill="#820ad1"/>
+                            <path d="m 263.68433,85.64499 c 0.237,-4.36249 0.15739,-8.76866 0.0787,-13.14025 -0.0396,-2.17351 -0.0787,-4.33838 -0.0787,-6.48505 V 3.37022 h -34.83218 c 0,0 -0.026,30.85953 0,57.39309 0.004,6.09612 0.0205,11.96479 0.035,17.18159 0.0282,10.06921 0.0496,17.70881 -0.035,19.86413 -0.61821,15.45342 -4.81056,25.55948 -12.63394,33.82548 -25.93069,-0.0182 -42.71923,-17.83938 -43.65451,-46.19832 -0.2129,-6.51144 -0.30297,-22.66995 -0.30297,-41.38451 V 3.34361 l -34.80669,0.0318 v 55.03852 c 0,1.54712 -0.002,3.07468 -0.002,4.58176 -0.011,14.69191 -0.02,27.3759 1.0217,36.37338 3.20615,27.70479 19.9997,46.1983 45.329,46.1983 13.00242,0 24.06969,-5.12035 32.41301,-13.88582 0.58637,0.0227 1.17911,0.0364 1.77184,0.0364 16.96778,0 32.88429,-9.79628 40.65217,-25.01133 3.39355,-6.642 4.65135,-13.79076 5.04484,-21.06325 z" fill="#820ad1"/>
+                        </svg>
+                        Wesley Queiroz
+                    </span>
+                </div>
             </div>
+
+            <p>Cada linha de código, cada atualização da Luna e cada suporte oferecido são feitos de forma independente. Como não há assinaturas nem venda de dados, o projeto cresce no ritmo do apoio de quem o utiliza.</p>
             
-            <button type="submit" class="submit-btn">Enviar Relatório</button>
-            
-            <p class="form-note">Após enviar, você receberá uma confirmação no email fornecido.</p>
-        </form>
-    </section>
+            <p>Toda doação, não importa o valor, é imensamente bem-vinda. Ela ajuda a cobrir os custos de desenvolvimento e, principalmente, motiva o projeto a continuar evoluindo para novas plataformas.</p>
+
+            <div class="thank-you">
+                <p>Obrigado pelo seu apoio! 💜</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copyPix() {
+            const pixKey = 'wesleyqueirozdeveloper@gmail.com';
+            navigator.clipboard.writeText(pixKey).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const span = btn.querySelector('span');
+                span.textContent = 'Copiado!';
+                btn.classList.add('copied');
+                
+                setTimeout(() => {
+                    span.textContent = 'Copiar';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+    </script>
 
     <!-- Footer -->
     <footer>
