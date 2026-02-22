@@ -21,6 +21,7 @@ win:
         - '!**/.venv'
         - '!**/__pycache__'
         - '!**/models/*'
+        - '!**/momai.db'
     - from: '../fortscript'
       to: 'fortscript'
       filter:
@@ -64,6 +65,7 @@ linux:
         - '!**/.venv'
         - '!**/__pycache__'
         - '!**/models/*'
+        - '!**/momai.db'
     - from: '../fortscript'
       to: 'fortscript'
       filter:

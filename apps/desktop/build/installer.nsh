@@ -127,11 +127,25 @@ FunctionEnd
 Function MomAIClearDataLeave
   ${NSD_GetState} $MomAICheckbox $MomAIClearData
   ${If} $MomAIClearData == ${BST_CHECKED}
-    ; Remove local app data on reinstall if user opted in
-    RMDir /r "$LOCALAPPDATA\MomAI"
+    ; === CRITICAL: Kill MomAI BEFORE deleting data ===
+    ; The app may still be running, locking files (momai.db, python_env, etc.)
+    ; RMDir /r silently fails on locked files, so we must kill first.
+    nsExec::ExecToLog 'taskkill /f /im MomAI.exe'
+    nsExec::ExecToLog 'taskkill /f /im python.exe /fi "WINDOWTITLE eq momai*"'
+    nsExec::ExecToLog 'taskkill /f /im llama-server.exe'
+    ; Give processes time to fully terminate and release file locks
+    Sleep 2000
+
+    ; Remove user data (settings DB, conversations, reminders, onboarding status)
     RMDir /r "$APPDATA\MomAI"
-    ; Also remove updater cache if present
+    ; Remove Electron cache, GPU cache, localStorage
+    RMDir /r "$LOCALAPPDATA\MomAI"
+    ; Remove updater cache
     RMDir /r "$LOCALAPPDATA\MomAI-updater"
+
+    ; Fallback: also try lowercase variants (NTFS is case-insensitive, but just in case)
+    RMDir /r "$APPDATA\momai"
+    RMDir /r "$LOCALAPPDATA\momai"
   ${EndIf}
 FunctionEnd
 
@@ -233,6 +247,11 @@ FunctionEnd
       DetailPrint "Arquivo vc_redist.x64.exe nao empacotado. Pulando instalacao do VC++."
     !endif
   ${EndIf}
+
+  ; --- Clean bundled momai.db from install dir ---
+  ; The build may accidentally include a dev database. Delete it so the app
+  ; creates a fresh one in %APPDATA%\MomAI\data\ on first launch.
+  Delete "$INSTDIR\resources\core\momai.db"
 !macroend
 
 !macro customInstallEnd
@@ -244,6 +263,12 @@ FunctionEnd
 ; UNINSTALLER — User data cleanup
 ; ========================
 !macro customUnInstall
+  ; Kill MomAI and related processes before removing anything
+  nsExec::ExecToLog 'taskkill /f /im MomAI.exe'
+  nsExec::ExecToLog 'taskkill /f /im python.exe /fi "WINDOWTITLE eq momai*"'
+  nsExec::ExecToLog 'taskkill /f /im llama-server.exe'
+  Sleep 2000
+
   ; Ask user if they want to remove personal data (settings, conversations, AI env)
   MessageBox MB_YESNO|MB_ICONQUESTION \
     "Deseja remover seus dados pessoais do MomAI?$\r$\n$\r$\n\
@@ -259,6 +284,9 @@ Clique 'Nao' para manter seus dados caso reinstale depois." \
     RMDir /r "$LOCALAPPDATA\MomAI"
     ; Updater cache
     RMDir /r "$LOCALAPPDATA\MomAI-updater"
+    ; Fallback lowercase
+    RMDir /r "$APPDATA\momai"
+    RMDir /r "$LOCALAPPDATA\momai"
     Goto doneRemoval
 
   skipRemoval:
