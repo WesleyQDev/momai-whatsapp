@@ -22,7 +22,24 @@ import {
 import { logger } from './logger'
 import { shutdownPython, startPythonBackend } from './pythonManager'
 
+async function controlWakeWord(enabled: boolean): Promise<void> {
+  try {
+    const host = process.env.HOST || '127.0.0.1'
+    const port = parseInt(process.env.PORT || '8000')
+    await fetch(`http://${host}:${port}/voice/wake-word`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    })
+    logger.info(`[WindowManager] Wake word ${enabled ? 'enabled' : 'disabled'}`)
+  } catch (err) {
+    logger.error('[WindowManager] Failed to control wake word:', err)
+  }
+}
+
 const ICON_PATH = join(__dirname, '../../resources/icon.png')
+
+let isWindowMinimizing = false
 
 function getMainWindow(): BrowserWindow | null {
   return state.mainWindow && !state.mainWindow.isDestroyed() ? state.mainWindow : null
@@ -182,6 +199,36 @@ function createMainWindow(): BrowserWindow {
     if (state.lastBootstrapError) {
       logger.info('[WindowManager] Sending pending bootstrap error to renderer')
       mainWindow.webContents.send('bootstrap-error', state.lastBootstrapError)
+    }
+  })
+
+  // Pause wake word when minimized to save resources
+  mainWindow.on('minimize', () => {
+    isWindowMinimizing = true
+    controlWakeWord(false)
+  })
+
+  // Resume wake word when restored/shown
+  mainWindow.on('restore', async () => {
+    isWindowMinimizing = false
+    try {
+      const host = process.env.HOST || '127.0.0.1'
+      const port = parseInt(process.env.PORT || '8000')
+      const response = await fetch(`http://${host}:${port}/settings`)
+      if (response.ok) {
+        const settings = await response.json()
+        if (settings.wake_word_enabled) {
+          controlWakeWord(true)
+        }
+      }
+    } catch (err) {
+      logger.error('[WindowManager] Failed to check wake word state on restore:', err)
+    }
+  })
+
+  mainWindow.on('show', () => {
+    if (!isWindowMinimizing) {
+      mainWindow.webContents.send('check-wake-word-on-show')
     }
   })
 

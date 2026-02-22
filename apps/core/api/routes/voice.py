@@ -64,3 +64,35 @@ async def quick_transcribe():
     except Exception as e:
         logger.error(f"[VoiceAPI] Quick transcribe error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class WakeWordControl(BaseModel):
+    enabled: bool
+
+
+@router.post("/wake-word")
+async def control_wake_word(control: WakeWordControl):
+    """
+    Enables or disables the wake word detector.
+    Used by Electron to pause wake word when window is minimized.
+    """
+    try:
+        import app_state
+
+        if not app_state.ww:
+            return {"success": False, "message": "Wake word detector not initialized"}
+
+        if control.enabled:
+            if not app_state.ww.running:
+                app_state.ww.start()
+                logger.info("[VoiceAPI] Wake word enabled")
+            return {"success": True, "message": "Wake word enabled"}
+        else:
+            if app_state.ww.running:
+                app_state.ww.stop()
+                logger.info("[VoiceAPI] Wake word disabled")
+            return {"success": True, "message": "Wake word disabled"}
+
+    except Exception as e:
+        logger.error(f"[VoiceAPI] Wake word control error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

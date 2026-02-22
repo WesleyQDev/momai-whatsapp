@@ -382,9 +382,9 @@ function App(): React.JSX.Element {
           transition: 'opacity 0.6s ease-in',
           // Hide app if: we are on welcome, onboarding is showing, there's a boot error, 
           // we haven't checked first launch yet, OR we are at 0% and booting (prevents flicker)
-          // After onboarding is attempted, show the app even during boot
-          opacity: (showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked || (isBooting && initProgress === 0 && !settingsLoaded && !onboardingAttempted)) ? 0 : 1,
-          pointerEvents: (showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked || (isBooting && initProgress === 0 && !settingsLoaded && !onboardingAttempted)) ? 'none' : 'auto'
+          // Once first launch is checked, show the app even during boot
+          opacity: (showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked) ? 0 : 1,
+          pointerEvents: (showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked) ? 'none' : 'auto'
         }}
       >
       <TitleBar onClearHistory={triggerClearHistory} activeRoute={location.pathname} />
