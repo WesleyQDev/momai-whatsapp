@@ -5,6 +5,7 @@ declare global {
     electron: ElectronAPI
     api: {
       minimize: () => void
+      focus: () => void
       maximize: () => void
       close: () => void
       getLogsPath: () => Promise<string>

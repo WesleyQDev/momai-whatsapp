@@ -200,9 +200,37 @@ class WakeWordDetector:
                                 # Just noise, ignore
                                 continue
                         else:
-                            # Normal mode: ignore audio when TTS is speaking
-                            if self.state != self.STATE_IDLE:
-                                self._reset_state()
+                            # Normal mode: listen for wake word "Luna" even when TTS is speaking
+                            energy = self._get_chunk_energy(chunk)
+                            if energy > self.speech_energy_threshold:
+                                if self.state == self.STATE_IDLE:
+                                    self._set_state(self.STATE_LISTENING)
+                                    self.speech_buffer = [chunk]
+                                    self.speech_chunk_count = 1
+                                    self.silence_counter = 0
+                                    self.recorded_samples = len(chunk)
+                                elif self.state == self.STATE_LISTENING:
+                                    self.speech_buffer.append(chunk)
+                                    self.recorded_samples += len(chunk)
+                                    self.speech_chunk_count += 1
+                                    self.silence_counter = 0
+                            elif self.state == self.STATE_LISTENING:
+                                self.speech_buffer.append(chunk)
+                                self.recorded_samples += len(chunk)
+                                self.silence_counter += 1
+
+                                recording_duration = (
+                                    self.recorded_samples / self.sample_rate
+                                )
+
+                                if self.silence_counter >= self.silence_chunks_required:
+                                    if (
+                                        self.speech_chunk_count
+                                        >= self.min_speech_chunks
+                                    ):
+                                        self._set_state(self.STATE_PROCESSING)
+                                        self._enqueue_recording()
+                                        self._reset_state(silent=True)
                             continue
 
                     energy = self._get_chunk_energy(chunk)

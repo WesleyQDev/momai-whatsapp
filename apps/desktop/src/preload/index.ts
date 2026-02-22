@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 const api = {
   minimize: (): void => electronAPI.ipcRenderer.send('window-minimize'),
+  focus: (): void => electronAPI.ipcRenderer.send('window-focus'),
   maximize: (): void => electronAPI.ipcRenderer.send('window-maximize'),
   close: (): void => electronAPI.ipcRenderer.send('window-close'),
   getLogsPath: (): Promise<string> => electronAPI.ipcRenderer.invoke('get-logs-path'),

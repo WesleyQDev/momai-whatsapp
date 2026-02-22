@@ -14,8 +14,8 @@ def web_search(query: str) -> str:
         A string with search results or a dict with result + extras.
     """
     try:
-        with DDGS() as ddgs:
-            results = ddgs.text(query, max_results=3)
+        with DDGS(timeout=5) as ddgs:
+            results = ddgs.text(query, max_results=2)
 
         if not results:
             return {"result": "No results found.", "extras": None}
@@ -50,8 +50,8 @@ def news_search(query: str) -> str:
         A string with news results or a dict with result + extras.
     """
     try:
-        with DDGS() as ddgs:
-            results = ddgs.news(query, max_results=5)
+        with DDGS(timeout=5) as ddgs:
+            results = ddgs.news(query, max_results=3)
 
         if not results:
             return {"result": "No news found.", "extras": None}

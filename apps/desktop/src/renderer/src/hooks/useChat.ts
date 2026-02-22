@@ -407,6 +407,11 @@ export function useChat() {
           setSpeakingIndex(idx >= 0 ? idx : null)
         } else if (msg.type === 'tts_stop') {
           setSpeakingIndex(null)
+        } else if (msg.type === 'voice_status') {
+          setVoiceStatus(msg.status)
+          if (msg.status === 'listening' && window.api) {
+            window.api.focus()
+          }
         } else if (msg.type === 'tool_start') {
           const toolId = msg.data?.id || `${msg.data?.name || 'tool'}-${Date.now()}`
           setMessages((prev) => {

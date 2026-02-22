@@ -33,7 +33,18 @@ export function registerIpcHandlers(): void {
   setIpcHandlersRegistered(true)
 
   ipcMain.on('window-minimize', () => {
-    getMainWindow()?.minimize()
+    const win = getMainWindow()
+    if (win) win.minimize()
+  })
+
+  ipcMain.on('window-focus', () => {
+    const win = getMainWindow()
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      if (!win.isVisible()) win.show()
+      win.focus()
+      win.webContents.send('focus-input')
+    }
   })
 
   ipcMain.on('window-maximize', () => {

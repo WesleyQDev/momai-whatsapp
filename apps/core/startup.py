@@ -210,6 +210,7 @@ async def init_system_task() -> None:
                     "Luhna",
                     "Lana",
                     "Lonna",
+                    "Lona"
                 ],
             )
         if settings.wake_word_enabled and app_state.ww is not None:
