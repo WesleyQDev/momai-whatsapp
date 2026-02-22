@@ -560,16 +560,12 @@ def clean_text_for_tts(text: str) -> str:
     """
     # Remove <think> tags and content
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-    # Remove bold/italic
-    text = re.sub(r"[*_]{1,3}([^*_]+)[*_]{1,3}", r"\1", text)
-    # Remove links
-    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1", text)
-    # Remove headers
-    text = re.sub(r"#+\s?", "", text)
-    # Remove code blocks
-    text = re.sub(r"`+", "", text)
     # Remove function tags (fallback XML)
     text = re.sub(r"<function=.*?>.*?</function>", "", text, flags=re.DOTALL)
+    # Remove all markdown punctuation to avoid unbalanced tags dropping text
+    text = re.sub(r"[*_~`#]", "", text)
+    # Remove links
+    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1", text)
     # Remove bullet markers
     text = re.sub(r"^\s*[-*]\s+", "", text, flags=re.MULTILINE)
 
@@ -1054,7 +1050,7 @@ async def generate(message: ChatMessage):
                     # Intelligent TTS Processing: Paragraphs first, sentences as fallback
                     while True:
                         # 0. Fast Trigger for first response chunk (e.g. "Claro," or "Com certeza!")
-                        if not full_content and len(tts_buffer) > 15:
+                        if not full_content and len(tts_buffer) > 8:
                             # Break at first comma or exclamation/question if short
                             fast_match = re.search(r"(.*?[,!?])\s+", tts_buffer)
                             if fast_match:
@@ -1072,8 +1068,8 @@ async def generate(message: ChatMessage):
                                 await speak_and_notify(clean_text_for_tts(chunk))
                             continue
 
-                        # 2. Fallback: If buffer is getting too long (> 120 chars), break at sentence
-                        if len(tts_buffer) > 120:
+                        # 2. Fallback: If buffer is getting too long (> 40 chars), break at sentence
+                        if len(tts_buffer) > 40:
                             sent_match = sentence_end_pattern.search(tts_buffer)
                             if sent_match:
                                 chunk = sent_match.group(1).strip()
@@ -1082,10 +1078,10 @@ async def generate(message: ChatMessage):
                                     await speak_and_notify(clean_text_for_tts(chunk))
                                 continue
 
-                            # 3. Emergency break at last space if no punctuation found in 120 chars
-                            if len(tts_buffer) > 200:
+                            # 3. Emergency break at last space if no punctuation found
+                            if len(tts_buffer) > 120:
                                 last_space = tts_buffer.rfind(" ")
-                                if last_space > 50:
+                                if last_space > 20:
                                     chunk = tts_buffer[:last_space].strip()
                                     tts_buffer = tts_buffer[last_space:].strip()
                                     await speak_and_notify(clean_text_for_tts(chunk))

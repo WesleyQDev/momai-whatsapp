@@ -42,7 +42,7 @@ class Settings(Base):
 
     # Audio
     tts_voice = Column(String, default="pf_dora")
-    tts_enabled = Column(Boolean, default=False)
+    tts_enabled = Column(Boolean, default=True)
     wake_word_enabled = Column(Boolean, default=True)
     wake_word_sensitivity = Column(Integer, default=5)  # 1-10
 

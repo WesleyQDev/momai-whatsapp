@@ -63,6 +63,7 @@ export default function TitleBar({}: TitleBarProps) {
         <button
           onClick={handleMinimize}
           className="h-full w-11 flex items-center justify-center text-text-muted hover:bg-white/5 hover:text-text transition-colors border-none bg-transparent cursor-pointer"
+          title="Minimizar"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor">
             <path d="M2 6h8" strokeWidth="1.2" strokeLinecap="round" />
@@ -71,6 +72,7 @@ export default function TitleBar({}: TitleBarProps) {
         <button
           onClick={handleMaximize}
           className="h-full w-11 flex items-center justify-center text-text-muted hover:bg-white/5 hover:text-text transition-colors border-none bg-transparent cursor-pointer"
+          title="Maximizar"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor">
             <rect x="3" y="3" width="6" height="6" strokeWidth="1.2" rx="1" />
@@ -79,6 +81,7 @@ export default function TitleBar({}: TitleBarProps) {
         <button
           onClick={handleClose}
           className="h-full w-11 flex items-center justify-center text-text-muted hover:bg-red-500 hover:text-white transition-colors border-none bg-transparent cursor-pointer"
+          title="Fechar"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor">
             <path d="M3 3l6 6M9 3l-6 6" strokeWidth="1.2" strokeLinecap="round" />

@@ -217,8 +217,22 @@ function createMainWindow(): BrowserWindow {
       const response = await fetch(`http://${host}:${port}/settings`)
       if (response.ok) {
         const settings = await response.json()
+        // Re-enable detector if wake word is enabled OR call mode is active
         if (settings.wake_word_enabled) {
           controlWakeWord(true)
+        } else {
+          // Check if call mode is active — detector must stay running for it
+          try {
+            const callModeResp = await fetch(`http://${host}:${port}/mode/call-mode/status`)
+            if (callModeResp.ok) {
+              const callMode = await callModeResp.json()
+              if (callMode.call_mode) {
+                controlWakeWord(true)
+              }
+            }
+          } catch {
+            // Fallback: if we can't check, just enable to be safe
+          }
         }
       }
     } catch (err) {

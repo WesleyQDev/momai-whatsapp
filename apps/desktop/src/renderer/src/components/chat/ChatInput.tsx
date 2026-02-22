@@ -66,7 +66,7 @@ export default function ChatInput({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [voiceSettings, setVoiceSettings] = useState({
     wake_word_enabled: true,
-    tts_enabled: false
+    tts_enabled: true
   })
   const [isQuickRecording, setIsQuickRecording] = useState(false)
 
@@ -322,6 +322,7 @@ export default function ChatInput({
                   className="bg-transparent text-text-muted rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-110 hover:text-text hover:bg-white/5 active:scale-90 disabled:opacity-40"
                   onClick={handleSend}
                   disabled={isLoading || isModeChanging || !isBrainReady || isBrainLoading}
+                  title="Enviar mensagem"
                 >
                   <PaperAirplaneIcon className="w-5 h-5" />
                 </button>
@@ -334,6 +335,7 @@ export default function ChatInput({
                       : 'bg-white/5 text-text-muted hover:text-text hover:bg-white/10 border border-border/10'
                   }`}
                   onClick={onToggleCallMode}
+                  title="Call Mode"
                 >
                   <WaveIcon className={`w-4 h-4 ${isCallMode ? 'animate-pulse' : ''}`} />
                 </button>

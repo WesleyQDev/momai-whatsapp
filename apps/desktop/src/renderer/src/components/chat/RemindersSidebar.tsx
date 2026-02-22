@@ -59,47 +59,77 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
   const { t, formatTime } = useI18n()
 
   const today = new Date()
-  const todayReminders = reminders
-    .filter((r) => {
-      const occurrence = getOccurrenceForDate(r, today, today)
-      return occurrence !== null
+  
+  // Generate all upcoming occurrences (today or future)
+  const allOccurrences = reminders
+    .map((r) => {
+      const todayOcc = getOccurrenceForDate(r, today, today)
+      let time = todayOcc
+      let isToday = false
+      if (todayOcc) {
+        isToday = true
+      } else {
+        time = getNextOccurrence(r)
+      }
+      return { reminder: r, time, isToday }
     })
-    .slice(0, 4)
+    .filter((o) => o.time !== null) as { reminder: any; time: Date; isToday: boolean }[]
+
+  // Sort them entirely by time ascending
+  allOccurrences.sort((a, b) => a.time.getTime() - b.time.getTime())
+
+  // Get top 6
+  const displayItems = allOccurrences.slice(0, 6)
 
   return (
     <div className="w-full h-full flex flex-col bg-bg/30" id="tutorial-agenda">
       {/* Header */}
       <div className="p-3 mb-1 flex items-center justify-between sticky top-0 z-10">
         <span className="text-xs font-bold text-text/50 uppercase tracking-widest pl-1">
-          {t('remindersSidebar.today')}
+          PRÓXIMOS
         </span>
-        {todayReminders.length > 0 && (
+        {displayItems.length > 0 && (
           <span className="text-[10px] font-bold px-1.5 rounded-full bg-border/20 text-text/40">
-            {todayReminders.length}
+            {displayItems.length}
           </span>
         )}
       </div>
 
-      {todayReminders.length === 0 ? (
+      {displayItems.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center opacity-30">
           <BellSlashIcon className="w-8 h-8 text-text mb-2" />
           <p className="text-xs font-medium text-text">{t('remindersSidebar.empty')}</p>
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto custom-scrollbar px-2 space-y-0.5 pb-2">
-          {todayReminders.map((r) => {
-            const time = getOccurrenceForDate(r, today, today) || getNextOccurrence(r)
+          {displayItems.map(({ reminder: r, time, isToday }) => {
             const recurrence = getRecurrenceMeta(t, r.repeat_interval, r.repeat_value)
+            
+            let dateLabel = "Hoje"
+            if (!isToday) {
+              const tomorrow = new Date(today)
+              tomorrow.setDate(tomorrow.getDate() + 1)
+              
+              if (
+                time.getDate() === tomorrow.getDate() &&
+                time.getMonth() === tomorrow.getMonth() &&
+                time.getFullYear() === tomorrow.getFullYear()
+              ) {
+                dateLabel = "Amanhã"
+              } else {
+                dateLabel = time.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' })
+              }
+            }
 
             return (
               <div
-                key={r.id}
+                key={r.id + '-' + time.getTime()}
                 className="group p-2.5 rounded hover:bg-card/40 transition-colors flex flex-col gap-1 cursor-default"
               >
                 <span className="text-xs text-text/90 leading-snug font-medium">{r.title}</span>
 
                 <div className="flex items-center justify-between text-[10px] text-text-muted mt-0.5">
-                  <span className="opacity-50">Hoje</span>
+                  <span className="opacity-50">{dateLabel}</span>
                   <span className="font-mono opacity-60 group-hover:text-accent group-hover:opacity-100 transition-colors">
                     {formatTime(time, { hour: '2-digit', minute: '2-digit' })}
                   </span>
@@ -146,7 +176,7 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
         </div>
       )}
 
-      {todayReminders.length > 0 && onNavigate && (
+      {displayItems.length > 0 && onNavigate && (
         <div className="p-3 border-t border-border/10">
           <button
             onClick={onNavigate}

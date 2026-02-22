@@ -318,8 +318,12 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
         skill.load_full_content()
 
         mem_context = state.get("memory_context")
+        now = datetime.now()
+        current_time_info = f"Current Date: {now.strftime('%A, %d de %B de %Y')}\nCurrent Time: {now.strftime('%H:%M')}"
+
         system_instructions = (
             f"{get_language_instruction()}\n\n"
+            f"# CONTEXT\n{current_time_info}\n\n"
             f"# ROLE: {skill.name}\n{skill.full_instructions}\n\n"
         )
 

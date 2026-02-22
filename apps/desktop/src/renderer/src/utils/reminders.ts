@@ -55,7 +55,9 @@ export function getOccurrenceForDate(
   const interval = reminder.repeat_interval
   const value = reminder.repeat_value || 1
 
-  if (!interval) return base
+  if (!interval) {
+    return isSameDay(base, day) ? base : null
+  }
 
   const dayStart = new Date(day)
   dayStart.setHours(0, 0, 0, 0)

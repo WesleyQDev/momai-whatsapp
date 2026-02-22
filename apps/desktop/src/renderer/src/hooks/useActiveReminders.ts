@@ -47,8 +47,12 @@ export function useActiveReminders() {
     subscribers.add(listener)
     startPolling()
 
+    const handleUpdate = () => fetchAndUpdate()
+    window.addEventListener('momai_reminders_updated', handleUpdate)
+
     return () => {
       subscribers.delete(listener)
+      window.removeEventListener('momai_reminders_updated', handleUpdate)
       stopPolling()
     }
   }, [])

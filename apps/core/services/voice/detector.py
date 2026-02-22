@@ -306,6 +306,25 @@ class WakeWordDetector:
         self.silence_counter = 0
         self.recorded_samples = 0
 
+    def flush_buffers(self):
+        """Clears all pending audio data and resets the state machine.
+        Call this when entering call mode to discard any speech captured before activation."""
+        # Clear the audio input queue
+        while not self.audio_queue.empty():
+            try:
+                self.audio_queue.get_nowait()
+            except queue.Empty:
+                break
+        # Clear the processing queue
+        while not self.processing_queue.empty():
+            try:
+                self.processing_queue.get_nowait()
+            except queue.Empty:
+                break
+        # Reset the state machine
+        self._reset_state()
+        logger.info("[WakeWord] Buffers flushed.")
+
     def _enqueue_recording(self):
         """Queue recorded audio for transcription without blocking capture."""
         if not self.speech_buffer:
@@ -521,24 +540,18 @@ class WakeWordDetector:
             self._stop_tts()
             self._play_feedback("success")  # Feedback sound immediately!
 
-            # Clean and extract command
-            command_clean = text.replace(detected_variation, "", 1).strip()
+            # Clean and extract command: only text AFTER the keyword
+            # e.g. "teste luna bom dia" → "bom dia"
+            keyword_end_pos = match.end()
+            command_clean = text[keyword_end_pos:].strip()
 
-            # Reconstruct clean command from raw text to preserve punctuation/casing
-            words = raw_text.split()
-            variation_words = {self.keyword}
-            cmd_words = []
-            skip_count = 0
-            for w in words:
-                clean_w = re.sub(r"[^\w\s]", "", w).lower()
-                if clean_w in variation_words and skip_count < len(variation_words):
-                    skip_count += 1
-                    continue
-                cmd_words.append(w)
-
-            final_cmd = " ".join(cmd_words).strip()
-            # If for some reason the word-by-word reconstruction leaves us empty but cleaned was not
-            if not final_cmd and command_clean:
+            # Reconstruct clean command from raw text preserving punctuation/casing
+            # Find the keyword position in the raw text and take everything after it
+            raw_lower = raw_text.lower()
+            raw_match = re.search(rf"\b{re.escape(detected_variation)}\b", raw_lower)
+            if raw_match:
+                final_cmd = raw_text[raw_match.end():].strip()
+            else:
                 final_cmd = command_clean
 
             logger.info(

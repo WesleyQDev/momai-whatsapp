@@ -667,6 +667,8 @@ export function useChat() {
               ].slice(-5)
             })
           }
+        } else if (msg.type === 'reminders_updated') {
+          window.dispatchEvent(new CustomEvent('momai_reminders_updated'))
         } else if (msg.type === 'reminder_trigger') {
           // Notificação nativa do sistema
           if (window.electron) {

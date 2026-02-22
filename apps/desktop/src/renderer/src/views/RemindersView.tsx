@@ -82,6 +82,10 @@ export default function RemindersView() {
 
   useEffect(() => {
     fetchReminders()
+    
+    const handleUpdate = () => fetchReminders()
+    window.addEventListener('momai_reminders_updated', handleUpdate)
+    return () => window.removeEventListener('momai_reminders_updated', handleUpdate)
   }, [])
 
   // Scroll to current hour on week view load

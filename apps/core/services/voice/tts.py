@@ -66,7 +66,7 @@ VOICE_PREFIX_MAP = {
 }
 
 DEFAULT_VOICE = "pf_dora"
-DEFAULT_LANG = "pt-br"
+DEFAULT_LANG = "p"
 
 
 class TTSManager:
@@ -172,13 +172,28 @@ class TTSManager:
             logger.error(f"❌ [TTS] Error loading Kokoro-ONNX: {e}")
 
     def _speech_worker(self):
-        """Processes the speech queue, generating and playing audio using Kokoro-ONNX."""
+        """Pipeline TTS worker: generates and plays audio concurrently.
+
+        Architecture:
+          - A persistent asyncio event loop runs two concurrent tasks.
+          - Generator task: pulls text from the queue, runs Kokoro create_stream(),
+            and pushes audio chunks into an asyncio.Queue (the "audio pipe").
+          - Player task: pulls audio chunks from the pipe and writes them to
+            sounddevice (via run_in_executor so it doesn't block generation).
+
+        This means while phrase N is still playing, phrase N+1 is already being
+        synthesized by the ONNX model, eliminating the silence gap between phrases.
+        """
         stream = None
         self.ready_event.wait()
 
         if self._error or not self.has_tts:
             logger.warning(f"[TTS] Worker stopping: system unavailable ({self._error})")
             return
+
+        # Create a single persistent event loop for the entire worker lifetime
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
         try:
             if HAS_SOUNDDEVICE:
@@ -201,97 +216,157 @@ class TTSManager:
                 )
                 stream = None
 
-            while not self.stop_event.is_set():
-                try:
-                    text = self.text_queue.get(timeout=0.5)
+            # Pipeline queue: generator → player.  maxsize provides backpressure
+            # so the generator doesn't run too far ahead of playback.
+            audio_pipe: asyncio.Queue = asyncio.Queue(maxsize=30)
+
+            # ------------------------------------------------------------------
+            # Generator coroutine
+            # ------------------------------------------------------------------
+            async def generator():
+                """Pulls text from text_queue, synthesises audio via Kokoro,
+                and pushes chunks into the audio_pipe."""
+                while not self.stop_event.is_set():
+                    # Read from the synchronous queue without blocking the loop
+                    try:
+                        text = await loop.run_in_executor(
+                            None,
+                            lambda: self.text_queue.get(timeout=0.3),
+                        )
+                    except queue.Empty:
+                        continue
+
                     if text is None:
+                        await audio_pipe.put(None)  # poison pill
                         break
 
                     with self.state_lock:
-                        current_session_id = self.session_id
+                        sid = self.session_id
 
                     logger.debug(
-                        f"[TTS Work] Processing: {text[:30]}... (Session {current_session_id})"
+                        f"[TTS Gen] Processing: {text[:40]}... (Session {sid})"
                     )
 
-                    self._is_playing = True
-                    if self.on_speech_start:
-                        self.on_speech_start()
+                    # Signal: a new phrase is starting
+                    await audio_pipe.put(("speech_start", None, sid))
 
                     lang = LANG_CODE_MAP.get(self.lang_code, "en-us")
+                    has_audio = False
 
-                    audio_stream = self.kokoro.create_stream(
-                        text, voice=self.voice, speed=1.0, lang=lang
-                    )
-
-                    audio_played = False
-
-                    async def process_stream():
-                        nonlocal audio_played
+                    try:
+                        audio_stream = self.kokoro.create_stream(
+                            text, voice=self.voice, speed=1.0, lang=lang
+                        )
                         async for samples, sr in audio_stream:
                             if samples is None or len(samples) == 0:
                                 continue
-
                             with self.state_lock:
-                                if (
-                                    self.session_id != current_session_id
-                                    or self.stop_event.is_set()
-                                ):
+                                if self.session_id != sid or self.stop_event.is_set():
                                     break
-
-                            audio_float32 = samples.astype(np.float32)
-                            audio_played = True
-
-                            if stream:
-                                sub_chunk_size = 1200
-                                offset = 0
-                                while offset < len(audio_float32):
-                                    with self.state_lock:
-                                        if (
-                                            self.session_id != current_session_id
-                                            or self.stop_event.is_set()
-                                        ):
-                                            break
-                                    end = min(offset + sub_chunk_size, len(audio_float32))
-                                    try:
-                                        stream.write(audio_float32[offset:end])
-                                    except Exception as e:
-                                        logger.error(f"[TTS Stream] Write error: {e}")
-                                        break
-                                    offset = end
-                            else:
-                                import base64
-
-                                audio_b64 = base64.b64encode(
-                                    audio_float32.tobytes()
-                                ).decode("utf-8")
-                                print(f"[AUDIO_CHUNK] {audio_b64}", flush=True)
-
-                    # Run the async generator in the worker's thread using a temporary loop or existing loop
-                    try:
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        loop.run_until_complete(process_stream())
-                        loop.close()
+                            has_audio = True
+                            await audio_pipe.put(
+                                ("audio", samples.astype(np.float32), sid)
+                            )
                     except Exception as e:
-                        logger.error(f"[TTS Async Run] {e}")
+                        logger.error(f"[TTS Gen Error] {e}")
 
-                    if not audio_played:
-                        logger.warning("[TTS] No audio generated")
+                    if not has_audio:
+                        logger.warning(f"[TTS] No audio generated for: '{text[:50]}'")
 
-                    self._is_playing = False
-                    if self.on_speech_stop:
-                        self.on_speech_stop()
-                    self.text_queue.task_done()
-                except queue.Empty:
-                    continue
-                except Exception as e:
-                    if not self.stop_event.is_set():
-                        logger.error(f"[TTS Work Error] {e}")
+                    # Signal: phrase finished generating
+                    await audio_pipe.put(("speech_end", None, sid))
+
                     try:
                         self.text_queue.task_done()
                     except ValueError:
                         pass
+
+                # If stop_event was set, still send poison pill so player exits
+                if self.stop_event.is_set():
+                    try:
+                        audio_pipe.put_nowait(None)
+                    except asyncio.QueueFull:
+                        pass
+
+            # ------------------------------------------------------------------
+            # Player coroutine
+            # ------------------------------------------------------------------
+            async def player():
+                """Pulls audio chunks from the pipe and plays them."""
+                while not self.stop_event.is_set():
+                    try:
+                        item = await asyncio.wait_for(
+                            audio_pipe.get(), timeout=0.5
+                        )
+                    except asyncio.TimeoutError:
+                        continue
+
+                    if item is None:
+                        break
+
+                    msg_type, data, sid = item
+
+                    # Check if this item belongs to the current session
+                    with self.state_lock:
+                        stale = self.session_id != sid or self.stop_event.is_set()
+
+                    if stale:
+                        if msg_type == "speech_end":
+                            self._is_playing = False
+                        continue
+
+                    if msg_type == "speech_start":
+                        self._is_playing = True
+                        if self.on_speech_start:
+                            self.on_speech_start()
+                        continue
+
+                    if msg_type == "speech_end":
+                        self._is_playing = False
+                        if self.on_speech_stop:
+                            self.on_speech_stop()
+                        continue
+
+                    # msg_type == "audio"
+                    if stream:
+                        SUB_CHUNK = 2400  # ~100 ms at 24 kHz
+                        offset = 0
+                        while offset < len(data):
+                            with self.state_lock:
+                                if self.session_id != sid or self.stop_event.is_set():
+                                    break
+                            end = min(offset + SUB_CHUNK, len(data))
+                            try:
+                                # run_in_executor keeps the loop free for generation
+                                await loop.run_in_executor(
+                                    None, stream.write, data[offset:end]
+                                )
+                            except Exception as e:
+                                logger.error(f"[TTS Stream] Write error: {e}")
+                                break
+                            offset = end
+                    else:
+                        import base64
+
+                        audio_b64 = base64.b64encode(
+                            data.tobytes()
+                        ).decode("utf-8")
+                        print(f"[AUDIO_CHUNK] {audio_b64}", flush=True)
+
+            # ------------------------------------------------------------------
+            # Run both tasks concurrently
+            # ------------------------------------------------------------------
+            async def pipeline():
+                gen_task = asyncio.ensure_future(generator())
+                play_task = asyncio.ensure_future(player())
+                await gen_task
+                await play_task
+
+            loop.run_until_complete(pipeline())
+
+        except Exception as e:
+            if not self.stop_event.is_set():
+                logger.error(f"[TTS Worker] Pipeline error: {e}")
         finally:
             if stream:
                 try:
@@ -300,6 +375,10 @@ class TTSManager:
                 except:
                     pass
             self.active_stream = None
+            try:
+                loop.close()
+            except:
+                pass
             logger.debug("[TTS Worker] Thread finished.")
 
     def wait_until_ready(self, timeout: float = 30.0):
@@ -354,6 +433,9 @@ class TTSManager:
         """Stops playback and clears the queue."""
         with self.state_lock:
             self.session_id += 1
+
+        # Reset playing flag immediately so is_speaking() returns False
+        self._is_playing = False
 
         with self.start_lock:
             self.stop_event.set()
@@ -428,11 +510,12 @@ class TTSManager:
 
     def speak(self, text: str):
         """Enqueues a phrase to be spoken."""
-        if not self.enabled or not text.strip():
+        cleaned = text.strip()
+        if not self.enabled or not cleaned or len(cleaned) < 3:
             return
 
         self.start()
-        self.text_queue.put(text.strip())
+        self.text_queue.put(cleaned)
 
     def wait_for_completion(self):
         """Waits for all items in the speech queue to be processed."""

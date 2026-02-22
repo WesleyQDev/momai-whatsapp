@@ -32,13 +32,14 @@ async def list_reminders_route(db: Session = Depends(get_db)):
 async def list_active_reminders(db: Session = Depends(get_db)):
     from datetime import datetime
     now = datetime.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     reminders = (
         db.query(Reminder)
         .filter(
             Reminder.is_active == True,
-            # Show future reminders OR recurring ones (they keep firing)
-            (Reminder.scheduled_time >= now) | (Reminder.repeat_interval != None)
+            # Show today's/future reminders OR recurring ones (they keep firing)
+            (Reminder.scheduled_time >= today_start) | (Reminder.repeat_interval != None)
         )
         .order_by(Reminder.scheduled_time.asc())
         .limit(10)

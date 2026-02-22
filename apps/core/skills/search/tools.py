@@ -15,7 +15,7 @@ def web_search(query: str) -> str:
     """
     try:
         with DDGS(timeout=5) as ddgs:
-            results = ddgs.text(query, max_results=2)
+            results = ddgs.text(query, max_results=3)
 
         if not results:
             return {"result": "No results found.", "extras": None}

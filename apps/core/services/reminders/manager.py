@@ -141,6 +141,7 @@ class ReminderManager:
             
             self._schedule_job(reminder)
             print(f"[Reminders] Scheduled successfully.")
+            self._notify_updates()
             return reminder
         except Exception as e:
             print(f"[Reminders] ERROR adding reminder: {e}")
@@ -164,6 +165,7 @@ class ReminderManager:
             job_id = f"reminder_{reminder_id}"
             if self.scheduler.get_job(job_id):
                 self.scheduler.remove_job(job_id)
+            self._notify_updates()
         db.close()
 
     def update_reminder(self, reminder_id, **kwargs):
@@ -187,9 +189,28 @@ class ReminderManager:
             db.refresh(reminder)
             
             self._schedule_job(reminder)
+            self._notify_updates()
             return reminder
         except Exception as e:
             db.rollback()
             raise e
         finally:
             db.close()
+
+    def _notify_updates(self):
+        """Fires a WebSocket event indicating that reminders changed."""
+        if not self.broadcast_callback:
+            return
+        
+        try:
+            import app_state
+            if app_state.main_loop:
+                asyncio.run_coroutine_threadsafe(
+                    self.broadcast_callback({
+                        "type": "reminders_updated",
+                        "data": {}
+                    }),
+                    app_state.main_loop
+                )
+        except Exception as e:
+            logger.warning(f"[Reminders] Failed to notify updates: {e}")

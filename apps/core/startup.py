@@ -241,7 +241,7 @@ async def init_system_task() -> None:
                         status_callback=on_voice_status,
                         partial_callback=on_voice_partial,
                         bypass_condition=should_bypass_wake_word,
-                        variants=["Luna", "Loona", "Luhna", "Lana", "Lonna", "Lona"],
+                        variants=["Luna", "Loona", "Luhna", "Lana", "Lonna", "Lona", "Nuna"],
                     )
                 if settings.wake_word_enabled and app_state.ww is not None:
                     app_state.ww.start()
