@@ -16,13 +16,14 @@ Var MomAIIconHandle
 
 !macro customInit
   InitPluginsDir
-  ; Verify icon file exists before copying
-  IfFileExists "${BUILD_RESOURCES_DIR}\icon.ico" 0 icon_missing
+  ; Use compile-time check for icon file — runtime IfFileExists cannot guard
+  ; the compile-time File command and would cause a compiler error if the file
+  ; is missing.
+  !if /FileExists "${BUILD_RESOURCES_DIR}\icon.ico"
     File /oname=$PLUGINSDIR\momai.ico "${BUILD_RESOURCES_DIR}\icon.ico"
-    Goto icon_done
-  icon_missing:
-    DetailPrint "AVISO: icon.ico nao encontrado em ${BUILD_RESOURCES_DIR}"
-  icon_done:
+  !else
+    !warning "icon.ico nao encontrado em ${BUILD_RESOURCES_DIR}"
+  !endif
 !macroend
 
 Function MomAI_SetFont
@@ -48,9 +49,11 @@ Function MomAIWelcomePage
     Abort
   ${EndIf}
 
-  ${NSD_CreateIcon} 0 0 80u 80u ""
-  Pop $0
-  ${NSD_SetIcon} $0 "$PLUGINSDIR\momai.ico" $MomAIIconHandle
+  ; Only set icon if the file was bundled at compile time
+  IfFileExists "$PLUGINSDIR\momai.ico" 0 +3
+    ${NSD_CreateIcon} 0 0 80u 80u ""
+    Pop $0
+    ${NSD_SetIcon} $0 "$PLUGINSDIR\momai.ico" $MomAIIconHandle
 
   ${NSD_CreateLabel} 90u 6u 210u 24u "Bem-vindo ao MomAI"
   Pop $0
@@ -69,6 +72,15 @@ Function MomAIWelcomePage
   nsDialogs::Show
 FunctionEnd
 
+Function MomAIWelcomePageLeave
+  ; Free icon handle to prevent GDI resource leak
+  ${If} $MomAIIconHandle != ""
+  ${AndIf} $MomAIIconHandle != "error"
+    ${NSD_FreeIcon} $MomAIIconHandle
+    StrCpy $MomAIIconHandle ""
+  ${EndIf}
+FunctionEnd
+
 Function MomAIClearDataPage
   nsDialogs::Create 1018
   Pop $0
@@ -83,22 +95,26 @@ Function MomAIClearDataPage
   Push 700
   Call MomAI_SetFont
 
-  ${NSD_CreateLabel} 0 25u 100% 50u "AVISO: MomAI esta em fase de teste.$CRLFSe encontrar erros, considere reinstalar$CRLFOu reporte o erro diretamente no site."
+  ${NSD_CreateLabel} 0 25u 100% 50u "AVISO: MomAI esta em fase de teste.$\r$\nSe encontrar erros, considere reinstalar$\r$\nOu reporte o erro diretamente no site."
   Pop $0
   Push $0
   Push 10
   Push 400
   Call MomAI_SetFont
-  ${NSD_SetColor} $0 255 0 0
+  SetCtlColors $0 0xFF0000 transparent
 
-  ${NSD_CreateLabel} 0 85u 100% 20u "Obrigado por testar!"
+  ${NSD_CreateCheckbox} 0 80u 100% 14u "Apagar dados locais e recomecar do zero"
+  Pop $MomAICheckbox
+  ${NSD_SetState} $MomAICheckbox ${BST_UNCHECKED}
+
+  ${NSD_CreateLabel} 0 105u 100% 20u "Obrigado por testar!"
   Pop $0
   Push $0
   Push 10
   Push 400
   Call MomAI_SetFont
 
-  ${NSD_CreateLabel} 0 105u 100% 20u "Wesley Developer Studios"
+  ${NSD_CreateLabel} 0 125u 100% 20u "Wesley Developer Studios"
   Pop $0
   Push $0
   Push 10
@@ -109,6 +125,12 @@ Function MomAIClearDataPage
 FunctionEnd
 
 Function MomAIClearDataLeave
+  ${NSD_GetState} $MomAICheckbox $MomAIClearData
+  ${If} $MomAIClearData == ${BST_CHECKED}
+    ; Remove local app data on reinstall if user opted in
+    RMDir /r "$LOCALAPPDATA\momai"
+    RMDir /r "$APPDATA\momai"
+  ${EndIf}
 FunctionEnd
 
 Function MomAIFinishPage
@@ -142,12 +164,13 @@ FunctionEnd
 Function MomAIFinishPageLeave
   ${NSD_GetState} $MomAIStartCheckbox $MomAIStartApp
   ${If} $MomAIStartApp == ${BST_CHECKED}
-    ExecShell "open" '"$INSTDIR\${PRODUCT_NAME}.exe"'
+    ; Use correct quoting — no inner escaped quotes needed
+    ExecShell "open" "$INSTDIR\${PRODUCT_NAME}.exe"
   ${EndIf}
 FunctionEnd
 
 !macro customWelcomePage
-  Page custom MomAIWelcomePage
+  Page custom MomAIWelcomePage MomAIWelcomePageLeave
 !macroend
 
 !macro customPageAfterChangeDir
