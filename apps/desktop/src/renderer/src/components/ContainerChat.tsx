@@ -1,4 +1,4 @@
-import { RefObject, JSX } from 'react'
+import { RefObject, JSX, useState, useEffect } from 'react'
 import { MessageList, ChatInput } from './chat'
 import { Message } from '../services/api'
 import { StatusData } from '../services/api'
@@ -21,6 +21,9 @@ interface ContainerChatProps {
   voiceStatus?: 'idle' | 'listening' | 'processing'
   onToggleCallMode?: () => void
   callHistory?: { id: string; role: 'user' | 'assistant'; content: string }[]
+  initProgress?: number
+  initMessage?: string
+  isBooting?: boolean
 }
 
 const CallModeUI = ({
@@ -154,6 +157,61 @@ const CallModeUI = ({
   </div>
 )
 
+const LoadingAnimation = ({ progress, message }: { progress: number; message?: string }) => {
+  const [seconds, setSeconds] = useState(0)
+  
+  useEffect(() => {
+    const startTime = Date.now()
+    const interval = setInterval(() => {
+      setSeconds(Math.floor((Date.now() - startTime) / 1000))
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
+  
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-8">
+      <div className="relative w-32 h-32 mb-6">
+        <svg className="w-full h-full animate-[spin_3s_linear_infinite]" viewBox="0 0 100 100">
+          <defs>
+            <linearGradient id="loaderGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#a78bfa" />
+              <stop offset="50%" stopColor="#8b5cf6" />
+              <stop offset="100%" stopColor="#7c3aed" />
+            </linearGradient>
+          </defs>
+          <circle
+            cx="50"
+            cy="50"
+            r="45"
+            fill="none"
+            stroke="rgba(255,255,255,0.05)"
+            strokeWidth="6"
+          />
+          <circle
+            cx="50"
+            cy="50"
+            r="45"
+            fill="none"
+            stroke="url(#loaderGradient)"
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeDasharray={`${progress * 2.83} 283`}
+            transform="rotate(-90 50 50)"
+            className="transition-all duration-300"
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-2xl font-bold text-text drop-shadow-lg">{Math.round(progress)}%</span>
+          <span className="text-xs text-text-muted/50">{seconds}s</span>
+        </div>
+      </div>
+      <p className="text-sm text-text-muted/60 text-center max-w-[280px]">
+        {message || 'Carregando...'}
+      </p>
+    </div>
+  )
+}
+
 export default function ContainerChat({
   messages,
   isLoading,
@@ -171,38 +229,18 @@ export default function ContainerChat({
   isCallMode = false,
   voiceStatus = 'idle',
   onToggleCallMode,
-  callHistory = []
+  callHistory = [],
+  initProgress = 0,
+  initMessage,
+  isBooting = false
 }: ContainerChatProps): JSX.Element {
+  const isInitializing = initProgress < 100
+  
   return (
     <div className="bg-transparent w-full h-full flex flex-col overflow-hidden relative">
-      {!isCallMode && (
-        <div className="flex items-center justify-end px-3 pt-3 pb-1">
-          <button
-            type="button"
-            onClick={onClearHistory}
-            disabled={!onClearHistory || isLoading || messages.length === 0}
-            className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-border/20 bg-card/40 text-text-muted hover:text-red-400 hover:border-red-400/40 hover:bg-red-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-            title="Apagar conversas"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-            >
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-              <path d="M10 11v6"></path>
-              <path d="M14 11v6"></path>
-              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
-            </svg>
-          </button>
-        </div>
-      )}
-
-      {isCallMode ? (
+      {isInitializing ? (
+        <LoadingAnimation progress={initProgress} message={initMessage} />
+      ) : isCallMode ? (
         <CallModeUI
           onEndCall={onToggleCallMode || (() => {})}
           history={callHistory}
@@ -210,6 +248,31 @@ export default function ContainerChat({
         />
       ) : (
         <>
+          <div className="flex items-center justify-end px-3 pt-3 pb-1">
+            <button
+              type="button"
+              onClick={onClearHistory}
+              disabled={!onClearHistory || isLoading || messages.length === 0}
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-border/20 bg-card/40 text-text-muted hover:text-red-400 hover:border-red-400/40 hover:bg-red-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              title="Apagar conversas"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+              >
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                <path d="M10 11v6"></path>
+                <path d="M14 11v6"></path>
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+              </svg>
+            </button>
+          </div>
+
           <MessageList
             messages={messages}
             isLoading={isLoading}

@@ -15,6 +15,9 @@ interface MainViewRendererProps {
   extensionData?: any
   chat: any // Chat instance from App
   statusInfo: StatusData | null
+  initProgress?: number
+  initMessage?: string
+  isBooting?: boolean
 }
 
 const VIEW_MAP: Record<string, React.ComponentType<any>> = {
@@ -37,6 +40,9 @@ const VIEW_MAP: Record<string, React.ComponentType<any>> = {
         voiceStatus={props.chat.voiceStatus}
         onToggleCallMode={props.chat.toggleCallMode}
         callHistory={props.chat.callHistory}
+        initProgress={props.initProgress}
+        initMessage={props.initMessage}
+        isBooting={props.isBooting}
       />
     )
   },
@@ -52,7 +58,10 @@ export default function MainViewRenderer({
   onOpenSettings,
   extensionData,
   chat,
-  statusInfo
+  statusInfo,
+  initProgress,
+  initMessage,
+  isBooting
 }: MainViewRendererProps) {
   const Component = VIEW_MAP[viewName] || (extensionData ? DynamicDashboard : null)
 
@@ -77,6 +86,9 @@ export default function MainViewRenderer({
         extensionId={extensionData?.id}
         chat={chat}
         statusInfo={statusInfo}
+        initProgress={initProgress}
+        initMessage={initMessage}
+        isBooting={isBooting}
       />
     </div>
   )

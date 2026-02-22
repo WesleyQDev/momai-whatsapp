@@ -102,22 +102,6 @@ export function registerIpcHandlers(): void {
     const win = getMainWindow()
     if (!win) return
     win.setMinimumSize(450, 670)
-
-    if (process.platform === 'linux') {
-      const { workArea } = screen.getPrimaryDisplay()
-      win.setBounds(workArea)
-      
-      // Wayland and GNOME can sometimes place borderless windows minimized asynchronously
-      // or in the background stack on first bounds change.
-      setTimeout(() => {
-        if (win.isMinimized()) win.restore()
-        if (!win.isVisible()) win.show()
-        win.moveTop()
-        win.focus()
-      }, 150)
-    } else {
-      win.maximize()
-    }
   })
 }
 
@@ -172,8 +156,8 @@ export function createOverlayWindow(data?: any): void {
 
 function createMainWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
-    width: 800,
-    height: 540,
+    width: 880,
+    height: 670,
     show: false,
     frame: false,
     resizable: true,
