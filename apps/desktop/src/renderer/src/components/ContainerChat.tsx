@@ -241,12 +241,21 @@ export default function ContainerChat({
   threadId,
   setThreadId
 }: ContainerChatProps): JSX.Element {
-  const isInitializing = initProgress < 100
+  const isBrainReady = statusInfo?.brain_ready ?? false
+  const isBrainLoading = statusInfo?.is_loading ?? false
+  // Keep loading visible until init is done AND the LLM model is actually ready
+  const isInitializing = initProgress < 100 || (!isBrainReady || isBrainLoading)
+  // Don't show 100% until brain is truly ready — clamp at 99%
+  const displayProgress = (!isBrainReady || isBrainLoading) ? Math.min(initProgress, 99) : initProgress
+  // Show contextual message when init is done but model isn't loaded yet
+  const displayMessage = (initProgress >= 100 && (!isBrainReady || isBrainLoading))
+    ? (isBrainLoading ? 'Carregando modelo de IA...' : 'Aguardando modelo de IA...')
+    : initMessage
 
   return (
     <div className="bg-transparent w-full h-full flex flex-col overflow-hidden relative">
       {isInitializing ? (
-        <LoadingAnimation progress={initProgress} message={initMessage} />
+        <LoadingAnimation progress={displayProgress} message={displayMessage} />
       ) : isCallMode ? (
         <CallModeUI
           onEndCall={onToggleCallMode || (() => {})}
