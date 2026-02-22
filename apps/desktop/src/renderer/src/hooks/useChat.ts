@@ -17,6 +17,7 @@ export function useChat() {
   const [isLoading, setIsLoading] = useState(false)
   const [threadId, setThreadId] = useState(() => `sessao_${Date.now()}`)
   const [_isHistoryLoaded, setIsHistoryLoaded] = useState(false)
+  const currentThreadRef = useRef(threadId)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
   const [isCallMode, setIsCallMode] = useState(false)
@@ -134,6 +135,15 @@ export function useChat() {
     isGraphOpenRef.current = graphState.view !== null
   }, [graphState])
 
+  useEffect(() => {
+    if (currentThreadRef.current !== threadId) {
+      if (isLoading) {
+        stopCurrentGeneration();
+      }
+      currentThreadRef.current = threadId;
+    }
+  }, [threadId, isLoading]);
+
   // Carrega histórico inicial do SQLite
   useEffect(() => {
     let retries = 0
@@ -233,9 +243,11 @@ export function useChat() {
       toolTraceRef.current.activeMsgId = assistantMsgId
       setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '...' }])
 
-      // Envia para o backend
+      const messageThreadId = threadId
+      
       sendChatMessage(option, threadId, {
         onToken: (token) => {
+          if (currentThreadRef.current !== messageThreadId) return
           setMessages((prev) => {
             const updated = [...prev]
             const lastIdx = updated.length - 1
@@ -247,6 +259,7 @@ export function useChat() {
           })
         },
         onStatus: (status) => {
+          if (currentThreadRef.current !== messageThreadId) return
           console.log('[DEBUG] onStatus received:', status)
           setMessages((prev) => {
             const updated = [...prev]
@@ -277,6 +290,7 @@ export function useChat() {
           })
         },
         onSources: (sources) => {
+          if (currentThreadRef.current !== messageThreadId) return
           setMessages((prev) => {
             const updated = [...prev]
             const lastIdx = updated.length - 1
@@ -290,6 +304,7 @@ export function useChat() {
           })
         },
         onSnippets: (snippets) => {
+          if (currentThreadRef.current !== messageThreadId) return
           setMessages((prev) => {
             const updated = [...prev]
             const lastIdx = updated.length - 1
@@ -303,6 +318,7 @@ export function useChat() {
           })
         },
         onCards: (cards) => {
+          if (currentThreadRef.current !== messageThreadId) return
           setMessages((prev) => {
             const updated = [...prev]
             const lastIdx = updated.length - 1
@@ -316,9 +332,14 @@ export function useChat() {
           })
         },
         onError: (error) => {
+          if (currentThreadRef.current !== messageThreadId) return
           console.error('Erro ao enviar escolha:', error)
+          setIsLoading(false)
         },
-        onDone: () => {}
+        onDone: () => {
+          if (currentThreadRef.current !== messageThreadId) return
+          setIsLoading(false)
+        }
       })
     },
     [threadId]
@@ -941,9 +962,12 @@ export function useChat() {
       toolTraceRef.current.activeMsgId = assistantMsgId
       setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '...' }])
 
+      const messageThreadId = threadId
+
       try {
         await sendChatMessage(messageText, threadId, {
           onToken: (token) => {
+            if (currentThreadRef.current !== messageThreadId) return
             setMessages((prev) => {
               const updated = [...prev]
               const lastIdx = updated.length - 1
@@ -1023,6 +1047,7 @@ export function useChat() {
             }
           },
           onStatus: (status) => {
+            if (currentThreadRef.current !== messageThreadId) return
             setMessages((prev) => {
               const updated = [...prev]
               const lastIdx = findLastAssistantIndex(updated)
@@ -1051,6 +1076,7 @@ export function useChat() {
             })
           },
           onError: (error) => {
+            if (currentThreadRef.current !== messageThreadId) return
             setMessages((prev) => {
               const updated = [...prev]
               const lastIdx = findLastAssistantIndex(updated)
@@ -1061,6 +1087,7 @@ export function useChat() {
             })
           },
           onSources: (sources) => {
+            if (currentThreadRef.current !== messageThreadId) return
             setMessages((prev) => {
               const updated = [...prev]
               const lastIdx = findLastAssistantIndex(updated)
@@ -1074,6 +1101,7 @@ export function useChat() {
             })
           },
           onSnippets: (snippets) => {
+            if (currentThreadRef.current !== messageThreadId) return
             setMessages((prev) => {
               const updated = [...prev]
               const lastIdx = findLastAssistantIndex(updated)
@@ -1087,6 +1115,7 @@ export function useChat() {
             })
           },
           onCards: (cards) => {
+            if (currentThreadRef.current !== messageThreadId) return
             setMessages((prev) => {
               const updated = [...prev]
               const lastIdx = findLastAssistantIndex(updated)
@@ -1104,6 +1133,7 @@ export function useChat() {
           }
         })
       } catch (error) {
+        if (currentThreadRef.current !== messageThreadId) return
         setMessages((prev) => {
           const updated = [...prev]
           if (updated[updated.length - 1]) {
