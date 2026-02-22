@@ -6,8 +6,6 @@ import NotesView from '../views/NotesView'
 import DynamicDashboard from './DynamicDashboard'
 import { StatusData } from '../services/api'
 
-
-
 interface MainViewRendererProps {
   viewName: string
   isCompact: boolean

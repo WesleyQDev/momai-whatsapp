@@ -65,8 +65,18 @@ export function ChatHistoryPopover({ threadId, setThreadId }: Props) {
         className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-border/20 bg-card/40 text-text-muted hover:text-accent hover:border-accent/40 hover:bg-accent/10 transition-all font-semibold"
         title="Histórico de Conversas"
       >
-        <svg fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor" className="w-[14px] h-[14px]">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        <svg
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={2.2}
+          stroke="currentColor"
+          className="w-[14px] h-[14px]"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+          />
         </svg>
       </button>
 
@@ -74,31 +84,42 @@ export function ChatHistoryPopover({ threadId, setThreadId }: Props) {
         <div className="absolute top-10 right-0 w-64 bg-card border border-border/20 shadow-2xl rounded-xl z-50 overflow-hidden flex flex-col max-h-[400px]">
           <div className="p-3 border-b border-border/10 bg-black/10 text-xs font-semibold text-text-muted flex justify-between items-center">
             <span>Sessões Recentes</span>
-            <button 
-               onClick={() => { setThreadId(`sessao_${Date.now()}`); setIsOpen(false); }}
-               className="text-[10px] text-accent hover:underline rounded bg-accent/10 px-1.5 py-0.5"
+            <button
+              onClick={() => {
+                setThreadId(`sessao_${Date.now()}`)
+                setIsOpen(false)
+              }}
+              className="text-[10px] text-accent hover:underline rounded bg-accent/10 px-1.5 py-0.5"
             >
               Nova +
             </button>
           </div>
-          
+
           <div className="overflow-y-auto flex-1 p-2 space-y-1 custom-scrollbar">
             {isLoading ? (
               <div className="p-4 text-center text-xs text-text-muted">Carregando...</div>
             ) : sessions.length === 0 ? (
-              <div className="p-4 text-center text-xs text-text-muted">Nenhuma sessão encontrada.</div>
+              <div className="p-4 text-center text-xs text-text-muted">
+                Nenhuma sessão encontrada.
+              </div>
             ) : (
               sessions.map((s) => (
                 <div
                   key={s.id}
                   onClick={() => handleSelect(s.id)}
                   className={`group relative flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all border ${
-                    threadId === s.id ? 'bg-accent/15 border-accent/30 shadow-[inset_0_0_10px_rgba(var(--color-accent),0.1)]' : 'hover:bg-white/5 border-transparent'
+                    threadId === s.id
+                      ? 'bg-accent/15 border-accent/30 shadow-[inset_0_0_10px_rgba(var(--color-accent),0.1)]'
+                      : 'hover:bg-white/5 border-transparent'
                   }`}
                 >
                   <div className="flex flex-col gap-0.5 w-[85%]">
-                    <span className={`text-[11px] font-medium truncate ${threadId === s.id ? 'text-accent font-semibold' : 'text-text/80'}`}>
-                      {s.id === 'default' ? 'Sessão Inicial' : new Date(s.lastActivity || '').toLocaleString()}
+                    <span
+                      className={`text-[11px] font-medium truncate ${threadId === s.id ? 'text-accent font-semibold' : 'text-text/80'}`}
+                    >
+                      {s.id === 'default'
+                        ? 'Sessão Inicial'
+                        : new Date(s.lastActivity || '').toLocaleString()}
                     </span>
                     <span className="text-[9px] text-text-muted uppercase tracking-wider">
                       {s.messageCount} msg

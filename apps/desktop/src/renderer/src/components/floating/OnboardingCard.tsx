@@ -54,7 +54,10 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   const [appVersion, setAppVersion] = useState('1.0.0')
 
   useEffect(() => {
-    window.api.getAppVersion?.().then(setAppVersion).catch(() => {})
+    window.api
+      .getAppVersion?.()
+      .then(setAppVersion)
+      .catch(() => {})
   }, [])
 
   const changeTheme = (newTheme: Theme) => {

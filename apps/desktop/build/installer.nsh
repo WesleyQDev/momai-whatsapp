@@ -76,29 +76,39 @@ Function MomAIClearDataPage
     Abort
   ${EndIf}
 
-  ${NSD_CreateLabel} 0 0 100% 20u "Deseja recomecar do zero?"
+  ${NSD_CreateLabel} 0 0 100% 20u "Encontrou um erro?"
   Pop $0
   Push $0
   Push 18
   Push 700
   Call MomAI_SetFont
 
-  ${NSD_CreateLabel} 0 22u 100% 24u "Isso apaga mensagens, lembretes, configuracoes e vetores locais."
+  ${NSD_CreateLabel} 0 25u 100% 50u "AVISO: MomAI esta em fase de teste.${CRLF}Se encontrar erros, considere reinstalar${CRLF}ou reporte o erro diretamente no site."
+  Pop $0
+  Push $0
+  Push 10
+  Push 400
+  Call MomAI_SetFont
+  ${NSD_SetColor} $0 255 0 0
+
+  ${NSD_CreateLabel} 0 85u 100% 20u "Obrigado por testar!"
   Pop $0
   Push $0
   Push 10
   Push 400
   Call MomAI_SetFont
 
-  ${NSD_CreateCheckbox} 0 54u 100% 14u "Apagar dados locais"
-  Pop $MomAICheckbox
-  ${NSD_SetState} $MomAICheckbox ${BST_UNCHECKED}
+  ${NSD_CreateLabel} 0 105u 100% 20u "Wesley Developer Studios"
+  Pop $0
+  Push $0
+  Push 10
+  Push 400
+  Call MomAI_SetFont
 
   nsDialogs::Show
 FunctionEnd
 
 Function MomAIClearDataLeave
-  ${NSD_GetState} $MomAICheckbox $MomAIClearData
 FunctionEnd
 
 Function MomAIFinishPage
@@ -149,27 +159,6 @@ FunctionEnd
 !macroend
 
 !macro customInstall
-  ${If} $MomAIClearData == ${BST_CHECKED}
-    DetailPrint "Limpando dados locais e liberando arquivos..."
-    
-    # Try to kill processes that might be locking the database files
-    # We use cmd /c to run taskkill silently (errors ignored if process not running)
-    # Check for both MomAI.exe and desktop.exe just in case
-    ExecWait 'cmd.exe /C "taskkill /F /IM ${PRODUCT_NAME}.exe /T >nul 2>&1 & taskkill /F /IM llama-server.exe /T >nul 2>&1 & taskkill /F /IM desktop.exe /T >nul 2>&1"' $1
-    Sleep 1000
-    
-    # Delete the current folder
-    RMDir /r "$APPDATA\${PRODUCT_NAME}"
-    
-    # Also delete the old "desktop" folder if it exists (legacy name from package.json)
-    RMDir /r "$APPDATA\desktop"
-    
-    # Recreate the directory so the installation can proceed normally
-    CreateDirectory "$APPDATA\${PRODUCT_NAME}"
-    
-    DetailPrint "Limpeza de dados concluida."
-  ${EndIf}
-
   # --- VC Redist Check and Install ---
   DetailPrint "Verificando Microsoft Visual C++ Redistributable..."
   

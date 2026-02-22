@@ -49,7 +49,8 @@ const errorMessages: Record<string, { title: string; solution: string }> = {
   },
   missing_vc_redist: {
     title: 'Missing Component',
-    solution: 'Install Microsoft Visual C++ Redistributable (aka.ms/vs/17/release/vc_redist.x64.exe)'
+    solution:
+      'Install Microsoft Visual C++ Redistributable (aka.ms/vs/17/release/vc_redist.x64.exe)'
   }
 }
 
@@ -309,8 +310,24 @@ export default function SplashScreen({
         >
           <div className="flex flex-col gap-4 max-w-md">
             <div className="flex justify-between items-end text-[10px] font-bold tracking-[0.15em] uppercase text-text/30">
-              <span className={bootstrapError ? 'text-red-400' : localIsStalled ? 'text-yellow-400' : localIsRetrying ? 'text-blue-400' : 'text-accent/80'}>
-                {bootstrapError ? 'Error' : localIsRetrying ? 'Reiniciando...' : localIsStalled ? 'Isso está demorando mais que o normal (Aguarde mais um pouco)...' : initMessage || 'Loading...'}
+              <span
+                className={
+                  bootstrapError
+                    ? 'text-red-400'
+                    : localIsStalled
+                      ? 'text-yellow-400'
+                      : localIsRetrying
+                        ? 'text-blue-400'
+                        : 'text-accent/80'
+                }
+              >
+                {bootstrapError
+                  ? 'Error'
+                  : localIsRetrying
+                    ? 'Reiniciando...'
+                    : localIsStalled
+                      ? 'Isso está demorando mais que o normal (Aguarde mais um pouco)...'
+                      : initMessage || 'Loading...'}
               </span>
               <span className="font-mono opacity-60">{elapsedTime}s</span>
             </div>
@@ -321,10 +338,10 @@ export default function SplashScreen({
                   bootstrapError
                     ? 'bg-red-400 shadow-[0_0_10px_rgba(239,68,68,0.5)]'
                     : localIsStalled
-                    ? 'bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)] animate-pulse'
-                    : localIsRetrying
-                    ? 'bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.5)]'
-                    : 'bg-accent shadow-[0_0_10px_rgba(var(--accent),0.5)]'
+                      ? 'bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)] animate-pulse'
+                      : localIsRetrying
+                        ? 'bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.5)]'
+                        : 'bg-accent shadow-[0_0_10px_rgba(var(--accent),0.5)]'
                 }`}
                 style={{ width: bootstrapError ? '100%' : `${visualProgress}%` }}
               />

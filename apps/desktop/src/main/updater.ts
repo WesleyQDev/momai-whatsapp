@@ -95,7 +95,7 @@ export function setupUpdater(): void {
 
   // Check on startup if packaged
   if (app.isPackaged) {
-    autoUpdater.checkForUpdates().catch(err => {
+    autoUpdater.checkForUpdates().catch((err) => {
       logger.error(`[Updater] Initial check-for-updates failed: ${err}`)
     })
   } else {

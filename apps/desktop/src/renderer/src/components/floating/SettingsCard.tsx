@@ -60,7 +60,10 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
   const [appVersion, setAppVersion] = useState('1.0.0')
 
   useEffect(() => {
-    window.api.getAppVersion?.().then(setAppVersion).catch(() => {})
+    window.api
+      .getAppVersion?.()
+      .then(setAppVersion)
+      .catch(() => {})
   }, [])
 
   useEffect(() => {

@@ -118,7 +118,7 @@ export function useStatus() {
       setLastProgressTime(Date.now())
       setIsStalled(false)
       setIsRetrying(false)
-      
+
       // Se recebemos progresso do backend, ele definitivamente está rodando
       if (!backendOnline) {
         setBackendOnline(true)
@@ -180,7 +180,7 @@ export function useStatus() {
 
       if (!backendOnline) return
 
-      const pollInterval = (isBooting || (initProgress >= 100 && !isReady)) ? 2000 : 8000
+      const pollInterval = isBooting || (initProgress >= 100 && !isReady) ? 2000 : 8000
       statusInterval = setInterval(checkStatus, pollInterval)
     }
 

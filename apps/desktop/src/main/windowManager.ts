@@ -375,7 +375,7 @@ export function createWindow(): void {
     if (process.platform === 'linux') {
       const { workArea } = screen.getPrimaryDisplay()
       win.setBounds(workArea)
-      
+
       setTimeout(() => {
         if (win.isMinimized()) win.restore()
         if (!win.isVisible()) win.show()

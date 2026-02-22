@@ -2,7 +2,15 @@ import { app } from 'electron'
 import { spawn, execSync } from 'child_process'
 import { join, resolve } from 'path'
 import { createConnection } from 'net'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, statSync, unlinkSync, rmSync } from 'fs'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  statSync,
+  unlinkSync,
+  rmSync
+} from 'fs'
 import {
   state,
   setPythonProcess,
@@ -231,26 +239,26 @@ function isRunningFromSnap(): boolean {
 
 function getWritableCorePath(originalCorePath: string): string {
   const isWritable = checkWritePermission(originalCorePath)
-  
+
   if (isWritable) {
     return originalCorePath
   }
 
   logger.info('[Bootstrap] Core path is read-only, copying to temp directory...')
-  
+
   const tempDir = join(process.env.TEMP || '/tmp', 'momai-core-temp')
-  
+
   try {
     if (existsSync(tempDir)) {
       rmSync(tempDir, { recursive: true, force: true })
     }
-    
+
     if (process.platform === 'win32') {
       execSync(`xcopy "${originalCorePath}" "${tempDir}\\" /E /I /Y`, { stdio: 'ignore' })
     } else {
       execSync(`cp -r "${originalCorePath}" "${tempDir}"`, { stdio: 'ignore' })
     }
-    
+
     logger.info(`[Bootstrap] Core copied to writable temp: ${tempDir}`)
     return tempDir
   } catch (e) {
@@ -319,14 +327,14 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
   if (!checkWritePermission(userDataPath)) {
     const isAppImage = isRunningFromAppImage()
     const isSnap = isRunningFromSnap()
-    
+
     let errorDetails = `Path: ${userDataPath}. Check antivirus or run as administrator.`
     if (isAppImage) {
       errorDetails = `Running from AppImage with read-only filesystem. Extract the AppImage to a writable location or use the --appimage-extract option.`
     } else if (isSnap) {
       errorDetails = `Running from Snap with read-only filesystem. Use classic confinement or install via other method.`
     }
-    
+
     const error: BootstrapError = {
       type: 'permission_denied',
       message: 'Cannot write to user data directory',
@@ -338,7 +346,7 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
   // PARALLEL: Create venv AND prepare sync in parallel
   const writableCorePath = getWritableCorePath(corePath)
   const needsVenv = !existsSync(pythonExe)
-  
+
   if (needsVenv) {
     logger.info('[Bootstrap] Ambiente não encontrado. Iniciando setup com uv...')
     sendInitProgress('Criando ambiente isolado...', 5)
@@ -370,7 +378,9 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
             try {
               if (existsSync(SYNC_LOCK_FILE)) {
                 unlinkSync(SYNC_LOCK_FILE)
-                logger.info('[Bootstrap] Sync lock invalidado para forçar reinstall das dependências.')
+                logger.info(
+                  '[Bootstrap] Sync lock invalidado para forçar reinstall das dependências.'
+                )
               }
             } catch (e) {
               logger.warn('[Bootstrap] Não foi possível invalidar sync lock:', e)
@@ -516,7 +526,7 @@ export async function startPythonBackend(): Promise<void> {
       process.platform === 'win32'
         ? join(checkVenvPath, 'Scripts', 'python.exe')
         : join(checkVenvPath, 'bin', 'python')
-    
+
     const onboardingCompleted = isOnboardingCompleted()
     state.isFirstLaunch = !existsSync(pythonExeCheck) || !onboardingCompleted
 
@@ -539,7 +549,7 @@ export async function startPythonBackend(): Promise<void> {
     const { uvExe } = result
     const env = buildEnv(venvPath, dataDir, uvExe)
     env.MOMAI_CORE_PATH = corePath
-    
+
     let stderrBuffer = ''
 
     setPythonStartTime(Date.now())
@@ -553,7 +563,7 @@ export async function startPythonBackend(): Promise<void> {
     setPythonProcess(pythonProcess)
     pythonProcess.stdout?.on('data', (data) => {
       const line = data.toString().trim()
-      
+
       // Intercept audio chunks for frontend playback fallback
       if (line.startsWith('[AUDIO_CHUNK]')) {
         const audioB64 = line.replace('[AUDIO_CHUNK]', '').trim()
@@ -593,7 +603,7 @@ export async function startPythonBackend(): Promise<void> {
       })
       .catch((err) => {
         logger.error(`[Electron] Failed to detect backend port: ${err.message}`)
-        
+
         // Send error to renderer when port detection fails
         const window = getMainWindow()
         if (window && !window.isDestroyed()) {
@@ -648,13 +658,13 @@ export async function startPythonBackend(): Promise<void> {
           logger.warn(
             `[Python] Crash detectado durante boot (Código: ${code}). Tentando reiniciar (Tentativa ${restartAttempts})...`
           )
-          
+
           // Notify renderer about retry
           const window = getMainWindow()
           if (window && !window.isDestroyed()) {
             window.webContents.send('backend-retry')
           }
-          
+
           setTimeout(() => startPythonBackend(), 2000)
           return
         }

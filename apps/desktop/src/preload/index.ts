@@ -35,7 +35,8 @@ const api = {
   },
   checkForUpdates: (): Promise<any> => electronAPI.ipcRenderer.invoke('check-for-updates'),
   downloadUpdate: (): Promise<any> => electronAPI.ipcRenderer.invoke('download-update'),
-  quitAndInstallUpdate: (): Promise<void> => electronAPI.ipcRenderer.invoke('quit-and-install-update'),
+  quitAndInstallUpdate: (): Promise<void> =>
+    electronAPI.ipcRenderer.invoke('quit-and-install-update'),
   onUpdateAvailable: (callback: (info: any) => void) => {
     const handler = (_: any, info: any) => callback(info)
     electronAPI.ipcRenderer.on('update-available', handler)
@@ -56,7 +57,8 @@ const api = {
     electronAPI.ipcRenderer.on('update-error', handler)
     return () => electronAPI.ipcRenderer.removeListener('update-error', handler)
   },
-  markFirstLaunchFinished: (settings: any): void => electronAPI.ipcRenderer.send('mark-first-launch-finished', settings)
+  markFirstLaunchFinished: (settings: any): void =>
+    electronAPI.ipcRenderer.send('mark-first-launch-finished', settings)
 }
 
 if (process.contextIsolated) {

@@ -138,11 +138,11 @@ export function useChat() {
   useEffect(() => {
     if (currentThreadRef.current !== threadId) {
       if (isLoading) {
-        stopCurrentGeneration();
+        stopCurrentGeneration()
       }
-      currentThreadRef.current = threadId;
+      currentThreadRef.current = threadId
     }
-  }, [threadId, isLoading]);
+  }, [threadId, isLoading])
 
   // Carrega histórico inicial do SQLite
   useEffect(() => {
@@ -244,7 +244,7 @@ export function useChat() {
       setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '...' }])
 
       const messageThreadId = threadId
-      
+
       sendChatMessage(option, threadId, {
         onToken: (token) => {
           if (currentThreadRef.current !== messageThreadId) return

@@ -162,7 +162,7 @@ const CallModeUI = ({
 
 const LoadingAnimation = ({ progress, message }: { progress: number; message?: string }) => {
   const [seconds, setSeconds] = useState(0)
-  
+
   useEffect(() => {
     const startTime = Date.now()
     const interval = setInterval(() => {
@@ -170,7 +170,7 @@ const LoadingAnimation = ({ progress, message }: { progress: number; message?: s
     }, 1000)
     return () => clearInterval(interval)
   }, [])
-  
+
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8">
       <div className="relative w-32 h-32 mb-6">
@@ -204,7 +204,9 @@ const LoadingAnimation = ({ progress, message }: { progress: number; message?: s
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold text-text drop-shadow-lg">{Math.round(progress)}%</span>
+          <span className="text-2xl font-bold text-text drop-shadow-lg">
+            {Math.round(progress)}%
+          </span>
           <span className="text-xs text-text-muted/50">{seconds}s</span>
         </div>
       </div>
@@ -240,7 +242,7 @@ export default function ContainerChat({
   setThreadId
 }: ContainerChatProps): JSX.Element {
   const isInitializing = initProgress < 100
-  
+
   return (
     <div className="bg-transparent w-full h-full flex flex-col overflow-hidden relative">
       {isInitializing ? (

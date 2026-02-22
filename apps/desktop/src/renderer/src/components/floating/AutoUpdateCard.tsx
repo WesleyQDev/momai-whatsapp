@@ -84,7 +84,14 @@ export default function AutoUpdateCard() {
             onClick={handleClose}
             className="ml-auto p-1 text-text-muted hover:text-text transition-colors"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+            >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -92,35 +99,35 @@ export default function AutoUpdateCard() {
         </div>
 
         {status === 'available' && (
-           <p className="text-[11px] text-text-muted leading-relaxed">
-             Uma nova versão da MomAI está disponível com melhorias e correções. Baixar agora?
-           </p>
+          <p className="text-[11px] text-text-muted leading-relaxed">
+            Uma nova versão da MomAI está disponível com melhorias e correções. Baixar agora?
+          </p>
         )}
 
         {status === 'downloading' && (
           <div className="flex flex-col gap-2 mt-1">
-             <div className="flex justify-between text-[10px] text-text font-bold">
-                <span>Baixando atualização...</span>
-                <span>{Math.round(progress)}%</span>
-             </div>
-             <div className="w-full h-1.5 bg-bg rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-accent rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-             </div>
+            <div className="flex justify-between text-[10px] text-text font-bold">
+              <span>Baixando atualização...</span>
+              <span>{Math.round(progress)}%</span>
+            </div>
+            <div className="w-full h-1.5 bg-bg rounded-full overflow-hidden">
+              <div
+                className="h-full bg-accent rounded-full transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
           </div>
         )}
 
         {status === 'ready' && (
           <p className="text-[11px] text-green-400 font-medium leading-relaxed">
-             Download concluído! Reinicie o aplicativo para aplicar a nova versão.
+            Download concluído! Reinicie o aplicativo para aplicar a nova versão.
           </p>
         )}
 
         {status === 'error' && (
           <p className="text-[11px] text-red-500 font-medium leading-relaxed">
-             Erro ao baixar atualização. Tente novamente mais tarde.
+            Erro ao baixar atualização. Tente novamente mais tarde.
           </p>
         )}
 

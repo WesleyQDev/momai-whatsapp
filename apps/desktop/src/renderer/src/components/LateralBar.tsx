@@ -81,7 +81,7 @@ export default function LateralBar({
 
     window.addEventListener('momai_extensions_sync', handleSync)
     window.addEventListener('momai_backend_ready', handleReady)
-    
+
     // Fallback retry
     const timer = setTimeout(loadExtensions, 3000)
 
@@ -169,10 +169,7 @@ export default function LateralBar({
 
           const otherExtensions = extensions.filter(
             (e) =>
-              e.features?.sidebar &&
-              e.enabled &&
-              e.name !== 'responder' &&
-              e.name !== 'scheduler'
+              e.features?.sidebar && e.enabled && e.name !== 'responder' && e.name !== 'scheduler'
           )
 
           return (

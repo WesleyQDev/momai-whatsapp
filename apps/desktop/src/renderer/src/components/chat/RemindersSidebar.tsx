@@ -59,7 +59,7 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
   const { t, formatTime } = useI18n()
 
   const today = new Date()
-  
+
   // Generate all upcoming occurrences (today or future)
   const allOccurrences = reminders
     .map((r) => {
@@ -104,18 +104,18 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
         <div className="flex-1 overflow-y-auto custom-scrollbar px-2 space-y-0.5 pb-2">
           {displayItems.map(({ reminder: r, time, isToday }) => {
             const recurrence = getRecurrenceMeta(t, r.repeat_interval, r.repeat_value)
-            
-            let dateLabel = "Hoje"
+
+            let dateLabel = 'Hoje'
             if (!isToday) {
               const tomorrow = new Date(today)
               tomorrow.setDate(tomorrow.getDate() + 1)
-              
+
               if (
                 time.getDate() === tomorrow.getDate() &&
                 time.getMonth() === tomorrow.getMonth() &&
                 time.getFullYear() === tomorrow.getFullYear()
               ) {
-                dateLabel = "Amanhã"
+                dateLabel = 'Amanhã'
               } else {
                 dateLabel = time.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' })
               }
