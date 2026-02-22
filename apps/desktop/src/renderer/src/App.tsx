@@ -12,13 +12,78 @@ import ConfirmationCard from './components/floating/ConfirmationCard'
 import OnboardingCard from './components/floating/OnboardingCard'
 import TutorialTour from './components/floating/TutorialTour'
 import AutoUpdateCard from './components/floating/AutoUpdateCard'
-import logo from './assets/icon.png'
+import logo from './assets/icon.gif'
 
 import MainViewRenderer from './components/MainViewRenderer'
 import { fetchExtensions, fetchSettings, SettingsData } from './services/api'
 import { useI18n } from './i18n'
 
+const WelcomeScreen = ({ onComplete }: { onComplete: () => void }) => {
+  const [version] = useState('0.3.7')
+  const [fading, setFading] = useState(false)
+
+  useEffect(() => {
+    // Start fade-out 600ms before the total 2s duration
+    const fadeTimer = setTimeout(() => {
+      setFading(true)
+    }, 1400)
+
+    const completeTimer = setTimeout(() => {
+      onComplete()
+    }, 2000)
+
+    return () => {
+      clearTimeout(fadeTimer)
+      clearTimeout(completeTimer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] bg-bg flex flex-col items-center justify-center"
+      style={{
+        transition: 'opacity 0.6s ease-out',
+        opacity: fading ? 0 : 1,
+        pointerEvents: fading ? 'none' : 'auto',
+      }}
+    >
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 bg-bg" />
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-accent/5 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-accent/5 rounded-full blur-[120px]" />
+      </div>
+
+      <div className="relative flex flex-col items-center animate-[fadeIn_0.5s_ease-out]">
+        <div className="relative mb-8">
+          <div className="absolute inset-0 bg-violet-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '2s' }} />
+          <img
+            src={logo}
+            alt="MomAI"
+            className="w-36 h-36 object-contain relative z-10 drop-shadow-2xl animate-[bounce_2s_ease-in-out_infinite]"
+          />
+        </div>
+
+        <h1 className="text-3xl font-bold text-text mb-3 tracking-wide">
+          Bem vind<span className="text-violet-400">o</span> a <span className="text-violet-400">MomAI</span>
+        </h1>
+
+        <p className="text-lg text-violet-400 font-medium mb-4">
+          Sua assistente local
+        </p>
+
+        {version && (
+          <p className="text-xs text-text-muted/50 font-mono">
+            Versão {version}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function App(): React.JSX.Element {
+  const [showWelcome, setShowWelcome] = useState(true)
   const { setLocale } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
@@ -39,6 +104,9 @@ function App(): React.JSX.Element {
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [settings, setSettings] = useState<SettingsData | null>(null)
   const [bootstrapError, setBootstrapError] = useState<{type: string; message: string; details?: string} | null>(null)
+  const [pendingOnboardingSettings, setPendingOnboardingSettings] = useState<Record<string, any> | null>(null)
+  const [firstLaunchChecked, setFirstLaunchChecked] = useState(false)
+  const [onboardingAttempted, setOnboardingAttempted] = useState(false)
 
   // Overlay Helper
   useEffect(() => {
@@ -69,6 +137,60 @@ function App(): React.JSX.Element {
       remove()
     }
   }, [])
+
+  // Check if this is a first launch and show onboarding immediately
+  // Uses invoke (request/response) instead of events to avoid timing issues
+  useEffect(() => {
+    const checkFirstLaunch = async () => {
+      try {
+        const firstLaunch = await window.api?.isFirstLaunch?.()
+        if (firstLaunch) {
+          console.log('[App] First launch detected, showing onboarding immediately')
+          setShowOnboarding(true)
+          setOnboardingAttempted(true)
+        }
+      } catch (err) {
+        console.error('[App] Failed to check first launch:', err)
+      } finally {
+        setFirstLaunchChecked(true)
+      }
+    }
+    checkFirstLaunch()
+  }, [])
+
+  // Proactive onboarding trigger when booting starts (0%)
+  useEffect(() => {
+    if (isBooting && initProgress === 0 && !showOnboarding && !settingsLoaded && firstLaunchChecked) {
+      // Re-verify if we should show onboarding if we are stuck at 0% and nothing is shown
+      window.api?.isFirstLaunch?.().then((firstLaunch) => {
+        if (firstLaunch && !showOnboarding) {
+          setShowOnboarding(true)
+          setOnboardingAttempted(true)
+        }
+      })
+    }
+  }, [isBooting, initProgress, showOnboarding, settingsLoaded, firstLaunchChecked])
+
+  // Flush pending onboarding settings when backend comes online
+  useEffect(() => {
+    if (isOnline && pendingOnboardingSettings) {
+      console.log('[App] Backend is online, flushing pending onboarding settings...')
+      const flush = async () => {
+        try {
+          const { api: apiService } = await import('./services/api')
+          await apiService.patch('/settings', pendingOnboardingSettings)
+          window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: pendingOnboardingSettings }))
+          console.log('[App] Pending onboarding settings saved successfully')
+        } catch (err) {
+          console.error('[App] Failed to save pending onboarding settings, retrying...', err)
+          // Will retry next time isOnline changes
+          return
+        }
+        setPendingOnboardingSettings(null)
+      }
+      flush()
+    }
+  }, [isOnline, pendingOnboardingSettings])
 
   // Trigger app-ready when app is fully ready (replaces SplashScreen onFinished)
   useEffect(() => {
@@ -252,7 +374,19 @@ function App(): React.JSX.Element {
   const isChat = uiView === 'ChatDashboard' || uiView === 'RemindersDashboard'
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-bg">
+    <>
+      {showWelcome && <WelcomeScreen onComplete={() => setShowWelcome(false)} />}
+      <div
+        className="h-full flex flex-col overflow-hidden bg-bg"
+        style={{
+          transition: 'opacity 0.6s ease-in',
+          // Hide app if: we are on welcome, onboarding is showing, there's a boot error, 
+          // we haven't checked first launch yet, OR we are at 0% and booting (prevents flicker)
+          // After onboarding is attempted, show the app even during boot
+          opacity: (showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked || (isBooting && initProgress === 0 && !settingsLoaded && !onboardingAttempted)) ? 0 : 1,
+          pointerEvents: (showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked || (isBooting && initProgress === 0 && !settingsLoaded && !onboardingAttempted)) ? 'none' : 'auto'
+        }}
+      >
       <TitleBar onClearHistory={triggerClearHistory} activeRoute={location.pathname} />
 
       <div className="flex-1 flex w-full min-h-0 relative">
@@ -302,18 +436,18 @@ function App(): React.JSX.Element {
 
               {/* 3. Desktop Sidebar (Right Side - Visible only in Chat) */}
               {!isCompact && isChat && (
-                <div className="w-[320px] flex flex-col gap-6 h-full shrink-0">
-                  <div className="flex flex-col items-center justify-center py-2 animate-fade-in shrink-0">
-                    <div className="relative w-24 h-24 flex items-center justify-center">
+                <div className="w-[320px] flex flex-col gap-2 h-full shrink-0">
+                  <div className="flex flex-col items-center justify-center animate-fade-in shrink-0">
+                    <div className="relative w-32 h-24 flex items-center justify-center overflow-visible">
                       <div className="absolute inset-0 bg-accent/20 blur-2xl rounded-full opacity-50"></div>
                       <img
                         src={logo}
                         alt="MomAI"
-                        className="w-20 h-20 object-contain relative z-10 drop-shadow-2xl"
+                        className="w-28 h-28 object-contain relative z-10 drop-shadow-2xl"
                       />
                     </div>
 
-                    <div className="relative flex flex-col items-center mt-2 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <div className="relative flex flex-col items-center -mt-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
                       {/* Pontinhos brilhantes flutuantes */}
                       <div className="absolute -inset-6 pointer-events-none">
                         <div
@@ -343,7 +477,7 @@ function App(): React.JSX.Element {
                       </div>
 
                       {/* Texto com brilho suave e efeito de profundidade */}
-                      <div className="relative mt-2">
+                      <div className="relative">
                         <div
                           className="absolute -inset-3 bg-accent/20 blur-2xl animate-pulse"
                           style={{ animationDuration: '3s' }}
@@ -370,6 +504,7 @@ function App(): React.JSX.Element {
           </div>
         </main>
       </div>
+    </div>
 
       {/* Floating Interfaces */}
       {showSettings && (
@@ -458,9 +593,14 @@ function App(): React.JSX.Element {
 
       {showOnboarding && (
         <OnboardingCard
-          onFinish={() => {
+          onFinish={(savedSettings?: Record<string, any>) => {
             setShowOnboarding(false)
-            // setShowTutorial(true)
+            setOnboardingAttempted(true)
+            // If backend isn't online yet, queue the settings for later
+            if (!isOnline && savedSettings) {
+              console.log('[App] Backend not online yet, queuing onboarding settings')
+              setPendingOnboardingSettings(savedSettings)
+            }
             // Agora que o onboarding acabou, podemos redimensionar a janela
             window.electron.ipcRenderer.send('app-ready')
           }}
@@ -473,7 +613,7 @@ function App(): React.JSX.Element {
 
       {!isCompact && <ResourceFooter />}
       */}
-    </div>
+    </>
   )
 }
 

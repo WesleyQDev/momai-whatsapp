@@ -3,7 +3,7 @@ import { api } from '../../services/api'
 import { useI18n } from '../../i18n'
 
 interface OnboardingCardProps {
-  onFinish: () => void
+  onFinish: (savedSettings?: Record<string, any>) => void
 }
 
 type Theme = 'dark' | 'light'
@@ -73,9 +73,17 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         onboarding_completed: true,
         locale: selectedLang === 'p' ? 'pt-BR' : 'en-US'
       }
-      await api.patch('/settings', payload)
-      window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: payload }))
-      onFinish()
+      // Signal main process first (works offline - saves to local file)
+      window.api?.markFirstLaunchFinished?.(payload)
+      // Call onFinish to allow App.tsx to queue if backend is not ready
+      onFinish(payload)
+      // Try to sync with backend (non-blocking)
+      try {
+        await api.patch('/settings', payload)
+        window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: payload }))
+      } catch (apiError) {
+        console.warn('[Onboarding] Backend not ready, settings will be queued by App.tsx')
+      }
     } catch (error) {
       console.error('Erro ao salvar onboarding:', error)
     } finally {

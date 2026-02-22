@@ -17,6 +17,7 @@ import { logger } from './logger'
 
 const userDataPath = app.getPath('userData')
 const SYNC_LOCK_FILE = join(userDataPath, '.sync.lock')
+const ONBOARDING_FILE = join(userDataPath, 'onboarding_completed.json')
 const INIT_PROGRESS_REGEX = /\[Init (\d+)%\]\s+[^:]+:\s+(.+)/
 
 interface BootstrapResult {
@@ -30,6 +31,31 @@ interface SyncResult {
   success: boolean
   needsSync: boolean
   lastChecked?: number
+}
+
+function isOnboardingCompleted(): boolean {
+  try {
+    if (existsSync(ONBOARDING_FILE)) {
+      const data = JSON.parse(readFileSync(ONBOARDING_FILE, 'utf8'))
+      return data.completed === true
+    }
+  } catch (err) {
+    logger.error('[Bootstrap] Error reading onboarding status:', err)
+  }
+  return false
+}
+
+export function saveOnboardingCompleted(completed: boolean): void {
+  try {
+    const dataDir = join(userDataPath, 'data')
+    if (!existsSync(dataDir)) {
+      mkdirSync(dataDir, { recursive: true })
+    }
+    writeFileSync(ONBOARDING_FILE, JSON.stringify({ completed }), 'utf8')
+    logger.info(`[Electron] Onboarding status saved: ${completed}`)
+  } catch (err) {
+    logger.error('[Bootstrap] Error saving onboarding status:', err)
+  }
 }
 
 function sendErrorToRenderer(error: BootstrapError): void {
@@ -485,6 +511,15 @@ let restartAttempts = 0
 
 export async function startPythonBackend(): Promise<void> {
   try {
+    const checkVenvPath = join(userDataPath, 'python_env')
+    const pythonExeCheck =
+      process.platform === 'win32'
+        ? join(checkVenvPath, 'Scripts', 'python.exe')
+        : join(checkVenvPath, 'bin', 'python')
+    
+    const onboardingCompleted = isOnboardingCompleted()
+    state.isFirstLaunch = !existsSync(pythonExeCheck) || !onboardingCompleted
+
     const result = await bootstrapPython()
 
     if ('type' in result) {

@@ -9,6 +9,7 @@ const api = {
   getLogsPath: (): Promise<string> => electronAPI.ipcRenderer.invoke('get-logs-path'),
   openLogsFolder: (): Promise<void> => electronAPI.ipcRenderer.invoke('open-logs-folder'),
   getAppVersion: (): Promise<string> => electronAPI.ipcRenderer.invoke('get-app-version'),
+  isFirstLaunch: (): Promise<boolean> => electronAPI.ipcRenderer.invoke('is-first-launch'),
   onBootstrapError: (
     callback: (error: { type: string; message: string; details?: string }) => void
   ) => {
@@ -54,7 +55,8 @@ const api = {
     const handler = (_: any, error: string) => callback(error)
     electronAPI.ipcRenderer.on('update-error', handler)
     return () => electronAPI.ipcRenderer.removeListener('update-error', handler)
-  }
+  },
+  markFirstLaunchFinished: (settings: any): void => electronAPI.ipcRenderer.send('mark-first-launch-finished', settings)
 }
 
 if (process.contextIsolated) {

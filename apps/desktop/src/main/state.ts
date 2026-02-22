@@ -25,6 +25,7 @@ export interface AppState {
   pythonStartTime: number
   ipcHandlersRegistered: boolean
   lastBootstrapError: BootstrapError | null
+  isFirstLaunch: boolean
 }
 
 export const state: AppState = {
@@ -35,7 +36,8 @@ export const state: AppState = {
   isQuitting: false,
   pythonStartTime: 0,
   ipcHandlersRegistered: false,
-  lastBootstrapError: null
+  lastBootstrapError: null,
+  isFirstLaunch: false
 }
 
 export function getMainWindow(): BrowserWindow | null {

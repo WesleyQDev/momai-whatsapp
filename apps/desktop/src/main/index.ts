@@ -2,7 +2,7 @@ import { app, globalShortcut, BrowserWindow, ipcMain, shell } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { state, setIsQuitting } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
-import { startPythonBackend, shutdownPython } from './pythonManager'
+import { startPythonBackend, shutdownPython, saveOnboardingCompleted } from './pythonManager'
 import { logger, getLogsPath } from './logger'
 import { setupUpdater } from './updater'
 
@@ -38,6 +38,16 @@ process.on('unhandledRejection', (reason) => {
 ipcMain.handle('get-logs-path', () => getLogsPath())
 ipcMain.handle('open-logs-folder', () => shell.openPath(getLogsPath()))
 ipcMain.handle('get-app-version', () => app.getVersion())
+
+ipcMain.handle('is-first-launch', () => {
+  return state.isFirstLaunch
+})
+
+ipcMain.on('mark-first-launch-finished', () => {
+  logger.info('[Electron] Onboarding finished, marking first launch as false')
+  state.isFirstLaunch = false
+  saveOnboardingCompleted(true)
+})
 
 ipcMain.on('report-bootstrap-error', (_, error: string) => {
   logger.error('[Bootstrap] Error reported from renderer:', error)

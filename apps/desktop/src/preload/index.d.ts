@@ -11,6 +11,7 @@ declare global {
       getLogsPath: () => Promise<string>
       openLogsFolder: () => Promise<void>
       getAppVersion: () => Promise<string>
+      isFirstLaunch: () => Promise<boolean>
       onBootstrapError: (
         callback: (error: { type: string; message: string; details?: string }) => void
       ) => () => void
@@ -24,6 +25,7 @@ declare global {
       onUpdateProgress: (callback: (progress: any) => void) => () => void
       onUpdateDownloaded: (callback: (info: any) => void) => () => void
       onUpdateError: (callback: (error: string) => void) => () => void
+      markFirstLaunchFinished: (settings: any) => void
     }
   }
 }
