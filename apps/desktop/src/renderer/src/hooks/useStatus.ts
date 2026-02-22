@@ -1,6 +1,28 @@
 import { useState, useEffect, useCallback } from 'react'
 import { StatusData, fetchStatus, updateMode, fetchInitStatus } from '../services/api'
 
+const STALLED_TIMEOUT_MS = 60000
+
+const MESSAGE_TRANSLATIONS: Record<string, string> = {
+  'Creating isolated environment...': 'Criando ambiente isolado...',
+  'Installing dependencies...': 'Instalando dependências...',
+  'System protocols initialized': 'Inicializando protocolos do sistema...',
+  'Database connected': 'Conectando ao banco de dados...',
+  'AI modules loaded': 'Carregando módulos de IA...',
+  'Indexing tools...': 'Indexando ferramentas...',
+  'Indexing skills...': 'Indexando habilidades...',
+  'Applying settings...': 'Aplicando configurações...',
+  'Resource monitor enabled': 'Monitor de recursos ativado',
+  'Starting voice detector...': 'Iniciando detector de voz...',
+  'Finalizing brain connection...': 'Finalizando conexão com o cérebro...',
+  'Syncing local voice...': 'Sincronizando voz local...',
+  'System ready.': 'Sistema pronto.'
+}
+
+function translateMessage(message: string): string {
+  return MESSAGE_TRANSLATIONS[message] || message
+}
+
 export function useStatus() {
   const [statusInfo, setStatusInfo] = useState<StatusData | null>(null)
   const [localMode, setLocalMode] = useState<string>('waiting')
@@ -14,6 +36,9 @@ export function useStatus() {
   const [retryCount, setRetryCount] = useState(0)
   const [hasReceivedWSEvent, setHasReceivedWSEvent] = useState(false)
   const [backendOnline, setBackendOnline] = useState(false)
+  const [isStalled, setIsStalled] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
+  const [lastProgressTime, setLastProgressTime] = useState<number>(Date.now())
 
   const isBrainReady = statusInfo?.brain_ready ?? false
   const isBrainLoading = statusInfo?.is_loading ?? false
@@ -26,7 +51,7 @@ export function useStatus() {
     try {
       const data = await (fetchInitStatus() as any)
 
-      setInitMessage(data.message)
+      setInitMessage(translateMessage(data.message))
       setInitProgress((prev) => Math.max(prev, data.progress))
 
       if (data.progress >= 100) {
@@ -72,8 +97,11 @@ export function useStatus() {
     const handleInitProgress = (e: any) => {
       const { message, progress } = e.detail
       setHasReceivedWSEvent(true)
-      setInitMessage(message)
+      setInitMessage(translateMessage(message))
       setInitProgress((prev) => Math.max(prev, progress))
+      setLastProgressTime(Date.now())
+      setIsStalled(false)
+      setIsRetrying(false)
 
       if (progress >= 100) {
         setIsBooting(false)
@@ -85,8 +113,11 @@ export function useStatus() {
     // Listen for Core IPC progress (faster than WS/HTTP polling)
     // @ts-ignore
     const removeIpcListener = window.api?.onInitProgress?.((data) => {
-      setInitMessage(data.message)
+      setInitMessage(translateMessage(data.message))
       setInitProgress((prev) => Math.max(prev, data.progress))
+      setLastProgressTime(Date.now())
+      setIsStalled(false)
+      setIsRetrying(false)
       
       // Se recebemos progresso do backend, ele definitivamente está rodando
       if (!backendOnline) {
@@ -103,13 +134,23 @@ export function useStatus() {
     // @ts-ignore
     const removeOnlineListener = window.api?.onBackendOnline?.(() => {
       setBackendOnline(true)
+      setLastProgressTime(Date.now())
+      setIsStalled(false)
       window.dispatchEvent(new CustomEvent('momai_backend_ready'))
+    })
+
+    // Listen for retry events
+    // @ts-ignore
+    const removeRetryListener = window.api?.onBackendRetry?.(() => {
+      setIsRetrying(true)
+      setInitMessage('Reiniciando...')
     })
 
     return () => {
       window.removeEventListener('momai_init_progress', handleInitProgress)
       if (removeIpcListener) removeIpcListener()
       if (removeOnlineListener) removeOnlineListener()
+      if (removeRetryListener) removeRetryListener()
     }
   }, [backendOnline])
 
@@ -154,6 +195,21 @@ export function useStatus() {
     }
   }, [checkStatus, checkInitProgress, isBooting, initProgress, backendOnline])
 
+  // Detectar progresso estagnado
+  useEffect(() => {
+    if (isBooting && initProgress < 100 && !isStalled) {
+      const interval = setInterval(() => {
+        const timeSinceLastProgress = Date.now() - lastProgressTime
+        if (timeSinceLastProgress > STALLED_TIMEOUT_MS && !isRetrying) {
+          setIsStalled(true)
+          setInitMessage('Isso está demorando mais que o normal...')
+        }
+      }, 5000)
+      return () => clearInterval(interval)
+    }
+    return undefined
+  }, [isBooting, initProgress, lastProgressTime, isStalled, isRetrying])
+
   return {
     statusInfo,
     localMode,
@@ -164,6 +220,8 @@ export function useStatus() {
     initProgress,
     isReady,
     isBooting,
+    isStalled,
+    isRetrying,
     refreshStatus: checkStatus,
     changeMode
   }

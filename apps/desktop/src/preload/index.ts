@@ -27,6 +27,11 @@ const api = {
     electronAPI.ipcRenderer.on('backend-online', handler)
     return () => electronAPI.ipcRenderer.removeListener('backend-online', handler)
   },
+  onBackendRetry: (callback: () => void) => {
+    const handler = () => callback()
+    electronAPI.ipcRenderer.on('backend-retry', handler)
+    return () => electronAPI.ipcRenderer.removeListener('backend-retry', handler)
+  },
   checkForUpdates: (): Promise<any> => electronAPI.ipcRenderer.invoke('check-for-updates'),
   downloadUpdate: (): Promise<any> => electronAPI.ipcRenderer.invoke('download-update'),
   quitAndInstallUpdate: (): Promise<void> => electronAPI.ipcRenderer.invoke('quit-and-install-update'),

@@ -26,7 +26,7 @@ function App(): React.JSX.Element {
 
   const chat = useChat()
   const { graphState, handleGraphOption, closeGraph, clearHistory } = chat
-  const { localMode, statusInfo, hasUpdate, initMessage, initProgress, isReady, isOnline } =
+  const { localMode, statusInfo, hasUpdate, initMessage, initProgress, isReady, isOnline, isStalled, isRetrying } =
     useStatus()
   const [showSettings, setShowSettings] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
@@ -387,6 +387,8 @@ function App(): React.JSX.Element {
         status={localMode}
         initMessage={initMessage}
         initProgress={initProgress}
+        isStalled={isStalled}
+        isRetrying={isRetrying}
         onFinished={() => {
           if (settingsLoaded && !showOnboarding) {
             window.electron.ipcRenderer.send('app-ready')

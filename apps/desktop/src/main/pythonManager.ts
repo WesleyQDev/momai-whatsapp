@@ -555,6 +555,16 @@ export async function startPythonBackend(): Promise<void> {
       })
       .catch((err) => {
         logger.error(`[Electron] Failed to detect backend port: ${err.message}`)
+        
+        // Send error to renderer when port detection fails
+        const window = getMainWindow()
+        if (window && !window.isDestroyed()) {
+          window.webContents.send('bootstrap-error', {
+            type: 'startup_failed',
+            message: 'Backend failed to start',
+            details: `Could not connect to port ${port}. ${err.message}`
+          } as BootstrapError)
+        }
       })
 
     pythonProcess.stderr?.setEncoding('utf8')
@@ -600,6 +610,13 @@ export async function startPythonBackend(): Promise<void> {
           logger.warn(
             `[Python] Crash detectado durante boot (Código: ${code}). Tentando reiniciar (Tentativa ${restartAttempts})...`
           )
+          
+          // Notify renderer about retry
+          const window = getMainWindow()
+          if (window && !window.isDestroyed()) {
+            window.webContents.send('backend-retry')
+          }
+          
           setTimeout(() => startPythonBackend(), 2000)
           return
         }

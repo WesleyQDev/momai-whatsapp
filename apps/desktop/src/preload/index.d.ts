@@ -16,6 +16,7 @@ declare global {
       ) => () => void
       onInitProgress: (callback: (data: { message: string; progress: number }) => void) => () => void
       onBackendOnline: (callback: () => void) => () => void
+      onBackendRetry: (callback: () => void) => () => void
       checkForUpdates: () => Promise<any>
       downloadUpdate: () => Promise<any>
       quitAndInstallUpdate: () => Promise<void>

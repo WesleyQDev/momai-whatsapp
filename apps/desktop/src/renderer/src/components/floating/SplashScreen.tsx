@@ -13,6 +13,8 @@ interface SplashScreenProps {
   status?: string | null
   initMessage?: string
   initProgress?: number
+  isStalled?: boolean
+  isRetrying?: boolean
   onFinished?: () => void
 }
 
@@ -55,6 +57,8 @@ export default function SplashScreen({
   isFullyReady,
   initMessage,
   initProgress,
+  isStalled,
+  isRetrying,
   onFinished
 }: SplashScreenProps) {
   const { t } = useI18n()
@@ -129,6 +133,20 @@ export default function SplashScreen({
   }, [isFullyReady, bootstrapError])
 
   const [visualProgress, setVisualProgress] = useState(0)
+  const [localIsStalled, setLocalIsStalled] = useState(false)
+  const [localIsRetrying, setLocalIsRetrying] = useState(false)
+
+  useEffect(() => {
+    if (isStalled) {
+      setLocalIsStalled(true)
+    }
+  }, [isStalled])
+
+  useEffect(() => {
+    if (isRetrying) {
+      setLocalIsRetrying(true)
+    }
+  }, [isRetrying])
 
   useEffect(() => {
     if (bootstrapError) return
@@ -291,8 +309,8 @@ export default function SplashScreen({
         >
           <div className="flex flex-col gap-4 max-w-md">
             <div className="flex justify-between items-end text-[10px] font-bold tracking-[0.15em] uppercase text-text/30">
-              <span className={bootstrapError ? 'text-red-400' : 'text-accent/80'}>
-                {bootstrapError ? 'Error' : initMessage || 'Loading...'}
+              <span className={bootstrapError ? 'text-red-400' : localIsStalled ? 'text-yellow-400' : localIsRetrying ? 'text-blue-400' : 'text-accent/80'}>
+                {bootstrapError ? 'Error' : localIsRetrying ? 'Reiniciando...' : localIsStalled ? 'Isso está demorando mais que o normal...' : initMessage || 'Loading...'}
               </span>
               <span className="font-mono opacity-60">{elapsedTime}s</span>
             </div>
@@ -302,6 +320,10 @@ export default function SplashScreen({
                 className={`absolute top-0 left-0 h-full transition-all duration-100 ease-linear ${
                   bootstrapError
                     ? 'bg-red-400 shadow-[0_0_10px_rgba(239,68,68,0.5)]'
+                    : localIsStalled
+                    ? 'bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.5)] animate-pulse'
+                    : localIsRetrying
+                    ? 'bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.5)]'
                     : 'bg-accent shadow-[0_0_10px_rgba(var(--accent),0.5)]'
                 }`}
                 style={{ width: bootstrapError ? '100%' : `${visualProgress}%` }}
