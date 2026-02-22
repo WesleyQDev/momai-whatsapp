@@ -223,12 +223,13 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
             "\n# EXECUTION PROTOCOL\n"
             "1. FIRST, check if the answer is already in the # CONTEÚDO DAS NOTAS DO USUÁRIO or # EXTERNAL MEMORY provided above.\n"
             "2. IF YOU HAVE THE ANSWER, you can respond directly without calling any tool.\n"
-            "3. OTHERWISE, call 'activate_skill(skill_id, task_description)' for the FIRST step.\n"
-            "4. MANDATORY: DO NOT NARRATE. Do not say what you will do. If you need a tool, just call it.\n"
-            "5. Your output must be ONLY the tool call or ONLY the final answer.\n"
-            "6. After each skill finishes, you will receive the result and can call ANOTHER skill if needed.\n"
-            "7. ONLY provide the final response to the user after you have gathered all necessary information.\n"
-            "8. NEVER invent personal data. If no skill matches and it's not in your memory, say you don't have access."
+            "3. IF the user wants to schedule, view or delete a reminder/alarm, use the reminder tools directly (create_reminder etc).\n"
+            "4. OTHERWISE, call 'activate_skill(skill_id, task_description)' for the FIRST step.\n"
+            "5. MANDATORY: DO NOT NARRATE. Do not say what you will do. If you need a tool, just call it.\n"
+            "6. Your output must be ONLY the tool call or ONLY the final answer.\n"
+            "7. After each skill finishes, you will receive the result and can call ANOTHER skill if needed.\n"
+            "8. ONLY provide the final response to the user after you have gathered all necessary information.\n"
+            "9. NEVER invent personal data. If no skill matches and it's not in your memory, say you don't have access."
         )
 
         from langchain_core.tools import tool
@@ -240,7 +241,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
 
         manager_tools = [activate_skill]
         all_reg = get_all_tools_registry()
-        for t_name in ["show_interface", "close_interface"]:
+        for t_name in ["show_interface", "close_interface", "create_reminder", "list_reminders", "delete_reminder"]:
             if all_reg.get(t_name):
                 manager_tools.append(all_reg[t_name])
 

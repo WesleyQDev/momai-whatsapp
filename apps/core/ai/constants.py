@@ -7,9 +7,9 @@ CORE_GLOBAL_TOOLS = [
     "get_capabilities",
     "ask_confirmation",
     "duckduckgo_search",
-    "create_reminder_tool",
-    "list_reminders_tool",
-    "delete_reminder_tool",
+    "create_reminder",
+    "list_reminders",
+    "delete_reminder",
     "get_momai_resources_tool",
     "open_extension_store"
 ]

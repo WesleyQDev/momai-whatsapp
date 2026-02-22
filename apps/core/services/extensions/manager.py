@@ -79,6 +79,15 @@ class SkillRegistry:
             skill = Skill.from_file(skill_id, str(skill_path))
             self.skills[skill_id]["name"] = skill.name
             self.skills[skill_id]["description"] = skill.description
+            
+            # Preload tools so they are globally discoverable straight away
+            from utils.safe_tools import SafeExtensionTool
+            skill_tools = skill.load_tools()
+            if skill_tools:
+                for tool in skill_tools:
+                    safe_tool = SafeExtensionTool(original_tool=tool)
+                    self._skill_tools[safe_tool.name] = safe_tool
+            
             print(f"[SkillRegistry] Loaded: {skill.name} ({category})")
         except Exception as e:
             self.skills[skill_id]["error"] = str(e)
