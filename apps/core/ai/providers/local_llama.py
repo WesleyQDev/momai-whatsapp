@@ -4,6 +4,7 @@ import time
 import requests
 import logging
 import ctypes
+import platform
 from pathlib import Path
 from huggingface_hub import hf_hub_download
 from langchain_openai import ChatOpenAI
@@ -109,7 +110,8 @@ def get_paths():
         hw_info = downloader.get_hardware_info()
         backend = hw_info.get("backend", "cpu")
 
-    exe_path = base_dir / "bin" / backend / "llama-server.exe"
+    exe_name = "llama-server.exe" if platform.system() == "Windows" else "llama-server"
+    exe_path = base_dir / "bin" / backend / exe_name
     
     # If the optimal backend is not installed, but another one IS installed,
     # we should ideally download the optimal one. 

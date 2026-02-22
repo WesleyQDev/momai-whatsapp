@@ -4,6 +4,7 @@ import json
 import time
 import requests
 import subprocess
+import platform
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from huggingface_hub import hf_hub_download
@@ -61,7 +62,8 @@ class EmbeddingEngine:
             hw_info = get_hardware_info()
             backend = hw_info.get("backend", "cpu")
 
-        exe_path = BASE_DIR / "bin" / backend / "llama-server.exe"
+        exe_name = "llama-server.exe" if platform.system() == "Windows" else "llama-server"
+        exe_path = BASE_DIR / "bin" / backend / exe_name
 
         return {"exe": str(exe_path), "models": str(BASE_DIR / "models")}
 

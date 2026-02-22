@@ -441,10 +441,36 @@ def setup_local_engine(progress_callback=None, forced_backend=None):
 
         # Make executable on Unix
         if archive_type == "tar":
+            # Check if files were extracted to a subdirectory (e.g., llama-b8082/)
+            subdirs = [d for d in target_dir.iterdir() if d.is_dir() and d.name.startswith("llama-")]
+            if subdirs:
+                subdir = subdirs[0]
+                print(f"[Downloader] Moving files from {subdir.name}/ to bin/{backend}/")
+                for item in subdir.iterdir():
+                    dest = target_dir / item.name
+                    if item.is_file():
+                        import shutil as sh
+                        sh.move(str(item), str(dest))
+                subdir.rmdir()
+
             exe_name = "llama-server"
             exe_path = target_dir / exe_name
             if exe_path.exists():
                 os.chmod(exe_path, 0o755)
+
+            # Create symlinks for shared libraries (Linux)
+            library_symlinks = {
+                "libmtmd.so.0": "libmtmd.so.0.0.8082",
+                "libllama.so.0": "libllama.so.0.0.8082",
+                "libggml.so.0": "libggml.so.0.9.7",
+                "libggml-base.so.0": "libggml-base.so.0.9.7",
+            }
+            for link_name, target_name in library_symlinks.items():
+                link_path = target_dir / link_name
+                target_path = target_dir / target_name
+                if target_path.exists() and not link_path.exists():
+                    os.symlink(target_name, link_path)
+                    print(f"[Downloader] Created symlink: {link_name} -> {target_name}")
 
         if zip_path.exists():
             os.remove(zip_path)
