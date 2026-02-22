@@ -1,5 +1,6 @@
 import { RefObject, JSX, useState, useEffect } from 'react'
 import { MessageList, ChatInput } from './chat'
+import { ChatHistoryPopover } from './chat/ChatHistoryPopover'
 import { Message } from '../services/api'
 import { StatusData } from '../services/api'
 
@@ -24,6 +25,8 @@ interface ContainerChatProps {
   initProgress?: number
   initMessage?: string
   isBooting?: boolean
+  threadId: string
+  setThreadId: (id: string) => void
 }
 
 const CallModeUI = ({
@@ -232,7 +235,9 @@ export default function ContainerChat({
   callHistory = [],
   initProgress = 0,
   initMessage,
-  isBooting = false
+  isBooting = false,
+  threadId,
+  setThreadId
 }: ContainerChatProps): JSX.Element {
   const isInitializing = initProgress < 100
   
@@ -248,7 +253,8 @@ export default function ContainerChat({
         />
       ) : (
         <>
-          <div className="flex items-center justify-end px-3 pt-3 pb-1">
+          <div className="flex items-center justify-end px-3 pt-3 pb-1 gap-2">
+            <ChatHistoryPopover threadId={threadId} setThreadId={setThreadId} />
             <button
               type="button"
               onClick={onClearHistory}

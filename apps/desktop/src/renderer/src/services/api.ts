@@ -203,6 +203,19 @@ export async function fetchChatHistory(threadId: string = 'default'): Promise<Me
   }))
 }
 
+export interface ChatSession {
+  id: string
+  lastActivity: string | null
+  messageCount: number
+}
+
+export async function fetchSessions(): Promise<ChatSession[]> {
+  const response = await fetch(`${API_URL}/chat/sessions`)
+  if (!response.ok) throw new Error('Erro ao buscar sessoes')
+  const data = await response.json()
+  return data.sessions || []
+}
+
 export async function clearChatHistory(threadId: string = 'default'): Promise<void> {
   const response = await fetch(`${API_URL}/chat/history?thread_id=${threadId}`, {
     method: 'DELETE'

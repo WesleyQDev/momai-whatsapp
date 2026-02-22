@@ -43,6 +43,8 @@ const VIEW_MAP: Record<string, React.ComponentType<any>> = {
         initProgress={props.initProgress}
         initMessage={props.initMessage}
         isBooting={props.isBooting}
+        threadId={props.chat.threadId}
+        setThreadId={props.chat.setThreadId}
       />
     )
   },

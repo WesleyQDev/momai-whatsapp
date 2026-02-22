@@ -65,9 +65,27 @@ async def speak_text(data: dict):
         return {"status": "error", "message": str(e)}
 
 
+async def _prune_sessions(db: Session):
+    from database.models import Message
+    from sqlalchemy import func
+    from ai.orchestrator import clear_history_db
+
+    threads_query = (
+        db.query(Message.thread_id)
+        .group_by(Message.thread_id)
+        .order_by(func.max(Message.created_at).desc())
+        .all()
+    )
+
+    if len(threads_query) > 5:
+        for t in threads_query[5:]:
+            await clear_history_db(t[0])
+
 @router.get("/chat/history")
 async def get_chat_history(thread_id: str = "default", db: Session = Depends(get_db)):
     from database.models import Message
+    
+    await _prune_sessions(db)
 
     messages = (
         db.query(Message)
@@ -125,3 +143,28 @@ async def delete_single_message(message_id: int, db: Session = Depends(get_db)):
     db.query(Message).filter(Message.id == message_id).delete()
     db.commit()
     return {"status": "ok"}
+
+
+@router.get("/chat/sessions")
+async def get_chat_sessions(db: Session = Depends(get_db)):
+    from database.models import Message
+    from sqlalchemy import func
+    from ai.orchestrator import clear_history_db
+    
+    await _prune_sessions(db)
+    
+    threads_query = (
+        db.query(Message.thread_id, func.max(Message.created_at).label("last_activity"), func.count(Message.id).label("message_count"))
+        .group_by(Message.thread_id)
+        .order_by(func.max(Message.created_at).desc())
+        .all()
+    )
+
+    result = []
+    for t_id, last_act, count in threads_query:
+        result.append({
+            "id": t_id,
+            "lastActivity": last_act.isoformat() if last_act else None,
+            "messageCount": count
+        })
+    return {"sessions": result[:5]}

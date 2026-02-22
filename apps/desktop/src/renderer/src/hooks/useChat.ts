@@ -15,7 +15,7 @@ export function useChat() {
   const [text, setText] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [threadId] = useState('default')
+  const [threadId, setThreadId] = useState(() => `sessao_${Date.now()}`)
   const [_isHistoryLoaded, setIsHistoryLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
@@ -1206,6 +1206,8 @@ export function useChat() {
     isCallMode,
     toggleCallMode,
     voiceStatus,
-    callHistory
+    callHistory,
+    threadId,
+    setThreadId
   }
 }
