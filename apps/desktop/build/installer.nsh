@@ -128,8 +128,10 @@ Function MomAIClearDataLeave
   ${NSD_GetState} $MomAICheckbox $MomAIClearData
   ${If} $MomAIClearData == ${BST_CHECKED}
     ; Remove local app data on reinstall if user opted in
-    RMDir /r "$LOCALAPPDATA\momai"
-    RMDir /r "$APPDATA\momai"
+    RMDir /r "$LOCALAPPDATA\MomAI"
+    RMDir /r "$APPDATA\MomAI"
+    ; Also remove updater cache if present
+    RMDir /r "$LOCALAPPDATA\MomAI-updater"
   ${EndIf}
 FunctionEnd
 
@@ -237,3 +239,30 @@ FunctionEnd
   ; Launch handled in MomAIFinishPageLeave
 !macroend
 !endif
+
+; ========================
+; UNINSTALLER — User data cleanup
+; ========================
+!macro customUnInstall
+  ; Ask user if they want to remove personal data (settings, conversations, AI env)
+  MessageBox MB_YESNO|MB_ICONQUESTION \
+    "Deseja remover seus dados pessoais do MomAI?$\r$\n$\r$\n\
+Isso inclui: configuracoes, conversas, lembretes,$\r$\n\
+ambiente Python e modelos de IA baixados.$\r$\n$\r$\n\
+Clique 'Nao' para manter seus dados caso reinstale depois." \
+    IDYES removeData IDNO skipRemoval
+
+  removeData:
+    ; User data: settings DB, onboarding status, logs, python_env
+    RMDir /r "$APPDATA\MomAI"
+    ; Electron cache and GPU cache
+    RMDir /r "$LOCALAPPDATA\MomAI"
+    ; Updater cache
+    RMDir /r "$LOCALAPPDATA\MomAI-updater"
+    Goto doneRemoval
+
+  skipRemoval:
+    ; Keep user data intact for future reinstall
+
+  doneRemoval:
+!macroend
