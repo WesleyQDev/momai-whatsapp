@@ -71,6 +71,8 @@ class SafeExtensionTool(BaseTool):
     original_tool: BaseTool
 
     def __init__(self, original_tool: BaseTool, manifest: Any = None):
+        # We must explicitly set is_async if we want BaseTool to behave correctly
+        # However, overriding _arun already makes it async-capable in LangChain
         super().__init__(
             name=original_tool.name,
             description=original_tool.description,
@@ -82,34 +84,40 @@ class SafeExtensionTool(BaseTool):
 
     def _run(self, *args, **kwargs):
         try:
-            tool_input = None
-            if args:
-                tool_input = args[0]
-                if isinstance(tool_input, dict) and kwargs:
-                    tool_input = {**tool_input, **kwargs}
-            else:
-                tool_input = kwargs or {}
+            # Standardizing input: LangChain tools usually take a single dict or multiple kwargs
+            tool_input = args[0] if args else kwargs
+            
+            # If the original tool is async but we are in a sync context, we have a problem.
+            # But usually, it's safer to try to run it.
+            if getattr(self.original_tool, "is_async", False):
+                import asyncio
+                try:
+                    # Attempt to run async in sync (might fail in some event loops)
+                    return asyncio.run(self.original_tool.ainvoke(tool_input))
+                except RuntimeError:
+                    # Fallback for when loop is already running
+                    return "Error: Async tool called in sync context without loop support."
+            
             return self.original_tool.invoke(tool_input)
         except Exception as e:
-            logger.error(f"SafeTool Exception in {self.name}: {e}")
+            logger.error(f"SafeTool Exception (sync) in {self.name}: {e}")
             return f"Error: {str(e)}"
 
     async def _arun(self, *args, **kwargs):
         try:
-            tool_input = None
-            if args:
-                tool_input = args[0]
-                if isinstance(tool_input, dict) and kwargs:
-                    tool_input = {**tool_input, **kwargs}
-            else:
-                tool_input = kwargs or {}
-
-            if getattr(self.original_tool, "is_async", False):
+            tool_input = args[0] if args else kwargs
+            
+            # Robust async detection
+            is_async = getattr(self.original_tool, "is_async", False)
+            if not is_async and hasattr(self.original_tool, "coroutine"):
+                is_async = self.original_tool.coroutine is not None
+            
+            if is_async:
                 return await self.original_tool.ainvoke(tool_input)
-
+            
+            # For sync tools, run in thread to avoid blocking the event loop
             import asyncio
-
             return await asyncio.to_thread(self.original_tool.invoke, tool_input)
         except Exception as e:
-            logger.error(f"SafeTool Exception in {self.name}: {e}")
+            logger.error(f"SafeTool Exception (async) in {self.name}: {e}")
             return f"Error: {str(e)}"

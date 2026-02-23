@@ -160,14 +160,15 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
         on_progress (callable, optional): Callback for progress reporting.
 
     Returns:
-        ChatOpenAI | None: A LangChain ChatOpenAI instance pointing to local server.
+        ChatOpenAI | None: A LangChain ChatOpenAI instance pointing to local LLM.
     """
     global server_process
 
     def report(msg):
+        prefixed_msg = f"[Local LLM] {msg}"
         if on_progress:
-            on_progress(msg)
-        logger.info(f"[local_model] {msg}")
+            on_progress(prefixed_msg)
+        logger.info(f"[Local LLM] {msg}")
 
     stop_server()
 
@@ -221,7 +222,7 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
                 backend=paths["backend"],
             )
             if not success:
-                report("ERROR: Failed to install llama-server!")
+                report("ERROR: Failed to install local LLM engine!")
                 raise FileNotFoundError(
                     f"Local engine ({paths['backend']}) not found and auto-installation failed."
                 )
@@ -265,7 +266,7 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
             "0.0",
         ]
 
-        report("Starting server process...")
+        report("Starting local LLM process...")
 
         # Log llama-server output for debugging
         llama_log_path = Path(__file__).parent / "llama_server.log"
@@ -292,11 +293,11 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
                 logger.warning(f"[local_model] Error assigning Job: {e}")
 
         # Healthcheck Loop
-        report("Waiting for network initialization (Healthcheck)...")
+        report("Waiting for local LLM initialization (Healthcheck)...")
         for i in range(120):  # 120 * 0.5 = 60s
             # Safety check: server_process might be killed by ResourceManager
             if server_process is None:
-                report("Startup aborted: server process was closed.")
+                report("Startup aborted: local LLM process was closed.")
                 return None
 
             if server_process.poll() is not None:
@@ -304,9 +305,9 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
                 try:
                     with open(llama_log_path, "r", encoding="utf-8") as f:
                         log_content = f.read()[-500:]
-                    report(f"Server died unexpectedly! Log:\n{log_content}")
+                    report(f"Local LLM died unexpectedly! Log:\n{log_content}")
                 except:
-                    report("Server died unexpectedly and log could not be read.")
+                    report("Local LLM died unexpectedly and log could not be read.")
                 return None
             try:
                 if (
@@ -327,10 +328,10 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
                 pass
 
             if i % 10 == 0 and i > 0:
-                report(f"Loading... ({i // 2}s elapsed)")
+                report(f"Starting local LLM... ({i // 2}s elapsed)")
             time.sleep(0.5)
 
-        report("Startup timeout reached.")
+        report("Local LLM startup timeout reached.")
         stop_server()
         return None
 

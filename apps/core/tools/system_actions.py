@@ -780,12 +780,11 @@ search_news.name = "duckduckgo_news"
 search_news.description = "Search for recent news and current events. Use this when the user asks about 'what happened', 'news', 'latest', 'recent events', or wants to know about current affairs. Returns news articles with titles, sources, and dates."
 
 TOOLS = [
-    search,
-    search_news,
     show_interface,
     show_chat_card,
     close_interface,
     ask_confirmation,
+    open_model_selector,
     open_extension_store,
     set_theme,
     open_settings_panel,
@@ -803,28 +802,6 @@ TOOLS = [
 
 AVAILABLE_TOOLS = {t.name: t for t in TOOLS}
 
-# Explicit Safe List for Native Tools (avoids Pydantic attribute errors)
-SAFE_TOOLS_NAMES = {
-    "duckduckgo_search",
-    "duckduckgo_news",
-    "show_interface",
-    "show_chat_card",
-    "close_interface",
-    "ask_confirmation",
-    "open_extension_store",
-    "set_theme",
-    "open_settings_panel",
-    "open_sidebar_tab",
-    "set_tts_enabled",
-    "set_wake_word_enabled",
-    "set_tts_voice",
-    "get_tts_voice_catalog",
-    "add_fortscript_app",
-    "stop_generation",
-    "stop_voice",
-    "get_momai_resources_tool",
-    "get_capabilities",
-}
 
 _TOOL_REGISTRY_CACHE: dict[str, Any] = {"registry": None}
 

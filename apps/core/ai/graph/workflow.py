@@ -158,13 +158,16 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                 mem_context = context_header + "\n".join(lines)
 
         skills_brief = []
+        seen_ids = set()
         if skill_hits:
             for hit in skill_hits:
                 skill_id = hit.get("id", "")
-                if "responder" in skill_id:
+                if not skill_id or skill_id in seen_ids or "responder" in skill_id:
                     continue
+                
                 dist = hit.get("_distance", 1.0)
                 if dist < 0.95:
+                    seen_ids.add(skill_id)
                     skills_brief.append(
                         {
                             "id": skill_id,
