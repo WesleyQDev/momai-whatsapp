@@ -3,140 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reportar Erro — MomAI</title>
-    <meta name="description" content="Reportar um erro encontrado na MomAI. Ajude-nos a melhorar a experiência.">
+    <title>Changelog — MomAI</title>
+    <meta name="description" content="Acompanhe todas as atualizações e mudanças da MomAI.">
     <link rel="icon" type="image/png" href="icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,slnt,wdth,wght,ROND@8..144,-10..0,25..150,400..500,0..100&family=Google+Sans+Text:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <style>
-        .form-section {
-            min-height: calc(100vh - 200px);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 6rem 2rem;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        
-        .form-section h1 {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-            text-align: center;
-            background: var(--gradient-primary);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        
-        .form-section .subtitle {
-            text-align: center;
-            margin-bottom: 2rem;
-            color: var(--text-secondary);
-        }
-        
-        .error-form {
-            width: 100%;
-            background: var(--card-bg);
-            border-radius: 16px;
-            padding: 2rem;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--border-color);
-            backdrop-filter: blur(10px);
-        }
-        
-        [data-theme="light"] .error-form {
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--border-color);
-        }
-        
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-            color: var(--text);
-        }
-        
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            background: var(--bg-tertiary);
-            color: var(--text);
-            font-size: 1rem;
-            font-family: inherit;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        
-        .form-group input:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-glow);
-        }
-        
-        .form-group textarea {
-            min-height: 150px;
-            resize: vertical;
-        }
-        
-        .form-group input::placeholder,
-        .form-group textarea::placeholder {
-            color: var(--text-tertiary);
-        }
-        
-        .submit-btn {
-            width: 100%;
-            padding: 1rem;
-            background: #ffffff;
-            color: #000000;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        
-        [data-theme="light"] .submit-btn {
-            background: var(--accent);
-            color: #ffffff;
-        }
-        
-        .submit-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px var(--accent-glow);
-        }
-        
-        .submit-btn:active {
-            transform: translateY(0);
-        }
-        
-        .form-note {
-            margin-top: 1rem;
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-            text-align: center;
-        }
-        
-        .form-examples {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            text-align: center;
-            margin-bottom: 2rem;
-            padding: 0.75rem 1rem;
-            background: var(--accent-glow);
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-        }
-    </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
 
@@ -149,7 +23,6 @@
     </div>
 
     <script>
-        // Generate stars like Sailor Moon
         const bgStars = document.getElementById('bgStars');
         const starCount = 80;
         
@@ -184,7 +57,7 @@
     <!-- Navbar -->
     <nav>
         <div class="nav-left">
-            <a href="/" class="logo">
+            <a href="index.html" class="logo">
                 <img src="icon.png" alt="MomAI">
                 MomAI
             </a>
@@ -192,7 +65,7 @@
                 <li><a href="blog.html">Blog</a></li>
                 <li><a href="changelog.html">Changelog</a></li>
                 <li><a href="contato.html">Contato</a></li>
-<li><a href="form.html">Reportar Erro</a></li>
+                <li><a href="form.html">Reportar Erro</a></li>
                 <li><a href="doar.html" class="donate-link">Doar</a></li>
             </ul>
         </div>
@@ -225,7 +98,6 @@
     </nav>
 
     <script>
-        // Theme Toggle
         const themeToggle = document.getElementById('themeToggle');
         const html = document.documentElement;
         
@@ -259,32 +131,19 @@
             });
         });
 
-        // --- OS Detection ---
-        function detectPlatform() {
-            const ua = navigator.userAgent.toLowerCase();
-            const platform = (navigator.platform || '').toLowerCase();
-            if (platform.includes('linux') || ua.includes('linux')) return 'linux';
-            if (platform.includes('mac') || ua.includes('mac')) return 'mac';
-            return 'win';
-        }
-
         async function updateDownloadLinks() {
             const repo = "WesleyQDev/MomAI-App";
-            const os = detectPlatform();
-            const storageKeyWin = "momai_latest_win";
-            const storageKeyLinux = "momai_latest_linux";
+            const platform = navigator.platform?.toLowerCase() || "";
+            const isLinux = platform.includes('linux') || navigator.userAgent.toLowerCase().includes('linux');
+            const storageKey = isLinux ? "momai_latest_linux" : "momai_latest_win";
             const versionKey = "momai_latest_version";
-
-            const cachedWin = sessionStorage.getItem(storageKeyWin);
-            const cachedLinux = sessionStorage.getItem(storageKeyLinux);
+            
+            const cachedUrl = sessionStorage.getItem(storageKey);
             const cachedVersion = sessionStorage.getItem(versionKey);
-
-            if ((os === 'linux' ? cachedLinux : cachedWin) && cachedVersion) {
-                applyDownloadUrls(
-                    cachedWin || 'https://github.com/WesleyQDev/MomAI-App/releases/latest',
-                    cachedLinux || 'https://github.com/WesleyQDev/MomAI-App/releases/latest',
-                    os, cachedVersion
-                );
+            
+            if (cachedUrl && cachedVersion) {
+                applyDownloadUrl(cachedUrl, isLinux);
+                displayVersion(cachedVersion);
                 return;
             }
 
@@ -303,19 +162,21 @@
                 }
 
                 if (data && data.assets) {
-                    const winAsset = data.assets.find(a => a.name.endsWith('.exe'));
-                    const linuxAsset = data.assets.find(a => a.name.endsWith('.AppImage'))
-                                   || data.assets.find(a => a.name.endsWith('.deb'));
+                    let asset;
+                    if (isLinux) {
+                        asset = data.assets.find(a => a.name.endsWith('.AppImage')) || data.assets.find(a => a.name.endsWith('.deb'));
+                    } else {
+                        asset = data.assets.find(a => a.name.endsWith('.exe'));
+                    }
 
-                    const version = data.tag_name || data.name || '';
-                    const winUrl = winAsset?.browser_download_url || `https://github.com/${repo}/releases/latest`;
-                    const linuxUrl = linuxAsset?.browser_download_url || `https://github.com/${repo}/releases/latest`;
-
-                    if (winUrl) sessionStorage.setItem(storageKeyWin, winUrl);
-                    if (linuxUrl) sessionStorage.setItem(storageKeyLinux, linuxUrl);
-                    if (version) sessionStorage.setItem(versionKey, version);
-
-                    applyDownloadUrls(winUrl, linuxUrl, os, version);
+                    if (asset) {
+                        const downloadUrl = asset.browser_download_url;
+                        const version = data.tag_name || data.name || '';
+                        sessionStorage.setItem(storageKey, downloadUrl);
+                        sessionStorage.setItem(versionKey, version);
+                        applyDownloadUrl(downloadUrl, isLinux);
+                        displayVersion(version);
+                    }
                 }
             } catch (err) {
                 console.error("Erro ao buscar release do GitHub:", err);
@@ -330,16 +191,13 @@
             }
         }
 
-        function applyDownloadUrls(winUrl, linuxUrl, os, version) {
-            displayVersion(version);
-
-            const primaryUrl = os === 'linux' ? linuxUrl : winUrl;
-            
-            // Navbar download buttons remain minimalist
-            document.querySelectorAll('nav .btn-download').forEach(el => {
-                el.href = primaryUrl;
-                const span = el.querySelector('span:not(.version-badge)');
-                if (span) span.textContent = 'Download';
+        function applyDownloadUrl(url, isLinux) {
+            document.querySelectorAll('.btn-download').forEach(el => {
+                el.href = url;
+                const span = el.querySelector('span');
+                if (span) {
+                    span.textContent = 'Download';
+                }
             });
         }
 
@@ -348,31 +206,14 @@
         });
     </script>
 
-    <!-- Form Section -->
-    <section class="form-section">
-        <h1>Reportar Erro</h1>
-        <p class="subtitle">Reportando o problema</p>
-        <p class="form-examples">Exemplos: problemas ao iniciar a MomAI, erros de download, falhas na execução, comportamentos inesperados, lentidão, travamentos, etc.</p>
-        
-        <form class="error-form" action="https://formsubmit.co/wesleyqueirozdeveloper@gmail.com" method="POST">
-            <input type="hidden" name="_subject" value="Novo relatório de erro - MomAI">
-            <input type="hidden" name="_captcha" value="false">
-            
-            <div class="form-group">
-                <label for="titulo">Título</label>
-                <input type="text" id="titulo" name="titulo" placeholder="Ex: Problema ao iniciar a aplicação" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="descricao">Descrição</label>
-                <textarea id="descricao" name="descricao" placeholder="Descreva o erro detalhadamente: o que aconteceu, quando aconteceu, quais etapas você seguiu, etc." required></textarea>
-            </div>
-            
-            <button type="submit" class="submit-btn">Enviar Relatório</button>
-            
-            <p class="form-note">Após enviar, você receberá uma confirmação no email fornecido.</p>
-        </form>
-    </section>
+    <!-- Changelog Content -->
+    <div class="changelog-content" id="changelog-container">
+        <div class="changelog-header">
+            <h1>Registro de Atualizações</h1>
+            <p>Acompanhe a evolução da MomAI</p>
+        </div>
+        <p style="text-align:center; padding: 4rem; color: var(--text-tertiary);">Sincronizando registros...</p>
+    </div>
 
     <!-- Footer -->
     <footer>
@@ -400,5 +241,128 @@
         </div>
     </footer>
 
+    <script>
+        async function loadChangelog() {
+            const container = document.getElementById('changelog-container');
+            
+            try {
+                const res = await fetch('CHANGELOG.md');
+                if (!res.ok) throw new Error('CHANGELOG.md não encontrado');
+                
+                const text = await res.text();
+                const changelog = parseChangelog(text);
+                
+                if (changelog.length === 0) {
+                    container.innerHTML += `<p style="text-align:center;color:var(--text-tertiary);padding:2rem;">Nenhum registro encontrado</p>`;
+                    return;
+                }
+                
+                let html = '';
+                changelog.forEach((item) => {
+                    const sections = item.sections.map((section) => {
+                        return `
+                            <div class="version-section">
+                                <div class="section-title">
+                                    <span>${section.title}</span>
+                                </div>
+                                <ul class="change-list">
+                                    ${section.items.map(listItem => {
+                                        // Substitui **texto** por <strong>texto</strong> para manter a formatação
+                                        const formatted = listItem.replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--text); font-weight: 600;">$1</strong>');
+                                        return `<li>${formatted}</li>`;
+                                    }).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    html += `
+                        <div class="timeline-item">
+                            <div class="timeline-marker"></div>
+                            <div class="timeline-content">
+                                <div class="timeline-header">
+                                    <span class="version-badge">v${item.version}</span>
+                                    <span class="version-date">${formatDate(item.date)}</span>
+                                </div>
+                                ${item.title ? `<p class="version-title">${item.title}</p>` : ''}
+                                <div class="version-details">
+                                    ${sections}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = `
+                    <div class="changelog-header">
+                        <h1>Registro de Atualizações</h1>
+                        <p>Acompanhe a evolução da MomAI a cada nova versão.</p>
+                    </div>
+                    <div class="timeline">${html}</div>
+                `;
+            } catch (err) {
+                container.innerHTML += `<p style="text-align:center;color:var(--text-tertiary);padding:2rem;">Erro ao carregar changelog: ${err.message}</p>`;
+            }
+        }
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr + 'T12:00:00Z'); // Força time neutro para evitar fuso horário variando dia
+            return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+        }
+
+        function parseChangelog(text) {
+            const lines = text.split('\n');
+            const items = [];
+            let currentItem = null;
+            let currentSection = null;
+            let contentLines = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const versionMatch = line.match(/^##\s+(\d+\.\d+\.\d+)\s+-\s+(\d{4}-\d{2}-\d{2})/);
+                
+                if (versionMatch) {
+                    if (currentItem) {
+                        if (currentSection) {
+                            currentSection.items = contentLines.filter(l => l.trim());
+                            currentItem.sections.push(currentSection);
+                        }
+                        items.push(currentItem);
+                    }
+                    
+                    const titleMatch = lines[i + 1]?.match(/^([^#\n].+)/);
+                    currentItem = {
+                        version: versionMatch[1],
+                        date: versionMatch[2],
+                        title: titleMatch ? titleMatch[1].trim() : '',
+                        sections: []
+                    };
+                    currentSection = null;
+                    contentLines = [];
+                    i++;
+                } else if (line.match(/^##\s+/)) {
+                    if (currentSection && contentLines.length > 0) {
+                        currentSection.items = contentLines.filter(l => l.trim());
+                        currentItem.sections.push(currentSection);
+                    }
+                    const sectionTitle = line.replace(/^##\s+/, '').trim();
+                    currentSection = { title: sectionTitle, items: [] };
+                    contentLines = [];
+                } else if (currentItem && line.trim() && line.startsWith('- ')) {
+                    contentLines.push(line.replace(/^-\s+/, ''));
+                }
+            }
+            
+            if (currentSection && contentLines.length > 0) {
+                currentSection.items = contentLines.filter(l => l.trim());
+                currentItem.sections.push(currentSection);
+            }
+            if (currentItem) items.push(currentItem);
+            
+            return items;
+        }
+
+        loadChangelog();
+    </script>
 </body>
 </html>
