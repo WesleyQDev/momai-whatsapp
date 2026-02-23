@@ -104,8 +104,7 @@ class SafeExtensionTool(BaseTool):
             else:
                 tool_input = kwargs or {}
 
-            is_async = getattr(self.original_tool, "is_async", False) or getattr(self.original_tool, "coroutine", None) is not None
-            if is_async:
+            if getattr(self.original_tool, "is_async", False):
                 return await self.original_tool.ainvoke(tool_input)
 
             import asyncio

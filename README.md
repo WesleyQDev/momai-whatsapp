@@ -9,7 +9,7 @@
 
 ## O que é MomAI?
 
-MomAI é uma assistente virtual de código aberto, **local-first** e focada em privacidade. Ela combina a inteligência dos LLMs modernos com a capacidade de executar ações reais no seu computador.
+MomAI é uma assistente virtual **local-first** e focada em privacidade. Ela combina a inteligência dos LLMs modernos com a capacidade de executar ações reais no seu computador.
 
 ### Destaques da Versão Atual
 
@@ -50,7 +50,7 @@ Para instruções de instalação, guia de contribuição, detalhes técnicos e 
 
 ## Licença
 
-Este projeto está licenciado sob a licença MIT. Veja o arquivo [LICENSE](apps/docs/LICENSE) para mais detalhes.
+Este projeto está licenciado sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
 ---
 

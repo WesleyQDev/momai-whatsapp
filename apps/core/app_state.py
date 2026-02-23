@@ -58,6 +58,7 @@ def initialize_ai_stack() -> None:
         orchestrator, \
         generate, \
         initialize_llm, \
+        WakeWordDetector, \
         ReminderManager, \
         tts, \
         extension_manager, \
@@ -74,10 +75,9 @@ def initialize_ai_stack() -> None:
 
     generate = gen_func
     initialize_llm = init_llm
+    from services.voice.detector import WakeWordDetector as WWD
 
-    # WakeWordDetector is NOT imported here anymore — it pulls torch/numpy/whisper
-    # which takes 5-10s. It's loaded lazily in startup.py when start_wake_word() runs.
-
+    WakeWordDetector = WWD
     from services.reminders.manager import ReminderManager as RM
 
     ReminderManager = RM
