@@ -1,6 +1,6 @@
 ---
 title: O nascimento de uma assistente privada
-date: 21 de Fevereiro, 2026
+date: 22 de Fevereiro, 2026
 excerpt: Conheça a MomAI, uma assistente pessoal focada em privacidade que roda 100% localmente no seu computador.
 image: https://i.ibb.co/LXgHdCFK/image.png
 featured: true
