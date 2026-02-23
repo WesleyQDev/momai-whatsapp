@@ -2,6 +2,22 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 0.5.8 - 2026-02-22
+Melhorias de Performance, Áudio e Estabilidade
+
+## ✨ Melhorias
+- **Otimização de Pesquisa:** Implementação de buscas assíncronas com `duckduckgo-search` e redução de latência nas ferramentas de pesquisa.
+- **Boot do Python mais rápido:** Otimização dos módulos de inicialização, reduzindo significativamente o tempo de carregamento do backend.
+- **Fallback de Áudio Universal:** Implementação de playback via Web Audio API no Electron como fallback, garantindo funcionamento do som mesmo em sistemas sem PortAudio.
+- **Gestão de Lembretes:** Melhoria na latência da skill de lembretes através da exposição direta de ferramentas ao agente principal.
+- **Instalador e Manutenção:** O desinstalador agora realiza uma limpeza profunda de dados residuais (`momai.db`, venv, etc.) para garantir instalações limpas.
+
+## 🐛 Correções
+- **Lógica de Boas-vindas:** Corrigido bug onde a tela de boas-vindas sumia antes da conclusão da instalação dos LLMs.
+- **Onboarding Repetitivo:** Resolvido o problema onde a tela de onboarding reaparecia em todas as inicializações do aplicativo.
+- **Estabilidade no Linux:** Melhoria no foco da janela e tratamento de caminhos em sistemas de arquivos somente-leitura (AppImage).
+
+
 ## 0.4.4 - 2026-02-21
 Correção de Caminho do Core no Linux
 
