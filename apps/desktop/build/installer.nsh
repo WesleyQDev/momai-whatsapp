@@ -136,16 +136,17 @@ Function MomAIClearDataLeave
     ; Give processes time to fully terminate and release file locks
     Sleep 2000
 
-    ; Remove user data (settings DB, conversations, reminders, onboarding status)
-    RMDir /r "$APPDATA\MomAI"
-    ; Remove Electron cache, GPU cache, localStorage
-    RMDir /r "$LOCALAPPDATA\MomAI"
-    ; Remove updater cache
-    RMDir /r "$LOCALAPPDATA\MomAI-updater"
+    ; NOTE: Electron userData path comes from package.json "name": "desktop"
+    ; so the actual data folder is %APPDATA%\desktop, NOT %APPDATA%\MomAI
 
-    ; Fallback: also try lowercase variants (NTFS is case-insensitive, but just in case)
-    RMDir /r "$APPDATA\momai"
-    RMDir /r "$LOCALAPPDATA\momai"
+    ; Remove user data (momai.db, python_env, onboarding, logs, etc.)
+    RMDir /r "$APPDATA\desktop"
+    ; Remove Electron cache and GPU cache
+    RMDir /r "$LOCALAPPDATA\desktop"
+    ; Also clean MomAI-named folders (updater, or future migration)
+    RMDir /r "$APPDATA\MomAI"
+    RMDir /r "$LOCALAPPDATA\MomAI"
+    RMDir /r "$LOCALAPPDATA\MomAI-updater"
   ${EndIf}
 FunctionEnd
 
@@ -269,28 +270,12 @@ FunctionEnd
   nsExec::ExecToLog 'taskkill /f /im llama-server.exe'
   Sleep 2000
 
-  ; Ask user if they want to remove personal data (settings, conversations, AI env)
-  MessageBox MB_YESNO|MB_ICONQUESTION \
-    "Deseja remover seus dados pessoais do MomAI?$\r$\n$\r$\n\
-Isso inclui: configuracoes, conversas, lembretes,$\r$\n\
-ambiente Python e modelos de IA baixados.$\r$\n$\r$\n\
-Clique 'Nao' para manter seus dados caso reinstale depois." \
-    IDYES removeData IDNO skipRemoval
-
-  removeData:
-    ; User data: settings DB, onboarding status, logs, python_env
-    RMDir /r "$APPDATA\MomAI"
-    ; Electron cache and GPU cache
-    RMDir /r "$LOCALAPPDATA\MomAI"
-    ; Updater cache
-    RMDir /r "$LOCALAPPDATA\MomAI-updater"
-    ; Fallback lowercase
-    RMDir /r "$APPDATA\momai"
-    RMDir /r "$LOCALAPPDATA\momai"
-    Goto doneRemoval
-
-  skipRemoval:
-    ; Keep user data intact for future reinstall
-
-  doneRemoval:
+  ; Remove all user data — no confirmation needed
+  ; Real data path: %APPDATA%\desktop (from package.json "name": "desktop")
+  RMDir /r "$APPDATA\desktop"
+  RMDir /r "$LOCALAPPDATA\desktop"
+  ; Also clean MomAI-named folders (updater, or future migration)
+  RMDir /r "$APPDATA\MomAI"
+  RMDir /r "$LOCALAPPDATA\MomAI"
+  RMDir /r "$LOCALAPPDATA\MomAI-updater"
 !macroend
