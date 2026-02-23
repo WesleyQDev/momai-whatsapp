@@ -2,26 +2,6 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
-## 0.5.8 - 2026-02-23
-Sistema de Chat Avançado, TTS e Otimizações de Performance
-
-## ✨ Melhorias
-- **Sistema de Chat Completo:** Implementado sistema de chat dedicado com API REST, componentes de UI e hooks de gerenciamento de estado. Inclui suporte a histórico de conversas, interações por voz e integração com grafos de IA.
-- **Workflow de IA com LangGraph:** Implementado novo fluxo de trabalho de IA usando LangGraph para descoberta de skills, integração de memória e orquestração de ferramentas.
-- **Text-to-Speech (TTS) com Kokoro-ONNX:** Novo serviço de síntese de voz usando Kokoro-ONNX para geração de áudio e sounddevice para reprodução.
-- **Otimização de Latência:** Refatoração das ferramentas de Pesquisa e Lembretes para uso direto pelo agente principal, reduzindo o tempo de resposta e eliminando delegações desnecessárias.
-- **Pesquisa na Internet de Alta Performance:** Integração da biblioteca `AsyncDDGS` para buscas assíncronas e redução de timeouts.
-- **Boot do Backend Acelerado:** Otimização profunda dos módulos Python, reduzindo significativamente o tempo de inicialização do backend.
-- **Fallback de Áudio Universal:** Implementado sistema de reprodução via Web Audio API no Electron, garantindo áudio funcional em sistemas sem drivers nativos (especialmente em Linux).
-- **Página de Doações:** Adicionada nova página com link para apoiar o desenvolvimento do projeto.
-
-## 🐛 Correções
-- **Persistência de Onboarding:** Corrigido erro onde a tela de onboarding reaparecia indevidamente após a inicialização do backend.
-- **Sincronização da Welcome Screen:** O aplicativo agora aguarda a instalação completa dos LLMs antes de liberar o acesso à interface de chat.
-- **Desinstalação Completa:** Melhorada a rotina de limpeza no Windows, removendo corretamente o banco de dados `momai.db` e o ambiente Python ao desinstalar.
-- **Refinamento de Prompts:** Ajustes nos prompts para melhor precisão na detecção de datas e comandos da skill de lembretes.
-- **Bootstrap Robusto:** Melhorado o tratamento de erros e relatório de status durante a configuração inicial do ambiente Python.
-
 ## 0.4.4 - 2026-02-21
 Correção de Caminho do Core no Linux
 
