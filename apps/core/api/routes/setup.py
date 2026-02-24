@@ -102,8 +102,8 @@ async def uninstall_engine(backend: str | None = None):
         from ai.providers.local_llama import stop_server
 
         stop_server()
-    except Exception:
-        pass
+    except Exception as e:
+        app_state.logger.debug(f"[Setup] Error stopping server during uninstall: {e}")
 
     success = downloader.uninstall_engine(backend)
     if success:

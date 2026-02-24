@@ -155,6 +155,7 @@ class WakeWordDetector:
                 self.audio_queue.get_nowait()
                 self.audio_queue.put_nowait(indata.copy().flatten())
             except Exception:
+                # Failed to clear queue, just drop current chunk
                 pass
 
     def _get_chunk_energy(self, chunk):
@@ -190,6 +191,7 @@ class WakeWordDetector:
                     try:
                         tts_speaking = tts.is_speaking()
                     except Exception:
+                        # app_state or tts not ready
                         pass
 
                     # In call mode: interrupt TTS when user speaks
@@ -210,6 +212,7 @@ class WakeWordDetector:
                                 try:
                                     tts.stop_all()
                                 except Exception:
+                                    # TTS stop failed
                                     pass
                                 # Start listening to user
                                 self._set_state(self.STATE_LISTENING)
@@ -360,6 +363,7 @@ class WakeWordDetector:
                 self.processing_queue.get_nowait()
                 self.processing_queue.put_nowait((audio, False))
             except Exception:
+                # Processing queue full and clear failed
                 pass
 
     def _enqueue_partial_recording(self):
@@ -530,6 +534,7 @@ class WakeWordDetector:
                 audio = tone.astype(np.float32)
                 sd.play(audio, samplerate=sr)
         except Exception:
+            # Feedback sound playback failed, not critical
             pass
 
     def _stop_tts(self):
@@ -539,6 +544,7 @@ class WakeWordDetector:
                 logger.info("[WakeWord] Interruption! Stopping TTS.")
                 tts.stop_all()
         except Exception:
+            # Stop tts check failed
             pass
 
     def _handle_transcription(self, text, raw_text):

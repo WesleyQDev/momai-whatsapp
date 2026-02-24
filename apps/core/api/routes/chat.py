@@ -23,12 +23,14 @@ async def stop_chat_generation():
         import ai.orchestrator as orchestrator
         orchestrator.request_cancel_generation()
     except Exception:
+        # Orchestrator might not be loaded yet
         pass
 
     try:
         import services.voice.tts as tts
         tts.stop_all()
     except Exception:
+        # TTS might not be loaded yet
         pass
 
     if app_state.main_loop:
@@ -43,6 +45,7 @@ async def stop_chat_voice():
         import services.voice.tts as tts
         tts.stop_all()
     except Exception:
+        # TTS might not be loaded yet
         pass
 
     if app_state.main_loop:
@@ -101,13 +104,13 @@ async def get_chat_history(thread_id: str = "default", db: Session = Depends(get
         if msg.activities:
             try:
                 msg_dict["activities"] = json.loads(msg.activities)
-            except Exception:
-                pass
+            except Exception as e:
+                app_state.logger.debug(f"[API] Error decoding activities JSON: {e}")
         if msg.graph_data:
             try:
                 msg_dict["graphData"] = json.loads(msg.graph_data)
-            except Exception:
-                pass
+            except Exception as e:
+                app_state.logger.debug(f"[API] Error decoding graph data JSON: {e}")
         result.append(msg_dict)
 
     return result
@@ -121,12 +124,14 @@ async def delete_chat_history(thread_id: str = "default"):
         import ai.orchestrator as orchestrator
         orchestrator.request_cancel_generation()
     except Exception:
+        # Orchestrator might not be loaded yet
         pass
 
     try:
         import services.voice.tts as tts
         tts.stop_all()
     except Exception:
+        # TTS might not be loaded yet
         pass
 
     if app_state.main_loop:

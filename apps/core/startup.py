@@ -107,7 +107,8 @@ async def init_system_task() -> None:
                 try:
                     for row in conn.execute(f"PRAGMA table_info({table_name})"):
                         cols.add(str(row[1]))
-                except:
+                except Exception:
+                    # Table info fail usually means table doesn't exist
                     pass
                 return cols
 
@@ -300,8 +301,8 @@ async def lifespan(app):
                 os._exit(0)
         except psutil.NoSuchProcess:
             os._exit(0)
-        except Exception:
-            pass
+        except Exception as e:
+            app_state.logger.debug(f"[startup] parent monitor error: {e}")
 
     if os.name == "nt":
         threading.Thread(target=monitor_parent, daemon=True).start()

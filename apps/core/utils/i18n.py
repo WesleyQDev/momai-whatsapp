@@ -56,6 +56,7 @@ def get_locale() -> str:
         finally:
             db.close()
     except Exception:
+        # DB might not be ready during bootstrap
         pass
 
     return DEFAULT_LOCALE

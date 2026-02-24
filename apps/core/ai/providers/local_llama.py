@@ -142,7 +142,7 @@ def stop_server():
             try:
                 server_process.kill()
                 server_process.wait(timeout=1)
-            except:
+            except Exception:
                 pass
         except Exception as e:
             logger.error(f"[local_model] Error stopping process: {e}")
@@ -306,7 +306,7 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
                     with open(llama_log_path, "r", encoding="utf-8") as f:
                         log_content = f.read()[-500:]
                     report(f"Local LLM died unexpectedly! Log:\n{log_content}")
-                except:
+                except Exception:
                     report("Local LLM died unexpectedly and log could not be read.")
                 return None
             try:
@@ -324,7 +324,8 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
                         temperature=0.7,
                         streaming=True,
                     )
-            except:
+            except Exception:
+                # Healthcheck failed, server not ready yet
                 pass
 
             if i % 10 == 0 and i > 0:

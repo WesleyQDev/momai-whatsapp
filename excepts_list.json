@@ -1,0 +1,632 @@
+[
+  {
+    "file": ".\\apps\\core\\app_state.py",
+    "line": 208,
+    "content": "except json.JSONDecodeError:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\core\\startup.py",
+    "line": 110,
+    "content": "except:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\core\\startup.py",
+    "line": 303,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\core\\ai\\embeddings.py",
+    "line": 117,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\ai\\embeddings.py",
+    "line": 176,
+    "content": "except Exception:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\core\\ai\\embeddings.py",
+    "line": 188,
+    "content": "except:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\core\\ai\\embeddings.py",
+    "line": 357,
+    "content": "except:\n            pass"
+  },
+  {
+    "file": ".\\apps\\core\\ai\\orchestrator.py",
+    "line": 782,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\core\\ai\\orchestrator.py",
+    "line": 1176,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\core\\ai\\orchestrator.py",
+    "line": 1188,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\core\\ai\\providers\\local_llama.py",
+    "line": 145,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\ai\\providers\\local_llama.py",
+    "line": 327,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\api\\routes\\chat.py",
+    "line": 25,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\api\\routes\\chat.py",
+    "line": 31,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\api\\routes\\chat.py",
+    "line": 45,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\api\\routes\\chat.py",
+    "line": 104,
+    "content": "except Exception:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\api\\routes\\chat.py",
+    "line": 109,
+    "content": "except Exception:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\api\\routes\\chat.py",
+    "line": 123,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\api\\routes\\chat.py",
+    "line": 129,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\api\\routes\\settings.py",
+    "line": 86,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\api\\routes\\setup.py",
+    "line": 105,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\database\\vector_db.py",
+    "line": 59,
+    "content": "except:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\extensions\\manager.py",
+    "line": 91,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\memory\\external_memory.py",
+    "line": 152,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\memory\\external_memory.py",
+    "line": 178,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\memory\\external_memory.py",
+    "line": 209,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\memory\\external_memory.py",
+    "line": 334,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\memory\\external_memory.py",
+    "line": 370,
+    "content": "except Exception:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\system\\resource_manager.py",
+    "line": 149,
+    "content": "except ImportError:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\system\\resource_manager.py",
+    "line": 192,
+    "content": "except ImportError:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\detector.py",
+    "line": 157,
+    "content": "except Exception:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\detector.py",
+    "line": 192,
+    "content": "except Exception:\n                        pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\detector.py",
+    "line": 212,
+    "content": "except Exception:\n                                    pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\detector.py",
+    "line": 362,
+    "content": "except Exception:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\detector.py",
+    "line": 375,
+    "content": "except queue.Full:\n            pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\detector.py",
+    "line": 532,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\detector.py",
+    "line": 541,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\quick_transcriber.py",
+    "line": 75,
+    "content": "except:\n                        pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\tts.py",
+    "line": 46,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\tts.py",
+    "line": 295,
+    "content": "except ValueError:\n                        pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\tts.py",
+    "line": 302,
+    "content": "except asyncio.QueueFull:\n                        pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\tts.py",
+    "line": 389,
+    "content": "except:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\tts.py",
+    "line": 394,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\tts.py",
+    "line": 460,
+    "content": "except:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\core\\services\\voice\\tts.py",
+    "line": 472,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\core\\tools\\system_actions.py",
+    "line": 66,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\tools\\system_actions.py",
+    "line": 438,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\tools\\system_actions.py",
+    "line": 577,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\core\\tools\\system_actions.py",
+    "line": 630,
+    "content": "except Exception:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\core\\tools\\system_actions.py",
+    "line": 658,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\core\\utils\\downloader.py",
+    "line": 145,
+    "content": "except:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\utils\\downloader.py",
+    "line": 271,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\utils\\downloader.py",
+    "line": 285,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\utils\\downloader.py",
+    "line": 287,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\utils\\downloader.py",
+    "line": 337,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\core\\utils\\downloader.py",
+    "line": 418,
+    "content": "except:\n                        pass"
+  },
+  {
+    "file": ".\\apps\\core\\utils\\i18n.py",
+    "line": 58,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\utils\\indexer.py",
+    "line": 16,
+    "content": "except:\n        pass"
+  },
+  {
+    "file": ".\\apps\\core\\utils\\indexer.py",
+    "line": 44,
+    "content": "except:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\app_state.py",
+    "line": 208,
+    "content": "except json.JSONDecodeError:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\startup.py",
+    "line": 110,
+    "content": "except:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\startup.py",
+    "line": 303,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\ai\\embeddings.py",
+    "line": 117,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\ai\\embeddings.py",
+    "line": 176,
+    "content": "except Exception:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\ai\\embeddings.py",
+    "line": 188,
+    "content": "except:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\ai\\embeddings.py",
+    "line": 351,
+    "content": "except:\n            pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\ai\\orchestrator.py",
+    "line": 778,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\ai\\orchestrator.py",
+    "line": 1172,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\ai\\orchestrator.py",
+    "line": 1184,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\ai\\providers\\local_llama.py",
+    "line": 145,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\ai\\providers\\local_llama.py",
+    "line": 326,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\api\\routes\\chat.py",
+    "line": 25,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\api\\routes\\chat.py",
+    "line": 31,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\api\\routes\\chat.py",
+    "line": 45,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\api\\routes\\chat.py",
+    "line": 104,
+    "content": "except Exception:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\api\\routes\\chat.py",
+    "line": 109,
+    "content": "except Exception:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\api\\routes\\chat.py",
+    "line": 123,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\api\\routes\\chat.py",
+    "line": 129,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\api\\routes\\settings.py",
+    "line": 86,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\api\\routes\\setup.py",
+    "line": 105,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\database\\vector_db.py",
+    "line": 60,
+    "content": "except:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\extensions\\manager.py",
+    "line": 101,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\memory\\external_memory.py",
+    "line": 152,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\memory\\external_memory.py",
+    "line": 178,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\memory\\external_memory.py",
+    "line": 209,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\memory\\external_memory.py",
+    "line": 334,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\memory\\external_memory.py",
+    "line": 370,
+    "content": "except Exception:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\system\\resource_manager.py",
+    "line": 149,
+    "content": "except ImportError:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\system\\resource_manager.py",
+    "line": 192,
+    "content": "except ImportError:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\detector.py",
+    "line": 157,
+    "content": "except Exception:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\detector.py",
+    "line": 192,
+    "content": "except Exception:\n                        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\detector.py",
+    "line": 212,
+    "content": "except Exception:\n                                    pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\detector.py",
+    "line": 362,
+    "content": "except Exception:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\detector.py",
+    "line": 375,
+    "content": "except queue.Full:\n            pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\detector.py",
+    "line": 532,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\detector.py",
+    "line": 541,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\quick_transcriber.py",
+    "line": 75,
+    "content": "except:\n                        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\tts.py",
+    "line": 46,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\tts.py",
+    "line": 295,
+    "content": "except ValueError:\n                        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\tts.py",
+    "line": 302,
+    "content": "except asyncio.QueueFull:\n                        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\tts.py",
+    "line": 389,
+    "content": "except:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\tts.py",
+    "line": 394,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\tts.py",
+    "line": 460,
+    "content": "except:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\services\\voice\\tts.py",
+    "line": 472,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\tools\\system_actions.py",
+    "line": 66,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\tools\\system_actions.py",
+    "line": 438,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\tools\\system_actions.py",
+    "line": 577,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\tools\\system_actions.py",
+    "line": 630,
+    "content": "except Exception:\n                    pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\tools\\system_actions.py",
+    "line": 658,
+    "content": "except Exception:\n            pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\utils\\downloader.py",
+    "line": 145,
+    "content": "except:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\utils\\downloader.py",
+    "line": 271,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\utils\\downloader.py",
+    "line": 285,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\utils\\downloader.py",
+    "line": 287,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\utils\\downloader.py",
+    "line": 337,
+    "content": "except:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\utils\\downloader.py",
+    "line": 418,
+    "content": "except:\n                        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\utils\\i18n.py",
+    "line": 58,
+    "content": "except Exception:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\utils\\indexer.py",
+    "line": 14,
+    "content": "except:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\utils\\indexer.py",
+    "line": 44,
+    "content": "except:\n        pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\fortscript\\src\\fortscript\\main.py",
+    "line": 61,
+    "content": "except (psutil.NoSuchProcess, psutil.AccessDenied):\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\fortscript\\src\\fortscript\\main.py",
+    "line": 276,
+    "content": "except psutil.NoSuchProcess:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\fortscript\\src\\fortscript\\main.py",
+    "line": 283,
+    "content": "except psutil.NoSuchProcess:\n                pass"
+  },
+  {
+    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\fortscript\\src\\fortscript\\main.py",
+    "line": 298,
+    "content": "except psutil.NoSuchProcess:\n                pass"
+  },
+  {
+    "file": ".\\apps\\fortscript\\src\\fortscript\\main.py",
+    "line": 61,
+    "content": "except (psutil.NoSuchProcess, psutil.AccessDenied):\n                pass"
+  },
+  {
+    "file": ".\\apps\\fortscript\\src\\fortscript\\main.py",
+    "line": 276,
+    "content": "except psutil.NoSuchProcess:\n                pass"
+  },
+  {
+    "file": ".\\apps\\fortscript\\src\\fortscript\\main.py",
+    "line": 283,
+    "content": "except psutil.NoSuchProcess:\n                pass"
+  },
+  {
+    "file": ".\\apps\\fortscript\\src\\fortscript\\main.py",
+    "line": 298,
+    "content": "except psutil.NoSuchProcess:\n                pass"
+  }
+]

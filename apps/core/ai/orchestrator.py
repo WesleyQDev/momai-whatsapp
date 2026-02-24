@@ -779,8 +779,8 @@ async def generate(message: ChatMessage):
                     prebuffer_limit = int(settings.prebuffer_chars)
             finally:
                 db.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[AI_core] Could not load prebuffer setting: {e}")
         print(f"[STREAM] prebuffer_limit = {prebuffer_limit}")
         save_message_to_db(message.thread_id, "user", message.content)
         input_data = {
@@ -1173,8 +1173,8 @@ async def generate(message: ChatMessage):
                         if activities_trace[i].startswith("Buscando"):
                             activities_trace[i] = f"Buscando ({search_count})"
                             break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[AI_core] Error getting final stream state: {e}")
 
         if final_snippets and not any("snippets" in str(y) for y in [y for y in []]):
             yield f"data: {json.dumps({'snippets': final_snippets})}\n\n"
@@ -1185,8 +1185,8 @@ async def generate(message: ChatMessage):
             import app_state
 
             app_state.set_ai_busy(False)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[AI_core] Error setting AI busy state: {e}")
         if not stream_decided and prebuffer and not stream_suppressed:
             yield f"data: {json.dumps({'token': prebuffer})}\n\n"
             tts_buffer += prebuffer

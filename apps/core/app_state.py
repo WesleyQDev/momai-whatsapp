@@ -205,8 +205,8 @@ async def process_voice_command(text: str) -> None:
                             await ws.send_json({"type": "assistant", "data": data})
                         except Exception as exc:
                             logger.warning("[Voice] Chunk send error: %s", exc)
-                except json.JSONDecodeError:
-                    pass
+                except json.JSONDecodeError as e:
+                    logger.debug("[Voice] Failed to decode stream chunk: %s", e)
         logger.info("[Voice] Generate completed")
     except Exception as exc:
         logger.exception("Error processing voice: %s", exc)

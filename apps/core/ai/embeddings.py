@@ -52,7 +52,7 @@ class EmbeddingEngine:
             s = db.query(Settings).first()
             backend = s.local_backend if s and s.local_backend != "auto" else None
             db.close()
-        except:
+        except Exception:
             backend = None
 
         if not backend:
@@ -114,7 +114,8 @@ class EmbeddingEngine:
                 if res.status_code == 200:
                     self._process = True  # indicates that the server is ready
                     return
-            except:
+            except Exception:
+                # Port not listening, continue to start server
                 pass
 
             paths = self._get_paths()
@@ -185,7 +186,8 @@ class EmbeddingEngine:
                     if res.status_code == 200:
                         print("[Embeddings] Servidor de embeddings pronto!")
                         break
-                except:
+                except Exception:
+                    # Healthcheck failed, server not ready yet
                     pass
                 time.sleep(0.5)
 
@@ -354,7 +356,7 @@ class EmbeddingEngine:
                 logger.warning("[Embeddings] Destructor cleanup: stopping server...")
                 self._process.kill()
                 self._process = None
-        except:
+        except Exception:
             pass
 
     def clear_all_cache(self):

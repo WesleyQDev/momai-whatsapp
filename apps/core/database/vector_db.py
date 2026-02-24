@@ -34,7 +34,7 @@ class VectorDB:
         db = self.connect()
         try:
             return db.open_table(name)
-        except:
+        except Exception:
             if schema is None:
                 raise ValueError(f"Table {name} does not exist and no schema was provided.")
             return db.create_table(name, schema=schema)
@@ -56,8 +56,8 @@ class VectorDB:
                 # Drop table so it can be rebuilt by sync process or next write
                 try:
                     self.connect().drop_table(table_name)
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[VectorDB] Could not drop table '{table_name}': {e}")
             else:
                 logger.error(f"[VectorDB] Search error in '{table_name}': {e}")
             return []
@@ -258,7 +258,7 @@ class VectorDB:
             table = self.get_table("registry_agents")
             res = table.search().filter(f"name = '{name}'").to_list()
             return res[0]["system_prompt"] if res else None
-        except:
+        except Exception:
             return None
 
 # Singleton instance

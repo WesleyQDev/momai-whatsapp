@@ -83,8 +83,8 @@ async def get_settings(db: Session = Depends(get_db)):
     api_keys = {}
     try:
         api_keys = json.loads(settings.api_keys) if settings.api_keys else {}
-    except Exception:
-        pass
+    except Exception as e:
+        app_state.logger.debug(f"[Settings] Error decoding API keys: {e}")
 
     return {
         "user_name": settings.user_name,

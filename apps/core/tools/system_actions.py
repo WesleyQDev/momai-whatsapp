@@ -436,6 +436,7 @@ def add_fortscript_app(name: str, executable: str):
             return "OK: app added (restart required to reload monitoring list)"
         resource_manager.start()
     except Exception:
+        # Resource manager might not be ready
         pass
 
     return "OK"
@@ -634,7 +635,8 @@ def get_momai_resources():
                 total_mb = int(total_bytes / (1024 * 1024)) if total_bytes > 0 else 0
                 return used_mb, total_mb
             except Exception:
-                return 0, 0
+                # PowerShell VRAM detection failed
+                pass
 
         # Linux fallbacks (AMD/Intel)
         try:
@@ -675,6 +677,7 @@ def get_momai_resources():
             total_mb = int(total_total / (1024 * 1024)) if total_total > 0 else 0
             return used_mb, total_mb
         except Exception:
+            # sysfs VRAM detection failed
             return 0, 0
 
     try:
@@ -702,7 +705,8 @@ def get_momai_resources():
             "context_used_tokens": ctx_used,
             "context_total_tokens": ctx_total,
         }
-    except Exception:
+    except Exception as e:
+        app_state.logger.debug(f"[System] Error gathering resources: {e}")
         return {
             "ram_mb": 0,
             "vram_used_mb": 0,

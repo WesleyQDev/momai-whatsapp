@@ -43,8 +43,8 @@ def _ensure_tts_imports():
         if "CUDAExecutionProvider" in onnxruntime.get_available_providers():
             ONNX_PROVIDER = "CUDAExecutionProvider"
             logger.info("[TTS] Using GPU acceleration for TTS")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"[TTS] GPU check error: {e}")
 
 LANG_CODE_MAP = {
     "p": "pt-br",
@@ -386,12 +386,12 @@ class TTSManager:
                 try:
                     stream.stop()
                     stream.close()
-                except:
+                except Exception:
                     pass
             self.active_stream = None
             try:
                 loop.close()
-            except:
+            except Exception:
                 pass
             logger.debug("[TTS Worker] Thread finished.")
 
@@ -457,7 +457,7 @@ class TTSManager:
             if self.active_stream:
                 try:
                     self.active_stream.abort_stream()
-                except:
+                except Exception:
                     pass
 
             if self.worker_thread and self.worker_thread.is_alive():
@@ -469,8 +469,8 @@ class TTSManager:
             while not self.text_queue.empty():
                 self.text_queue.get_nowait()
                 self.text_queue.task_done()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[TTS] Queue clear error: {e}")
 
         logger.info("[TTS] Playback stopped and queue cleared.")
 

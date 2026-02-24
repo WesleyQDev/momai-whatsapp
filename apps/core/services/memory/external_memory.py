@@ -149,8 +149,8 @@ def _clear_fts_for_note(note_id: str):
         with engine.connect() as conn:
             conn.execute(text(f"DELETE FROM {FTS_TABLE} WHERE note_id = :note_id"), {"note_id": note_id})
             conn.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"[Memory] Could not clear FTS for {note_id}: {e}")
 
 
 def _index_fts(note_id: str, title: str, path_value: str, chunks: Iterable[str]):
@@ -175,8 +175,8 @@ def _index_fts(note_id: str, title: str, path_value: str, chunks: Iterable[str])
                     "VALUES (:note_id, :chunk_id, :title, :path, :content)"
                 ), rows)
             conn.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"[Memory] Could not index FTS for {note_id}: {e}")
 
 
 def _get_vector_table(dim: int):
@@ -206,8 +206,8 @@ def _safe_delete_vector_rows(table, note_id: str):
     safe_id = note_id.replace("'", "''")
     try:
         table.delete(f"note_id = '{safe_id}'")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"[Memory] Could not delete vector row for {note_id}: {e}")
 
 
 def _write_note_file(path: Path, content: str):
@@ -331,8 +331,8 @@ def delete_note(note_id: str) -> bool:
     try:
         table = vector_db.get_table(VECTORS_TABLE)
         _safe_delete_vector_rows(table, note_id)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"[Memory] Post-delete vector cleanup failed: {e}")
     return True
 
 
@@ -367,8 +367,8 @@ def reindex_note(note_id: str) -> None:
             try:
                 table = vector_db.get_table(VECTORS_TABLE)
                 _safe_delete_vector_rows(table, note_id)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[Memory] Vector delete during reindex failed: {e}")
             return
         note.last_indexed_at = datetime.now()
         db.commit()

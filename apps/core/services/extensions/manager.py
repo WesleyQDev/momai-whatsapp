@@ -88,8 +88,8 @@ class SkillRegistry:
             from tools.system_actions import invalidate_tools_registry_cache
 
             invalidate_tools_registry_cache()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[SkillRegistry] Invalidate cache error: {e}")
 
     def get_skill(self, skill_id: str) -> Optional[Skill]:
         """Retrieves a skill by name or ID."""

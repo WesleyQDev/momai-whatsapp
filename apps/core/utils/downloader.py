@@ -142,7 +142,7 @@ def kill_llama_processes():
             )
         else:
             subprocess.run("pkill -f llama-server", shell=True)
-    except:
+    except Exception:
         pass
 
 
@@ -268,7 +268,7 @@ def get_hardware_info():
                                 if ": " in amd_res.stdout
                                 else "AMD/Intel GPU"
                             )
-            except:
+            except Exception:
                 pass
 
             # Detect CPU on Linux
@@ -282,7 +282,7 @@ def get_hardware_info():
                 )
                 if cpu_res.returncode == 0 and cpu_res.stdout.strip():
                     cpu_name = cpu_res.stdout.strip().split(": ", 1)[-1]
-            except:
+            except Exception:
                 pass
     except Exception:
         pass
@@ -334,7 +334,7 @@ def get_installed_info(backend=None):
             try:
                 with open(path, "r") as f:
                     return json.load(f)
-            except:
+            except Exception:
                 pass
         return {}
 
@@ -415,7 +415,7 @@ def setup_local_engine(progress_callback=None, forced_backend=None):
                 ]:
                     try:
                         os.remove(file)
-                    except:
+                    except Exception:
                         pass
 
         download_file(url, zip_path, progress_callback)
