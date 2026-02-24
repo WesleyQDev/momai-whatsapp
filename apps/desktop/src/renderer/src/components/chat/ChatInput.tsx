@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import {
   StatusData,
   fetchSettings,
@@ -12,6 +12,7 @@ import {
   MicrophoneIcon,
   SpeakerWaveIcon
 } from '@heroicons/react/24/solid'
+import { useAutocomplete } from '../../hooks/useAutocomplete'
 
 interface ChatInputProps {
   text: string
@@ -60,6 +61,7 @@ export default function ChatInput({
 }: ChatInputProps) {
   const { t } = useI18n()
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const ghostRef = useRef<HTMLDivElement>(null)
   const [localText, setLocalText] = useState(text)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [isSavingSettings, setIsSavingSettings] = useState(false)
@@ -70,12 +72,20 @@ export default function ChatInput({
   })
   const [isQuickRecording, setIsQuickRecording] = useState(false)
 
+  const {
+    suggestion,
+    addToHistory,
+    getSuggestion,
+    clearSuggestion,
+    acceptSuggestion
+  } = useAutocomplete()
+
   // Sync local text with external text
   useEffect(() => {
     setLocalText(text)
   }, [text])
 
-  // Auto-resize textarea
+  // Auto-resize textarea + sync ghost scroll
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.style.height = 'auto'
@@ -151,11 +161,45 @@ export default function ChatInput({
     return undefined
   }, [isDropdownOpen])
 
-  const handleSend = () => {
+  const handleSend = useCallback(() => {
     if (!localText.trim() || isLoading || isModeChanging || !isBrainReady || isBrainLoading) return
+    addToHistory(localText)
+    clearSuggestion()
     onSend(localText)
     setLocalText('')
-  }
+  }, [localText, isLoading, isModeChanging, isBrainReady, isBrainLoading, addToHistory, clearSuggestion, onSend])
+
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const value = e.target.value
+      setLocalText(value)
+      getSuggestion(value)
+    },
+    [getSuggestion]
+  )
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        handleSend()
+        return
+      }
+
+      if ((e.key === 'Tab' || e.key === 'ArrowRight') && suggestion) {
+        const textarea = inputRef.current
+        if (e.key === 'ArrowRight' && textarea) {
+          const cursorAtEnd = textarea.selectionStart === localText.length
+          if (!cursorAtEnd) return
+        }
+        e.preventDefault()
+        const completed = acceptSuggestion(localText)
+        setLocalText(completed)
+        clearSuggestion()
+      }
+    },
+    [suggestion, localText, handleSend, acceptSuggestion, clearSuggestion]
+  )
 
   const handleMicClick = async () => {
     if (isQuickRecording) return
@@ -164,6 +208,7 @@ export default function ChatInput({
     try {
       const result = await quickTranscribe()
       if (result.success && result.text.trim()) {
+        addToHistory(result.text.trim())
         onSend(result.text.trim())
       }
     } catch (error) {
@@ -196,20 +241,32 @@ export default function ChatInput({
     <footer className="p-4 bg-transparent relative">
       <div className="max-w-4xl mx-auto relative">
         <div className="flex flex-col bg-card border border-border/20 rounded-2xl shadow-xl transition-all duration-200 focus-within:border-accent/40 focus-within:ring-1 focus-within:ring-accent/10">
-          <textarea
-            ref={inputRef}
-            rows={1}
-            className="flex-1 bg-transparent border-none py-3 px-5 text-[15px] sm:text-[16px] text-text outline-none placeholder:text-text-muted/30 disabled:opacity-50 min-w-0 resize-none scrollbar-none"
-            value={localText}
-            onChange={(e) => setLocalText(e.target.value)}
-            placeholder={t('chatInput.placeholder')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                handleSend()
-              }
-            }}
-          />
+          <div className="relative">
+            {/* Ghost text overlay for autocomplete suggestion */}
+            <div
+              ref={ghostRef}
+              aria-hidden="true"
+              className="absolute inset-0 pointer-events-none py-3 px-5 text-[15px] sm:text-[16px] whitespace-pre-wrap break-words overflow-hidden"
+              style={{ lineHeight: 'inherit' }}
+            >
+              <span className="invisible">{localText}</span>
+              {suggestion && (
+                <span className="text-text-muted/25 select-none">{suggestion}</span>
+              )}
+            </div>
+
+            <textarea
+              ref={inputRef}
+              rows={1}
+              className="flex-1 w-full bg-transparent border-none py-3 px-5 text-[15px] sm:text-[16px] text-text outline-none placeholder:text-text-muted/30 disabled:opacity-50 min-w-0 resize-none scrollbar-none relative z-10"
+              style={{ caretColor: 'auto' }}
+              value={localText}
+              onChange={handleInputChange}
+              placeholder={t('chatInput.placeholder')}
+              onKeyDown={handleKeyDown}
+              onBlur={clearSuggestion}
+            />
+          </div>
 
           <div className="flex items-center justify-between px-3 pb-3 pt-0">
             <div className="flex items-center gap-1">
