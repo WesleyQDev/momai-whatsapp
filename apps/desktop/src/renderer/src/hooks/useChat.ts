@@ -8,7 +8,8 @@ import {
   stopVoice,
   speakText,
   deleteMessage,
-  setCallMode
+  setCallMode,
+  generateSessionTitle
 } from '../services/api'
 
 export function useChat() {
@@ -961,6 +962,7 @@ export function useChat() {
       setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '...' }])
 
       const messageThreadId = threadId
+      const isFirstMessage = messagesRef.current.length <= 1 // Includes the user message just added locally
 
       try {
         await sendChatMessage(messageText, threadId, {
@@ -1128,6 +1130,16 @@ export function useChat() {
           },
           onDone: () => {
             // Stream finalizado
+            if (isFirstMessage) {
+              const lastMsgs = messagesRef.current
+              const assistantReply = lastMsgs[lastMsgs.length - 1]?.content || ''
+              
+              generateSessionTitle(messageThreadId, messageText, assistantReply).then((title) => {
+                if (title) {
+                  window.dispatchEvent(new CustomEvent('momai_session_title_generated', { detail: { threadId: messageThreadId, title } }))
+                }
+              }).catch(console.error)
+            }
           }
         })
       } catch (error) {

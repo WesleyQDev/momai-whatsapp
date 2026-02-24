@@ -16,6 +16,7 @@ interface MainViewRendererProps {
   initProgress?: number
   initMessage?: string
   isBooting?: boolean
+  setHistoryOpen?: (open: boolean) => void
 }
 
 const VIEW_MAP: Record<string, React.ComponentType<any>> = {
@@ -43,6 +44,7 @@ const VIEW_MAP: Record<string, React.ComponentType<any>> = {
         isBooting={props.isBooting}
         threadId={props.chat.threadId}
         setThreadId={props.chat.setThreadId}
+        setHistoryOpen={props.setHistoryOpen}
       />
     )
   },
@@ -61,7 +63,8 @@ export default function MainViewRenderer({
   statusInfo,
   initProgress,
   initMessage,
-  isBooting
+  isBooting,
+  setHistoryOpen
 }: MainViewRendererProps) {
   const Component = VIEW_MAP[viewName] || (extensionData ? DynamicDashboard : null)
 
@@ -89,6 +92,7 @@ export default function MainViewRenderer({
         initProgress={initProgress}
         initMessage={initMessage}
         isBooting={isBooting}
+        setHistoryOpen={setHistoryOpen}
       />
     </div>
   )

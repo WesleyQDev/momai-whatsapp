@@ -1,6 +1,5 @@
 import { RefObject, JSX, useState, useEffect } from 'react'
 import { MessageList, ChatInput } from './chat'
-import { ChatHistoryPopover } from './chat/ChatHistoryPopover'
 import { Message } from '../services/api'
 import { StatusData } from '../services/api'
 
@@ -27,6 +26,7 @@ interface ContainerChatProps {
   isBooting?: boolean
   threadId: string
   setThreadId: (id: string) => void
+  setHistoryOpen?: (open: boolean) => void
 }
 
 const CallModeUI = ({
@@ -239,8 +239,25 @@ export default function ContainerChat({
   initMessage,
   isBooting = false,
   threadId,
-  setThreadId
+  setThreadId,
+  setHistoryOpen
 }: ContainerChatProps): JSX.Element {
+  const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
+  
+  useEffect(() => {
+    setLocalSessionTitle(null)
+  }, [threadId])
+
+  useEffect(() => {
+    const handleTitleGenerated = (e: CustomEvent) => {
+      if (e.detail?.threadId === threadId) {
+        setLocalSessionTitle(e.detail.title)
+      }
+    }
+    window.addEventListener('momai_session_title_generated', handleTitleGenerated as EventListener)
+    return () => window.removeEventListener('momai_session_title_generated', handleTitleGenerated as EventListener)
+  }, [threadId])
+
   const isBrainReady = statusInfo?.brain_ready ?? false
   const isBrainLoading = statusInfo?.is_loading ?? false
   // Keep loading visible until init is done AND the LLM model is actually ready
@@ -264,30 +281,46 @@ export default function ContainerChat({
         />
       ) : (
         <>
-          <div className="flex items-center justify-end px-3 pt-3 pb-1 gap-2">
-            <ChatHistoryPopover threadId={threadId} setThreadId={setThreadId} />
-            <button
-              type="button"
-              onClick={onClearHistory}
-              disabled={!onClearHistory || isLoading || messages.length === 0}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-border/20 bg-card/40 text-text-muted hover:text-red-400 hover:border-red-400/40 hover:bg-red-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-              title="Apagar conversas"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
+          <div className="flex items-center justify-between px-3 pt-3 pb-1">
+            <span className="text-xs font-bold text-text/50 uppercase tracking-widest pl-1">
+              {(() => {
+                if (threadId === 'default') return 'Sessão Inicial'
+                if (localSessionTitle) return localSessionTitle
+                const firstUserMsg = messages.find(m => m.role === 'user')
+                if (!firstUserMsg) return 'Nova Sessão'
+                const clean = firstUserMsg.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()
+                return clean.length > 20 ? clean.slice(0, 20).trim() + '...' : clean
+              })()}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setThreadId(`sessao_${Date.now()}`)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/20 hover:border-accent/40 rounded-full transition-all uppercase tracking-wider h-[34px]"
               >
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                <path d="M10 11v6"></path>
-                <path d="M14 11v6"></path>
-                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
-              </svg>
-            </button>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Nova
+              </button>
+              <button
+                type="button"
+                data-history-trigger="true"
+                onClick={() => setHistoryOpen?.(true)}
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border bg-accent/10 text-accent border-accent/30 hover:bg-accent/20 hover:border-accent/50 hover:shadow-accent-glow transition-all duration-300 font-semibold text-[11px] tracking-wide h-[34px]"
+                title="Conversas anteriores"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="w-3.5 h-3.5"
+                >
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                </svg>
+                <span>Conversas anteriores</span>
+              </button>
+            </div>
           </div>
 
           <MessageList

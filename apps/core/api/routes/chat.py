@@ -152,7 +152,7 @@ async def delete_single_message(message_id: int, db: Session = Depends(get_db)):
 
 @router.get("/chat/sessions")
 async def get_chat_sessions(db: Session = Depends(get_db)):
-    from database.models import Message
+    from database.models import Message, SessionTitle
     from sqlalchemy import func
     from ai.orchestrator import clear_history_db
     
@@ -167,9 +167,76 @@ async def get_chat_sessions(db: Session = Depends(get_db)):
 
     result = []
     for t_id, last_act, count in threads_query:
+        if count == 0:
+            continue
+        title_record = (
+            db.query(SessionTitle.title)
+            .filter(SessionTitle.thread_id == t_id)
+            .first()
+        )
+        first_user_msg = None
+        if not title_record:
+            first_user_msg = (
+                db.query(Message.content)
+                .filter(Message.thread_id == t_id, Message.role == "user")
+                .order_by(Message.created_at.asc())
+                .first()
+            )
         result.append({
             "id": t_id,
             "lastActivity": last_act.isoformat() if last_act else None,
-            "messageCount": count
+            "messageCount": count,
+            "title": title_record[0] if title_record else None,
+            "firstMessage": first_user_msg[0] if first_user_msg else None
         })
     return {"sessions": result[:5]}
+
+
+@router.post("/chat/title")
+async def generate_session_title(data: dict, db: Session = Depends(get_db)):
+    from database.models import SessionTitle
+    from ai import orchestrator
+
+    thread_id = data.get("thread_id")
+    user_message = data.get("user_message", "")
+    assistant_message = data.get("assistant_message", "")
+
+    if not thread_id or not user_message:
+        return {"status": "error", "message": "Missing thread_id or user_message"}
+
+    existing = db.query(SessionTitle).filter(SessionTitle.thread_id == thread_id).first()
+    if existing:
+        return {"status": "ok", "title": existing.title}
+
+    if orchestrator.llm is None:
+        fallback = user_message.strip()[:12].strip()
+        return {"status": "ok", "title": fallback}
+
+    try:
+        from langchain_core.messages import SystemMessage, HumanMessage
+
+        # Combine messages for better context if assistant reply is available
+        context = f"User: {user_message}"
+        if assistant_message:
+            context += f"\nAssistant: {assistant_message}"
+
+        response = await orchestrator.llm.ainvoke([
+            SystemMessage(content=(
+"Create a short title for this conversation using exactly 1 or 2 words. "
+                "STRICT MAXIMUM 6 CHARACTERS. NO PUNCTUATION. NO QUOTES. "
+                "The title must be in the same language as the conversation."
+            )),
+            HumanMessage(content=context),
+        ])
+        title = getattr(response, "content", "").strip().strip('"\'!?.').replace(".", "")
+        
+        if not title:
+            title = user_message.strip()
+    except Exception:
+        title = user_message.strip()
+
+    record = SessionTitle(thread_id=thread_id, title=title)
+    db.merge(record)
+    db.commit()
+
+    return {"status": "ok", "title": title}

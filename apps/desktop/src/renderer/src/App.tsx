@@ -8,6 +8,7 @@ import UpdateToast from './components/floating/UpdateToast'
 import GraphInterface from './components/GraphInterface'
 import TitleBar from './components/TitleBar'
 import RemindersSidebar from './components/chat/RemindersSidebar'
+import { ChatHistoryPopover } from './components/chat/ChatHistoryPopover'
 import ConfirmationCard from './components/floating/ConfirmationCard'
 import OnboardingCard from './components/floating/OnboardingCard'
 import TutorialTour from './components/floating/TutorialTour'
@@ -106,6 +107,7 @@ function App(): React.JSX.Element {
   const [settingsTab, setSettingsTab] = useState<
     'general' | 'brain' | 'voice' | 'economy' | 'updates'
   >('general')
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [isCompact, setIsCompact] = useState(window.innerWidth < 850)
   const [extensions, setExtensions] = useState<any[]>([])
   const [settingsLoaded, setSettingsLoaded] = useState(false)
@@ -444,6 +446,7 @@ function App(): React.JSX.Element {
                   initProgress={initProgress}
                   initMessage={initMessage}
                   isBooting={isBooting}
+                  setHistoryOpen={setHistoryOpen}
                 />
 
                 {/* 2. Graph Panel (Middle Column - Conditional) */}
@@ -524,6 +527,17 @@ function App(): React.JSX.Element {
                       <RemindersSidebar
                         onNavigate={() => navigate('/extensions/com.momai.builtin.scheduler')}
                       />
+                      {historyOpen && (
+                        <div className="absolute inset-0 z-20">
+                          <ChatHistoryPopover
+                            threadId={chat.threadId}
+                            setThreadId={chat.setThreadId}
+                            isOpen={historyOpen}
+                            setIsOpen={setHistoryOpen}
+                            isSidebarVariant
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

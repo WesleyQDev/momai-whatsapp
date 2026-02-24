@@ -207,6 +207,8 @@ export interface ChatSession {
   id: string
   lastActivity: string | null
   messageCount: number
+  firstMessage: string | null
+  title: string | null
 }
 
 export async function fetchSessions(): Promise<ChatSession[]> {
@@ -221,6 +223,29 @@ export async function clearChatHistory(threadId: string = 'default'): Promise<vo
     method: 'DELETE'
   })
   if (!response.ok) throw new Error('Erro ao limpar histórico')
+}
+
+export async function generateSessionTitle(
+  threadId: string,
+  userMessage: string,
+  assistantMessage?: string
+): Promise<string | null> {
+  try {
+    const response = await fetch(`${API_URL}/chat/title`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        thread_id: threadId,
+        user_message: userMessage,
+        assistant_message: assistantMessage
+      })
+    })
+    if (!response.ok) return null
+    const data = await response.json()
+    return data.title || null
+  } catch {
+    return null
+  }
 }
 
 export async function deleteMessage(messageId: number): Promise<void> {

@@ -117,6 +117,14 @@ class GamingApp(Base):
     created_at = Column(DateTime, default=lambda: datetime.now())
 
 
+class SessionTitle(Base):
+    __tablename__ = "session_titles"
+
+    thread_id = Column(String, primary_key=True)
+    title = Column(String, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now())
+
+
 # Database setup
 data_dir = os.environ.get("MOMAI_DATA_DIR")
 if data_dir:
