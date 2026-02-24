@@ -2,6 +2,23 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 0.6.0 - 2026-02-24
+Histórico de Conversas, Orquestração Agêntica e Melhorias no Instalador
+
+## ✨ Novas Funcionalidades
+- **Histórico de Conversas Dinâmico:** Nova seção na sidebar para gerenciar conversas anteriores, com geração automática de títulos curtos via IA baseada na primeira mensagem.
+- **Orquestração Langgraph:** Migração do workflow do agente para uma arquitetura baseada em Langgraph, permitindo fluxos de raciocínio mais complexos e controle fino sobre a execução de ferramentas.
+- **Mapeamento de Intenções:** Novo sistema de descoberta de habilidades (Skills) baseado em intenção, garantindo que o agente utilize a ferramenta correta para cada necessidade do usuário.
+- **Reset de Boas-vindas:** Adicionado botão nas configurações para reiniciar o processo de onboarding e tela de boas-vindas.
+
+## ⚙️ Melhorias
+- **Limites Dinâmicos de Ferramentas:** Implementação de regras de limite de chamadas de ferramentas configuráveis por Skill via metadados.
+- **Instalador Silencioso (One-Click):** Configuração do instalador Windows para modo "One-Click", reduzindo a fricção no primeiro contato do usuário com o app.
+- **Estabilidade do Backend:** Substituição de blocos de captura de erro genéricos (`except: pass`) por logging informativo em diversos módulos do Core.
+
+## 🐛 Correções
+- **Consistência de Respostas:** Melhoria na lógica do Manager Agent para evitar respostas de "não sei" quando há skills relevantes disponíveis.
+
 ## 0.5.8 - 2026-02-22
 Melhorias de Performance, Áudio e Estabilidade
 
