@@ -19,19 +19,25 @@ import MainViewRenderer from './components/MainViewRenderer'
 import { fetchExtensions, fetchSettings, SettingsData } from './services/api'
 import { useI18n } from './i18n'
 
-const WelcomeScreen = ({ onComplete }: { onComplete: () => void }) => {
+const WelcomeScreen = ({
+  onComplete,
+  isFirstLaunch
+}: {
+  onComplete: () => void
+  isFirstLaunch: boolean
+}) => {
   const [version] = useState('0.3.7')
   const [fading, setFading] = useState(false)
 
   useEffect(() => {
-    // Start fade-out 600ms before the total 2s duration
+    // Start fade-out 600ms before the total 5s duration
     const fadeTimer = setTimeout(() => {
       setFading(true)
-    }, 1400)
+    }, 4400)
 
     const completeTimer = setTimeout(() => {
       onComplete()
-    }, 2000)
+    }, 5000)
 
     return () => {
       clearTimeout(fadeTimer)
@@ -54,16 +60,16 @@ const WelcomeScreen = ({ onComplete }: { onComplete: () => void }) => {
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-accent/5 rounded-full blur-[120px]" />
       </div>
 
-      <div className="relative flex flex-col items-center animate-[fadeIn_0.5s_ease-out]">
+      <div className="relative flex flex-col items-center animate-[fadeIn_1.5s_ease-out]">
         <div className="relative mb-8">
           <div
             className="absolute inset-0 bg-violet-500/20 rounded-full blur-3xl animate-pulse"
-            style={{ animationDuration: '2s' }}
+            style={{ animationDuration: '5s' }}
           />
           <img
             src={logo}
             alt="MomAI"
-            className="w-36 h-36 object-contain relative z-10 drop-shadow-2xl animate-[bounce_2s_ease-in-out_infinite]"
+            className="w-36 h-36 object-contain relative z-10 drop-shadow-2xl animate-[bounce_5s_ease-in-out_infinite]"
           />
         </div>
 
@@ -75,6 +81,43 @@ const WelcomeScreen = ({ onComplete }: { onComplete: () => void }) => {
         <p className="text-lg text-violet-400 font-medium mb-4">Sua assistente local</p>
 
         {version && <p className="text-xs text-text-muted/50 font-mono">Versão {version}</p>}
+
+        {isFirstLaunch && (
+          <div className="mt-8 max-w-lg w-full px-7 py-5 rounded-2xl bg-white/5 border-y border-white/10 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-700 relative overflow-hidden shadow-2xl">
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-violet-400/50 shadow-[0_0_15px_rgba(167,139,250,0.5)]" />
+            <div className="space-y-4">
+              <div className="flex items-start gap-3.5">
+                <span className="text-xl drop-shadow-sm">🌸</span>
+                <p className="text-[15px] font-semibold text-text/90 leading-tight pt-0.5">
+                  Olá! Sua assistente local está acordando...
+                </p>
+              </div>
+
+              <div className="flex items-start gap-3.5">
+                <span className="text-xl drop-shadow-sm">☕</span>
+                <p className="text-[13px] text-text-muted italic leading-relaxed pt-0.5">
+                  Aproveite para respirar fundo — a primeira inicialização pode levar de{' '}
+                  <span className="text-violet-400 font-bold not-italic">1 a 3 minutos</span>.
+                  Prometemos que nas próximas vezes será bem mais rapidinho!
+                </p>
+              </div>
+
+              <div className="h-px bg-white/10 w-full" />
+
+              <div className="flex items-start gap-3.5 text-sm">
+                <span className="text-xl drop-shadow-sm">🧡</span>
+                <p className="font-medium text-text/90 pt-0.5">
+                  Seja muito bem-vindo(a) à{' '}
+                  <span className="text-violet-400 font-bold">MomAI</span>!{' '}
+                  <span className="text-text-muted font-normal italic">
+                    Estamos felizes em ter você aqui.
+                  </span>{' '}
+                  🤗
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -123,6 +166,7 @@ function App(): React.JSX.Element {
   > | null>(null)
   const [firstLaunchChecked, setFirstLaunchChecked] = useState(false)
   const [onboardingAttempted, setOnboardingAttempted] = useState(false)
+  const [isFirstLaunch, setIsFirstLaunch] = useState(false)
 
   // Overlay Helper
   useEffect(() => {
@@ -166,6 +210,7 @@ function App(): React.JSX.Element {
           console.log('[App] First launch detected, showing onboarding immediately')
           setShowOnboarding(true)
           setOnboardingAttempted(true)
+          setIsFirstLaunch(true)
         }
       } catch (err) {
         console.error('[App] Failed to check first launch:', err)
@@ -401,7 +446,12 @@ function App(): React.JSX.Element {
 
   return (
     <>
-      {showWelcome && <WelcomeScreen onComplete={() => setShowWelcome(false)} />}
+      {showWelcome && (
+        <WelcomeScreen
+          isFirstLaunch={isFirstLaunch}
+          onComplete={() => setShowWelcome(false)}
+        />
+      )}
       <div
         className="h-full flex flex-col overflow-hidden bg-bg"
         style={{

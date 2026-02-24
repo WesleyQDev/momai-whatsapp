@@ -37,10 +37,7 @@ nsis:
   uninstallDisplayName: MomAI
   createDesktopShortcut: always
   include: build/installer.nsh
-  oneClick: false
-  installerIcon: build/icon.ico
-  uninstallerIcon: build/icon.ico
-  installerHeaderIcon: build/icon.ico
+  oneClick: true
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
