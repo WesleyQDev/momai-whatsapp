@@ -230,14 +230,15 @@ class EmbeddingEngine:
                 isinstance(data, dict)
                 and "data" in data
                 and isinstance(data["data"], list)
+                and len(data["data"]) > 0
             ):
-                vec = data["data"][0]["embedding"]
+                vec = data["data"][0].get("embedding", [])
 
             # Case: Simple format {'embedding': [...]}
             elif isinstance(data, dict) and "embedding" in data:
                 vec = data["embedding"]
 
-            # Case: Direct list [0.1, 0.2, ...] or [[0.1, ...]]
+            # Case: Direct list [0.1, 0.2, ...] or list of objects
             elif isinstance(data, list) and len(data) > 0:
                 if isinstance(data[0], list):
                     vec = data[0]
@@ -246,11 +247,16 @@ class EmbeddingEngine:
                 else:
                     vec = data
 
-            if not vec or len(vec) < 10:
+            # Unpack nested lists (e.g., [[...]] -> [...])
+            while isinstance(vec, list) and len(vec) > 0 and isinstance(vec[0], list):
+                vec = vec[0]
+
+            if not vec or not isinstance(vec, (list, np.ndarray)) or len(vec) < 10:
+                logger.error(f"[Embeddings] Invalid vector received: {type(vec)} (len: {len(vec) if hasattr(vec, '__len__') else 'N/A'})")
                 return [0.0] * 1024
 
-            # Ensure float32 to avoid Arrow cast errors
-            return np.array(vec, dtype=np.float32).tolist()
+            # Ensure 1D float32 array
+            return np.array(vec, dtype=np.float32).flatten().tolist()
 
         except Exception as e:
             print(f"[Embeddings] Erro ao obter embedding: {e}")

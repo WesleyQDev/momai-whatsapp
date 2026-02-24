@@ -166,7 +166,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                     continue
                 
                 dist = hit.get("_distance", 1.0)
-                if dist < 0.95:
+                if dist < 0.7: # Less strict threshold for cosine distance
                     seen_ids.add(skill_id)
                     skills_brief.append(
                         {
@@ -175,9 +175,11 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                             "description": hit["description"],
                         }
                     )
+                    # Convert distance to confidence (0.0 distance = 100%, 1.0+ distance = 0%)
+                    confidence = max(0, min(100, (1 - dist) * 100))
                     log_event(
                         "Discovery",
-                        f"Active Skill: {skill_id} (conf: {(1 - dist) * 100:.1f}%)",
+                        f"Active Skill: {skill_id} (conf: {confidence:.1f}%)",
                     )
 
         if mem_context:
@@ -226,12 +228,13 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
             "\n# EXECUTION PROTOCOL\n"
             "1. FIRST, check if the answer is already in the # CONTEÚDO DAS NOTAS DO USUÁRIO or # EXTERNAL MEMORY provided above.\n"
             "2. IF YOU HAVE THE ANSWER, you can respond directly without calling any tool.\n"
-            "3. OTHERWISE, call 'activate_skill(skill_id, task_description)' for the FIRST step.\n"
-            "4. MANDATORY: DO NOT NARRATE. Do not say what you will do. If you need a tool, just call it.\n"
-            "5. Your output must be ONLY the tool call or ONLY the final answer.\n"
-            "6. After each skill finishes, you will receive the result and can call ANOTHER skill if needed.\n"
-            "7. ONLY provide the final response to the user after you have gathered all necessary information.\n"
-            "8. NEVER invent personal data. If no skill matches and it's not in your memory, say you don't have access."
+            "3. IF NOT, identify which DISCOVERED SKILL can help. If 'websearch' or 'search' is available, ALWAYS use it for real-time facts, prices, or unknown info.\n"
+            "4. CALL 'activate_skill(skill_id, task_description)' to delegate the task.\n"
+            "5. MANDATORY: DO NOT NARRATE. Do not apologize. Do not say 'I don't have access'. If a skill matches the need, use it.\n"
+            "6. Your output must be ONLY the tool call or ONLY the final answer.\n"
+            "7. After each skill finishes, you will receive the result and can call ANOTHER skill if needed.\n"
+            "8. ONLY provide the final response to the user after you have gathered all necessary information.\n"
+            "9. NEVER invent data. If NO skill matches and it's not in memory, ONLY THEN say you don't have access."
         )
 
         from langchain_core.tools import tool
@@ -248,16 +251,12 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                 manager_tools.append(all_reg[t_name])
 
         tool_usage = state.get("tool_usage", {}) or {}
-        tool_limits = {
-            "search": 3,
-            "duckduckgo_search": 3,
-            "duckduckgo_news": 3,
-            "default": 10
-        }
         
         available_manager_tools = []
         for t in manager_tools:
-            limit = tool_limits.get(t.name, tool_limits["default"])
+            # Try our custom tool_metadata first, then standard metadata
+            t_metadata = getattr(t, "tool_metadata", getattr(t, "metadata", {})) or {}
+            limit = t_metadata.get("max_calls", 10)
             if tool_usage.get(t.name, 0) < limit:
                 available_manager_tools.append(t)
             else:
@@ -266,7 +265,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
         # Fortalecer o prompt para forçar uso de ferramentas quando necessário
         system_prompt += (
             "\n# CRITICAL INSTRUCTIONS\n"
-            "Use tools ONLY when absolutely necessary. If you have the answer in history or memory, PROVIDE IT IMMEDIATELY.\n"
+            "If the information is not in your current context, YOU MUST USE A TOOL. Do not answer with your own knowledge for real-time data.\n"
             "If you reach a tool limit, stop trying and answer with what you have.\n"
         )
 
@@ -329,27 +328,23 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
         if mem_context:
             system_instructions += f"{mem_context}\n\n"
 
+        # Dynamic Tool Filtering: Get limits directly from skill metadata
+        tool_limits = skill.get_tool_limits()
+        # Get a representative limit for the prompt (usually search/default)
+        prompt_limit = tool_limits.get("search", tool_limits.get("default", 3))
+
         system_instructions += (
             f"# TASK: {task}\n\n"
             "# CRITICAL INSTRUCTIONS:\n"
-            "1. If the information is available in the 'Search results so far', ANSWER IMMEDIATELY.\n"
-            "2. Only call the search tool if the existing results are insufficient.\n"
-            "3. DO NOT NARRATE YOUR ACTIONS. Call the tool DIRECTLY without any conversational text.\n"
-            "4. If you reach 3 searches, you MUST stop and answer with what you have.\n"
-            "5. Your response must start directly with the answer - no preamble.\n"
+            "1. If information is available in the 'Previous results', ANSWER IMMEDIATELY.\n"
+            "2. Only call tools if existing results are insufficient.\n"
+            "3. DO NOT NARRATE. Call tools DIRECTLY and quietly.\n"
+            f"4. SAFETY: You are limited to {prompt_limit} calls for this task. If reached, STOP and answer.\n"
+            "5. NO PREAMBLE: Start your response directly with the final answer.\n"
         )
 
         skill_tools = skill.get_tools()
         tool_usage = state.get("tool_usage", {}) or {}
-        
-        # Dynamic Tool Filtering: Remove tools that reached their limits
-        # Using same limits as manager for consistency
-        tool_limits = {
-            "search": 3,
-            "duckduckgo_search": 3,
-            "duckduckgo_news": 3,
-            "default": 10
-        }
         
         available_tools = []
         if skill_tools:
@@ -415,8 +410,13 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
     def search_counter_node(state: AgentState):
         """Extract search count from tool_usage and emit for UI."""
         usage = state.get("tool_usage", {}) or {}
-        # Sum all search-related tool calls
-        count = usage.get("search", 0) + usage.get("duckduckgo_search", 0) + usage.get("duckduckgo_news", 0)
+        count = (
+            usage.get("search", 0) 
+            + usage.get("duckduckgo_search", 0) 
+            + usage.get("duckduckgo_news", 0)
+            + usage.get("web_search", 0)
+            + usage.get("news_search", 0)
+        )
         
         if count > 0:
             log_event("SearchCount", f"Total searches: {count}")
@@ -629,9 +629,29 @@ async def dynamic_tools_node(state: AgentState):
         tool_name = tc["name"]
         tool = registry.get(tool_name)
         
+        # Dynamic Limit Detection
+        skill_id = state.get("skill_id")
+        if skill_id:
+            skill = extension_manager.get_skill(skill_id)
+            tool_limits = skill.get_tool_limits() if skill else {}
+        else:
+            tool_limits = {}
+
+        # 1. Check Tool-Level Limit (metadata)
+        # 2. Check Skill-Level Limit (tool_limits dict)
+        # 3. Fallback to 10
+        limit = 10
+        if hasattr(tool, "get_limit"):
+            limit = tool.get_limit(default=10)
+        
+        # Skill-level override has higher precedence if specific to the tool name
+        if tool_name in tool_limits:
+            limit = tool_limits[tool_name]
+        elif "default" in tool_limits:
+            limit = tool_limits["default"]
+
         # Check limits before execution (extra safety)
         tool_usage[tool_name] = tool_usage.get(tool_name, 0) + 1
-        limit = 3 if "search" in tool_name else 10
         
         if tool and tool_usage[tool_name] <= limit:
             res = await tool.ainvoke(tc["args"])

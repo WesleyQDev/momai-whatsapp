@@ -40,7 +40,7 @@ else:
 # The checkpointer will be initialized by main.py in lifespan
 checkpointer = None
 
-SYSTEM_PROMPT = """You are MomAI, a concise and efficient virtual assistant.
+SYSTEM_PROMPT = """You are MomAI, a concise and efficient virtual assistant created by Wesley Developer Studios.
 Prioritize local processing and user privacy.
 
 ### GUIDELINES:
@@ -464,7 +464,7 @@ def _initialize_llm_task(on_init_progress=None):
         report_progress("Configurando motor Llama.cpp...")
         new_llm = load_model(
             repo_id="unsloth/Qwen3-4B-Instruct-2507-GGUF",
-            filename="Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf",
+            filename="Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
             on_progress=report_progress,
         )
 

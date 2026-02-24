@@ -121,3 +121,13 @@ class SafeExtensionTool(BaseTool):
         except Exception as e:
             logger.error(f"SafeTool Exception (async) in {self.name}: {e}")
             return f"Error: {str(e)}"
+
+    @property
+    def tool_metadata(self) -> dict:
+        """Propagates metadata from the original tool."""
+        return getattr(self.original_tool, "metadata", {}) or {}
+
+    def get_limit(self, default: int = 10) -> int:
+        """Returns the call limit for this specific tool."""
+        meta = self.tool_metadata
+        return meta.get("max_calls") or meta.get("limit") or default

@@ -19,6 +19,7 @@ class Skill(BaseModel):
     file_path: str
     name: str
     description: str
+    intents: List[str] = []
     license: Optional[str] = None
     allowed_tools: List[str] = []
     metadata: Dict[str, Any] = {}
@@ -56,6 +57,7 @@ class Skill(BaseModel):
             file_path=path,
             name=header.get("name", skill_id),
             description=header.get("description", ""),
+            intents=header.get("intents", []),
             license=header.get("license"),
             allowed_tools=header.get("allowed-tools", "").split(", ")
             if isinstance(header.get("allowed-tools"), str)
@@ -137,6 +139,28 @@ class Skill(BaseModel):
         if self._tools is None:
             return self.load_tools()
         return self._tools
+
+    def get_tool_limits(self) -> Dict[str, int]:
+        """
+        Returns the tool limits for this skill, merging defaults with overrides from YAML metadata.
+        """
+        # Global fallback for any tool in this skill
+        limits = {"default": 10}
+        
+        # Check for overrides in metadata (YAML)
+        overrides = self.metadata.get("tool_limits") or self.metadata.get("tools_config")
+        if isinstance(overrides, dict):
+            for tool_name, config in overrides.items():
+                if isinstance(config, int):
+                    limits[tool_name] = config
+                elif isinstance(config, dict) and "limit" in config:
+                    limits[tool_name] = int(config["limit"])
+        
+        # Skill-wide capacity override (metadata.max_tool_calls)
+        if "max_tool_calls" in self.metadata:
+            limits["default"] = int(self.metadata["max_tool_calls"])
+            
+        return limits
 
     def get_context_injection(self) -> str:
         """Returns the full skill instructions for prompt injection."""

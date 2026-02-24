@@ -7,7 +7,16 @@ logger = logging.getLogger(__name__)
 
 class EndpointFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        return "/status" not in record.getMessage()
+        msg = record.getMessage()
+        noisy_endpoints = [
+            "/status",
+            "/init-status",
+            "/extensions",
+            "/reminders/active",
+            "/settings",
+            "/memory/notes",
+        ]
+        return not any(endpoint in msg for endpoint in noisy_endpoints)
 
 
 def configure_logging() -> None:
@@ -15,7 +24,9 @@ def configure_logging() -> None:
     root_logger.setLevel(logging.INFO)
     if not root_logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
         root_logger.addHandler(handler)
 
 
@@ -32,7 +43,10 @@ def patch_thread_start() -> None:
             return original_start(self, *args, **kwargs)
         except RuntimeError as exc:
             if "threads can only be started once" in str(exc):
-                logger.warning("[System] SafeGuard: Thread %s already started. Ignoring.", self.name)
+                logger.warning(
+                    "[System] SafeGuard: Thread %s already started. Ignoring.",
+                    self.name,
+                )
                 return None
             raise
 

@@ -32,20 +32,19 @@ class VectorDB:
     def get_table(self, name: str, schema=None):
         """Returns a table, creating it if necessary."""
         db = self.connect()
-        if name in db.table_names():
+        try:
             return db.open_table(name)
-        
-        if schema is None:
-            raise ValueError(f"Table {name} does not exist and no schema was provided.")
-        
-        return db.create_table(name, schema=schema)
+        except:
+            if schema is None:
+                raise ValueError(f"Table {name} does not exist and no schema was provided.")
+            return db.create_table(name, schema=schema)
 
     async def _safe_search(self, table_name: str, query: str, limit: int = 5):
         """Internal helper to search with error recovery for LanceDB."""
         try:
             table = self.get_table(table_name)
             query_vector = await embeddings.embed_text(query)
-            return table.search(query_vector).limit(limit).to_list()
+            return table.search(query_vector).metric("cosine").limit(limit).to_list()
         except Exception as e:
             err_str = str(e)
             if "Table" in err_str and "does not exist" in err_str:
@@ -77,22 +76,22 @@ class VectorDB:
 
     async def add_skills(self, skills_data: list[dict]):
         """
-        Adds agent/skill descriptions to the vector database for functional routing.
-        Expected: [{'id': '...', 'name': '...', 'description': '...'}]
+        Adds agent/skill descriptions and intents to the vector database for functional routing.
+        Expected: [{'id': '...', 'name': '...', 'description': '...', 'intents': [...]}]
         """
         if not skills_data:
             return
 
         # Get first embedding to determine dimension
-        sample_text = skills_data[0].get("description") or skills_data[0].get("name") or "skill"
-        first_vector = await embeddings.embed_text(sample_text)
+        first_vector = await embeddings.embed_text("skill")
         dim = len(first_vector)
         
         schema = pa.schema([
             pa.field("vector", pa.list_(pa.float32(), dim)),
             pa.field("id", pa.string()),
             pa.field("name", pa.string()),
-            pa.field("description", pa.string())
+            pa.field("description", pa.string()),
+            pa.field("text", pa.string()) # The specific intent or description indexed
         ])
         
         try:
@@ -109,15 +108,21 @@ class VectorDB:
 
         data_with_vectors = []
         for item in skills_data:
-            desc = item.get("description") or item.get("name") or "skill"
-            vec = await embeddings.embed_text(desc)
-            if len(vec) == dim:
-                data_with_vectors.append({
-                    "vector": vec,
-                    "id": item.get("id", "unknown"),
-                    "name": item.get("name", "unknown"),
-                    "description": desc
-                })
+            # Plan several point of entries: intents, description, name
+            texts_to_index = item.get("intents") or []
+            if not texts_to_index:
+                texts_to_index = [item.get("description") or item.get("name") or "skill"]
+
+            for text in texts_to_index:
+                vec = await embeddings.embed_text(text)
+                if len(vec) == dim:
+                    data_with_vectors.append({
+                        "vector": vec,
+                        "id": item.get("id", "unknown"),
+                        "name": item.get("name", "unknown"),
+                        "description": item.get("description", ""),
+                        "text": text
+                    })
         
         if data_with_vectors:
             try:

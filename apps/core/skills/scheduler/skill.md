@@ -1,10 +1,17 @@
 ---
 name: scheduler
-description: Gerencia lembretes e tarefas agendadas do usuário. Use sempre que o usuário quiser criar, ver, listar ou excluir lembretes, alarmes ou notificações programadas.
+description: Gerencia lembretes e tarefas agendadas do usuário.
+intents:
+  - "agende um alarme para {horario}"
+  - "me lembre de {tarefa} em {tempo}"
+  - "quais são meus lembretes?"
+  - "apagar alarme {id}"
+  - "criar notificação para {evento}"
 allowed-tools: create_reminder, list_reminders, delete_reminder
 metadata:
   author: MomAI Core
   version: 1.0.0
+  max_tool_calls: 5
 ---
 
 # Scheduler Skill

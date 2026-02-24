@@ -36,12 +36,7 @@ TOOL_PROTOCOL = f"""# CAPABILITIES
 6. **Interface Control**: Use 'set_theme' for appearance changes, 'open_settings_panel' for general settings, and 'get_momai_resources_tool' for hardware or system monitoring.
 """
 
-NO_TOOLS_WARNING = f"""
-NOTICE: No native tools were found to perform this specific action directly.
-CRITICAL INSTRUCTION: Do NOT call `show_interface` or `show_chat_card`.
-Instead, reply with ONE short sentence: "{t("no_tools_short_reply")}".
-"""
-
+# No native tool limits here. Limits are now dynamic per tool/skill.
 
 def get_language_instruction(locale: str | None = None) -> str:
     return ""

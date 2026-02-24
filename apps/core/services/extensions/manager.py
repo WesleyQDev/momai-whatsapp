@@ -1,8 +1,11 @@
 import os
 import sys
+import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from domain.skill import Skill
+
+logger = logging.getLogger(__name__)
 
 
 class SkillRegistry:
@@ -30,8 +33,6 @@ class SkillRegistry:
 
     def load_all(self):
         """Discovers and loads all skills from configured directories."""
-        print("[SkillRegistry] Discovering skills...")
-
         self.skills.clear()
         self._skill_tools.clear()
 
@@ -45,11 +46,10 @@ class SkillRegistry:
                         if skill_dir.is_dir():
                             self._load_skill(skill_dir, category)
                     except Exception as e:
-                        print(f"[SkillRegistry] Error at {skill_dir}: {e}")
+                        logger.error(f"[SkillRegistry] Error at {skill_dir}: {e}")
             except Exception as e:
-                print(f"[SkillRegistry] Error scanning {category}: {e}")
+                logger.error(f"[SkillRegistry] Error scanning {category}: {e}")
 
-        print(f"[SkillRegistry] {len(self.skills)} skills loaded.")
         self._invalidate_tools_cache()
 
     def _load_skill(self, path: Path, category: str):
@@ -79,10 +79,9 @@ class SkillRegistry:
             skill = Skill.from_file(skill_id, str(skill_path))
             self.skills[skill_id]["name"] = skill.name
             self.skills[skill_id]["description"] = skill.description
-            print(f"[SkillRegistry] Loaded: {skill.name} ({category})")
         except Exception as e:
             self.skills[skill_id]["error"] = str(e)
-            print(f"[SkillRegistry] Error loading {skill_id}: {e}")
+            logger.error(f"[SkillRegistry] Error loading {skill_id}: {e}")
 
     def _invalidate_tools_cache(self) -> None:
         try:
@@ -118,7 +117,7 @@ class SkillRegistry:
 
                     return skill
                 except Exception as e:
-                    print(f"[SkillRegistry] Error loading skill {skill_id}: {e}")
+                    logger.error(f"[SkillRegistry] Error loading skill {skill_id}: {e}")
                     return None
 
         return None

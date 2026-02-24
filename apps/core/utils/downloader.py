@@ -17,7 +17,7 @@ def _get_base_dir():
 
 
 # Settings
-LLAMA_VERSION = "b8082"  # Manual override (momentarily disabled updates)
+LLAMA_VERSION = "b8138"  # Manual override (momentarily disabled updates)
 BASE_URL_TEMPLATE = "https://github.com/ggerganov/llama.cpp/releases/download/{version}"
 BASE_DIR = _get_base_dir()
 BIN_PATH = BASE_DIR / "bin"
@@ -441,7 +441,7 @@ def setup_local_engine(progress_callback=None, forced_backend=None):
 
         # Make executable on Unix
         if archive_type == "tar":
-            # Check if files were extracted to a subdirectory (e.g., llama-b8082/)
+            # Check if files were extracted to a subdirectory 
             subdirs = [d for d in target_dir.iterdir() if d.is_dir() and d.name.startswith("llama-")]
             if subdirs:
                 subdir = subdirs[0]

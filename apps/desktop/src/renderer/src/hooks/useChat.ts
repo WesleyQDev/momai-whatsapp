@@ -260,11 +260,9 @@ export function useChat() {
         },
         onStatus: (status) => {
           if (currentThreadRef.current !== messageThreadId) return
-          console.log('[DEBUG] onStatus received:', status)
           setMessages((prev) => {
             const updated = [...prev]
             const lastIdx = updated.length - 1
-            console.log('[DEBUG] onStatus - lastIdx:', lastIdx, 'role:', updated[lastIdx]?.role)
             if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
               const currentActivities = updated[lastIdx].activities || []
               // Check if this is an update to an existing "Buscando" entry

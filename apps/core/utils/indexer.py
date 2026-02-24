@@ -1,14 +1,16 @@
 import os
 import json
 import asyncio
+import logging
 from database.vector_db import vector_db
 from tools.system_actions import TOOLS
 from ai.embeddings import embeddings
 from services.extensions.manager import skill_registry
 
+logger = logging.getLogger(__name__)
+
 
 async def index_all_system_tools():
-    print("[Indexer] Indexing tools...")
     try:
         vector_db.connect().drop_table("tools")
     except:
@@ -34,11 +36,9 @@ async def index_all_system_tools():
 
     if tools_to_index:
         await vector_db.add_tools(tools_to_index)
-        print(f"[Indexer] {len(tools_to_index)} tools indexed.")
 
 
 async def index_all_skills():
-    print("[Indexer] Indexing skills...")
     try:
         vector_db.connect().drop_table("skills")
     except:
@@ -59,17 +59,14 @@ async def index_all_skills():
                     "id": skill.id,
                     "name": skill.name,
                     "description": skill.description,
+                    "intents": skill.intents,
                 }
             )
-            print(f"[Indexer] Found skill: {skill.name}")
         except Exception as e:
-            print(f"[Indexer] Error parsing {skill_path}: {e}")
+            logger.error(f"[Indexer] Error parsing {skill_path}: {e}")
 
     if skills_to_index:
         await vector_db.add_skills(skills_to_index)
-        print(f"[Indexer] {len(skills_to_index)} skills indexed.")
-    else:
-        print("[Indexer] WARNING: No skills found!")
 
 
 if __name__ == "__main__":
