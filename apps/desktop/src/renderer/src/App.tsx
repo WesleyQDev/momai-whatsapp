@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import LateralBar from './components/LateralBar'
 import { useChat } from './hooks/useChat'
@@ -21,19 +21,19 @@ import { useI18n } from './i18n'
 
 const WelcomeScreen = ({
   onComplete,
-  isFirstLaunch
+  isFirstLaunch,
+  version
 }: {
   onComplete: () => void
   isFirstLaunch: boolean
+  version: string
 }) => {
-  const [version] = useState('0.3.7')
   const [fading, setFading] = useState(false)
 
   useEffect(() => {
     // Se for primeira vez, damos mais tempo para ler a mensagem importante (10s)
-    // Se não, mantemos os 5s padrão
-    const totalDuration = isFirstLaunch ? 10000 : 5000
-    const fadeStart = totalDuration - 600
+    const totalDuration = isFirstLaunch ? 8000 : 4000
+    const fadeStart = totalDuration - 800
 
     const fadeTimer = setTimeout(() => {
       setFading(true)
@@ -152,6 +152,18 @@ function App(): React.JSX.Element {
   const [firstLaunchChecked, setFirstLaunchChecked] = useState(false)
   const [onboardingAttempted, setOnboardingAttempted] = useState(false)
   const [isFirstLaunch, setIsFirstLaunch] = useState(false)
+  const [appVersion, setAppVersion] = useState('1.0.0')
+
+  const handleWelcomeComplete = useCallback(() => {
+    setShowWelcome(false)
+  }, [])
+
+  useEffect(() => {
+    window.api
+      .getAppVersion?.()
+      .then(setAppVersion)
+      .catch(() => {})
+  }, [])
 
   // Overlay Helper
   useEffect(() => {
@@ -317,11 +329,15 @@ function App(): React.JSX.Element {
         // Se o onboarding foi resetado (ex: via botão nas configurações),
         // forçamos a volta da tela de Welcome com status de First Launch
         if (e.detail.onboarding_completed === false) {
+          console.log('[App] Onboarding reset detected, showing welcome screen...')
           setIsFirstLaunch(true)
           setShowWelcome(true)
           setShowSettings(false)
-          setShowOnboarding(true)
-          setOnboardingAttempted(false)
+          // Pequeno delay para garantir que a WelcomeScreen (z-9999) monte antes da Onboarding
+          setTimeout(() => {
+            setShowOnboarding(true)
+            setOnboardingAttempted(false)
+          }, 100)
         }
       }
     }
@@ -444,7 +460,8 @@ function App(): React.JSX.Element {
       {showWelcome && (
         <WelcomeScreen
           isFirstLaunch={isFirstLaunch}
-          onComplete={() => setShowWelcome(false)}
+          onComplete={handleWelcomeComplete}
+          version={appVersion}
         />
       )}
       <div
@@ -518,7 +535,8 @@ function App(): React.JSX.Element {
                         <img
                           src={logo}
                           alt="MomAI"
-                          className="w-28 h-28 object-contain relative z-10 drop-shadow-2xl"
+                          draggable="false"
+                          className="w-28 h-28 object-contain relative z-10 drop-shadow-2xl select-none pointer-events-none"
                         />
                       </div>
 

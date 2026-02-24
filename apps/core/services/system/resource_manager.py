@@ -24,10 +24,11 @@ except ImportError:
         FortScript = None
         Callbacks = None
 
-from database.models import SessionLocal, GamingApp, Settings
-from ai.providers.local_llama import stop_server, load_model
-import ai.orchestrator as orchestrator
-import services.voice.tts as tts
+# Delayed imports
+# from database.models import SessionLocal, GamingApp, Settings
+# from ai.providers.local_llama import stop_server, load_model
+# import ai.orchestrator as orchestrator
+# import services.voice.tts as tts
 
 logger = logging.getLogger("momai.resource_manager")
 
@@ -63,6 +64,7 @@ class ResourceManager:
                 logger.error("[ResourceManager] FortScript not found. Monitoring disabled.")
                 return
 
+            from database.models import SessionLocal, GamingApp
             db = SessionLocal()
             try:
                 from fortscript.main import RamConfig
@@ -124,12 +126,12 @@ class ResourceManager:
         try:
             # Wait for AI response to finish to avoid cutting messages mid-stream
             try:
-                import app_state
+                import services.voice.tts as tts
                 grace_seconds = float(os.getenv("MOMAI_GAMING_MODE_GRACE", "6"))
                 start = time.time()
                 # Verifica se AI ou TTS estão ocupados de forma segura
                 while (getattr(app_state, 'is_ai_busy', lambda: False)() or 
-                       getattr(tts, 'is_busy', lambda: False)()) and (time.time() - start) < grace_seconds:
+                       tts.is_busy()) and (time.time() - start) < grace_seconds:
                     time.sleep(0.2)
             except Exception as e:
                 logger.warning(f"[ResourceManager] Grace wait skipped: {e}")
@@ -137,6 +139,9 @@ class ResourceManager:
             # Stop embeddings server first
             from ai.embeddings import embeddings
             embeddings.stop()
+            
+            from ai.providers.local_llama import stop_server
+            import services.voice.tts as tts
             
             stop_server() # Llama.cpp (main LLM)
             tts.stop_all() # TTS
@@ -197,6 +202,9 @@ class ResourceManager:
             embeddings.stop()
             time.sleep(0.3)  # Brief buffer to ensure port is free
             
+            import ai.orchestrator as orchestrator
+            import services.voice.tts as tts
+
             # Restaura o motor local se ele estava sendo usado
             if orchestrator.llm_mode == "local":
                 logger.info("[ResourceManager] Restoring Local Llama engine...")
@@ -228,6 +236,9 @@ class ResourceManager:
             # Stop embeddings server
             from ai.embeddings import embeddings
             embeddings.stop()
+            
+            from ai.providers.local_llama import stop_server
+            import services.voice.tts as tts
             
             # Stop main llama server
             stop_server()

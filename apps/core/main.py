@@ -1,4 +1,5 @@
 import os
+print("[Python] Interpreter started", flush=True)
 import logging
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -14,13 +15,14 @@ logger = logging.getLogger(__name__)
 
 def create_app():
     from dotenv import load_dotenv
+    load_dotenv()
+    
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
-    from api.router import api_router
+    from api.router import api_router, include_routes
+    include_routes()
+
     from startup import lifespan
-
-    load_dotenv()
-
     application = FastAPI(lifespan=lifespan)
 
     application.add_middleware(
@@ -35,8 +37,6 @@ def create_app():
     return application
 
 
-app = create_app()
-
 if __name__ == "__main__":
     import uvicorn
 
@@ -47,8 +47,11 @@ if __name__ == "__main__":
     logger.info(
         "[Main] Starting MomAI Core on %s:%s (Reload: %s)", host, port, should_reload
     )
+    
+    app = create_app()
+    
     uvicorn.run(
-        "main:app",
+        app,
         host=host,
         port=port,
         reload=should_reload,

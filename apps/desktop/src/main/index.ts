@@ -43,6 +43,12 @@ ipcMain.handle('is-first-launch', () => {
   return state.isFirstLaunch
 })
 
+ipcMain.on('reset-onboarding', () => {
+  logger.info('[Electron] Resetting onboarding status')
+  state.isFirstLaunch = true
+  saveOnboardingCompleted(false)
+})
+
 ipcMain.on('mark-first-launch-finished', () => {
   logger.info('[Electron] Onboarding finished, marking first launch as false')
   state.isFirstLaunch = false

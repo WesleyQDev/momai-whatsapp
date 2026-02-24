@@ -1,5 +1,9 @@
 !include "LogicLib.nsh"
 !include "WinMessages.nsh"
+!include "FileFunc.nsh"
+
+!insertmacro GetParameters
+!insertmacro GetOptions
 
 !ifndef BUILD_UNINSTALLER
 Var MomAIClearData
@@ -11,12 +15,37 @@ Var MomAIClearData
 !macro customInit
   StrCpy $MomAIClearData "0"
 
-  ; Detect previous installation — offer data reset only on reinstall
-  IfFileExists "$APPDATA\desktop\*.*" 0 +4
+  ${If} ${Silent}
+    Goto skip_init
+  ${EndIf}
+
+  ; Check if it's an update (already installed with different version)
+  ; appId: com.wesleyqdev.momai (from electron-builder.yml)
+  ReadRegStr $R0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai" "DisplayVersion"
+  ReadRegStr $R1 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai" "DisplayVersion"
+  
+  StrCpy $R2 ""
+  ${If} $R0 != ""
+    StrCpy $R2 $R0
+  ${ElseIf} $R1 != ""
+    StrCpy $R2 $R1
+  ${EndIf}
+
+  ${If} $R2 != ""
+    ${If} $R2 != "${VERSION}"
+      ; It's an update, skip prompt and update direct
+      Goto skip_init
+    ${EndIf}
+  ${EndIf}
+
+  ; Detect previous installation — offer data reset only on reinstall (same version)
+  IfFileExists "$APPDATA\desktop\*.*" 0 skip_init
     MessageBox MB_YESNO|MB_ICONQUESTION "MomAI ja esta instalada.$\r$\nDeseja apagar todos os dados locais e recomecar do zero?" IDYES clearYes IDNO clearNo
     clearYes:
       StrCpy $MomAIClearData "1"
     clearNo:
+
+  skip_init:
 
   ${If} $MomAIClearData == "1"
     ; Kill MomAI and related processes before deleting data
@@ -104,6 +133,13 @@ Var MomAIClearData
   nsExec::ExecToLog 'taskkill /f /im python.exe /fi "WINDOWTITLE eq momai*"'
   nsExec::ExecToLog 'taskkill /f /im llama-server.exe'
   Sleep 2000
+
+  ${GetParameters} $R0
+  ${GetOptions} $R0 "--updated" $R1
+  ${IfNot} ${Errors}
+    ; If this is an update, do not delete user data
+    Return
+  ${EndIf}
 
   ; Remove all user data
   ; Real data path: %APPDATA%\desktop (from package.json "name": "desktop")

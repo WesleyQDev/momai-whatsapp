@@ -10,7 +10,7 @@ from services.extensions.manager import skill_registry
 logger = logging.getLogger(__name__)
 
 
-async def index_all_system_tools():
+async def index_all_system_tools(on_progress=None):
     try:
         vector_db.connect().drop_table("tools")
     except:
@@ -18,6 +18,8 @@ async def index_all_system_tools():
 
     tools_to_index = []
     for tool in TOOLS:
+        if on_progress:
+            on_progress(f"Indexing system tool: {tool.name}")
         tools_to_index.append(
             {
                 "name": tool.name,
@@ -27,6 +29,8 @@ async def index_all_system_tools():
 
     skill_tools = skill_registry.get_tools()
     for tool in skill_tools:
+        if on_progress:
+            on_progress(f"Indexing skill tool: {tool.name}")
         tools_to_index.append(
             {
                 "name": tool.name,
@@ -38,7 +42,7 @@ async def index_all_system_tools():
         await vector_db.add_tools(tools_to_index)
 
 
-async def index_all_skills():
+async def index_all_skills(on_progress=None):
     try:
         vector_db.connect().drop_table("skills")
     except:
@@ -53,6 +57,8 @@ async def index_all_skills():
             continue
 
         try:
+            if on_progress:
+                on_progress(f"Indexing skill manifest: {skill_id}")
             skill = Skill.from_file(skill_id, skill_path)
             skills_to_index.append(
                 {

@@ -253,11 +253,13 @@ function getWritableCorePath(originalCorePath: string): string {
       rmSync(tempDir, { recursive: true, force: true })
     }
 
+    sendInitProgress('Preparando arquivos do sistema...', 7)
     if (process.platform === 'win32') {
       execSync(`xcopy "${originalCorePath}" "${tempDir}\\" /E /I /Y`, { stdio: 'ignore' })
     } else {
       execSync(`cp -r "${originalCorePath}" "${tempDir}"`, { stdio: 'ignore' })
     }
+    sendInitProgress('Arquivos prontos.', 9)
 
     logger.info(`[Bootstrap] Core copied to writable temp: ${tempDir}`)
     return tempDir
@@ -279,6 +281,8 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
     process.platform === 'win32'
       ? join(venvPath, 'Scripts', 'python.exe')
       : join(venvPath, 'bin', 'python')
+
+  sendInitProgress('Verificando integridade do sistema...', 5)
 
   const uvExe = isDev
     ? 'uv'
@@ -349,7 +353,7 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
 
   if (needsVenv) {
     logger.info('[Bootstrap] Ambiente não encontrado. Iniciando setup com uv...')
-    sendInitProgress('Criando ambiente isolado...', 5)
+    sendInitProgress('Criando ambiente isolado...', 10)
 
     if (!existsSync(userDataPath)) mkdirSync(userDataPath, { recursive: true })
 
@@ -365,12 +369,24 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
         let stdout = ''
         let stderr = ''
         child.stdout?.on('data', (data) => {
-          stdout += data.toString()
-          logger.info(`[uv venv] ${data.toString().trim()}`)
+          const line = data.toString().trim()
+          stdout += line
+          logger.info(`[uv venv] ${line}`)
+          if (line.includes('Downloading')) {
+            sendInitProgress('Baixando interpretador Python...', 12)
+          } else if (line.includes('Creating virtualenv')) {
+            sendInitProgress('Criando ambiente virtual...', 15)
+          }
         })
         child.stderr?.on('data', (data) => {
-          stderr += data.toString()
-          logger.info(`[uv venv stderr] ${data.toString().trim()}`)
+          const line = data.toString().trim()
+          stderr += line
+          logger.info(`[uv venv stderr] ${line}`)
+          if (line.includes('Downloading')) {
+            sendInitProgress('Baixando interpretador Python...', 12)
+          } else if (line.includes('Creating virtualenv')) {
+            sendInitProgress('Criando ambiente virtual...', 15)
+          }
         })
         child.on('close', (code) => {
           if (code === 0) {
@@ -412,7 +428,7 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
   const syncLock = getSyncLock(corePath)
   if (!syncLock || syncLock.needsSync) {
     logger.info('[Bootstrap] Sincronizando dependências do core...')
-    sendInitProgress('Instalando dependências...', 15)
+    sendInitProgress('Instalando dependências...', 25)
 
     try {
       const installArgs = ['pip', 'install', '--no-progress']
@@ -437,13 +453,32 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
         })
         let stderr = ''
         let stdout = ''
-        child.stderr?.on('data', (data) => {
-          stderr += data.toString()
-          logger.info(`[uv pip stderr] ${data.toString().trim()}`)
-        })
         child.stdout?.on('data', (data) => {
-          stdout += data.toString()
-          logger.info(`[uv pip] ${data.toString().trim()}`)
+          const line = data.toString().trim()
+          stdout += line
+          logger.info(`[uv pip] ${line}`)
+          if (line.includes('Downloading')) {
+            const match = line.match(/Downloading\s+([^\s]+)/)
+            if (match) {
+              sendInitProgress(`Baixando: ${match[1]}...`, 26)
+            }
+          } else if (line.includes('Installing')) {
+            sendInitProgress('Instalando bibliotecas de IA...', 28)
+          }
+        })
+        child.stderr?.on('data', (data) => {
+          const line = data.toString().trim()
+          stderr += line
+          logger.info(`[uv pip stderr] ${line}`)
+          
+          if (line.includes('Downloading')) {
+            const match = line.match(/Downloading\s+([^\s]+)/)
+            if (match) {
+              sendInitProgress(`Baixando: ${match[1]}...`, 26)
+            }
+          } else if (line.includes('Installing')) {
+            sendInitProgress('Instalando bibliotecas de IA...', 28)
+          }
         })
         child.on('close', (code) => {
           if (code === 0) {

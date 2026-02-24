@@ -491,29 +491,9 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => {
-                        updateField('tutorial_completed', false, true)
-                        alert(t('settings.general.resetTutorialSuccess') || 'Tutorial reiniciado!')
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent text-[11px] font-black uppercase rounded-lg hover:bg-accent hover:text-white transition-all"
-                    >
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                      >
-                        <path d="M23 4v6h-6" />
-                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-                      </svg>
-                      {t('settings.general.resetTutorial')}
-                    </button>
-
-                    <button
-                      onClick={() => {
                         updateField('onboarding_completed', false, true)
-                        alert(t('settings.general.resetOnboardingSuccess') || 'Setup reiniciado!')
+                        // Notifica o processo principal que o onboarding foi resetado
+                        window.electron.ipcRenderer.send('reset-onboarding')
                       }}
                       className="flex items-center gap-2 px-4 py-2 bg-text/5 text-text/40 text-[11px] font-black uppercase rounded-lg hover:bg-red-500/10 hover:text-red-500 transition-all"
                     >

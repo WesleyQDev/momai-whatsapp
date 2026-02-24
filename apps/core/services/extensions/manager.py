@@ -31,7 +31,7 @@ class SkillRegistry:
         for d in self.base_dirs.values():
             d.mkdir(parents=True, exist_ok=True)
 
-    def load_all(self):
+    def load_all(self, on_progress=None):
         """Discovers and loads all skills from configured directories."""
         self.skills.clear()
         self._skill_tools.clear()
@@ -41,9 +41,14 @@ class SkillRegistry:
                 if not base_path.exists():
                     continue
 
+                if on_progress:
+                    on_progress(f"Scanning {category} skills...")
+
                 for skill_dir in base_path.iterdir():
                     try:
                         if skill_dir.is_dir():
+                            if on_progress:
+                                on_progress(f"Loading skill: {skill_dir.name}")
                             self._load_skill(skill_dir, category)
                     except Exception as e:
                         logger.error(f"[SkillRegistry] Error at {skill_dir}: {e}")
