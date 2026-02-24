@@ -1,5 +1,7 @@
-import { BellSlashIcon, ArrowRightIcon, CalendarIcon } from '@heroicons/react/24/outline'
+import { useState } from 'react'
+import { BellSlashIcon, CalendarIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { useActiveReminders } from '../../hooks/useActiveReminders'
+import { deleteReminder } from '../../services/api'
 import { useI18n } from '../../i18n'
 import { getNextOccurrence, getOccurrenceForDate } from '../../utils/reminders'
 
@@ -57,8 +59,20 @@ function getRecurrenceMeta(
 export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) {
   const { reminders } = useActiveReminders()
   const { t, formatTime } = useI18n()
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
 
   const today = new Date()
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteReminder(id)
+      window.dispatchEvent(new CustomEvent('momai_reminders_updated'))
+    } catch (error) {
+      console.error('Failed to delete reminder:', error)
+    } finally {
+      setConfirmDeleteId(null)
+    }
+  }
 
   // Generate all upcoming occurrences (today or future)
   const allOccurrences = reminders
@@ -104,6 +118,7 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
         <div className="flex-1 overflow-y-auto custom-scrollbar px-2 space-y-0.5 pb-2">
           {displayItems.map(({ reminder: r, time, isToday }) => {
             const recurrence = getRecurrenceMeta(t, r.repeat_interval, r.repeat_value)
+            const isConfirming = confirmDeleteId === r.id
 
             let dateLabel = 'Hoje'
             if (!isToday) {
@@ -124,51 +139,87 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
             return (
               <div
                 key={r.id + '-' + time.getTime()}
-                className="group p-2.5 rounded hover:bg-card/40 transition-colors flex flex-col gap-1 cursor-default"
+                className="group p-2.5 rounded hover:bg-card/40 transition-colors flex flex-col gap-1 cursor-default relative"
               >
-                <span className="text-xs text-text/90 leading-snug font-medium">{r.title}</span>
-
-                <div className="flex items-center justify-between text-[10px] text-text-muted mt-0.5">
-                  <span className="opacity-50">{dateLabel}</span>
-                  <span className="font-mono opacity-60 group-hover:text-accent group-hover:opacity-100 transition-colors">
-                    {formatTime(time, { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-
-                {/* Recurrence badge */}
-                {recurrence && (
-                  <div className="flex items-center gap-1.5 mt-1">
-                    {recurrence.category === 'intraday' ? (
-                      <>
-                        <span className="relative flex h-1.5 w-1.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                        </span>
-                        <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-400/90">
-                          {recurrence.label}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          className="w-2.5 h-2.5 text-violet-400/80"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2.5}
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                          />
-                        </svg>
-                        <span className="text-[9px] font-bold uppercase tracking-wide text-violet-400/80">
-                          {recurrence.label}
-                        </span>
-                      </>
-                    )}
+                {isConfirming ? (
+                  <div className="flex items-center justify-between gap-2 animate-in fade-in duration-150">
+                    <span className="text-[10px] text-red-400 font-bold truncate">
+                      {t('reminders.deleteConfirm').replace('?', '')}?
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleDelete(r.id)}
+                        className="px-2 py-0.5 text-[9px] font-bold uppercase bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded transition-colors"
+                      >
+                        Sim
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="p-0.5 text-text-muted hover:text-text transition-colors"
+                      >
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-text/90 leading-snug font-medium truncate pr-2">{r.title}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setConfirmDeleteId(r.id)
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 text-text-muted hover:text-red-400 transition-all shrink-0"
+                        title={t('reminders.deleteConfirm')}
+                      >
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] text-text-muted mt-0.5">
+                      <span className="opacity-50">{dateLabel}</span>
+                      <span className="font-mono opacity-60 group-hover:text-accent group-hover:opacity-100 transition-colors">
+                        {formatTime(time, { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+
+                    {/* Recurrence badge */}
+                    {recurrence && (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {recurrence.category === 'intraday' ? (
+                          <>
+                            <span className="relative flex h-1.5 w-1.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                            </span>
+                            <span className="text-[9px] font-bold uppercase tracking-wide text-emerald-400/90">
+                              {recurrence.label}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              className="w-2.5 h-2.5 text-violet-400/80"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2.5}
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                              />
+                            </svg>
+                            <span className="text-[9px] font-bold uppercase tracking-wide text-violet-400/80">
+                              {recurrence.label}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )

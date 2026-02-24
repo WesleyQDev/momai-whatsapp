@@ -45,6 +45,8 @@ const VIEW_MAP: Record<string, React.ComponentType<any>> = {
         threadId={props.chat.threadId}
         setThreadId={props.chat.setThreadId}
         setHistoryOpen={props.setHistoryOpen}
+        onSpeakMessage={props.chat.speakMessage}
+        onRemoveMessage={props.chat.removeMessage}
       />
     )
   },

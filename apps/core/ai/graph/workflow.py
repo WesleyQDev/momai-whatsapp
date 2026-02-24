@@ -226,15 +226,16 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
 
         system_prompt += (
             "\n# EXECUTION PROTOCOL\n"
-            "1. FIRST, check if the answer is already in the # CONTEÚDO DAS NOTAS DO USUÁRIO or # EXTERNAL MEMORY provided above.\n"
-            "2. IF YOU HAVE THE ANSWER, you can respond directly without calling any tool.\n"
-            "3. IF NOT, identify which DISCOVERED SKILL can help. If 'websearch' or 'search' is available, ALWAYS use it for real-time facts, prices, or unknown info.\n"
-            "4. CALL 'activate_skill(skill_id, task_description)' to delegate the task.\n"
-            "5. MANDATORY: DO NOT NARRATE. Do not apologize. Do not say 'I don't have access'. If a skill matches the need, use it.\n"
-            "6. Your output must be ONLY the tool call or ONLY the final answer.\n"
-            "7. After each skill finishes, you will receive the result and can call ANOTHER skill if needed.\n"
-            "8. ONLY provide the final response to the user after you have gathered all necessary information.\n"
-            "9. NEVER invent data. If NO skill matches and it's not in memory, ONLY THEN say you don't have access."
+            "1. For CASUAL CONVERSATIONS (jokes, stories, creative writing, opinions, greetings, emotional support, trivia, general chat): respond DIRECTLY and naturally. No tools needed.\n"
+            "2. Check if the answer is already in the # CONTEÚDO DAS NOTAS DO USUÁRIO or # EXTERNAL MEMORY provided above.\n"
+            "3. IF YOU HAVE THE ANSWER, respond directly without calling any tool.\n"
+            "4. IF NOT, identify which DISCOVERED SKILL can help. If 'websearch' or 'search' is available, ALWAYS use it for real-time facts, prices, or unknown info.\n"
+            "5. CALL 'activate_skill(skill_id, task_description)' to delegate the task.\n"
+            "6. MANDATORY: DO NOT NARRATE. Do not apologize.\n"
+            "7. Your output must be ONLY the tool call or ONLY the final answer.\n"
+            "8. After each skill finishes, you will receive the result and can call ANOTHER skill if needed.\n"
+            "9. ONLY provide the final response to the user after you have gathered all necessary information.\n"
+            "10. NEVER invent factual data. For real-time data, use a skill. For general knowledge and conversation, respond freely."
         )
 
         from langchain_core.tools import tool
@@ -265,7 +266,8 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
         # Fortalecer o prompt para forçar uso de ferramentas quando necessário
         system_prompt += (
             "\n# CRITICAL INSTRUCTIONS\n"
-            "If the information is not in your current context, YOU MUST USE A TOOL. Do not answer with your own knowledge for real-time data.\n"
+            "For REAL-TIME data (prices, weather, news, etc.), YOU MUST USE A TOOL.\n"
+            "For casual conversation, general knowledge, jokes, stories, and creative content, respond directly WITHOUT tools.\n"
             "If you reach a tool limit, stop trying and answer with what you have.\n"
         )
 

@@ -30,24 +30,28 @@ const WelcomeScreen = ({
   const [fading, setFading] = useState(false)
 
   useEffect(() => {
-    // Start fade-out 600ms before the total 5s duration
+    // Se for primeira vez, damos mais tempo para ler a mensagem importante (10s)
+    // Se não, mantemos os 5s padrão
+    const totalDuration = isFirstLaunch ? 10000 : 5000
+    const fadeStart = totalDuration - 600
+
     const fadeTimer = setTimeout(() => {
       setFading(true)
-    }, 4400)
+    }, fadeStart)
 
     const completeTimer = setTimeout(() => {
       onComplete()
-    }, 5000)
+    }, totalDuration)
 
     return () => {
       clearTimeout(fadeTimer)
       clearTimeout(completeTimer)
     }
-  }, [])
+  }, [isFirstLaunch])
 
   return (
     <div
-      className="fixed inset-0 z-[9999] bg-bg flex flex-col items-center justify-center"
+      className="fixed inset-0 z-[9999] bg-bg flex flex-col items-center justify-center p-6"
       style={{
         transition: 'opacity 0.6s ease-out',
         opacity: fading ? 0 : 1,
@@ -56,67 +60,48 @@ const WelcomeScreen = ({
     >
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-bg" />
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-accent/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-accent/5 rounded-full blur-[120px]" />
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-violet-500/10 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-violet-500/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }} />
       </div>
 
-      <div className="relative flex flex-col items-center animate-[fadeIn_1.5s_ease-out]">
-        <div className="relative mb-8">
+      <div className="relative flex flex-col items-center animate-[fadeIn_1.5s_ease-out] w-full max-w-2xl px-6 text-center h-[70vh] justify-center">
+        <div className="relative mb-16 mt-[-10vh]">
           <div
-            className="absolute inset-0 bg-violet-500/20 rounded-full blur-3xl animate-pulse"
-            style={{ animationDuration: '5s' }}
+            className="absolute inset-0 bg-violet-500/30 rounded-full blur-3xl animate-pulse"
+            style={{ animationDuration: '4s' }}
           />
           <img
             src={logo}
             alt="MomAI"
-            className="w-36 h-36 object-contain relative z-10 drop-shadow-2xl animate-[bounce_5s_ease-in-out_infinite]"
+            className="w-48 h-48 object-contain relative z-10 drop-shadow-[0_0_40px_rgba(167,139,250,0.4)]"
           />
         </div>
 
-        <h1 className="text-3xl font-bold text-text mb-3 tracking-wide">
-          Bem vind<span className="text-violet-400">o</span> a{' '}
-          <span className="text-violet-400">MomAI</span>
-        </h1>
+        {isFirstLaunch ? (
+          <div className="flex flex-col items-center space-y-12 animate-in fade-in slide-in-from-bottom-10 duration-[1500ms] delay-500">
+            <h1 className="text-4xl font-bold text-white tracking-tight leading-tight">
+              Olá! Sua assistente está <span className="text-violet-400">acordando</span>...
+            </h1>
 
-        <p className="text-lg text-violet-400 font-medium mb-4">Sua assistente local</p>
-
-        {version && <p className="text-xs text-text-muted/50 font-mono">Versão {version}</p>}
-
-        {isFirstLaunch && (
-          <div className="mt-8 max-w-lg w-full px-7 py-5 rounded-2xl bg-white/5 border-y border-white/10 backdrop-blur-xl animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-700 relative overflow-hidden shadow-2xl">
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-violet-400/50 shadow-[0_0_15px_rgba(167,139,250,0.5)]" />
-            <div className="space-y-4">
-              <div className="flex items-start gap-3.5">
-                <span className="text-xl drop-shadow-sm">🌸</span>
-                <p className="text-[15px] font-semibold text-text/90 leading-tight pt-0.5">
-                  Olá! Sua assistente local está acordando...
-                </p>
-              </div>
-
-              <div className="flex items-start gap-3.5">
-                <span className="text-xl drop-shadow-sm">☕</span>
-                <p className="text-[13px] text-text-muted italic leading-relaxed pt-0.5">
-                  Aproveite para respirar fundo — a primeira inicialização pode levar de{' '}
-                  <span className="text-violet-400 font-bold not-italic">1 a 3 minutos</span>.
-                  Prometemos que nas próximas vezes será bem mais rapidinho!
-                </p>
-              </div>
-
-              <div className="h-px bg-white/10 w-full" />
-
-              <div className="flex items-start gap-3.5 text-sm">
-                <span className="text-xl drop-shadow-sm">🧡</span>
-                <p className="font-medium text-text/90 pt-0.5">
-                  Seja muito bem-vindo(a) à{' '}
-                  <span className="text-violet-400 font-bold">MomAI</span>!{' '}
-                  <span className="text-text-muted font-normal italic">
-                    Estamos felizes em ter você aqui.
-                  </span>{' '}
-                  🤗
-                </p>
-              </div>
-            </div>
+            <p className="text-xl font-black text-violet-400/80 uppercase tracking-[0.3em] animate-pulse">
+              A primeira inicialização leva de 1 a 3 minutos
+            </p>
+            
+            <p className="text-xl text-text-muted italic font-medium leading-relaxed pt-12">
+              Aproveite para respirar fundo ou tomar um café ☕
+            </p>
           </div>
+        ) : (
+          <>
+            <h1 className="text-5xl font-bold text-text mb-4 tracking-wide">
+              MomAI
+            </h1>
+            {version && (
+              <p className="text-xs text-text-muted/30 font-mono">
+                v{version}
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -328,6 +313,16 @@ function App(): React.JSX.Element {
     const handleSync = (e: any) => {
       if (e.detail) {
         setSettings(e.detail)
+
+        // Se o onboarding foi resetado (ex: via botão nas configurações),
+        // forçamos a volta da tela de Welcome com status de First Launch
+        if (e.detail.onboarding_completed === false) {
+          setIsFirstLaunch(true)
+          setShowWelcome(true)
+          setShowSettings(false)
+          setShowOnboarding(true)
+          setOnboardingAttempted(false)
+        }
       }
     }
     window.addEventListener('momai_settings_sync', handleSync)

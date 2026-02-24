@@ -27,6 +27,8 @@ interface ContainerChatProps {
   threadId: string
   setThreadId: (id: string) => void
   setHistoryOpen?: (open: boolean) => void
+  onSpeakMessage?: (content: string, index: number) => void
+  onRemoveMessage?: (index: number) => void
 }
 
 const CallModeUI = ({
@@ -240,7 +242,9 @@ export default function ContainerChat({
   isBooting = false,
   threadId,
   setThreadId,
-  setHistoryOpen
+  setHistoryOpen,
+  onSpeakMessage,
+  onRemoveMessage
 }: ContainerChatProps): JSX.Element {
   const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
   
@@ -332,6 +336,8 @@ export default function ContainerChat({
             onSendMessage={onSendMessage}
             onStopVoice={stopCurrentVoice}
             onStopGeneration={stopCurrentGeneration}
+            onSpeakMessage={onSpeakMessage}
+            onRemoveMessage={onRemoveMessage}
             speakingIndex={speakingIndex}
             statusInfo={statusInfo}
           />
