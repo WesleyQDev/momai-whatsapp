@@ -114,8 +114,15 @@ class TTSManager:
         self._is_playing = False
         self.on_speech_start = None
         self.on_speech_stop = None
+        self._initializing = False
 
-        threading.Thread(target=self._initialize_kokoro, daemon=True).start()
+    def initialize(self):
+        """Manually starts the Kokoro initialization thread."""
+        with self.start_lock:
+            if self.kokoro or self._initializing:
+                return
+            self._initializing = True
+            threading.Thread(target=self._initialize_kokoro, daemon=True).start()
 
     def _initialize_kokoro(self):
         """Initializes the TTS pipeline using kokoro-onnx."""

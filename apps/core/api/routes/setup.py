@@ -109,3 +109,134 @@ async def uninstall_engine(backend: str | None = None):
     if success:
         return {"status": "ok"}
     return {"status": "error", "message": "Falha ao remover arquivos"}
+
+
+# AI Tiers Configuration
+from ai.orchestrator import TIER_CONFIG
+
+TIERS = {
+    "lite": {
+        **TIER_CONFIG["lite"],
+        "voice": False,
+        "wake_word": False,
+        "persona": "Você é MomAI Lite, uma assistente rápida e eficiente. Seu foco é utilidade direta."
+    },
+    "pro": {
+        **TIER_CONFIG["pro"],
+        "voice": True,
+        "wake_word": False,
+        "persona": "Você é MomAI Pro, uma assistente equilibrada e inteligente. Você ajuda o usuário com tarefas complexas de forma eficiente."
+    },
+    "ultra": {
+        **TIER_CONFIG["ultra"],
+        "voice": True,
+        "wake_word": True,
+        "persona": "Você é MomAI Ultra, a experiência máxima em inteligência local. Você é proativa, inteligente e capaz de ouvir e falar com o usuário fluentemente."
+    }
+}
+
+
+@router.post("/setup/apply-tier")
+async def apply_tier(tier: str, db: Session = Depends(get_db)):
+    """Aplica o nível de IA selecionado e inicia downloads."""
+    if tier not in TIERS:
+        return {"status": "error", "message": "Nível inválido"}
+
+    config = TIERS[tier]
+    settings = db.query(Settings).first()
+    if not settings:
+        settings = Settings()
+        db.add(settings)
+
+    settings.ai_tier = tier
+    settings.tts_enabled = config["voice"]
+    settings.wake_word_enabled = config["wake_word"]
+    settings.assistant_persona = config["persona"]
+    db.commit()
+
+    # Inicia o motor de IA IMEDIATAMENTE em segundo plano
+    app_state.orchestrator.initialize_llm()
+
+    # Inicia instalação de componentes adicionais
+    async def background_install():
+        def report_setup(msg):
+            asyncio.run_coroutine_threadsafe(
+                app_state.broadcast_to_sockets({
+                    "type": "setup_progress",
+                    "data": {"step": "additional_components", "message": msg}
+                }),
+                app_state.main_loop
+            )
+
+        try:
+            # 1. Pre-aquecer Voz se habilitado (Pro e Ultra)
+            if config.get("voice"):
+                report_setup("Finalizando configuração de voz...")
+                from services.voice.tts import tts
+                tts.initialize()
+                await asyncio.to_thread(tts.wait_until_ready, timeout=60)
+            
+            # 3. Pre-aquecer Wake Word se Ultra
+            if tier == "ultra":
+                report_setup("Instalando componentes de áudio...")
+                from services.voice.detector import WakeWordDetector
+                
+                if not app_state.ww:
+                    def on_wake_word(text: str) -> None:
+                        if app_state.main_loop:
+                            asyncio.run_coroutine_threadsafe(
+                                app_state.process_voice_command(text), app_state.main_loop
+                            )
+
+                    def on_voice_status(status: str) -> None:
+                        if app_state.main_loop:
+                            asyncio.run_coroutine_threadsafe(
+                                app_state.broadcast_to_sockets(
+                                    {"type": "voice_status", "status": status}
+                                ),
+                                app_state.main_loop,
+                            )
+
+                    def on_voice_partial(text: str) -> None:
+                        if app_state.main_loop:
+                            asyncio.run_coroutine_threadsafe(
+                                app_state.broadcast_to_sockets(
+                                    {"type": "voice_partial", "text": text}
+                                ),
+                                app_state.main_loop,
+                            )
+
+                    def should_bypass_wake_word() -> bool:
+                        state = app_state.get_graph_state()
+                        return app_state.is_call_mode() or (
+                            state["view"] is not None and state["bypass_wake_word"]
+                        )
+
+                    app_state.ww = WakeWordDetector(
+                        keyword="Luna",
+                        callback=on_wake_word,
+                        status_callback=on_voice_status,
+                        partial_callback=on_voice_partial,
+                        bypass_condition=should_bypass_wake_word,
+                        variants=["Luna", "Loona", "Luhna", "Lana", "Lonna", "Lona", "Nuna"],
+                    )
+                    app_state.ww.start()
+
+            await app_state.broadcast_to_sockets({
+                "type": "setup_complete",
+                "data": {"step": "tier_installation", "tier": tier}
+            })
+            
+            # Re-inicializa o LLM com o novo modelo
+            app_state.orchestrator.initialize_llm(tier=tier, onboarding_bypass=True)
+            
+        except Exception as e:
+            app_state.logger.error(f"[Setup] Tier install error: {e}")
+            await app_state.broadcast_to_sockets({
+                "type": "setup_error",
+                "data": {"message": f"Erro na instalação do nível {tier}: {str(e)}"}
+            })
+
+    asyncio.create_task(background_install())
+    
+    return {"status": "ok", "message": f"Nível {tier} está sendo configurado"}

@@ -32,12 +32,18 @@ class VectorDB:
     def get_table(self, name: str, schema=None):
         """Returns a table, creating it if necessary."""
         db = self.connect()
-        try:
-            return db.open_table(name)
-        except Exception:
-            if schema is None:
-                raise ValueError(f"Table {name} does not exist and no schema was provided.")
-            return db.create_table(name, schema=schema)
+        tables = db.table_names()
+        
+        if name in tables:
+            try:
+                return db.open_table(name)
+            except Exception as e:
+                logger.warning(f"[VectorDB] Could not open existing table '{name}': {e}. Attempting to recreate.")
+                db.drop_table(name)
+
+        if schema is None:
+            raise ValueError(f"Table {name} does not exist and no schema was provided.")
+        return db.create_table(name, schema=schema)
 
     async def _safe_search(self, table_name: str, query: str, limit: int = 5):
         """Internal helper to search with error recovery for LanceDB."""

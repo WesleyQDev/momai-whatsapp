@@ -35,6 +35,7 @@ export interface StatusData {
     installed_version?: string
     latest_version?: string
   }
+  ai_tier: string | null
 }
 
 export interface ChatStreamCallbacks {
@@ -363,6 +364,7 @@ export interface SettingsData {
   prebuffer_chars?: number
   onboarding_completed?: boolean
   tutorial_completed?: boolean
+  ai_tier?: string | null
 }
 
 export async function fetchSettings(): Promise<SettingsData> {

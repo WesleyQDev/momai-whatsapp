@@ -396,12 +396,14 @@ def clear_cancel_generation() -> None:
     cancel_generation = False
 
 
-def initialize_llm(on_init_progress=None):
+def initialize_llm(on_init_progress=None, tier=None, onboarding_bypass=False):
     """
     Initializes the Local LLM in a separate thread.
 
     Args:
         on_init_progress (callable, optional): Callback for initialization progress.
+        tier (str, optional): AI tier to use (lite, pro, ultra).
+        onboarding_bypass (bool): If True, bypasses the onboarding_completed check.
     """
     global is_loading, llm_mode, init_error
 
@@ -417,7 +419,11 @@ def initialize_llm(on_init_progress=None):
     llm_mode = "local"
     init_error = None
 
-    thread = threading.Thread(target=_initialize_llm_task, args=(on_init_progress,))
+    thread = threading.Thread(
+        target=_initialize_llm_task, 
+        args=(on_init_progress,), 
+        kwargs={'provided_tier': tier, 'onboarding_bypass': onboarding_bypass}
+    )
     thread.daemon = True
     try:
         thread.start()
@@ -425,7 +431,24 @@ def initialize_llm(on_init_progress=None):
         print(f"[AI_core] Thread start error: {e}")
 
 
-def _initialize_llm_task(on_init_progress=None):
+# AI Tiers Configuration
+TIER_CONFIG = {
+    "lite": {
+        "repo": "unsloth/gemma-3-270m-it-GGUF",
+        "file": "gemma-3-270m-it-UD-Q8_K_XL.gguf",
+    },
+    "pro": {
+        "repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF",
+        "file": "LFM2.5-1.2B-Instruct-Q4_K_M.gguf",
+    },
+    "ultra": {
+        "repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
+        "file": "Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf",
+    }
+}
+
+
+def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_bypass=False):
     """Internal task to initialize the local LLM and rebuild the graph."""
     global llm, llm_with_tools, llm_mode, momai_graph, is_loading, init_error
 
@@ -450,21 +473,49 @@ def _initialize_llm_task(on_init_progress=None):
 
     try:
         print(f"\n--- Inicializando Motor de IA: LOCAL ---")
-        report_progress("Iniciando transição...")
 
-        # Busca configurações atuais para o Grafo
+        tier = provided_tier
         from database.models import SessionLocal, Settings
+        if not tier:
+            db = SessionLocal()
+            s = db.query(Settings).first()
+            
+            # Se o tier não foi definido, não carrega modelo.
+            if not s or not s.ai_tier:
+                print("[AI_core] Tier não selecionado. Pulando carregamento automático.")
+                is_loading = False
+                llm_mode = "waiting"
+                db.close()
+                return
 
-        db = SessionLocal()
-        s = db.query(Settings).first()
-        u_name = str(s.user_name) if s else "Senhor"
-        u_persona = str(s.assistant_persona) if s else None
-        db.close()
+            if not s.onboarding_completed and not onboarding_bypass:
+                print("[AI_core] Onboarding pendente. Pulando carregamento automático.")
+                is_loading = False
+                llm_mode = "waiting"
+                db.close()
+                return
 
-        report_progress("Configurando motor Llama.cpp...")
+            tier = s.ai_tier
+            u_name = str(s.user_name) if s else "Senhor"
+            u_persona = str(s.assistant_persona) if s else None
+            db.close()
+        else:
+            # Se o tier foi providenciado, buscamos os dados mínimos no banco
+            db = SessionLocal()
+            s = db.query(Settings).first()
+            u_name = str(s.user_name) if s else "Senhor"
+            u_persona = str(s.assistant_persona) if s else None
+            db.close()
+
+        if tier not in TIER_CONFIG:
+            tier = "pro"
+
+        config = TIER_CONFIG[tier]
+        
+        report_progress(f"Configurando motor Llama.cpp ({tier.upper()})...")
         new_llm = load_model(
-            repo_id="unsloth/Qwen3-4B-Instruct-2507-GGUF",
-            filename="Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+            repo_id=config["repo"],
+            filename=config["file"],
             on_progress=report_progress,
         )
 
@@ -516,6 +567,15 @@ def _initialize_llm_task(on_init_progress=None):
                         {"type": "model_changed", "data": {"new_mode": "local"}}
                     ),
                     app_state.main_loop,
+                )
+                # Scale: 30% - 100% (Electron takes 0% - 30%)
+                asyncio.run_coroutine_threadsafe(
+                    app_state.send_init_event("api", "Starting system protocols...", 32),
+                    app_state.main_loop
+                )
+                asyncio.run_coroutine_threadsafe(
+                    asyncio.to_thread(init_db),
+                    app_state.main_loop
                 )
                 app_state.set_graph_state(None, False)
 

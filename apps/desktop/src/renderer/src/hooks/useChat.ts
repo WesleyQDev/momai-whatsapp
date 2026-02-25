@@ -671,7 +671,7 @@ export function useChat() {
         } else if (msg.type === 'model_change_start') {
           window.dispatchEvent(new CustomEvent('ai_model_change_start', { detail: msg.data.mode }))
         } else if (msg.type === 'model_change_progress') {
-          // Progress is now handled via activities or global status if needed
+          window.dispatchEvent(new CustomEvent('ai_model_change_progress', { detail: msg.data }))
         } else if (msg.type === 'voice_partial') {
           if (isCallModeRef.current && msg.text) {
             setCallHistory((prev) => {

@@ -22,9 +22,8 @@ async def init_system_task() -> None:
     try:
         # Scale: 30% - 100% (Electron takes 0% - 30%)
         await app_state.send_init_event("api", "Starting system protocols...", 32)
-        await asyncio.sleep(0.1)
-
-        init_db()
+        
+        # O init_db já foi chamado na lifespan de forma síncrona
         await app_state.send_init_event("api", "Database connected & migrated", 35)
 
         await app_state.send_init_event("brain", "Loading AI stack modules...", 40)
@@ -39,6 +38,28 @@ async def init_system_task() -> None:
             db.commit()
             db.refresh(settings)
 
+        if not settings.onboarding_completed:
+            await app_state.send_init_event("ready", "Aguardando conclusão do onboarding...", 100)
+            app_state.system_ready.set()
+            db.close()
+            return
+
+        await start_core_services(settings)
+        db.close()
+    except Exception as e:
+        app_state.logger.error(f"[Startup] Error in startup sequence: {e}")
+
+
+async def start_core_services(settings):
+    """Inicializa todos os serviços da IA após o onboarding estar concluído."""
+    global checkpointer_cm
+    
+    # Evita inicializar múltiplas vezes se já estiver pronto
+    if app_state.last_init_event.get("progress", 0) >= 100 and \
+       app_state.last_init_event.get("stage") != "ready":
+        return
+
+    try:
         # 1. Start LLM initialization in background
         def on_brain_init(status: str) -> None:
             if app_state.main_loop:
@@ -191,21 +212,21 @@ async def init_system_task() -> None:
 
         # 6. Services
         await app_state.send_init_event("api", "Starting background managers...", 85)
-        def start_reminder_manager():
-            try:
-                app_state.reminder_manager = app_state.ReminderManager(
-                    broadcast_callback=app_state.broadcast_to_sockets,
-                    tts_callback=app_state.tts.speak_sentence,
-                )
-                app_state.reminder_manager.start()
-            except Exception as e:
-                app_state.logger.warning(f"[startup] Reminder manager error: {e}")
-
-        threading.Thread(target=start_reminder_manager, daemon=True).start()
+        try:
+            app_state.reminder_manager = app_state.ReminderManager(
+                broadcast_callback=app_state.broadcast_to_sockets,
+                tts_callback=app_state.tts.speak_sentence,
+            )
+            app_state.reminder_manager.start()
+        except Exception as e:
+            app_state.logger.warning(f"[startup] Reminder manager error: {e}")
 
         # 7. Wake Word
         def start_wake_word():
             try:
+                if not settings.wake_word_enabled:
+                    return
+
                 def on_wake_word(text: str) -> None:
                     if app_state.main_loop:
                         asyncio.run_coroutine_threadsafe(
@@ -259,8 +280,7 @@ async def init_system_task() -> None:
                         bypass_condition=should_bypass_wake_word,
                         variants=["Luna", "Loona", "Luhna", "Lana", "Lonna", "Lona", "Nuna"],
                     )
-                    if settings.wake_word_enabled:
-                        app_state.ww.start()
+                    app_state.ww.start()
             except Exception as e:
                 app_state.logger.warning(f"[startup] Wake word error: {e}")
 
@@ -274,25 +294,32 @@ async def init_system_task() -> None:
 
         if settings.tts_enabled:
             await app_state.send_init_event("voice", "Waking up local voice...", 96)
+            app_state.tts.tts.initialize() # New explicit call
             await asyncio.to_thread(app_state.tts.tts.wait_until_ready, timeout=10.0)
 
-        await app_state.send_init_event("ready", "MomAI is ready to assist.", 100)
+        # Marcar como totalmente pronto
         app_state.system_ready.set()
-
+        await app_state.send_init_event("brain", "Sistema operacional e pronto.", 100)
+        
         # 9. Check Daily Briefing
-        from services.system.briefing import check_and_run_daily_briefing
-
-        asyncio.create_task(check_and_run_daily_briefing())
-
-        db.close()
+        try:
+            from services.system.briefing import check_and_run_daily_briefing
+            asyncio.create_task(check_and_run_daily_briefing())
+        except Exception as e:
+            app_state.logger.warning(f"[startup] Daily briefing error: {e}")
+        
     except Exception as exc:
-        app_state.logger.exception("[InitTask] Fatal error: %s", exc)
+        app_state.logger.exception("[InitTask] Fatal error in core services: %s", exc)
         await app_state.send_init_event("error", f"Error: {str(exc)}", 0)
 
 
 @asynccontextmanager
 async def lifespan(app):
     app_state.main_loop = asyncio.get_running_loop()
+
+    # Inicializa banco de dados SINCRONAMENTE antes de abrir para requisições
+    # Isso evita o erro "no such table: messages" em máquinas rápidas
+    await asyncio.to_thread(init_db)
 
     # Start all initialization tasks in parallel
     asyncio.create_task(init_system_task())

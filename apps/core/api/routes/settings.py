@@ -65,6 +65,10 @@ def _sync_update_settings(data: SettingsUpdate):
         if data.daily_briefing_enabled is not None:
             settings.daily_briefing_enabled = data.daily_briefing_enabled
 
+        if data.ai_tier is not None:
+            settings.ai_tier = data.ai_tier
+            changes.append("ai_tier")
+
         db.commit()
         db.refresh(settings)
         return changes, settings.ai_provider, settings.tts_voice, settings.tts_enabled, settings.wake_word_enabled
@@ -100,7 +104,8 @@ async def get_settings(db: Session = Depends(get_db)):
         "locale": settings.locale or "pt-BR",
         "onboarding_completed": settings.onboarding_completed,
         "tutorial_completed": settings.tutorial_completed,
-        "daily_briefing_enabled": settings.daily_briefing_enabled
+        "daily_briefing_enabled": settings.daily_briefing_enabled,
+        "ai_tier": settings.ai_tier
     }
 
 
@@ -121,11 +126,19 @@ async def update_settings(data: SettingsUpdate):
             else:
                 app_state.ww.stop()
 
-    if any(change in changes for change in ["persona", "user_name", "provider", "local_backend"]):
+    if any(change in changes for change in ["persona", "user_name", "provider", "local_backend", "ai_tier"]):
         # Always re-initialize local LLM
-        import threading
-        threading.Thread(target=app_state.initialize_llm).start()
+        app_state.initialize_llm(tier=data.ai_tier)
         await app_state.broadcast_to_sockets({"type": "model_changed", "data": {"new_mode": "local"}})
+
+    # Se o onboarding acabou de ser concluído, inicia os serviços core
+    if data.onboarding_completed is True:
+        from startup import start_core_services
+        # Busca configurações atualizadas para o startup
+        db = SessionLocal()
+        settings = db.query(Settings).first()
+        db.close()
+        asyncio.create_task(start_core_services(settings))
 
 
 @router.post("/settings/voice-sample")

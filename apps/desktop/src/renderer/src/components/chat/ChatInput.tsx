@@ -70,6 +70,7 @@ export default function ChatInput({
     wake_word_enabled: true,
     tts_enabled: true
   })
+  const [aiTier, setAiTier] = useState<string | null>(null)
   const [isQuickRecording, setIsQuickRecording] = useState(false)
 
   const {
@@ -84,6 +85,13 @@ export default function ChatInput({
   useEffect(() => {
     setLocalText(text)
   }, [text])
+
+  // Get tier from statusInfo or fetch it
+  useEffect(() => {
+    if (statusInfo?.ai_tier) {
+      setAiTier(statusInfo.ai_tier)
+    }
+  }, [statusInfo])
 
   // Auto-resize textarea + sync ghost scroll
   useEffect(() => {
@@ -137,6 +145,7 @@ export default function ChatInput({
           wake_word_enabled: !!data.wake_word_enabled,
           tts_enabled: !!data.tts_enabled
         })
+        if (data.ai_tier) setAiTier(data.ai_tier)
         setSettingsLoaded(true)
       } catch (error) {
         console.error('Erro ao carregar configuracoes:', error)
@@ -221,6 +230,10 @@ export default function ChatInput({
   const toggleSetting = async (key: 'wake_word_enabled' | 'tts_enabled') => {
     if (!settingsLoaded || isSavingSettings) return
 
+    // Restriction Logic
+    if (key === 'wake_word_enabled' && aiTier !== 'ultra') return
+    if (key === 'tts_enabled' && aiTier === 'lite') return
+
     const previous = voiceSettings[key]
     const next = !previous
     setVoiceSettings((prev) => ({ ...prev, [key]: next }))
@@ -235,6 +248,11 @@ export default function ChatInput({
     } finally {
       setIsSavingSettings(false)
     }
+  }
+
+  const handleCallModeClick = () => {
+    if (aiTier !== 'ultra') return
+    onToggleCallMode?.()
   }
 
   return (
@@ -286,52 +304,63 @@ export default function ChatInput({
                 </button>
 
                 {isDropdownOpen && (
-                  <div className="absolute bottom-full left-0 mb-3 bg-card border border-border/30 rounded-xl shadow-2xl overflow-hidden min-w-[200px] z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                  <div className="absolute bottom-full left-0 mb-3 bg-card border border-border/30 rounded-xl shadow-2xl overflow-hidden min-w-[240px] z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    {/* Wake Word Option */}
                     <button
                       type="button"
                       onClick={() => toggleSetting('wake_word_enabled')}
-                      disabled={!settingsLoaded || isSavingSettings}
+                      disabled={!settingsLoaded || isSavingSettings || aiTier !== 'ultra'}
                       className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-all ${
-                        voiceSettings.wake_word_enabled ? 'bg-accent/5 text-accent' : ''
-                      }`}
+                        voiceSettings.wake_word_enabled && aiTier === 'ultra' ? 'bg-accent/5 text-accent' : ''
+                      } ${aiTier !== 'ultra' ? 'cursor-default opacity-80' : ''}`}
                     >
                       <MicrophoneIcon
-                        className={`w-4 h-4 ${voiceSettings.wake_word_enabled ? 'text-accent' : 'text-text-muted opacity-50'}`}
+                        className={`w-4 h-4 ${voiceSettings.wake_word_enabled && aiTier === 'ultra' ? 'text-accent' : 'text-text-muted opacity-50'}`}
                       />
                       <div className="flex flex-col items-start flex-1">
                         <span className="text-[11px] font-bold">
                           {t('chatInput.reconhecimento')}
                         </span>
-                        <span className="text-[9px] text-text-muted opacity-70">
-                          {t('chatInput.reconhecimentoDesc')}
+                        <span className={`text-[9px] font-medium leading-tight ${aiTier === 'ultra' ? 'text-text-muted opacity-70' : aiTier === 'lite' ? 'text-emerald-500' : 'text-red-500'}`}>
+                          {aiTier === 'ultra' 
+                            ? t('chatInput.reconhecimentoDesc') 
+                            : 'Recurso disponível no Ultra'}
                         </span>
                       </div>
-                      <div
-                        className={`w-1.5 h-1.5 rounded-full ${voiceSettings.wake_word_enabled ? 'bg-accent' : 'bg-white/10'}`}
-                      />
+                      {aiTier === 'ultra' && (
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full ${voiceSettings.wake_word_enabled ? 'bg-accent' : 'bg-white/10'}`}
+                        />
+                      )}
                     </button>
 
+                    {/* TTS Option */}
                     <button
                       type="button"
                       onClick={() => toggleSetting('tts_enabled')}
-                      disabled={!settingsLoaded || isSavingSettings}
+                      disabled={!settingsLoaded || isSavingSettings || aiTier === 'lite'}
                       className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-all border-t border-border/10 ${
-                        voiceSettings.tts_enabled ? 'bg-accent/5 text-accent' : ''
-                      }`}
+                        voiceSettings.tts_enabled && aiTier !== 'lite' ? 'bg-accent/5 text-accent' : ''
+                      } ${aiTier === 'lite' ? 'cursor-default opacity-80' : ''}`}
                     >
                       <SpeakerWaveIcon
-                        className={`w-4 h-4 ${voiceSettings.tts_enabled ? 'text-accent' : 'text-text-muted opacity-50'}`}
+                        className={`w-4 h-4 ${voiceSettings.tts_enabled && aiTier !== 'lite' ? 'text-accent' : 'text-text-muted opacity-50'}`}
                       />
                       <div className="flex flex-col items-start flex-1">
                         <span className="text-[11px] font-bold">{t('chatInput.falar')}</span>
-                        <span className="text-[9px] text-text-muted opacity-70">
-                          {t('chatInput.falarDesc')}
+                        <span className={`text-[9px] font-medium leading-tight ${aiTier !== 'lite' ? 'text-text-muted opacity-70' : 'text-emerald-500'}`}>
+                          {aiTier !== 'lite' 
+                            ? t('chatInput.falarDesc') 
+                            : 'Recurso disponível a partir do Pro'}
                         </span>
                       </div>
-                      <div
-                        className={`w-1.5 h-1.5 rounded-full ${voiceSettings.tts_enabled ? 'bg-accent' : 'bg-white/10'}`}
-                      />
+                      {aiTier !== 'lite' && (
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full ${voiceSettings.tts_enabled ? 'bg-accent' : 'bg-white/10'}`}
+                        />
+                      )}
                     </button>
+                    
                   </div>
                 )}
               </div>
@@ -348,14 +377,21 @@ export default function ChatInput({
                     isModeChanging ||
                     !isBrainReady ||
                     isBrainLoading ||
-                    isQuickRecording
+                    isQuickRecording ||
+                    aiTier !== 'ultra'
                   }
                   className={`flex items-center justify-center rounded-full w-8 h-8 transition-all duration-200 ${
                     isQuickRecording
                       ? 'bg-red-500 text-white animate-pulse'
-                      : 'bg-transparent text-text-muted hover:text-text hover:bg-white/5'
+                      : aiTier === 'ultra'
+                        ? 'bg-transparent text-text-muted hover:text-text hover:bg-white/5'
+                        : 'text-text-muted/20 cursor-not-allowed grayscale'
                   }`}
-                  title={isQuickRecording ? 'Escutando...' : 'Gravar mensagem de voz'}
+                  title={
+                    aiTier !== 'ultra' 
+                      ? 'Transcrição de voz disponível apenas no modo Ultra' 
+                      : isQuickRecording ? 'Escutando...' : 'Gravar mensagem de voz'
+                  }
                 >
                   {isQuickRecording ? (
                     <span className="text-[10px] font-bold">...</span>
@@ -386,13 +422,16 @@ export default function ChatInput({
               ) : (
                 <button
                   type="button"
+                  disabled={aiTier !== 'ultra'}
                   className={`rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${
                     isCallMode
                       ? 'bg-red-500 text-white shadow-lg shadow-red-500/20'
-                      : 'bg-white/5 text-text-muted hover:text-text hover:bg-white/10 border border-border/10'
+                      : aiTier === 'ultra' 
+                        ? 'bg-white/5 text-text-muted hover:text-text hover:bg-white/10 border border-border/10'
+                        : 'bg-white/[0.02] text-text-muted/20 cursor-not-allowed grayscale'
                   }`}
-                  onClick={onToggleCallMode}
-                  title="Call Mode"
+                  onClick={handleCallModeClick}
+                  title={aiTier === 'ultra' ? 'Call Mode' : 'Call Mode (Ultra Only)'}
                 >
                   <WaveIcon className={`w-4 h-4 ${isCallMode ? 'animate-pulse' : ''}`} />
                 </button>

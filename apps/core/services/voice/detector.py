@@ -74,8 +74,6 @@ class WakeWordDetector:
         """
         Initializes the Wake Word detector using Faster-Whisper.
         """
-        _ensure_heavy_imports()
-
         self.keyword = keyword.lower()
         self.variants = (
             [keyword.lower()] if not variants else [v.lower() for v in variants]
@@ -88,7 +86,19 @@ class WakeWordDetector:
         self.thread = None
         self.processing_thread = None
         self.lock = threading.Lock()
+        self.model = None
 
+        self.audio_queue = queue.Queue(maxsize=200)
+        self.processing_queue = queue.Queue(maxsize=2)
+        self.sample_rate = 16000
+    
+    def _load_model(self):
+        """Lazy load heavy dependencies and model."""
+        if self.model:
+            return
+            
+        _ensure_heavy_imports()
+        
         # Faster-Whisper Configuration
         try:
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -104,10 +114,6 @@ class WakeWordDetector:
                 f"[WakeWord] Could not load 'base' Whisper ({e}). Falling back to 'tiny' on CPU."
             )
             self.model = WhisperModel("tiny", device="cpu", compute_type="int8")
-
-        self.audio_queue = queue.Queue(maxsize=200)
-        self.processing_queue = queue.Queue(maxsize=2)
-        self.sample_rate = 16000
 
         # --- Speech detection parameters ---
         # Energy threshold to consider a chunk as "speech" (increased for less sensitivity)
@@ -616,6 +622,7 @@ class WakeWordDetector:
             return
         with self.lock:
             if not self.running:
+                self._load_model()
                 self.running = True
                 self.processing_thread = threading.Thread(
                     target=self._processing_loop, daemon=True

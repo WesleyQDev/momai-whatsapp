@@ -42,12 +42,14 @@ class Settings(Base):
 
     # Audio
     tts_voice = Column(String, default="pf_dora")
-    tts_enabled = Column(Boolean, default=True)
-    wake_word_enabled = Column(Boolean, default=True)
+    tts_enabled = Column(Boolean, default=False)
+    wake_word_enabled = Column(Boolean, default=False)
     wake_word_sensitivity = Column(Integer, default=5)  # 1-10
 
     # UI/Locale
     locale = Column(String, default="pt-BR")
+
+    ai_tier = Column(String, default=None)  # lite, pro, ultra
 
     # Onboarding/Tutorial
     onboarding_completed = Column(Boolean, default=False)
@@ -203,3 +205,10 @@ def init_db():
                     "ALTER TABLE settings ADD COLUMN last_briefing_date TEXT DEFAULT NULL"
                 )
             )
+        if "ai_tier" not in cols:
+            conn.execute(
+                text(
+                    "ALTER TABLE settings ADD COLUMN ai_tier TEXT DEFAULT 'pro'"
+                )
+            )
+        conn.commit()

@@ -48,6 +48,7 @@ class SettingsUpdate(BaseModel):
     onboarding_completed: bool | None = None
     tutorial_completed: bool | None = None
     daily_briefing_enabled: bool | None = None
+    ai_tier: str | None = None
 
 
 class ExtensionToggle(BaseModel):
