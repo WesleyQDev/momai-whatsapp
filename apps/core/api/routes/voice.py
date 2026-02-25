@@ -31,10 +31,10 @@ def get_transcriber():
             )
         else:
             # Fallback: carrega modelo tiny para transcrição rápida
-            import torch
+            import ctranslate2
             from faster_whisper import WhisperModel
 
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
             compute_type = "float16" if device == "cuda" else "int8"
             logger.info(
                 f"[VoiceAPI] Loading Whisper tiny for quick transcription on {device}"

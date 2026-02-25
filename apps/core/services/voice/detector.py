@@ -7,7 +7,7 @@ import re
 # Heavy imports are deferred to __init__ for faster startup
 sd = None
 np = None
-torch = None
+ctranslate2 = None
 WhisperModel = None
 HAS_SOUNDDEVICE = None  # Will be set on first check
 
@@ -20,16 +20,16 @@ import services.voice.tts as tts
 
 
 def _ensure_heavy_imports():
-    """Lazy-load heavy dependencies (torch, numpy, sounddevice, faster_whisper)."""
-    global sd, np, torch, WhisperModel, HAS_SOUNDDEVICE
+    """Lazy-load heavy dependencies (ctranslate2, numpy, sounddevice, faster_whisper)."""
+    global sd, np, ctranslate2, WhisperModel, HAS_SOUNDDEVICE
     if np is not None:
         return  # Already imported
 
     import numpy as _np
     np = _np
 
-    import torch as _torch
-    torch = _torch
+    import ctranslate2 as _ct
+    ctranslate2 = _ct
 
     from faster_whisper import WhisperModel as _WM
     WhisperModel = _WM
@@ -101,7 +101,7 @@ class WakeWordDetector:
         
         # Faster-Whisper Configuration
         try:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
             compute_type = "float16" if device == "cuda" else "int8"
 
             # Use 'base' for the best balance between speed and accuracy in real-time

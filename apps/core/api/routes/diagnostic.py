@@ -66,14 +66,14 @@ async def get_diagnostic():
     )
 
     try:
-        import torch
+        import ctranslate2
 
-        cuda_available = torch.cuda.is_available()
+        cuda_available = ctranslate2.get_cuda_device_count() > 0
         checks.append(
             {
                 "name": "cuda",
                 "status": "pass" if cuda_available else "warn",
-                "message": "CUDA available"
+                "message": "CUDA (GPU) available"
                 if cuda_available
                 else "CUDA not available (CPU mode)",
             }
@@ -81,9 +81,9 @@ async def get_diagnostic():
     except ImportError:
         checks.append(
             {
-                "name": "torch",
-                "status": "warn",
-                "message": "PyTorch not installed",
+                "name": "ctranslate2",
+                "status": "fail",
+                "message": "CTranslate2 not installed",
             }
         )
 
