@@ -294,7 +294,8 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
 
         # Healthcheck Loop
         report("Waiting for local LLM initialization (Healthcheck)...")
-        for i in range(120):  # 120 * 0.5 = 60s
+        last_percent = -1
+        for i in range(240):  # 240 * 0.25 = 60s
             # Safety check: server_process might be killed by ResourceManager
             if server_process is None:
                 report("Startup aborted: local LLM process was closed.")
@@ -309,10 +310,27 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
                 except Exception:
                     report("Local LLM died unexpectedly and log could not be read.")
                 return None
+
+            # Dynamic Progress Tracking via log file
+            try:
+                import re
+                with open(llama_log_path, "r", encoding="utf-8", errors="replace") as f:
+                    log_content = f.read()
+                    matches = re.findall(r"tensor\s+(\d+)\s*/\s*(\d+)", log_content)
+                    if matches:
+                        current, total = int(matches[-1][0]), int(matches[-1][1])
+                        if total > 0:
+                            percent = min(99, int((current / total) * 100))
+                            if percent > last_percent:
+                                report(f"Carregando o modelo Llama ({percent}%)")
+                                last_percent = percent
+            except Exception:
+                pass
+
             try:
                 if (
                     requests.get(
-                        "http://127.0.0.1:8080/health", timeout=0.5
+                        "http://127.0.0.1:8080/health", timeout=0.25
                     ).status_code
                     == 200
                 ):
@@ -328,9 +346,9 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
                 # Healthcheck failed, server not ready yet
                 pass
 
-            if i % 10 == 0 and i > 0:
-                report(f"Starting local LLM... ({i // 2}s elapsed)")
-            time.sleep(0.5)
+            if i % 20 == 0 and i > 0 and last_percent == -1:
+                report(f"Inicializando motor IA... ({(i * 250) // 1000}s decorridos)")
+            time.sleep(0.25)
 
         report("Local LLM startup timeout reached.")
         stop_server()

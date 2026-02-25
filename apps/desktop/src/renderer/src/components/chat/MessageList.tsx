@@ -1,4 +1,4 @@
-import { RefObject, JSX, memo } from 'react'
+import { RefObject, JSX, memo, useRef, useEffect, useCallback } from 'react'
 import MessageItem from './MessageItem'
 import { Message, StatusData } from '../../services/api'
 import WelcomeTips from './WelcomeTips'
@@ -32,8 +32,36 @@ const MessageList = memo(function MessageList({
   speakingIndex = null,
   statusInfo
 }: MessageListProps): JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isAtBottomRef = useRef(true)
+  const lastMessagesLength = useRef(messages.length)
+
+  const handleScroll = useCallback(() => {
+    if (!containerRef.current) return
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current
+    // More precise threshold of 50px
+    const atBottom = scrollHeight - scrollTop <= clientHeight + 50
+    isAtBottomRef.current = atBottom
+  }, [])
+
+  useEffect(() => {
+    const isNewMessage = messages.length > lastMessagesLength.current
+    lastMessagesLength.current = messages.length
+
+    // Now ONLY scroll if it's a brand new message entry (user or AI starting)
+    // We removed the 'magnet' that pulls you down while the AI is still typing
+    if (isNewMessage) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      isAtBottomRef.current = true
+    }
+  }, [messages, messagesEndRef])
+
   return (
-    <main className="flex-1 flex flex-col gap-5 p-4 overflow-y-auto overflow-x-hidden relative scroll-smooth">
+    <main 
+      ref={containerRef}
+      onScroll={handleScroll}
+      className="flex-1 flex flex-col gap-5 p-4 overflow-y-auto overflow-x-hidden relative scroll-smooth"
+    >
       {messages.length === 0 && (
         <WelcomeTips onSendMessage={onSendMessage} statusInfo={statusInfo} />
       )}

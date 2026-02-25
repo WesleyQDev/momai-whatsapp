@@ -182,10 +182,6 @@ export function useChat() {
   }, [])
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages, scrollToBottom])
-
-  useEffect(() => {
     messagesRef.current = messages
   }, [messages])
 

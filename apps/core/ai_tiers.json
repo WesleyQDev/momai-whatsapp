@@ -1,0 +1,14 @@
+{
+    "lite": {
+        "repo": "unsloth/LFM2.5-VL-1.6B-GGUF",
+        "file": "LFM2.5-VL-1.6B-Q4_K_M.gguf"
+    },
+    "pro": {
+        "repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF",
+        "file": "LFM2.5-1.2B-Instruct-Q4_K_M.gguf"
+    },
+    "ultra": {
+        "repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
+        "file": "Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf"
+    }
+}
