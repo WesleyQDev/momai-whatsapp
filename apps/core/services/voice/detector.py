@@ -91,6 +91,26 @@ class WakeWordDetector:
         self.audio_queue = queue.Queue(maxsize=200)
         self.processing_queue = queue.Queue(maxsize=2)
         self.sample_rate = 16000
+
+        # --- Speech detection parameters ---
+        self.speech_energy_threshold = 0.015
+        self.silence_chunks_required = 4
+        self.min_speech_chunks = 3
+        self.max_recording_duration = 15.0
+
+        # --- State machine ---
+        self.state = self.STATE_IDLE
+        self.speech_buffer = []
+        self.speech_chunk_count = 0 
+        self.silence_counter = 0
+        self.recorded_samples = 0
+
+        # --- Cooldown ---
+        self.last_trigger_time = 0
+        self.trigger_cooldown = 2.0
+        self.last_text = ""
+        self.last_text_time = 0.0
+        self.text_repeat_cooldown = 1.0
     
     def _load_model(self):
         """Lazy load heavy dependencies and model."""
@@ -115,31 +135,6 @@ class WakeWordDetector:
             )
             self.model = WhisperModel("tiny", device="cpu", compute_type="int8")
 
-        # --- Speech detection parameters ---
-        # Energy threshold to consider a chunk as "speech" (increased for less sensitivity)
-        self.speech_energy_threshold = 0.015
-        # How many consecutive silent chunks before we consider speech ended
-        # Each chunk is ~250ms (blocksize=4000 at 16kHz), so 4 chunks ≈ 1s
-        self.silence_chunks_required = 4
-        # Minimum speech duration (in chunks) to avoid processing noise bursts
-        # 3 chunks ≈ 0.75s minimum speech
-        self.min_speech_chunks = 3
-        # Maximum recording duration in seconds (safety limit)
-        self.max_recording_duration = 15.0
-
-        # --- State machine ---
-        self.state = self.STATE_IDLE
-        self.speech_buffer = []  # List of numpy arrays (recorded speech chunks)
-        self.speech_chunk_count = 0  # How many chunks had speech energy
-        self.silence_counter = 0  # Consecutive silent chunks since last speech
-        self.recorded_samples = 0  # Total samples accumulated in current speech
-
-        # --- Cooldown ---
-        self.last_trigger_time = 0
-        self.trigger_cooldown = 2.0
-        self.last_text = ""
-        self.last_text_time = 0.0
-        self.text_repeat_cooldown = 1.0
 
     def _set_state(self, new_state):
         """Internal helper to change state and notify callback."""
@@ -413,21 +408,20 @@ class WakeWordDetector:
         )
 
         try:
-            # Optimized parameters for real-time latency
-            # beam_size=1 (greedy search) is MUCH faster than 7
+            # Optimized parameters for accuracy and low latency
             segments, info = self.model.transcribe(
                 audio,
                 language="pt",
-                beam_size=1 if is_partial else 2,
-                best_of=1,
-                initial_prompt="Computador",
+                beam_size=1 if is_partial else 3,  # Best balance between speed and quality
+                best_of=5 if not is_partial else 1,
+                initial_prompt="Luna. Computador.", # Focus only on wake words to maintain multilingual support
                 vad_filter=True,
                 vad_parameters=dict(
                     min_silence_duration_ms=400,
-                    speech_pad_ms=200,
+                    speech_pad_ms=400,  # Increased padding to prevent cutting off the first/last letters (fixes 'Bonjia' instead of 'Bom dia')
                     threshold=0.4,
                 ),
-                no_speech_threshold=0.5,
+                no_speech_threshold=0.4,
                 log_prob_threshold=-0.8,
                 condition_on_previous_text=False,
                 suppress_blank=True,
@@ -615,14 +609,14 @@ class WakeWordDetector:
 
     def start(self):
         """Start the detector in a background thread."""
-        if not HAS_SOUNDDEVICE:
-            logger.warning(
-                "[WakeWord] Sounddevice not available. Detector will not start."
-            )
-            return
         with self.lock:
             if not self.running:
                 self._load_model()
+                if not HAS_SOUNDDEVICE:
+                    logger.warning(
+                        "[WakeWord] Sounddevice not available. Detector will not start."
+                    )
+                    return
                 self.running = True
                 self.processing_thread = threading.Thread(
                     target=self._processing_loop, daemon=True

@@ -1,3 +1,4 @@
+import './env'
 import { app, globalShortcut, BrowserWindow, ipcMain, shell } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { state, setIsQuitting } from './state'
@@ -5,8 +6,6 @@ import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager
 import { startPythonBackend, shutdownPython, saveOnboardingCompleted } from './pythonManager'
 import { logger, getLogsPath } from './logger'
 import { setupUpdater } from './updater'
-
-app.name = 'MomAI'
 
 // Fix for invisible windows on Linux VMs (Hyper-V, VirtualBox) and some Wayland compositors
 if (process.platform === 'linux') {

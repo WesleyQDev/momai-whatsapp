@@ -285,18 +285,18 @@ export default function ContainerChat({
         />
       ) : (
         <>
-          <div className="flex items-center justify-between px-3 pt-3 pb-1">
-            <span className="text-xs font-bold text-text/50 uppercase tracking-widest pl-1">
+          <div className="flex items-center justify-between gap-4 px-4 pt-4 pb-2">
+            <span className="flex-1 text-[11px] font-bold text-text/40 uppercase tracking-wider truncate">
               {(() => {
                 if (threadId === 'default') return 'Sessão Inicial'
                 if (localSessionTitle) return localSessionTitle
                 const firstUserMsg = messages.find(m => m.role === 'user')
                 if (!firstUserMsg) return 'Nova Sessão'
                 const clean = firstUserMsg.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()
-                return clean.length > 20 ? clean.slice(0, 20).trim() + '...' : clean
+                return clean
               })()}
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setThreadId(`sessao_${Date.now()}`)}

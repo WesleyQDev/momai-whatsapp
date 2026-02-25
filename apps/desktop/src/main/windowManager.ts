@@ -79,6 +79,17 @@ export function registerIpcHandlers(): void {
     app.quit()
   })
 
+  ipcMain.on('window-set-resizable', (_, resizable: boolean) => {
+    const win = getMainWindow()
+    if (win) {
+      win.setResizable(resizable)
+      win.setMaximizable(resizable)
+      if (!resizable && win.isMaximized()) {
+        win.unmaximize()
+      }
+    }
+  })
+
   ipcMain.on('show-notification', (_, { title, body }) => {
     if (!Notification.isSupported()) return
     new Notification({

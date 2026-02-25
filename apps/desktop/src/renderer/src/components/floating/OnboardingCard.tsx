@@ -57,6 +57,9 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   const [initMsg, setInitMsg] = useState<string | null>(null)
 
   useEffect(() => {
+    // Prevent resizing during onboarding
+    window.api?.setResizable?.(false)
+
     window.api
       .getAppVersion?.()
       .then(setAppVersion)
@@ -71,6 +74,8 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
     window.addEventListener('momai_setup_progress' as any, handleProgress)
 
     return () => {
+      // Re-enable resizing when leaving onboarding
+      window.api?.setResizable?.(true)
       window.removeEventListener('ai_model_change_progress' as any, handleProgress)
       window.removeEventListener('momai_setup_progress' as any, handleProgress)
     }
@@ -96,6 +101,10 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   const handleFinish = async () => {
     if (!name.trim()) return
     setIsSaving(true)
+    
+    // Ensure window becomes resizable right before going into the app
+    window.api?.setResizable?.(true)
+
     try {
       const payload = {
         user_name: name,
@@ -132,12 +141,12 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
     return (
       <button
         onClick={() => handleSelectTier(id)}
-        className="group relative bg-white/[0.03] border border-white/5 rounded-3xl p-6 text-center flex flex-col items-center hover:border-accent/40 hover:bg-white/[0.05] transition-all duration-500 overflow-hidden active:scale-[0.97] min-h-[300px] justify-between w-full"
+        className="group relative bg-white/[0.03] border border-white/5 rounded-3xl px-4 py-8 text-center flex flex-col items-center hover:border-accent/40 hover:bg-white/[0.05] transition-all duration-500 overflow-hidden active:scale-[0.97] h-full justify-between w-full"
       >
         {/* Subtle background pattern/glow */}
-        <div className={`absolute -top-24 -right-24 w-48 h-48 ${styles.iconBg} blur-[80px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700`} />
+        <div className={`absolute -top-24 -right-24 w-48 h-48 ${styles.iconBg} blur-[80px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none`} />
 
-        <div className="relative z-10 flex flex-col items-center space-y-6 w-full">
+        <div className="relative z-10 flex flex-col items-center space-y-6 w-full pointer-events-none">
           <div
             className={`w-16 h-16 rounded-2xl ${styles.iconBg} flex items-center justify-center ${styles.text} shadow-inner border border-white/5 transition-all duration-500 group-hover:scale-110 group-hover:rotate-3`}
           >
@@ -163,14 +172,14 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
               {t(`onboarding.tier.${id}.title`)}
             </h3>
             
-            <div className="relative w-full">
-              {/* Default Description - Defines the height of the container */}
-              <p className="text-xs text-text-muted leading-relaxed font-medium opacity-60 group-hover:opacity-0 transition-all duration-300 text-center px-2">
+            <div className="w-full grid place-items-center">
+              {/* Default Description */}
+              <p className="text-[13px] text-text-muted leading-relaxed font-semibold opacity-90 group-hover:opacity-0 transition-opacity duration-300 text-center w-full col-start-1 row-start-1">
                 {t(`onboarding.tier.${id}.desc`)}
               </p>
               
-              {/* Hover Detailed Info - Overlayed precisely */}
-              <p className={`text-[13px] ${styles.text} font-bold leading-tight opacity-0 group-hover:opacity-100 transition-all duration-300 absolute inset-0 flex items-center justify-center text-center px-2 pointer-events-none`}>
+              {/* Hover Detailed Info */}
+              <p className={`text-[13px] ${styles.text} font-bold leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center text-center w-full pointer-events-none col-start-1 row-start-1`}>
                 {t(`onboarding.tier.${id}.hover`)}
               </p>
             </div>
@@ -207,10 +216,10 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
             <h1 className="text-3xl font-black text-text tracking-tighter uppercase leading-[0.9]">
               MomAI
               <br />
-              <span className="text-accent underline decoration-accent/10">Assistant</span>
+              <span className="text-accent underline decoration-accent/10 text-[18px] tracking-normal lowercase">100% local e gratuita</span>
             </h1>
             <p className="text-[12px] text-text-muted font-medium max-w-[180px] leading-relaxed opacity-60">
-              Professional intelligence for your desktop workflow.
+              Sua assistente inteligente, privada e sem custos de assinatura.
             </p>
           </div>
         </div>

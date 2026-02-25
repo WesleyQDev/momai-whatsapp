@@ -275,12 +275,21 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                 log_event("Guardrail", f"Manager Tool '{t.name}' reached its limit ({limit}). Hiding.")
 
         # Fortalecer o prompt para forçar uso de ferramentas quando necessário
-        system_prompt += (
-            "\n# CRITICAL INSTRUCTIONS\n"
-            "For REAL-TIME data (prices, weather, news, etc.), YOU MUST USE A TOOL.\n"
-            "For casual conversation, general knowledge, jokes, stories, and creative content, respond directly WITHOUT tools.\n"
-            "If you reach a tool limit, stop trying and answer with what you have.\n"
-        )
+        if tier == "ultra":
+            system_prompt += (
+                "\n# CRITICAL INSTRUCTIONS\n"
+                "For REAL-TIME data (prices, weather, news, etc.), YOU MUST USE A TOOL.\n"
+                "For casual conversation, general knowledge, jokes, stories, and creative content, respond directly WITHOUT tools.\n"
+                "If you reach a tool limit, stop trying and answer with what you have.\n"
+            )
+        else:
+            system_prompt += (
+                "\n# CRITICAL INSTRUCTIONS\n"
+                "You DO NOT HAVE ACCESS to search, internet, or tools in this mode.\n"
+                "If the user asks for real-time data, facts, prices, or tasks you cannot do purely from memory, you MUST REFUSE the request elegantly.\n"
+                f"Your response MUST be warm and exactly like this (in Portuguese): 'Como estou rodando no Modo {tier.capitalize()} (focado em economia de desempenho), minhas ferramentas de pesquisa na internet estão em repouso. Por favor, mude para o Modo Ultra nas configurações se precisar que eu busque informações atualizadas para você!'\n"
+                "Do NOT give generic AI apologies, do NOT tell the user to go to Google or other websites. ONLY say the message above.\n"
+            )
 
         prompt = ChatPromptTemplate.from_messages(
             [("system", system_prompt), MessagesPlaceholder(variable_name="messages")]

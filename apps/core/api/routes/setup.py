@@ -58,6 +58,7 @@ async def get_setup_status(db: Session = Depends(get_db)):
             "installed_build": install_info.get("build_type") if install_info else None,
             "installed_backends": installed_backends,
             "current_local_backend": resolved_backend,
+            "os_name": downloader.platform.system().lower(),
         }
 
     return await asyncio.to_thread(_get_status)

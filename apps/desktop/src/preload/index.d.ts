@@ -28,6 +28,7 @@ declare global {
       onUpdateDownloaded: (callback: (info: any) => void) => () => void
       onUpdateError: (callback: (error: string) => void) => () => void
       markFirstLaunchFinished: (settings: any) => void
+      setResizable?: (resizable: boolean) => void
     }
   }
 }

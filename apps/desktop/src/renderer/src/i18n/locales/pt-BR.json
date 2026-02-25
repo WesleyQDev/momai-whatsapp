@@ -178,7 +178,7 @@
   "settings.brain.acceleration": "Aceleração",
   "settings.brain.activeBackend": "Backend em uso",
   "settings.brain.inUse": "EM USO",
-  "settings.brain.backend.auto": "Automático (Recomendado)",
+  "settings.brain.backend.auto": "Automático",
   "settings.brain.backend.cuda": "NVIDIA CUDA",
   "settings.brain.backend.vulkan": "AMD/Intel Vulkan",
   "settings.brain.backend.cpu": "Apenas CPU",

@@ -34,7 +34,8 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
     wake_word_enabled: true,
     wake_word_sensitivity: 5,
     locale: 'pt-BR',
-    daily_briefing_enabled: false
+    daily_briefing_enabled: false,
+    ai_tier: 'pro' as 'lite' | 'pro' | 'ultra'
   })
 
   const [installStatus, setInstallStatus] = useState<
@@ -54,10 +55,13 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
     installed_build?: string
     installed_backends?: string[]
     current_local_backend?: string
+    os_name?: string
   }>({})
+  const [isBackendOpen, setIsBackendOpen] = useState(false)
   const [gamingApps, setGamingApps] = useState<any[]>([])
   const [newApp, setNewApp] = useState({ name: '', executable: '' })
   const [appVersion, setAppVersion] = useState('1.0.0')
+  const [isAdvancedHardwareOpen, setIsAdvancedHardwareOpen] = useState(false)
 
   useEffect(() => {
     window.api
@@ -159,6 +163,16 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
       loadGamingApps()
     } catch (error) {
       alert(t('settings.economy.removeAppError'))
+    }
+  }
+
+  const handleTierChange = async (tier: 'lite' | 'pro' | 'ultra') => {
+    try {
+      await updateField('ai_tier', tier, true)
+      await api.post('/setup/apply-tier', null, { params: { tier } })
+      window.location.reload()
+    } catch (error) {
+      console.error('Erro ao mudar de nível:', error)
     }
   }
 
@@ -346,7 +360,16 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
           {[
             { id: 'general', label: t('settings.tabs.general'), icon: icons.general },
             { id: 'brain', label: t('settings.tabs.brain'), icon: icons.brain },
-            { id: 'voice', label: t('settings.tabs.voice'), icon: icons.voice },
+            { 
+              id: 'voice', 
+              label: t('settings.tabs.voice'), 
+              icon: settings.ai_tier === 'lite' ? (
+                <div className="relative">
+                  {icons.voice}
+                  <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-text-muted/40 border border-black" />
+                </div>
+              ) : icons.voice 
+            },
             { id: 'economy', label: t('settings.tabs.economy'), icon: icons.economy },
             { id: 'updates', label: t('settings.tabs.updates'), icon: icons.updates }
           ].map((tab) => (
@@ -483,34 +506,107 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
                   </div>
                 </div>
 
-                {/* Manutencao e Resets */}
+                {/* Modalidade da Assistente - AI Tiers */}
                 <div className="space-y-4 pt-6 border-t border-border/40">
-                  <label className="text-[10px] font-black text-text-muted uppercase tracking-widest text-red-500/60">
-                    {t('settings.general.maintenanceTitle')}
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => {
-                        updateField('onboarding_completed', false, true)
-                        // Notifica o processo principal que o onboarding foi resetado
-                        window.electron.ipcRenderer.send('reset-onboarding')
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 bg-text/5 text-text/40 text-[11px] font-black uppercase rounded-lg hover:bg-red-500/10 hover:text-red-500 transition-all"
-                    >
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                      >
-                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                        <path d="M3 3v5h5" />
-                      </svg>
-                      {t('settings.general.resetOnboarding')}
-                    </button>
+                  <div className="flex items-center justify-between px-1">
+                    <label className="text-[10px] font-black text-text-muted uppercase tracking-widest opacity-70">
+                      Modalidade da Assistente
+                    </label>
                   </div>
+                  
+                  <div className="flex flex-col gap-2">
+                    {[
+                      { 
+                        id: 'lite', 
+                        title: 'Modo Lite', 
+                        model: 'LFM 2.5 1.6B',
+                        description: 'Apenas texto. Foco total em agilidade e economia de recursos.',
+                        requirement: 'Usa ~1.5GB RAM',
+                      },
+                      { 
+                        id: 'pro', 
+                        title: 'Modo Pro', 
+                        model: 'LFM 2.5 1.2B',
+                        description: 'Texto rápido e processamento de voz / síntese neural ativados.',
+                        requirement: 'Usa ~2.8GB (RAM/VRAM)',
+                      },
+                      { 
+                        id: 'ultra', 
+                        title: 'Modo Ultra', 
+                        model: 'Qwen 3 4B',
+                        description: 'Capacidade máxima com reconhecimento avançado, voz, internet e calendário.',
+                        requirement: 'Usa ~5.5GB (RAM/VRAM)',
+                      }
+                    ].map((tier) => {
+                      const isSelected = settings.ai_tier === tier.id
+                      return (
+                        <button
+                          key={tier.id}
+                          onClick={() => handleTierChange(tier.id as any)}
+                          className={`flex items-center gap-4 p-4 rounded-xl border transition-all text-left ${
+                            isSelected 
+                              ? 'bg-accent/10 border-accent/40 shadow-sm' 
+                              : 'bg-input border-border hover:bg-black/10 hover:border-border/80'
+                          }`}
+                        >
+                          <div className="shrink-0 flex items-center justify-center relative">
+                            <div className={`w-5 h-5 rounded-full border transition-all ${
+                                isSelected 
+                                  ? 'border-accent bg-accent' 
+                                  : 'border-text-muted/40 bg-transparent'
+                            }`} />
+                            {isSelected && (
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" className="absolute z-10 pointer-events-none">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 flex flex-col gap-1">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[13px] font-black uppercase tracking-tight ${isSelected ? 'text-text' : 'text-text/80'}`}>
+                                  {tier.title}
+                                </span>
+                                <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded ${isSelected ? 'bg-accent/20 text-accent' : 'bg-black/20 text-text-muted'}`}>
+                                  {tier.model}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 opacity-80">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={isSelected ? 'text-accent' : 'text-text-muted'}>
+                                  <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+                                </svg>
+                                <span className={`text-[9px] font-black uppercase tracking-wider ${isSelected ? 'text-text/90' : 'text-text-muted'}`}>
+                                  {tier.requirement}
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-[11px] font-medium text-text-muted mt-0.5 leading-relaxed">
+                              {tier.description}
+                            </p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Manutencao Sutil */}
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={() => {
+                      if (confirm(t('onboarding.resetConfirm') || 'Deseja realmente reiniciar o tutorial de boas-vindas?')) {
+                        updateField('onboarding_completed', false, true)
+                        window.electron.ipcRenderer.send('reset-onboarding')
+                      }
+                    }}
+                    className="text-[9px] font-bold text-text-muted/30 uppercase tracking-widest hover:text-red-500/50 transition-colors flex items-center gap-1.5"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" />
+                    </svg>
+                    Reiniciar Boas-vindas
+                  </button>
                 </div>
               </div>
             </div>
@@ -552,75 +648,237 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
 
                 {/* Modelo Ativo */}
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">
+                  <label className="text-[9px] font-black text-text-muted uppercase tracking-widest px-1">
                     {t('settings.brain.activeModel')}
                   </label>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-black/20 border border-border/60">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-black text-text uppercase tracking-tight">
-                        {settings.ai_model === 'default' ? 'Qwen 3 4B Instruct' : settings.ai_model}
-                      </span>
-                      <span className="text-[9px] text-text-muted font-medium opacity-60">
-                        unsloth/Qwen3-4B-Instruct-2507-GGUF
-                      </span>
+                  <div className="p-4 rounded-xl bg-black/30 border border-white/[0.05] shadow-inner flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-bold text-text uppercase tracking-tight leading-none mb-1">
+                          {settings.ai_tier === 'ultra' 
+                            ? 'Qwen 3 Instruct 4B' 
+                            : settings.ai_tier === 'lite' 
+                              ? 'LFM 2.5 VL 1.6B'
+                              : 'LFM 2.5 Instruct 1.2B'
+                          }
+                        </span>
+                        <div className="flex items-center gap-1.5 overflow-hidden">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-text-muted/40 shrink-0">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                          </svg>
+                          <span className="text-[9px] text-text-muted font-medium opacity-60 uppercase tracking-widest truncate">
+                            {settings.ai_tier === 'ultra'
+                              ? 'unsloth/Qwen3-4B-Instruct-2507-GGUF'
+                              : settings.ai_tier === 'lite'
+                                ? 'unsloth/LFM2.5-VL-1.6B-GGUF'
+                                : 'LiquidAI/LFM2.5-1.2B-Instruct-GGUF'
+                            }
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <div className="flex items-center gap-2">
+                          <div className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 flex items-center gap-1.5">
+                            <div className="w-1 h-1 rounded-full bg-accent/80" />
+                            <span className="text-[8px] font-bold text-accent/80 uppercase tracking-tighter">
+                              {settings.ai_tier?.toUpperCase() || 'PRO'} MODE
+                            </span>
+                          </div>
+                          <div className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 flex items-center gap-1.5">
+                            <span className="text-[8px] font-black text-text-muted/60 uppercase tracking-tighter">
+                              {settings.ai_tier === 'ultra' ? 'Q4_K_XL' : 'Q4_K_M'} GGUF
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-[8px] font-black text-text-muted/60 uppercase border border-border/40 px-1.5 py-0.5 rounded">
-                      Q6_K GGUF
-                    </span>
                   </div>
                 </div>
 
                 {/* Hardware e Configuração */}
-                <div className="grid grid-cols-2 gap-4 pt-2">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">
+                <div className="space-y-6 pt-2">
+                  {/* Hardware Section */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between px-1">
+                      <label className="text-[10px] font-black text-text-muted uppercase tracking-widest opacity-70">
                         {t('settings.brain.hardware')}
                       </label>
-                      {localDetails.current_local_backend && (
-                        <span
-                          className={`text-[8px] font-black uppercase ${localDetails.current_local_backend === 'cpu' ? 'text-text-muted' : 'text-green-500'}`}
-                        >
-                          {localDetails.current_local_backend === 'cpu' ? 'CPU' : 'GPU'}
-                        </span>
-                      )}
                     </div>
-                    <div className="p-3 rounded-lg bg-black/10 border border-border/40 min-h-[50px] flex flex-col justify-center">
-                      <span className="text-[10px] font-bold text-text uppercase truncate">
-                        {localDetails.detected_hardware || t('settings.brain.searching')}
-                      </span>
-                      <span className="text-[8px] text-text-muted font-medium truncate opacity-60">
-                        {localDetails.cpu_name || '...'}
-                      </span>
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* GPU Card */}
+                      <button
+                        onClick={() => {
+                          const target = ['cuda', 'vulkan'].includes(localDetails.recommended_build || '') 
+                            ? localDetails.recommended_build 
+                            : 'auto'
+                          updateField('local_backend', target, true).then(checkLocalStatus)
+                        }}
+                        className={`p-3.5 rounded-xl border flex flex-col gap-2 transition-all relative overflow-hidden group text-left ${
+                          ['cuda', 'vulkan'].includes(settings.local_backend === 'auto' ? (localDetails.current_local_backend || '') : settings.local_backend)
+                            ? 'bg-white/5 border-white/20'
+                            : 'bg-black/30 border-white/[0.05] hover:bg-black/40 hover:border-white/10 text-text/60 hover:text-text'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <rect x="2" y="2" width="20" height="8" rx="2" /><rect x="2" y="14" width="20" height="8" rx="2" /><line x1="6" y1="10" x2="6" y2="14" /><line x1="18" y1="10" x2="18" y2="14" />
+                            </svg>
+                            <span className="text-[9px] font-bold uppercase tracking-widest leading-none">Placa de Vídeo</span>
+                          </div>
+                          {['cuda', 'vulkan'].includes(settings.local_backend === 'auto' ? (localDetails.current_local_backend || '') : settings.local_backend) && (
+                            <div className="flex items-center gap-1.5 text-text-muted/80 animate-in fade-in duration-500">
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-500/80" />
+                              <span className="text-[7px] font-bold uppercase tracking-tighter">Ativo</span>
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-bold uppercase tracking-tight truncate w-full text-text/90">
+                          {localDetails.detected_hardware || t('settings.brain.searching')}
+                        </span>
+                        {['cuda', 'vulkan'].includes(localDetails.recommended_build || '') && (
+                          <div className="mt-1">
+                            <span className="text-[8px] font-bold text-green-500/80 uppercase tracking-widest px-1">
+                              Recomendado
+                            </span>
+                          </div>
+                        )}
+                      </button>
+                      
+                      {/* CPU Card */}
+                      <button
+                        onClick={() => updateField('local_backend', 'cpu', true).then(checkLocalStatus)}
+                        className={`p-3.5 rounded-xl border flex flex-col gap-2 transition-all relative overflow-hidden group text-left ${
+                          (settings.local_backend === 'auto' ? localDetails.current_local_backend : settings.local_backend) === 'cpu'
+                            ? 'bg-white/5 border-white/20'
+                            : 'bg-black/30 border-white/[0.05] hover:bg-black/40 hover:border-white/10 text-text/60 hover:text-text'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <rect x="4" y="4" width="16" height="16" rx="2" /><rect x="9" y="9" width="6" height="6" /><path d="M9 1v3m6-3v3M9 20v3m6-3v3M20 9h3m-3 6h3M1 9h3m-3 6h3" />
+                            </svg>
+                            <span className="text-[9px] font-bold uppercase tracking-widest leading-none">Processador</span>
+                          </div>
+                          {(settings.local_backend === 'auto' ? localDetails.current_local_backend : settings.local_backend) === 'cpu' && (
+                            <div className="flex items-center gap-1.5 text-text-muted/80 animate-in fade-in duration-500">
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-500/80" />
+                              <span className="text-[7px] font-bold uppercase tracking-tighter">Ativo</span>
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-bold uppercase tracking-tight truncate w-full text-text/90">
+                          {localDetails.cpu_name || '...'}
+                        </span>
+                        {localDetails.recommended_build === 'cpu' && (
+                          <div className="mt-1">
+                            <span className="text-[8px] font-bold text-green-500/80 uppercase tracking-widest px-1">
+                              Recomendado
+                            </span>
+                          </div>
+                        )}
+                      </button>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">
-                      {t('settings.brain.acceleration')}
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={settings.local_backend}
-                        onChange={(e) =>
-                          updateField('local_backend', e.target.value, true).then(checkLocalStatus)
+                  {/* Acceleration Section */}
+                  <div className="space-y-3 pt-4 border-t border-border/10">
+                    <button 
+                      onClick={() => setIsAdvancedHardwareOpen(!isAdvancedHardwareOpen)}
+                      className="flex items-center gap-2 text-[10px] font-black text-text-muted uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity w-full text-left"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className={`transition-transform duration-300 ${isAdvancedHardwareOpen ? 'rotate-90' : ''}`}>
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
+                      Avançado
+                    </button>
+                    {isAdvancedHardwareOpen && (
+                      <div className="flex flex-col gap-1.5 min-h-[200px] animate-in slide-in-from-top-2 fade-in duration-300">
+                      {[
+                        { 
+                          id: 'auto', 
+                          label: t('settings.brain.backend.auto'),
+                          desc: localDetails.recommended_build 
+                            ? `Para o seu hardware o melhor é usar ${
+                                localDetails.recommended_build === 'cuda' ? 'NVIDIA CUDA' : 
+                                localDetails.recommended_build === 'vulkan' ? 'VULKAN' : 'CPU'
+                              }`
+                            : 'Seleção inteligente baseada no hardware disponível.'
+                        },
+                        { 
+                          id: 'cuda', 
+                          label: t('settings.brain.backend.cuda'),
+                          desc: 'Aceleração de alto desempenho para GPUs NVIDIA.'
+                        },
+                        { 
+                          id: 'vulkan', 
+                          label: t('settings.brain.backend.vulkan'),
+                          desc: 'Compatibilidade universal para diversas GPUs modernas.'
+                        },
+                        { 
+                          id: 'cpu', 
+                          label: t('settings.brain.backend.cpu'),
+                          desc: 'Processamento padrão via processador (mais lento).'
                         }
-                        className="w-full h-[50px] bg-black/10 border border-border/40 rounded-lg px-3 text-[10px] font-bold text-text outline-none appearance-none hover:border-accent/40"
-                      >
-                        <option value="auto" className="bg-[#1a1a1a]">
-                          {t('settings.brain.backend.auto')}
-                        </option>
-                        <option value="cuda" className="bg-[#1a1a1a]">
-                          {t('settings.brain.backend.cuda')}
-                        </option>
-                        <option value="vulkan" className="bg-[#1a1a1a]">
-                          {t('settings.brain.backend.vulkan')}
-                        </option>
-                        <option value="cpu" className="bg-[#1a1a1a]">
-                          {t('settings.brain.backend.cpu')}
-                        </option>
-                      </select>
-                    </div>
+                      ].map((opt) => {
+                        const isSelected = settings.local_backend === opt.id
+                        const isInstalled = opt.id === 'auto' || localDetails.installed_backends?.includes(opt.id)
+                        
+                        return (
+                          <button
+                            key={opt.id}
+                            onClick={() => updateField('local_backend', opt.id, true).then(checkLocalStatus)}
+                            className={`group flex items-center justify-between p-3.5 rounded-xl border transition-all duration-200 ${
+                              isSelected 
+                                ? 'bg-accent/10 border-accent/40 shadow-lg' 
+                                : 'bg-black/10 border-white/5 hover:bg-black/20 hover:border-white/10'
+                            }`}
+                          >
+                            <div className="flex flex-col items-start gap-0.5">
+                              <span className={`text-[12px] font-black uppercase tracking-tight ${isSelected ? 'text-accent' : 'text-text'}`}>
+                                {opt.label}
+                                {opt.id === 'auto' && (
+                                  <span className="ml-2 text-[9px] text-green-500 font-bold opacity-80 uppercase tracking-tighter">
+                                    Recomendado
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-[10px] text-text-muted font-medium opacity-60">
+                                {opt.desc}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                              {!isInstalled && (
+                                <div className="flex items-center gap-2 bg-accent/20 px-3 py-1.5 rounded-lg text-[10px] font-black text-accent uppercase tracking-tighter hover:bg-accent/30 transition-colors">
+                                  <span>Instalar</span>
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="animate-bounce">
+                                    <path d="M17.5 19a3.5 3.5 0 0 0 0-7h-.5a7 7 0 1 0-12 5" /><path d="M12 11v6" /><path d="M9 14l3 3 3-3" />
+                                  </svg>
+                                </div>
+                              )}
+                              
+                              {isSelected ? (
+                                <div className="flex items-center gap-2 text-accent">
+                                  <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Configurado</span>
+                                  <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center text-white shadow-lg shadow-accent/20 scale-90">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                  </div>
+                                </div>
+                              ) : isInstalled && (
+                                <div className="w-5 h-5 rounded-full border border-white/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -628,15 +886,44 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
           )}
 
           {activeTab === 'voice' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
-              <div className="space-y-1">
-                <h2 className="text-lg font-black text-text tracking-tight uppercase">
-                  {t('settings.tabs.voice')}
-                </h2>
-                <p className="text-[11px] text-text-muted font-medium">
-                  Gerencie as capacidades de fala e escuta.
-                </p>
-              </div>
+            <div className="relative min-h-full flex flex-col gap-6 animate-in fade-in slide-in-from-right-2 duration-300">
+              {settings.ai_tier === 'lite' && (
+                <div className="absolute inset-x-[-2rem] inset-y-[-2rem] z-20 flex items-center justify-center backdrop-blur-[3px] bg-black/40 rounded-3xl animate-in fade-in duration-500">
+                  <div className="max-w-[340px] flex flex-col items-center text-center gap-4">
+                    <div className="p-4 rounded-full bg-white/5 text-text-muted mb-2 border border-white/5 shadow-2xl shadow-black">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+                        <line x1="16" y1="8" x2="2" y2="22" />
+                        <line x1="17.5" y1="15" x2="9" y2="15" />
+                      </svg>
+                    </div>
+                    <div className="space-y-3 px-4">
+                      <h3 className="text-[13px] font-black uppercase tracking-widest text-text">
+                        Foco em Desempenho
+                      </h3>
+                      <p className="text-[12px] text-text-muted font-medium leading-relaxed">
+                        A modalidade <strong className="text-text">Lite</strong> foca em agilidade e baixo consumo, por isso os recursos de voz ficam em repouso.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('brain')}
+                      className="mt-3 px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-text-muted hover:text-text rounded-xl text-[10px] font-black transition-all uppercase tracking-widest shadow-xl shadow-black/20"
+                    >
+                      Alterar para Pro ou Ultra
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className={`space-y-6 ${settings.ai_tier === 'lite' ? 'opacity-20 pointer-events-none grayscale' : ''}`}>
+                <div className="space-y-1">
+                  <h2 className="text-lg font-black text-text tracking-tight uppercase">
+                    {t('settings.tabs.voice')}
+                  </h2>
+                  <p className="text-[11px] text-text-muted font-medium">
+                    Gerencie as capacidades de fala e escuta.
+                  </p>
+                </div>
 
               {/* Recursos de Voz */}
               <div className="space-y-4">
@@ -733,6 +1020,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
                 </div>
               </div>
             </div>
+          </div>
           )}
 
           {activeTab === 'updates' && (

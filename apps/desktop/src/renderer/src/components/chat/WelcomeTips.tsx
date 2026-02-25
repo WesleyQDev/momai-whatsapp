@@ -104,45 +104,42 @@ export default function WelcomeTips({ onSendMessage, statusInfo }: WelcomeTipsPr
   const tier = statusInfo?.ai_tier || settings?.ai_tier || 'pro'
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-4 select-none">
-      {/* Header */}
-      <div className="flex flex-col items-center mb-6 text-center">
-        <h2 className="text-2xl font-bold text-text tracking-tight h-8">
-          Olá{showSeparator ? ', ' : ''}
-          <span className="text-accent">{userName}</span>
-        </h2>
-        <p className="text-[13px] text-text-muted/60 font-medium">Como posso te ajudar hoje?</p>
+    <div className="flex-1 flex flex-col items-center justify-center p-4 select-none pb-12">
+      <div className="flex flex-col items-center text-center space-y-8 max-w-md w-full mb-6">
+        
+        {/* Header Greeting */}
+        <div className="space-y-2">
+          <h2 className="text-[28px] font-bold text-text tracking-tight flex items-center justify-center gap-3">
+            <span>
+              Olá{showSeparator ? ', ' : ''}
+              <span className="text-accent">{userName}</span>
+            </span>
+            {tier !== 'ultra' && (
+              <span className="px-2 py-1 rounded-md bg-accent/10 border border-accent/20 text-[10px] font-black uppercase tracking-widest text-accent/80 flex items-center gap-1.5 mt-1">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                </svg>
+                {tier}
+              </span>
+            )}
+          </h2>
+          <div className="flex flex-col gap-1 items-center">
+            <p className="text-[14px] text-text-muted/60 font-medium">
+              Como posso te ajudar hoje?
+            </p>
+            {tier !== 'ultra' && (
+              <p className="text-[11px] text-text-muted/40 font-medium max-w-xs text-center pt-3 leading-relaxed">
+                Este ambiente prioriza a economia, pausando funções como pesquisa web e voz. Mude para o modo <span className="text-accent/60 font-bold">Ultra</span> caso precise delas.
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Sugestões ou Card de Limitação */}
-      <div className="w-full max-w-sm flex flex-col gap-1.5 mb-8">
-        {tier !== 'ultra' ? (
-          <div className="w-full p-5 rounded-2xl border border-accent/10 bg-accent/[0.02] text-center space-y-3 relative overflow-hidden group">
-            {/* Subtle background glows */}
-            <div className="absolute -top-12 -right-12 w-32 h-32 bg-accent/5 blur-3xl rounded-full" />
-            <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-accent/5 blur-3xl rounded-full" />
-            
-            <div className="flex justify-center text-accent/40 mb-1 group-hover:scale-110 transition-transform duration-500">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 16v-4" />
-                <path d="M12 8h.01" />
-              </svg>
-            </div>
-            
-            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-accent/70">
-              Você está no modo {tier === 'lite' ? 'Lite' : 'Pro'}
-            </h3>
-            
-            <p className="text-[11px] text-text-muted/60 leading-relaxed font-medium px-2">
-              Esta versão está otimizada para <span className="text-accent/60 italic font-bold">velocidade e baixo consumo</span> de recursos. 
-              <br/><br/>
-              A inteligência está focada em conversa direta. Para ativar ferramentas de pesquisa, agenda e memória profunda, utilize o modo <span className="text-accent/80 font-bold">Ultra</span> (requer mais processamento).
-            </p>
-          </div>
-        ) : (
+      {/* Suggested Actions (Only Ultra) */}
+      <div className="w-full max-w-sm flex flex-col gap-1.5 mt-2">
+        {tier === 'ultra' && (
           <>
-            {/* Sugestão Dinâmica (Nota/Conhecimento) */}
             {dynamicSuggestion && (
               <button
                 onClick={() => onSendMessage(dynamicSuggestion)}
@@ -153,7 +150,6 @@ export default function WelcomeTips({ onSendMessage, statusInfo }: WelcomeTipsPr
               </button>
             )}
 
-            {/* Sugestões Aleatórias */}
             {randomSuggestions.map((suggestion, index) => (
               <button
                 key={index}

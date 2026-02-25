@@ -475,7 +475,7 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
         print(f"\n--- Inicializando Motor de IA: LOCAL ---")
 
         tier = provided_tier
-        from database.models import SessionLocal, Settings
+        from database.models import SessionLocal, Settings, init_db
         if not tier:
             db = SessionLocal()
             s = db.query(Settings).first()

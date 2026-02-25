@@ -64,7 +64,7 @@ async def start_core_services(settings):
         def on_brain_init(status: str) -> None:
             if app_state.main_loop:
                 asyncio.run_coroutine_threadsafe(
-                    app_state.send_init_event("brain", f"LLM: {status}", 85), app_state.main_loop
+                    app_state.send_init_event("brain", f"LLM: {status}", None), app_state.main_loop
                 )
 
         app_state.orchestrator.initialize_llm(on_brain_init)
@@ -75,7 +75,7 @@ async def start_core_services(settings):
                 def report_ext(msg):
                     if app_state.main_loop:
                         asyncio.run_coroutine_threadsafe(
-                            app_state.send_init_event("extensions", msg, 50),
+                            app_state.send_init_event("extensions", msg, None),
                             app_state.main_loop,
                         )
 
@@ -84,7 +84,7 @@ async def start_core_services(settings):
                 if app_state.main_loop:
                     asyncio.run_coroutine_threadsafe(
                         app_state.send_init_event(
-                            "extensions", f"{skill_count} skills discovered", 55
+                            "extensions", f"{skill_count} skills discovered", None
                         ),
                         app_state.main_loop,
                     )
@@ -101,7 +101,7 @@ async def start_core_services(settings):
                 def report_idx(msg):
                     if app_state.main_loop:
                         asyncio.run_coroutine_threadsafe(
-                            app_state.send_init_event("brain", msg, 65),
+                            app_state.send_init_event("brain", msg, None),
                             app_state.main_loop,
                         )
 
@@ -110,14 +110,14 @@ async def start_core_services(settings):
                 def report_skill_idx(msg):
                     if app_state.main_loop:
                         asyncio.run_coroutine_threadsafe(
-                            app_state.send_init_event("brain", msg, 70),
+                            app_state.send_init_event("brain", msg, None),
                             app_state.main_loop,
                         )
                 asyncio.run(index_all_skills(on_progress=report_skill_idx))
                 
                 if app_state.main_loop:
                     asyncio.run_coroutine_threadsafe(
-                        app_state.send_init_event("brain", "Knowledge base indexed", 75),
+                        app_state.send_init_event("brain", "Knowledge base indexed", None),
                         app_state.main_loop,
                     )
             except Exception as exc:
@@ -126,17 +126,17 @@ async def start_core_services(settings):
         threading.Thread(target=index_tools, daemon=True).start()
 
         # 4. Apply settings
-        await app_state.send_init_event("brain", "Applying user preferences...", 78)
+        await app_state.send_init_event("brain", "Applying user preferences...", None)
         app_state.tts.tts.set_voice(settings.tts_voice)
         app_state.tts.tts.set_enabled(settings.tts_enabled)
         app_state.orchestrator.SYSTEM_PROMPT = settings.assistant_persona
 
         resource_manager.on_notify_callback = app_state.notify_economy_change
         resource_manager.start()
-        await app_state.send_init_event("extensions", "Resource monitor active", 80)
+        await app_state.send_init_event("extensions", "Resource monitor active", None)
 
         # 5. Checkpointer Setup
-        await app_state.send_init_event("api", "Setting up session persistence...", 82)
+        await app_state.send_init_event("api", "Setting up session persistence...", None)
         try:
             from ai.orchestrator import AsyncSqliteSaver, CHECKPOINT_PATH
             import sqlite3
@@ -211,7 +211,7 @@ async def start_core_services(settings):
             app_state.logger.exception("[Main] Checkpointer Error: %s", exc)
 
         # 6. Services
-        await app_state.send_init_event("api", "Starting background managers...", 85)
+        await app_state.send_init_event("api", "Starting background managers...", None)
         try:
             app_state.reminder_manager = app_state.ReminderManager(
                 broadcast_callback=app_state.broadcast_to_sockets,
@@ -260,7 +260,7 @@ async def start_core_services(settings):
                 if app_state.main_loop:
                     asyncio.run_coroutine_threadsafe(
                         app_state.send_init_event(
-                            "brain", "Initializing voice capture...", 88
+                            "brain", "Initializing voice capture...", None
                         ),
                         app_state.main_loop,
                     )
@@ -287,13 +287,13 @@ async def start_core_services(settings):
         threading.Thread(target=start_wake_word, daemon=True).start()
 
         # 8. Final Sync
-        await app_state.send_init_event("brain", "Synchronizing local intelligence...", 92)
+        await app_state.send_init_event("brain", "Synchronizing local intelligence...", None)
         await asyncio.to_thread(
             app_state.orchestrator.llm_ready_event.wait, timeout=30.0
         )
 
         if settings.tts_enabled:
-            await app_state.send_init_event("voice", "Waking up local voice...", 96)
+            await app_state.send_init_event("voice", "Waking up local voice...", None)
             app_state.tts.tts.initialize() # New explicit call
             await asyncio.to_thread(app_state.tts.tts.wait_until_ready, timeout=10.0)
 

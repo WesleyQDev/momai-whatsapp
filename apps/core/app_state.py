@@ -162,14 +162,29 @@ async def broadcast_to_sockets(message: dict) -> None:
             logger.warning("[WebSocket] Broadcast error: %s", exc)
 
 
-async def send_init_event(stage: str, message: str, progress: int = 0) -> None:
-    """Envia eventos de progresso de inicializacao para o frontend."""
+async def send_init_event(stage: str, message: str, progress: int | None = None) -> None:
+    """Envia eventos de progresso de inicializacao para o frontend.
+    Se progress for None, o progresso sera incrementado sutilmente.
+    """
     global last_init_event
 
-    last_init_event = {"stage": stage, "message": message, "progress": progress}
+    current_progress = last_init_event.get("progress", 0)
+    
+    if progress is None:
+        # Incremento sutil para dar sensacao de progresso continuo
+        new_progress = min(99, current_progress + 1)
+    elif progress == 0 and stage == "error":
+        new_progress = 0
+    elif progress < current_progress and progress != 0 and progress != 100:
+        # Previne que atividades paralelas causem o progresso reverter
+        new_progress = current_progress
+    else:
+        new_progress = progress
+
+    last_init_event = {"stage": stage, "message": message, "progress": new_progress}
 
     await broadcast_to_sockets({"type": "init_progress", "data": last_init_event})
-    logger.info("[Init %s%%] %s: %s", progress, stage, message)
+    logger.info("[Init %s%%] %s: %s", new_progress, stage, message)
 
 
 async def process_voice_command(text: str) -> None:
