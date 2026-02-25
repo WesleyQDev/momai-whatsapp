@@ -108,7 +108,7 @@ from ai.constants import (
 )
 
 
-def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointer=None):
+def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointer=None, tier="pro"):
     from database.vector_db import vector_db
     from tools.system_actions import get_all_tools_registry
 
@@ -213,12 +213,20 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
             f"# CONTEXT\n{current_time_info}\n\n"
             "# ROLE\n"
             "You are the Central Manager. Decide which SKILL to use for the request.\n\n"
-            "# DISCOVERED SKILLS\n"
         )
-
-        skills = state.get("discovered_skills") or []
-        for s in skills:
-            system_prompt += f"- ID: '{s['id']}' | Competency: {s['description']}\n"
+        if tier == "ultra":
+            system_prompt += "# DISCOVERED SKILLS\n"
+            skills = state.get("discovered_skills") or []
+            for s in skills:
+                system_prompt += f"- ID: '{s['id']}' | Competency: {s['description']}\n"
+        else:
+            system_prompt += (
+                "NOTE: Skills and System Tools are disabled in your current Lite/Pro tier. "
+                "Answer only from memory or general knowledge.\n"
+                f"IMPORTANT FALLBACK: If the user asks for something you cannot do without tools (like searching the web, setting reminders, or opening interfaces), "
+                f"explain clearly that you are running in 'Modo {tier.capitalize()}' which is optimized for conversation, "
+                f"and that for advanced features they should switch to 'Modo Ultra'.\n"
+            )
 
         mem_context = state.get("memory_context")
         if mem_context:
@@ -245,11 +253,14 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
             """Delegates a task to a specialist worker."""
             return f"Delegating to {skill_id}..."
 
-        manager_tools = [activate_skill]
-        all_reg = get_all_tools_registry()
-        for t_name in ["show_interface", "close_interface"]:
-            if all_reg.get(t_name):
-                manager_tools.append(all_reg[t_name])
+        manager_tools = []
+        if tier == "ultra":
+            manager_tools.append(activate_skill)
+            
+            all_reg = get_all_tools_registry()
+            for t_name in ["show_interface", "close_interface"]:
+                if all_reg.get(t_name):
+                    manager_tools.append(all_reg[t_name])
 
         tool_usage = state.get("tool_usage", {}) or {}
         

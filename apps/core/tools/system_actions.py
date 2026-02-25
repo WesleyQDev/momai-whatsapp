@@ -108,8 +108,8 @@ class ShowInterfaceInput(BaseModel):
         default="side", description="The view type. Currently only 'side' is supported."
     )
     content: str = Field(description="Markdown content to display.")
-    options: List[str] = Field(default=[], description="Action buttons for the user.")
-    ui_schema: Dict[str, Any] = Field(
+    options: Optional[List[str]] = Field(default=[], description="Action buttons for the user.")
+    ui_schema: Optional[Dict[str, Any]] = Field(
         default=None, description="Dynamic UI JSON schema."
     )
     bypass_wake_word: bool = Field(
@@ -119,11 +119,11 @@ class ShowInterfaceInput(BaseModel):
 
 class ShowChatCardInput(BaseModel):
     content: str = Field(description="Markdown content to display.")
-    options: List[str] = Field(default=[], description="Action buttons for the user.")
-    options_map: Dict[str, str] = Field(
+    options: Optional[List[str]] = Field(default=[], description="Action buttons for the user.")
+    options_map: Optional[Dict[str, str]] = Field(
         default=None, description="Optional label map for options."
     )
-    ui_schema: Dict[str, Any] = Field(
+    ui_schema: Optional[Dict[str, Any]] = Field(
         default=None, description="Dynamic UI JSON schema."
     )
 

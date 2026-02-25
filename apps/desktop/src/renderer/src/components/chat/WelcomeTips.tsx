@@ -101,6 +101,7 @@ export default function WelcomeTips({ onSendMessage, statusInfo }: WelcomeTipsPr
 
   const userName = settings?.user_name || ''
   const showSeparator = userName && userName !== ''
+  const tier = statusInfo?.ai_tier || settings?.ai_tier || 'pro'
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 select-none">
@@ -113,30 +114,58 @@ export default function WelcomeTips({ onSendMessage, statusInfo }: WelcomeTipsPr
         <p className="text-[13px] text-text-muted/60 font-medium">Como posso te ajudar hoje?</p>
       </div>
 
-      {/* Sugestões Compactas */}
+      {/* Sugestões ou Card de Limitação */}
       <div className="w-full max-w-sm flex flex-col gap-1.5 mb-8">
-        {/* Sugestão Dinâmica (Nota/Conhecimento) */}
-        {dynamicSuggestion && (
-          <button
-            onClick={() => onSendMessage(dynamicSuggestion)}
-            className="w-full py-2.5 px-4 rounded-lg border border-accent/20 bg-accent/5 hover:bg-accent/10 hover:border-accent/30 text-accent transition-all text-sm font-semibold text-left flex items-center gap-2"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-            <span className="flex-1 truncate">{dynamicSuggestion}</span>
-          </button>
-        )}
+        {tier !== 'ultra' ? (
+          <div className="w-full p-5 rounded-2xl border border-accent/10 bg-accent/[0.02] text-center space-y-3 relative overflow-hidden group">
+            {/* Subtle background glows */}
+            <div className="absolute -top-12 -right-12 w-32 h-32 bg-accent/5 blur-3xl rounded-full" />
+            <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-accent/5 blur-3xl rounded-full" />
+            
+            <div className="flex justify-center text-accent/40 mb-1 group-hover:scale-110 transition-transform duration-500">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4" />
+                <path d="M12 8h.01" />
+              </svg>
+            </div>
+            
+            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-accent/70">
+              Você está no modo {tier === 'lite' ? 'Lite' : 'Pro'}
+            </h3>
+            
+            <p className="text-[11px] text-text-muted/60 leading-relaxed font-medium px-2">
+              Esta versão está otimizada para <span className="text-accent/60 italic font-bold">velocidade e baixo consumo</span> de recursos. 
+              <br/><br/>
+              A inteligência está focada em conversa direta. Para ativar ferramentas de pesquisa, agenda e memória profunda, utilize o modo <span className="text-accent/80 font-bold">Ultra</span> (requer mais processamento).
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Sugestão Dinâmica (Nota/Conhecimento) */}
+            {dynamicSuggestion && (
+              <button
+                onClick={() => onSendMessage(dynamicSuggestion)}
+                className="w-full py-2.5 px-4 rounded-lg border border-accent/20 bg-accent/5 hover:bg-accent/10 hover:border-accent/30 text-accent transition-all text-sm font-semibold text-left flex items-center gap-2"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                <span className="flex-1 truncate">{dynamicSuggestion}</span>
+              </button>
+            )}
 
-        {/* Sugestões Aleatórias */}
-        {randomSuggestions.map((suggestion, index) => (
-          <button
-            key={index}
-            onClick={() => onSendMessage(suggestion)}
-            id={suggestion.includes('Capacidades') ? 'tutorial-capabilities' : undefined}
-            className="w-full py-2.5 px-4 rounded-lg border border-white/5 bg-white/[0.03] hover:bg-accent/10 hover:border-accent/20 hover:text-accent transition-all text-sm font-medium text-text-muted text-left"
-          >
-            {suggestion}
-          </button>
-        ))}
+            {/* Sugestões Aleatórias */}
+            {randomSuggestions.map((suggestion, index) => (
+              <button
+                key={index}
+                onClick={() => onSendMessage(suggestion)}
+                id={suggestion.includes('Capacidades') ? 'tutorial-capabilities' : undefined}
+                className="w-full py-2.5 px-4 rounded-lg border border-white/5 bg-white/[0.03] hover:bg-accent/10 hover:border-accent/20 hover:text-accent transition-all text-sm font-medium text-text-muted text-left"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </>
+        )}
       </div>
     </div>
   )

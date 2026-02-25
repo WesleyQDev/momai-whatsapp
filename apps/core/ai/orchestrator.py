@@ -434,8 +434,8 @@ def initialize_llm(on_init_progress=None, tier=None, onboarding_bypass=False):
 # AI Tiers Configuration
 TIER_CONFIG = {
     "lite": {
-        "repo": "unsloth/gemma-3-270m-it-GGUF",
-        "file": "gemma-3-270m-it-UD-Q8_K_XL.gguf",
+        "repo": "unsloth/LFM2.5-VL-1.6B-GGUF",
+        "file": "LFM2.5-VL-1.6B-Q4_K_M.gguf",
     },
     "pro": {
         "repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF",
@@ -543,6 +543,7 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
                     user_name=u_name,
                     assistant_persona=u_persona,
                     checkpointer=checkpointer,
+                    tier=tier,
                 )
 
                 # ATOMIC UPDATE
