@@ -168,7 +168,14 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
   }
 
   const handleTierChange = async (tier: 'lite' | 'pro' | 'ultra') => {
+    onClose()
+    localStorage.setItem('momai_mode_changing', 'true')
+    window.dispatchEvent(new CustomEvent('momai_tier_change_start'))
+    
     try {
+      // Inicia uma nova sessão para o novo modelo sem apagar as conversas anteriores
+      window.dispatchEvent(new CustomEvent('momai_new_session'))
+
       localStorage.setItem('momai_ai_tier', tier) // Cache instantâneo antes do reload
       await api.post('/setup/apply-tier', null, { params: { tier } })
       
@@ -176,7 +183,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
       // @ts-ignore
       await window.api.restartBackend()
       
-      window.location.href = '/'
+      window.location.href = window.location.pathname + '#/'
     } catch (error) {
       console.error('Erro ao mudar de nível:', error)
     }

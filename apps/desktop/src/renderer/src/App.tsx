@@ -154,8 +154,25 @@ function App(): React.JSX.Element {
   > | null>(null)
   const [firstLaunchChecked, setFirstLaunchChecked] = useState(false)
   const [onboardingAttempted, setOnboardingAttempted] = useState(false)
-  const [isFirstLaunch, setIsFirstLaunch] = useState(false)
+  const [isFirstLaunch, setIsFirstLaunch] = useState(
+    () => localStorage.getItem('momai_mode_changing') === 'true'
+  )
   const [appVersion, setAppVersion] = useState('1.0.0')
+
+  useEffect(() => {
+    if (localStorage.getItem('momai_mode_changing') === 'true') {
+      localStorage.removeItem('momai_mode_changing')
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleModeChangeStart = () => {
+      setIsFirstLaunch(true)
+      setShowWelcome(true)
+    }
+    window.addEventListener('momai_tier_change_start', handleModeChangeStart)
+    return () => window.removeEventListener('momai_tier_change_start', handleModeChangeStart)
+  }, [])
 
   const handleWelcomeComplete = useCallback(() => {
     setShowWelcome(false)
@@ -740,7 +757,7 @@ function App(): React.JSX.Element {
                 Ver Logs
               </button>
               <button
-                onClick={() => (window.location.href = '/')}
+                onClick={() => (window.location.href = window.location.pathname + '#/')}
                 className="flex-1 px-4 py-2 bg-accent hover:bg-accent/80 rounded-lg text-sm text-white font-medium transition-colors"
               >
                 Tentar Novamente

@@ -189,7 +189,7 @@ export function useStatus() {
       await updateMode(mode)
       // @ts-ignore
       await window.api.restartBackend()
-      window.location.href = '/'
+      window.location.href = window.location.pathname + '#/'
     } catch (error) {
       console.error('Erro ao trocar modo:', error)
     } finally {

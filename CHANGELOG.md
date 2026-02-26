@@ -2,6 +2,24 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 0.7.0 - 2026-02-26
+Refinamento da Interface, Gestão de Lembretes e Melhorias no Instalador de Extensões
+
+## ✨ Novas Funcionalidades
+- **Interface de Notas Refinada:** Novo layout estilo abas para visualização de notas, proporcionando uma organização visual mais limpa.
+- **Edição Inline de Lembretes:** Facilitada a gestão de lembretes com formulários de edição integrados diretamente na lista.
+- **Redirecionamento Inteligente:** O aplicativo agora redireciona automaticamente para a home ao alterar o modo de IA (Lite/Pro/Ultra), garantindo consistência no estado da aplicação.
+
+## ⚙️ Melhorias
+- **Instalador de Extensões:** Melhoria na lógica de download do GitHub, com suporte a diretórios aninhados e maior transparência sobre a origem da extensão.
+- **Estética Minimalista:** Refinamento dos textos da tela de carregamento e dos cards de planos para uma interface mais limpa e direta.
+- **UX de Configurações:** Remoção de confirmações desnecessárias ao reiniciar o processo de boas-vindas.
+
+## 🐛 Correções
+- **Scroll do Chat:** Resolvido o problema onde a barra de rolagem do chat ficava travada ou inativa.
+- **Botão de Interrupção:** Corrigido bug onde o botão de "Stop" não aparecia consistentemente durante o processamento da IA.
+- **Persistência de Extensões:** Melhorada a robustez do instalador para evitar problemas de permissão e garantir que extensões persistam após atualizações.
+
 ## 0.6.0 - 2026-02-24
 Histórico de Conversas, Orquestração Agêntica e Melhorias no Instalador
 

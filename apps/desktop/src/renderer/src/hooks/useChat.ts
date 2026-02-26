@@ -204,8 +204,15 @@ export function useChat() {
 
   useEffect(() => {
     const handleClear = () => setMessages([])
+    const handleNewSession = () => {
+      setThreadId(`sessao_${Date.now()}`)
+    }
     window.addEventListener('momai_clear_history', handleClear)
-    return () => window.removeEventListener('momai_clear_history', handleClear)
+    window.addEventListener('momai_new_session', handleNewSession)
+    return () => {
+      window.removeEventListener('momai_clear_history', handleClear)
+      window.removeEventListener('momai_new_session', handleNewSession)
+    }
   }, [])
 
   const reopenGraph = useCallback((data: any) => {
