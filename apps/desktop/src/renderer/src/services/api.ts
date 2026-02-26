@@ -516,6 +516,7 @@ export interface Reminder {
 export interface ActiveReminder {
   id: number
   title: string
+  content?: string | null
   scheduled_time: string
   repeat_interval: string | null
   repeat_value: number | null

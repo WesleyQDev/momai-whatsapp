@@ -67,7 +67,7 @@ export default function ChatInput({
   const [isSavingSettings, setIsSavingSettings] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [voiceSettings, setVoiceSettings] = useState({
-    wake_word_enabled: true,
+    wake_word_enabled: false,
     tts_enabled: true
   })
   const [aiTier, setAiTier] = useState<string | null>(null)

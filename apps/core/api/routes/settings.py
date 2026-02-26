@@ -19,6 +19,10 @@ def _sync_update_settings(data: SettingsUpdate):
         settings = db.query(Settings).first()
         changes = []
 
+        if data.ai_tier is not None:
+            settings.ai_tier = data.ai_tier
+            changes.append("ai_tier")
+
         if data.user_name is not None:
             settings.user_name = data.user_name
             changes.append("user_name")
@@ -67,9 +71,6 @@ def _sync_update_settings(data: SettingsUpdate):
         if data.daily_briefing_enabled is not None:
             settings.daily_briefing_enabled = data.daily_briefing_enabled
 
-        if data.ai_tier is not None:
-            settings.ai_tier = data.ai_tier
-            changes.append("ai_tier")
 
         db.commit()
         db.refresh(settings)

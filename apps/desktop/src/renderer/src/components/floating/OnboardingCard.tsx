@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { api } from '../../services/api'
 import { useI18n } from '../../i18n'
 
+import iconGif from '../../assets/icon.gif'
+
 interface OnboardingCardProps {
   onFinish: (savedSettings?: Record<string, any>) => void
 }
@@ -73,13 +75,25 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
     window.addEventListener('ai_model_change_progress' as any, handleProgress)
     window.addEventListener('momai_setup_progress' as any, handleProgress)
 
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Only trigger on Enter, if name is present, and we are in step 2 (Personality Setup)
+      if (e.key === 'Enter' && step === 2 && name.trim() && !isSaving) {
+        handleFinish()
+      }
+    }
+
+    if (step === 2) {
+      window.addEventListener('keydown', handleGlobalKeyDown)
+    }
+
     return () => {
       // Re-enable resizing when leaving onboarding
       window.api?.setResizable?.(true)
       window.removeEventListener('ai_model_change_progress' as any, handleProgress)
       window.removeEventListener('momai_setup_progress' as any, handleProgress)
+      window.removeEventListener('keydown', handleGlobalKeyDown)
     }
-  }, [])
+  }, [step, name, isSaving])
 
   const changeTheme = (newTheme: Theme) => {
     setTheme(newTheme)
@@ -141,14 +155,14 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
     return (
       <button
         onClick={() => handleSelectTier(id)}
-        className="group relative bg-white/[0.03] border border-white/5 rounded-3xl px-4 py-8 text-center flex flex-col items-center hover:border-accent/40 hover:bg-white/[0.05] transition-all duration-500 overflow-hidden active:scale-[0.97] h-full justify-between w-full"
+        className="group relative bg-white/[0.03] border border-white/5 rounded-2xl p-6 text-left flex flex-row items-center hover:border-accent/40 hover:bg-white/[0.05] transition-all duration-500 overflow-hidden active:scale-[0.97] w-full gap-6 h-[140px]"
       >
         {/* Subtle background pattern/glow */}
         <div className={`absolute -top-24 -right-24 w-48 h-48 ${styles.iconBg} blur-[80px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none`} />
 
-        <div className="relative z-10 flex flex-col items-center space-y-6 w-full pointer-events-none">
+        <div className="relative z-10 flex flex-row items-center gap-6 w-full pointer-events-none">
           <div
-            className={`w-16 h-16 rounded-2xl ${styles.iconBg} flex items-center justify-center ${styles.text} shadow-inner border border-white/5 transition-all duration-500 group-hover:scale-110 group-hover:rotate-3`}
+            className={`w-16 h-16 shrink-0 rounded-xl ${styles.iconBg} flex items-center justify-center ${styles.text} shadow-inner border border-white/5 transition-all duration-500 group-hover:scale-110 group-hover:rotate-3`}
           >
             {id === 'lite' && (
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -167,27 +181,23 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
             )}
           </div>
           
-          <div className="flex flex-col items-center w-full">
-            <h3 className={`text-2xl font-black ${styles.text} uppercase tracking-tight mb-3`}>
+          <div className="flex flex-col items-start w-full">
+            <h3 className={`text-2xl font-bold ${styles.text} uppercase tracking-tight mb-1`}>
               {t(`onboarding.tier.${id}.title`)}
             </h3>
             
-            <div className="w-full grid place-items-center">
-              {/* Default Description */}
-              <p className="text-[13px] text-text-muted leading-relaxed font-semibold opacity-90 group-hover:opacity-0 transition-opacity duration-300 text-center w-full col-start-1 row-start-1">
-                {t(`onboarding.tier.${id}.desc`)}
-              </p>
-              
-              {/* Hover Detailed Info */}
-              <p className={`text-[13px] ${styles.text} font-bold leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center text-center w-full pointer-events-none col-start-1 row-start-1`}>
+            <div className="w-full">
+              <p className={`text-[13px] ${styles.text} font-medium leading-relaxed text-left w-full opacity-80 max-w-[400px]`}>
                 {t(`onboarding.tier.${id}.hover`)}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="relative z-10 w-full pt-4">
-          <div className="h-[2px] w-0 bg-gradient-to-r from-transparent via-accent to-transparent group-hover:w-full transition-all duration-700 mx-auto" />
+        <div className="absolute right-8 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all duration-500 text-accent/50">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
         </div>
       </button>
     )
@@ -196,35 +206,26 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   return (
     <div className="fixed inset-0 z-[301] bg-bg flex animate-fade-in overflow-hidden select-none transition-colors duration-500">
       {/* Left Pane - Branding & Status */}
-      <div className="w-[40%] bg-sidebar p-12 flex flex-col justify-between border-r border-border/10 relative overflow-hidden transition-colors duration-500">
-        <div className="space-y-6 relative z-10">
+      <div className="w-[350px] bg-sidebar p-12 flex flex-col justify-between items-center border-r border-border/10 relative overflow-hidden transition-colors duration-500 shrink-0">
+        <div className="relative z-10 flex flex-col items-center text-center">
           {/* Logo Icon */}
-          <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center text-white shadow-2xl shadow-accent/20">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-            >
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-            </svg>
+          <div className="w-24 h-24 flex items-center justify-center -mb-4">
+            <img src={iconGif} alt="MomAI" className="w-full h-full object-contain" />
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-3xl font-black text-text tracking-tighter uppercase leading-[0.9]">
+            <h1 className="text-4xl font-black text-text tracking-tighter uppercase leading-[0.9]">
               MomAI
               <br />
               <span className="text-accent underline decoration-accent/10 text-[18px] tracking-normal lowercase">100% local e gratuita</span>
             </h1>
-            <p className="text-[12px] text-text-muted font-medium max-w-[180px] leading-relaxed opacity-60">
+            <p className="text-[12px] text-text-muted font-medium max-w-[220px] leading-relaxed opacity-60">
               Sua assistente inteligente, privada e sem custos de assinatura.
             </p>
           </div>
         </div>
 
-        <div className="space-y-4 relative z-10 w-full max-w-[200px]">
+        <div className="space-y-4 relative z-10 w-full max-w-[200px] flex flex-col items-center">
           <div className="flex items-center gap-3">
             <div className={`w-2 h-2 rounded-full bg-accent ${step === 1 ? 'animate-pulse' : ''}`} />
             <span className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em]">
@@ -245,19 +246,19 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
 
       {/* Right Pane - Configuration Form */}
       <div className="flex-1 bg-card p-8 flex flex-col justify-center overflow-y-auto transition-colors duration-500">
-        <div className="w-full max-w-5xl mx-auto">
+        <div className="w-full max-w-none mx-auto px-6">
           {step === 1 ? (
-            <div className="space-y-12 animate-in fade-in slide-in-from-right-8 duration-500 flex flex-col items-center text-center">
-              <div className="space-y-3">
-                <h2 className="text-4xl font-black text-text tracking-tighter uppercase">
+            <div className="space-y-10 animate-in fade-in slide-in-from-right-8 duration-500 flex flex-col items-center text-center">
+              <div className="space-y-2">
+                <h2 className="text-3xl font-bold text-text tracking-tight">
                   {t('onboarding.tier.title')}
                 </h2>
-                <p className="text-base text-text-muted font-medium opacity-60">
+                <p className="text-sm text-text-muted font-normal opacity-50">
                   {t('onboarding.tier.subtitle')}
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full px-2">
+              <div className="grid grid-cols-1 gap-4 w-full max-w-[700px] px-4">
                 <TierCard id="lite" />
                 <TierCard id="pro" />
                 <TierCard id="ultra" />
@@ -268,12 +269,14 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
               <div className="space-y-1">
                 <button
                   onClick={() => setStep(1)}
-                  className="text-[10px] font-bold text-accent uppercase tracking-tighter flex items-center gap-2 mb-4 hover:opacity-70 transition-opacity"
+                  className="group inline-flex items-center gap-2.5 text-[10px] font-bold text-accent uppercase tracking-wider mb-6 transition-all opacity-80 hover:opacity-100"
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                    <path d="M19 12H5M12 19l-7-7 7-7" />
-                  </svg>
-                  Voltar para seleção
+                  <div className="w-7 h-7 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center group-hover:bg-accent group-hover:text-white transition-all shadow-sm">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <path d="M19 12H5M12 19l-7-7 7-7" />
+                    </svg>
+                  </div>
+                  Voltar
                 </button>
                 <h2 className="text-xl font-black text-text uppercase tracking-tight">
                   {t('onboarding.title')}
@@ -409,30 +412,26 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                 <button
                   onClick={handleFinish}
                   disabled={!name.trim() || isSaving}
-                  className={`w-full py-3.5 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-3 ${
+                  className={`group relative w-full py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center overflow-hidden ${
                     !name.trim() || isSaving
-                      ? 'bg-text/5 text-text/20 cursor-not-allowed'
-                      : 'bg-text/10 text-text/60 hover:bg-accent hover:text-white hover:shadow-lg hover:shadow-accent/20 active:scale-[0.98]'
+                      ? 'bg-white/[0.02] text-text/20 cursor-not-allowed border border-white/5'
+                      : 'bg-accent text-white shadow-[0_0_15px_rgba(var(--accent-rgb),0.2)] hover:shadow-[0_0_25px_rgba(var(--accent-rgb),0.4)] hover:-translate-y-0.5 active:scale-[0.98]'
                   }`}
                 >
-                  {isSaving ? 'Configuring System...' : t('onboarding.finish')}
-                  {!isSaving && (
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                    >
-                      <path d="M5 12h14M12 5l7 7-7 7" />
-                    </svg>
-                  )}
+                  {/* Glossy overlay effect */}
+                  <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  
+                  <span className="relative z-10 transition-transform duration-500">
+                    {isSaving ? 'Configuring System...' : t('onboarding.finish')}
+                  </span>
                 </button>
 
-                <div className="text-center">
-                  <span className="text-[9px] font-black text-text-muted/20 uppercase tracking-[0.3em]">
-                    MomAI Enterprise V{appVersion} • All Data Localized
+                <div className="flex items-center justify-between px-1 pt-2 opacity-30">
+                  <span className="text-[9px] font-medium uppercase tracking-widest">
+                    Wesley Developer Studios
+                  </span>
+                  <span className="text-[9px] font-medium uppercase tracking-widest">
+                    V{appVersion}
                   </span>
                 </div>
               </div>

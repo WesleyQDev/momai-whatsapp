@@ -49,6 +49,7 @@ async def list_active_reminders(db: Session = Depends(get_db)):
         {
             "id": reminder.id,
             "title": reminder.title,
+            "content": reminder.content,
             "scheduled_time": reminder.scheduled_time.isoformat(),
             "repeat_interval": reminder.repeat_interval,
             "repeat_value": reminder.repeat_value

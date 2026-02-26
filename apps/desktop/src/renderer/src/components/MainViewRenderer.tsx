@@ -17,6 +17,7 @@ interface MainViewRendererProps {
   initMessage?: string
   isBooting?: boolean
   setHistoryOpen?: (open: boolean) => void
+  isFirstLaunch?: boolean
 }
 
 const VIEW_MAP: Record<string, React.ComponentType<any>> = {
@@ -47,6 +48,7 @@ const VIEW_MAP: Record<string, React.ComponentType<any>> = {
         setHistoryOpen={props.setHistoryOpen}
         onSpeakMessage={props.chat.speakMessage}
         onRemoveMessage={props.chat.removeMessage}
+        isFirstLaunch={props.isFirstLaunch}
       />
     )
   },
@@ -66,7 +68,8 @@ export default function MainViewRenderer({
   initProgress,
   initMessage,
   isBooting,
-  setHistoryOpen
+  setHistoryOpen,
+  isFirstLaunch
 }: MainViewRendererProps) {
   const Component = VIEW_MAP[viewName] || (extensionData ? DynamicDashboard : null)
 
@@ -95,6 +98,7 @@ export default function MainViewRenderer({
         initMessage={initMessage}
         isBooting={isBooting}
         setHistoryOpen={setHistoryOpen}
+        isFirstLaunch={isFirstLaunch}
       />
     </div>
   )

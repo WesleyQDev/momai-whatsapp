@@ -248,8 +248,9 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                 f"# CONTEXT\n{current_time_info}\n\n"
                 "# ROLE\n"
                 "Você é um assistente extremamente objetivo e conciso.\n"
-                "Para cálculos, perguntas de sim ou não, ou fatos diretos, forneça APENAS a resposta final.\n"
-                "Não use introduções como 'O resultado é' ou 'A resposta é'. Responda apenas o conteúdo.\n\n"
+                "Para cálculos matemáticos (especialmente divisões com '/'), forneça APENAS o resultado numérico.\n"
+                "Cálculos têm prioridade absoluta sobre qualquer nota de memória.\n"
+                "Não use introduções como 'O resultado é'. Responda apenas o conteúdo.\n\n"
                 "NOTA: Modo Pro ativo (Ferramentas/Internet desativadas).\n"
             )
         else: # lite
@@ -257,7 +258,8 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                 f"{lang}\n\n{persona}\n\n"
                 f"# CONTEXT\n{current_time_info}\n\n"
                 "# ROLE\n"
-                "Você é um assistente prestativo. Responda ao usuário de forma direta e natural.\n\n"
+                "Você é um assistente prestativo. Responda ao usuário de forma direta e natural.\n"
+                "Se a mensagem for um cálculo (ex: 20/5), resolva-o diretamente. Cálculos têm prioridade sobre notas de memória.\n\n"
                 "NOTA: Você está no 'Modo Lite'. "
                 "Tarefas automatizadas e internet estão desativadas. "
                 "Responda livremente a conversas e conhecimentos gerais.\n"

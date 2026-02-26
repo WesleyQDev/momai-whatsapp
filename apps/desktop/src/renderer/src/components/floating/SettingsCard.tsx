@@ -30,8 +30,8 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
     local_backend: 'auto',
     api_keys: { groq: '', gemini: '' },
     tts_voice: '',
-    tts_enabled: false,
-    wake_word_enabled: true,
+    tts_enabled: true,
+    wake_word_enabled: false,
     wake_word_sensitivity: 5,
     locale: 'pt-BR',
     daily_briefing_enabled: false,
@@ -170,9 +170,8 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
   const handleTierChange = async (tier: 'lite' | 'pro' | 'ultra') => {
     try {
       localStorage.setItem('momai_ai_tier', tier) // Cache instantâneo antes do reload
-      await updateField('ai_tier', tier, true)
       await api.post('/setup/apply-tier', null, { params: { tier } })
-      window.location.reload()
+      window.location.href = '/'
     } catch (error) {
       console.error('Erro ao mudar de nível:', error)
     }
@@ -625,7 +624,26 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
                 </div>
 
                 {/* Manutencao Sutil */}
-                <div className="pt-2 flex justify-end">
+                <div className="pt-2 flex justify-end items-center gap-6">
+                  <button
+                    onClick={() => {
+                      const current = localStorage.getItem('momai_dev_mode') === 'true'
+                      localStorage.setItem('momai_dev_mode', String(!current))
+                      window.dispatchEvent(new CustomEvent('momai_dev_mode_sync', { detail: !current }))
+                      // Force local update if needed, but the event will handle it in other components
+                      setIsLoading(true)
+                      setTimeout(() => setIsLoading(false), 10)
+                    }}
+                    className={`text-[9px] font-bold uppercase tracking-widest transition-colors flex items-center gap-1.5 ${
+                      localStorage.getItem('momai_dev_mode') === 'true' ? 'text-accent' : 'text-text-muted/30 hover:text-accent/50'
+                    }`}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+                    </svg>
+                    Modo Desenvolvedor
+                  </button>
+
                   <button
                     onClick={() => {
                       if (confirm(t('onboarding.resetConfirm') || 'Deseja realmente reiniciar o tutorial de boas-vindas?')) {

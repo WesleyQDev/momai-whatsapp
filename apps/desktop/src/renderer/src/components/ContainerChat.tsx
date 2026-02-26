@@ -29,6 +29,7 @@ interface ContainerChatProps {
   setHistoryOpen?: (open: boolean) => void
   onSpeakMessage?: (content: string, index: number) => void
   onRemoveMessage?: (index: number) => void
+  isFirstLaunch?: boolean
 }
 
 const CallModeUI = ({
@@ -162,7 +163,19 @@ const CallModeUI = ({
   </div>
 )
 
-const LoadingAnimation = ({ progress, message }: { progress: number; message?: string }) => {
+const LoadingAnimation = ({
+  progress,
+  message,
+  onComplete,
+  isFirstLaunch
+}: {
+  progress: number
+  message?: string
+  onComplete?: () => void
+  isFirstLaunch?: boolean
+}) => {
+  const [visualProgress, setVisualProgress] = useState(2) // Start at 2% so it's never empty
+  const [isFadingOut, setIsFadingOut] = useState(false)
   const [seconds, setSeconds] = useState(0)
 
   useEffect(() => {
@@ -173,48 +186,97 @@ const LoadingAnimation = ({ progress, message }: { progress: number; message?: s
     return () => clearInterval(interval)
   }, [])
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVisualProgress((prev) => {
+        if (progress >= 100) {
+          if (prev >= 100) return 100
+          // Snappy jump to 100: completing the rest in very few steps
+          const remaining = 100 - prev
+          const step = Math.max(25, remaining / 2) 
+          return Math.min(100, prev + step)
+        }
+        
+        // Much slower crawl to avoid getting stuck at the end for too long
+        // Initial move to 15% is still decent, then it crawls very slowly
+        const baseIncrement = prev < 15 ? 0.4 : 0.02
+        const randomFactor = Math.random() * 0.05
+        const next = prev + baseIncrement + randomFactor
+        
+        // Clamp at 88% - giving space for a big jump at the end
+        const targetValue = Math.max(next, progress * 0.85)
+        
+        return Math.min(targetValue, 88)
+      })
+    }, 100)
+    return () => clearInterval(interval)
+  }, [progress])
+
+  useEffect(() => {
+    if (visualProgress >= 100) {
+      const timer = setTimeout(() => {
+        setIsFadingOut(true)
+        if (onComplete) {
+          setTimeout(onComplete, 500)
+        }
+      }, 200)
+      return () => clearTimeout(timer)
+    }
+    return undefined
+  }, [visualProgress, onComplete])
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-8">
-      <div className="relative w-32 h-32 mb-6">
-        <svg className="w-full h-full animate-[spin_3s_linear_infinite]" viewBox="0 0 100 100">
-          <defs>
-            <linearGradient id="loaderGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#a78bfa" />
-              <stop offset="50%" stopColor="#8b5cf6" />
-              <stop offset="100%" stopColor="#7c3aed" />
-            </linearGradient>
-          </defs>
-          <circle
-            cx="50"
-            cy="50"
-            r="45"
-            fill="none"
-            stroke="rgba(255,255,255,0.05)"
-            strokeWidth="6"
-          />
-          <circle
-            cx="50"
-            cy="50"
-            r="45"
-            fill="none"
-            stroke="url(#loaderGradient)"
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeDasharray={`${progress * 2.83} 283`}
-            transform="rotate(-90 50 50)"
-            className="transition-all duration-300"
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold text-text drop-shadow-lg">
-            {Math.round(progress)}%
-          </span>
-          <span className="text-xs text-text-muted/50">{seconds}s</span>
+    <div
+      className={`flex-1 flex flex-col items-center justify-center p-12 transition-all duration-500 ${
+        isFadingOut ? 'opacity-0 scale-95 blur-sm' : 'opacity-100 scale-100'
+      }`}
+    >
+      <div className="flex flex-col items-center text-center mb-12 animate-fade-in w-full px-4">
+        <h1 className="text-[12px] font-black text-text/60 tracking-[0.2em] uppercase max-w-[600px] leading-tight">
+          {progress < 100 && isFirstLaunch
+            ? "A primeira inicialização pode levar de 2 a 3 min" 
+            : "Bem-vinda à MomAI"}
+        </h1>
+      </div>
+
+      <div className="w-full max-w-sm mb-8 relative z-10">
+        <div className="flex justify-between items-end mb-3 px-1">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-accent/80 animate-pulse mb-1">
+              Inicializando Sistema
+            </span>
+            {localStorage.getItem('momai_dev_mode') === 'true' && (
+              <span className="text-[14px] font-bold text-text/80 tracking-tight">
+                {message || 'Preparando ambiente...'}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-[18px] font-black text-text font-mono leading-none mb-1">
+              {Math.round(visualProgress)}%
+            </span>
+          </div>
+        </div>
+
+        <div className="relative h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/10 shadow-inner">
+          <div
+            className="absolute top-0 left-0 h-full bg-accent shadow-[0_0_20px_rgba(139,92,246,0.6)] transition-all duration-300 ease-out rounded-full"
+            style={{ width: `${visualProgress}%` }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+          </div>
         </div>
       </div>
-      <p className="text-sm text-text-muted/60 text-center max-w-[280px]">
-        {message || 'Carregando...'}
-      </p>
+
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-accent/5 rounded-full blur-[120px] transition-all duration-1000"
+          style={{
+            opacity: isFadingOut ? 0 : 1,
+            transform: `translate(-50%, -50%) scale(${0.8 + visualProgress / 200})`
+          }}
+        />
+      </div>
     </div>
   )
 }
@@ -244,9 +306,11 @@ export default function ContainerChat({
   setThreadId,
   setHistoryOpen,
   onSpeakMessage,
-  onRemoveMessage
+  onRemoveMessage,
+  isFirstLaunch = false
 }: ContainerChatProps): JSX.Element {
   const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
+  const [animationFinished, setAnimationFinished] = useState(false)
   
   useEffect(() => {
     setLocalSessionTitle(null)
@@ -264,13 +328,13 @@ export default function ContainerChat({
 
   const isBrainReady = statusInfo?.brain_ready ?? false
   const isBrainLoading = statusInfo?.is_loading ?? false
-  // Keep loading visible until init is done AND the LLM model is actually ready
-  const isInitializing = initProgress < 100 || (!isBrainReady || isBrainLoading)
-  // Don't show 100% until brain is truly ready — clamp at 99%
-  const displayProgress = (!isBrainReady || isBrainLoading) ? Math.min(initProgress, 99) : initProgress
   
-  // Show contextual message when init is done but model isn't loaded yet
-  const defaultWaitingMessage = isBrainLoading ? 'Carregando modelo de IA...' : 'Aguardando modelo de IA...'
+  const isReallyReady = initProgress >= 100 && isBrainReady && !isBrainLoading
+  const displayProgress = !isReallyReady ? Math.min(initProgress, 99) : 100
+  
+  const showLoading = !isReallyReady || !animationFinished
+
+  const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage = (initProgress >= 100 && (!isBrainReady || isBrainLoading))
     ? (!initMessage || initMessage === 'Sistema pronto.' ? defaultWaitingMessage : initMessage)
     : initMessage
@@ -278,8 +342,13 @@ export default function ContainerChat({
 
   return (
     <div className="bg-transparent w-full h-full flex flex-col overflow-hidden relative">
-      {isInitializing ? (
-        <LoadingAnimation progress={displayProgress} message={displayMessage} />
+      {showLoading ? (
+        <LoadingAnimation
+          progress={displayProgress}
+          message={displayMessage}
+          onComplete={() => setAnimationFinished(true)}
+          isFirstLaunch={isFirstLaunch}
+        />
       ) : isCallMode ? (
         <CallModeUI
           onEndCall={onToggleCallMode || (() => {})}

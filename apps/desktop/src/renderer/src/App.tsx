@@ -60,12 +60,17 @@ const WelcomeScreen = ({
     >
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-bg" />
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-violet-500/10 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-violet-500/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }} />
+        <div 
+          className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-violet-500/5 rounded-full blur-[120px] animate-[pulse_6s_ease-in-out_infinite]" 
+        />
+        <div 
+          className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-violet-500/5 rounded-full blur-[120px] animate-[pulse_6s_ease-in-out_infinite]" 
+          style={{ animationDelay: '3s' }} 
+        />
       </div>
 
-      <div className="relative flex flex-col items-center animate-[fadeIn_1.5s_ease-out] w-full max-w-2xl px-6 text-center h-[70vh] justify-center">
-        <div className="relative mb-16 mt-[-10vh]">
+      <div className="relative flex flex-col items-center animate-[fadeIn_1.5s_ease-out] w-full max-w-2xl px-6 text-center h-[70vh] justify-center mt-[-20vh]">
+        <div className="relative mb-12">
           <div
             className="absolute inset-0 bg-violet-500/30 rounded-full blur-3xl animate-pulse"
             style={{ animationDuration: '4s' }}
@@ -73,22 +78,18 @@ const WelcomeScreen = ({
           <img
             src={logo}
             alt="MomAI"
-            className="w-48 h-48 object-contain relative z-10 drop-shadow-[0_0_40px_rgba(167,139,250,0.4)]"
+            className="w-40 h-40 object-contain relative z-10 drop-shadow-[0_0_40px_rgba(167,139,250,0.4)]"
           />
         </div>
 
         {isFirstLaunch ? (
-          <div className="flex flex-col items-center space-y-12 animate-in fade-in slide-in-from-bottom-10 duration-[1500ms] delay-500">
+          <div className="flex flex-col items-center space-y-4 animate-in fade-in slide-in-from-bottom-10 duration-[1500ms] delay-500">
             <h1 className="text-4xl font-bold text-white tracking-tight leading-tight">
-              Olá! Sua assistente está <span className="text-violet-400">acordando</span>...
+              Sua assistente está <span className="text-white">acordando</span>...
             </h1>
 
-            <p className="text-xl font-black text-violet-400/80 uppercase tracking-[0.3em] animate-pulse">
-              A primeira inicialização leva de 1 a 3 minutos
-            </p>
-            
-            <p className="text-xl text-text-muted italic font-medium leading-relaxed pt-12">
-              Aproveite para respirar fundo ou tomar um café ☕
+            <p className="text-xs font-bold text-violet-400/80 uppercase tracking-tight animate-pulse">
+              Inicializando ambiente • 1 a 3 minutos
             </p>
           </div>
         ) : (
@@ -456,7 +457,8 @@ function App(): React.JSX.Element {
     uiView = 'RemindersDashboard'
   }
 
-  const isChat = uiView === 'ChatDashboard' || uiView === 'RemindersDashboard'
+  const isChat = uiView === 'ChatDashboard'
+  const showSidebar = uiView === 'ChatDashboard'
 
   return (
     <>
@@ -512,6 +514,7 @@ function App(): React.JSX.Element {
                   initMessage={initMessage}
                   isBooting={isBooting}
                   setHistoryOpen={setHistoryOpen}
+                  isFirstLaunch={isFirstLaunch}
                 />
 
                 {/* 2. Graph Panel (Middle Column - Conditional) */}
@@ -529,21 +532,21 @@ function App(): React.JSX.Element {
                   </div>
                 )}
 
-                {/* 3. Desktop Sidebar (Right Side - Visible only in Chat) */}
-                {!isCompact && isChat && (
-                  <div className="w-[320px] flex flex-col gap-2 h-full shrink-0">
+                {/* 3. Desktop Sidebar (Right Side - Only on Chat) */}
+                {!isCompact && showSidebar && (
+                  <div className="w-[300px] flex flex-col gap-2 h-full shrink-0">
                     <div className="flex flex-col items-center justify-center animate-fade-in shrink-0">
-                      <div className="relative w-32 h-24 flex items-center justify-center overflow-visible">
-                        <div className="absolute inset-0 bg-accent/20 blur-2xl rounded-full opacity-50"></div>
+                      <div className="relative w-24 h-20 flex items-center justify-center overflow-visible">
+                        <div className="absolute inset-0 bg-accent/20 blur-xl rounded-full opacity-40"></div>
                         <img
                           src={logo}
                           alt="MomAI"
                           draggable="false"
-                          className="w-28 h-28 object-contain relative z-10 drop-shadow-2xl select-none pointer-events-none"
+                          className="w-20 h-20 object-contain relative z-10 drop-shadow-2xl select-none pointer-events-none"
                         />
                       </div>
 
-                      <div className="relative flex flex-col items-center -mt-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                      <div className="relative flex flex-col items-center -mt-3 animate-in fade-in slide-in-from-bottom-3 duration-700">
                         {/* Pontinhos brilhantes flutuantes */}
                         <div className="absolute -inset-6 pointer-events-none">
                           <div
@@ -617,7 +620,7 @@ function App(): React.JSX.Element {
 
                     <div className="flex-1 rounded-xl bg-card border border-border/10 shadow-2xl overflow-hidden relative flex flex-col">
                       <RemindersSidebar
-                        onNavigate={() => navigate('/extensions/com.momai.builtin.scheduler')}
+                        onNavigate={() => navigate('/agenda')}
                       />
                       {historyOpen && (
                         <div className="absolute inset-0 z-20">
@@ -714,7 +717,7 @@ function App(): React.JSX.Element {
                 Ver Logs
               </button>
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => (window.location.href = '/')}
                 className="flex-1 px-4 py-2 bg-accent hover:bg-accent/80 rounded-lg text-sm text-white font-medium transition-colors"
               >
                 Tentar Novamente

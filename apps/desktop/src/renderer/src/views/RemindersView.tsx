@@ -1,5 +1,16 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { ChevronLeftIcon, ChevronRightIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { useState, useEffect, useMemo } from 'react'
+import {
+  PlusIcon,
+  TrashIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CalendarIcon,
+  ClockIcon,
+  ArrowPathIcon,
+  PencilSquareIcon,
+  CheckCircleIcon
+} from '@heroicons/react/24/outline'
+import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import {
   fetchReminders as fetchRemindersApi,
   createReminder,
@@ -8,48 +19,46 @@ import {
   type Reminder
 } from '../services/api'
 import { useI18n } from '../i18n'
-import { getOccurrenceForDate } from '../utils/reminders'
 
 type RepeatInterval = 'minutes' | 'hours' | 'days' | 'weeks' | 'months' | null
-type ViewMode = 'month' | 'week'
 
 interface ReminderFormData {
   id?: number
   title: string
   content: string
   scheduled_time: string
+  newDate: string
+  newTime: string
   repeat_interval: RepeatInterval
   repeat_value: number
 }
 
 // --- Helper Functions ---
 
-const getLocalISOString = (date = new Date()) => {
-  const tzOffset = date.getTimezoneOffset() * 60000
-  return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16)
+const getTodayISO = () => new Date().toISOString().split('T')[0]
+const getInOneHourTime = () => {
+  const d = new Date(Date.now() + 3600000)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-const diffInDays = (d1: Date, d2: Date) => {
-  const t1 = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime()
-  const t2 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime()
-  return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24))
+const isOverdue = (date: Date) => {
+  const now = new Date()
+  return date < now
 }
 
-const isSameDay = (d1: Date, d2: Date) => {
+const isToday = (date: Date) => {
+  const now = new Date()
   return (
-    d1.getFullYear() === d2.getFullYear() &&
-    d1.getMonth() === d2.getMonth() &&
-    d1.getDate() === d2.getDate()
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
   )
 }
 
-const getRecurrenceMeta = (interval: string | null) => {
-  if (!interval) return null
-  return interval === 'minutes' || interval === 'hours' ? 'intraday' : 'multiday'
-}
-
-const diffInMonths = (d1: Date, d2: Date) => {
-  return (d1.getFullYear() - d2.getFullYear()) * 12 + (d1.getMonth() - d2.getMonth())
+const isUpcoming = (date: Date) => {
+  const today = new Date()
+  today.setHours(23, 59, 59, 999)
+  return date > today
 }
 
 // --- Main Component ---
@@ -57,16 +66,19 @@ const diffInMonths = (d1: Date, d2: Date) => {
 export default function RemindersView() {
   const { t, formatDate, formatTime } = useI18n()
   const [reminders, setReminders] = useState<Reminder[]>([])
-  const [viewMode, setViewMode] = useState<ViewMode>('week')
-  const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState(new Date())
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const hourGridRef = useRef<HTMLDivElement>(null)
+  const [expandedSections, setExpandedSections] = useState({
+    overdue: true,
+    today: true,
+    upcoming: true
+  })
 
   const [formData, setFormData] = useState<ReminderFormData>({
     title: '',
     content: '',
-    scheduled_time: getLocalISOString(new Date(Date.now() + 3600000)),
+    scheduled_time: '',
+    newDate: getTodayISO(),
+    newTime: getInOneHourTime(),
     repeat_interval: null,
     repeat_value: 1
   })
@@ -82,116 +94,30 @@ export default function RemindersView() {
 
   useEffect(() => {
     fetchReminders()
-
     const handleUpdate = () => fetchReminders()
     window.addEventListener('momai_reminders_updated', handleUpdate)
     return () => window.removeEventListener('momai_reminders_updated', handleUpdate)
   }, [])
 
-  // Scroll to current hour on week view load
-  useEffect(() => {
-    if (viewMode === 'week' && hourGridRef.current) {
-      const hour = new Date().getHours()
-      hourGridRef.current.scrollTop = hour * 60 - 100
+  const groupedReminders = useMemo(() => {
+    const sorted = [...reminders].sort(
+      (a, b) => new Date(a.scheduled_time).getTime() - new Date(b.scheduled_time).getTime()
+    )
+
+    return {
+      overdue: sorted.filter((r) => isOverdue(new Date(r.scheduled_time))),
+      today: sorted.filter((r) => isToday(new Date(r.scheduled_time)) && !isOverdue(new Date(r.scheduled_time))),
+      upcoming: sorted.filter((r) => isUpcoming(new Date(r.scheduled_time)))
     }
-  }, [viewMode])
+  }, [reminders])
 
-  const remindersMap = useMemo(() => {
-    const map = new Map<string, Reminder[]>()
-    const year = currentDate.getFullYear()
-    const month = currentDate.getMonth()
-    const horizonStart = new Date(year, month - 1, 1)
-    const horizonEnd = new Date(year, month + 2, 0)
-    const now = new Date()
-
-    reminders.forEach((r) => {
-      const start = new Date(r.scheduled_time)
-      const interval = r.repeat_interval
-      const value = r.repeat_value || 1
-
-      if (!interval) {
-        if (start >= horizonStart && start <= horizonEnd) {
-          const key = `${start.getFullYear()}-${start.getMonth()}-${start.getDate()}`
-          if (!map.has(key)) map.set(key, [])
-          map.get(key)?.push(r)
-        }
-        return
-      }
-
-      for (let d = new Date(horizonStart); d <= horizonEnd; d.setDate(d.getDate() + 1)) {
-        const startDayOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate())
-        if (d < startDayOnly) continue
-
-        let isMatch = false
-        if (interval === 'minutes' || interval === 'hours') {
-          isMatch = !!getOccurrenceForDate(r, d, now)
-        } else if (interval === 'days') isMatch = diffInDays(d, start) % value === 0
-        else if (interval === 'weeks') isMatch = diffInDays(d, start) % (7 * value) === 0
-        else if (interval === 'months') {
-          isMatch = d.getDate() === start.getDate() && diffInMonths(d, start) % value === 0
-        }
-
-        if (isMatch) {
-          const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
-          if (!map.has(key)) map.set(key, [])
-          map.get(key)?.push(r)
-        }
-      }
-    })
-    return map
-  }, [reminders, currentDate])
-
-  const monthData = useMemo(() => {
-    const year = currentDate.getFullYear()
-    const month = currentDate.getMonth()
-    const firstDay = new Date(year, month, 1).getDay()
-    const days: any[] = []
-    const prevMonthDays = new Date(year, month, 0).getDate()
-    for (let i = firstDay - 1; i >= 0; i--)
-      days.push({ d: new Date(year, month - 1, prevMonthDays - i), curr: false })
-    for (let i = 1; i <= new Date(year, month + 1, 0).getDate(); i++)
-      days.push({ d: new Date(year, month, i), curr: true })
-    while (days.length < 35)
-      days.push({
-        d: new Date(
-          year,
-          month + 1,
-          days.length - (firstDay + new Date(year, month + 1, 0).getDate()) + 1
-        ),
-        curr: false
-      })
-    return days
-  }, [currentDate])
-
-  const weekData = useMemo(() => {
-    const start = new Date(currentDate)
-    start.setDate(start.getDate() - start.getDay())
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(start)
-      d.setDate(d.getDate() + i)
-      return d
-    })
-  }, [currentDate])
-
-  const handlePrev = () => {
-    const d = new Date(currentDate)
-    viewMode === 'month' ? d.setMonth(d.getMonth() - 1) : d.setDate(d.getDate() - 7)
-    setCurrentDate(d)
-  }
-
-  const handleNext = () => {
-    const d = new Date(currentDate)
-    viewMode === 'month' ? d.setMonth(d.getMonth() + 1) : d.setDate(d.getDate() + 7)
-    setCurrentDate(d)
-  }
-
-  const handleOpenCreate = (date: Date, hour = 9) => {
-    const d = new Date(date)
-    d.setHours(hour, 0, 0, 0)
+  const handleOpenCreate = () => {
     setFormData({
       title: '',
       content: '',
-      scheduled_time: getLocalISOString(d),
+      scheduled_time: '',
+      newDate: getTodayISO(),
+      newTime: getInOneHourTime(),
       repeat_interval: null,
       repeat_value: 1
     })
@@ -199,11 +125,17 @@ export default function RemindersView() {
   }
 
   const handleOpenEdit = (reminder: Reminder) => {
+    const d = new Date(reminder.scheduled_time)
+    const dateStr = d.toISOString().split('T')[0]
+    const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+
     setFormData({
       id: reminder.id,
       title: reminder.title,
       content: reminder.content || '',
-      scheduled_time: getLocalISOString(new Date(reminder.scheduled_time)),
+      scheduled_time: reminder.scheduled_time,
+      newDate: dateStr,
+      newTime: timeStr,
       repeat_interval: reminder.repeat_interval as RepeatInterval,
       repeat_value: reminder.repeat_value || 1
     })
@@ -211,363 +143,264 @@ export default function RemindersView() {
   }
 
   const handleDelete = async (id: number) => {
-    if (confirm(t('reminders.deleteConfirm'))) {
-      await deleteReminder(id)
-      setReminders((prev) => prev.filter((r) => r.id !== id))
-    }
+    await deleteReminder(id)
+    setReminders((prev) => prev.filter((r) => r.id !== id))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const payload = { ...formData, scheduled_time: new Date(formData.scheduled_time).toISOString() }
+    // Manual local time construction string to avoid offset issues
+    const scheduledTimeStr = `${formData.newDate}T${formData.newTime}:00`
+
+    const payload = {
+      title: formData.title,
+      content: formData.content,
+      scheduled_time: scheduledTimeStr,
+      repeat_interval: formData.repeat_interval,
+      repeat_value: formData.repeat_interval ? formData.repeat_value : null
+    }
+
     formData.id ? await updateReminder(formData.id, payload) : await createReminder(payload)
     setIsModalOpen(false)
     fetchReminders()
   }
 
-  const hours = Array.from({ length: 24 }, (_, i) => i)
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }))
+  }
+
+  const TaskItem = ({ r }: { r: Reminder }) => {
+    const date = new Date(r.scheduled_time)
+    const overdue = isOverdue(date)
+    
+    return (
+      <div className="group flex items-start gap-3 p-3 hover:bg-white/5 border-b border-border/5 transition-all">
+        <button
+          onClick={() => handleDelete(r.id)}
+          className="mt-0.5 shrink-0 relative flex items-center justify-center w-5 h-5 rounded-full border border-text/10 group-hover:border-accent/40 transition-all hover:scale-110"
+        >
+          <CheckCircleIcon className="w-4 h-4 text-transparent" />
+          <CheckCircleSolid className="absolute inset-0 w-[18px] h-[18px] m-auto text-accent opacity-0 scale-50 group-hover:opacity-20 group-hover:scale-90 active:opacity-100 transition-all" />
+        </button>
+
+        <div className="flex-1 min-w-0" onClick={() => handleOpenEdit(r)}>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-[13px] font-medium text-text group-hover:text-accent transition-colors cursor-pointer truncate">
+              {r.title}
+            </h3>
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+               <button 
+                onClick={(e) => { e.stopPropagation(); handleOpenEdit(r) }}
+                className="p-1 hover:bg-accent/10 rounded text-text-muted hover:text-accent transition-all"
+              >
+                <PencilSquareIcon className="w-3.5 h-3.5" />
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleDelete(r.id) }}
+                className="p-1 hover:bg-rose-500/10 rounded text-text-muted hover:text-rose-500 transition-all"
+              >
+                <TrashIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+          
+          {r.content && (
+            <p className="text-[11px] text-text-muted/60 mt-0.5 line-clamp-1 leading-relaxed">
+              {r.content}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3 mt-1.5">
+            <div className={`flex items-center gap-1 text-[10px] font-bold ${overdue ? 'text-rose-500' : 'text-text-muted/40'}`}>
+              <CalendarIcon className="w-3 h-3" />
+              <span>{formatDate(date, { day: 'numeric', month: 'short' })}</span>
+              <span className="mx-0.5 opacity-30">•</span>
+              <ClockIcon className="w-3 h-3" />
+              <span>{formatTime(date, { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+
+            {r.repeat_interval && (
+              <div className="flex items-center gap-1 text-[10px] uppercase font-black tracking-widest text-emerald-500/70">
+                <ArrowPathIcon className="w-3 h-3" />
+                <span>R:{r.repeat_value} {r.repeat_interval}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const Section = ({ 
+    title, 
+    items, 
+    id, 
+    color = "text-text", 
+    isOverdue = false 
+  }: { 
+    title: string, 
+    items: Reminder[], 
+    id: keyof typeof expandedSections,
+    color?: string,
+    isOverdue?: boolean
+  }) => {
+    if (items.length === 0 && id !== 'today') return null
+
+    return (
+      <div className="mb-4">
+        <div 
+          className="flex items-center justify-between py-1.5 cursor-pointer group select-none px-1"
+          onClick={() => toggleSection(id)}
+        >
+          <div className="flex items-center gap-1.5">
+            <div className={`transition-transform duration-200 ${expandedSections[id] ? 'rotate-90' : ''}`}>
+              <ChevronRightIcon className="w-3 h-3 text-text-muted/30" />
+            </div>
+            <h2 className={`text-xs font-black uppercase tracking-widest ${isOverdue ? 'text-rose-500' : color} opacity-80`}>
+              {title}
+            </h2>
+            <span className="text-[9px] font-black text-text-muted/20 ml-1">{items.length}</span>
+          </div>
+        </div>
+        
+        {expandedSections[id] && (
+          <div className="mt-1 bg-white/[0.01] rounded-lg border border-white/5 overflow-hidden">
+            {items.length > 0 ? (
+              items.map(r => <TaskItem key={r.id} r={r} />)
+            ) : (
+              <div className="p-8 text-center bg-transparent">
+                <p className="text-xs text-text-muted/30 uppercase font-black tracking-widest">
+                  Nenhuma tarefa para hoje
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
-    <div className="flex h-full w-full bg-bg text-text font-sans overflow-hidden transition-colors duration-300">
-      {/* Sidebar - Compact list of selected day */}
-      <aside className="w-64 border-r border-border/5 bg-sidebar flex flex-col shrink-0">
-        <div className="p-4 border-b border-border/5">
-          <h2 className="text-xs font-bold text-accent uppercase tracking-tighter mb-1">
-            {formatDate(selectedDate, { weekday: 'short' }).replace('.', '')}
-          </h2>
-          <div className="text-3xl font-bold tracking-tight">
-            {selectedDate.getDate()} {formatDate(selectedDate, { month: 'short' })}
-          </div>
+    <div className="flex h-full w-full bg-bg font-sans overflow-hidden">
+      <main className="flex-1 overflow-y-auto custom-scrollbar bg-bg relative">
+        {/* Background Gradients */}
+        <div className="absolute inset-0 pointer-events-none opacity-40">
+           <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-accent/5 blur-[120px] rounded-full" />
+           <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-violet-500/5 blur-[100px] rounded-full" />
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-          {(
-            remindersMap.get(
-              `${selectedDate.getFullYear()}-${selectedDate.getMonth()}-${selectedDate.getDate()}`
-            ) || []
-          )
-            .sort((a, b) => {
-              const now = new Date()
-              const aTime =
-                getOccurrenceForDate(a, selectedDate, now)?.getTime() ??
-                new Date(a.scheduled_time).getTime()
-              const bTime =
-                getOccurrenceForDate(b, selectedDate, now)?.getTime() ??
-                new Date(b.scheduled_time).getTime()
-              return aTime - bTime
-            })
-            .map((r) => {
-              const isIntraday = getRecurrenceMeta(r.repeat_interval) === 'intraday'
-              const now = new Date()
-              const occurrence =
-                getOccurrenceForDate(r, selectedDate, now) || new Date(r.scheduled_time)
-              return (
-                <div
-                  key={r.id}
-                  onClick={() => handleOpenEdit(r)}
-                  className={`p-2 rounded cursor-pointer group transition-colors border ${
-                    isIntraday
-                      ? 'bg-emerald-500/5 border-emerald-500/20 hover:bg-emerald-500/10 hover:border-emerald-500/40'
-                      : 'hover:bg-accent/5 border-transparent hover:border-border/10'
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <span
-                      className={`text-[11px] font-mono font-bold opacity-60 ${isIntraday ? 'text-emerald-400' : 'text-accent/80'}`}
-                    >
-                      {formatTime(occurrence, { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDelete(r.id)
-                      }}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-opacity"
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div
-                    className={`text-[12px] font-medium leading-tight truncate ${isIntraday ? 'text-emerald-50' : 'text-text'}`}
-                  >
-                    {r.title}
-                  </div>
-                </div>
-              )
-            })}
-        </div>
-
-        <div className="p-3 border-t border-border/10">
-          <button
-            onClick={() => handleOpenCreate(selectedDate)}
-            className="w-full py-3 bg-accent text-black rounded text-xs font-bold uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all"
-          >
-            {t('reminders.newReminder')}
-          </button>
-        </div>
-      </aside>
-
-      {/* Main View */}
-      <main className="flex-1 flex flex-col overflow-hidden relative bg-bg">
-        <header className="h-14 flex items-center justify-between px-4 border-b border-border/10 bg-bg/80 backdrop-blur-md sticky top-0 z-10">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-bold flex items-center gap-2">
-              <span className="text-accent tracking-tighter uppercase font-black">Agenda</span>
-              <span className="text-text-muted opacity-40">/</span>
-              <span className="capitalize text-sm font-medium">
-                {formatDate(currentDate, { month: 'long', year: 'numeric' })}
-              </span>
-            </h1>
-
-            <div className="flex bg-input border border-border/10 rounded p-0.5">
-              <button
-                onClick={() => setViewMode('month')}
-                className={`px-4 py-1.5 text-[11px] font-bold uppercase rounded transition-all ${viewMode === 'month' ? 'bg-border/10 text-accent' : 'text-text-muted hover:text-text'}`}
-              >
-                Mês
-              </button>
-              <button
-                onClick={() => setViewMode('week')}
-                className={`px-4 py-1.5 text-[11px] font-bold uppercase rounded transition-all ${viewMode === 'week' ? 'bg-border/10 text-accent' : 'text-text-muted hover:text-text'}`}
-              >
-                Semana
-              </button>
+        <div className="max-w-2xl mx-auto px-4 py-8 relative z-10">
+          <header className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-black text-text tracking-tight flex items-center gap-2">
+                {t('reminders.title') || 'Hoje'}
+                <span className="text-sm font-bold text-accent bg-accent/10 px-2 py-0.5 rounded-full border border-accent/20">
+                  {reminders.filter(r => !isUpcoming(new Date(r.scheduled_time))).length}
+                </span>
+              </h1>
+              <p className="text-[10px] text-text-muted/40 mt-1 font-bold uppercase tracking-wider">
+                {formatDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' })}
+              </p>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                setCurrentDate(new Date())
-                setSelectedDate(new Date())
-              }}
-              className="px-4 py-1.5 border border-border/10 rounded text-[11px] uppercase font-bold text-text-muted hover:text-text hover:bg-accent/5"
+              onClick={handleOpenCreate}
+              className="px-4 py-2 bg-accent text-black rounded-lg text-[10px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 shadow-lg shadow-accent/10 transition-all flex items-center gap-1.5"
             >
-              Hoje
+              <PlusIcon className="w-3.5 h-3.5" />
+              Novo
             </button>
-            <div className="flex border border-border/10 rounded overflow-hidden">
-              <button
-                onClick={handlePrev}
-                className="p-2 hover:bg-accent/5 border-r border-border/10"
+          </header>
+
+          <Section 
+            title="Atrasadas" 
+            items={groupedReminders.overdue} 
+            id="overdue" 
+            isOverdue 
+          />
+          
+          <Section 
+            title="Hoje" 
+            items={groupedReminders.today} 
+            id="today" 
+            color="text-accent"
+          />
+
+          {!reminders.length && (
+            <div className="flex flex-col items-center justify-center py-20 bg-white/[0.02] rounded-3xl border border-dashed border-white/5">
+              <div className="w-16 h-16 bg-accent/5 rounded-full flex items-center justify-center mb-4">
+                <CheckCircleIcon className="w-8 h-8 text-accent/20" />
+              </div>
+              <p className="text-sm font-bold text-text-muted/40 uppercase tracking-widest">
+                Tudo pronto por aqui
+              </p>
+              <button 
+                onClick={handleOpenCreate}
+                className="mt-6 text-xs font-black text-accent hover:text-accent/80 underline underline-offset-8 decoration-dotted"
               >
-                <ChevronLeftIcon className="w-4 h-4" />
+                CRIAR SEU PRIMEIRO LEMBRETE
               </button>
-              <button onClick={handleNext} className="p-2 hover:bg-accent/5">
-                <ChevronRightIcon className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {/* Calendar Grid */}
-        <div className="flex-1 overflow-hidden flex flex-col">
-          {viewMode === 'month' ? (
-            <div className="flex-1 flex flex-col">
-              <div className="grid grid-cols-7 border-b border-border/5 bg-bg/50">
-                {['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].map((day) => (
-                  <div
-                    key={day}
-                    className="py-3 text-center text-[11px] font-bold uppercase text-text-muted/60 tracking-widest"
-                  >
-                    {day}
-                  </div>
-                ))}
-              </div>
-              <div className="flex-1 grid grid-cols-7 grid-rows-5">
-                {monthData.map((cell, i) => {
-                  const key = `${cell.d.getFullYear()}-${cell.d.getMonth()}-${cell.d.getDate()}`
-                  const items = (remindersMap.get(key) || []).filter(
-                    (r) => getRecurrenceMeta(r.repeat_interval) !== 'intraday'
-                  )
-                  const isToday = isSameDay(cell.d, new Date())
-                  return (
-                    <div
-                      key={i}
-                      onClick={() => setSelectedDate(cell.d)}
-                      className={`border-r border-b border-border/10 p-1.5 flex flex-col gap-0.5 transition-colors cursor-pointer hover:bg-accent/5 ${!cell.curr ? 'opacity-30 bg-black/5' : ''} ${isSameDay(cell.d, selectedDate) ? 'bg-accent/5' : ''}`}
-                    >
-                      <span
-                        className={`text-[11px] font-bold w-7 h-7 flex items-center justify-center rounded-full mb-1 ${isToday ? 'bg-accent text-white shadow-lg shadow-accent/20' : 'text-text-muted'}`}
-                      >
-                        {cell.d.getDate()}
-                      </span>
-                      <div className="flex flex-col gap-px overflow-hidden">
-                        {items.slice(0, 4).map((r) => (
-                          <div key={r.id} className="flex items-center gap-1 overflow-hidden">
-                            <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0"></span>
-                            <span className="text-[10px] truncate font-medium text-text-muted">
-                              {r.title}
-                            </span>
-                          </div>
-                        ))}
-                        {items.length > 4 && (
-                          <div className="text-[9px] font-bold text-text-muted/50 pl-2">
-                            +{items.length - 4}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          ) : (
-            /* Time-Line Weekly View (Google Style) */
-            <div className="flex-1 flex flex-col h-full">
-              <div className="flex border-b border-border/5 shrink-0 bg-bg">
-                <div className="w-14 border-r border-border/5"></div>
-                <div className="flex-1 grid grid-cols-7">
-                  {weekData.map((d, i) => (
-                    <div
-                      key={i}
-                      className="py-3 text-center border-r border-border/5 flex flex-col items-center"
-                    >
-                      <span className="text-[10px] font-bold uppercase text-accent/40 mb-1">
-                        {formatDate(d, { weekday: 'short' }).replace('.', '')}
-                      </span>
-                      <span
-                        className={`text-xl font-bold w-9 h-9 flex items-center justify-center rounded-full ${isSameDay(d, new Date()) ? 'bg-accent text-black' : ''}`}
-                      >
-                        {d.getDate()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div
-                ref={hourGridRef}
-                className="flex-1 overflow-y-auto custom-scrollbar relative bg-bg"
-              >
-                <div className="flex h-[1440px]">
-                  {' '}
-                  {/* 24h * 60px */}
-                  <div className="w-14 shrink-0 border-r border-border/5 bg-sidebar/50 z-10 sticky left-0">
-                    {hours.map((h) => (
-                      <div
-                        key={h}
-                        className="h-[60px] text-[10px] text-right pr-2 pt-0.5 text-text-muted font-bold opacity-50"
-                      >
-                        {h}:00
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex-1 grid grid-cols-7 relative border-l border-white/5">
-                    {weekData.map((day, dIdx) => {
-                      const key = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`
-                      const items = remindersMap.get(key) || []
-                      return (
-                        <div
-                          key={dIdx}
-                          className="relative h-full border-r border-white/5 group hover:bg-accent/5 transition-colors"
-                          onClick={() => handleOpenCreate(day)}
-                        >
-                          {/* Horizontal Guideline */}
-                          {hours.map((h) => (
-                            <div
-                              key={h}
-                              className="absolute w-full h-px bg-white/5 pointer-events-none"
-                              style={{ top: h * 60 }}
-                            ></div>
-                          ))}
-
-                          {/* Current time indicator */}
-                          {isSameDay(day, new Date()) && (
-                            <div
-                              className="absolute w-full h-0.5 bg-red-500 z-30 pointer-events-none"
-                              style={{ top: new Date().getHours() * 60 + new Date().getMinutes() }}
-                            />
-                          )}
-
-                          {/* Reminders as small cards */}
-                          {items.map((r) => {
-                            const now = new Date()
-                            const occurrence = getOccurrenceForDate(r, day, now)
-                            if (!occurrence) return null
-                            const top = occurrence.getHours() * 60 + occurrence.getMinutes()
-                            const isIntraday = getRecurrenceMeta(r.repeat_interval) === 'intraday'
-                            return (
-                              <div
-                                key={r.id}
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleOpenEdit(r)
-                                }}
-                                className={`absolute left-1 right-1 p-1.5 rounded-r shadow-lg cursor-pointer overflow-hidden group hover:brightness-125 transition-all z-20 border-l-2 ${
-                                  isIntraday
-                                    ? 'bg-emerald-500/20 border-emerald-500'
-                                    : 'bg-accent/20 border-accent'
-                                }`}
-                                style={{ top, height: 44 }}
-                              >
-                                <div
-                                  className={`text-[10px] font-black uppercase leading-none mb-0.5 opacity-60 ${isIntraday ? 'text-emerald-400' : 'text-accent'}`}
-                                >
-                                  {formatTime(occurrence, { hour: '2-digit', minute: '2-digit' })}
-                                </div>
-                                <div
-                                  className={`text-[11px] font-bold truncate ${isIntraday ? 'text-emerald-50' : 'text-text'}`}
-                                >
-                                  {r.title}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
             </div>
           )}
         </div>
       </main>
 
-      {/* Modern Compact Modal */}
+      {/* Modal - Redesigned to match Todoist clean style */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-bg/80 backdrop-blur-md animate-in fade-in duration-300">
           <div className="absolute inset-0" onClick={() => setIsModalOpen(false)}></div>
           <form
             onSubmit={handleSubmit}
-            className="relative w-full max-w-sm bg-card border border-border/10 rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+            className="relative w-full max-w-md bg-card border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
           >
-            <div className="px-5 py-4 bg-accent/5 border-b border-border/10 flex justify-between items-center">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-text-muted">
-                {formData.id ? 'Editar Lembrete' : 'Novo Lembrete'}
-              </h3>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <input
-                required
-                autoFocus
-                type="text"
-                placeholder="Título do evento"
-                className="w-full bg-input border border-border/10 rounded-lg px-4 py-3 text-sm font-medium outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/50 transition-all text-text placeholder:text-text-muted/30"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              />
-              <textarea
-                rows={3}
-                placeholder="Descrição (opcional)"
-                className="w-full bg-input border border-border/10 rounded-lg px-4 py-3 text-[12px] outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/50 transition-all resize-none text-text placeholder:text-text-muted/30"
-                value={formData.content}
-                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              />
-
-              <div className="space-y-3">
+            <div className="p-6 space-y-4">
+              <div className="space-y-2">
                 <input
                   required
-                  type="datetime-local"
-                  className="w-full bg-input border border-border/10 rounded-lg px-3 py-2.5 text-xs font-bold text-text outline-none focus:border-accent/50"
-                  value={formData.scheduled_time}
-                  onChange={(e) => setFormData({ ...formData, scheduled_time: e.target.value })}
+                  autoFocus
+                  type="text"
+                  placeholder="Título do lembrete"
+                  className="w-full bg-transparent border-none text-xl font-bold p-0 placeholder:text-text-muted/20 outline-none focus:ring-0 text-text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 />
+                <textarea
+                  placeholder="Notas..."
+                  className="w-full bg-transparent border-none text-xs p-0 placeholder:text-text-muted/20 outline-none focus:ring-0 text-text/60 resize-none min-h-[60px]"
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                />
+              </div>
 
-                <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-white/5">
+                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-text/5 rounded-md border border-white/5">
+                  <CalendarIcon className="w-3.5 h-3.5 text-accent" />
+                  <input
+                    required
+                    type="date"
+                    className="bg-transparent border-none text-[10px] font-bold text-text outline-none p-0 focus:ring-0 w-24"
+                    value={formData.newDate}
+                    onChange={(e) => setFormData({ ...formData, newDate: e.target.value })}
+                  />
+                </div>
+                
+                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-text/5 rounded-md border border-white/5">
+                  <ClockIcon className="w-3.5 h-3.5 text-accent" />
+                  <input
+                    required
+                    type="time"
+                    className="bg-transparent border-none text-[10px] font-bold text-text outline-none p-0 focus:ring-0 w-16"
+                    value={formData.newTime}
+                    onChange={(e) => setFormData({ ...formData, newTime: e.target.value })}
+                  />
+                </div>
+
+                <div className="bg-text/5 rounded-md border border-white/5 flex items-center">
+                  <div className="px-2 border-r border-white/5">
+                    <ArrowPathIcon className="w-3.5 h-3.5 text-emerald-500" />
+                  </div>
                   <select
-                    className="col-span-2 bg-input border border-border/10 rounded-lg px-3 py-2.5 text-xs font-bold text-text outline-none focus:border-accent/50"
+                    className="bg-transparent border-none text-[10px] font-bold text-text outline-none px-2 py-1.5 focus:ring-0"
                     value={formData.repeat_interval || ''}
                     onChange={(e) =>
                       setFormData({
@@ -577,46 +410,28 @@ export default function RemindersView() {
                       })
                     }
                   >
-                    <option value="">Não repetir</option>
+                    <option value="">Repetir...</option>
                     <option value="minutes">Minutos</option>
                     <option value="hours">Horas</option>
                     <option value="days">Dias</option>
                     <option value="weeks">Semanas</option>
                     <option value="months">Meses</option>
                   </select>
-                  {formData.repeat_interval && (
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-text-muted">a cada</span>
-                      <input
-                        type="number"
-                        min="1"
-                        max="99"
-                        className="w-full bg-input border border-border/10 rounded-lg px-2 py-2.5 text-xs font-bold text-text outline-none focus:border-accent/50"
-                        value={formData.repeat_value}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            repeat_value: Math.max(1, parseInt(e.target.value) || 1)
-                          })
-                        }
-                      />
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 p-4 bg-card/50 border-t border-border/10">
+            <div className="px-6 py-3 bg-white/5 border-t border-white/5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold text-text-muted hover:text-text uppercase transition-colors"
+                className="px-4 py-2 text-[10px] font-black text-text-muted hover:text-text uppercase tracking-widest transition-all"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 bg-accent text-white rounded-lg text-xs font-bold uppercase hover:brightness-110 shadow-lg shadow-accent/20 transition-all"
+                className="px-6 py-2 bg-accent text-black rounded-lg text-[10px] font-black uppercase tracking-widest hover:brightness-110 shadow-lg shadow-accent/10 transition-all"
               >
                 Salvar
               </button>

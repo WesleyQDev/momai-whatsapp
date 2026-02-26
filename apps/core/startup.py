@@ -403,8 +403,9 @@ async def lifespan(app):
         app_state.logger.exception("[FastAPI] Error stopping LLM server: %s", exc)
 
     try:
-        app_state.tts.stop_all()
-        app_state.logger.info("[FastAPI] TTS workers stopped.")
+        if app_state.tts:
+            app_state.tts.stop_all()
+            app_state.logger.info("[FastAPI] TTS workers stopped.")
     except Exception as exc:
         app_state.logger.exception("[FastAPI] Error stopping TTS: %s", exc)
 

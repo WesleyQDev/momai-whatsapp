@@ -23,7 +23,8 @@ import {
   ArrowsPointingInIcon,
   ChevronRightIcon,
   InboxIcon,
-  PencilIcon
+  PencilIcon,
+  PlusIcon
 } from '@heroicons/react/24/outline'
 import { useI18n } from '../i18n'
 import ConfirmationCard from '../components/floating/ConfirmationCard'
@@ -43,6 +44,7 @@ export default function NotesView() {
   const [error, setError] = useState<string | null>(null)
   const [filterText, setFilterText] = useState('')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [openTabIds, setOpenTabIds] = useState<string[]>([])
 
   // Context Menu & Renaming State
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; noteId: string } | null>(
@@ -61,6 +63,7 @@ export default function NotesView() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const folderInputRef = useRef<HTMLInputElement | null>(null)
   const editorViewRef = useRef<EditorView | null>(null)
+  const isCreatingDefaultNote = useRef(false)
 
   // Memoized Filtered List
   const filteredNotes = useMemo(() => {
@@ -77,7 +80,15 @@ export default function NotesView() {
     try {
       const data = await listMemoryNotes()
 
-      if (data.length === 0 && !localStorage.getItem('momai_default_note_created')) {
+      const hasWelcomeNote = data.some((n) => n.title === 'Bem-vindo ao Sistema de Notas')
+
+      if (
+        data.length === 0 &&
+        !hasWelcomeNote &&
+        !localStorage.getItem('momai_default_note_created') &&
+        !isCreatingDefaultNote.current
+      ) {
+        isCreatingDefaultNote.current = true
         const defaultTitle = 'Bem-vindo ao Sistema de Notas'
         const defaultContent = `# 📝 Bem-vindo ao Sistema de Notas
 Aqui é onde toda a memória estruturada da MomAI fica guardada!
@@ -93,19 +104,25 @@ Quando você pedir para "Anotar algo", "Salvar essa ideia" ou "Lembrar disso par
 > 💡 **Dica da Luna:** Você pode renomear uma nota clicando com o botão direito sobre ela na barra lateral.
 
 Sinta-se em casa, suas informações estão estruturadas e seguras!`
-        
+
         try {
           const newNote = await createMemoryNote(defaultTitle, defaultContent)
           localStorage.setItem('momai_default_note_created', 'true')
           setNotes([newNote])
           await selectNote(newNote.id)
         } catch (e) {
-          console.error("Failed to create default note", e)
+          console.error('Failed to create default note', e)
           setNotes([])
+        } finally {
+          isCreatingDefaultNote.current = false
         }
       } else {
         setNotes(data)
-        if (!activeId && data.length > 0) await selectNote(data[0].id)
+        if (!activeId && data.length > 0) {
+          const firstId = data[0].id
+          setOpenTabIds([firstId])
+          await selectNote(firstId)
+        }
       }
     } catch (err) {
       setError(t('notes.errors.load'))
@@ -114,8 +131,42 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
     }
   }
 
-  const selectNote = async (noteId: string) => {
+  const silentDeleteIfEmpty = async (noteId: string, noteTitle: string, noteContent: string) => {
+    const isDefaultTitle = noteTitle === t('notes.newNoteTitleDefault') || !noteTitle.trim()
+    const isEmptyContent = !noteContent.trim()
+
+    if (isDefaultTitle && isEmptyContent) {
+      if (saveTimer.current) window.clearTimeout(saveTimer.current)
+      try {
+        await deleteMemoryNote(noteId)
+        setNotes((prev) => prev.filter((n) => n.id !== noteId))
+      } catch (e) {
+        // Silently ignore errors for auto-cleanup
+      }
+    }
+  }
+
+  const selectNote = async (noteId: string, forceNewTab = false) => {
     if (activeId === noteId && title !== '') return // Already selected
+
+    // If we are replacing the current tab or switching away, check if the old one was empty
+    if (activeId && !openTabIds.includes(noteId) && !forceNewTab) {
+      silentDeleteIfEmpty(activeId, title, content)
+    }
+
+    setOpenTabIds((prev) => {
+      // If it's already open, just switch to it without creating/replacing anything
+      if (prev.includes(noteId)) return prev
+
+      // If middle-click (forceNewTab) or no tabs are open, add it as a new tab
+      if (forceNewTab || prev.length === 0) {
+        return [...prev, noteId]
+      }
+
+      // If left-click, replace the current active tab with the new note
+      return prev.map((id) => (id === activeId ? noteId : id))
+    })
+
     setActiveId(noteId)
     setIsLoading(true)
     setError(null)
@@ -128,6 +179,27 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
       setError(t('notes.errors.open'))
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const closeTab = (e: React.MouseEvent, noteId: string) => {
+    e.stopPropagation()
+
+    if (activeId === noteId) {
+      silentDeleteIfEmpty(noteId, title, content)
+    }
+
+    const newTabs = openTabIds.filter((id) => id !== noteId)
+    setOpenTabIds(newTabs)
+
+    if (activeId === noteId) {
+      if (newTabs.length > 0) {
+        selectNote(newTabs[newTabs.length - 1])
+      } else {
+        setActiveId(null)
+        setTitle('')
+        setContent('')
+      }
     }
   }
 
@@ -175,7 +247,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
     try {
       const note = await createMemoryNote(t('notes.newNoteTitleDefault'), '')
       setNotes((prev) => [note, ...prev])
-      await selectNote(note.id)
+      await selectNote(note.id, true)
     } catch (err) {
       setError(t('notes.errors.create'))
     }
@@ -197,7 +269,9 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
       const updated = notes.filter((n) => n.id !== targetId)
       setNotes(updated)
       if (activeId === targetId) {
-        if (updated.length > 0) await selectNote(updated[0].id)
+        const newTabs = openTabIds.filter(id => id !== targetId)
+        setOpenTabIds(newTabs)
+        if (newTabs.length > 0) await selectNote(newTabs[newTabs.length - 1])
         else {
           setActiveId(null)
           setTitle('')
@@ -315,7 +389,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
           outline: 'none'
         },
         '.cm-scroller': {
-          fontFamily: 'inherit',
+          fontFamily: "'Inter', sans-serif",
           fontSize: '16px',
           lineHeight: '1.7',
           overflow: 'auto',
@@ -325,7 +399,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
           color: 'rgb(var(--text-primary))',
           caretColor: 'rgb(var(--text-primary)) !important',
           backgroundColor: 'transparent !important',
-          padding: '0 32px !important' // Fixed padding to prevent clipping
+          padding: '0 32px !important'
         },
         '.cm-line': {
           padding: '2px 0'
@@ -341,10 +415,26 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
           marginRight: '0.1em'
         },
         // HEADER SIZES: Force sizes with high specificity
-        '.cm-h1': { fontSize: '1.8em !important', fontWeight: '800 !important' },
-        '.cm-h2': { fontSize: '1.5em !important', fontWeight: '700 !important' },
-        '.cm-h3': { fontSize: '1.25em !important', fontWeight: '700 !important' },
-        '.cm-h4': { fontSize: '1.1em !important', fontWeight: '600 !important' },
+        '.cm-h1': {
+          fontSize: '1.8em !important',
+          fontWeight: '800 !important',
+          fontFamily: "'Outfit', sans-serif"
+        },
+        '.cm-h2': {
+          fontSize: '1.5em !important',
+          fontWeight: '700 !important',
+          fontFamily: "'Outfit', sans-serif"
+        },
+        '.cm-h3': {
+          fontSize: '1.25em !important',
+          fontWeight: '700 !important',
+          fontFamily: "'Outfit', sans-serif"
+        },
+        '.cm-h4': {
+          fontSize: '1.1em !important',
+          fontWeight: '600 !important',
+          fontFamily: "'Outfit', sans-serif"
+        },
 
         // ALIGNMENT FIX: Pull text back exactly one space width to align perfectly
         '.cm-line:not(.cm-activeLine) .cm-h1, .cm-line:not(.cm-activeLine) .cm-h2, .cm-line:not(.cm-activeLine) .cm-h3, .cm-line:not(.cm-activeLine) .cm-h4':
@@ -381,7 +471,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
     >
       {/* 1. Sidebar - Minimalist & Functional */}
       {!isSidebarCollapsed && (
-        <aside className="w-72 border-r border-border/5 bg-sidebar flex flex-col shrink-0 transition-all duration-300">
+        <aside className="w-60 border-r border-border/5 bg-sidebar flex flex-col shrink-0 transition-all duration-300">
           {/* Sidebar Header: Search & Toolbar */}
           <div className="p-3 space-y-2">
             <div className="relative group">
@@ -395,27 +485,27 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
             </div>
 
             {/* Toolbar Actions */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <button
                 onClick={handleCreateNote}
-                className="p-2 text-text-muted hover:text-accent hover:bg-white/5 rounded-lg transition-all"
+                className="p-1.5 text-text-muted hover:text-accent hover:bg-white/5 rounded-lg transition-all"
                 title={t('notes.newNote')}
               >
                 <PencilSquareIcon className="w-5 h-5 stroke-[1.5]" />
               </button>
 
-              <div className="w-px h-4 bg-border/10 mx-1"></div>
+              <div className="w-px h-3.5 bg-border/10"></div>
 
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2 text-text-muted hover:text-text hover:bg-white/5 rounded-lg transition-all"
+                className="p-1.5 text-text-muted hover:text-text hover:bg-white/5 rounded-lg transition-all"
                 title={t('notes.importFiles')}
               >
                 <DocumentPlusIcon className="w-5 h-5 stroke-[1.5]" />
               </button>
               <button
                 onClick={() => folderInputRef.current?.click()}
-                className="p-2 text-text-muted hover:text-text hover:bg-white/5 rounded-lg transition-all"
+                className="p-1.5 text-text-muted hover:text-text hover:bg-white/5 rounded-lg transition-all"
                 title={t('notes.importFolder')}
               >
                 <FolderPlusIcon className="w-5 h-5 stroke-[1.5]" />
@@ -444,7 +534,10 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
                     />
                   ) : (
                     <button
-                      onClick={() => selectNote(note.id)}
+                      onClick={() => selectNote(note.id, false)}
+                      onAuxClick={(e) => {
+                        if (e.button === 1) selectNote(note.id, true)
+                      }}
                       className={`w-full text-left px-3 py-2.5 rounded-lg transition-all group relative border border-transparent ${
                         note.id === activeId
                           ? 'bg-accent/10 text-accent font-semibold'
@@ -501,69 +594,97 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
 
       {/* 2. Main Editor Content */}
       <main
-        className="flex-1 flex flex-col bg-bg relative transition-colors duration-300"
+        className="flex-1 flex flex-col bg-card/40 relative transition-colors duration-300"
         onClick={() => setContextMenu(null)}
       >
-        <header className="h-14 border-b border-border/5 flex items-center px-6 justify-between gap-6 bg-bg/50 backdrop-blur-sm z-20">
-          <div className="flex items-center gap-3 flex-1 overflow-hidden">
+        <header className="h-11 border-b border-border/10 flex items-center px-2 justify-between gap-4 bg-bg/80 backdrop-blur-md z-20">
+          <div className="flex items-center gap-1 flex-1 overflow-hidden h-full pt-1.5">
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="p-1.5 text-text-muted hover:text-text transition-colors rounded-md hover:bg-white/5"
+              className={`p-1.5 transition-all rounded-md ${isSidebarCollapsed ? 'text-accent bg-accent/10' : 'text-text-muted hover:text-text hover:bg-white/5'}`}
+              title="Toggle Sidebar"
             >
-              {isSidebarCollapsed ? (
-                <ArrowsPointingOutIcon className="w-4 h-4" />
-              ) : (
-                <ArrowsPointingInIcon className="w-4 h-4" />
-              )}
+              <ArrowsPointingOutIcon className="w-4 h-4" />
             </button>
 
-            <div className="h-4 w-px bg-border/10"></div>
+            <div className="h-4 w-px bg-border/20 mx-1"></div>
 
-            <div className="flex items-center gap-2 text-[11px] font-medium text-text-muted/60 tracking-wide overflow-hidden whitespace-nowrap">
-              <span className="opacity-50 hover:opacity-100 transition-opacity cursor-default">
-                MomAI
-              </span>
-              <ChevronRightIcon className="w-3 h-3 opacity-30" />
-              <span className="opacity-50 hover:opacity-100 transition-opacity cursor-default">
-                {t('notes.sidebar.title')}
-              </span>
-              {activeId && (
-                <>
-                  <ChevronRightIcon className="w-3 h-3 opacity-30" />
-                  <span className="font-bold px-1.5 py-0.5 truncate max-w-[300px] text-text">
-                    {title || t('notes.untitled')}
-                  </span>
-                </>
-              )}
+            {/* Tabs List */}
+            <div className="flex items-end gap-1 h-full overflow-x-auto no-scrollbar scroll-smooth">
+              {openTabIds.map((tabId) => {
+                const note = notes.find((n) => n.id === tabId)
+                if (!note) return null
+                const isActive = activeId === tabId
+
+                return (
+                  <div
+                    key={tabId}
+                    onClick={() => selectNote(tabId)}
+                    className={`group flex items-center gap-2 px-3 h-full min-w-[100px] max-w-[180px] cursor-pointer transition-all border-x border-t border-transparent text-[11px] font-medium tracking-tight relative rounded-t-lg ${
+                      isActive
+                        ? 'bg-card/60 text-accent border-border/10'
+                        : 'text-text-muted/60 hover:text-text hover:bg-white/5'
+                    }`}
+                  >
+                    <span className="truncate flex-1">
+                      {note.title || t('notes.untitled')}
+                    </span>
+                    <button
+                      onClick={(e) => closeTab(e, tabId)}
+                      className={`p-0.5 rounded-md hover:bg-white/10 transition-all ${
+                        isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}
+                    >
+                      <PlusIcon className="w-3 h-3 rotate-45" />
+                    </button>
+                  </div>
+                )
+              })}
             </div>
+
+            {/* Add Tab Button */}
+            <button
+              onClick={handleCreateNote}
+              className="p-1 text-text-muted/40 hover:text-text hover:bg-white/10 rounded-md transition-all ml-1 mb-1"
+              title={t('notes.newNote')}
+            >
+              <PlusIcon className="w-4 h-4" />
+            </button>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 pr-4">
+            {/* Breadcrumb style route on the right */}
+            {activeId && (
+              <div className="hidden lg:flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-text-muted/30">
+                <span>Notes</span>
+                <ChevronRightIcon className="w-2.5 h-2.5" />
+                <span className="text-text-muted/50">{title || 'Untitled'}</span>
+              </div>
+            )}
+
             {/* Saving Indicator */}
             {activeId && (
               <div
-                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full transition-all duration-500 ${isSaving ? 'bg-accent/10 text-accent' : 'bg-transparent text-text-muted/30'}`}
+                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full transition-all duration-500 ${isSaving ? 'bg-accent/10 text-accent' : 'bg-transparent text-text-muted/10'}`}
               >
                 <div
-                  className={`w-1.5 h-1.5 rounded-full ${isSaving ? 'bg-accent animate-pulse' : 'bg-current'}`}
+                  className={`w-1 h-1 rounded-full ${isSaving ? 'bg-accent animate-pulse' : 'bg-current'}`}
                 ></div>
-                <span className="text-[10px] font-bold uppercase tracking-wider">
+                <span className="text-[9px] font-bold uppercase tracking-widest opacity-60">
                   {isSaving ? t('notes.syncing') : 'Saved'}
                 </span>
               </div>
             )}
-
-            <div className="flex items-center gap-3">
-              {activeId && (
-                <button
-                  onClick={() => handleDeleteNote(activeId)}
-                  className="p-1.5 text-text-muted hover:text-red-400 hover:bg-red-500/10 rounded-md transition-all"
-                  title={t('notes.deleteTooltip')}
-                >
-                  <TrashIcon className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+            
+            {activeId && (
+              <button
+                onClick={() => handleDeleteNote(activeId)}
+                className="p-1.5 text-text-muted/30 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-all"
+                title={t('notes.deleteTooltip')}
+              >
+                <TrashIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </header>
 
@@ -577,14 +698,16 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
         <div className="flex-1 relative overflow-hidden flex mt-4 h-full">
           {activeId ? (
             <div className="flex-1 overflow-y-auto custom-scrollbar w-full">
-              <div className="max-w-4xl mx-auto py-4 px-8 flex flex-col min-h-full">
+              <div className="max-w-5xl py-4 px-8 flex flex-col min-h-full">
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder={t('notes.untitled')}
-                  className="w-full bg-transparent text-4xl font-bold text-text mb-4 outline-none placeholder:text-text-muted/20 border-none p-0"
+                  className="w-full bg-transparent text-4xl font-bold text-text mb-4 outline-none placeholder:text-text-muted/20 border-none px-8"
                 />
-                <div className="h-px bg-border/20 w-full mb-4 shrink-0"></div>
+                <div className="px-8 mb-4 shrink-0">
+                  <div className="h-px bg-border/20 w-full"></div>
+                </div>
                 <CodeMirror
                   value={content}
                   onChange={(value) => setContent(value)}

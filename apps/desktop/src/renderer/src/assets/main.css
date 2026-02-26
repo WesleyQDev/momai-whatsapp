@@ -20,11 +20,36 @@
     --bg-card: 255 255 255;
     --bg-sidebar: 235 238 242;
     --bg-input: 240 242 245;
-    --border: 220 225 232;
-    --text-primary: 15 23 42;
-    --text-muted: 71 85 105;
-    --accent: 124 58 237;
+    --border: 100 116 139; /* Slate gray base for borders */
+    --text-primary: 0 0 0;
+    --text-muted: 0 0 0; /* Pure black */
+    --accent: 139 92 246;
     --accent-muted: 124 58 237;
+  }
+
+  /* Force "grey" or "transparent" labels to be pure black in light mode */
+  [data-theme='light'] .text-text\/40,
+  [data-theme='light'] .text-text\/50,
+  [data-theme='light'] .text-text\/60,
+  [data-theme='light'] .text-text\/70,
+  [data-theme='light'] .text-text\/80,
+  [data-theme='light'] .text-text-muted\/30,
+  [data-theme='light'] .text-text-muted\/40,
+  [data-theme='light'] .text-text-muted\/50,
+  [data-theme='light'] .text-text-muted\/60 {
+    color: rgb(0 0 0 / 1) !important;
+  }
+
+  /* Specific TitleBar for Light Mode */
+  [data-theme='light'] .app-titlebar {
+    background-color: rgb(139 92 246) !important;
+    border: none !important;
+  }
+  [data-theme='light'] .app-titlebar * {
+    color: white !important;
+  }
+  [data-theme='light'] .app-titlebar button:hover {
+    background-color: rgba(255, 255, 255, 0.2) !important;
   }
 
   html,
@@ -34,7 +59,12 @@
   }
 
   body {
-    @apply font-sans antialiased bg-bg text-text;
+    font-family: 'Inter', sans-serif;
+    @apply antialiased bg-bg text-text;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', sans-serif;
   }
 
   * {
@@ -52,6 +82,10 @@
 
   ::-webkit-scrollbar-thumb {
     @apply bg-white/5 rounded-full transition-colors hover:bg-white/10;
+  }
+
+  [data-theme='light'] ::-webkit-scrollbar-thumb {
+    @apply bg-black/10 hover:bg-black/20;
   }
 }
 
@@ -155,33 +189,20 @@
   }
 }
 
-/* Animations */
-@keyframes spin-slow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+@keyframes shimmer {
+  0% { transform: translateX(-150%) skewX(-20deg); }
+  100% { transform: translateX(250%) skewX(-20deg); }
 }
 
-.animate-spin-slow {
-  animation: spin-slow 3s linear infinite;
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes pulse-source {
-  0% {
-    opacity: 0;
-    transform: translateY(-8px) scale(0.95);
-  }
-  50% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-  75% {
-    background-color: rgba(139, 92, 246, 0.1);
-  }
-  100% {
-    background-color: transparent;
-  }
+.animate-shimmer {
+  animation: shimmer 1.2s infinite linear;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
 }

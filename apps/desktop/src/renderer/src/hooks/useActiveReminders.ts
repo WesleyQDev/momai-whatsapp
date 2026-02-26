@@ -57,5 +57,5 @@ export function useActiveReminders() {
     }
   }, [])
 
-  return { reminders }
+  return { reminders, refresh: fetchAndUpdate }
 }
