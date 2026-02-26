@@ -62,6 +62,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
   const [newApp, setNewApp] = useState({ name: '', executable: '' })
   const [appVersion, setAppVersion] = useState('1.0.0')
   const [isAdvancedHardwareOpen, setIsAdvancedHardwareOpen] = useState(false)
+  const [tiersConfig, setTiersConfig] = useState<any>(null)
 
   useEffect(() => {
     window.api
@@ -168,6 +169,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
 
   const handleTierChange = async (tier: 'lite' | 'pro' | 'ultra') => {
     try {
+      localStorage.setItem('momai_ai_tier', tier) // Cache instantâneo antes do reload
       await updateField('ai_tier', tier, true)
       await api.post('/setup/apply-tier', null, { params: { tier } })
       window.location.reload()
@@ -183,6 +185,9 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
       if (res.data.locale) {
         setLocale(res.data.locale)
       }
+      
+      const statusRes = await api.get('/status')
+      setTiersConfig(statusRes.data.tiers_config)
     } catch (error) {
       console.error('Erro ao carregar configs:', error)
     } finally {
@@ -194,6 +199,8 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
     try {
       const res = await api.patch('/settings', newSettings)
       window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: newSettings }))
+      if (newSettings.ai_tier) localStorage.setItem('momai_ai_tier', newSettings.ai_tier)
+      if (newSettings.user_name) localStorage.setItem('momai_user_name', newSettings.user_name)
       return res
     } catch (error) {
       console.error('Erro ao salvar:', error)
@@ -519,23 +526,44 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
                       { 
                         id: 'lite', 
                         title: 'Modo Lite', 
-                        model: 'LFM 2.5 1.6B',
+                        model: tiersConfig?.lite?.file || 'Qwen 3 0.6B',
                         description: 'Apenas texto. Foco total em agilidade e economia de recursos.',
                         requirement: 'Usa ~1.5GB RAM',
+                        color: 'text-emerald-500',
+                        bg: 'bg-emerald-500/10',
+                        icon: (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                          </svg>
+                        )
                       },
                       { 
                         id: 'pro', 
                         title: 'Modo Pro', 
-                        model: 'LFM 2.5 1.2B',
+                        model: tiersConfig?.pro?.file || 'LFM 2.5 1.2B',
                         description: 'Texto rápido e processamento de voz / síntese neural ativados.',
                         requirement: 'Usa ~2.8GB (RAM/VRAM)',
+                        color: 'text-red-500',
+                        bg: 'bg-red-500/10',
+                        icon: (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                          </svg>
+                        )
                       },
                       { 
                         id: 'ultra', 
                         title: 'Modo Ultra', 
-                        model: 'Qwen 3 4B',
+                        model: tiersConfig?.ultra?.file || 'Qwen 3 4B',
                         description: 'Capacidade máxima com reconhecimento avançado, voz, internet e calendário.',
                         requirement: 'Usa ~5.5GB (RAM/VRAM)',
+                        color: 'text-yellow-400',
+                        bg: 'bg-yellow-400/10',
+                        icon: (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                          </svg>
+                        )
                       }
                     ].map((tier) => {
                       const isSelected = settings.ai_tier === tier.id
@@ -549,23 +577,14 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
                               : 'bg-input border-border hover:bg-black/10 hover:border-border/80'
                           }`}
                         >
-                          <div className="shrink-0 flex items-center justify-center relative">
-                            <div className={`w-5 h-5 rounded-full border transition-all ${
-                                isSelected 
-                                  ? 'border-accent bg-accent' 
-                                  : 'border-text-muted/40 bg-transparent'
-                            }`} />
-                            {isSelected && (
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" className="absolute z-10 pointer-events-none">
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                            )}
+                          <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center border border-white/5 shadow-inner transition-all ${tier.bg} ${tier.color}`}>
+                            {tier.icon}
                           </div>
                           
                           <div className="flex-1 flex flex-col gap-1">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <span className={`text-[13px] font-black uppercase tracking-tight ${isSelected ? 'text-text' : 'text-text/80'}`}>
+                                <span className={`text-[13px] font-black uppercase tracking-tight ${tier.color}`}>
                                   {tier.title}
                                 </span>
                                 <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded ${isSelected ? 'bg-accent/20 text-accent' : 'bg-black/20 text-text-muted'}`}>
@@ -584,6 +603,20 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
                             <p className="text-[11px] font-medium text-text-muted mt-0.5 leading-relaxed">
                               {tier.description}
                             </p>
+                          </div>
+                          
+                          <div className="shrink-0">
+                            <div className={`w-5 h-5 rounded-full border transition-all flex items-center justify-center ${
+                                isSelected 
+                                  ? 'border-accent bg-accent' 
+                                  : 'border-text-muted/40 bg-transparent'
+                            }`}>
+                              {isSelected && (
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4">
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              )}
+                            </div>
                           </div>
                         </button>
                       )
@@ -655,24 +688,14 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-xs font-bold text-text uppercase tracking-tight leading-none mb-1">
-                          {settings.ai_tier === 'ultra' 
-                            ? 'Qwen 3 Instruct 4B' 
-                            : settings.ai_tier === 'lite' 
-                              ? 'LFM 2.5 VL 1.6B'
-                              : 'LFM 2.5 Instruct 1.2B'
-                          }
+                          {tiersConfig?.[settings.ai_tier]?.file || 'Carregando...'}
                         </span>
                         <div className="flex items-center gap-1.5 overflow-hidden">
                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-text-muted/40 shrink-0">
                             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                           </svg>
                           <span className="text-[9px] text-text-muted font-medium opacity-60 uppercase tracking-widest truncate">
-                            {settings.ai_tier === 'ultra'
-                              ? 'unsloth/Qwen3-4B-Instruct-2507-GGUF'
-                              : settings.ai_tier === 'lite'
-                                ? 'unsloth/LFM2.5-VL-1.6B-GGUF'
-                                : 'LiquidAI/LFM2.5-1.2B-Instruct-GGUF'
-                            }
+                            {tiersConfig?.[settings.ai_tier]?.repo || '...'}
                           </span>
                         </div>
                       </div>
@@ -689,6 +712,13 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
                               {settings.ai_tier === 'ultra' ? 'Q4_K_XL' : 'Q4_K_M'} GGUF
                             </span>
                           </div>
+                          {localDetails.installed_version && (
+                            <div className="px-2 py-0.5 rounded-md bg-accent/5 border border-accent/20 flex items-center gap-1.5">
+                              <span className="text-[8px] font-black text-accent uppercase tracking-tighter">
+                                v{localDetails.installed_version}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -906,7 +936,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
                       </p>
                     </div>
                     <button
-                      onClick={() => setActiveTab('brain')}
+                      onClick={() => setActiveTab('general')}
                       className="mt-3 px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-text-muted hover:text-text rounded-xl text-[10px] font-black transition-all uppercase tracking-widest shadow-xl shadow-black/20"
                     >
                       Alterar para Pro ou Ultra
@@ -1063,69 +1093,46 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
                   </span>
                 </div>
 
-                <div className="p-5 rounded-xl border bg-input border-border space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center ${localDetails.installed_version !== localDetails.latest_version && localDetails.latest_version ? 'bg-accent/20 text-accent animate-pulse' : 'bg-black/20 text-text-muted'}`}
-                      >
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
+                {localDetails.installed_version !== localDetails.latest_version && localDetails.latest_version && (
+                  <div className="p-5 rounded-xl border bg-accent/5 border-accent/20 space-y-4 animate-pulse">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center text-accent">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                          </svg>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[13px] font-black text-text uppercase tracking-tight">
+                            {t('settings.updates.engineTitle')}
+                          </span>
+                          <span className="text-[10px] text-accent font-bold uppercase">
+                            Nova versão v{localDetails.latest_version} disponível
+                          </span>
+                        </div>
+                      </div>
+                      {installStatus === 'installing' ? (
+                        <span className="text-[10px] font-black text-accent uppercase tracking-widest">
+                          {t('settings.updates.updating', { percent: installProgress })}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleInstallEngine(settings.local_backend === 'auto' ? undefined : settings.local_backend)}
+                          className="px-4 py-2 bg-accent text-white text-[10px] font-black uppercase rounded-lg hover:opacity-90 transition-all shadow-lg shadow-accent/20"
                         >
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                          <polyline points="7 10 12 15 17 10" />
-                          <line x1="12" y1="15" x2="12" y2="3" />
-                        </svg>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[13px] font-black text-text uppercase tracking-tight">
-                          {t('settings.updates.engineTitle')}
-                        </span>
-                        <span className="text-[10px] text-text-muted font-medium">
-                          {localDetails.installed_version
-                            ? t('settings.updates.engineInstalled', {
-                                version: localDetails.installed_version
-                              })
-                            : t('settings.updates.engineNotInstalled')}
-                        </span>
-                      </div>
+                          {t('settings.updates.updateTo', { version: localDetails.latest_version })}
+                        </button>
+                      )}
                     </div>
-                    {installStatus === 'installing' ? (
-                      <span className="text-[10px] font-black text-accent uppercase tracking-widest animate-pulse">
-                        {t('settings.updates.updating', { percent: installProgress })}
-                      </span>
-                    ) : localDetails.installed_version !== localDetails.latest_version &&
-                      localDetails.latest_version ? (
-                      <button
-                        onClick={() =>
-                          handleInstallEngine(
-                            settings.local_backend === 'auto' ? undefined : settings.local_backend
-                          )
-                        }
-                        className="px-4 py-2 bg-accent text-white text-[10px] font-black uppercase rounded-lg hover:opacity-90 transition-all shadow-lg shadow-accent/20"
-                      >
-                        {t('settings.updates.updateTo', { version: localDetails.latest_version })}
-                      </button>
-                    ) : (
-                      <span className="text-[10px] font-black text-text-muted uppercase border border-border px-3 py-1 rounded-full bg-black/20">
-                        {t('settings.updates.engineUpToDate')}
-                      </span>
+                    {installStatus === 'installing' && (
+                      <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden">
+                        <div className="h-full bg-accent transition-all duration-300 ease-out" style={{ width: `${installProgress}%` }} />
+                      </div>
                     )}
                   </div>
-                  {installStatus === 'installing' && (
-                    <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-accent transition-all duration-300 ease-out"
-                        style={{ width: `${installProgress}%` }}
-                      />
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             </div>
           )}

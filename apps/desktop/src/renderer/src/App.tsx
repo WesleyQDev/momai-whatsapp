@@ -303,6 +303,9 @@ function App(): React.JSX.Element {
         if (data.locale) {
           setLocale(data.locale as any)
         }
+        if (data.ai_tier) {
+          localStorage.setItem('momai_ai_tier', data.ai_tier)
+        }
 
         if (data && data.onboarding_completed === false && !onboardingAttempted) {
           setShowOnboarding(true)
@@ -575,12 +578,38 @@ function App(): React.JSX.Element {
                             className="absolute -inset-3 bg-accent/20 blur-2xl animate-pulse"
                             style={{ animationDuration: '3s' }}
                           />
-                          <span className="relative text-sm font-medium text-text-muted/80 whitespace-nowrap">
-                            Tente dizer{' '}
-                            <span className="text-accent font-bold text-lg drop-shadow-[0_0_12px_rgba(var(--accent-rgb),0.6)]">
-                              &quot;Luna&quot;
-                            </span>
-                            ..
+                          <span className="relative text-[11px] font-bold text-text-muted/60 whitespace-nowrap">
+                            {(() => {
+                              const currentTier = 
+                                statusInfo?.ai_tier || 
+                                settings?.ai_tier || 
+                                localStorage.getItem('momai_ai_tier') || 
+                                'pro'
+                              
+                              if (currentTier === 'ultra') {
+                                return (
+                                  <>
+                                    Tente dizer{' '}
+                                    <span className="text-accent font-black text-[13px] drop-shadow-[0_0_12px_rgba(var(--accent-rgb),0.5)]">
+                                      &quot;Luna&quot;
+                                    </span>
+                                    ..
+                                  </>
+                                )
+                              }
+                              if (currentTier === 'lite') {
+                                return (
+                                  <span className="text-emerald-400 font-black text-[11px] drop-shadow-[0_0_10px_rgba(52,211,153,0.4)] uppercase tracking-[0.15em]">
+                                    Modo Lite
+                                  </span>
+                                )
+                              }
+                              return (
+                                <span className="text-rose-500 font-black text-[11px] drop-shadow-[0_0_10px_rgba(244,63,94,0.4)] uppercase tracking-[0.15em]">
+                                  Modo Pro
+                                </span>
+                              )
+                            })()}
                           </span>
                         </div>
                       </div>

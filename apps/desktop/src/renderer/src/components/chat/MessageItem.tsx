@@ -2,6 +2,7 @@ import { JSX, memo, useEffect, useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Message } from '../../services/api'
+import { cleanMomaiActions } from '../../utils/text'
 import icon from '../../assets/icon.png'
 import { DocumentTextIcon } from '@heroicons/react/24/outline'
 import { ExtrasRenderer } from './ExtrasRenderer'
@@ -47,8 +48,41 @@ const MessageItem = memo(function MessageItem({
     setContextMenu({ x: e.clientX, y: e.clientY })
   }
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(message.content)
+  const handleCopy = async () => {
+    try {
+      const text = cleanMomaiActions(message.content)
+      if (!text) return
+      
+      let success = false
+      if (navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(text)
+          success = true
+        } catch (e) {
+          console.warn('Clipboard API failed:', e)
+        }
+      }
+
+      if (!success) {
+        const textArea = document.createElement('textarea')
+        textArea.value = text
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-9999px'
+        textArea.style.top = '0'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        try {
+          const result = document.execCommand('copy')
+          if (!result) throw new Error('execCommand copy failed')
+        } catch (err) {
+          console.error('Fallback copy failed:', err)
+        }
+        document.body.removeChild(textArea)
+      }
+    } catch (err) {
+      console.error('Copy error:', err)
+    }
   }
 
   const handleStopVoiceClick = () => {

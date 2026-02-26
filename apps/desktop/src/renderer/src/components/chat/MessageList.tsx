@@ -48,11 +48,13 @@ const MessageList = memo(function MessageList({
     const isNewMessage = messages.length > lastMessagesLength.current
     lastMessagesLength.current = messages.length
 
-    // Now ONLY scroll if it's a brand new message entry (user or AI starting)
-    // We removed the 'magnet' that pulls you down while the AI is still typing
-    if (isNewMessage) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-      isAtBottomRef.current = true
+    // Scroll if it's a new message OR if we are already at the bottom (follow stream)
+    if (isNewMessage || isAtBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ 
+        behavior: isNewMessage ? 'smooth' : 'auto' 
+      })
+      
+      if (isNewMessage) isAtBottomRef.current = true
     }
   }, [messages, messagesEndRef])
 

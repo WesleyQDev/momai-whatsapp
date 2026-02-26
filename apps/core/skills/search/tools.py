@@ -1,7 +1,7 @@
 import asyncio
 from ddgs import DDGS
 from langchain_core.tools import tool
-
+from langchain_community.tools import YouTubeSearchTool
 
 def _sync_web_search(query: str, max_results: int = 3):
     """Sync wrapper for DDGS text search."""
@@ -97,3 +97,20 @@ async def news_search(query: str) -> str:
     except Exception as e:
         return {"result": f"News search error: {str(e)}", "extras": None}
 
+@tool
+async def youtube_search(query: str) -> str:
+    """
+    Search for YouTube videos.
+
+    Args:
+        query: The search query.
+
+    Returns:
+        A string with video results or a dict with result + extras.
+    """
+    try:
+        tool = YouTubeSearchTool()
+        results = await tool.arun(query)
+        return results
+    except Exception as e:
+        return {"result": f"YouTube search error: {str(e)}", "extras": None}

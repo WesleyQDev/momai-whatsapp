@@ -45,10 +45,12 @@ def _sync_update_settings(data: SettingsUpdate):
             settings.tts_voice = data.tts_voice
 
         if data.tts_enabled is not None:
-            settings.tts_enabled = data.tts_enabled
+            # Enforce Lite tier restriction
+            settings.tts_enabled = data.tts_enabled if settings.ai_tier != "lite" else False
 
         if data.wake_word_enabled is not None:
-            settings.wake_word_enabled = data.wake_word_enabled
+            # Enforce Lite tier restriction
+            settings.wake_word_enabled = data.wake_word_enabled if settings.ai_tier != "lite" else False
 
         if data.wake_word_sensitivity is not None:
             settings.wake_word_sensitivity = data.wake_word_sensitivity

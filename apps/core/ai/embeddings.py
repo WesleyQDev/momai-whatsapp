@@ -107,6 +107,20 @@ class EmbeddingEngine:
 
     def load(self):
         """Ensure the llama-server for embeddings is running."""
+        # Check tier before loading
+        try:
+            from database.models import SessionLocal, Settings
+            db = SessionLocal()
+            s = db.query(Settings).first()
+            tier = s.ai_tier if s else "pro"
+            db.close()
+            if tier != "ultra":
+                # Ensure server is stopped if we are NOT in ultra anymore
+                self.stop()
+                return None
+        except Exception:
+            pass
+
         if self._process is None:
             # Check if something is already running on port 8081
             try:
@@ -210,7 +224,9 @@ class EmbeddingEngine:
 
     def _embed_sync(self, text: str) -> list[float]:
         """Internal synchronous version for the executor."""
-        self.load()
+        if self.load() is None:
+            return [0.0] * 1024
+            
         try:
             start_time = time.time()
             response = requests.post(
@@ -271,7 +287,9 @@ class EmbeddingEngine:
 
     def _embed_docs_sync(self, texts: list[str]) -> list[list[float]]:
         """Internal synchronous version for the executor."""
-        self.load()
+        if self.load() is None:
+            return [[0.0] * 1024] * len(texts)
+            
         try:
             response = requests.post(
                 f"http://127.0.0.1:{self._port}/embedding",

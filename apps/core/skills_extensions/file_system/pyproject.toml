@@ -1,0 +1,12 @@
+[project]
+name = "file_system"
+version = "0.1.0"
+description = "Extensão para manipulação de arquivos baseada no LangChain"
+authors = [{ name = "MomAI" }]
+dependencies = [
+    "langchain-community"
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

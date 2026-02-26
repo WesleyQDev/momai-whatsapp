@@ -150,13 +150,15 @@ def stop_server():
         server_process = None
 
 
-def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | None:
+def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: int = None, on_progress=None) -> ChatOpenAI | None:
     """
     Downloads and starts the llama-server with the specified model.
 
     Args:
         repo_id (str): HuggingFace repository ID.
         filename (str): Model filename (.gguf).
+        ctx_size (int, optional): Context window size.
+        gpu_layers (int, optional): Number of layers to offload to GPU.
         on_progress (callable, optional): Callback for progress reporting.
 
     Returns:
@@ -241,11 +243,11 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
             "--port",
             "8080",
             "-c",
-            str(CTX_SIZE),
+            str(ctx_size or CTX_SIZE),
             "-t",
             str(physical_cores),
             "-ngl",
-            "99",
+            str(gpu_layers if gpu_layers is not None else 99),
             "--parallel",
             "1",
             "--flash-attn",
@@ -339,7 +341,7 @@ def load_model(repo_id: str, filename: str, on_progress=None) -> ChatOpenAI | No
                         base_url="http://127.0.0.1:8080/v1",
                         api_key="sk-none",
                         model="gpt-4o",
-                        temperature=0.7,
+                        temperature=0.1,
                         streaming=True,
                     )
             except Exception:

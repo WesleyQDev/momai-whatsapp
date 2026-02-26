@@ -6,7 +6,7 @@ interface TitleBarProps {
   activeRoute?: string
 }
 
-export default function TitleBar({}: TitleBarProps) {
+export default function TitleBar({ onClearHistory }: TitleBarProps) {
   const [showAbout, setShowAbout] = useState(false)
   const [version, setVersion] = useState('...')
 

@@ -118,18 +118,41 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
         last_msg = str(state["messages"][-1].content)
         log_event("Discovery", f"Query: {last_msg}")
 
-        greetings = r"^(oi|ol[aá]|tudo bem|bom dia|boa tarde|boa noite|opa|e ai|eae|salve|oba|co[eé]|ei|hey|hello|hi)(\?|\!|\s|$)"
-        if re.search(greetings, last_msg.strip().lower()):
-            return {"fast_path": True, "discovered_skills": []}
+        greetings = r"^(oi|ol[aá]|tudo bem|como vai|como você está|como voce esta|bom dia|boa tarde|boa noite|opa|e ai|eae|salve|oba|co[eé]|ei|hey|hello|hi)(\?|\!|\s|$)"
+        is_greeting = re.search(greetings, last_msg.strip().lower())
+        is_short = len(last_msg.strip()) < 3
+        # Skip discovery for math expressions to avoid context distraction (e.g., 20/5 being seen as a date)
+        is_math = re.match(r"^[\d\s.,/*+\-()^?]+$", last_msg.strip())
+        
+        if is_greeting or is_short or is_math:
+            return {"fast_path": True, "discovered_skills": [], "next": "momai_agent"}
 
         from services.memory.external_memory import search_memory, DEFAULT_MAX_TOKENS
         from utils.tokenizer import count_tokens
 
-        tasks = [
-            vector_db.search_skills(last_msg, limit=4),
-            search_memory(last_msg),
-        ]
-        skill_hits, memory_hits = await asyncio.gather(*tasks)
+        tasks = []
+        memory_task = None
+        if tier != "lite":
+            memory_task = search_memory(last_msg)
+            tasks.append(memory_task)
+
+        search_skills_task = None
+        if tier == "ultra":
+            search_skills_task = vector_db.search_skills(last_msg, limit=4)
+            tasks.append(search_skills_task)
+
+        results = await asyncio.gather(*tasks) if tasks else []
+        
+        # Unpack results safely
+        memory_hits = []
+        skill_hits = []
+        
+        idx = 0
+        if memory_task:
+            memory_hits = results[idx]
+            idx += 1
+        if search_skills_task:
+            skill_hits = results[idx]
 
         mem_context = ""
         if memory_hits:
@@ -208,43 +231,67 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
         now = datetime.now()
         current_time_info = f"Current Date: {now.strftime('%A, %d de %B de %Y')}\nCurrent Time: {now.strftime('%H:%M')}"
 
-        system_prompt = (
-            f"{lang}\n\n{persona}\n\n"
-            f"# CONTEXT\n{current_time_info}\n\n"
-            "# ROLE\n"
-            "You are the Central Manager. Decide which SKILL to use for the request.\n\n"
-        )
         if tier == "ultra":
-            system_prompt += "# DISCOVERED SKILLS\n"
+            system_prompt = (
+                f"{lang}\n\n{persona}\n\n"
+                f"# CONTEXT\n{current_time_info}\n\n"
+                "# ROLE\n"
+                "You are the Central Manager. Decide which SKILL to use for the request.\n\n"
+                "# DISCOVERED SKILLS\n"
+            )
             skills = state.get("discovered_skills") or []
             for s in skills:
                 system_prompt += f"- ID: '{s['id']}' | Competency: {s['description']}\n"
-        else:
-            system_prompt += (
-                "NOTE: Skills and System Tools are disabled in your current Lite/Pro tier. "
-                "Answer only from memory or general knowledge.\n"
-                f"IMPORTANT FALLBACK: If the user asks for something you cannot do without tools (like searching the web, setting reminders, or opening interfaces), "
-                f"explain clearly that you are running in 'Modo {tier.capitalize()}' which is optimized for conversation, "
-                f"and that for advanced features they should switch to 'Modo Ultra'.\n"
+        elif tier == "pro":
+            system_prompt = (
+                f"{lang}\n\n{persona}\n\n"
+                f"# CONTEXT\n{current_time_info}\n\n"
+                "# ROLE\n"
+                "Você é um assistente extremamente objetivo e conciso.\n"
+                "Para cálculos, perguntas de sim ou não, ou fatos diretos, forneça APENAS a resposta final.\n"
+                "Não use introduções como 'O resultado é' ou 'A resposta é'. Responda apenas o conteúdo.\n\n"
+                "NOTA: Modo Pro ativo (Ferramentas/Internet desativadas).\n"
+            )
+        else: # lite
+            system_prompt = (
+                f"{lang}\n\n{persona}\n\n"
+                f"# CONTEXT\n{current_time_info}\n\n"
+                "# ROLE\n"
+                "Você é um assistente prestativo. Responda ao usuário de forma direta e natural.\n\n"
+                "NOTA: Você está no 'Modo Lite'. "
+                "Tarefas automatizadas e internet estão desativadas. "
+                "Responda livremente a conversas e conhecimentos gerais.\n"
             )
 
         mem_context = state.get("memory_context")
         if mem_context:
             system_prompt += f"\n{mem_context}\n"
 
-        system_prompt += (
-            "\n# EXECUTION PROTOCOL\n"
-            "1. For CASUAL CONVERSATIONS (jokes, stories, creative writing, opinions, greetings, emotional support, trivia, general chat): respond DIRECTLY and naturally. No tools needed.\n"
-            "2. Check if the answer is already in the # CONTEÚDO DAS NOTAS DO USUÁRIO or # EXTERNAL MEMORY provided above.\n"
-            "3. IF YOU HAVE THE ANSWER, respond directly without calling any tool.\n"
-            "4. IF NOT, identify which DISCOVERED SKILL can help. If 'websearch' or 'search' is available, ALWAYS use it for real-time facts, prices, or unknown info.\n"
-            "5. CALL 'activate_skill(skill_id, task_description)' to delegate the task.\n"
-            "6. MANDATORY: DO NOT NARRATE. Do not apologize.\n"
-            "7. Your output must be ONLY the tool call or ONLY the final answer.\n"
-            "8. After each skill finishes, you will receive the result and can call ANOTHER skill if needed.\n"
-            "9. ONLY provide the final response to the user after you have gathered all necessary information.\n"
-            "10. NEVER invent factual data. For real-time data, use a skill. For general knowledge and conversation, respond freely."
-        )
+        if tier == "ultra":
+            system_prompt += (
+                "\n# EXECUTION PROTOCOL\n"
+                "1. For CASUAL CONVERSATIONS: respond DIRECTLY. No tools needed.\n"
+                "2. Check if the answer is in the notes/memory above. If yes, respond directly.\n"
+                "3. IF NOT, identify which DISCOVERED SKILL can help. Use 'websearch' for facts/prices.\n"
+                "4. CALL 'activate_skill(skill_id, task_description)' to delegate.\n"
+                "5. MANDATORY: DO NOT NARRATE. Output ONLY the tool call or ONLY the final answer.\n"
+                "6. Provide the final response after all info is gathered.\n"
+            )
+        elif tier == "pro":
+            system_prompt += (
+                "\n# INSTRUÇÕES CRÍTICAS (MODO PRO)\n"
+                "1. SEJA TELEGRÁFICO. Responda apenas o necessário.\n"
+                "2. Exemplo: Se perguntarem 'Quanto é 2+2?', responda apenas '4'.\n"
+                "3. NÃO use prefixos técnicos ou saudações desnecessárias.\n"
+            )
+        else: # lite
+            system_prompt += (
+                "\n# INSTRUÇÕES\n"
+                "1. Responda perguntas diretas e saudações NATURAMENTE.\n"
+                "2. Se a mensagem for um cálculo, resolva-o diretamente.\n"
+                "3. NÃO use prefixos técnicos como 'Assunto:'.\n"
+                "4. Seja conciso e amigável.\n"
+            )
 
         from langchain_core.tools import tool
 
@@ -284,11 +331,10 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
             )
         else:
             system_prompt += (
-                "\n# CRITICAL INSTRUCTIONS\n"
-                "You DO NOT HAVE ACCESS to search, internet, or tools in this mode.\n"
-                "If the user asks for real-time data, facts, prices, or tasks you cannot do purely from memory, you MUST REFUSE the request elegantly.\n"
-                f"Your response MUST be warm and exactly like this (in Portuguese): 'Como estou rodando no Modo {tier.capitalize()} (focado em economia de desempenho), minhas ferramentas de pesquisa na internet estão em repouso. Por favor, mude para o Modo Ultra nas configurações se precisar que eu busque informações atualizadas para você!'\n"
-                "Do NOT give generic AI apologies, do NOT tell the user to go to Google or other websites. ONLY say the message above.\n"
+                "\n# USER ADVISORY\n"
+                "If (and only if) the request is impossible without tools/internet, politely explain that you are in a performance-focused mode and "
+                f"suggest switching to 'Modo Ultra' in the settings for those capabilities.\n"
+                "NEVER use this disclaimer for 'Bom dia', 'Tudo bem?', greetings, or basic chat. Just reply normally to those."
             )
 
         prompt = ChatPromptTemplate.from_messages(

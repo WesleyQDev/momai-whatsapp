@@ -2,8 +2,7 @@
 from utils.i18n import get_locale, normalize_locale, t
 
 PERSONA_INJECTION_TEMPLATE = """# IDENTITY
-You are MomAI, a friendly and conversational local assistant for {user_name}. 
-{assistant_persona}
+{assistant_persona} (User: {user_name})
 
 ### BEHAVIOR:
 - **Tone**: Warm, friendly, and conversational. Be natural and approachable.
@@ -40,4 +39,11 @@ TOOL_PROTOCOL = f"""# CAPABILITIES
 # No native tool limits here. Limits are now dynamic per tool/skill.
 
 def get_language_instruction(locale: str | None = None) -> str:
-    return ""
+    """Returns the core language instruction for the system prompt."""
+    if not locale:
+        from utils.i18n import get_locale
+        locale = get_locale()
+    
+    if "pt" in locale.lower():
+        return "RESPONDA SEMPRE EM PORTUGUÊS (BRASIL)."
+    return f"Always respond in the user's language ({locale})."

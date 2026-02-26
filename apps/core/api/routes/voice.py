@@ -82,6 +82,15 @@ async def control_wake_word(control: WakeWordControl):
         if not app_state.ww:
             return {"success": False, "message": "Wake word detector not initialized"}
 
+        # Prevent enabling if Lite tier
+        from database.models import SessionLocal, Settings
+        db = SessionLocal()
+        settings = db.query(Settings).first()
+        db.close()
+        
+        if control.enabled and settings and settings.ai_tier == "lite":
+            return {"success": False, "message": "Wake word not allowed in Lite tier"}
+
         if control.enabled:
             if not app_state.ww.running:
                 app_state.ww.start()

@@ -579,6 +579,8 @@ class WakeWordDetector:
             raw_match = re.search(rf"\b{re.escape(detected_variation)}\b", raw_lower)
             if raw_match:
                 final_cmd = raw_text[raw_match.end():].strip()
+                # Remove leading punctuation commonly added by Whisper
+                final_cmd = re.sub(r"^[^\w\s]+", "", final_cmd).strip()
             else:
                 final_cmd = command_clean
 

@@ -146,8 +146,30 @@ export function useStatus() {
       setInitMessage('Reiniciando...')
     })
 
+    // Listen for AI model change events
+    const handleModelChangeStart = () => {
+      setInitProgress(5)
+      setInitMessage('Inicializando troca de modelo...')
+    }
+
+    const handleModelChangeProgress = (e: any) => {
+      const { status } = e.detail
+      setInitMessage(translateMessage(status))
+      
+      // Parse "(X%)" from status string if present
+      const match = status.match(/\((\d+)%\)/)
+      if (match) {
+        setInitProgress(parseInt(match[1]))
+      }
+    }
+
+    window.addEventListener('ai_model_change_start', handleModelChangeStart)
+    window.addEventListener('ai_model_change_progress', handleModelChangeProgress)
+
     return () => {
       window.removeEventListener('momai_init_progress', handleInitProgress)
+      window.removeEventListener('ai_model_change_start', handleModelChangeStart)
+      window.removeEventListener('ai_model_change_progress', handleModelChangeProgress)
       if (removeIpcListener) removeIpcListener()
       if (removeOnlineListener) removeOnlineListener()
       if (removeRetryListener) removeRetryListener()
@@ -159,6 +181,8 @@ export function useStatus() {
     window.dispatchEvent(new CustomEvent('ai_model_change_start', { detail: mode }))
     setLocalMode(mode)
     setIsUpdating(true)
+    setInitProgress(5)
+    setInitMessage('Aplicando novo nível de IA...')
     try {
       await updateMode(mode)
     } catch (error) {

@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { cleanMomaiActions } from '../utils/text'
 
 const API_URL = 'http://localhost:8000'
 
@@ -36,6 +37,7 @@ export interface StatusData {
     latest_version?: string
   }
   ai_tier: string | null
+  tiers_config?: Record<string, any>
 }
 
 export interface ChatStreamCallbacks {
@@ -138,6 +140,7 @@ export async function sendChatMessage(
     }
   }
 }
+
 
 export async function fetchStatus(): Promise<StatusData> {
   const response = await fetch(`${API_URL}/status`, {
@@ -243,7 +246,8 @@ export async function generateSessionTitle(
     })
     if (!response.ok) return null
     const data = await response.json()
-    return data.title || null
+    const title = data.title || null
+    return title ? cleanMomaiActions(title) : null
   } catch {
     return null
   }
@@ -270,6 +274,7 @@ export interface Extension {
   author?: string
   is_official?: boolean
   download_url?: string
+  manifest?: any
 }
 
 export async function fetchExtensions(): Promise<Extension[]> {

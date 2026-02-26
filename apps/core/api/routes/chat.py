@@ -89,7 +89,7 @@ async def get_chat_history(thread_id: str = "default", db: Session = Depends(get
     from database.models import Message
     
     await _prune_sessions(db)
-
+    app_state.last_thread_id = thread_id
     messages = (
         db.query(Message)
         .filter(Message.thread_id == thread_id)

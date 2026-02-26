@@ -1,7 +1,7 @@
 import { RefObject, JSX, useState, useEffect } from 'react'
 import { MessageList, ChatInput } from './chat'
-import { Message } from '../services/api'
-import { StatusData } from '../services/api'
+import { Message, StatusData } from '../services/api'
+import { cleanMomaiActions } from '../utils/text'
 
 interface ContainerChatProps {
   messages: Message[]
@@ -268,10 +268,13 @@ export default function ContainerChat({
   const isInitializing = initProgress < 100 || (!isBrainReady || isBrainLoading)
   // Don't show 100% until brain is truly ready — clamp at 99%
   const displayProgress = (!isBrainReady || isBrainLoading) ? Math.min(initProgress, 99) : initProgress
+  
   // Show contextual message when init is done but model isn't loaded yet
+  const defaultWaitingMessage = isBrainLoading ? 'Carregando modelo de IA...' : 'Aguardando modelo de IA...'
   const displayMessage = (initProgress >= 100 && (!isBrainReady || isBrainLoading))
-    ? (isBrainLoading ? 'Carregando modelo de IA...' : 'Aguardando modelo de IA...')
+    ? (!initMessage || initMessage === 'Sistema pronto.' ? defaultWaitingMessage : initMessage)
     : initMessage
+
 
   return (
     <div className="bg-transparent w-full h-full flex flex-col overflow-hidden relative">
@@ -292,7 +295,7 @@ export default function ContainerChat({
                 if (localSessionTitle) return localSessionTitle
                 const firstUserMsg = messages.find(m => m.role === 'user')
                 if (!firstUserMsg) return 'Nova Sessão'
-                const clean = firstUserMsg.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()
+                const clean = cleanMomaiActions(firstUserMsg.content)
                 return clean
               })()}
             </span>

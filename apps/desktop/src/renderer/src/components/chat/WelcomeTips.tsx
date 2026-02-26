@@ -101,7 +101,7 @@ export default function WelcomeTips({ onSendMessage, statusInfo }: WelcomeTipsPr
 
   const userName = settings?.user_name || ''
   const showSeparator = userName && userName !== ''
-  const tier = statusInfo?.ai_tier || settings?.ai_tier || 'pro'
+  const tier = statusInfo?.ai_tier || settings?.ai_tier || localStorage.getItem('momai_ai_tier') || 'pro'
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 select-none pb-12">

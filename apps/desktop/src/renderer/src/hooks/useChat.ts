@@ -11,6 +11,7 @@ import {
   setCallMode,
   generateSessionTitle
 } from '../services/api'
+import { cleanMomaiActions } from '../utils/text'
 
 export function useChat() {
   const [text, setText] = useState('')
@@ -136,14 +137,6 @@ export function useChat() {
     isGraphOpenRef.current = graphState.view !== null
   }, [graphState])
 
-  useEffect(() => {
-    if (currentThreadRef.current !== threadId) {
-      if (isLoading) {
-        stopCurrentGeneration()
-      }
-      currentThreadRef.current = threadId
-    }
-  }, [threadId, isLoading])
 
   // Carrega histórico inicial do SQLite
   useEffect(() => {
@@ -1175,10 +1168,26 @@ export function useChat() {
     }
   }, [])
 
+  useEffect(() => {
+    if (currentThreadRef.current !== threadId) {
+      if (isLoading) {
+        stopCurrentGeneration()
+      }
+      // Sempre para a voz ao trocar de tópico
+      stopCurrentVoice()
+      
+      currentThreadRef.current = threadId
+    }
+  }, [threadId, isLoading, stopCurrentGeneration, stopCurrentVoice])
+
+
   const speakMessage = useCallback(async (content: string, index: number) => {
+    const cleanText = cleanMomaiActions(content)
+    if (!cleanText) return
+
     try {
       setSpeakingIndex(index)
-      await speakText(content)
+      await speakText(cleanText)
     } catch (error) {
       console.error('Erro ao falar mensagem:', error)
       setSpeakingIndex(null)

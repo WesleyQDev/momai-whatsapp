@@ -170,10 +170,27 @@ async def apply_tier(tier: str, db: Session = Depends(get_db)):
             )
 
         try:
-            # 1. Pre-aquecer Voz se habilitado (Pro e Ultra)
+            # 1. Component Cleanup
+            from services.voice.tts import tts
+            if not config.get("voice"):
+                report_setup("Desativando sistema de voz...")
+                tts.stop()
+                tts.set_enabled(False)
+            
+            if tier != "ultra":
+                if hasattr(app_state, "ww") and app_state.ww:
+                    report_setup("Desativando detector de voz...")
+                    app_state.ww.stop()
+                    app_state.ww = None
+                
+                # Stop embedding server for non-ultra tiers
+                from ai.embeddings import embeddings
+                embeddings.stop()
+
+            # 2. Pre-aquecer Voz se habilitado (Pro e Ultra)
             if config.get("voice"):
                 report_setup("Finalizando configuração de voz...")
-                from services.voice.tts import tts
+                tts.set_enabled(True)
                 tts.initialize()
                 await asyncio.to_thread(tts.wait_until_ready, timeout=60)
             

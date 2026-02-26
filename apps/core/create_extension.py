@@ -5,7 +5,7 @@ from pathlib import Path
 
 def create_extension(name: str):
     # Converte Nome Para ID (slug)
-    ext_id = name.lower().replace(" ", "_")
+    ext_id = name.lower().replace(" ", "_").strip()
     
     # Caminho base (assume execução na raiz do projeto ou em apps/core)
     base_path = Path("apps/core/skills_extensions") / ext_id
@@ -16,63 +16,54 @@ def create_extension(name: str):
 
     base_path.mkdir(parents=True)
     
-    # 1. Create manifest.json
-    manifest = {
-        "id": f"com.momai.extension.{ext_id}",
-        "name": name,
-        "author": "Your Name",
-        "version": "0.1.0",
-        "description": f"Description for {name}",
-        "icon": "Puzzle",
-        "entry": "plugin.py",
-        "system_prompt": f"You are the {name} specialist. Your goal is to help the user with specialized tasks.",
-        "intents": [
-            f"Usar a extensão {name}",
-            f"Peça ajuda ao {name}"
-        ],
-        "features": {
-            "sidebar": False,
-            "agent_name": ext_id
-        }
-    }
-    
-    with open(base_path / "manifest.json", "w", encoding="utf-8") as f:
-        json.dump(manifest, f, indent=2)
+    # 1. Create SKILL.md (The new universal manifest)
+    skill_content = f"""---
+name: {name}
+description: Description for {name}
+intents:
+  - Usar a extensão {name}
+  - Peça ajuda ao {name}
+metadata:
+  author: Your Name
+  version: 0.1.0
+  icon: Puzzle
+  has_sidebar: false
+---
 
-    # 2. Create plugin.py
-    plugin_content = f"""from services.extensions.base import MomAIExtension
-from services.extensions.hooks import hookimpl
-from langchain_core.tools import tool
+You are the {name} specialist. Your goal is to help the user with specialized tasks.
+"""
+    
+    with open(base_path / "SKILL.md", "w", encoding="utf-8") as f:
+        f.write(skill_content)
+
+    # 2. Create plugin.py (Optional but added by default for extensions)
+    plugin_content = f"""from langchain_core.tools import tool
 from typing import List
 
-class {name.replace(" ", "")}Plugin(MomAIExtension):
-    @hookimpl
-    def register_tools(self):
+class {name.replace(" ", "")}Plugin:
+    def __init__(self, manifest):
+        self.manifest = manifest
+
+    def register_tools(self) -> List:
         \"\"\"
         Registra as ferramentas no sistema.
         \"\"\"
         return [{ext_id}_tool]
 
-    @hookimpl
     def on_startup(self):
-        \"\"\"Executado ao carregar a extens\u00e3o no boot.\"\"\"
+        \"\"\"Executado ao carregar a extensão no boot.\"\"\"
         print(f"[{name}] Inicializada!")
-
-    @hookimpl
-    def on_enable(self):
-        \"\"\"Executado quando a extens\u00e3o \u00e9 ativada pelo usu\u00e1rio.\"\"\"
-        print(f"[{name}] Habilitada!")
 
 @tool
 def {ext_id}_tool(param: str):
     \"\"\"Descreva o que esta ferramenta faz aqui.\"\"\"
-    return f"Extens\u00e3o {name} processou: {{param}}"
+    return f"Extensão {name} processou: {{param}}"
 
 def initialize(manifest):
-    \"\"\"Ponto de entrada para inicializar a classe da extens\u00e3o.\"\"\"
+    \"\"\"Ponto de entrada para inicializar a classe da extensão.\"\"\"
     return {name.replace(" ", "")}Plugin(manifest)
 """
-
+    
     with open(base_path / "plugin.py", "w", encoding="utf-8") as f:
         f.write(plugin_content)
 
@@ -93,20 +84,6 @@ build-backend = "setuptools.build_meta"
 
     print(f"Extension {name} created successfully at {base_path}")
     print(f"ID: com.momai.extension.{ext_id}")
-        f.write(simple_plugin)
-
-    # 3. Create pyproject.toml
-    pyproject_content = f"""[project]
-name = "{ext_id}"
-version = "0.1.0"
-description = "Extension {name} for MomAI"
-dependencies = []
-"""
-    with open(base_path / "pyproject.toml", "w", encoding="utf-8") as f:
-        f.write(pyproject_content)
-
-    print(f"Success! Extension {name} created at {base_path}")
-    print(f"To test: Restart MomAI and the extension will be loaded automatically.")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

@@ -27,7 +27,7 @@ async def init_system_task() -> None:
         await app_state.send_init_event("api", "Database connected & migrated", 35)
 
         await app_state.send_init_event("brain", "Loading AI stack modules...", 40)
-        app_state.initialize_ai_stack()
+        await app_state.initialize_ai_stack()
         await app_state.send_init_event("brain", "Core AI modules ready", 45)
 
         db = SessionLocal()
@@ -129,7 +129,6 @@ async def start_core_services(settings):
         await app_state.send_init_event("brain", "Applying user preferences...", None)
         app_state.tts.tts.set_voice(settings.tts_voice)
         app_state.tts.tts.set_enabled(settings.tts_enabled)
-        app_state.orchestrator.SYSTEM_PROMPT = settings.assistant_persona
 
         resource_manager.on_notify_callback = app_state.notify_economy_change
         resource_manager.start()
@@ -224,6 +223,10 @@ async def start_core_services(settings):
         # 7. Wake Word
         def start_wake_word():
             try:
+                # Lite tier never has Wake Word
+                if settings.ai_tier == "lite":
+                    return
+                    
                 if not settings.wake_word_enabled:
                     return
 
@@ -292,7 +295,7 @@ async def start_core_services(settings):
             app_state.orchestrator.llm_ready_event.wait, timeout=30.0
         )
 
-        if settings.tts_enabled:
+        if settings.tts_enabled and settings.ai_tier != "lite":
             await app_state.send_init_event("voice", "Waking up local voice...", None)
             app_state.tts.tts.initialize() # New explicit call
             await asyncio.to_thread(app_state.tts.tts.wait_until_ready, timeout=10.0)

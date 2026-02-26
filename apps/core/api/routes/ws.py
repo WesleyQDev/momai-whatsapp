@@ -9,9 +9,10 @@ router = APIRouter()
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     app_state.active_websockets.append(websocket)
+    app_state.logger.info(f"[WS] Client connected. Total: {len(app_state.active_websockets)}")
     try:
         if not app_state.ai_stack_loaded:
-            app_state.initialize_ai_stack()
+            await app_state.initialize_ai_stack()
 
         if app_state.last_init_event["progress"] < 100:
             await websocket.send_json(
@@ -30,3 +31,8 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         if websocket in app_state.active_websockets:
             app_state.active_websockets.remove(websocket)
+            app_state.logger.info(f"[WS] Client disconnected. Total: {len(app_state.active_websockets)}")
+    except Exception as e:
+        if websocket in app_state.active_websockets:
+            app_state.active_websockets.remove(websocket)
+        app_state.logger.error(f"[WS] Error: {e}")

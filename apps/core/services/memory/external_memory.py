@@ -377,6 +377,15 @@ def reindex_note(note_id: str) -> None:
 
     _index_fts(note_id, title, path_value, chunks)
 
+    # Skip vector indexing in Lite mode to avoid loading embeddings
+    from database.models import Settings
+    db_s = SessionLocal()
+    s = db_s.query(Settings).first()
+    tier = s.ai_tier if s else "pro"
+    db_s.close()
+    if tier == "lite":
+        return
+
     async def _index_vectors():
         first_vector = await embeddings.embed_text(chunks[0])
         dim = len(first_vector) if first_vector else 1024

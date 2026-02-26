@@ -38,6 +38,7 @@ active_graph = {"view": None, "bypass_wake_word": False}
 pending_graph_data: dict[str, dict[str, Any]] = {}
 
 call_mode = False
+last_thread_id = "default"
 
 
 def is_call_mode() -> bool:
@@ -52,7 +53,9 @@ def set_call_mode(enabled: bool) -> None:
     logger.info("[Main] Call mode: %s", enabled)
 
 
-def initialize_ai_stack() -> None:
+_ai_stack_lock = asyncio.Lock()
+
+async def initialize_ai_stack() -> None:
     """Lazy load heavy AI modules."""
     global \
         orchestrator, \
@@ -67,7 +70,13 @@ def initialize_ai_stack() -> None:
     if ai_stack_loaded:
         return
 
-    logger.info("[Main] Loading AI stack...")
+    async with _ai_stack_lock:
+        if ai_stack_loaded:
+            return
+            
+        logger.info("[Main] Loading AI stack...")
+        # Give a small gap for heartbeats/sockets
+        await asyncio.sleep(0.1)
     import ai.orchestrator as orch
 
     orchestrator = orch
@@ -197,15 +206,11 @@ async def process_voice_command(text: str) -> None:
     logger.info("[Voice] Processing: %s", text)
     logger.info("[Voice] Active websockets: %d", len(active_websockets))
 
-    for ws in active_websockets:
-        try:
-            await ws.send_json({"type": "user", "content": text})
-        except Exception as exc:
-            logger.warning("[Voice] Socket send error: %s", exc)
+    await broadcast_to_sockets({"type": "user", "content": text})
 
     from api.schemas import ChatMessage
 
-    msg = ChatMessage(content=text, thread_id="default")
+    msg = ChatMessage(content=text, thread_id=last_thread_id)
     try:
         logger.info("[Voice] Calling generate...")
         async for chunk in generate(msg):
@@ -215,11 +220,7 @@ async def process_voice_command(text: str) -> None:
                     continue
                 try:
                     data = json.loads(json_str)
-                    for ws in active_websockets:
-                        try:
-                            await ws.send_json({"type": "assistant", "data": data})
-                        except Exception as exc:
-                            logger.warning("[Voice] Chunk send error: %s", exc)
+                    await broadcast_to_sockets({"type": "assistant", "data": data})
                 except json.JSONDecodeError as e:
                     logger.debug("[Voice] Failed to decode stream chunk: %s", e)
         logger.info("[Voice] Generate completed")

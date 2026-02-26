@@ -21,12 +21,16 @@ async def get_status(db: Session = Depends(get_db)):
         latest_v = downloader.get_latest_llama_version()
         set_cache("latest_llama", latest_v)
 
+    from ai.orchestrator import load_tier_config
+    tiers_config = load_tier_config()
+
     return {
         "status": "ok",
         "mode": app_state.orchestrator.llm_mode,
         "brain_ready": app_state.orchestrator.llm is not None and app_state.orchestrator.momai_graph is not None,
         "is_loading": app_state.orchestrator.is_loading,
         "ai_tier": settings.ai_tier if settings else None,
+        "tiers_config": tiers_config,
         "setup": {
             "local_installed": engine_ok,
             "installed_version": install_info.get("version") if install_info else None,

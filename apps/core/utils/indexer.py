@@ -51,15 +51,15 @@ async def index_all_skills(on_progress=None):
     skills_to_index = []
     from domain.skill import Skill
 
-    for skill_id, s_info in skill_registry.skills.items():
-        skill_path = s_info.get("skill_path")
-        if not skill_path:
+    for skill_id, skill in skill_registry.skills.items():
+        if not skill.file_path:
             continue
 
         try:
             if on_progress:
                 on_progress(f"Indexing skill manifest: {skill_id}")
-            skill = Skill.from_file(skill_id, skill_path)
+            
+            # O objeto skill já está carregado no registry
             skills_to_index.append(
                 {
                     "id": skill.id,
@@ -69,7 +69,7 @@ async def index_all_skills(on_progress=None):
                 }
             )
         except Exception as e:
-            logger.error(f"[Indexer] Error parsing {skill_path}: {e}")
+            logger.error(f"[Indexer] Error indexing skill {skill_id}: {e}")
 
     if skills_to_index:
         await vector_db.add_skills(skills_to_index)
