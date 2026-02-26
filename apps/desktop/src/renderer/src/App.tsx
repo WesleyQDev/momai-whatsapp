@@ -18,6 +18,7 @@ import logo from './assets/icon.gif'
 import MainViewRenderer from './components/MainViewRenderer'
 import { fetchExtensions, fetchSettings, SettingsData } from './services/api'
 import { useI18n } from './i18n'
+import ResourceFooter from './components/ResourceFooter'
 
 const WelcomeScreen = ({
   onComplete,
@@ -127,7 +128,8 @@ function App(): React.JSX.Element {
     isReady,
     isOnline,
     isStalled,
-    isRetrying
+    isRetrying,
+    isUpdating
   } = useStatus()
   const [showSettings, setShowSettings] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
@@ -422,6 +424,11 @@ function App(): React.JSX.Element {
     }
     window.addEventListener('momai_open_settings', handleOpenSettings)
 
+    const handleOpenUltra = () => {
+      openSettings('brain')
+    }
+    window.addEventListener('momai_open_settings_ultra', handleOpenUltra)
+
     const handleSetTheme = (e: any) => {
       const theme = e.detail?.theme
       if (theme === 'dark' || theme === 'light') {
@@ -437,6 +444,7 @@ function App(): React.JSX.Element {
       window.removeEventListener('momai_open_extensions', handleOpenExtensions)
       window.removeEventListener('momai_navigate', handleNavigate)
       window.removeEventListener('momai_open_settings', handleOpenSettings)
+      window.removeEventListener('momai_open_settings_ultra', handleOpenUltra)
       window.removeEventListener('momai_set_theme', handleSetTheme)
     }
   }, [])
@@ -513,6 +521,7 @@ function App(): React.JSX.Element {
                   initProgress={initProgress}
                   initMessage={initMessage}
                   isBooting={isBooting}
+                  isUpdating={isUpdating}
                   setHistoryOpen={setHistoryOpen}
                   isFirstLaunch={isFirstLaunch}
                 />
@@ -589,17 +598,30 @@ function App(): React.JSX.Element {
                                 localStorage.getItem('momai_ai_tier') || 
                                 'pro'
                               
-                              if (currentTier === 'ultra') {
+                              const isThinking = chat.voiceStatus === 'processing' || chat.isLoading || statusInfo?.is_loading
+
+                              if (isThinking) {
                                 return (
-                                  <>
-                                    Tente dizer{' '}
-                                    <span className="text-accent font-black text-[13px] drop-shadow-[0_0_12px_rgba(var(--accent-rgb),0.5)]">
-                                      &quot;Luna&quot;
+                                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                    <div className={`w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-[0_0_8px_rgba(var(--accent),0.6)]`} />
+                                    <span className="text-accent font-black text-[11px] uppercase tracking-[0.15em] drop-shadow-[0_0_8px_rgba(var(--accent),0.4)]">
+                                      LUNA PENSANDO
                                     </span>
-                                    ..
-                                  </>
+                                  </div>
                                 )
                               }
+
+                              if (currentTier === 'ultra') {
+                                return (
+                                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                    <div className={`w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-[0_0_8px_rgba(var(--accent),0.6)]`} />
+                                    <span className="text-accent font-black text-[11px] uppercase tracking-[0.15em] drop-shadow-[0_0_8px_rgba(var(--accent),0.4)]">
+                                      TENTE DIZER "LUNA"
+                                    </span>
+                                  </div>
+                                )
+                              }
+
                               if (currentTier === 'lite') {
                                 return (
                                   <span className="text-emerald-400 font-black text-[11px] drop-shadow-[0_0_10px_rgba(52,211,153,0.4)] uppercase tracking-[0.15em]">
@@ -607,6 +629,7 @@ function App(): React.JSX.Element {
                                   </span>
                                 )
                               }
+                              
                               return (
                                 <span className="text-rose-500 font-black text-[11px] drop-shadow-[0_0_10px_rgba(244,63,94,0.4)] uppercase tracking-[0.15em]">
                                   Modo Pro
@@ -756,9 +779,10 @@ function App(): React.JSX.Element {
       {/* showTutorial && <TutorialTour onFinish={() => setShowTutorial(false)} /> */}
       {/*
       <FortScriptToast />
-
+      <ResourceFooter />
       {!isCompact && <ResourceFooter />}
       */}
+      
     </>
   )
 }

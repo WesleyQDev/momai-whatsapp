@@ -27,7 +27,16 @@ async def websocket_endpoint(websocket: WebSocket):
         )
 
         while True:
-            await websocket.receive_text()
+            data = await websocket.receive_text()
+            try:
+                msg = json.loads(data)
+                if msg.get("type") == "session_sync":
+                    thread_id = msg.get("thread_id")
+                    if thread_id:
+                        app_state.last_thread_id = thread_id
+                        app_state.logger.info(f"[WS] Session synced: {thread_id}")
+            except Exception as e:
+                app_state.logger.debug(f"[WS] Failed to parse message: {e}")
     except WebSocketDisconnect:
         if websocket in app_state.active_websockets:
             app_state.active_websockets.remove(websocket)
@@ -35,4 +44,4 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         if websocket in app_state.active_websockets:
             app_state.active_websockets.remove(websocket)
-        app_state.logger.error(f"[WS] Error: {e}")
+        app_state.logger.error(f"[WS] Fatal WebSocket error: {e}")

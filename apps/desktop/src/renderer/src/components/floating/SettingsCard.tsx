@@ -171,6 +171,11 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
     try {
       localStorage.setItem('momai_ai_tier', tier) // Cache instantâneo antes do reload
       await api.post('/setup/apply-tier', null, { params: { tier } })
+      
+      // Reinicia o backend para garantir que o novo modelo seja carregado do zero
+      // @ts-ignore
+      await window.api.restartBackend()
+      
       window.location.href = '/'
     } catch (error) {
       console.error('Erro ao mudar de nível:', error)
@@ -646,10 +651,8 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
 
                   <button
                     onClick={() => {
-                      if (confirm(t('onboarding.resetConfirm') || 'Deseja realmente reiniciar o tutorial de boas-vindas?')) {
-                        updateField('onboarding_completed', false, true)
-                        window.electron.ipcRenderer.send('reset-onboarding')
-                      }
+                      updateField('onboarding_completed', false, true)
+                      window.electron.ipcRenderer.send('reset-onboarding')
                     }}
                     className="text-[9px] font-bold text-text-muted/30 uppercase tracking-widest hover:text-red-500/50 transition-colors flex items-center gap-1.5"
                   >

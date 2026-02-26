@@ -19,6 +19,7 @@ interface MessageItemProps {
   onSpeak?: () => void
   onDelete?: () => void
   onRetry?: () => void
+  aiTier?: string | null
 }
 
 const MessageItem = memo(function MessageItem({
@@ -31,7 +32,8 @@ const MessageItem = memo(function MessageItem({
   onStopGeneration,
   onSpeak,
   onDelete,
-  onRetry
+  onRetry,
+  aiTier = 'pro'
 }: MessageItemProps): JSX.Element {
   const [showTrace, setShowTrace] = useState(true)
   const [showToolDetails, setShowToolDetails] = useState(true)
@@ -279,6 +281,7 @@ const MessageItem = memo(function MessageItem({
           onSpeak={onSpeak || (() => {})}
           onDelete={onDelete || (() => {})}
           onRetry={onRetry}
+          showSpeak={aiTier !== 'lite'}
         />
       )}
       <div

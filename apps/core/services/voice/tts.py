@@ -413,8 +413,9 @@ class TTSManager:
         with self.start_lock:
             if not self.ready_event.is_set():
                 logger.debug("[TTS] Waiting for initialization...")
-                if not self.ready_event.wait(timeout=10):
-                    logger.error("[TTS] Initialization timeout")
+                # Reduce timeout to 0.1s to avoid freezing the LLM stream if TTS is slow
+                if not self.ready_event.wait(timeout=0.1):
+                    logger.debug("[TTS] Still initializing, skipping this phrase.")
                     return
 
             if self.worker_thread is not None and self.worker_thread.is_alive():

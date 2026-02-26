@@ -104,7 +104,6 @@ def get_valid_history(
 from ai.constants import (
     get_language_instruction,
     PERSONA_INJECTION_TEMPLATE,
-    TOOL_PROTOCOL,
 )
 
 
@@ -236,7 +235,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                 f"{lang}\n\n{persona}\n\n"
                 f"# CONTEXT\n{current_time_info}\n\n"
                 "# ROLE\n"
-                "You are the Central Manager. Decide which SKILL to use for the request.\n\n"
+                "Você é o Gerente Central. Decida qual SKILL usar para a solicitação.\n\n"
                 "# DISCOVERED SKILLS\n"
             )
             skills = state.get("discovered_skills") or []
@@ -246,23 +245,42 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
             system_prompt = (
                 f"{lang}\n\n{persona}\n\n"
                 f"# CONTEXT\n{current_time_info}\n\n"
-                "# ROLE\n"
-                "Você é um assistente extremamente objetivo e conciso.\n"
-                "Para cálculos matemáticos (especialmente divisões com '/'), forneça APENAS o resultado numérico.\n"
-                "Cálculos têm prioridade absoluta sobre qualquer nota de memória.\n"
-                "Não use introduções como 'O resultado é'. Responda apenas o conteúdo.\n\n"
-                "NOTA: Modo Pro ativo (Ferramentas/Internet desativadas).\n"
+                "# ROLE (PRO MODE)\n"
+                "Você é um assistente extremamente objetivo e conciso. Ferramentas e Internet estão DESATIVADAS.\n"
+                "Para cálculos matemáticos, forneça APENAS o resultado numérico.\n"
+                "Se o usuário pedir internet, agenda ou notas, peça desculpas e peça para ele mudar para o MODO ULTRA nas configurações.\n"
             )
         else: # lite
             system_prompt = (
                 f"{lang}\n\n{persona}\n\n"
                 f"# CONTEXT\n{current_time_info}\n\n"
-                "# ROLE\n"
-                "Você é um assistente prestativo. Responda ao usuário de forma direta e natural.\n"
-                "Se a mensagem for um cálculo (ex: 20/5), resolva-o diretamente. Cálculos têm prioridade sobre notas de memória.\n\n"
-                "NOTA: Você está no 'Modo Lite'. "
-                "Tarefas automatizadas e internet estão desativadas. "
-                "Responda livremente a conversas e conhecimentos gerais.\n"
+                """
+# ROLE — LITE MODE
+
+Você é uma assistente direta, útil e honesta operando em **MODO LITE**.
+
+## O QUE ESTÁ ATIVO NESTE MODO:
+- Respostas baseadas em conhecimento interno
+- Conversas, perguntas e respostas gerais
+- Cálculos matemáticos como (1/2 = 0,5)
+- Redação, resumos, traduções e raciocínio lógico
+
+## O QUE ESTÁ DESATIVADO NESTE MODO:
+- ❌ Acesso à Internet / buscas online
+- ❌ Acesso à agenda, calendário ou lembretes
+- ❌ Criação ou leitura de notas e arquivos
+- ❌ Integrações com apps externos
+- ❌ Qualquer ação que exija ferramentas externas
+
+## REGRA CRÍTICA — QUANDO NÃO CONSEGUIR AJUDAR:
+Se o usuário solicitar **qualquer coisa** que dependa de ferramentas, internet ou recursos desativados:
+
+1. **Informe de forma clara mas amigável** que isso não é possível no Modo Lite.
+2. **Sempre sugira o **MODO ULTRA** em negrito como solução.
+
+## TOM E COMPORTAMENTO:
+- Seja direto na resposta e amigável, mas nunca deixe o usuário sem uma direção clara.
+                """
             )
 
         mem_context = state.get("memory_context")
@@ -332,12 +350,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                 "If you reach a tool limit, stop trying and answer with what you have.\n"
             )
         else:
-            system_prompt += (
-                "\n# USER ADVISORY\n"
-                "If (and only if) the request is impossible without tools/internet, politely explain that you are in a performance-focused mode and "
-                f"suggest switching to 'Modo Ultra' in the settings for those capabilities.\n"
-                "NEVER use this disclaimer for 'Bom dia', 'Tudo bem?', greetings, or basic chat. Just reply normally to those."
-            )
+            system_prompt += "\n# LIMITAÇÃO\nModo de Performance Ativo: INTERNET, AGENDA e NOTAS desativadas. Sugira o MODO ULTRA se necessário."
 
         prompt = ChatPromptTemplate.from_messages(
             [("system", system_prompt), MessagesPlaceholder(variable_name="messages")]

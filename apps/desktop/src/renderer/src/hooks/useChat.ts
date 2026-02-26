@@ -29,6 +29,7 @@ export function useChat() {
     { id: string; role: 'user' | 'assistant'; content: string }[]
   >([])
   const messagesRef = useRef<Message[]>([])
+  const wsRef = useRef<WebSocket | null>(null)
 
   // Graph State
   const [graphState, setGraphState] = useState<{
@@ -168,6 +169,11 @@ export function useChat() {
     }
 
     loadHistory()
+
+    // Sync current thread with backend
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'session_sync', thread_id: threadId }))
+    }
   }, [threadId])
 
   const scrollToBottom = useCallback(() => {
@@ -214,9 +220,15 @@ export function useChat() {
       // Se for apenas um "OK" de confirmação de leitura, não envia para a IA
       if (option.toUpperCase() === 'OK') return
 
-      // Atalho para abrir a loja de extensoes sem enviar para a IA
+      // Shortcut to open extensions store
       if (option === 'open_extensions_store') {
         window.dispatchEvent(new CustomEvent('momai_open_extensions'))
+        return
+      }
+
+      // Shortcut to open Ultra settings
+      if (option === 'open_settings_ultra') {
+        window.dispatchEvent(new CustomEvent('momai_open_settings_ultra'))
         return
       }
 
@@ -367,17 +379,21 @@ export function useChat() {
       if (isUnmounting) return
 
       try {
-        ws = new WebSocket('ws://127.0.0.1:8000/ws')
+        wsRef.current = new WebSocket('ws://127.0.0.1:8000/ws')
       } catch (e) {
         console.error('Erro ao criar WebSocket:', e)
         scheduleReconnect()
         return
       }
 
+      const ws = wsRef.current
+
       ws.onopen = () => {
         console.log('Voice WebSocket conectado!')
         window.dispatchEvent(new CustomEvent('momai_socket_connected'))
         reconnectAttempts = 0
+        // Sync current thread immediately on connect
+        if (wsRef.current) wsRef.current.send(JSON.stringify({ type: 'session_sync', thread_id: threadId }))
       }
 
       ws.onmessage = (event) => {
@@ -395,7 +411,7 @@ export function useChat() {
         }
       }
 
-      const handleWsMessage = (msg: any) => {
+      function handleWsMessage(msg: any) {
         if (msg.type === 'init_progress') {
           // Propaga evento de progresso de inicialização para useStatus
           window.dispatchEvent(new CustomEvent('momai_init_progress', { detail: msg.data }))
@@ -806,10 +822,12 @@ export function useChat() {
                 })
               }
             }
+          }
 
+          if (data.token !== undefined) {
             setMessages((prev) => {
               const updated = [...prev]
-              const lastIdx = updated.length - 1
+              const lastIdx = findLastAssistantIndex(updated)
 
               if (
                 lastIdx >= 0 &&
@@ -819,7 +837,6 @@ export function useChat() {
                 const currentContent = updated[lastIdx].content
                 const newBase = currentContent === '...' ? '' : currentContent
 
-                // Evita repetir o nome da assistente se o modelo enviar no token
                 let cleanToken = data.token
                 if (
                   newBase === '' &&
@@ -831,9 +848,8 @@ export function useChat() {
 
                 if (isToolTraceMessage(updated[lastIdx])) {
                   const parsed = splitToolTraceContent(updated[lastIdx].content)
-                  let traceData: any = null
                   const textPart = parsed?.textPart || ''
-
+                  let traceData: any = null
                   try {
                     traceData = parsed?.jsonPart ? JSON.parse(parsed.jsonPart) : null
                   } catch {
@@ -845,16 +861,48 @@ export function useChat() {
                     content: buildToolTraceContent(traceData || {}, textPart + cleanToken)
                   }
                 } else {
-                  const finalContent = newBase + cleanToken
                   updated[lastIdx] = {
                     ...updated[lastIdx],
-                    content: finalContent
+                    content: newBase + cleanToken
                   }
                 }
                 return updated
               } else {
                 return [...prev, { role: 'assistant', content: data.token }]
               }
+            })
+          }
+
+          if (data.sources) {
+            setMessages((prev) => {
+              const updated = [...prev]
+              const lastIdx = findLastAssistantIndex(updated)
+              if (lastIdx >= 0) {
+                updated[lastIdx] = { ...updated[lastIdx], sources: data.sources }
+              }
+              return updated
+            })
+          }
+
+          if (data.snippets) {
+            setMessages((prev) => {
+              const updated = [...prev]
+              const lastIdx = findLastAssistantIndex(updated)
+              if (lastIdx >= 0) {
+                updated[lastIdx] = { ...updated[lastIdx], snippets: data.snippets }
+              }
+              return updated
+            })
+          }
+
+          if (data.cards) {
+            setMessages((prev) => {
+              const updated = [...prev]
+              const lastIdx = findLastAssistantIndex(updated)
+              if (lastIdx >= 0) {
+                updated[lastIdx] = { ...updated[lastIdx], cards: data.cards }
+              }
+              return updated
             })
           }
 
@@ -889,36 +937,36 @@ export function useChat() {
         if (!isBooting) {
           console.error('WebSocket error:', err)
         }
-        ws?.close()
-      }
-    }
+        ws?.close();
+      };
+    };
 
-    const scheduleReconnect = () => {
-      if (isUnmounting) return
+    function scheduleReconnect() {
+      if (isUnmounting) return;
       if (reconnectAttempts < maxReconnectAttempts) {
-        reconnectAttempts++
-        const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 10000)
-        reconnectTimeout = setTimeout(connect, delay)
+        reconnectAttempts++;
+        const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 10000);
+        reconnectTimeout = setTimeout(connect, delay);
       }
     }
 
     // Connect only if backend is actually online (notifies from Main)
     // @ts-ignore
     const removeOnlineListener = window.api?.onBackendOnline?.(() => {
-      console.log('[useChat] Backend notified as online. Connecting WebSocket...')
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        connect()
+      console.log('[useChat] Backend notified as online. Connecting WebSocket...');
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        connect();
       }
-    })
+    });
 
     return () => {
-      isUnmounting = true
-      if (reconnectTimeout) clearTimeout(reconnectTimeout)
-      clearTimeout(bootTimeout)
-      if (ws) ws.close()
-      if (removeOnlineListener) removeOnlineListener()
-    }
-  }, [])
+      isUnmounting = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      clearTimeout(bootTimeout);
+      if (wsRef.current) wsRef.current.close();
+      if (removeOnlineListener) removeOnlineListener();
+    };
+  }, []);
   // Removida dependência graphState para estabilidade
 
   const sendMessage = useCallback(

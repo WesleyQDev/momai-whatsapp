@@ -155,7 +155,8 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
     return (
       <button
         onClick={() => handleSelectTier(id)}
-        className="group relative bg-white/[0.03] border border-white/5 rounded-2xl p-6 text-left flex flex-row items-center hover:border-accent/40 hover:bg-white/[0.05] transition-all duration-500 overflow-hidden active:scale-[0.97] w-full gap-6 h-[140px]"
+        className="no-drag group relative bg-white/[0.03] border border-white/5 rounded-2xl p-6 text-left flex flex-row items-center hover:border-accent/40 hover:bg-white/[0.05] transition-all duration-500 overflow-hidden active:scale-[0.97] w-full gap-6 h-[140px]"
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
         {/* Subtle background pattern/glow */}
         <div className={`absolute -top-24 -right-24 w-48 h-48 ${styles.iconBg} blur-[80px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none`} />
@@ -204,24 +205,74 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-[301] bg-bg flex animate-fade-in overflow-hidden select-none transition-colors duration-500">
+    <div 
+      className="fixed inset-0 z-[301] bg-bg flex animate-fade-in overflow-hidden select-none transition-colors duration-500"
+      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+    >
       {/* Left Pane - Branding & Status */}
-      <div className="w-[350px] bg-sidebar p-12 flex flex-col justify-between items-center border-r border-border/10 relative overflow-hidden transition-colors duration-500 shrink-0">
-        <div className="relative z-10 flex flex-col items-center text-center">
+      <div className="w-[350px] bg-sidebar pt-2 pb-12 px-10 flex flex-col justify-between items-center border-r border-border/10 relative overflow-hidden transition-colors duration-500 shrink-0">
+        <div className="relative z-10 flex flex-col items-center text-center w-full">
           {/* Logo Icon */}
-          <div className="w-24 h-24 flex items-center justify-center -mb-4">
+          <div className="w-16 h-16 flex items-center justify-center -mb-1">
             <img src={iconGif} alt="MomAI" className="w-full h-full object-contain" />
           </div>
 
-          <div className="space-y-2">
-            <h1 className="text-4xl font-black text-text tracking-tighter uppercase leading-[0.9]">
+          <div className="space-y-4 w-full">
+            <h1 className="text-3xl font-black text-text tracking-tighter uppercase leading-[0.9]">
               MomAI
               <br />
-              <span className="text-accent underline decoration-accent/10 text-[18px] tracking-normal lowercase">100% local e gratuita</span>
+              <span className="text-accent underline decoration-accent/10 text-[16px] tracking-normal lowercase">100% local e gratuita</span>
             </h1>
-            <p className="text-[12px] text-text-muted font-medium max-w-[220px] leading-relaxed opacity-60">
-              Sua assistente inteligente, privada e sem custos de assinatura.
-            </p>
+
+            {/* Requirements Section */}
+            <div className="w-full pt-12 space-y-6">
+              <div className="flex items-center gap-2.5 border-b border-white/5 pb-3 mb-2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent/80">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                  <line x1="8" y1="21" x2="16" y2="21" />
+                  <line x1="12" y1="17" x2="12" y2="21" />
+                </svg>
+                <span className="text-[10px] font-black text-text/60 uppercase tracking-[0.2em]">Requisitos</span>
+              </div>
+
+              <div className="space-y-6">
+                {/* Lite */}
+                <div className="flex gap-4 items-center group/req">
+                  <div className="text-emerald-500 shrink-0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </svg>
+                  </div>
+                  <p className="text-[13px] text-text font-bold leading-snug text-left">
+                    {t('onboarding.tier.lite.requirements')}
+                  </p>
+                </div>
+
+                {/* Pro */}
+                <div className="flex gap-4 items-center group/req">
+                  <div className="text-red-500 shrink-0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-[13px] text-text font-bold leading-snug text-left">
+                    {t('onboarding.tier.pro.requirements')}
+                  </p>
+                </div>
+
+                {/* Ultra */}
+                <div className="flex gap-4 items-center group/req">
+                  <div className="text-yellow-400 shrink-0">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                  </div>
+                  <p className="text-[13px] text-text font-bold leading-snug text-left">
+                    {t('onboarding.tier.ultra.requirements')}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -269,7 +320,8 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
               <div className="space-y-1">
                 <button
                   onClick={() => setStep(1)}
-                  className="group inline-flex items-center gap-2.5 text-[10px] font-bold text-accent uppercase tracking-wider mb-6 transition-all opacity-80 hover:opacity-100"
+                  className="no-drag group inline-flex items-center gap-2.5 text-[10px] font-bold text-accent uppercase tracking-wider mb-6 transition-all opacity-80 hover:opacity-100"
+                  style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 >
                   <div className="w-7 h-7 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center group-hover:bg-accent group-hover:text-white transition-all shadow-sm">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -297,7 +349,8 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                     autoFocus
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-input border border-border/20 rounded-lg px-3.5 py-3 text-sm font-bold text-text focus:border-accent/40 outline-none transition-all placeholder:opacity-10 shadow-inner"
+                    className="no-drag w-full bg-input border border-border/20 rounded-lg px-3.5 py-3 text-sm font-bold text-text focus:border-accent/40 outline-none transition-all placeholder:opacity-10 shadow-inner"
+                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     placeholder={t('onboarding.namePlaceholder')}
                   />
                 </div>
@@ -312,7 +365,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                       <select
                         value={theme}
                         onChange={(e) => changeTheme(e.target.value as Theme)}
-                        className="w-full bg-input border border-border/20 rounded-lg px-3 py-2 text-[10px] font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                        className="no-drag w-full bg-input border border-border/20 rounded-lg px-3 py-2 text-[10px] font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
                       >
                         <option value="dark">{t('onboarding.theme.dark')}</option>
                         <option value="light">{t('onboarding.theme.light')}</option>
@@ -349,7 +402,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                             setLocale(newLang === 'p' ? 'pt-BR' : ('en-US' as any))
                           }
                         }}
-                        className="w-full bg-input border border-border/20 rounded-lg px-3 py-2 text-[10px] font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                        className="no-drag w-full bg-input border border-border/20 rounded-lg px-3 py-2 text-[10px] font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
                       >
                         {VOICE_CATALOG.map((g) => (
                           <option key={g.code} value={g.code}>
@@ -382,7 +435,8 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                       <select
                         value={selectedVoice}
                         onChange={(e) => setSelectedVoice(e.target.value)}
-                        className="w-full bg-input border border-border/20 rounded-lg px-4 py-3 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                        className="no-drag w-full bg-input border border-border/20 rounded-lg px-4 py-3 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                       >
                         {VOICE_CATALOG.find((g) => g.code === selectedLang)?.voices.map((v) => (
                           <option key={v.id} value={v.id}>
@@ -412,7 +466,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                 <button
                   onClick={handleFinish}
                   disabled={!name.trim() || isSaving}
-                  className={`group relative w-full py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center overflow-hidden ${
+                  className={`no-drag group relative w-full py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center overflow-hidden ${
                     !name.trim() || isSaving
                       ? 'bg-white/[0.02] text-text/20 cursor-not-allowed border border-white/5'
                       : 'bg-accent text-white shadow-[0_0_15px_rgba(var(--accent-rgb),0.2)] hover:shadow-[0_0_25px_rgba(var(--accent-rgb),0.4)] hover:-translate-y-0.5 active:scale-[0.98]'

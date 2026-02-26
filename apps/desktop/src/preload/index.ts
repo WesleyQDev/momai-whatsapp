@@ -60,7 +60,9 @@ const api = {
   markFirstLaunchFinished: (settings: any): void =>
     electronAPI.ipcRenderer.send('mark-first-launch-finished', settings),
   setResizable: (resizable: boolean): void =>
-    electronAPI.ipcRenderer.send('window-set-resizable', resizable)
+    electronAPI.ipcRenderer.send('window-set-resizable', resizable),
+  restartBackend: (): Promise<{ success: boolean; error?: string }> =>
+    electronAPI.ipcRenderer.invoke('restart-backend')
 }
 
 if (process.contextIsolated) {

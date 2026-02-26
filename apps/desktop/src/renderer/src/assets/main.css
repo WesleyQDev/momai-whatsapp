@@ -87,6 +87,10 @@
   [data-theme='light'] ::-webkit-scrollbar-thumb {
     @apply bg-black/10 hover:bg-black/20;
   }
+
+  .no-drag {
+    -webkit-app-region: no-drag !important;
+  }
 }
 
 @layer components {

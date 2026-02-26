@@ -23,6 +23,8 @@ interface ChatInputProps {
   onStopGeneration?: () => void
   isCallMode?: boolean
   onToggleCallMode?: () => void
+  speakingIndex?: number | null
+  voiceStatus?: 'idle' | 'listening' | 'processing'
 }
 
 const WaveIcon = ({ className }: { className?: string }) => (
@@ -57,7 +59,9 @@ export default function ChatInput({
   statusInfo,
   onStopGeneration,
   isCallMode = false,
-  onToggleCallMode
+  onToggleCallMode,
+  speakingIndex = null,
+  voiceStatus = 'idle'
 }: ChatInputProps) {
   const { t } = useI18n()
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -401,7 +405,7 @@ export default function ChatInput({
                 </button>
               )}
 
-              {isLoading ? (
+              {(isLoading || isModeChanging || speakingIndex !== null || voiceStatus === 'processing' || statusInfo?.is_loading) ? (
                 <button
                   type="button"
                   className="bg-accent text-white rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg shadow-accent/20"

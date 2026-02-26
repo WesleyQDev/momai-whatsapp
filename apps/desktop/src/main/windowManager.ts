@@ -131,6 +131,19 @@ export function registerIpcHandlers(): void {
     if (!win) return
     win.setMinimumSize(450, 670)
   })
+
+  ipcMain.handle('restart-backend', async () => {
+    logger.info('[WindowManager] Reiniciando backend Python via IPC...')
+    try {
+      await shutdownPython()
+      setIsQuitting(false)
+      await startPythonBackend()
+      return { success: true }
+    } catch (error: any) {
+      logger.error('[WindowManager] Falha ao reiniciar backend:', error)
+      return { success: false, error: error.message }
+    }
+  })
 }
 
 export function createOverlayWindow(data?: any): void {

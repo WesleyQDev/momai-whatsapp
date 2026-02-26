@@ -148,6 +148,7 @@ export function useStatus() {
 
     // Listen for AI model change events
     const handleModelChangeStart = () => {
+      setIsBooting(true)
       setInitProgress(5)
       setInitMessage('Inicializando troca de modelo...')
     }
@@ -181,10 +182,14 @@ export function useStatus() {
     window.dispatchEvent(new CustomEvent('ai_model_change_start', { detail: mode }))
     setLocalMode(mode)
     setIsUpdating(true)
+    setIsBooting(true)
     setInitProgress(5)
     setInitMessage('Aplicando novo nível de IA...')
     try {
       await updateMode(mode)
+      // @ts-ignore
+      await window.api.restartBackend()
+      window.location.href = '/'
     } catch (error) {
       console.error('Erro ao trocar modo:', error)
     } finally {

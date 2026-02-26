@@ -310,7 +310,11 @@ export default function ContainerChat({
   isFirstLaunch = false
 }: ContainerChatProps): JSX.Element {
   const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
-  const [animationFinished, setAnimationFinished] = useState(false)
+  const [animationFinished, setAnimationFinished] = useState(() => {
+    const isBrainReady = statusInfo?.brain_ready ?? false
+    const isBrainLoading = statusInfo?.is_loading ?? false
+    return (initProgress ?? 0) >= 100 && isBrainReady && !isBrainLoading
+  })
   
   useEffect(() => {
     setLocalSessionTitle(null)
@@ -399,20 +403,22 @@ export default function ContainerChat({
             </div>
           </div>
 
-          <MessageList
-            messages={messages}
-            isLoading={isLoading}
-            messagesEndRef={messagesEndRef}
-            onReopenGraph={onReopenGraph}
-            onGraphOption={onGraphOption}
-            onSendMessage={onSendMessage}
-            onStopVoice={stopCurrentVoice}
-            onStopGeneration={stopCurrentGeneration}
-            onSpeakMessage={onSpeakMessage}
-            onRemoveMessage={onRemoveMessage}
-            speakingIndex={speakingIndex}
-            statusInfo={statusInfo}
-          />
+          <div className="flex-1 overflow-hidden relative flex flex-col">
+            <MessageList
+              messages={messages}
+              isLoading={isLoading}
+              messagesEndRef={messagesEndRef}
+              onReopenGraph={onReopenGraph}
+              onGraphOption={onGraphOption}
+              onSendMessage={onSendMessage}
+              onStopVoice={stopCurrentVoice}
+              onStopGeneration={stopCurrentGeneration}
+              onSpeakMessage={onSpeakMessage}
+              onRemoveMessage={onRemoveMessage}
+              speakingIndex={speakingIndex}
+              statusInfo={statusInfo}
+            />
+          </div>
 
           <ChatInput
             text={text}
@@ -423,6 +429,8 @@ export default function ContainerChat({
             onStopGeneration={stopCurrentGeneration}
             isCallMode={isCallMode}
             onToggleCallMode={onToggleCallMode}
+            speakingIndex={speakingIndex}
+            voiceStatus={voiceStatus}
           />
         </>
       )}

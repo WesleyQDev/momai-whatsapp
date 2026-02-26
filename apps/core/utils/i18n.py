@@ -6,6 +6,8 @@ _STRINGS = {
     "pt-BR": {
         "missing_capability_card_content": "Ainda nao aprendi a fazer isso, mas posso aprender com uma extensao.",
         "missing_capability_card_cta": "Abrir Loja de Extensoes",
+        "suggest_ultra_card_content": "Como estou rodando em um modo de performance, minhas ferramentas de acesso à internet, criação de notas e lembretes estão desativadas. Por favor, mude para o Modo Ultra nas configurações se precisar que eu gerencie sua agenda, anotações ou busque informações em tempo real!",
+        "suggest_ultra_card_cta": "Mudar para Modo Ultra",
         "no_tools_short_reply": "Posso aprender isso se voce instalar uma extensao.",
         "tool_protocol_chat_short": "Mantenha respostas curtas para TTS.",
         "tool_protocol_interface_threshold": "Use interface apenas para listas, tabelas, codigos, ou conteudo com mais de {min_chars} caracteres.",
@@ -14,6 +16,8 @@ _STRINGS = {
     "en": {
         "missing_capability_card_content": "I can learn this if you install an extension.",
         "missing_capability_card_cta": "Open Extensions Store",
+        "suggest_ultra_card_content": "Since I'm running in a performance mode, my internet, note creation and reminder tools are disabled. Please switch to Ultra Mode in settings if you need me to manage your schedule, notes or search for real-time information!",
+        "suggest_ultra_card_cta": "Switch to Ultra Mode",
         "no_tools_short_reply": "I can learn this if you install an extension.",
         "tool_protocol_chat_short": "Keep chat replies short for TTS.",
         "tool_protocol_interface_threshold": "Use the interface only for lists, tables, code, or content over {min_chars} characters.",

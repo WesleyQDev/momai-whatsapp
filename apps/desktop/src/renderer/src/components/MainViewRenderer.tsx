@@ -18,6 +18,7 @@ interface MainViewRendererProps {
   isBooting?: boolean
   setHistoryOpen?: (open: boolean) => void
   isFirstLaunch?: boolean
+  isUpdating?: boolean
 }
 
 const VIEW_MAP: Record<string, React.ComponentType<any>> = {
@@ -26,6 +27,7 @@ const VIEW_MAP: Record<string, React.ComponentType<any>> = {
       <ContainerChat
         messages={props.chat.messages}
         isLoading={props.chat.isLoading}
+        isModeChanging={props.isBooting || props.isUpdating || props.statusInfo?.is_loading}
         text={props.chat.text}
         onSendMessage={props.chat.sendMessage}
         onClearHistory={props.chat.clearHistory}
@@ -69,7 +71,8 @@ export default function MainViewRenderer({
   initMessage,
   isBooting,
   setHistoryOpen,
-  isFirstLaunch
+  isFirstLaunch,
+  isUpdating
 }: MainViewRendererProps) {
   const Component = VIEW_MAP[viewName] || (extensionData ? DynamicDashboard : null)
 

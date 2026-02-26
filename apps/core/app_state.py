@@ -203,7 +203,7 @@ async def process_voice_command(text: str) -> None:
     if not text or len(text.strip()) < 2:
         text = "Oi"  # This will trigger a greeting/ready response from the AI
 
-    logger.info("[Voice] Processing: %s", text)
+    logger.info("[Voice] Processing: %s (Thread: %s)", text, last_thread_id)
     logger.info("[Voice] Active websockets: %d", len(active_websockets))
 
     await broadcast_to_sockets({"type": "user", "content": text})
@@ -213,6 +213,8 @@ async def process_voice_command(text: str) -> None:
     msg = ChatMessage(content=text, thread_id=last_thread_id)
     try:
         logger.info("[Voice] Calling generate...")
+        await broadcast_to_sockets({"type": "assistant", "data": {"status": "Pensando..."}})
+        
         async for chunk in generate(msg):
             if chunk.startswith("data: "):
                 json_str = chunk.replace("data: ", "").strip()
@@ -226,6 +228,7 @@ async def process_voice_command(text: str) -> None:
         logger.info("[Voice] Generate completed")
     except Exception as exc:
         logger.exception("Error processing voice: %s", exc)
+        await broadcast_to_sockets({"type": "assistant", "data": {"error": str(exc)}})
 
 
 async def broadcast_resource_usage() -> None:

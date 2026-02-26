@@ -48,6 +48,7 @@ SUMMARY_BUDGET_PCT = float(os.getenv("MOMAI_CTX_BUDGET_PCT", "0.7"))
 SUMMARY_RECENT_PCT = float(os.getenv("MOMAI_CTX_RECENT_PCT", "0.6"))
 
 EXTENSIONS_STORE_ACTION = "open_extensions_store"
+ULTRA_MODE_ACTION = "open_settings_ultra"
 
 
 def save_message_to_db(
@@ -681,6 +682,28 @@ _MISSING_CAPABILITY_PATTERNS = [
     r"não possuo essa funcionalidade",
     r"não tenho essa ferramenta",
     r"não consigo realizar essa ação",
+    r"essa funcionalidade não está disponível no modo lite",
+    r"essa ferramenta não está disponível no modo lite",
+    r"essa funcionalidade não está disponível no modo pro",
+    r"essa ferramenta não está disponível no modo pro",
+    r"mude para o modo ultra",
+    r"modos pro ou lite não possuem",
+    r"não tenho acesso à internet",
+    r"não posso buscar",
+    r"sem acesso à internet",
+    r"sem conexão com a internet",
+    r"não consigo criar notas",
+    r"não consigo criar lembretes",
+    r"não posso agendar",
+    r"sem acesso à sua agenda",
+    r"ferramenta de notas desativada",
+    r"ferramenta de lembretes desativada",
+    r"acesso à internet desativado",
+    r"switch to ultra mode",
+    r"not available in lite mode",
+    r"not available in pro mode",
+    r"no internet access",
+    r"can't access the internet",
 ]
 
 
@@ -712,16 +735,35 @@ async def _build_missing_capability_card(
         return {"apply": False}
 
     locale = get_locale()
+    
+    # Se estiver no modo lite, sugerimos Ultra ao inves de Extensões se o contexto for de limitações
+    from database.models import SessionLocal, Settings
+    db = SessionLocal()
+    try:
+        s = db.query(Settings).first()
+        is_lite = s and s.ai_tier == "lite"
+    finally:
+        db.close()
+
+    if is_lite:
+        return {
+            "apply": True,
+            "content": t("suggest_ultra_card_content", locale=locale),
+            "cta": t("suggest_ultra_card_cta", locale=locale),
+            "action": ULTRA_MODE_ACTION
+        }
+
     return {
         "apply": True,
         "content": t("missing_capability_card_content", locale=locale),
         "cta": t("missing_capability_card_cta", locale=locale),
+        "action": EXTENSIONS_STORE_ACTION
     }
 
 
-def _open_extensions_card(content: str, cta_label: str):
-    options = [EXTENSIONS_STORE_ACTION]
-    options_map = {EXTENSIONS_STORE_ACTION: cta_label}
+def _open_feature_card(content: str, cta_label: str, action: str):
+    options = [action]
+    options_map = {action: cta_label}
     show_chat_card.invoke(
         {"content": content, "options": options, "options_map": options_map}
     )
@@ -1283,7 +1325,7 @@ async def generate(message: ChatMessage):
                 )
             if pending_card and pending_card.get("apply"):
                 final_reply = pending_card["content"]
-                _open_extensions_card(pending_card["content"], pending_card["cta"])
+                _open_feature_card(pending_card["content"], pending_card["cta"], pending_card.get("action", EXTENSIONS_STORE_ACTION))
                 yield f"data: {json.dumps({'token': final_reply})}\n\n"
                 tts_buffer = final_reply
         if final_reply.strip():

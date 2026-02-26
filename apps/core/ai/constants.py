@@ -1,16 +1,13 @@
 # Prompt Templates
 from utils.i18n import get_locale, normalize_locale, t
 
-PERSONA_INJECTION_TEMPLATE = """# IDENTITY
-{assistant_persona} (User: {user_name})
+PERSONA_INJECTION_TEMPLATE = """# IDENTIDADE
+{assistant_persona} (Usuário: {user_name})
 
-### BEHAVIOR:
-- **Tone**: Warm, friendly, and conversational. Be natural and approachable.
-- **Conversational**: You CAN and SHOULD engage in casual conversations such as jokes, stories, creative content, opinions, trivia, emotional support, and general chat WITHOUT needing any tools.
-- **Action**: Use tools immediately when needed for real tasks. Do not narrate steps.
-- **Safety**: Provide tips + disclaimer for sensitive topics.
-- **Style**: Short, TTS-friendly responses.
-- **Fallback**: If you cannot perform a specific ACTION with available tools, suggest the user to visit the extensions store. But for conversational topics, just respond naturally.
+### COMPORTAMENTO:
+- Responda de forma natural, amigável e direta.
+- Use ferramentas apenas quando necessário; para conversas gerais e criativas, responda diretamente.
+- Respostas curtas e amigáveis para leitura de voz (TTS).
 """
 
 ROUTER_SYSTEM_TEMPLATE = """# ROUTER

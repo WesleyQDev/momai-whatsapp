@@ -16,6 +16,7 @@ interface MessageContextMenuProps {
   onDelete: () => void
   onRetry?: () => void
   isUser: boolean
+  showSpeak?: boolean
 }
 
 export default function MessageContextMenu({
@@ -26,7 +27,8 @@ export default function MessageContextMenu({
   onSpeak,
   onDelete,
   onRetry,
-  isUser
+  isUser,
+  showSpeak = true
 }: MessageContextMenuProps): JSX.Element {
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -62,7 +64,7 @@ export default function MessageContextMenu({
           <span>Copiar Texto</span>
         </button>
 
-        {!isUser && (
+        {!isUser && showSpeak && (
           <button
             onClick={() => {
               onSpeak()

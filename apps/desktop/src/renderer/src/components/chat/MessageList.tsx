@@ -80,6 +80,7 @@ const MessageList = memo(function MessageList({
           onSpeak={() => onSpeakMessage?.(msg.content, i)}
           onDelete={() => onRemoveMessage?.(i)}
           onRetry={() => onSendMessage(msg.content)}
+          aiTier={statusInfo?.ai_tier || 'pro'}
         />
       ))}
 
