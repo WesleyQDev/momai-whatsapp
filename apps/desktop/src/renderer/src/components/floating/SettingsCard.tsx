@@ -196,7 +196,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
       if (res.data.locale) {
         setLocale(res.data.locale)
       }
-      
+       
       const statusRes = await api.get('/status')
       setTiersConfig(statusRes.data.tiers_config)
     } catch (error) {
