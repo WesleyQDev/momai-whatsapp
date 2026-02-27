@@ -25,6 +25,16 @@ from services.memory.external_memory import search_memory, DEFAULT_MAX_TOKENS
 from ai.constants import (
     get_language_instruction,
     PERSONA_INJECTION_TEMPLATE,
+    HISTORY_BUDGET_PERCENT,
+    MIN_CONTEXT_TOKENS,
+    SKILL_SIMILARITY_THRESHOLD,
+    DEFAULT_TOOL_LIMIT,
+    SKILL_SEARCH_LIMIT,
+    MAX_HISTORY_MESSAGES,
+    MAX_SNIPPET_LENGTH,
+    CONFIDENCE_PERCENT_SCALE,
+    MIN_QUERY_LENGTH,
+    PREVIEW_TOOL_LIMIT,
 )
 from ai.tool_selector import select_tool_names_for_query
 from tools.system_actions import get_all_tools_registry
@@ -53,17 +63,11 @@ from ai.graph.prompts import (
 logger = logging.getLogger("momai.graph")
 
 
-# Workflow Configuration Constants
-HISTORY_BUDGET_PERCENT = 0.7
-MIN_CONTEXT_TOKENS = 256
-SKILL_SIMILARITY_THRESHOLD = 0.7
-DEFAULT_TOOL_LIMIT = 10
-SKILL_SEARCH_LIMIT = 4
-MAX_HISTORY_MESSAGES = 8
-MAX_SNIPPET_LENGTH = 200
-CONFIDENCE_PERCENT_SCALE = 100
-MIN_QUERY_LENGTH = 3
-PREVIEW_TOOL_LIMIT = 3
+
+@tool
+def activate_skill(skill_id: str, task_description: str):
+    """Delegates a task to a specialist worker."""
+    return f"Delegating to {skill_id}..."
 
 
 def log_event(title: str, content: str, color: str = ""):
@@ -296,11 +300,6 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                 system_prompt += f"\n{PRO_EXECUTION_PROTOCOL}"
             else: # lite
                 system_prompt += f"\n{LITE_EXECUTION_PROTOCOL}"
-
-            @tool
-            def activate_skill(skill_id: str, task_description: str):
-                """Delegates a task to a specialist worker."""
-                return f"Delegating to {skill_id}..."
 
             manager_tools = []
             if tier == "ultra":

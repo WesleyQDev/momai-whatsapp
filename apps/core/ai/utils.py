@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 import asyncio
 import threading
@@ -16,7 +17,6 @@ from langchain_core.messages import (
     AIMessage,
     SystemMessage,
 )
-from tools.system_actions import show_chat_card
 
 logger = logging.getLogger("momai.ai.utils")
 
@@ -203,6 +203,7 @@ async def _build_missing_capability_card(
     }
 
 def _open_feature_card(content: str, cta_label: str, action: str):
+    from tools.system_actions import show_chat_card
     options = [action]
     options_map = {action: cta_label}
     show_chat_card.invoke(

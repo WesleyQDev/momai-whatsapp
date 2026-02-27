@@ -37,7 +37,6 @@ class StreamHandler:
 
         elif kind == "on_chat_model_start":
             self.state.current_turn_buffer = ""
-            self.state.suppress_current_turn = False
 
         elif kind == "on_chat_model_stream":
             async for chunk in self._handle_model_stream(event): yield chunk
@@ -161,12 +160,9 @@ class StreamHandler:
 
         chunk = event["data"]["chunk"]
         if hasattr(chunk, "tool_call_chunks") and chunk.tool_call_chunks:
-            self.state.suppress_current_turn = True
             self.state.current_turn_buffer = ""
             self.state.prebuffer = ""
             return
-
-        if self.state.suppress_current_turn: return
 
         content = chunk.content
         if not content: return
@@ -209,10 +205,10 @@ class StreamHandler:
             self.state.full_content += filtered_content
             self.state.tts_buffer += filtered_content
 
-        async for tts_chunk in self._process_tts(): yield tts_chunk
+        await self._process_tts()
 
     async def _handle_model_end(self, event: Dict[str, Any]) -> AsyncGenerator[str, None]:
-        if not self.state.suppress_current_turn and self.state.current_turn_buffer:
+        if self.state.current_turn_buffer:
             tokens = self.state.current_turn_buffer
             self.state.current_turn_buffer = ""
             
@@ -248,7 +244,7 @@ class StreamHandler:
             "responder"
         )
 
-    async def _process_tts(self) -> AsyncGenerator[str, None]:
+    async def _process_tts(self) -> None:
         
         while True:
             # Fast Trigger for first response chunk
@@ -288,6 +284,3 @@ class StreamHandler:
                     else: break
                 else: break
             else: break
-        
-        # This function doesn't yield to the SSE stream, it calls speak_and_notify
-        if False: yield "" 

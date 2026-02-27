@@ -35,6 +35,19 @@ TOOL_PROTOCOL = f"""# CAPABILITIES
 
 # No native tool limits here. Limits are now dynamic per tool/skill.
 
+# Workflow & Graph Constants
+HISTORY_BUDGET_PERCENT = 0.7
+MIN_CONTEXT_TOKENS = 256
+SKILL_SIMILARITY_THRESHOLD = 0.7
+DEFAULT_TOOL_LIMIT = 10
+SKILL_SEARCH_LIMIT = 4
+MAX_HISTORY_MESSAGES = 8
+MAX_SNIPPET_LENGTH = 200
+CONFIDENCE_PERCENT_SCALE = 100
+MIN_QUERY_LENGTH = 3
+PREVIEW_TOOL_LIMIT = 3
+DEFAULT_RECURSION_LIMIT = 100
+
 def get_language_instruction(locale: str | None = None) -> str:
     """Returns the core language instruction for the system prompt."""
     if not locale:

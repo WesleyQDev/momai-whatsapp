@@ -17,7 +17,6 @@ class StreamState:
     # Stream control
     stream_decided: bool = False
     stream_suppressed: bool = False
-    suppress_current_turn: bool = False
     prebuffer_limit: int = 0
     
     # Trace and UI state

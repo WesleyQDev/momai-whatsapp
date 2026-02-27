@@ -10,6 +10,7 @@ from ai.stream.state import StreamState
 from ai.stream.handler import StreamHandler
 import app_state
 from ai import utils
+from ai.constants import DEFAULT_RECURSION_LIMIT
 from ai.utils import (
     ensure_summary, save_message_to_db, clean_response, 
     _is_missing_capability, _build_missing_capability_card, 
@@ -51,7 +52,7 @@ class StreamProcessor:
 
         config = {
             "configurable": {"thread_id": self.state.thread_id},
-            "recursion_limit": 100,
+            "recursion_limit": int(os.getenv("MOMAI_GRAPH_RECURSION_LIMIT", str(DEFAULT_RECURSION_LIMIT))),
         }
         input_data = {
             "messages": [HumanMessage(content=self.state.user_content)],
