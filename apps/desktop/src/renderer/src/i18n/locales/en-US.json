@@ -149,6 +149,7 @@
   "settings.loadingTitle": "Settings",
   "settings.loadingBody": "Loading control panel...",
   "settings.title": "Control Panel",
+  "settings.help": "Help",
   "settings.tabs.general": "General",
   "settings.tabs.brain": "Intelligence",
   "settings.tabs.voice": "Voice and Speech",

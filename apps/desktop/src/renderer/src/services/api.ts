@@ -1,7 +1,6 @@
 import axios from 'axios'
 import { cleanMomaiActions } from '../utils/text'
-
-const API_URL = 'http://localhost:8000'
+import { API_URL } from '../constants'
 
 export const api = axios.create({
   baseURL: API_URL

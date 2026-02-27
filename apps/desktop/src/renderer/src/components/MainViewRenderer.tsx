@@ -21,39 +21,41 @@ interface MainViewRendererProps {
   isUpdating?: boolean
 }
 
+const ChatView = (props: any) => {
+  return (
+    <ContainerChat
+      messages={props.chat.messages}
+      isLoading={props.chat.isLoading}
+      isModeChanging={props.isBooting || props.isUpdating || props.statusInfo?.is_loading}
+      text={props.chat.text}
+      onSendMessage={props.chat.sendMessage}
+      onClearHistory={props.chat.clearHistory}
+      messagesEndRef={props.chat.messagesEndRef}
+      onReopenGraph={props.chat.reopenGraph}
+      onGraphOption={props.chat.handleGraphOption}
+      statusInfo={props.statusInfo}
+      stopCurrentGeneration={props.chat.stopCurrentGeneration}
+      stopCurrentVoice={props.chat.stopCurrentVoice}
+      speakingIndex={props.chat.speakingIndex}
+      isCallMode={props.chat.isCallMode}
+      voiceStatus={props.chat.voiceStatus}
+      onToggleCallMode={props.chat.toggleCallMode}
+      callHistory={props.chat.callHistory}
+      initProgress={props.initProgress}
+      initMessage={props.initMessage}
+      isBooting={props.isBooting}
+      threadId={props.chat.threadId}
+      setThreadId={props.chat.setThreadId}
+      setHistoryOpen={props.setHistoryOpen}
+      onSpeakMessage={props.chat.speakMessage}
+      onRemoveMessage={props.chat.removeMessage}
+      isFirstLaunch={props.isFirstLaunch}
+    />
+  )
+}
+
 const VIEW_MAP: Record<string, React.ComponentType<any>> = {
-  ChatDashboard: (props: any) => {
-    return (
-      <ContainerChat
-        messages={props.chat.messages}
-        isLoading={props.chat.isLoading}
-        isModeChanging={props.isBooting || props.isUpdating || props.statusInfo?.is_loading}
-        text={props.chat.text}
-        onSendMessage={props.chat.sendMessage}
-        onClearHistory={props.chat.clearHistory}
-        messagesEndRef={props.chat.messagesEndRef}
-        onReopenGraph={props.chat.reopenGraph}
-        onGraphOption={props.chat.handleGraphOption}
-        statusInfo={props.statusInfo}
-        stopCurrentGeneration={props.chat.stopCurrentGeneration}
-        stopCurrentVoice={props.chat.stopCurrentVoice}
-        speakingIndex={props.chat.speakingIndex}
-        isCallMode={props.chat.isCallMode}
-        voiceStatus={props.chat.voiceStatus}
-        onToggleCallMode={props.chat.toggleCallMode}
-        callHistory={props.chat.callHistory}
-        initProgress={props.initProgress}
-        initMessage={props.initMessage}
-        isBooting={props.isBooting}
-        threadId={props.chat.threadId}
-        setThreadId={props.chat.setThreadId}
-        setHistoryOpen={props.setHistoryOpen}
-        onSpeakMessage={props.chat.speakMessage}
-        onRemoveMessage={props.chat.removeMessage}
-        isFirstLaunch={props.isFirstLaunch}
-      />
-    )
-  },
+  ChatDashboard: ChatView,
   RemindersDashboard: RemindersView,
   NotesDashboard: NotesView,
   ExtensionsStore: ExtensionsView,

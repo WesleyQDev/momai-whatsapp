@@ -20,6 +20,7 @@ import {
   BootstrapError,
   BootstrapErrorType
 } from './state'
+import { API_HOST, API_PORT } from './constants'
 import { is } from '@electron-toolkit/utils'
 import { logger } from './logger'
 
@@ -621,8 +622,8 @@ export async function startPythonBackend(): Promise<void> {
     })
 
     // Wait for the server to be up before notifying renderer to start HTTP requests
-    const host = process.env.HOST || '127.0.0.1'
-    const port = parseInt(process.env.PORT || '8000')
+    const host = API_HOST
+    const port = API_PORT
 
     waitForPort(port, host, 60000)
       .then(() => {

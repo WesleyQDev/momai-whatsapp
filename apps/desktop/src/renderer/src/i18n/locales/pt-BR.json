@@ -149,6 +149,7 @@
   "settings.loadingTitle": "Configurações",
   "settings.loadingBody": "Carregando painel de controle...",
   "settings.title": "Painel de Controle",
+  "settings.help": "Ajuda",
   "settings.tabs.general": "Geral",
   "settings.tabs.brain": "Inteligência",
   "settings.tabs.voice": "Voz e Fala",

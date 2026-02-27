@@ -138,7 +138,7 @@ export function useChat() {
     setText,
     messages,
     isLoading,
-    sendMessage: (overrideText?: string) => actions.sendMessage(overrideText ?? text),
+    sendMessage: actions.sendMessage,
     messagesEndRef,
     graphState,
     handleGraphOption: actions.handleGraphOption,

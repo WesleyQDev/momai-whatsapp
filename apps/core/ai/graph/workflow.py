@@ -567,12 +567,72 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
 
         return result
 
-    def route_specialist(state: AgentState):
-        """Route specialist output: if tool_calls, go to tools; else go to search_counter."""
+
+    async def dynamic_tools_node(state: AgentState):
+        from langchain_core.messages import ToolMessage
+        from utils.safe_tools import extract_extras
+
         last_msg = state["messages"][-1]
-        if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
-            return "tools"
-        return "search_counter"
+        if not hasattr(last_msg, "tool_calls") or not last_msg.tool_calls:
+            return {"messages": []}
+        registry = get_all_tools_registry()
+        tool_messages = []
+        tool_usage = state.get("tool_usage", {}) or {}
+        
+        for tc in last_msg.tool_calls:
+            tool_name = tc["name"]
+            tool = registry.get(tool_name)
+            
+            # Dynamic Limit Detection
+            skill_id = state.get("skill_id")
+            if skill_id:
+                skill = extension_manager.get_skill(skill_id)
+                tool_limits = skill.get_tool_limits() if skill else {}
+            else:
+                tool_limits = {}
+
+            # 1. Check Tool-Level Limit (metadata)
+            # 2. Check Skill-Level Limit (tool_limits dict)
+            # 3. Fallback to 10
+            limit = 10
+            if hasattr(tool, "get_limit"):
+                limit = tool.get_limit(default=10)
+            
+            # Skill-level override has higher precedence if specific to the tool name
+            if tool_name in tool_limits:
+                limit = tool_limits[tool_name]
+            elif "default" in tool_limits:
+                limit = tool_limits["default"]
+
+            # Check limits before execution (extra safety)
+            tool_usage[tool_name] = tool_usage.get(tool_name, 0) + 1
+            
+            if tool and tool_usage[tool_name] <= limit:
+                res = await tool.ainvoke(tc["args"])
+                processed_res, extras = extract_extras(res)
+                
+                tool_msg_kwargs = {"tool_call_id": tc["id"]}
+                if extras:
+                    tool_msg_kwargs["additional_kwargs"] = {"extras": extras}
+                
+                tool_messages.append(
+                    ToolMessage(content=str(processed_res), **tool_msg_kwargs)
+                )
+            else:
+                # Tool missing or limit reached - provide feedback to LLM to break loop
+                reason = "Usage limit reached" if tool else "Tool not found or access denied"
+                log_event("Guardrail", f"Blocking tool '{tool_name}': {reason}")
+                tool_messages.append(
+                    ToolMessage(
+                        content=SYSTEM_TOOL_LIMIT_REACHED.format(reason=reason),
+                        tool_call_id=tc["id"]
+                    )
+                )
+
+        # Determine next step: if specialist called tools, go back to specialist; else go to manager
+        has_skill_id = bool(state.get("skill_id"))
+        next_step = "prepare_tool_results" if has_skill_id else "momai_agent"
+        return {"messages": tool_messages, "tool_usage": tool_usage, "next_step": next_step}
 
     def prepare_tool_results(state: AgentState):
         """Convert ToolMessage results to format for specialist."""
@@ -645,69 +705,3 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
 
     return workflow.compile(checkpointer=checkpointer)
 
-
-async def dynamic_tools_node(state: AgentState):
-    from langchain_core.messages import ToolMessage
-    from utils.safe_tools import extract_extras
-
-    last_msg = state["messages"][-1]
-    if not hasattr(last_msg, "tool_calls") or not last_msg.tool_calls:
-        return {"messages": []}
-    registry = get_all_tools_registry()
-    tool_messages = []
-    tool_usage = state.get("tool_usage", {}) or {}
-    
-    for tc in last_msg.tool_calls:
-        tool_name = tc["name"]
-        tool = registry.get(tool_name)
-        
-        # Dynamic Limit Detection
-        skill_id = state.get("skill_id")
-        if skill_id:
-            skill = extension_manager.get_skill(skill_id)
-            tool_limits = skill.get_tool_limits() if skill else {}
-        else:
-            tool_limits = {}
-
-        # 1. Check Tool-Level Limit (metadata)
-        # 2. Check Skill-Level Limit (tool_limits dict)
-        # 3. Fallback to 10
-        limit = 10
-        if hasattr(tool, "get_limit"):
-            limit = tool.get_limit(default=10)
-        
-        # Skill-level override has higher precedence if specific to the tool name
-        if tool_name in tool_limits:
-            limit = tool_limits[tool_name]
-        elif "default" in tool_limits:
-            limit = tool_limits["default"]
-
-        # Check limits before execution (extra safety)
-        tool_usage[tool_name] = tool_usage.get(tool_name, 0) + 1
-        
-        if tool and tool_usage[tool_name] <= limit:
-            res = await tool.ainvoke(tc["args"])
-            processed_res, extras = extract_extras(res)
-            
-            tool_msg_kwargs = {"tool_call_id": tc["id"]}
-            if extras:
-                tool_msg_kwargs["additional_kwargs"] = {"extras": extras}
-            
-            tool_messages.append(
-                ToolMessage(content=str(processed_res), **tool_msg_kwargs)
-            )
-        else:
-            # Tool missing or limit reached - provide feedback to LLM to break loop
-            reason = "Usage limit reached" if tool else "Tool not found or access denied"
-            log_event("Guardrail", f"Blocking tool '{tool_name}': {reason}")
-            tool_messages.append(
-                ToolMessage(
-                    content=SYSTEM_TOOL_LIMIT_REACHED.format(reason=reason),
-                    tool_call_id=tc["id"]
-                )
-            )
-
-    # Determine next step: if specialist called tools, go back to specialist; else go to manager
-    has_skill_id = bool(state.get("skill_id"))
-    next_step = "prepare_tool_results" if has_skill_id else "momai_agent"
-    return {"messages": tool_messages, "tool_usage": tool_usage, "next_step": next_step}

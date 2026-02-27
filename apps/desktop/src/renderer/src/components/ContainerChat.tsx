@@ -213,16 +213,16 @@ const LoadingAnimation = ({
           return Math.min(100, prev + step)
         }
         
-        // Much slower crawl to avoid getting stuck at the end for too long
-        // Initial move to 15% is still decent, then it crawls very slowly
         const baseIncrement = prev < 15 ? 0.4 : 0.02
         const randomFactor = Math.random() * 0.05
         const next = prev + baseIncrement + randomFactor
         
-        // Clamp at 88% - giving space for a big jump at the end
-        const targetValue = Math.max(next, progress * 0.85)
+        // Clamp at 88% only if real progress is far behind
+        // If real progress is > 80%, we allow the visual crawl to go higher
+        const cap = progress > 90 ? 99 : 88
+        const targetValue = Math.max(next, progress * 0.9)
         
-        return Math.min(targetValue, 88)
+        return Math.min(targetValue, cap)
       })
     }, 100)
     return () => clearInterval(interval)
@@ -344,12 +344,15 @@ export default function ContainerChat({
     return ALL_SUGGESTIONS.sort(() => Math.random() - 0.5).slice(0, 4)
   }, [threadId])
 
+  const [dataLoaded, setDataLoaded] = useState(false)
+
   useEffect(() => {
-    if (isEmpty) {
+    if (isEmpty && !dataLoaded) {
       const loadData = async () => {
         try {
           const s = await fetchSettings()
           setSettings(s)
+          setDataLoaded(true)
           
           if (isBrainReady) {
             const notes = await listMemoryNotes()
@@ -361,11 +364,13 @@ export default function ContainerChat({
           }
         } catch (e) {
           console.error(e)
+          // Avoid infinite retry loop on failure
+          setDataLoaded(true) 
         }
       }
       loadData()
     }
-  }, [isEmpty, isBrainReady])
+  }, [isEmpty, isBrainReady, dataLoaded])
 
   useEffect(() => {
     setLocalSessionTitle(null)

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { WS_URL } from '../constants'
 
 interface UseChatWebSocketProps {
   threadId: string
@@ -35,7 +36,7 @@ export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocket
       if (isUnmounting) return
 
       try {
-        wsRef.current = new WebSocket('ws://127.0.0.1:8000/ws')
+        wsRef.current = new WebSocket(WS_URL)
       } catch (e) {
         console.error('Erro ao criar WebSocket:', e)
         scheduleReconnect()

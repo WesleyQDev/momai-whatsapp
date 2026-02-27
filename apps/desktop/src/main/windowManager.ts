@@ -21,12 +21,11 @@ import {
 } from './state'
 import { logger } from './logger'
 import { shutdownPython, startPythonBackend } from './pythonManager'
+import { API_BASE_URL } from './constants'
 
 async function controlWakeWord(enabled: boolean): Promise<void> {
   try {
-    const host = process.env.HOST || '127.0.0.1'
-    const port = parseInt(process.env.PORT || '8000')
-    await fetch(`http://${host}:${port}/voice/wake-word`, {
+    await fetch(`${API_BASE_URL}/voice/wake-word`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled })
@@ -236,9 +235,7 @@ function createMainWindow(): BrowserWindow {
   mainWindow.on('restore', async () => {
     isWindowMinimizing = false
     try {
-      const host = process.env.HOST || '127.0.0.1'
-      const port = parseInt(process.env.PORT || '8000')
-      const response = await fetch(`http://${host}:${port}/settings`)
+      const response = await fetch(`${API_BASE_URL}/settings`)
       if (response.ok) {
         const settings = await response.json()
         // Re-enable detector if wake word is enabled OR call mode is active
@@ -247,7 +244,7 @@ function createMainWindow(): BrowserWindow {
         } else {
           // Check if call mode is active — detector must stay running for it
           try {
-            const callModeResp = await fetch(`http://${host}:${port}/mode/call-mode/status`)
+            const callModeResp = await fetch(`${API_BASE_URL}/mode/call-mode/status`)
             if (callModeResp.ok) {
               const callMode = await callModeResp.json()
               if (callMode.call_mode) {

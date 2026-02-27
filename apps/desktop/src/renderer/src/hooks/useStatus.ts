@@ -46,21 +46,20 @@ export function useStatus() {
 
   // Polling de fallback para progresso de init
   const checkInitProgress = useCallback(async () => {
-    if (initProgress >= 100) return
-
     try {
       const data = await (fetchInitStatus() as any)
 
       setInitMessage(translateMessage(data.message))
-      setInitProgress((prev) => Math.max(prev, data.progress))
-
-      if (data.progress >= 100) {
-        setIsBooting(false)
-      }
+      setInitProgress((prev) => {
+        if (data.progress >= 100) {
+          setIsBooting(false)
+        }
+        return Math.max(prev, data.progress)
+      })
     } catch {
       // Silent fail
     }
-  }, [initProgress])
+  }, []) // Removed initProgress from deps to avoid interval restarts
 
   const checkStatus = useCallback(async () => {
     try {
@@ -84,14 +83,14 @@ export function useStatus() {
         setHasUpdate(data.setup.installed_version !== data.setup.latest_version)
       }
     } catch (error) {
-      if (!isBooting || retryCount > 10) {
+      if (!isBooting) {
         console.error('Erro ao buscar status:', error)
       }
       setStatusInfo(null)
       setIsOnline(false)
       setRetryCount((prev) => prev + 1)
     }
-  }, [isBooting, retryCount])
+  }, [isBooting]) // Removed retryCount from deps to avoid infinite loop
 
   useEffect(() => {
     const handleInitProgress = (e: any) => {
@@ -222,7 +221,7 @@ export function useStatus() {
       clearInterval(statusInterval)
       if (initInterval) clearInterval(initInterval)
     }
-  }, [checkStatus, checkInitProgress, isBooting, initProgress, backendOnline])
+  }, [checkStatus, checkInitProgress, isBooting, backendOnline])
 
   // Detectar progresso estagnado
   useEffect(() => {

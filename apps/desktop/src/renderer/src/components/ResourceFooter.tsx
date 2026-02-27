@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { WS_URL } from '../constants'
 
 interface ResourceStats {
   ram_mb: number
@@ -89,7 +90,7 @@ export default function ResourceFooter(): React.JSX.Element {
 
     const connect = (): void => {
       try {
-        ws = new WebSocket('ws://127.0.0.1:8000/ws')
+        ws = new WebSocket(WS_URL)
 
         ws.onopen = () => {
           setConnected(true)
