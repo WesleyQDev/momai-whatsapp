@@ -42,6 +42,19 @@ from ai.graph.prompts import (
 logger = logging.getLogger("momai.graph")
 
 
+# Workflow Configuration Constants
+HISTORY_BUDGET_PERCENT = 0.7
+MIN_CONTEXT_TOKENS = 256
+SKILL_SIMILARITY_THRESHOLD = 0.7
+DEFAULT_TOOL_LIMIT = 10
+SKILL_SEARCH_LIMIT = 4
+MAX_HISTORY_MESSAGES = 8
+MAX_SNIPPET_LENGTH = 200
+CONFIDENCE_PERCENT_SCALE = 100
+MIN_QUERY_LENGTH = 3
+PREVIEW_TOOL_LIMIT = 3
+
+
 def log_event(title: str, content: str, color: str = ""):
     """Log via standard logging to ensure visibility in Electron terminal."""
     logger.info(f">>> [{title}] {content}")
@@ -63,17 +76,18 @@ class AgentState(TypedDict):
     tool_call_id: str | None
     sources: list[dict] | None
     memory_notes: list[dict] | None
+    search_count: int | None
 
 
 def _compute_history_budget(
-    system_prompt: str, summary: str | None, budget_pct: float = 0.7
+    system_prompt: str, summary: str | None, budget_pct: float = HISTORY_BUDGET_PERCENT
 ) -> int:
     ctx_total = get_context_window()
     reserve = int(ctx_total * (1 - budget_pct))
     overhead = count_tokens(system_prompt or "")
     if summary:
         overhead += count_tokens(summary)
-    return max(256, ctx_total - reserve - overhead)
+    return max(MIN_CONTEXT_TOKENS, ctx_total - reserve - overhead)
 
 
 def get_valid_history(
@@ -136,7 +150,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
 
         greetings = r"^(oi|ol[aá]|tudo bem|como vai|como você está|como voce esta|bom dia|boa tarde|boa noite|opa|e ai|eae|salve|oba|co[eé]|ei|hey|hello|hi)(\?|\!|\s|$)"
         is_greeting = re.search(greetings, last_msg.strip().lower())
-        is_short = len(last_msg.strip()) < 3
+        is_short = len(last_msg.strip()) < MIN_QUERY_LENGTH
         # Skip discovery for math expressions to avoid context distraction (e.g., 20/5 being seen as a date)
         is_math = re.match(r"^[\d\s.,/*+\-()^?]+$", last_msg.strip())
         
@@ -154,7 +168,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
 
         search_skills_task = None
         if tier == "ultra":
-            search_skills_task = vector_db.search_skills(last_msg, limit=4)
+            search_skills_task = vector_db.search_skills(last_msg, limit=SKILL_SEARCH_LIMIT)
             tasks.append(search_skills_task)
 
         results = await asyncio.gather(*tasks) if tasks else []
@@ -199,7 +213,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                     continue
                 
                 dist = hit.get("_distance", 1.0)
-                if dist < 0.7: # Less strict threshold for cosine distance
+                if dist < SKILL_SIMILARITY_THRESHOLD: # Less strict threshold for cosine distance
                     seen_ids.add(skill_id)
                     skills_brief.append(
                         {
@@ -209,7 +223,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                         }
                     )
                     # Convert distance to confidence (0.0 distance = 100%, 1.0+ distance = 0%)
-                    confidence = max(0, min(100, (1 - dist) * 100))
+                    confidence = max(0, min(CONFIDENCE_PERCENT_SCALE, (1 - dist) * CONFIDENCE_PERCENT_SCALE))
                     log_event(
                         "Discovery",
                         f"Active Skill: {skill_id} (conf: {confidence:.1f}%)",
@@ -296,7 +310,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
         for t in manager_tools:
             # Try our custom tool_metadata first, then standard metadata
             t_metadata = getattr(t, "tool_metadata", getattr(t, "metadata", {})) or {}
-            limit = t_metadata.get("max_calls", 10)
+            limit = t_metadata.get("max_calls", DEFAULT_TOOL_LIMIT)
             if tool_usage.get(t.name, 0) < limit:
                 available_manager_tools.append(t)
             else:
@@ -314,7 +328,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
         chain = prompt | llm.bind_tools(available_manager_tools) if available_manager_tools else prompt | llm
         budget = _compute_history_budget(system_prompt, state.get("summary"))
         result = await chain.ainvoke(
-            {"messages": get_valid_history(state["messages"], 8, budget)}
+            {"messages": get_valid_history(state["messages"], MAX_HISTORY_MESSAGES, budget)}
         )
         return {"messages": [result]}
 
@@ -375,7 +389,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
         # Dynamic Tool Filtering: Get limits directly from skill metadata
         tool_limits = skill.get_tool_limits()
         # Get a representative limit for the prompt (usually search/default)
-        prompt_limit = tool_limits.get("search", tool_limits.get("default", 3))
+        prompt_limit = tool_limits.get("search", tool_limits.get("default", PREVIEW_TOOL_LIMIT))
 
         system_instructions += SPECIALIST_INSTRUCTIONS_TEMPLATE.format(
             task=task, prompt_limit=prompt_limit
@@ -479,7 +493,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                         {
                             "url": url,
                             "title": f"Nota: {note.get('title', 'Sem título')}",
-                            "snippet": note.get("text", "")[:200],
+                            "snippet": note.get("text", "")[:MAX_SNIPPET_LENGTH],
                         }
                     )
 
@@ -542,7 +556,7 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
                                 sources.append({
                                     "url": url,
                                     "title": title or url,
-                                    "snippet": snippet[:200] if snippet else ""
+                                    "snippet": snippet[:MAX_SNIPPET_LENGTH] if snippet else ""
                                 })
 
         if not any_valid_tool_data and not mem_notes:
@@ -593,10 +607,10 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
 
             # 1. Check Tool-Level Limit (metadata)
             # 2. Check Skill-Level Limit (tool_limits dict)
-            # 3. Fallback to 10
-            limit = 10
+            # 3. Fallback to constant
+            limit = DEFAULT_TOOL_LIMIT
             if hasattr(tool, "get_limit"):
-                limit = tool.get_limit(default=10)
+                limit = tool.get_limit(default=DEFAULT_TOOL_LIMIT)
             
             # Skill-level override has higher precedence if specific to the tool name
             if tool_name in tool_limits:
