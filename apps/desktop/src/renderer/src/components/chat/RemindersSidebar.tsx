@@ -228,130 +228,167 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
 
       <div className="flex-1 flex flex-col min-h-0">
         {displayItems.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-4 -mt-4">
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
             {showQuickAdd ? (
-              <form
-                onSubmit={handleQuickAdd}
-                className="w-full space-y-3 bg-white/[0.02] border border-white/5 p-4 rounded-xl animate-in zoom-in-95 duration-200"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-[10px] font-black uppercase text-accent tracking-widest">
-                    Novo
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setShowQuickAdd(false)}
-                    className="p-1 text-text-muted/40 hover:text-text"
-                  >
-                    <XMarkIcon className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <input
-                  autoFocus
-                  type="text"
-                  required
-                  className="w-full bg-input/50 p-2 text-xs rounded border border-white/5 outline-none focus:border-accent/40"
-                  placeholder="O que devo lembrar?"
-                  value={newReminderTitle}
-                  onChange={(e) => setNewReminderTitle(e.target.value)}
-                />
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="relative group">
-                    <CalendarIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-accent/40 group-focus-within:text-accent transition-colors" />
-                    <input
-                      type="date"
-                      required
-                      className="w-full bg-input/40 pl-7 pr-2 py-1.5 text-[10px] rounded border border-white/5 outline-none focus:border-accent/40 text-text font-bold"
-                      value={newReminderDate}
-                      onChange={(e) => setNewReminderDate(e.target.value)}
-                    />
-                  </div>
-                  <div className="relative group">
-                    <ClockIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-accent/40 group-focus-within:text-accent transition-colors" />
-                    <input
-                      type="time"
-                      required
-                      className="w-full bg-input/40 pl-7 pr-2 py-1.5 text-[10px] rounded border border-white/5 outline-none focus:border-accent/40 text-text font-bold"
-                      value={newReminderTime}
-                      onChange={(e) => setNewReminderTime(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="w-full py-1.5 bg-accent text-[10px] font-black uppercase text-black rounded hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-accent/10"
+              <div className="w-full flex-1 flex flex-col items-center justify-start pt-2">
+                <form
+                  onSubmit={handleQuickAdd}
+                  className="w-full bg-white/[0.03] border border-white/10 p-4 rounded-xl animate-in zoom-in-95 duration-200 backdrop-blur-xl shadow-2xl"
                 >
-                  Salvar
-                </button>
-              </form>
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-start justify-between">
+                      <input
+                        autoFocus
+                        required
+                        type="text"
+                        className="flex-1 bg-transparent border-none p-0 text-sm font-bold outline-none placeholder:text-text/20 focus:ring-0 text-text"
+                        placeholder="O que devo lembrar?"
+                        value={newReminderTitle}
+                        onChange={(e) => setNewReminderTitle(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowQuickAdd(false)}
+                        className="p-1 -mr-1 text-text/20 hover:text-text/50 transition-colors"
+                      >
+                        <XMarkIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5 text-text/40">
+                          <CalendarIcon className="w-3.5 h-3.5 text-accent/40" />
+                          <input
+                            type="date"
+                            required
+                            className="bg-transparent border-none p-0 text-[10px] font-black uppercase tracking-tight outline-none [color-scheme:dark] cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden"
+                            value={newReminderDate}
+                            onChange={(e) => setNewReminderDate(e.target.value)}
+                            onClick={(e) => {
+                              try {
+                                e.currentTarget.showPicker()
+                              } catch (err) {
+                                console.warn('Picker not supported')
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5 text-text/40">
+                          <ClockIcon className="w-3.5 h-3.5 text-accent/40" />
+                          <input
+                            type="time"
+                            required
+                            className="bg-transparent border-none p-0 text-[10px] font-black uppercase tracking-tight outline-none [color-scheme:dark] cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden"
+                            value={newReminderTime}
+                            onChange={(e) => setNewReminderTime(e.target.value)}
+                            onClick={(e) => {
+                              try {
+                                e.currentTarget.showPicker()
+                              } catch (err) {
+                                console.warn('Picker not supported')
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isSaving || !newReminderTitle.trim()}
+                        className="w-full py-2 bg-accent text-black text-[10px] font-black uppercase tracking-widest rounded-lg hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-accent/20 disabled:opacity-30"
+                      >
+                        {isSaving ? '...' : 'Salvar'}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
             ) : (
               <button
                 onClick={() => setShowQuickAdd(true)}
-                className="px-6 py-2.5 bg-accent/10 hover:bg-accent/20 border border-accent/20 rounded-xl text-accent transition-all active:scale-95 group shadow-lg shadow-accent/5 flex items-center gap-2.5"
+                className="px-6 py-3 bg-accent/5 hover:bg-accent/10 border border-accent/10 rounded-xl text-accent transition-all active:scale-95 group flex items-center gap-3"
               >
-                <PlusIcon className="w-3.5 h-3.5" />
-                <span className="text-[10px] font-black uppercase tracking-[0.15em] transition-all">
+                <PlusIcon className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-[0.2em]">
                   Novo Lembrete
                 </span>
               </button>
             )}
-        </div>
+          </div>
         ) : (
           <div className="flex-1 overflow-y-auto custom-scrollbar px-2 space-y-1 pb-4 pt-2">
             {showQuickAdd && (
               <div className="mb-4 mt-2 px-1">
                 <form
                   onSubmit={handleQuickAdd}
-                  className="w-full bg-card/60 border border-border/10 rounded-2xl p-4 shadow-xl animate-in slide-in-from-top-2 duration-300"
+                  className="w-full bg-white/[0.03] border border-white/10 p-3 rounded-xl animate-in slide-in-from-top-2 duration-300 shadow-xl backdrop-blur-md"
                 >
-                  <div className="flex items-center justify-between mb-3 px-1">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-accent">
-                      Ação Rápida
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowQuickAdd(false)}
-                      className="p-1 text-text/30 hover:text-text transition-colors"
-                    >
-                      <XMarkIcon className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <input
-                    autoFocus
-                    required
-                    type="text"
-                    placeholder="O que devo lembrar?"
-                    className="w-full bg-input/50 border border-border/5 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:border-accent/40 text-text mb-2.5 shadow-inner"
-                    value={newReminderTitle}
-                    onChange={(e) => setNewReminderTitle(e.target.value)}
-                  />
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-start justify-between">
+                      <input
+                        autoFocus
+                        required
+                        type="text"
+                        placeholder="O que devo lembrar?"
+                        className="flex-1 bg-transparent border-none p-0 text-xs font-bold outline-none placeholder:text-text/20 focus:ring-0 text-text"
+                        value={newReminderTitle}
+                        onChange={(e) => setNewReminderTitle(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowQuickAdd(false)}
+                        className="p-1 -mr-1 text-text/20 hover:text-text/50 transition-colors"
+                      >
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
 
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    <input
-                      type="date"
-                      className="w-full bg-input/50 border border-border/5 rounded-lg px-2 py-1.5 text-[9px] font-bold text-text outline-none focus:border-accent/40 [color-scheme:dark]"
-                      value={newReminderDate}
-                      onChange={(e) => setNewReminderDate(e.target.value)}
-                    />
-                    <input
-                      type="time"
-                      className="w-full bg-input/50 border border-border/5 rounded-lg px-2 py-1.5 text-[9px] font-bold text-text outline-none focus:border-accent/40 [color-scheme:dark]"
-                      value={newReminderTime}
-                      onChange={(e) => setNewReminderTime(e.target.value)}
-                    />
-                  </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 text-text/30">
+                          <CalendarIcon className="w-3 h-3 text-accent/40" />
+                          <input
+                            type="date"
+                            className="bg-transparent border-none p-0 text-[9px] font-bold text-text outline-none [color-scheme:dark] cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden"
+                            value={newReminderDate}
+                            onChange={(e) => setNewReminderDate(e.target.value)}
+                            onClick={(e) => {
+                              try {
+                                e.currentTarget.showPicker()
+                              } catch (err) {
+                                console.warn('Picker not supported')
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center gap-1 text-text/30">
+                          <ClockIcon className="w-3 h-3 text-accent/40" />
+                          <input
+                            type="time"
+                            className="bg-transparent border-none p-0 text-[9px] font-bold text-text outline-none [color-scheme:dark] cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden"
+                            value={newReminderTime}
+                            onChange={(e) => setNewReminderTime(e.target.value)}
+                            onClick={(e) => {
+                              try {
+                                e.currentTarget.showPicker()
+                              } catch (err) {
+                                console.warn('Picker not supported')
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
 
-                  <button
-                    type="submit"
-                    disabled={!newReminderTitle.trim() || isSaving}
-                    className="w-full py-2 bg-accent text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:brightness-110 disabled:opacity-30 transition-all active:scale-[0.98]"
-                  >
-                    {isSaving ? '...' : 'Salvar'}
-                  </button>
+                      <button
+                        type="submit"
+                        disabled={!newReminderTitle.trim() || isSaving}
+                        className="p-1.5 bg-accent text-black rounded-lg hover:brightness-110 disabled:opacity-30 transition-all active:scale-95"
+                      >
+                        <PlusIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 </form>
               </div>
             )}
@@ -382,63 +419,88 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
                   <form
                     key={"edit-" + r.id}
                     onSubmit={handleUpdate}
-                    className="mb-4 mt-2 px-1 w-full space-y-3 bg-white/[0.04] border border-accent/20 p-4 rounded-xl animate-in slide-in-from-top-2 duration-300"
+                    className="mb-4 mt-2 px-1 w-full bg-white/[0.04] border border-accent/20 p-4 rounded-xl animate-in slide-in-from-top-2 duration-300 shadow-xl backdrop-blur-md"
                   >
-                    <div className="flex items-center justify-between mb-2 px-1">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-accent">
-                        Editando
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setEditingReminder(null)}
-                        className="p-1 text-text/30 hover:text-text transition-colors"
-                      >
-                        <XMarkIcon className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <input
-                      autoFocus
-                      required
-                      type="text"
-                      className="w-full bg-input/50 border border-border/5 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:border-accent/40 text-text mb-2 animate-pulse-subtle"
-                      value={newReminderTitle}
-                      onChange={(e) => setNewReminderTitle(e.target.value)}
-                    />
-                    <textarea
-                      className="w-full bg-input/40 p-2 text-[10px] rounded-lg border border-white/5 outline-none focus:border-accent/40 text-text/70 resize-none min-h-[40px] mb-2"
-                      placeholder="Notas..."
-                      value={newReminderContent}
-                      onChange={(e) => setNewReminderContent(e.target.value)}
-                    />
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      <input
-                        type="date"
-                        className="w-full bg-input/50 border border-border/5 rounded-lg px-2 py-1.5 text-[9px] font-bold text-text outline-none focus:border-accent/40 [color-scheme:dark]"
-                        value={newReminderDate}
-                        onChange={(e) => setNewReminderDate(e.target.value)}
-                      />
-                      <input
-                        type="time"
-                        className="w-full bg-input/50 border border-border/5 rounded-lg px-2 py-1.5 text-[9px] font-bold text-text outline-none focus:border-accent/40 [color-scheme:dark]"
-                        value={newReminderTime}
-                        onChange={(e) => setNewReminderTime(e.target.value)}
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="submit"
-                        disabled={isSaving}
-                        className="flex-1 py-2 bg-accent text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all"
-                      >
-                        {isSaving ? '...' : 'Salvar'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingReminder(null)}
-                        className="px-4 py-2 bg-white/5 text-[9px] font-black uppercase text-text/40 rounded-lg hover:text-text transition-all"
-                      >
-                        Cancelar
-                      </button>
+                    <div className="flex flex-col gap-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 space-y-1">
+                          <input
+                            autoFocus
+                            required
+                            type="text"
+                            className="w-full bg-transparent border-none p-0 text-xs font-bold outline-none placeholder:text-text/20 focus:ring-0 text-text"
+                            value={newReminderTitle}
+                            onChange={(e) => setNewReminderTitle(e.target.value)}
+                          />
+                          <textarea
+                            className="w-full bg-transparent p-0 text-[10px] border-none outline-none focus:ring-0 text-text/50 resize-none min-h-[30px]"
+                            placeholder="Notas..."
+                            value={newReminderContent}
+                            onChange={(e) => setNewReminderContent(e.target.value)}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setEditingReminder(null)}
+                          className="p-1 -mr-1 text-text/20 hover:text-text/50 transition-colors"
+                        >
+                          <XMarkIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1 text-text/30">
+                            <CalendarIcon className="w-3 h-3 text-accent/40" />
+                            <input
+                              type="date"
+                              className="bg-transparent border-none p-0 text-[9px] font-bold text-text outline-none [color-scheme:dark] cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden"
+                              value={newReminderDate}
+                              onChange={(e) => setNewReminderDate(e.target.value)}
+                              onClick={(e) => {
+                                try {
+                                  e.currentTarget.showPicker()
+                                } catch (err) {
+                                  console.warn('Picker not supported')
+                                }
+                              }}
+                            />
+                          </div>
+                          <div className="flex items-center gap-1 text-text/30">
+                            <ClockIcon className="w-3 h-3 text-accent/40" />
+                            <input
+                              type="time"
+                              className="bg-transparent border-none p-0 text-[9px] font-bold text-text outline-none [color-scheme:dark] cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden"
+                              value={newReminderTime}
+                              onChange={(e) => setNewReminderTime(e.target.value)}
+                              onClick={(e) => {
+                                try {
+                                  e.currentTarget.showPicker()
+                                } catch (err) {
+                                  console.warn('Picker not supported')
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingReminder(null)}
+                            className="flex-1 py-1.5 text-[9px] font-bold text-text/40 hover:text-text/60 transition-colors border border-white/5 rounded-lg"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={isSaving}
+                            className="flex-[2] py-1.5 bg-accent text-black rounded-lg text-[9px] font-black uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all"
+                          >
+                            {isSaving ? '...' : 'Salvar'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </form>
                 )
@@ -527,21 +589,23 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
       )}
 
       {displayItems.length > 0 && (
-        <div className="p-2 border-t border-white/5 grid grid-cols-2 gap-1.5 shrink-0 bg-bg/50">
-          <button
-            onClick={() => setShowQuickAdd(true)}
-            className="flex items-center justify-center gap-1.5 py-2 bg-accent/10 hover:bg-accent/20 text-accent rounded transition-all active:scale-95"
-          >
-            <PlusIcon className="w-3 h-3" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Criar</span>
-          </button>
-          <button
-            onClick={onNavigate}
-            className="flex items-center justify-center gap-1.5 py-2 bg-white/5 hover:bg-white/10 text-text/60 hover:text-text rounded transition-all active:scale-95 border border-border/5"
-          >
-            <CalendarIcon className="w-3 h-3" />
-            <span className="text-[9px] font-black uppercase tracking-widest">Agenda</span>
-          </button>
+        <div className="p-4 pt-1 flex flex-col gap-2 shrink-0">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setShowQuickAdd(true)}
+              className="flex items-center justify-center gap-2 py-2.5 bg-accent/5 hover:bg-accent/10 text-accent rounded-xl transition-all active:scale-95 border border-accent/10 group"
+            >
+              <PlusIcon className="w-3.5 h-3.5 group-hover:rotate-90 transition-transform duration-300" />
+              <span className="text-[10px] font-black uppercase tracking-[0.15em]">Criar</span>
+            </button>
+            <button
+              onClick={onNavigate}
+              className="flex items-center justify-center gap-2 py-2.5 bg-white/[0.02] hover:bg-white/[0.05] text-text/40 hover:text-text/70 rounded-xl transition-all active:scale-95 border border-white/5"
+            >
+              <CalendarIcon className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-black uppercase tracking-[0.15em]">Agenda</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
