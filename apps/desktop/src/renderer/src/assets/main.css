@@ -20,7 +20,7 @@
     --bg-card: 255 255 255;
     --bg-sidebar: 235 238 242;
     --bg-input: 240 242 245;
-    --border: 100 116 139; /* Slate gray base for borders */
+    --border: 226 232 240; /* Gray-200 for softer borders */
     --text-primary: 0 0 0;
     --text-muted: 0 0 0; /* Pure black */
     --accent: 139 92 246;
