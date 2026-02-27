@@ -2,8 +2,11 @@ import os
 import json
 import re
 import asyncio
+import ast
+import logging
 from datetime import datetime
 from typing import Annotated, Sequence, TypedDict, Literal
+
 from langchain_core.messages import (
     BaseMessage,
     HumanMessage,
@@ -11,14 +14,22 @@ from langchain_core.messages import (
     ToolMessage,
     SystemMessage,
 )
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.tools import tool
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+from database.vector_db import vector_db
 from services.extensions.manager import extension_manager
-from utils.tokenizer import count_tokens, count_message_tokens, get_context_window
+from services.memory.external_memory import search_memory, DEFAULT_MAX_TOKENS
+from ai.constants import (
+    get_language_instruction,
+    PERSONA_INJECTION_TEMPLATE,
+)
 from ai.tool_selector import select_tool_names_for_query
 from tools.system_actions import get_all_tools_registry
-import logging
+from utils.tokenizer import count_tokens, count_message_tokens, get_context_window
+from utils.safe_tools import extract_extras
 
 from ai.graph.prompts import (
     MEMORY_CONTEXT_HEADER,
@@ -132,327 +143,341 @@ def get_valid_history(
     return final_clean
 
 
-from ai.constants import (
-    get_language_instruction,
-    PERSONA_INJECTION_TEMPLATE,
-)
-
-
 def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointer=None, tier="pro"):
-    from database.vector_db import vector_db
-    from tools.system_actions import get_all_tools_registry
 
     async def discovery_router(state: AgentState):
-        if not state.get("messages"):
-            return {"next": "momai_agent", "fast_path": True}
-        last_msg = str(state["messages"][-1].content)
-        log_event("Discovery", f"Query: {last_msg}")
+        try:
+            if not state.get("messages"):
+                return {"next": "momai_agent", "fast_path": True}
+            last_msg = str(state["messages"][-1].content)
+            log_event("Discovery", f"Query: {last_msg}")
 
-        greetings = r"^(oi|ol[aá]|tudo bem|como vai|como você está|como voce esta|bom dia|boa tarde|boa noite|opa|e ai|eae|salve|oba|co[eé]|ei|hey|hello|hi)(\?|\!|\s|$)"
-        is_greeting = re.search(greetings, last_msg.strip().lower())
-        is_short = len(last_msg.strip()) < MIN_QUERY_LENGTH
-        # Skip discovery for math expressions to avoid context distraction (e.g., 20/5 being seen as a date)
-        is_math = re.match(r"^[\d\s.,/*+\-()^?]+$", last_msg.strip())
-        
-        if is_greeting or is_short or is_math:
-            return {"fast_path": True, "discovered_skills": [], "next": "momai_agent"}
+            greetings = r"^(oi|ol[aá]|tudo bem|como vai|como você está|como voce esta|bom dia|boa tarde|boa noite|opa|e ai|eae|salve|oba|co[eé]|ei|hey|hello|hi)(\?|\!|\s|$)"
+            is_greeting = re.search(greetings, last_msg.strip().lower())
+            is_short = len(last_msg.strip()) < MIN_QUERY_LENGTH
+            # Skip discovery for math expressions to avoid context distraction (e.g., 20/5 being seen as a date)
+            is_math = re.match(r"^[\d\s.,/*+\-()^?]+$", last_msg.strip())
+            
+            if is_greeting or is_short or is_math:
+                return {"fast_path": True, "discovered_skills": [], "next": "momai_agent"}
 
-        from services.memory.external_memory import search_memory, DEFAULT_MAX_TOKENS
-        from utils.tokenizer import count_tokens
+            tasks = []
+            memory_task = None
+            if tier != "lite":
+                memory_task = search_memory(last_msg)
+                tasks.append(memory_task)
 
-        tasks = []
-        memory_task = None
-        if tier != "lite":
-            memory_task = search_memory(last_msg)
-            tasks.append(memory_task)
+            search_skills_task = None
+            if tier == "ultra":
+                search_skills_task = vector_db.search_skills(last_msg, limit=SKILL_SEARCH_LIMIT)
+                tasks.append(search_skills_task)
 
-        search_skills_task = None
-        if tier == "ultra":
-            search_skills_task = vector_db.search_skills(last_msg, limit=SKILL_SEARCH_LIMIT)
-            tasks.append(search_skills_task)
+            results = await asyncio.gather(*tasks) if tasks else []
+            
+            # Unpack results safely
+            memory_hits = []
+            skill_hits = []
+            
+            idx = 0
+            if memory_task:
+                memory_hits = results[idx]
+                idx += 1
+            if search_skills_task:
+                skill_hits = results[idx]
 
-        results = await asyncio.gather(*tasks) if tasks else []
-        
-        # Unpack results safely
-        memory_hits = []
-        skill_hits = []
-        
-        idx = 0
-        if memory_task:
-            memory_hits = results[idx]
-            idx += 1
-        if search_skills_task:
-            skill_hits = results[idx]
+            mem_context = ""
+            if memory_hits:
+                lines = []
+                used_tokens = 0
+                for hit in memory_hits:
+                    title = hit.get("title") or "Nota"
+                    text_value = hit.get("text") or ""
+                    snippet = text_value.strip()
+                    if not snippet:
+                        continue
+                    entry = f"--- [TÍTULO DA NOTA: {title.upper()}] ---\n{snippet}\n"
+                    entry_tokens = count_tokens(entry)
+                    if used_tokens + entry_tokens > DEFAULT_MAX_TOKENS:
+                        break
+                    lines.append(entry)
+                    used_tokens += entry_tokens
 
-        mem_context = ""
-        if memory_hits:
-            lines = []
-            used_tokens = 0
-            for hit in memory_hits:
-                title = hit.get("title") or "Nota"
-                text_value = hit.get("text") or ""
-                snippet = text_value.strip()
-                if not snippet:
-                    continue
-                entry = f"--- [TÍTULO DA NOTA: {title.upper()}] ---\n{snippet}\n"
-                entry_tokens = count_tokens(entry)
-                if used_tokens + entry_tokens > DEFAULT_MAX_TOKENS:
-                    break
-                lines.append(entry)
-                used_tokens += entry_tokens
+                if lines:
+                    mem_context = MEMORY_CONTEXT_HEADER + "\n".join(lines)
 
-            if lines:
-                mem_context = MEMORY_CONTEXT_HEADER + "\n".join(lines)
+            skills_brief = []
+            seen_ids = set()
+            if skill_hits:
+                for hit in skill_hits:
+                    skill_id = hit.get("id", "")
+                    if not skill_id or skill_id in seen_ids or "responder" in skill_id:
+                        continue
+                    
+                    dist = hit.get("_distance", 1.0)
+                    if dist < SKILL_SIMILARITY_THRESHOLD: # Less strict threshold for cosine distance
+                        seen_ids.add(skill_id)
+                        skills_brief.append(
+                            {
+                                "id": skill_id,
+                                "name": hit["name"],
+                                "description": hit["description"],
+                            }
+                        )
+                        # Convert distance to confidence (0.0 distance = 100%, 1.0+ distance = 0%)
+                        confidence = max(0, min(CONFIDENCE_PERCENT_SCALE, (1 - dist) * CONFIDENCE_PERCENT_SCALE))
+                        log_event(
+                            "Discovery",
+                            f"Active Skill: {skill_id} (conf: {confidence:.1f}%)",
+                        )
 
-        skills_brief = []
-        seen_ids = set()
-        if skill_hits:
-            for hit in skill_hits:
-                skill_id = hit.get("id", "")
-                if not skill_id or skill_id in seen_ids or "responder" in skill_id:
-                    continue
-                
-                dist = hit.get("_distance", 1.0)
-                if dist < SKILL_SIMILARITY_THRESHOLD: # Less strict threshold for cosine distance
-                    seen_ids.add(skill_id)
-                    skills_brief.append(
-                        {
-                            "id": skill_id,
-                            "name": hit["name"],
-                            "description": hit["description"],
-                        }
-                    )
-                    # Convert distance to confidence (0.0 distance = 100%, 1.0+ distance = 0%)
-                    confidence = max(0, min(CONFIDENCE_PERCENT_SCALE, (1 - dist) * CONFIDENCE_PERCENT_SCALE))
-                    log_event(
-                        "Discovery",
-                        f"Active Skill: {skill_id} (conf: {confidence:.1f}%)",
-                    )
+            if mem_context:
 
-        if mem_context:
-            from utils.tokenizer import count_tokens
+                log_event(
+                    "Discovery",
+                    f"Memory Context loaded ({count_tokens(mem_context)} tokens)",
+                )
 
-            log_event(
-                "Discovery",
-                f"Memory Context loaded ({count_tokens(mem_context)} tokens)",
-            )
-
-        return {
-            "discovered_skills": skills_brief,
-            "memory_context": mem_context,
-            "memory_notes": memory_hits if memory_hits else None,
-            "fast_path": False,
-            "tool_usage": {},
-        }
+            return {
+                "discovered_skills": skills_brief,
+                "memory_context": mem_context,
+                "memory_notes": memory_hits if memory_hits else None,
+                "fast_path": False,
+                "tool_usage": {},
+            }
+        except Exception as e:
+            logger.error(f"Error in discovery_router: {str(e)}")
+            return {
+                "discovered_skills": [],
+                "memory_context": "",
+                "fast_path": True,
+                "next": "momai_agent"
+            }
 
     async def manager_node(state: AgentState):
-        log_event("Manager", "Orchestrating...")
-        lang = get_language_instruction()
-        persona = PERSONA_INJECTION_TEMPLATE.format(
-            user_name=user_name, assistant_persona=assistant_persona or ""
-        )
-
-        now = datetime.now()
-        current_time_info = f"Current Date: {now.strftime('%A, %d de %B de %Y')}\nCurrent Time: {now.strftime('%H:%M')}"
-
-        if tier == "ultra":
-            system_prompt = (
-                f"{lang}\n\n{persona}\n\n"
-                f"# CONTEXT\n{current_time_info}\n\n"
-                f"{MANAGER_ULTRA_HEADER}"
-            )
-            skills = state.get("discovered_skills") or []
-            for s in skills:
-                system_prompt += f"- ID: '{s['id']}' | Competency: {s['description']}\n"
-        elif tier == "pro":
-            system_prompt = (
-                f"{lang}\n\n{persona}\n\n"
-                f"# CONTEXT\n{current_time_info}\n\n"
-                f"{MANAGER_PRO_HEADER}"
-            )
-        else: # lite
-            system_prompt = (
-                f"{lang}\n\n{persona}\n\n"
-                f"# CONTEXT\n{current_time_info}\n\n"
-                f"{MANAGER_LITE_ROLE}"
+        try:
+            log_event("Manager", "Orchestrating...")
+            lang = get_language_instruction()
+            persona = PERSONA_INJECTION_TEMPLATE.format(
+                user_name=user_name, assistant_persona=assistant_persona or ""
             )
 
-        mem_context = state.get("memory_context")
-        if mem_context:
-            system_prompt += f"\n{mem_context}\n"
+            now = datetime.now()
+            current_time_info = f"Current Date: {now.strftime('%A, %d de %B de %Y')}\nCurrent Time: {now.strftime('%H:%M')}"
 
-        if tier == "ultra":
-            system_prompt += f"\n{ULTRA_EXECUTION_PROTOCOL}"
-        elif tier == "pro":
-            system_prompt += f"\n{PRO_EXECUTION_PROTOCOL}"
-        else: # lite
-            system_prompt += f"\n{LITE_EXECUTION_PROTOCOL}"
+            if tier == "ultra":
+                system_prompt = (
+                    f"{lang}\n\n{persona}\n\n"
+                    f"# CONTEXT\n{current_time_info}\n\n"
+                    f"{MANAGER_ULTRA_HEADER}"
+                )
+                skills = state.get("discovered_skills") or []
+                for s in skills:
+                    system_prompt += f"- ID: '{s['id']}' | Competency: {s['description']}\n"
+            elif tier == "pro":
+                system_prompt = (
+                    f"{lang}\n\n{persona}\n\n"
+                    f"# CONTEXT\n{current_time_info}\n\n"
+                    f"{MANAGER_PRO_HEADER}"
+                )
+            else: # lite
+                system_prompt = (
+                    f"{lang}\n\n{persona}\n\n"
+                    f"# CONTEXT\n{current_time_info}\n\n"
+                    f"{MANAGER_LITE_ROLE}"
+                )
 
-        from langchain_core.tools import tool
+            mem_context = state.get("memory_context")
+            if mem_context:
+                system_prompt += f"\n{mem_context}\n"
 
-        @tool
-        def activate_skill(skill_id: str, task_description: str):
-            """Delegates a task to a specialist worker."""
-            return f"Delegating to {skill_id}..."
+            if tier == "ultra":
+                system_prompt += f"\n{ULTRA_EXECUTION_PROTOCOL}"
+            elif tier == "pro":
+                system_prompt += f"\n{PRO_EXECUTION_PROTOCOL}"
+            else: # lite
+                system_prompt += f"\n{LITE_EXECUTION_PROTOCOL}"
 
-        manager_tools = []
-        if tier == "ultra":
-            manager_tools.append(activate_skill)
+            @tool
+            def activate_skill(skill_id: str, task_description: str):
+                """Delegates a task to a specialist worker."""
+                return f"Delegating to {skill_id}..."
+
+            manager_tools = []
+            if tier == "ultra":
+                manager_tools.append(activate_skill)
+                
+                all_reg = get_all_tools_registry()
+                for t_name in ["show_interface", "close_interface"]:
+                    if all_reg.get(t_name):
+                        manager_tools.append(all_reg[t_name])
+
+            tool_usage = state.get("tool_usage", {}) or {}
             
-            all_reg = get_all_tools_registry()
-            for t_name in ["show_interface", "close_interface"]:
-                if all_reg.get(t_name):
-                    manager_tools.append(all_reg[t_name])
+            available_manager_tools = []
+            for t in manager_tools:
+                # Try our custom tool_metadata first, then standard metadata
+                t_metadata = getattr(t, "tool_metadata", getattr(t, "metadata", {})) or {}
+                limit = t_metadata.get("max_calls", DEFAULT_TOOL_LIMIT)
+                if tool_usage.get(t.name, 0) < limit:
+                    available_manager_tools.append(t)
+                else:
+                    log_event("Guardrail", f"Manager Tool '{t.name}' reached its limit ({limit}). Hiding.")
 
-        tool_usage = state.get("tool_usage", {}) or {}
-        
-        available_manager_tools = []
-        for t in manager_tools:
-            # Try our custom tool_metadata first, then standard metadata
-            t_metadata = getattr(t, "tool_metadata", getattr(t, "metadata", {})) or {}
-            limit = t_metadata.get("max_calls", DEFAULT_TOOL_LIMIT)
-            if tool_usage.get(t.name, 0) < limit:
-                available_manager_tools.append(t)
+            # Fortalecer o prompt para forçar uso de ferramentas quando necessário
+            if tier == "ultra":
+                system_prompt += f"\n{ULTRA_CRITICAL_INSTRUCTIONS}"
             else:
-                log_event("Guardrail", f"Manager Tool '{t.name}' reached its limit ({limit}). Hiding.")
+                system_prompt += PRO_LITE_LIMITATION
 
-        # Fortalecer o prompt para forçar uso de ferramentas quando necessário
-        if tier == "ultra":
-            system_prompt += f"\n{ULTRA_CRITICAL_INSTRUCTIONS}"
-        else:
-            system_prompt += PRO_LITE_LIMITATION
-
-        prompt = ChatPromptTemplate.from_messages(
-            [("system", system_prompt), MessagesPlaceholder(variable_name="messages")]
-        )
-        chain = prompt | llm.bind_tools(available_manager_tools) if available_manager_tools else prompt | llm
-        budget = _compute_history_budget(system_prompt, state.get("summary"))
-        result = await chain.ainvoke(
-            {"messages": get_valid_history(state["messages"], MAX_HISTORY_MESSAGES, budget)}
-        )
-        return {"messages": [result]}
+            prompt = ChatPromptTemplate.from_messages(
+                [("system", system_prompt), MessagesPlaceholder(variable_name="messages")]
+            )
+            chain = prompt | llm.bind_tools(available_manager_tools) if available_manager_tools else prompt | llm
+            budget = _compute_history_budget(system_prompt, state.get("summary"))
+            result = await chain.ainvoke(
+                {"messages": get_valid_history(state["messages"], MAX_HISTORY_MESSAGES, budget)}
+            )
+            return {"messages": [result]}
+        except Exception as e:
+            logger.error(f"Error in manager_node: {str(e)}")
+            return {"messages": [AIMessage(content="Desculpe, encontrei um erro ao processar sua solicitação no momento.")]}
 
     async def specialist_node(state: AgentState):
         """
         Specialist Worker - returns tool_calls for the graph to execute.
         This ensures tool events are emitted for real-time UI updates.
         """
-        last_msg = state["messages"][-1]
+        try:
+            last_msg = state["messages"][-1]
 
-        # Check if this is a ToolMessage (results from previous tool execution)
-        if isinstance(last_msg, ToolMessage):
-            # Get skill_id and task from state (set on first call)
-            skill_id = state.get("skill_id")
-            task = state.get("task")
-            if not skill_id or not task:
-                return {"messages": [AIMessage(content=ERROR_NO_SKILL_CONTEXT)]}
-        else:
-            # First call - check for activate_skill tool call
-            if not hasattr(last_msg, "tool_calls") or not last_msg.tool_calls:
-                return {"messages": [AIMessage(content=ERROR_NO_SKILL_REQUESTED)]}
+            # Check if this is a ToolMessage (results from previous tool execution)
+            if isinstance(last_msg, ToolMessage):
+                # Get skill_id and task from state (set on first call)
+                skill_id = state.get("skill_id")
+                task = state.get("task")
+                if not skill_id or not task:
+                    return {"messages": [AIMessage(content=ERROR_NO_SKILL_CONTEXT)]}
+            else:
+                # First call - check for activate_skill tool call
+                if not hasattr(last_msg, "tool_calls") or not last_msg.tool_calls:
+                    return {"messages": [AIMessage(content=ERROR_NO_SKILL_REQUESTED)]}
 
-            skill_call = last_msg.tool_calls[0]
-            skill_id, task = (
-                skill_call["args"]["skill_id"],
-                skill_call["args"]["task_description"],
+                skill_call = last_msg.tool_calls[0]
+                skill_id, task = (
+                    skill_call["args"]["skill_id"],
+                    skill_call["args"]["task_description"],
+                )
+                # Save tool_call_id for later use
+                state["tool_call_id"] = skill_call["id"]
+
+            log_event("Specialist", f"Running: {skill_id}")
+
+            skill = extension_manager.get_skill(skill_id)
+            if not skill:
+                return {
+                    "messages": [
+                        ToolMessage(
+                            content=ERROR_SKILL_NOT_FOUND, tool_call_id=skill_call["id"]
+                        )
+                    ]
+                }
+            skill.load_full_content()
+            
+            # Inject Date/Time to Specialist (crucial for Scheduler)
+            now = datetime.now()
+            current_time_info = f"Current Date: {now.strftime('%A, %d de %B de %Y')}\nCurrent Time: {now.strftime('%H:%M')}"
+
+            mem_context = state.get("memory_context")
+            system_instructions = (
+                f"{get_language_instruction()}\n\n"
+                f"# CONTEXT\n{current_time_info}\n\n"
+                f"# ROLE: {skill.name}\n{skill.full_instructions}\n\n"
             )
-            # Save tool_call_id for later use
-            state["tool_call_id"] = skill_call["id"]
 
-        log_event("Specialist", f"Running: {skill_id}")
+            if mem_context:
+                system_instructions += f"{mem_context}\n\n"
 
-        skill = extension_manager.get_skill(skill_id)
-        if not skill:
+            # Dynamic Tool Filtering: Get limits directly from skill metadata
+            tool_limits = skill.get_tool_limits()
+            # Get a representative limit for the prompt (usually search/default)
+            prompt_limit = tool_limits.get("search", tool_limits.get("default", PREVIEW_TOOL_LIMIT))
+
+            system_instructions += SPECIALIST_INSTRUCTIONS_TEMPLATE.format(
+                task=task, prompt_limit=prompt_limit
+            )
+
+            skill_tools = skill.get_tools()
+            tool_usage = state.get("tool_usage", {}) or {}
+            
+            available_tools = []
+            if skill_tools:
+                for t in skill_tools:
+                    limit = tool_limits.get(t.name, tool_limits["default"])
+                    if tool_usage.get(t.name, 0) < limit:
+                        available_tools.append(t)
+                    else:
+                        log_event("Guardrail", f"Tool '{t.name}' reached its limit ({limit}). Hiding from LLM.")
+
+            prompt = ChatPromptTemplate.from_messages(
+                [("system", system_instructions), ("human", "{task}")]
+            )
+            # Bind only the available tools
+            chain = prompt | llm.bind_tools(available_tools) if available_tools else prompt | llm
+
+            # Check if there are tool results in state from previous iteration
+            tool_results = state.get("tool_results", [])
+            if tool_results:
+                results_text = "\n\n".join(tool_results)
+                count = len(tool_results)
+                user_input = PREVIOUS_RESULTS_TEMPLATE.format(
+                    count=count, results_text=results_text, task=task
+                )
+            else:
+                user_input = task
+
+            worker_res = await chain.ainvoke({"task": user_input})
+
+            # If tool calls, return them for graph to execute
+            if hasattr(worker_res, "tool_calls") and worker_res.tool_calls:
+                return {
+                    "messages": [worker_res],
+                    "skill_id": skill_id,
+                    "task": task,
+                }
+
+            # No more tool calls - return final answer
+            final_content = (
+                worker_res.content if hasattr(worker_res, "content") else str(worker_res)
+            )
+
+            # Get tool_call_id from state or from skill_call
+            tool_call_id = state.get("tool_call_id")
+            if not tool_call_id and hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+                tool_call_id = last_msg.tool_calls[0]["id"]
+
             return {
                 "messages": [
                     ToolMessage(
-                        content=ERROR_SKILL_NOT_FOUND, tool_call_id=skill_call["id"]
+                        content=str(final_content), tool_call_id=tool_call_id or "unknown"
                     )
-                ]
+                ],
+                "skill_id": None,
+                "task": None,
             }
-        skill.load_full_content()
-        
-        # Inject Date/Time to Specialist (crucial for Scheduler)
-        now = datetime.now()
-        current_time_info = f"Current Date: {now.strftime('%A, %d de %B de %Y')}\nCurrent Time: {now.strftime('%H:%M')}"
-
-        mem_context = state.get("memory_context")
-        system_instructions = (
-            f"{get_language_instruction()}\n\n"
-            f"# CONTEXT\n{current_time_info}\n\n"
-            f"# ROLE: {skill.name}\n{skill.full_instructions}\n\n"
-        )
-
-        if mem_context:
-            system_instructions += f"{mem_context}\n\n"
-
-        # Dynamic Tool Filtering: Get limits directly from skill metadata
-        tool_limits = skill.get_tool_limits()
-        # Get a representative limit for the prompt (usually search/default)
-        prompt_limit = tool_limits.get("search", tool_limits.get("default", PREVIEW_TOOL_LIMIT))
-
-        system_instructions += SPECIALIST_INSTRUCTIONS_TEMPLATE.format(
-            task=task, prompt_limit=prompt_limit
-        )
-
-        skill_tools = skill.get_tools()
-        tool_usage = state.get("tool_usage", {}) or {}
-        
-        available_tools = []
-        if skill_tools:
-            for t in skill_tools:
-                limit = tool_limits.get(t.name, tool_limits["default"])
-                if tool_usage.get(t.name, 0) < limit:
-                    available_tools.append(t)
-                else:
-                    log_event("Guardrail", f"Tool '{t.name}' reached its limit ({limit}). Hiding from LLM.")
-
-        prompt = ChatPromptTemplate.from_messages(
-            [("system", system_instructions), ("human", "{task}")]
-        )
-        # Bind only the available tools
-        chain = prompt | llm.bind_tools(available_tools) if available_tools else prompt | llm
-
-        # Check if there are tool results in state from previous iteration
-        tool_results = state.get("tool_results", [])
-        if tool_results:
-            results_text = "\n\n".join(tool_results)
-            count = len(tool_results)
-            user_input = PREVIOUS_RESULTS_TEMPLATE.format(
-                count=count, results_text=results_text, task=task
-            )
-        else:
-            user_input = task
-
-        worker_res = await chain.ainvoke({"task": user_input})
-
-        # If tool calls, return them for graph to execute
-        if hasattr(worker_res, "tool_calls") and worker_res.tool_calls:
+        except Exception as e:
+            logger.error(f"Error in specialist_node: {str(e)}")
+            # Fallback for specialist error
+            tool_call_id = state.get("tool_call_id") or "unknown"
             return {
-                "messages": [worker_res],
-                "skill_id": skill_id,
-                "task": task,
+                "messages": [
+                    ToolMessage(
+                        content=f"Error in specialist execution: {str(e)}", 
+                        tool_call_id=tool_call_id
+                    )
+                ],
+                "skill_id": None,
+                "task": None,
             }
-
-        # No more tool calls - return final answer
-        final_content = (
-            worker_res.content if hasattr(worker_res, "content") else str(worker_res)
-        )
-
-        # Get tool_call_id from state or from skill_call
-        tool_call_id = state.get("tool_call_id")
-        if not tool_call_id and hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
-            tool_call_id = last_msg.tool_calls[0]["id"]
-
-        return {
-            "messages": [
-                ToolMessage(
-                    content=str(final_content), tool_call_id=tool_call_id or "unknown"
-                )
-            ],
-            "skill_id": None,
-            "task": None,
-        }
 
     def search_counter_node(state: AgentState):
         """Extract search count from tool_usage and emit for UI."""
@@ -472,10 +497,6 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
 
     def extract_sources_node(state: AgentState):
         """Extract URLs, titles and extras from ALL tool results - accumulates from all searches."""
-        import json
-        import re
-        from langchain_core.messages import ToolMessage
-
         sources = []
         seen_urls = set()
         all_extras = []
@@ -524,7 +545,6 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
             results = None
 
             try:
-                import ast
                 # Try to parse stringified Python/JSON content
                 parsed = ast.literal_eval(content) if isinstance(content, str) else content
                 if isinstance(parsed, (list, dict)):
@@ -583,70 +603,81 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
 
 
     async def dynamic_tools_node(state: AgentState):
-        from langchain_core.messages import ToolMessage
-        from utils.safe_tools import extract_extras
-
-        last_msg = state["messages"][-1]
-        if not hasattr(last_msg, "tool_calls") or not last_msg.tool_calls:
-            return {"messages": []}
-        registry = get_all_tools_registry()
-        tool_messages = []
-        tool_usage = state.get("tool_usage", {}) or {}
-        
-        for tc in last_msg.tool_calls:
-            tool_name = tc["name"]
-            tool = registry.get(tool_name)
+        try:
+            last_msg = state["messages"][-1]
+            if not hasattr(last_msg, "tool_calls") or not last_msg.tool_calls:
+                return {"messages": []}
+            registry = get_all_tools_registry()
+            tool_messages = []
+            tool_usage = state.get("tool_usage", {}) or {}
             
-            # Dynamic Limit Detection
-            skill_id = state.get("skill_id")
-            if skill_id:
-                skill = extension_manager.get_skill(skill_id)
-                tool_limits = skill.get_tool_limits() if skill else {}
-            else:
-                tool_limits = {}
-
-            # 1. Check Tool-Level Limit (metadata)
-            # 2. Check Skill-Level Limit (tool_limits dict)
-            # 3. Fallback to constant
-            limit = DEFAULT_TOOL_LIMIT
-            if hasattr(tool, "get_limit"):
-                limit = tool.get_limit(default=DEFAULT_TOOL_LIMIT)
-            
-            # Skill-level override has higher precedence if specific to the tool name
-            if tool_name in tool_limits:
-                limit = tool_limits[tool_name]
-            elif "default" in tool_limits:
-                limit = tool_limits["default"]
-
-            # Check limits before execution (extra safety)
-            tool_usage[tool_name] = tool_usage.get(tool_name, 0) + 1
-            
-            if tool and tool_usage[tool_name] <= limit:
-                res = await tool.ainvoke(tc["args"])
-                processed_res, extras = extract_extras(res)
+            for tc in last_msg.tool_calls:
+                tool_name = tc["name"]
+                tool = registry.get(tool_name)
                 
-                tool_msg_kwargs = {"tool_call_id": tc["id"]}
-                if extras:
-                    tool_msg_kwargs["additional_kwargs"] = {"extras": extras}
+                # Dynamic Limit Detection
+                skill_id = state.get("skill_id")
+                if skill_id:
+                    skill = extension_manager.get_skill(skill_id)
+                    tool_limits = skill.get_tool_limits() if skill else {}
+                else:
+                    tool_limits = {}
+
+                # 1. Check Tool-Level Limit (metadata)
+                # 2. Check Skill-Level Limit (tool_limits dict)
+                # 3. Fallback to constant
+                limit = DEFAULT_TOOL_LIMIT
+                if hasattr(tool, "get_limit"):
+                    limit = tool.get_limit(default=DEFAULT_TOOL_LIMIT)
                 
-                tool_messages.append(
-                    ToolMessage(content=str(processed_res), **tool_msg_kwargs)
-                )
-            else:
-                # Tool missing or limit reached - provide feedback to LLM to break loop
-                reason = "Usage limit reached" if tool else "Tool not found or access denied"
-                log_event("Guardrail", f"Blocking tool '{tool_name}': {reason}")
-                tool_messages.append(
-                    ToolMessage(
-                        content=SYSTEM_TOOL_LIMIT_REACHED.format(reason=reason),
-                        tool_call_id=tc["id"]
+                # Skill-level override has higher precedence if specific to the tool name
+                if tool_name in tool_limits:
+                    limit = tool_limits[tool_name]
+                elif "default" in tool_limits:
+                    limit = tool_limits["default"]
+
+                # Check limits before execution (extra safety)
+                tool_usage[tool_name] = tool_usage.get(tool_name, 0) + 1
+                
+                if tool and tool_usage[tool_name] <= limit:
+                    try:
+                        res = await tool.ainvoke(tc["args"])
+                        processed_res, extras = extract_extras(res)
+                        
+                        tool_msg_kwargs = {"tool_call_id": tc["id"]}
+                        if extras:
+                            tool_msg_kwargs["additional_kwargs"] = {"extras": extras}
+                        
+                        tool_messages.append(
+                            ToolMessage(content=str(processed_res), **tool_msg_kwargs)
+                        )
+                    except Exception as tool_err:
+                        logger.error(f"Error executing tool '{tool_name}': {str(tool_err)}")
+                        tool_messages.append(
+                            ToolMessage(
+                                content=f"Tool execution failed: {str(tool_err)}",
+                                tool_call_id=tc["id"]
+                            )
+                        )
+                else:
+                    # Tool missing or limit reached - provide feedback to LLM to break loop
+                    reason = "Usage limit reached" if tool else "Tool not found or access denied"
+                    log_event("Guardrail", f"Blocking tool '{tool_name}': {reason}")
+                    tool_messages.append(
+                        ToolMessage(
+                            content=SYSTEM_TOOL_LIMIT_REACHED.format(reason=reason),
+                            tool_call_id=tc["id"]
+                        )
                     )
-                )
 
-        # Determine next step: if specialist called tools, go back to specialist; else go to manager
-        has_skill_id = bool(state.get("skill_id"))
-        next_step = "prepare_tool_results" if has_skill_id else "momai_agent"
-        return {"messages": tool_messages, "tool_usage": tool_usage, "next_step": next_step}
+            # Determine next step: if specialist called tools, go back to specialist; else go to manager
+            has_skill_id = bool(state.get("skill_id"))
+            next_step = "prepare_tool_results" if has_skill_id else "momai_agent"
+            return {"messages": tool_messages, "tool_usage": tool_usage, "next_step": next_step}
+        except Exception as e:
+            logger.error(f"Error in dynamic_tools_node: {str(e)}")
+            # If the entire node fails, return empty messages to avoid crashing the graph
+            return {"messages": [], "next_step": "momai_agent"}
 
     def prepare_tool_results(state: AgentState):
         """Convert ToolMessage results to format for specialist."""
@@ -669,8 +700,6 @@ def create_momai_graph(llm, user_name="Sir", assistant_persona=None, checkpointe
     workflow.add_edge("router", "momai_agent")
 
     def route_manager(state: AgentState):
-        from langchain_core.messages import ToolMessage
-
         last_msg = state["messages"][-1]
 
         if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:

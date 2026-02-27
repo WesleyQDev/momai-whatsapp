@@ -9,3 +9,6 @@ trigger: always_on
 
 ## Frontend
 Sempre que criar uma nova funcionalidade lembre-se de criar no tema dark e light atuais da MomAI
+
+## Backend
+Lembrese a MomAI possui 3 modos, (Lite, pro e ultra) cada um possui suas limitações.

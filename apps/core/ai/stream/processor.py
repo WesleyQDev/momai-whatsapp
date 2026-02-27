@@ -2,12 +2,21 @@ import json
 import logging
 import os
 import threading
+import traceback
 from typing import Any, AsyncGenerator, Optional
 from langchain_core.messages import HumanMessage
 
 from ai.stream.state import StreamState
 from ai.stream.handler import StreamHandler
 import app_state
+from ai import utils
+from ai.utils import (
+    ensure_summary, save_message_to_db, clean_response, 
+    _is_missing_capability, _build_missing_capability_card, 
+    speak_and_notify, clean_text_for_tts
+)
+from database.models import SessionLocal, Settings
+import services.voice.tts as tts
 
 logger = logging.getLogger("momai.ai")
 
@@ -19,33 +28,24 @@ class StreamProcessor:
         self.handler = StreamHandler(self.state)
 
     async def process(self) -> AsyncGenerator[str, None]:
-        from ai.orchestrator import (
-            is_loading, llm_mode, clear_cancel_generation, 
-            ensure_summary, save_message_to_db, cancel_generation,
-            _is_missing_capability, _build_missing_capability_card,
-            _open_feature_card, clean_response, speak_and_notify,
-            clean_text_for_tts, EXTENSIONS_STORE_ACTION
-        )
-        import services.voice.tts as tts
-
         # 1. Setup
         app_state.last_thread_id = self.state.thread_id
         try:
             tts.stop_all()
         except: pass
-        
-        if is_loading or self.llm is None or self.graph is None:
-            status_mode = llm_mode if llm_mode != "waiting" else "inicial"
+
+        if utils.is_loading or self.llm is None or self.graph is None:
+            status_mode = utils.llm_mode if utils.llm_mode != "waiting" else "inicial"
             msg = f"Aguarde um momento, Senhor. Estou configurando meu motor para o modo {status_mode}."
             yield f"data: {json.dumps({'error': msg})}\n\n"
             return
 
         app_state.set_ai_busy(True)
-        clear_cancel_generation()
+        utils.clear_cancel_generation()
         threading.current_thread()._momai_thread_id = self.state.thread_id
 
         self.state.prebuffer_limit = self._get_prebuffer_limit()
-        self.state.summary_text = await ensure_summary(self.state.thread_id)
+        self.state.summary_text = await ensure_summary(self.state.thread_id, self.llm)
         
         save_message_to_db(self.state.thread_id, "user", self.state.user_content)
 
@@ -62,7 +62,7 @@ class StreamProcessor:
         # 2. Stream execution
         try:
             async for event in self.graph.astream_events(input_data, config=config, version="v2"):
-                if cancel_generation or is_loading: break
+                if utils.cancel_generation or utils.is_loading: break
                 
                 async for chunk in self.handler.handle_event(event):
                     yield chunk
@@ -76,7 +76,6 @@ class StreamProcessor:
                 yield chunk
 
     def _get_prebuffer_limit(self) -> int:
-        from database.models import SessionLocal, Settings
         limit = int(os.getenv("MOMAI_PREBUFFER_CHARS", "0"))
         try:
             db = SessionLocal()
@@ -88,8 +87,6 @@ class StreamProcessor:
         return limit
 
     async def _handle_error(self, e: Exception) -> AsyncGenerator[str, None]:
-        import traceback
-        from ai.orchestrator import speak_and_notify
         error_msg = str(e)
         logger.error(f"[AI_core] Stream Error: {error_msg}")
         traceback.print_exc()
@@ -102,15 +99,7 @@ class StreamProcessor:
             yield f"data: {json.dumps({'error': error_msg})}\n\n"
 
     async def _finalize(self) -> AsyncGenerator[str, None]:
-        from ai.orchestrator import (
-            clear_cancel_generation, save_message_to_db, 
-            clean_response, _is_missing_capability, 
-            _build_missing_capability_card, _open_feature_card,
-            speak_and_notify, clean_text_for_tts,
-            EXTENSIONS_STORE_ACTION
-        )
-        
-        clear_cancel_generation()
+        utils.clear_cancel_generation()
         
         # 1. Sync final state
         try:
@@ -152,7 +141,7 @@ class StreamProcessor:
                 )
             if self.state.pending_card and self.state.pending_card.get("apply"):
                 final_reply = self.state.pending_card["content"]
-                _open_feature_card(self.state.pending_card["content"], self.state.pending_card["cta"], self.state.pending_card.get("action", EXTENSIONS_STORE_ACTION))
+                utils._open_feature_card(self.state.pending_card["content"], self.state.pending_card["cta"], self.state.pending_card.get("action", utils.EXTENSIONS_STORE_ACTION))
                 yield f"data: {json.dumps({'token': final_reply})}\n\n"
                 self.state.tts_buffer = final_reply
 

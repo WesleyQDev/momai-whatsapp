@@ -16,6 +16,13 @@ from pydantic import BaseModel
 from langchain.chat_models import init_chat_model
 from dotenv import load_dotenv
 from ai.graph.workflow import create_momai_graph
+from ai import utils
+from ai.utils import (
+    save_message_to_db, load_history_from_db, clean_response, 
+    clean_text_for_tts, speak_and_notify, _is_missing_capability,
+    _build_missing_capability_card
+)
+from ai.stream.processor import StreamProcessor
 
 load_dotenv()
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -42,244 +49,16 @@ else:
 checkpointer = None
 
 MAX_MESSAGES = 4  # Optimized for local speed (fewer history tokens to process)
-llm_mode = "waiting"
-chat_history = {}  # Stores temporary history if needed
-
-SUMMARY_BUDGET_PCT = float(os.getenv("MOMAI_CTX_BUDGET_PCT", "0.7"))
-SUMMARY_RECENT_PCT = float(os.getenv("MOMAI_CTX_RECENT_PCT", "0.6"))
-
-EXTENSIONS_STORE_ACTION = "open_extensions_store"
-ULTRA_MODE_ACTION = "open_settings_ultra"
+ULTRA_MODE_ACTION = utils.ULTRA_MODE_ACTION
 
 
-def save_message_to_db(
-    thread_id: str,
-    role: str,
-    content: str,
-    activities: list = None,
-    graph_data: dict = None,
-    sources: list = None,
-    snippets: list = None,
-    cards: list = None,
-):
-    """
-    Saves a message to the SQLite database.
-
-    Args:
-        thread_id (str): The conversation thread ID.
-        role (str): 'user' or 'assistant'.
-        content (str): Message content.
-        activities (list, optional): List of activity strings (Thinking Trace).
-        graph_data (dict, optional): Generated interface data.
-        sources (list, optional): List of source URLs with titles/snippets.
-        snippets (list, optional): List of snippet objects.
-        cards (list, optional): List of card objects.
-    """
-    from database.models import SessionLocal, Message
-
-    db = SessionLocal()
-    try:
-        activities_json = json.dumps(activities) if activities else None
-        graph_data_json = json.dumps(graph_data) if graph_data else None
-        sources_json = json.dumps(sources) if sources else None
-        snippets_json = json.dumps(snippets) if snippets else None
-        cards_json = json.dumps(cards) if cards else None
-        msg = Message(
-            thread_id=thread_id,
-            role=role,
-            content=content,
-            activities=activities_json,
-            graph_data=graph_data_json,
-            sources=sources_json,
-            snippets=snippets_json,
-            cards=cards_json,
-        )
-        db.add(msg)
-        db.commit()
-    except Exception as e:
-        logger.error(f"[AI_core] Error saving message: {e}")
-    finally:
-        db.close()
+# Note: save_message_to_db and load_history_from_db moved to ai.utils
 
 
-def load_history_from_db(thread_id: str, limit: int = 10):
-    """
-    Loads history from the SQLite database (Fallback or UI).
-
-    Args:
-        thread_id (str): The conversation thread ID.
-        limit (int): Maximum number of messages to load.
-
-    Returns:
-        list: List of HumanMessage and AIMessage objects.
-    """
-    from database.models import SessionLocal, Message
-    from langchain_core.messages import HumanMessage, AIMessage
-
-    db = SessionLocal()
-    messages = []
-    try:
-        db_msgs = (
-            db.query(Message)
-            .filter(Message.thread_id == thread_id)
-            .order_by(Message.created_at.desc())
-            .limit(limit)
-            .all()
-        )
-        # Reverse for chronological order
-        for msg in reversed(db_msgs):
-            # Explicit cast to string to satisfy Pylance
-            role = str(msg.role)
-            content = str(msg.content)
-            if role == "user":
-                messages.append(HumanMessage(content=content))
-            else:
-                messages.append(AIMessage(content=content))
-    except Exception as e:
-        logger.error(f"[AI_core] Error loading history: {e}")
-    finally:
-        db.close()
-    return messages
+# Note: Summary logic moved to ai.utils
 
 
-def _get_summary_record(thread_id: str):
-    from database.models import SessionLocal, ConversationSummary
-
-    db = SessionLocal()
-    try:
-        return (
-            db.query(ConversationSummary)
-            .filter(ConversationSummary.thread_id == thread_id)
-            .first()
-        )
-    finally:
-        db.close()
-
-
-def _upsert_summary(thread_id: str, content: str, last_message_id: int):
-    from database.models import SessionLocal, ConversationSummary
-
-    db = SessionLocal()
-    try:
-        record = (
-            db.query(ConversationSummary)
-            .filter(ConversationSummary.thread_id == thread_id)
-            .first()
-        )
-        if record:
-            record.content = content
-            record.last_message_id = last_message_id
-            record.updated_at = datetime.now()
-        else:
-            record = ConversationSummary(
-                thread_id=thread_id,
-                content=content,
-                last_message_id=last_message_id,
-                updated_at=datetime.now(),
-            )
-            db.add(record)
-        db.commit()
-    finally:
-        db.close()
-
-
-def _split_messages_for_summary(messages, recent_budget: int):
-    used = 0
-    idx = len(messages)
-    for i in range(len(messages) - 1, -1, -1):
-        msg = messages[i]
-        msg_tokens = count_message_tokens(msg.role or "", msg.content or "")
-        if used + msg_tokens > recent_budget:
-            break
-        used += msg_tokens
-        idx = i
-    return messages[:idx], messages[idx:]
-
-
-async def _summarize_messages(messages, existing_summary: str | None) -> str:
-    if not messages:
-        return existing_summary or ""
-
-    summary_header = "RESUMO ATUAL" if existing_summary else "RESUMO ATUAL (vazio)"
-    lines = []
-    for msg in messages:
-        role = msg.role or ""
-        content = msg.content or ""
-        lines.append(f"{role}: {content}")
-    chunk = "\n".join(lines)
-
-    system_prompt = SUMMARY_SYSTEM_PROMPT
-
-    user_prompt = (
-        f"{summary_header}:\n{existing_summary or ''}\n\n"
-        f"NOVAS MENSAGENS:\n{chunk}\n\n"
-        "RESUMO ATUALIZADO:"
-    )
-
-    try:
-        response = await llm.ainvoke(
-            [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=user_prompt),
-            ]
-        )
-        content = getattr(response, "content", "")
-        return content.strip() or (existing_summary or "")
-    except Exception as e:
-        logger.warning(f"[AI_core] Summary failed: {e}")
-        return existing_summary or ""
-
-
-async def ensure_summary(thread_id: str) -> str | None:
-    from database.models import SessionLocal, Message
-
-    db = SessionLocal()
-    try:
-        messages = (
-            db.query(Message)
-            .filter(Message.thread_id == thread_id)
-            .order_by(Message.created_at.asc())
-            .limit(200)
-            .all()
-        )
-    finally:
-        db.close()
-
-    if not messages:
-        return None
-
-    ctx_total = get_context_window()
-    budget = int(ctx_total * SUMMARY_BUDGET_PCT)
-    recent_budget = max(256, int(budget * SUMMARY_RECENT_PCT))
-    old_messages, _recent_messages = _split_messages_for_summary(
-        messages, recent_budget
-    )
-
-    if not old_messages:
-        record = _get_summary_record(thread_id)
-        return record.content if record else None
-
-    summary_record = _get_summary_record(thread_id)
-    last_old_id = int(old_messages[-1].id)
-
-    if summary_record and summary_record.last_message_id >= last_old_id:
-        return summary_record.content
-
-    if summary_record:
-        new_msgs = [m for m in old_messages if m.id > summary_record.last_message_id]
-        existing_summary = summary_record.content
-    else:
-        new_msgs = old_messages
-        existing_summary = None
-
-    updated = await _summarize_messages(new_msgs, existing_summary)
-    if updated:
-        _upsert_summary(thread_id, updated, last_old_id)
-        return updated
-
-    return existing_summary
-
-
+# Note: get_graph_history and clear_history_db still in orchestrator
 async def get_graph_history(thread_id: str):
     """
     Retrieves persistent history from LangGraph.
@@ -373,16 +152,7 @@ chat_history = {}  # Temporary history for fallback
 llm_ready_event = threading.Event()
 
 
-def request_cancel_generation() -> None:
-    global cancel_generation
-    cancel_generation = True
-
-
-def clear_cancel_generation() -> None:
-    global cancel_generation
-    cancel_generation = False
-
-
+# Note: Utility functions moved to ai.utils
 def initialize_llm(on_init_progress=None, tier=None, onboarding_bypass=False):
     """
     Initializes the Local LLM in a separate thread.
@@ -399,11 +169,11 @@ def initialize_llm(on_init_progress=None, tier=None, onboarding_bypass=False):
     if on_init_progress is not None and not callable(on_init_progress):
         on_init_progress = None
 
-    if is_loading:
+    if utils.is_loading:
         return
 
-    is_loading = True
-    llm_mode = "local"
+    utils.is_loading = True
+    utils.llm_mode = "local"
     init_error = None
 
     thread = threading.Thread(
@@ -601,7 +371,7 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
         err_msg = str(e)
         logger.error(f"[AI_core] Erro Crítico de Inicialização: {err_msg}")
         init_error = err_msg
-        is_loading = False
+        utils.is_loading = False
         llm_ready_event.set()  # Unblock even on error
 
         if app_state.main_loop:
@@ -612,7 +382,7 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
                 app_state.main_loop,
             )
     finally:
-        is_loading = False
+        utils.is_loading = False
 
 
 class ChatMessage(BaseModel):
@@ -809,8 +579,6 @@ async def generate(message: ChatMessage):
     Main stream generator for chat responses.
     Delegates implementation to StreamProcessor for better maintainability.
     """
-    from ai.stream.processor import StreamProcessor
-    
     processor = StreamProcessor(
         message_content=message.content,
         thread_id=message.thread_id,

@@ -6,6 +6,7 @@ from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from ai.stream.state import StreamState
 from utils.tokenizer import count_message_tokens
 import app_state
+from ai.utils import clean_response, _build_missing_capability_card, speak_and_notify, clean_text_for_tts
 
 logger = logging.getLogger("momai.ai")
 
@@ -232,7 +233,6 @@ class StreamHandler:
             output = event["data"].get("output")
             if output and hasattr(output, "content") and output.content:
                 if not self.state.full_content:
-                    from ai.orchestrator import clean_response
                     content = clean_response(output.content)
                     if content and '{"next":' not in content and "show_graph(" not in content:
                         self.state.full_content = content
@@ -240,7 +240,6 @@ class StreamHandler:
                         self.state.tts_buffer += content
 
     async def _check_missing_capability(self) -> Optional[Dict[str, Any]]:
-        from ai.orchestrator import _build_missing_capability_card
         return await _build_missing_capability_card(
             self.state.user_content,
             self.state.prebuffer,
@@ -250,7 +249,6 @@ class StreamHandler:
         )
 
     async def _process_tts(self) -> AsyncGenerator[str, None]:
-        from ai.orchestrator import speak_and_notify, clean_text_for_tts
         
         while True:
             # Fast Trigger for first response chunk

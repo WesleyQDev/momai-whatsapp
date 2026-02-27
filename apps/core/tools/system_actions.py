@@ -10,6 +10,7 @@ from utils.i18n import t, get_locale
 
 import asyncio
 import app_state
+from ai import utils
 
 # Search instances
 # Web search with structured results (list format, pt-br region)
@@ -446,9 +447,7 @@ def add_fortscript_app(name: str, executable: str):
 def stop_generation():
     """Stops the current AI response generation."""
     try:
-        import ai.orchestrator as orchestrator
-
-        orchestrator.request_cancel_generation()
+        utils.request_cancel_generation()
         return "OK"
     except Exception as e:
         return f"Error: {str(e)}"
