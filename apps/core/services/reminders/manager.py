@@ -125,7 +125,7 @@ class ReminderManager:
         """
         db = SessionLocal()
         try:
-            print(f"[Reminders] Saving to DB: {title} for {scheduled_time}")
+            logger.info(f"[Reminders] Saving to DB: {title} for {scheduled_time}")
             reminder = Reminder(
                 title=title,
                 content=content,
@@ -137,14 +137,14 @@ class ReminderManager:
             db.add(reminder)
             db.commit()
             db.refresh(reminder)
-            print(f"[Reminders] Saved with ID: {reminder.id}")
+            logger.info(f"[Reminders] Saved with ID: {reminder.id}")
             
             self._schedule_job(reminder)
-            print(f"[Reminders] Scheduled successfully.")
+            logger.info(f"[Reminders] Scheduled successfully.")
             self._notify_updates()
             return reminder
         except Exception as e:
-            print(f"[Reminders] ERROR adding reminder: {e}")
+            logger.error(f"[Reminders] ERROR adding reminder: {e}")
             db.rollback()
             raise e
         finally:

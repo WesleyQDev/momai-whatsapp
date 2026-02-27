@@ -1,5 +1,4 @@
 import os
-print("[Python] Interpreter started", flush=True)
 import logging
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -11,6 +10,7 @@ install_uvicorn_access_filter()
 patch_thread_start()
 
 logger = logging.getLogger(__name__)
+logger.info("[Python] Interpreter started")
 
 
 def create_app():

@@ -638,7 +638,7 @@ class WakeWordDetector:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    detector = WakeWordDetector(callback=lambda t: print(f"> {t}"))
+    detector = WakeWordDetector(callback=lambda t: logger.info(f"> {t}"))
     detector.start()
     try:
         while True:

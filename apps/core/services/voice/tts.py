@@ -5,6 +5,7 @@ import logging
 import queue
 import asyncio
 import io
+import sys
 import os
 from typing import Optional, Any
 
@@ -376,7 +377,8 @@ class TTSManager:
                         audio_b64 = base64.b64encode(
                             data.tobytes()
                         ).decode("utf-8")
-                        print(f"[AUDIO_CHUNK] {audio_b64}", flush=True)
+                        sys.stdout.write(f"[AUDIO_CHUNK] {audio_b64}\n")
+                        sys.stdout.flush()
 
             # ------------------------------------------------------------------
             # Run both tasks concurrently

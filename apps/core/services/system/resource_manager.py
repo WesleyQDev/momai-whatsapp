@@ -60,7 +60,6 @@ class ResourceManager:
                 return
 
             if FortScript is None:
-                print("[ResourceManager] FortScript not found. Monitoring disabled.")
                 logger.error("[ResourceManager] FortScript not found. Monitoring disabled.")
                 return
 
@@ -77,8 +76,9 @@ class ResourceManager:
                 ]
 
                 if not heavy_processes:
-                    print("[ResourceManager] No active game apps configured. Monitoring on standby.")
-                    logger.info("[ResourceManager] No active game apps configured. Monitoring on standby.")
+                    logger.info(
+                        "[ResourceManager] No active game apps configured. Monitoring on standby."
+                    )
                     return
 
                 # 2. Configure Callbacks
@@ -101,8 +101,9 @@ class ResourceManager:
                 # 4. Inicia em Thread
                 self.thread = threading.Thread(target=self.fs.run, daemon=True, name="FortScript-Monitor")
                 self.thread.start()
-                print(f"[ResourceManager] FortScript monitoring started for {len(heavy_processes)} applications.")
-                logger.info(f"[ResourceManager] Monitoring started for {len(heavy_processes)} applications.")
+                logger.info(
+                    f"[ResourceManager] Monitoring started for {len(heavy_processes)} applications."
+                )
 
             except Exception as e:
                 logger.error(f"[ResourceManager] Error starting: {e}")

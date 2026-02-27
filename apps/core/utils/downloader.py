@@ -7,6 +7,9 @@ import subprocess
 import json
 from pathlib import Path
 from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger("momai.downloader")
 
 
 def _get_base_dir():
@@ -383,19 +386,19 @@ def setup_local_engine(progress_callback=None, forced_backend=None):
     builds = get_available_builds(latest_v)
     archive_type = builds.get(backend, builds.get("cpu", {})).get("archive_type", "zip")
 
-    print("\n" + "=" * 50)
-    print(" LLAMA.CPP CONFIGURATION")
-    print("=" * 50)
-    print(f" Detected OS: {platform.system()}")
-    print(f" Detected CPU: {info['cpu_name']}")
+    logger.info("=" * 50)
+    logger.info(" LLAMA.CPP CONFIGURATION")
+    logger.info("=" * 50)
+    logger.info(f" Detected OS: {platform.system()}")
+    logger.info(f" Detected CPU: {info['cpu_name']}")
     if info["gpu_name"]:
-        print(f" Detected GPU: {info['gpu_name']}")
-    print(f"\n Target Version: {latest_v}")
-    print(f" Target Architecture: {backend.upper()}")
-    print(f" Archive Type: {archive_type}")
-    print(f" Destination Folder: bin/{backend}")
-    print(f" File: {url.split('/')[-1]}")
-    print("=" * 50 + "\n")
+        logger.info(f" Detected GPU: {info['gpu_name']}")
+    logger.info(f" Target Version: {latest_v}")
+    logger.info(f" Target Architecture: {backend.upper()}")
+    logger.info(f" Archive Type: {archive_type}")
+    logger.info(f" Destination Folder: bin/{backend}")
+    logger.info(f" File: {url.split('/')[-1]}")
+    logger.info("=" * 50)
 
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -404,7 +407,7 @@ def setup_local_engine(progress_callback=None, forced_backend=None):
     else:
         zip_path = target_dir / "llama_engine.zip"
 
-    print(f"[Downloader] Starting download for {backend} version...")
+    logger.info(f"[Downloader] Starting download for {backend} version...")
 
     try:
         if target_dir.exists():
@@ -420,7 +423,7 @@ def setup_local_engine(progress_callback=None, forced_backend=None):
 
         download_file(url, zip_path, progress_callback)
 
-        print("[Downloader] Extracting binaries...")
+        logger.info("[Downloader] Extracting binaries...")
 
         if archive_type == "tar":
             import tarfile
@@ -445,7 +448,7 @@ def setup_local_engine(progress_callback=None, forced_backend=None):
             subdirs = [d for d in target_dir.iterdir() if d.is_dir() and d.name.startswith("llama-")]
             if subdirs:
                 subdir = subdirs[0]
-                print(f"[Downloader] Moving files from {subdir.name}/ to bin/{backend}/")
+                logger.info(f"[Downloader] Moving files from {subdir.name}/ to bin/{backend}/")
                 for item in subdir.iterdir():
                     dest = target_dir / item.name
                     if item.is_file():
@@ -470,18 +473,18 @@ def setup_local_engine(progress_callback=None, forced_backend=None):
                 target_path = target_dir / target_name
                 if target_path.exists() and not link_path.exists():
                     os.symlink(target_name, link_path)
-                    print(f"[Downloader] Created symlink: {link_name} -> {target_name}")
+                    logger.info(f"[Downloader] Created symlink: {link_name} -> {target_name}")
 
         if zip_path.exists():
             os.remove(zip_path)
 
         save_manifest(info, latest_v)
 
-        print(f"[Downloader] Installation completed successfully in bin/{backend}.")
+        logger.info(f"[Downloader] Installation completed successfully in bin/{backend}.")
         return True
 
     except Exception as e:
-        print(f"[Downloader] Error during installation: {e}")
+        logger.error(f"[Downloader] Error during installation: {e}")
         return False
 
 
@@ -494,7 +497,7 @@ def uninstall_engine(backend=None):
                 shutil.rmtree(target_dir)
                 return True
             except Exception as e:
-                print(f"[Downloader] Error uninstalling {backend}: {e}")
+                logger.error(f"[Downloader] Error uninstalling {backend}: {e}")
                 return False
         return True
 
@@ -504,7 +507,7 @@ def uninstall_engine(backend=None):
             shutil.rmtree(BIN_PATH)
             return True
         except Exception as e:
-            print(f"[Downloader] Error uninstalling all: {e}")
+            logger.error(f"[Downloader] Error uninstalling all: {e}")
             return False
 
     return True
@@ -541,13 +544,13 @@ def clear_version_cache():
     """Limpa o cache de versão (útil para testes ou forçar atualização)."""
     if CACHE_FILE.exists():
         os.remove(CACHE_FILE)
-        print("[Cache] Cache limpo com sucesso.")
+        logger.info("[Cache] Cache limpo com sucesso.")
 
 
 def ensure_engine_installed(progress_callback=None, backend=None):
     """Verifica se o motor está instalado e, se não, inicia a instalação."""
     if not check_engine_installed(backend):
-        print(
+        logger.info(
             f"[Downloader] Engine for {backend or 'auto'} not found. Starting automatic setup..."
         )
         return setup_local_engine(progress_callback, forced_backend=backend)

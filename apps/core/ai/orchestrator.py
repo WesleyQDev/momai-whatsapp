@@ -25,6 +25,7 @@ from datetime import datetime
 from utils.tokenizer import count_message_tokens, get_context_window
 from utils.i18n import t, get_locale
 from tools.system_actions import show_chat_card
+from ai.graph.prompts import SUMMARY_SYSTEM_PROMPT
 
 logger = logging.getLogger("momai.ai")
 
@@ -96,7 +97,7 @@ def save_message_to_db(
         db.add(msg)
         db.commit()
     except Exception as e:
-        print(f"[AI_core] Error saving message: {e}")
+        logger.error(f"[AI_core] Error saving message: {e}")
     finally:
         db.close()
 
@@ -135,7 +136,7 @@ def load_history_from_db(thread_id: str, limit: int = 10):
             else:
                 messages.append(AIMessage(content=content))
     except Exception as e:
-        print(f"[AI_core] Error loading history: {e}")
+        logger.error(f"[AI_core] Error loading history: {e}")
     finally:
         db.close()
     return messages
@@ -207,12 +208,7 @@ async def _summarize_messages(messages, existing_summary: str | None) -> str:
         lines.append(f"{role}: {content}")
     chunk = "\n".join(lines)
 
-    system_prompt = (
-        "Voce e um assistente que resume conversas. "
-        "Atualize o resumo existente com novos fatos e decisoes. "
-        "Seja conciso, em PT-BR, e mantenha preferencias, tarefas e detalhes importantes. "
-        "Nao inclua saudacoes ou texto irrelevante."
-    )
+    system_prompt = SUMMARY_SYSTEM_PROMPT
 
     user_prompt = (
         f"{summary_header}:\n{existing_summary or ''}\n\n"
@@ -304,7 +300,7 @@ async def get_graph_history(thread_id: str):
         if state and "messages" in state.values:
             return state.values["messages"]
     except Exception as e:
-        print(f"[AI_core] Error reading graph state: {e}")
+        logger.error(f"[AI_core] Error reading graph state: {e}")
     return []
 
 
@@ -323,15 +319,15 @@ async def clear_history_db(thread_id: str = None):
     try:
         if thread_id:
             num = db.query(Message).filter(Message.thread_id == thread_id).delete()
-            print(
+            logger.info(
                 f"[AI_core] Deleted {num} messages from momai.db (thread: {thread_id})"
             )
         else:
             num = db.query(Message).delete()
-            print(f"[AI_core] Deleted {num} messages from momai.db (all)")
+            logger.info(f"[AI_core] Deleted {num} messages from momai.db (all)")
         db.commit()
     except Exception as e:
-        print(f"[AI_core] Error clearing DB history: {e}")
+        logger.error(f"[AI_core] Error clearing DB history: {e}")
     finally:
         db.close()
 
@@ -351,9 +347,9 @@ async def clear_history_db(thread_id: str = None):
                 await conn.execute("DELETE FROM checkpoints")
                 await conn.execute("DELETE FROM writes")
             await conn.commit()
-            print(f"[AI_core] Graph memory cleared for thread: {thread_id or 'all'}")
+            logger.info(f"[AI_core] Graph memory cleared for thread: {thread_id or 'all'}")
     except Exception as e:
-        print(f"[AI_core] Error clearing checkpoints: {e}")
+        logger.error(f"[AI_core] Error clearing checkpoints: {e}")
 
     # 3. Clear in-memory cache
     global chat_history
@@ -419,7 +415,7 @@ def initialize_llm(on_init_progress=None, tier=None, onboarding_bypass=False):
     try:
         thread.start()
     except RuntimeError as e:
-        print(f"[AI_core] Thread start error: {e}")
+        logger.error(f"[AI_core] Thread start error: {e}")
 
 
 # AI Tiers Configuration
@@ -449,7 +445,7 @@ def load_tier_config():
         with open(TIERS_CONFIG_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        print(f"[AI_core] Warning: Error loading ai_tiers.json: {e}")
+        logger.warning(f"[AI_core] Error loading ai_tiers.json: {e}")
         return defaults
 
 TIER_CONFIG = load_tier_config()
@@ -463,7 +459,7 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
     import asyncio
 
     def report_progress(status: str):
-        print(f"[AI_core] {status}")
+        logger.info(f"[AI_core] {status}")
         if callable(on_init_progress):
             on_init_progress(status)
 
@@ -479,7 +475,7 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
             )
 
     try:
-        print(f"\n--- Inicializando Motor de IA: LOCAL ---")
+        logger.info(f"--- Inicializando Motor de IA: LOCAL ---")
 
         tier = provided_tier
         from database.models import SessionLocal, Settings, init_db
@@ -489,14 +485,14 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
             
             # Se o tier não foi definido, não carrega modelo.
             if not s or not s.ai_tier:
-                print("[AI_core] Tier não selecionado. Pulando carregamento automático.")
+                logger.info("[AI_core] Tier não selecionado. Pulando carregamento automático.")
                 is_loading = False
                 llm_mode = "waiting"
                 db.close()
                 return
 
             if not s.onboarding_completed and not onboarding_bypass:
-                print("[AI_core] Onboarding pendente. Pulando carregamento automático.")
+                logger.info("[AI_core] Onboarding pendente. Pulando carregamento automático.")
                 is_loading = False
                 llm_mode = "waiting"
                 db.close()
@@ -532,7 +528,7 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
         )
 
         if new_llm:
-            print(f"[AI_core] Modelo Local instanciado. Reconstruindo Grafo...")
+            logger.info(f"[AI_core] Modelo Local instanciado. Reconstruindo Grafo...")
             report_progress("Atualizando conhecimento de ferramentas...")
 
             # Sync Vector DB with Tools/Skills (Only for Ultra since it's the only one with embeddings now)
@@ -543,11 +539,11 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
                     asyncio.run(index_all_system_tools())
                     asyncio.run(index_all_skills())
                 except Exception as sync_err:
-                    print(
-                        f"[AI_core] Warning: Falha na sincronização de ferramentas: {sync_err}"
+                    logger.warning(
+                        f"[AI_core] Falha na sincronização de ferramentas: {sync_err}"
                     )
             else:
-                print("[AI_core] Modo Lite detectado. Pulando sincronização vetorial.")
+                logger.info("[AI_core] Modo Lite detectado. Pulando sincronização vetorial.")
 
             report_progress("Reconstruindo Grafo de Agentes...")
 
@@ -571,9 +567,9 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
                     init_error = None
 
                 report_progress("Tudo pronto, Senhor!")
-                print(f"[AI_core] Motor de IA Local está pronto!")
+                logger.info(f"[AI_core] Motor de IA Local está pronto!")
             except Exception as graph_err:
-                print(f"[AI_core] Erro na Reconstrução do Grafo: {graph_err}")
+                logger.error(f"[AI_core] Erro na Reconstrução do Grafo: {graph_err}")
                 raise graph_err
 
             # Notifica o frontend
@@ -603,7 +599,7 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
 
     except Exception as e:
         err_msg = str(e)
-        print(f"[AI_core] Erro Crítico de Inicialização: {err_msg}")
+        logger.error(f"[AI_core] Erro Crítico de Inicialização: {err_msg}")
         init_error = err_msg
         is_loading = False
         llm_ready_event.set()  # Unblock even on error
@@ -811,542 +807,16 @@ async def speak_and_notify(text: str) -> None:
 async def generate(message: ChatMessage):
     """
     Main stream generator for chat responses.
+    Delegates implementation to StreamProcessor for better maintainability.
     """
-    import services.voice.tts as tts
-    import app_state
+    from ai.stream.processor import StreamProcessor
     
-    # Save the last used thread ID for voice commands
-    app_state.last_thread_id = message.thread_id
-
-    try:
-        # Non-blocking stop attempt for previous speech
-        tts.stop_all()
-    except Exception as e:
-        logger.warning(f"[AI_core] TTS cleanup ignored: {e}")
-
-    print(f"\n[AI_core] Nova Requisição: {message.content}")
-
-    if is_loading or llm is None or momai_graph is None:
-        status_mode = llm_mode if llm_mode != "waiting" else "inicial"
-        msg = f"Aguarde um momento, Senhor. Estou configurando meu motor para o modo {status_mode}."
-        yield f"data: {json.dumps({'error': msg})}\n\n"
-        return
-
-    try:
-        import app_state
-
-        app_state.set_ai_busy(True)
-        clear_cancel_generation()
-        # Register thread_id in the current thread for tool access
-        import threading
-
-        threading.current_thread()._momai_thread_id = message.thread_id
-
-        config = {
-            "configurable": {"thread_id": message.thread_id},
-            "recursion_limit": 100,
-        }
-
-        # Pattern to detect paragraph breaks for TTS
-        paragraph_pattern = re.compile(r"(.*?\n{2,})", re.DOTALL)
-        # Fallback pattern for long sentences
-        sentence_end_pattern = re.compile(r"(.*?[.?!;])(?:\s+|$)", re.DOTALL)
-
-        tts_buffer = ""
-        full_content = ""
-        stream_decided = False
-        stream_suppressed = False
-
-        # Real-time streaming (0 prebuffer) for "speak-to-speak" experience.
-        # This yields tokens as soon as they are generated by the LLM.
-        prebuffer_limit = int(os.getenv("MOMAI_PREBUFFER_CHARS", "0"))
-
-        # Turn-based suppression: if a node generates a tool call, we suppress ALL text from that turn.
-        current_turn_buffer = ""
-        suppress_current_turn = False
-
-        prebuffer = ""
-        pending_card = None
-        current_agent = "responder"
-        activities_trace = []  # Accumulate status updates for persistence
-        shown_node_types = (
-            set()
-        )  # Track which node types have been shown (avoid ReAct loop duplicates)
-        had_tool_call = False
-        no_tools_available = None
-        pending_tool_ids = {}
-        search_count = 0  # Track search count for UI
-
-        # Helper to avoid duplicate activities
-        def add_activity(status: str, node_type: str = None):
-            # For node types (router, agent), only show once
-            if node_type:
-                if node_type in shown_node_types:
-                    return False
-                shown_node_types.add(node_type)
-            # For tool calls and status, avoid duplicates anywhere in trace
-            if status not in activities_trace:
-                activities_trace.append(status)
-            return True
-
-        summary_text = await ensure_summary(message.thread_id)
-        try:
-            from database.models import SessionLocal, Settings
-
-            db = SessionLocal()
-            try:
-                settings = db.query(Settings).first()
-                if settings and settings.prebuffer_chars is not None:
-                    prebuffer_limit = int(settings.prebuffer_chars)
-            finally:
-                db.close()
-        except Exception as e:
-            logger.debug(f"[AI_core] Could not load prebuffer setting: {e}")
-        print(f"[STREAM] prebuffer_limit = {prebuffer_limit}")
-        save_message_to_db(message.thread_id, "user", message.content)
-        input_data = {
-            "messages": [HumanMessage(content=message.content)],
-            "summary": summary_text,
-            "search_count": 0,
-        }
-
-        async for event in momai_graph.astream_events(
-            input_data, config=config, version="v2"
-        ):
-            if cancel_generation:
-                break
-            if is_loading:
-                break
-
-            # DEBUG LOG
-            if event["event"] == "on_chain_start" and event["name"] == "LangGraph":
-                print(
-                    f"[AI_core] STARTING LANGGRAPH EXECUTION. Thread: {message.thread_id}"
-                )
-
-            kind = event["event"]
-            name = event["name"]
-            metadata = event.get("metadata", {})
-            node_name = metadata.get("langgraph_node", "")
-
-            # Handle SearchCount from middleware
-            if kind == "on_chain_end" and node_name == "search_counter":
-                output = event["data"].get("output")
-                if output and isinstance(output, dict):
-                    search_count = output.get("search_count", 0)
-                    if search_count > 0 and activities_trace:
-                        for i in range(len(activities_trace) - 1, -1, -1):
-                            if activities_trace[i].startswith("Buscando"):
-                                activities_trace[i] = f"Buscando ({search_count})"
-                                yield f"data: {json.dumps({'status': activities_trace[i]})}\n\n"
-                                break
-                continue
-
-            # Handle Sources extraction
-            if kind == "on_chain_end" and node_name == "extract_sources":
-                output = event["data"].get("output")
-                if output and isinstance(output, dict):
-                    sources = output.get("sources")
-                    if sources:
-                        logger.info(
-                            f">>> [Sources] Streaming {len(sources)} sources to frontend"
-                        )
-                        print(
-                            f">>> [DEBUG] Sources being streamed: {json.dumps(sources)[:300]}..."
-                        )
-                        yield f"data: {json.dumps({'sources': sources})}\n\n"
-
-                    snippets = output.get("snippets")
-                    if snippets:
-                        logger.info(
-                            f">>> [Extras] Streaming {len(snippets)} snippets to frontend"
-                        )
-                        yield f"data: {json.dumps({'snippets': snippets})}\n\n"
-
-                    cards = output.get("cards")
-                    if cards:
-                        logger.info(
-                            f">>> [Extras] Streaming {len(cards)} cards to frontend"
-                        )
-                        yield f"data: {json.dumps({'cards': cards})}\n\n"
-                continue
-
-            # Handle specialist_worker - show which skill is running
-            if kind == "on_chain_start" and node_name == "specialist_worker":
-                # For on_chain_start, skill_id is in input, not output
-                event_data = event.get("data", {})
-                input_data = event_data.get("input", {})
-                skill_id = None
-                if isinstance(input_data, dict):
-                    skill_id = input_data.get("skill_id")
-                    # If skill_id not in input, try to extract from messages (tool_calls)
-                    if not skill_id:
-                        msgs = input_data.get("messages", [])
-                        for msg in reversed(msgs):
-                            if hasattr(msg, "tool_calls") and msg.tool_calls:
-                                for tc in msg.tool_calls:
-                                    if tc.get("name") == "activate_skill":
-                                        skill_id = tc.get("args", {}).get("skill_id")
-                                        break
-                                if skill_id:
-                                    break
-                if skill_id:
-                    status = f"Especialista: Executando {skill_id.split('.')[-1]}..."
-                    add_activity(status)
-                    yield f"data: {json.dumps({'status': status})}\n\n"
-                continue
-
-            # Handle router - show discovered skills
-            if kind == "on_chain_end" and node_name == "router":
-                output = event["data"].get("output")
-                if output and isinstance(output, dict):
-                    mem_ctx = output.get("memory_context")
-                    mem_notes = output.get("memory_notes")
-
-                    if mem_ctx:
-                        # Yield memory as it's a direct user value
-                        count = 0
-                        memory_sources = []
-                        if mem_notes:
-                            seen_ids = set()
-                            for note in mem_notes:
-                                nid = note.get("note_id", "unknown")
-                                if nid not in seen_ids:
-                                    seen_ids.add(nid)
-                                    memory_sources.append(
-                                        {
-                                            "url": f"momai://note/{nid}",
-                                            "title": f"Nota: {note.get('title', 'Sem título')}",
-                                            "snippet": note.get("text", "")[:200],
-                                        }
-                                    )
-                            count = len(memory_sources)
-
-                        status = f"Memória: {count} nota{'s' if count != 1 else ''} relevante{'s' if count != 1 else ''}"
-                        yield f"data: {json.dumps({'status': status})}\n\n"
-                        add_activity(status)
-
-                        if memory_sources:
-                            yield f"data: {json.dumps({'sources': memory_sources})}\n\n"
-                continue
-
-            # Handle manager - show delegation or tool call
-            if kind == "on_chain_end" and node_name == "momai_agent":
-                output = event["data"].get("output")
-                if output and isinstance(output, dict):
-                    msgs = output.get("messages", [])
-                    if msgs and hasattr(msgs[-1], "tool_calls") and msgs[-1].tool_calls:
-                        tc = msgs[-1].tool_calls[0]
-                        if tc["name"] == "activate_skill":
-                            skill_arg = tc["args"].get("skill_id", "unknown")
-                            status = f"Manager: Delegando para Especialista ({skill_arg.split('.')[-1]})..."
-                        else:
-                            status = f"Manager: Chamando ferramenta {tc['name']}..."
-                    else:
-                        status = "Finalizando resposta..."
-
-                    add_activity(status)
-                    yield f"data: {json.dumps({'status': status})}\n\n"
-                continue
-
-            if kind == "on_tool_start":
-                logger.info(f"[AI_core] Executing tool: {name}")
-                had_tool_call = True
-
-                if not stream_decided and prebuffer:
-                    stream_decided = True
-                    yield f"data: {json.dumps({'token': prebuffer})}\n\n"
-                    tts_buffer += prebuffer
-                    prebuffer = ""
-
-                if "__MOMAI_ACTIONS__" not in full_content:
-                    marker = "\n\n__MOMAI_ACTIONS__\n\n"
-                    full_content += marker
-                    yield f"data: {json.dumps({'token': marker})}\n\n"
-
-                # Track search count for this tool call
-                tool_call_count = had_tool_call  # This is a bool, need separate counter
-
-                if name in ["duckduckgo_search", "duckduckgo_news"]:
-                    # Only show "Buscando" once, don't create duplicates
-                    if not any("Buscando" in a for a in activities_trace):
-                        display_status = "Buscando..."
-                        add_activity(display_status)
-                        yield f"data: {json.dumps({'status': display_status})}\n\n"
-                    # Don't yield for subsequent searches - let search_counter handle it at the end
-                else:
-                    display_status = f"Usando: {name}"
-                    add_activity(display_status)
-                    yield f"data: {json.dumps({'status': display_status})}\n\n"
-
-            if kind == "on_tool_end":
-                logger.info(f"[AI_core] Tool {name} finished.")
-            if kind == "on_chat_model_start":
-                # Reset turn state
-                current_turn_buffer = ""
-                suppress_current_turn = False
-
-            if kind == "on_chat_model_stream":
-                metadata = event.get("metadata", {})
-                node = metadata.get("langgraph_node", "")
-
-                # Bloqueio total de nós técnicos (Roteador e Orquestrador)
-                if node in ["router"]:
-                    continue
-
-                content = event["data"]["chunk"].content
-                if not content:
-                    continue
-
-                # Se o modelo está gerando ferramenta (tool_call_chunks),
-                # marcamos para suprimir TODO o texto deste turno.
-                if (
-                    hasattr(event["data"]["chunk"], "tool_call_chunks")
-                    and event["data"]["chunk"].tool_call_chunks
-                ):
-                    suppress_current_turn = True
-                    current_turn_buffer = ""
-                    prebuffer = ""
-                    continue
-
-                if suppress_current_turn:
-                    continue
-
-                filtered_content = "".join(c for c in content if ord(c) <= 0xFFFF)
-
-                if filtered_content:
-                    # Se for o início da resposta final (primeiro token após ferramentas), avisamos o frontend
-                    if not any(
-                        a == "Finalizando resposta..." for a in activities_trace
-                    ):
-                        add_activity("Finalizando resposta...")
-                        yield f"data: {json.dumps({'status': 'Finalizando resposta...'})}\n\n"
-
-                        # Garante que a resposta final fique ABAIXO das fontes e status
-                        if "__MOMAI_ACTIONS__" not in full_content:
-                            marker = "\n\n__MOMAI_ACTIONS__\n\n"
-                            full_content += marker
-                            yield f"data: {json.dumps({'token': marker})}\n\n"
-
-                    # Se for o início da resposta, limpa prefixos
-                    if not full_content:
-                        # As buscas são rápidas e não justifica buffering complexo
-                        if had_tool_call:
-                            stream_decided = True
-                            yield f"data: {json.dumps({'token': filtered_content})}\n\n"
-                            # print(
-                            #     f"[STREAM] Yielding (had_tool_call): {filtered_content[:50]}..."
-                            # )
-                            full_content += filtered_content
-                            tts_buffer += filtered_content
-                            continue
-
-                        prebuffer += filtered_content
-                        # print(
-                        #     f"[STREAM] prebuffer: {len(prebuffer)} chars, limit: {prebuffer_limit}"
-                        # )
-                        if len(prebuffer) >= prebuffer_limit:
-                            decision = await _build_missing_capability_card(
-                                message.content,
-                                prebuffer,
-                                no_tools_available,
-                                had_tool_call,
-                                current_agent,
-                            )
-                            if decision and decision.get("apply"):
-                                stream_decided = True
-                                stream_suppressed = True
-                                pending_card = decision
-                            else:
-                                stream_decided = True
-                                yield f"data: {json.dumps({'token': prebuffer})}\n\n"
-                                # print(
-                                #     f"[STREAM] Yielding (prebuffer): {prebuffer[:50]}..."
-                                # )
-                                full_content += prebuffer
-                                tts_buffer += prebuffer
-                                prebuffer = ""
-                    elif not stream_suppressed:
-                        yield f"data: {json.dumps({'token': filtered_content})}\n\n"
-                        # print(f"[STREAM] Yielding (else): {filtered_content[:50]}...")
-                        full_content += filtered_content
-                        tts_buffer += filtered_content
-
-                    # Intelligent TTS Processing: Paragraphs first, sentences as fallback
-                    while True:
-                        # 0. Fast Trigger for first response chunk (e.g. "Claro," or "Com certeza!")
-                        if not full_content and len(tts_buffer) > 15:
-                            # Break at first comma or exclamation/question if short
-                            fast_match = re.search(r"(.*?[,!?])\s+", tts_buffer)
-                            if fast_match:
-                                chunk = fast_match.group(1).strip()
-                                tts_buffer = tts_buffer[fast_match.end() :]
-                                await speak_and_notify(clean_text_for_tts(chunk))
-                                continue
-
-                        # 1. Look for Paragraph break (\n\n) - Natural pause
-                        para_match = paragraph_pattern.search(tts_buffer)
-                        if para_match:
-                            chunk = para_match.group(1).strip()
-                            tts_buffer = tts_buffer[para_match.end() :]
-                            if len(chunk) > 1:
-                                await speak_and_notify(clean_text_for_tts(chunk))
-                            continue
-
-                        # 2. Fallback: If buffer is getting too long (> 120 chars), break at sentence
-                        if len(tts_buffer) > 120:
-                            sent_match = sentence_end_pattern.search(tts_buffer)
-                            if sent_match:
-                                chunk = sent_match.group(1).strip()
-                                tts_buffer = tts_buffer[sent_match.end() :]
-                                if len(chunk) > 1:
-                                    await speak_and_notify(clean_text_for_tts(chunk))
-                                continue
-
-                            # 3. Emergency break at last space if no punctuation found in 120 chars
-                            if len(tts_buffer) > 200:
-                                last_space = tts_buffer.rfind(" ")
-                                if last_space > 50:
-                                    chunk = tts_buffer[:last_space].strip()
-                                    tts_buffer = tts_buffer[last_space:].strip()
-                                    await speak_and_notify(clean_text_for_tts(chunk))
-                                else:
-                                    break
-                            else:
-                                break
-                        else:
-                            break
-
-            elif kind == "on_chat_model_end":
-                metadata = event.get("metadata", {})
-                node = metadata.get("langgraph_node", "")
-
-                # Se o turno acabou e não houve ferramenta, liberamos o buffer acumulado
-                if not suppress_current_turn and current_turn_buffer:
-                    tokens_to_send = current_turn_buffer
-                    current_turn_buffer = ""
-
-                    # Se for o início da resposta real, manda o sinal de finalização de ferramentas
-                    if not any(
-                        a == "Finalizando resposta..." for a in activities_trace
-                    ):
-                        add_activity("Finalizando resposta...")
-                        yield f"data: {json.dumps({'status': 'Finalizando resposta...'})}\n\n"
-                        if "__MOMAI_ACTIONS__" not in full_content:
-                            marker = "\n\n__MOMAI_ACTIONS__\n\n"
-                            full_content += marker
-                            yield f"data: {json.dumps({'token': marker})}\n\n"
-
-                    yield f"data: {json.dumps({'token': tokens_to_send})}\n\n"
-                    full_content += tokens_to_send
-                    tts_buffer += tokens_to_send
-
-                # Só processa fallback se for um nó de comunicação com o humano
-                if node in ["momai_agent", "responder"]:
-                    output = event["data"].get("output")
-                    if output and hasattr(output, "content") and output.content:
-                        if not full_content:
-                            content = clean_response(output.content)
-                            # Se o conteúdo final for apenas código/ferramenta, não exibe como texto
-                            if (
-                                content
-                                and '{"next":' not in content
-                                and "show_graph(" not in content
-                            ):
-                                full_content = content
-                                yield f"data: {json.dumps({'token': content})}\n\n"
-                                clean_sent = clean_text_for_tts(content)
-                                if clean_sent:
-                                    await speak_and_notify(clean_sent)
-
-    except Exception as e:
-        import traceback
-
-        error_msg = str(e)
-        print(f"[AI_core] Erro de Stream: {error_msg}")
-        traceback.print_exc()
-
-        if "429" in error_msg or "rate_limit" in error_msg.lower():
-            friendly_error = "Sir, I have reached the Groq processing limit for this minute. Please wait a few seconds before trying again."
-            yield f"data: {json.dumps({'error': friendly_error})}\n\n"
-            await speak_and_notify(
-                "Sorry, Sir. I need a short break due to rate limits."
-            )
-        else:
-            yield f"data: {json.dumps({'error': error_msg})}\n\n"
-
-    finally:
-        clear_cancel_generation()
-
-        # Check search_count and sources from final state
-        final_sources = None
-        final_snippets = None
-        final_cards = None
-        try:
-            final_state = await momai_graph.aget_state(config)
-            if final_state and final_state.values:
-                search_count = final_state.values.get("search_count", 0)
-                final_sources = final_state.values.get("sources")
-                final_snippets = final_state.values.get("snippets")
-                final_cards = final_state.values.get("cards")
-                if search_count > 0 and activities_trace:
-                    for i in range(len(activities_trace) - 1, -1, -1):
-                        if activities_trace[i].startswith("Buscando"):
-                            activities_trace[i] = f"Buscando ({search_count})"
-                            break
-        except Exception as e:
-            logger.debug(f"[AI_core] Error getting final stream state: {e}")
-
-        if final_snippets and not any("snippets" in str(y) for y in [y for y in []]):
-            yield f"data: {json.dumps({'snippets': final_snippets})}\n\n"
-        if final_cards:
-            yield f"data: {json.dumps({'cards': final_cards})}\n\n"
-
-        try:
-            import app_state
-
-            app_state.set_ai_busy(False)
-        except Exception as e:
-            logger.debug(f"[AI_core] Error setting AI busy state: {e}")
-        if not stream_decided and prebuffer and not stream_suppressed:
-            yield f"data: {json.dumps({'token': prebuffer})}\n\n"
-            tts_buffer += prebuffer
-            prebuffer = ""
-
-        final_reply = clean_response(full_content)
-        if final_reply.strip() and stream_suppressed:
-            if pending_card is None and _is_missing_capability(final_reply):
-                pending_card = await _build_missing_capability_card(
-                    message.content,
-                    final_reply,
-                    no_tools_available,
-                    had_tool_call,
-                    current_agent,
-                )
-            if pending_card and pending_card.get("apply"):
-                final_reply = pending_card["content"]
-                _open_feature_card(pending_card["content"], pending_card["cta"], pending_card.get("action", EXTENSIONS_STORE_ACTION))
-                yield f"data: {json.dumps({'token': final_reply})}\n\n"
-                tts_buffer = final_reply
-        if final_reply.strip():
-            # Retrieve pending graph data for this thread
-            import app_state
-
-            pending_graph = app_state.get_pending_graph_data(message.thread_id)
-            save_message_to_db(
-                message.thread_id,
-                "assistant",
-                final_reply,
-                activities=activities_trace if activities_trace else None,
-                graph_data=pending_graph,
-                sources=final_sources,
-                snippets=final_snippets,
-                cards=final_cards,
-            )
-
-        if tts_buffer.strip():
-            clean_phrase = clean_text_for_tts(clean_response(tts_buffer)).strip()
-            if len(clean_phrase) > 1:
-                await speak_and_notify(clean_phrase)
-
-        yield f"data: {json.dumps({'done': True})}\n\n"
+    processor = StreamProcessor(
+        message_content=message.content,
+        thread_id=message.thread_id,
+        graph=momai_graph,
+        llm=llm
+    )
+    
+    async for chunk in processor.process():
+        yield chunk

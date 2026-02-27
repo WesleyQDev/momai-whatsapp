@@ -1,362 +1,130 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import {
-  Message,
-  sendChatMessage,
-  fetchChatHistory,
-  clearChatHistory,
-  stopGeneration,
-  stopVoice,
-  speakText,
-  deleteMessage,
-  setCallMode,
-  generateSessionTitle
-} from '../services/api'
-import { cleanMomaiActions } from '../utils/text'
+import { useChatState } from './useChatState'
+import { useChatWebSocket } from './useChatWebSocket'
+import { useChatHandlers } from './useChatHandlers'
+import { useChatActions } from './useChatActions'
+import { useChatInit } from './useChatInit'
 
 export function useChat() {
   const [text, setText] = useState('')
-  const [messages, setMessages] = useState<Message[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [threadId, setThreadId] = useState(() => `sessao_${Date.now()}`)
-  const [_isHistoryLoaded, setIsHistoryLoaded] = useState(false)
-  const currentThreadRef = useRef(threadId)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
-  const [isCallMode, setIsCallMode] = useState(false)
-  const isCallModeRef = useRef(false)
-  const [voiceStatus, setVoiceStatus] = useState<'idle' | 'listening' | 'processing'>('idle')
-  const [callHistory, setCallHistory] = useState<
-    { id: string; role: 'user' | 'assistant'; content: string }[]
-  >([])
-  const messagesRef = useRef<Message[]>([])
-  const wsRef = useRef<WebSocket | null>(null)
 
-  // Graph State
-  const [graphState, setGraphState] = useState<{
-    view: 'center' | 'side' | null
-    content: string
-    options: string[]
-    optionsMap?: Record<string, string>
-    uiSchema?: any
-    bypass_wake_word?: boolean
-  }>({ view: null, content: '', options: [], optionsMap: {}, bypass_wake_word: false })
+  const chatState = useChatState()
+  const {
+    messages,
+    setMessages,
+    isLoading,
+    setIsLoading,
+    threadId,
+    setThreadId,
+    isHistoryLoaded,
+    setIsHistoryLoaded,
+    speakingIndex,
+    setSpeakingIndex,
+    isCallMode,
+    setIsCallMode,
+    voiceStatus,
+    setVoiceStatus,
+    callHistory,
+    setCallHistory,
+    graphState,
+    setGraphState,
+    messagesRef,
+    currentThreadRef,
+    isCallModeRef,
+    currentGraphOptionsRef,
+    isGraphOpenRef,
+    toolTraceRef
+  } = chatState
 
-  // Ref para as opções atuais do gráfico para o listener de voz não precisar de dependência
-  const currentGraphOptionsRef = useRef<string[]>([])
-  const isGraphOpenRef = useRef<boolean>(false)
-  const toolTraceRef = useRef<{
-    activeMsgId: string | null
-    byToolId: Record<string, { msgId: string; stepIndex: number }>
-  }>({ activeMsgId: null, byToolId: {} })
-  const toolTracePrefix = 'TOOL_TRACE::'
-  const toolTraceTextDelimiter = '\n\nTOOL_TEXT::\n'
+  // 1. Actions Hook (Needs to be defined before handlers if handlers use them, or vice-versa)
+  // To avoid circularity, we pass a dummy handleGraphOption first if needed, 
+  // but here we can just define actions first as it doesn't depend on handlers yet.
+  const actions = useChatActions({
+    threadId,
+    currentThreadRef,
+    messagesRef,
+    setMessages,
+    setIsLoading,
+    setSpeakingIndex,
+    setCallHistory,
+    toolTraceRef,
+    setGraphState,
+    isCallMode,
+    setIsCallMode,
+    isCallModeRef,
+    setText
+  })
 
-  const isToolTraceMessage = (msg?: Message) =>
-    !!msg && msg.role === 'assistant' && msg.content.startsWith(toolTracePrefix)
+  // 2. Handlers Hook
+  const { handleWsMessage } = useChatHandlers({
+    messagesRef,
+    setMessages,
+    setSpeakingIndex,
+    setVoiceStatus,
+    setCallHistory,
+    setGraphState,
+    setIsLoading,
+    toolTraceRef,
+    isCallModeRef,
+    isGraphOpenRef,
+    currentGraphOptionsRef,
+    handleGraphOption: actions.handleGraphOption
+  })
 
-  const splitToolTraceContent = (content: string) => {
-    if (!content.startsWith(toolTracePrefix)) return null
-    const idx = content.indexOf(toolTraceTextDelimiter)
-    const jsonPart =
-      idx >= 0 ? content.slice(toolTracePrefix.length, idx) : content.slice(toolTracePrefix.length)
-    const textPart = idx >= 0 ? content.slice(idx + toolTraceTextDelimiter.length) : ''
-    return { jsonPart, textPart }
-  }
+  // 3. WebSocket Hook
+  const { wsRef } = useChatWebSocket({
+    threadId,
+    handleWsMessage
+  })
 
-  const buildToolTraceContent = (traceData: any, text: string) => {
-    return `${toolTracePrefix}${JSON.stringify(traceData)}${toolTraceTextDelimiter}${text || ''}`
-  }
+  // 4. Initialization Hook
+  useChatInit({
+    threadId,
+    setMessages,
+    setIsHistoryLoaded,
+    setThreadId
+  })
 
-  const parseStructuredToolResult = (value: any) => {
-    if (value === undefined || value === null) return { result: '', error: '' }
-
-    let parsed = value
-    if (typeof value === 'string') {
-      try {
-        parsed = JSON.parse(value)
-      } catch {
-        return { result: value, error: '' }
-      }
-    }
-
-    if (parsed && typeof parsed === 'object' && 'status' in parsed) {
-      if (parsed.status === 'error') {
-        const errMessage = parsed.error?.message || parsed.error?.code || 'Erro de ferramenta'
-        return { result: '', error: String(errMessage) }
-      }
-      const resultValue = parsed.result
-      if (typeof resultValue === 'string') return { result: resultValue, error: '' }
-      try {
-        return { result: JSON.stringify(resultValue, null, 2), error: '' }
-      } catch {
-        return { result: String(resultValue ?? ''), error: '' }
-      }
-    }
-
-    if (typeof parsed === 'string') return { result: parsed, error: '' }
-    try {
-      return { result: JSON.stringify(parsed, null, 2), error: '' }
-    } catch {
-      return { result: String(parsed), error: '' }
-    }
-  }
-
-  const extractToolQuery = (args: any): string | undefined => {
-    if (!args || typeof args !== 'object') return undefined
-    const candidates = ['query', 'q', 'text', 'content', 'prompt', 'message', 'input']
-    for (const key of candidates) {
-      const value = args[key]
-      if (typeof value === 'string' && value.trim()) {
-        return value.trim()
-      }
-    }
-    return undefined
-  }
-
-  const findLastAssistantIndex = (list: Message[]) => {
-    for (let i = list.length - 1; i >= 0; i -= 1) {
-      if (list[i].role === 'assistant') return i
-    }
-    return -1
-  }
-
-  const createAssistantMessageId = () =>
-    `assistant:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`
-
-  const toCompactJson = (obj: any) => {
-    if (obj === undefined || obj === null) return undefined
-    try {
-      return JSON.stringify(obj)
-    } catch {
-      return String(obj)
-    }
-  }
-
-  // Atualiza refs quando o graphState muda
+  // Listen for backend online to connect WS if not connected
   useEffect(() => {
-    currentGraphOptionsRef.current = graphState.options
-    isGraphOpenRef.current = graphState.view !== null
-  }, [graphState])
-
-
-  // Carrega histórico inicial do SQLite
-  useEffect(() => {
-    let retries = 0
-    const maxRetries = 5
-
-    const loadHistory = async () => {
-      try {
-        const history = await fetchChatHistory(threadId)
-        // Processa histórico para adicionar flag isGraph quando graphData existe
-        const processedHistory = history.map((msg) => ({
-          ...msg,
-          isGraph: msg.role === 'assistant' && !!msg.graphData
-        }))
-        setMessages(processedHistory)
-        setIsHistoryLoaded(true)
-      } catch (err) {
-        retries++
-        if (retries < maxRetries) {
-          // Retry silencioso com backoff exponencial
-          const delay = Math.min(500 * Math.pow(1.5, retries), 5000)
-          setTimeout(loadHistory, delay)
-        } else {
-          // Só loga erro após todas as tentativas
-          console.error('Erro ao carregar histórico:', err)
-          setIsHistoryLoaded(true)
-        }
+    // @ts-ignore
+    const removeOnlineListener = window.api?.onBackendOnline?.(() => {
+      console.log('[useChat] Backend notified as online. Syncing session...');
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'session_sync', thread_id: threadId }))
       }
-    }
+    });
 
-    loadHistory()
-
-    // Sync current thread with backend
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'session_sync', thread_id: threadId }))
+    return () => {
+      if (removeOnlineListener) removeOnlineListener()
     }
-  }, [threadId])
+  }, [threadId, wsRef])
+
+  // Stop generation/voice on thread change
+  useEffect(() => {
+    if (currentThreadRef.current !== threadId) {
+      if (isLoading) {
+        actions.stopGeneration()
+      }
+      actions.stopVoice()
+      currentThreadRef.current = threadId
+    }
+  }, [threadId, isLoading, actions])
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
-  useEffect(() => {
-    messagesRef.current = messages
-  }, [messages])
-
-  const clearHistory = useCallback(async () => {
-    // Clear local state immediately for instantaneous feedback
-    setMessages([])
-    setSpeakingIndex(null)
-    setCallHistory([])
-    toolTraceRef.current = { activeMsgId: null, byToolId: {} }
-
-    // Notify other components
-    window.dispatchEvent(new CustomEvent('momai_clear_history'))
-
-    try {
-      // Background actions
-      await Promise.all([stopVoice(), clearChatHistory(threadId)])
-    } catch (err) {
-      console.error('Erro ao sincronizar limpeza de histórico:', err)
-    }
-  }, [threadId])
-
-  useEffect(() => {
-    const handleClear = () => setMessages([])
-    const handleNewSession = () => {
-      setThreadId(`sessao_${Date.now()}`)
-    }
-    window.addEventListener('momai_clear_history', handleClear)
-    window.addEventListener('momai_new_session', handleNewSession)
-    return () => {
-      window.removeEventListener('momai_clear_history', handleClear)
-      window.removeEventListener('momai_new_session', handleNewSession)
-    }
-  }, [])
-
   const reopenGraph = useCallback((data: any) => {
     setGraphState(data)
-  }, [])
-
-  const handleGraphOption = useCallback(
-    (option: string) => {
-      // Fecha o gráfico
-      setGraphState((prev) => ({ ...prev, view: null }))
-
-      // Se for apenas um "OK" de confirmação de leitura, não envia para a IA
-      if (option.toUpperCase() === 'OK') return
-
-      // Shortcut to open extensions store
-      if (option === 'open_extensions_store') {
-        window.dispatchEvent(new CustomEvent('momai_open_extensions'))
-        return
-      }
-
-      // Shortcut to open Ultra settings
-      if (option === 'open_settings_ultra') {
-        window.dispatchEvent(new CustomEvent('momai_open_settings_ultra'))
-        return
-      }
-
-      if (option === 'dismiss') return
-
-      // Envia a escolha como mensagem do usuário para a IA processar
-      const userMessage: Message = { role: 'user', content: option }
-      setMessages((prev) => [...prev, userMessage])
-      setIsLoading(true)
-      toolTraceRef.current = { activeMsgId: null, byToolId: {} }
-
-      // Prepara a bolha de resposta da IA
-      const assistantMsgId = createAssistantMessageId()
-      toolTraceRef.current.activeMsgId = assistantMsgId
-      setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '...' }])
-
-      const messageThreadId = threadId
-
-      sendChatMessage(option, threadId, {
-        onToken: (token) => {
-          if (currentThreadRef.current !== messageThreadId) return
-          setMessages((prev) => {
-            const updated = [...prev]
-            const lastIdx = updated.length - 1
-            updated[lastIdx] = {
-              ...updated[lastIdx],
-              content: updated[lastIdx].content + token
-            }
-            return updated
-          })
-        },
-        onStatus: (status) => {
-          if (currentThreadRef.current !== messageThreadId) return
-          setMessages((prev) => {
-            const updated = [...prev]
-            const lastIdx = updated.length - 1
-            if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-              const currentActivities = updated[lastIdx].activities || []
-              // Check if this is an update to an existing "Buscando" entry
-              const buscandoIdx = currentActivities.findIndex((a: string) =>
-                a.startsWith('Buscando')
-              )
-              if (buscandoIdx !== -1 && status.startsWith('Buscando')) {
-                // Update existing Buscando entry instead of adding new one
-                const updatedActivities = [...currentActivities]
-                updatedActivities[buscandoIdx] = status
-                updated[lastIdx] = {
-                  ...updated[lastIdx],
-                  activities: updatedActivities
-                }
-              } else if (!currentActivities.includes(status)) {
-                updated[lastIdx] = {
-                  ...updated[lastIdx],
-                  activities: [...currentActivities, status]
-                }
-              }
-            }
-            return updated
-          })
-        },
-        onSources: (sources) => {
-          if (currentThreadRef.current !== messageThreadId) return
-          setMessages((prev) => {
-            const updated = [...prev]
-            const lastIdx = updated.length - 1
-            if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-              updated[lastIdx] = {
-                ...updated[lastIdx],
-                sources
-              }
-            }
-            return updated
-          })
-        },
-        onSnippets: (snippets) => {
-          if (currentThreadRef.current !== messageThreadId) return
-          setMessages((prev) => {
-            const updated = [...prev]
-            const lastIdx = updated.length - 1
-            if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-              updated[lastIdx] = {
-                ...updated[lastIdx],
-                snippets
-              }
-            }
-            return updated
-          })
-        },
-        onCards: (cards) => {
-          if (currentThreadRef.current !== messageThreadId) return
-          setMessages((prev) => {
-            const updated = [...prev]
-            const lastIdx = updated.length - 1
-            if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-              updated[lastIdx] = {
-                ...updated[lastIdx],
-                cards
-              }
-            }
-            return updated
-          })
-        },
-        onError: (error) => {
-          if (currentThreadRef.current !== messageThreadId) return
-          console.error('Erro ao enviar escolha:', error)
-          setIsLoading(false)
-        },
-        onDone: () => {
-          if (currentThreadRef.current !== messageThreadId) return
-          setIsLoading(false)
-        }
-      })
-    },
-    [threadId]
-  )
+  }, [setGraphState])
 
   const closeGraph = useCallback(() => {
-    setGraphState((prev) => ({ ...prev, view: null }))
-  }, [])
+    setGraphState((prev: any) => ({ ...prev, view: null }))
+  }, [setGraphState])
 
-  // Fecha gráfico com ESC
+  // ESC to close graph
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeGraph()
@@ -365,949 +133,29 @@ export function useChat() {
     return () => window.removeEventListener('keydown', handleEsc)
   }, [closeGraph])
 
-  useEffect(() => {
-    isCallModeRef.current = isCallMode
-  }, [isCallMode])
-
-  useEffect(() => {
-    let ws: WebSocket | null = null
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
-    let reconnectAttempts = 0
-    const maxReconnectAttempts = 15 // Aumentado para garantir conexão
-    let isUnmounting = false
-    let isBooting = true // Flag para suprimir erros durante boot
-
-    // Desativa flag de boot após 15 segundos
-    const bootTimeout = setTimeout(() => {
-      isBooting = false
-    }, 15000)
-
-    const connect = () => {
-      if (isUnmounting) return
-
-      try {
-        wsRef.current = new WebSocket('ws://127.0.0.1:8000/ws')
-      } catch (e) {
-        console.error('Erro ao criar WebSocket:', e)
-        scheduleReconnect()
-        return
-      }
-
-      const ws = wsRef.current
-
-      ws.onopen = () => {
-        console.log('Voice WebSocket conectado!')
-        window.dispatchEvent(new CustomEvent('momai_socket_connected'))
-        reconnectAttempts = 0
-        // Sync current thread immediately on connect
-        if (wsRef.current) wsRef.current.send(JSON.stringify({ type: 'session_sync', thread_id: threadId }))
-      }
-
-      ws.onmessage = (event) => {
-        // Tenta processar múltiplos JSONs se vierem colados (comum em alto tráfego)
-        const rawData = event.data
-        const jsonObjects = rawData.match(/\{.*?\}(?=\{|$)/g) || [rawData]
-
-        for (const jsonStr of jsonObjects) {
-          try {
-            const msg = JSON.parse(jsonStr)
-            handleWsMessage(msg)
-          } catch (e) {
-            console.error('Erro ao processar JSON via WS:', e, jsonStr)
-          }
-        }
-      }
-
-      function handleWsMessage(msg: any) {
-        if (msg.type === 'init_progress') {
-          // Propaga evento de progresso de inicialização para useStatus
-          window.dispatchEvent(new CustomEvent('momai_init_progress', { detail: msg.data }))
-        } else if (msg.type === 'extensions_sync') {
-          window.dispatchEvent(new CustomEvent('momai_extensions_sync', { detail: msg.data }))
-        } else if (msg.type === 'setup_progress') {
-          window.dispatchEvent(new CustomEvent('momai_setup_progress', { detail: msg.data }))
-        } else if (msg.type === 'setup_complete') {
-          window.dispatchEvent(new CustomEvent('momai_setup_complete', { detail: msg.data }))
-        } else if (msg.type === 'navigate') {
-          window.dispatchEvent(new CustomEvent('momai_navigate', { detail: msg.data }))
-        } else if (msg.type === 'open_settings') {
-          window.dispatchEvent(new CustomEvent('momai_open_settings', { detail: msg.data }))
-        } else if (msg.type === 'set_theme') {
-          window.dispatchEvent(new CustomEvent('momai_set_theme', { detail: msg.data }))
-        } else if (msg.type === 'tts_start') {
-          const idx = findLastAssistantIndex(messagesRef.current)
-          setSpeakingIndex(idx >= 0 ? idx : null)
-        } else if (msg.type === 'tts_stop') {
-          setSpeakingIndex(null)
-        } else if (msg.type === 'voice_status') {
-          setVoiceStatus(msg.status)
-          if (msg.status === 'listening' && window.api) {
-            window.api.focus()
-          }
-        } else if (msg.type === 'tool_start') {
-          const toolId = msg.data?.id || `${msg.data?.name || 'tool'}-${Date.now()}`
-          setMessages((prev) => {
-            const updated = [...prev]
-            const fallbackMsgId = `tool-trace:${Date.now()}`
-
-            const ensureTraceTarget = () => {
-              const active = toolTraceRef.current.activeMsgId
-              if (active) {
-                const activeIdx = updated.findIndex((m) => m.id === active)
-                if (activeIdx >= 0) return { idx: activeIdx, msgId: active }
-              }
-
-              const latestAssistantIdx = findLastAssistantIndex(updated)
-              if (latestAssistantIdx >= 0) {
-                const existingId = updated[latestAssistantIdx].id || fallbackMsgId
-                updated[latestAssistantIdx] = { ...updated[latestAssistantIdx], id: existingId }
-                return { idx: latestAssistantIdx, msgId: existingId }
-              }
-
-              updated.push({ id: fallbackMsgId, role: 'assistant', content: '...' })
-              return { idx: updated.length - 1, msgId: fallbackMsgId }
-            }
-
-            const { idx, msgId } = ensureTraceTarget()
-            const current = updated[idx]
-            const parsed = splitToolTraceContent(current.content)
-
-            let traceData: any = {
-              kind: 'tool_trace',
-              steps: [],
-              startedAt: new Date().toISOString()
-            }
-            let textPart = parsed?.textPart || ''
-            try {
-              if (parsed?.jsonPart) {
-                traceData = JSON.parse(parsed.jsonPart)
-              }
-            } catch {
-              traceData = { kind: 'tool_trace', steps: [], startedAt: new Date().toISOString() }
-            }
-
-            if (!parsed) {
-              textPart = current.content && current.content !== '...' ? current.content : ''
-            }
-
-            const steps = Array.isArray(traceData.steps) ? [...traceData.steps] : []
-            const stepIndex = steps.length
-            steps.push({
-              id: toolId,
-              name: msg.data?.name || 'tool',
-              status: 'running',
-              args: toCompactJson(msg.data?.args),
-              query: extractToolQuery(msg.data?.args),
-              startedAt: new Date().toISOString()
-            })
-
-            const nextTrace = {
-              ...traceData,
-              kind: 'tool_trace',
-              steps,
-              status: 'running',
-              updatedAt: new Date().toISOString()
-            }
-
-            updated[idx] = {
-              ...current,
-              id: msgId,
-              content: buildToolTraceContent(nextTrace, textPart)
-            }
-
-            toolTraceRef.current.activeMsgId = msgId
-            toolTraceRef.current.byToolId[toolId] = { msgId, stepIndex }
-
-            return updated
-          })
-        } else if (msg.type === 'tool_result') {
-          const toolId = msg.data?.id
-          const status = msg.data?.status === 'error' ? 'error' : 'done'
-          const ref = toolId ? toolTraceRef.current.byToolId[toolId] : null
-          const parsedOutcome = parseStructuredToolResult(msg.data?.result)
-
-          setMessages((prev) => {
-            const updated = [...prev]
-            let idx = ref ? updated.findIndex((m) => m.id === ref.msgId) : -1
-            if (idx < 0) {
-              idx = findLastAssistantIndex(updated)
-            }
-            if (idx >= 0) {
-              const current = updated[idx]
-              const parsed = splitToolTraceContent(current.content)
-              const textPart = parsed?.textPart || ''
-              let traceData: any = null
-
-              try {
-                traceData = parsed?.jsonPart ? JSON.parse(parsed.jsonPart) : null
-              } catch {
-                traceData = null
-              }
-
-              const steps = Array.isArray(traceData?.steps) ? [...traceData.steps] : []
-              const stepIndex = typeof ref?.stepIndex === 'number' ? ref.stepIndex : -1
-
-              if (stepIndex >= 0 && steps[stepIndex]) {
-                steps[stepIndex] = {
-                  ...steps[stepIndex],
-                  name: msg.data?.name || steps[stepIndex].name || 'tool',
-                  status,
-                  result: parsedOutcome.result || undefined,
-                  error: parsedOutcome.error || undefined,
-                  finishedAt: new Date().toISOString()
-                }
-              }
-
-              const hasRunning = steps.some((s: any) => s.status === 'running')
-              const nextTrace = {
-                ...(traceData || {}),
-                kind: 'tool_trace',
-                steps,
-                status: hasRunning ? 'running' : status,
-                updatedAt: new Date().toISOString()
-              }
-
-              updated[idx] = {
-                ...current,
-                content: buildToolTraceContent(nextTrace, textPart)
-              }
-
-              if (!hasRunning) {
-                toolTraceRef.current.activeMsgId = null
-              }
-              if (toolId) {
-                delete toolTraceRef.current.byToolId[toolId]
-              }
-              return updated
-            }
-
-            const fallbackTrace = {
-              kind: 'tool_trace',
-              status,
-              steps: [
-                {
-                  id: toolId,
-                  name: msg.data?.name || 'tool',
-                  status,
-                  args: toCompactJson(msg.data?.args),
-                  query: extractToolQuery(msg.data?.args),
-                  result: parsedOutcome.result || undefined,
-                  error: parsedOutcome.error || undefined,
-                  finishedAt: new Date().toISOString()
-                }
-              ]
-            }
-            const fallbackAssistantIdx = findLastAssistantIndex(updated)
-            if (fallbackAssistantIdx >= 0) {
-              const existing = updated[fallbackAssistantIdx]
-              updated[fallbackAssistantIdx] = {
-                ...existing,
-                content: buildToolTraceContent(
-                  fallbackTrace,
-                  existing.content && existing.content !== '...' ? existing.content : ''
-                )
-              }
-              return updated
-            }
-
-            return [
-              ...updated,
-              { role: 'assistant', content: buildToolTraceContent(fallbackTrace, '') }
-            ]
-          })
-        } else if (msg.type === 'fortscript_event') {
-          window.dispatchEvent(new CustomEvent('momai_fortscript_event', { detail: msg }))
-        } else if (msg.type === 'graph_open') {
-          // Abre interface gráfica (Centro ou Lateral)
-          const optionsMap = msg.data.options_map || msg.data.optionsMap
-          const newGraphState = {
-            view: msg.data.view,
-            content: msg.data.content,
-            options: msg.data.options || [],
-            optionsMap,
-            uiSchema: msg.data.ui_schema
-          }
-
-          if (msg.data.view === 'side' || msg.data.view === 'center') {
-            setGraphState(newGraphState)
-          } else {
-            setGraphState({
-              view: null,
-              content: '',
-              options: [],
-              optionsMap: {},
-              bypass_wake_word: false
-            })
-          }
-
-          // Adiciona ou mescla o card interativo no chat
-          setMessages((prev) => {
-            const updated = [...prev]
-            const lastIdx = updated.length - 1
-            const lastMsg = updated[lastIdx]
-
-            // Se a última mensagem for do assistente e não for um gráfico ainda, mesclamos
-            if (lastIdx >= 0 && lastMsg.role === 'assistant' && !lastMsg.isGraph) {
-              updated[lastIdx] = {
-                ...lastMsg,
-                isGraph: true,
-                graphData: newGraphState
-              }
-              return updated
-            }
-
-            // Se já for um gráfico igual, ignoramos
-            if (
-              lastMsg?.role === 'assistant' &&
-              lastMsg.isGraph &&
-              lastMsg.content === msg.data.content
-            ) {
-              return prev
-            }
-
-            // Caso contrário, adicionamos novo
-            return [
-              ...prev,
-              {
-                role: 'assistant',
-                content: msg.data.content,
-                isGraph: true,
-                graphData: newGraphState
-              }
-            ]
-          })
-        } else if (msg.type === 'graph_close') {
-          setGraphState((prev) => ({ ...prev, view: null }))
-        } else if (msg.type === 'model_changed') {
-          window.dispatchEvent(new CustomEvent('ai_model_changed', { detail: msg.data.new_mode }))
-        } else if (msg.type === 'model_change_start') {
-          window.dispatchEvent(new CustomEvent('ai_model_change_start', { detail: msg.data.mode }))
-        } else if (msg.type === 'model_change_progress') {
-          window.dispatchEvent(new CustomEvent('ai_model_change_progress', { detail: msg.data }))
-        } else if (msg.type === 'voice_partial') {
-          if (isCallModeRef.current && msg.text) {
-            setCallHistory((prev) => {
-              const last = prev[prev.length - 1]
-              if (last && last.role === 'user') {
-                const updated = [...prev]
-                updated[updated.length - 1] = { ...last, content: msg.text }
-                return updated
-              }
-              return [
-                ...prev,
-                { id: `user-${Date.now()}`, role: 'user' as const, content: msg.text }
-              ].slice(-5)
-            })
-          }
-        } else if (msg.type === 'reminders_updated') {
-          window.dispatchEvent(new CustomEvent('momai_reminders_updated'))
-        } else if (msg.type === 'reminder_trigger') {
-          // Notificação nativa do sistema
-          if (window.electron) {
-            window.electron.ipcRenderer.send('show-notification', {
-              title: `🔔 Lembrete: ${msg.data.title}`,
-              body: msg.data.content || ''
-            })
-          }
-        } else if (msg.type === 'user') {
-          // Alguém falou via voice command
-          const content = msg.content.toLowerCase()
-
-          // Update call mode history
-          if (isCallModeRef.current) {
-            setCallHistory((prev) => {
-              const last = prev[prev.length - 1]
-              if (last && last.role === 'user') {
-                const updated = [...prev]
-                updated[updated.length - 1] = { ...last, content: msg.content }
-                return updated
-              }
-              return [
-                ...prev,
-                { id: `user-${Date.now()}`, role: 'user' as const, content: msg.content }
-              ].slice(-5)
-            })
-          }
-
-          // Verifica se bate com alguma opção do gráfico aberto usando REFS
-          if (isGraphOpenRef.current && currentGraphOptionsRef.current.length > 0) {
-            const matchedOption = currentGraphOptionsRef.current.find(
-              (opt) => content.includes(opt.toLowerCase()) || opt.toLowerCase().includes(content)
-            )
-
-            if (matchedOption) {
-              handleGraphOption(matchedOption)
-              return
-            }
-
-            // Suporte a Sim/Não genérico se botões forem esses
-            if (content.includes('sim') || content.includes('confirmar')) {
-              const yesOpt = currentGraphOptionsRef.current.find(
-                (o) => o.toLowerCase() === 'sim' || o.toLowerCase() === 'confirmar'
-              )
-              if (yesOpt) {
-                handleGraphOption(yesOpt)
-                return
-              }
-            }
-          }
-
-          setMessages((prev) => [...prev, { role: 'user', content: msg.content }])
-          const assistantMsgId = createAssistantMessageId()
-          toolTraceRef.current.activeMsgId = assistantMsgId
-          setMessages((prev) => [
-            ...prev,
-            { id: assistantMsgId, role: 'assistant', content: '...' }
-          ])
-          setIsLoading(true)
-        } else if (msg.type === 'assistant') {
-          const { data } = msg
-
-          if (data.status) {
-            const statusText =
-              data.status === 'thinking'
-                ? 'Pensando...'
-                : data.status === 'responding'
-                  ? null
-                  : data.status
-
-            if (statusText) {
-              setMessages((prev) => {
-                const updated = [...prev]
-                const lastIdx = findLastAssistantIndex(updated)
-                if (lastIdx >= 0) {
-                  const currentActivities = updated[lastIdx].activities || []
-                  if (!currentActivities.includes(statusText)) {
-                    updated[lastIdx] = {
-                      ...updated[lastIdx],
-                      activities: [...currentActivities, statusText]
-                    }
-                  }
-                }
-                return updated
-              })
-            }
-          }
-
-          if (data.token) {
-            // Update call mode history with assistant words
-            if (isCallModeRef.current) {
-              const cleanTokenForCall = data.token.split('__MOMAI_ACTIONS__')[0]
-              if (cleanTokenForCall !== undefined) {
-                setCallHistory((prevHistory) => {
-                  const last = prevHistory[prevHistory.length - 1]
-                  if (last && last.role === 'assistant') {
-                    const history = [...prevHistory]
-                    const prevContent = last.content
-                    // If it's the very first token of the assistant, trim leading whitespace/newlines
-                    let nextToken = cleanTokenForCall
-                    if (prevContent === '...' || prevContent === '') {
-                      nextToken = nextToken.replace(/^\s+/, '')
-                    }
-
-                    const newContent = (prevContent === '...' ? '' : prevContent) + nextToken
-                    history[history.length - 1] = {
-                      ...last,
-                      content: newContent
-                    }
-                    return history
-                  }
-
-                  // New assistant message: only start if we have actual text
-                  const trimmed = cleanTokenForCall.replace(/^\s+/, '')
-                  if (trimmed) {
-                    return [
-                      ...prevHistory,
-                      {
-                        id: `assistant-${Date.now()}`,
-                        role: 'assistant' as const,
-                        content: trimmed
-                      }
-                    ].slice(-5)
-                  }
-                  return prevHistory
-                })
-              }
-            }
-          }
-
-          if (data.token !== undefined) {
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = findLastAssistantIndex(updated)
-
-              if (
-                lastIdx >= 0 &&
-                updated[lastIdx]?.role === 'assistant' &&
-                !updated[lastIdx].content.startsWith('Cérebro alterado')
-              ) {
-                const currentContent = updated[lastIdx].content
-                const newBase = currentContent === '...' ? '' : currentContent
-
-                let cleanToken = data.token
-                if (
-                  newBase === '' &&
-                  (cleanToken.toLowerCase().startsWith('momai:') ||
-                    cleanToken.toLowerCase().startsWith('assistente:'))
-                ) {
-                  cleanToken = cleanToken.split(':')[1]?.trim() || ''
-                }
-
-                if (isToolTraceMessage(updated[lastIdx])) {
-                  const parsed = splitToolTraceContent(updated[lastIdx].content)
-                  const textPart = parsed?.textPart || ''
-                  let traceData: any = null
-                  try {
-                    traceData = parsed?.jsonPart ? JSON.parse(parsed.jsonPart) : null
-                  } catch {
-                    traceData = null
-                  }
-
-                  updated[lastIdx] = {
-                    ...updated[lastIdx],
-                    content: buildToolTraceContent(traceData || {}, textPart + cleanToken)
-                  }
-                } else {
-                  updated[lastIdx] = {
-                    ...updated[lastIdx],
-                    content: newBase + cleanToken
-                  }
-                }
-                return updated
-              } else {
-                return [...prev, { role: 'assistant', content: data.token }]
-              }
-            })
-          }
-
-          if (data.sources) {
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = findLastAssistantIndex(updated)
-              if (lastIdx >= 0) {
-                updated[lastIdx] = { ...updated[lastIdx], sources: data.sources }
-              }
-              return updated
-            })
-          }
-
-          if (data.snippets) {
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = findLastAssistantIndex(updated)
-              if (lastIdx >= 0) {
-                updated[lastIdx] = { ...updated[lastIdx], snippets: data.snippets }
-              }
-              return updated
-            })
-          }
-
-          if (data.cards) {
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = findLastAssistantIndex(updated)
-              if (lastIdx >= 0) {
-                updated[lastIdx] = { ...updated[lastIdx], cards: data.cards }
-              }
-              return updated
-            })
-          }
-
-          if (data.done) {
-            setIsLoading(false)
-          }
-
-          if (data.error) {
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = findLastAssistantIndex(updated)
-              if (lastIdx >= 0) {
-                updated[lastIdx].content = `Erro: ${data.error}`
-              }
-              return updated
-            })
-            setIsLoading(false)
-          }
-        }
-      }
-
-      ws.onclose = () => {
-        // Suprimir log durante boot
-        if (!isBooting) {
-          console.log('Voice WebSocket desconectado.')
-        }
-        scheduleReconnect()
-      }
-
-      ws.onerror = (err) => {
-        // Suprimir erros durante os primeiros 15s de boot
-        if (!isBooting) {
-          console.error('WebSocket error:', err)
-        }
-        ws?.close();
-      };
-    };
-
-    function scheduleReconnect() {
-      if (isUnmounting) return;
-      if (reconnectAttempts < maxReconnectAttempts) {
-        reconnectAttempts++;
-        const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 10000);
-        reconnectTimeout = setTimeout(connect, delay);
-      }
-    }
-
-    // Connect only if backend is actually online (notifies from Main)
-    // @ts-ignore
-    const removeOnlineListener = window.api?.onBackendOnline?.(() => {
-      console.log('[useChat] Backend notified as online. Connecting WebSocket...');
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        connect();
-      }
-    });
-
-    return () => {
-      isUnmounting = true;
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      clearTimeout(bootTimeout);
-      if (wsRef.current) wsRef.current.close();
-      if (removeOnlineListener) removeOnlineListener();
-    };
-  }, []);
-  // Removida dependência graphState para estabilidade
-
-  const sendMessage = useCallback(
-    async (overrideText?: string, isSilent: boolean = false) => {
-      const messageText = overrideText ?? text
-      if (!messageText.trim() || isLoading) return
-
-      if (!isSilent) {
-        const userMessage: Message = { role: 'user', content: messageText }
-        setMessages((prev) => [...prev, userMessage])
-
-        if (isCallModeRef.current) {
-          setCallHistory((prev) =>
-            [
-              ...prev,
-              { id: `user-${Date.now()}`, role: 'user' as const, content: messageText }
-            ].slice(-5)
-          )
-        }
-      }
-
-      if (!overrideText) setText('')
-
-      setIsLoading(true)
-      toolTraceRef.current = { activeMsgId: null, byToolId: {} }
-
-      // Adiciona mensagem de expectativa do assistente para streaming
-      const assistantMsgId = createAssistantMessageId()
-      toolTraceRef.current.activeMsgId = assistantMsgId
-      setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '...' }])
-
-      const messageThreadId = threadId
-      const isFirstMessage = messagesRef.current.length <= 1 // Includes the user message just added locally
-
-      try {
-        await sendChatMessage(messageText, threadId, {
-          onToken: (token) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = updated.length - 1
-              if (
-                updated[lastIdx]?.role === 'assistant' &&
-                !updated[lastIdx].content.startsWith('Cérebro alterado')
-              ) {
-                const currentContent = updated[lastIdx].content
-                const newBase = currentContent === '...' ? '' : currentContent
-
-                if (isToolTraceMessage(updated[lastIdx])) {
-                  const parsed = splitToolTraceContent(updated[lastIdx].content)
-                  let traceData: any = null
-                  const textPart = parsed?.textPart || ''
-
-                  try {
-                    traceData = parsed?.jsonPart ? JSON.parse(parsed.jsonPart) : null
-                  } catch {
-                    traceData = null
-                  }
-
-                  updated[lastIdx] = {
-                    ...updated[lastIdx],
-                    content: buildToolTraceContent(traceData || {}, textPart + token)
-                  }
-                } else {
-                  const finalContent = newBase + token
-                  updated[lastIdx] = {
-                    ...updated[lastIdx],
-                    content: finalContent
-                  }
-                }
-                return updated
-              } else {
-                return [...prev, { role: 'assistant', content: token }]
-              }
-            })
-
-            // Update call mode history separately
-            if (isCallModeRef.current) {
-              const cleanTokenForCall = token.split('__MOMAI_ACTIONS__')[0]
-              if (cleanTokenForCall !== undefined) {
-                setCallHistory((prevHistory) => {
-                  const last = prevHistory[prevHistory.length - 1]
-                  if (last && last.role === 'assistant') {
-                    const history = [...prevHistory]
-                    const prevContent = history[history.length - 1].content
-                    // If it's the very first token of the assistant, trim leading whitespace/newlines
-                    let nextToken = cleanTokenForCall
-                    if (prevContent === '...' || prevContent === '') {
-                      nextToken = nextToken.replace(/^\s+/, '')
-                    }
-
-                    const newContent = (prevContent === '...' ? '' : prevContent) + nextToken
-                    history[history.length - 1] = {
-                      ...last,
-                      content: newContent
-                    }
-                    return history
-                  }
-
-                  // New assistant message: only start if we have actual text
-                  const trimmed = cleanTokenForCall.replace(/^\s+/, '')
-                  if (trimmed) {
-                    return [
-                      ...prevHistory,
-                      {
-                        id: `assistant-${Date.now()}`,
-                        role: 'assistant' as const,
-                        content: trimmed
-                      }
-                    ].slice(-5)
-                  }
-                  return prevHistory
-                })
-              }
-            }
-          },
-          onStatus: (status) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = findLastAssistantIndex(updated)
-              if (lastIdx >= 0) {
-                const currentActivities = updated[lastIdx].activities || []
-                // Check if this is an update to an existing "Buscando" entry
-                const buscandoIdx = currentActivities.findIndex((a: string) =>
-                  a.startsWith('Buscando')
-                )
-                if (buscandoIdx !== -1 && status.startsWith('Buscando')) {
-                  // Update existing Buscando entry instead of adding new one
-                  const updatedActivities = [...currentActivities]
-                  updatedActivities[buscandoIdx] = status
-                  updated[lastIdx] = {
-                    ...updated[lastIdx],
-                    activities: updatedActivities
-                  }
-                } else if (!currentActivities.includes(status)) {
-                  updated[lastIdx] = {
-                    ...updated[lastIdx],
-                    activities: [...currentActivities, status]
-                  }
-                }
-              }
-              return updated
-            })
-          },
-          onError: (error) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = findLastAssistantIndex(updated)
-              if (lastIdx >= 0) {
-                updated[lastIdx].content = `Erro: ${error}`
-              }
-              return updated
-            })
-          },
-          onSources: (sources) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = findLastAssistantIndex(updated)
-              if (lastIdx >= 0) {
-                updated[lastIdx] = {
-                  ...updated[lastIdx],
-                  sources
-                }
-              }
-              return updated
-            })
-          },
-          onSnippets: (snippets) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = findLastAssistantIndex(updated)
-              if (lastIdx >= 0) {
-                updated[lastIdx] = {
-                  ...updated[lastIdx],
-                  snippets
-                }
-              }
-              return updated
-            })
-          },
-          onCards: (cards) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = findLastAssistantIndex(updated)
-              if (lastIdx >= 0) {
-                updated[lastIdx] = {
-                  ...updated[lastIdx],
-                  cards
-                }
-              }
-              return updated
-            })
-          },
-          onDone: () => {
-            // Stream finalizado
-            if (isFirstMessage) {
-              const lastMsgs = messagesRef.current
-              const assistantReply = lastMsgs[lastMsgs.length - 1]?.content || ''
-              
-              generateSessionTitle(messageThreadId, messageText, assistantReply).then((title) => {
-                if (title) {
-                  window.dispatchEvent(new CustomEvent('momai_session_title_generated', { detail: { threadId: messageThreadId, title } }))
-                }
-              }).catch(console.error)
-            }
-          }
-        })
-      } catch (error) {
-        if (currentThreadRef.current !== messageThreadId) return
-        setMessages((prev) => {
-          const updated = [...prev]
-          if (updated[updated.length - 1]) {
-            updated[updated.length - 1].content =
-              error instanceof Error ? error.message : 'Erro ao processar mensagem'
-          }
-          return updated
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    },
-    [text, isLoading, threadId]
-  )
-
-  const stopCurrentGeneration = useCallback(async () => {
-    try {
-      await stopGeneration()
-    } catch (error) {
-      console.error('Erro ao parar geracao:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  const stopCurrentVoice = useCallback(async () => {
-    try {
-      await stopVoice()
-    } catch (error) {
-      console.error('Erro ao parar voz:', error)
-    } finally {
-      setSpeakingIndex(null)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (currentThreadRef.current !== threadId) {
-      if (isLoading) {
-        stopCurrentGeneration()
-      }
-      // Sempre para a voz ao trocar de tópico
-      stopCurrentVoice()
-      
-      currentThreadRef.current = threadId
-    }
-  }, [threadId, isLoading, stopCurrentGeneration, stopCurrentVoice])
-
-
-  const speakMessage = useCallback(async (content: string, index: number) => {
-    const cleanText = cleanMomaiActions(content)
-    if (!cleanText) return
-
-    try {
-      setSpeakingIndex(index)
-      await speakText(cleanText)
-    } catch (error) {
-      console.error('Erro ao falar mensagem:', error)
-      setSpeakingIndex(null)
-    }
-  }, [])
-
-  const removeMessage = useCallback(
-    async (index: number) => {
-      const msg = messages[index]
-      if (msg.id) {
-        try {
-          await deleteMessage(Number(msg.id))
-        } catch (error) {
-          console.error('Erro ao excluir mensagem do banco:', error)
-        }
-      }
-      setMessages((prev) => prev.filter((_, i) => i !== index))
-    },
-    [messages]
-  )
-
-  const toggleCallMode = useCallback(async () => {
-    const newState = !isCallMode
-    setIsCallMode(newState)
-    setCallHistory([])
-
-    // Se estiver desativando o call mode, para o TTS imediatamente
-    if (!newState) {
-      try {
-        await stopVoice()
-        setSpeakingIndex(null)
-      } catch (error) {
-        console.error('Erro ao parar voz:', error)
-      }
-    }
-
-    try {
-      await setCallMode(newState)
-    } catch (error) {
-      console.error('Erro ao alterar modo chamada:', error)
-    }
-  }, [isCallMode])
-
   return {
     text,
     setText,
     messages,
     isLoading,
-    sendMessage,
+    sendMessage: (overrideText?: string) => actions.sendMessage(overrideText ?? text),
     messagesEndRef,
     graphState,
-    handleGraphOption,
+    handleGraphOption: actions.handleGraphOption,
     closeGraph,
     reopenGraph,
-    clearHistory,
-    stopCurrentGeneration,
-    stopCurrentVoice,
+    clearHistory: actions.handleClear,
+    stopCurrentGeneration: actions.stopGeneration,
+    stopCurrentVoice: actions.stopVoice,
     speakingIndex,
-    speakMessage,
-    removeMessage,
+    speakMessage: actions.speakMessage,
+    removeMessage: actions.removeMessage,
     isCallMode,
-    toggleCallMode,
+    toggleCallMode: actions.toggleCallMode,
     voiceStatus,
     callHistory,
     threadId,
-    setThreadId
+    setThreadId,
+    scrollToBottom
   }
 }

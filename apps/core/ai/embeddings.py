@@ -75,7 +75,7 @@ class EmbeddingEngine:
         model_path = MODELS_DIR / MODEL_FILE
 
         if not model_path.exists():
-            print(f"[Embeddings] Downloading model {MODEL_FILE} from {MODEL_REPO}...")
+            logger.info(f"[Embeddings] Downloading model {MODEL_FILE} from {MODEL_REPO}...")
             # Temporarily allow network for initial download
             old_offline = os.environ.get("HF_HUB_OFFLINE")
             os.environ["HF_HUB_OFFLINE"] = "0"
@@ -86,7 +86,7 @@ class EmbeddingEngine:
                         repo_id=MODEL_REPO,
                         filename=MODEL_FILE,
                         local_dir=MODELS_DIR,
-                        progress_callback=lambda current, total: print(
+                        progress_callback=lambda current, total: logger.info(
                             f"[Embeddings] Download: {current / 1024 / 1024:.1f}MB / {total / 1024 / 1024:.1f}MB"
                         ),
                     )
@@ -102,7 +102,7 @@ class EmbeddingEngine:
                 else:
                     os.environ["HF_HUB_OFFLINE"] = "1"
         else:
-            print(f"[Embeddings] Using cached model: {MODEL_FILE}")
+            logger.info(f"[Embeddings] Using cached model: {MODEL_FILE}")
         return str(model_path.resolve())
 
     def load(self):
@@ -139,7 +139,7 @@ class EmbeddingEngine:
                 from utils.downloader import ensure_engine_installed
 
                 backend_name = Path(paths["exe"]).parent.name
-                print(
+                logger.info(
                     f"[Embeddings] llama-server.exe for {backend_name} not found. Installing..."
                 )
                 ensure_engine_installed(backend=backend_name)
@@ -148,7 +148,7 @@ class EmbeddingEngine:
 
             model_path = self._get_model_path()
 
-            print(
+            logger.info(
                 f"[Embeddings] Starting llama-server for embeddings on port {self._port}..."
             )
 
@@ -198,7 +198,7 @@ class EmbeddingEngine:
                         f"http://127.0.0.1:{self._port}/health", timeout=0.5
                     )
                     if res.status_code == 200:
-                        print("[Embeddings] Servidor de embeddings pronto!")
+                        logger.info("[Embeddings] Servidor de embeddings pronto!")
                         break
                 except Exception:
                     # Healthcheck failed, server not ready yet
@@ -277,7 +277,7 @@ class EmbeddingEngine:
             return np.array(vec, dtype=np.float32).flatten().tolist()
 
         except Exception as e:
-            print(f"[Embeddings] Erro ao obter embedding: {e}")
+            logger.error(f"[Embeddings] Erro ao obter embedding: {e}")
             return [0.0] * 1024  # Fallback vector
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:

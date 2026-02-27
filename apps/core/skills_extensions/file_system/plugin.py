@@ -3,6 +3,9 @@ from pathlib import Path
 from typing import List
 from langchain_community.agent_toolkits import FileManagementToolkit
 from langchain_core.tools import tool
+import logging
+
+logger = logging.getLogger("momai.skill.file_system")
 
 class FileSystemPlugin:
     def __init__(self, manifest):
@@ -27,7 +30,7 @@ class FileSystemPlugin:
 
     def on_startup(self):
         """Executado ao carregar a extensão no boot."""
-        print(f"[File System] Inicializada! Root: {self.root_dir}")
+        logger.info(f"[File System] Inicializada! Root: {self.root_dir}")
 
 def initialize(manifest):
     """Ponto de entrada para inicializar a classe da extensão."""
