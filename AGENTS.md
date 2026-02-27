@@ -40,7 +40,6 @@ pnpm dev              # Start Electron app in dev mode
 # Building
 pnpm build            # Full build (includes typecheck + hydrate-bin)
 pnpm build:win        # Build Windows .exe
-pnpm build:mac        # Build macOS .app
 pnpm build:linux      # Build Linux AppImage
 
 # Linting & Typecheck
@@ -51,57 +50,11 @@ pnpm typecheck:web    # Typecheck React/web only
 pnpm format           # Prettier write
 ```
 
-### Core App (apps/core/)
-
-```bash
-cd apps/core
-
-# Development (uses uv for Python environment)
-uv run uvicorn main:app --reload --host 127.0.0.1 --port 8000
-```
-
-**Note:** No formal test commands exist yet. Core uses Python 3.12+ with `uv` for dependency management.
-
 ---
 
 ## Code Style Guidelines
 
 ### Desktop (TypeScript / React / Electron)
-
-**Prettier Configuration** (`.prettierrc.yaml`):
-```yaml
-singleQuote: true
-semi: false
-printWidth: 100
-trailingComma: none
-```
-
-**ESLint Rules** (`eslint.config.mjs`):
-- Uses `@electron-toolkit/eslint-config-ts`
-- React 19 with JSX runtime
-- React Hooks rules enabled
-- Disabled rules: `explicit-function-return-type`, `no-explicit-any`, `ban-ts-comment`, `exhaustive-dels`
-
-**TypeScript Guidelines**:
-- Strict mode via electron-toolkit tsconfig
-- Component files: `*.tsx` for components, `*.ts` for utilities
-- Avoid `any` when possible; use `unknown` for generic fallbacks
-
-**React Patterns**:
-- Use functional components with hooks
-- Avoid prop-types (TypeScript handles this)
-- Use `react-router-dom` for routing
-
-**Imports**:
-```typescript
-// Grouped order: external → internal → relative
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { SomeIcon } from '@heroicons/react'
-import { api } from '@/services/api'
-import { useAppStore } from '@/store/app'
-import './Component.css'
-```
 
 **Naming Conventions**:
 - Components: PascalCase (`SettingsPanel.tsx`)
