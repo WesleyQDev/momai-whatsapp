@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
-import { EditorView } from '@codemirror/view'
+import { EditorView, Decoration, MatchDecorator, ViewPlugin, ViewUpdate } from '@codemirror/view'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import {
@@ -28,6 +28,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { useI18n } from '../i18n'
 import ConfirmationCard from '../components/floating/ConfirmationCard'
+import SlashCommandMenu from '../components/notes/SlashCommandMenu'
 
 // --- Main Component ---
 
@@ -56,6 +57,14 @@ export default function NotesView() {
 
   // Delete Confirmation State
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+
+  // Slash Command State
+  const [slashMenu, setSlashMenu] = useState<{
+    x: number
+    y: number
+    query: string
+    pos: number
+  } | null>(null)
 
   // Refs
   const lastSaved = useRef({ title: '', content: '' })
@@ -370,10 +379,35 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
         tag: [tags.processingInstruction, tags.punctuation, tags.meta, tags.modifier],
         class: 'cm-md-marker'
       },
+      { tag: tags.list, class: 'cm-list-marker' },
+      { tag: tags.atom, class: 'cm-checkbox' },
       { tag: tags.link, textDecoration: 'underline', color: accentColor, opacity: '0.9' },
       { tag: tags.url, textDecoration: 'underline', opacity: '0.5' }
     ])
   }, [])
+
+  const handleSelectSlashCommand = (snippet: string) => {
+    if (!slashMenu || !editorViewRef.current) return
+
+    const view = editorViewRef.current
+    const { pos, query } = slashMenu
+
+    // Remove the "/" and the query
+    const transaction = view.state.update({
+      changes: {
+        from: pos,
+        to: pos + 1 + query.length,
+        insert: snippet
+      },
+      selection: {
+        anchor: pos + snippet.length
+      }
+    })
+
+    view.dispatch(transaction)
+    view.focus()
+    setSlashMenu(null)
+  }
 
   const editorExtensions = useMemo(
     () => [
@@ -404,8 +438,8 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
         '.cm-line': {
           padding: '2px 0'
         },
-        // MARKER HIDING: Completely hide markers on inactive lines
-        '.cm-md-marker': {
+        // MARKER HIDING: Completely hide markers on inactive lines (except lists/checkboxes)
+        '.cm-line:not(.cm-activeLine) .cm-md-marker:not(.cm-list-marker):not(.cm-checkbox)': {
           display: 'none !important'
         },
         // MARKER REVEALING: Show only on active line with soft opacity
@@ -413,6 +447,36 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
           display: 'inline !important',
           opacity: '0.4',
           marginRight: '0.1em'
+        },
+        '.cm-list-marker': {
+          display: 'inline !important',
+          color: 'rgb(var(--text-primary))',
+          fontWeight: '400',
+          marginRight: '-0.2em'
+        },
+        '.cm-bullet-conceal': {
+          color: 'transparent !important',
+          display: 'inline-block',
+          width: '0.8em',
+          textAlign: 'center',
+          position: 'relative'
+        },
+        '.cm-bullet-conceal::after': {
+          content: '"•"',
+          color: 'rgb(var(--text-primary))',
+          position: 'absolute',
+          left: '0',
+          right: '0',
+          textAlign: 'center',
+          top: '-0.1em',
+          fontSize: '1.2em'
+        },
+        '.cm-checkbox': {
+          display: 'inline !important',
+          color: 'rgb(var(--text-primary))',
+          fontWeight: '400',
+          fontFamily: 'monospace',
+          marginRight: '-0.2em'
         },
         // HEADER SIZES: Force sizes with high specificity
         '.cm-h1': {
@@ -459,7 +523,59 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
         },
         '.cm-activeLine': { backgroundColor: 'transparent' },
         '.cm-gutters': { display: 'none' }
-      })
+      }),
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged || update.selectionSet) {
+          const state = update.state
+          const pos = state.selection.main.head
+          const line = state.doc.lineAt(pos)
+          const lineText = line.text.slice(0, pos - line.from)
+          
+          const match = lineText.match(/(?:^|\s)\/(\w*)$/)
+          if (match) {
+            const query = match[1]
+            const slashPos = line.from + lineText.lastIndexOf('/')
+            
+            // Wait for next tick to ensure view is updated and coords are accurate
+            setTimeout(() => {
+              const coords = update.view.coordsAtPos(pos)
+              if (coords) {
+                setSlashMenu({
+                  x: coords.left,
+                  y: coords.bottom + 8,
+                  query,
+                  pos: slashPos
+                })
+              }
+            }, 0)
+          } else {
+            setSlashMenu(null)
+          }
+        }
+      }),
+      ViewPlugin.fromClass(
+        class {
+          decorations
+          constructor(view: EditorView) {
+            this.decorations = this.getDecorations(view)
+          }
+          update(update: ViewUpdate) {
+            if (update.docChanged || update.selectionSet) {
+              this.decorations = this.getDecorations(update.view)
+            }
+          }
+          getDecorations(view: EditorView) {
+            const decorator = new MatchDecorator({
+              regexp: /(?<=^[ \t]*)[-*+]/gm,
+              decoration: Decoration.mark({ class: 'cm-bullet-conceal' })
+            })
+            return decorator.createDeco(view)
+          }
+        },
+        {
+          decorations: (v) => v.decorations
+        }
+      )
     ],
     [markdownHighlighting]
   )
@@ -699,6 +815,15 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
           {activeId ? (
             <div className="flex-1 overflow-y-auto custom-scrollbar w-full">
               <div className="max-w-5xl py-4 px-8 flex flex-col min-h-full">
+                {slashMenu && (
+                  <SlashCommandMenu
+                    x={slashMenu.x}
+                    y={slashMenu.y}
+                    query={slashMenu.query}
+                    onSelect={handleSelectSlashCommand}
+                    onClose={() => setSlashMenu(null)}
+                  />
+                )}
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}

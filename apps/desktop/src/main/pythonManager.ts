@@ -132,10 +132,8 @@ function getSyncLock(corePath: string): SyncResult | null {
     if (!existsSync(SYNC_LOCK_FILE)) return null
     const data = JSON.parse(readFileSync(SYNC_LOCK_FILE, 'utf-8'))
 
-    const currentVersion = app.getVersion()
-    if (data.lastVersion !== currentVersion) {
-      return null // Force sync on version change
-    }
+    // A validação por versão do app foi removida para manter a sincronização de dependências
+    // atrelada exclusivamente às modificações no arquivo pyproject.toml.
 
     // Check if pyproject.toml was modified since last successful check
     const pyprojectPath = join(corePath, 'pyproject.toml')
@@ -180,7 +178,6 @@ function setSyncLock(success: boolean): void {
       SYNC_LOCK_FILE,
       JSON.stringify({
         lastChecked: Date.now(),
-        lastVersion: app.getVersion(),
         success
       })
     )
@@ -432,7 +429,10 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
     sendInitProgress('Instalando dependências...', 25)
 
     try {
-      const installArgs = ['pip', 'install', '--no-progress']
+      const uvCacheDir = join(userDataPath, 'uv_cache')
+      if (!existsSync(uvCacheDir)) mkdirSync(uvCacheDir, { recursive: true })
+
+      const installArgs = ['pip', 'install', '--no-progress', '--cache-dir', uvCacheDir]
       if (isDev) {
         installArgs.push('-e', writableCorePath)
       } else {
@@ -440,14 +440,16 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
         if (deps.length > 0) {
           installArgs.push(...deps)
         } else {
-          installArgs.push(writableCorePath)
+          // Fallback para instalar a própria pasta, se não conseguiu ler as dependências.
+          // --no-deps adicionado aqui se for "apenas quando necessário" (como pedido no briefing).
+          installArgs.push('--no-deps', writableCorePath)
         }
       }
 
       logger.info(`[Bootstrap] Running: "${uvExe}" ${installArgs.join(' ')}`)
       await new Promise<void>((resolve, reject) => {
         const child = spawn(uvExe, installArgs, {
-          env: { ...process.env, VIRTUAL_ENV: venvPath },
+          env: { ...process.env, VIRTUAL_ENV: venvPath, UV_CACHE_DIR: uvCacheDir },
           shell: false,
           stdio: 'pipe',
           windowsVerbatimArguments: false
