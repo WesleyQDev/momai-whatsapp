@@ -99,7 +99,7 @@ export default function LateralBar({
 
   return (
     <div
-      className={`${isCompact ? 'w-12 py-2' : 'w-16 py-4'} bg-bg border-r border-border flex flex-col justify-between z-50 transition-all duration-300`}
+      className={`${isCompact ? 'w-12 py-2' : 'w-16 py-4'} bg-bg/80 backdrop-blur-xl border-r border-white/5 flex flex-col justify-between z-50 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl animate-slide-right`}
     >
       <div
         className={`flex flex-col items-center w-full ${isCompact ? 'gap-2' : 'gap-4'} overflow-y-auto scrollbar-none`}
@@ -119,7 +119,7 @@ export default function LateralBar({
                 onClick={() => onNavigate(route)}
                 title={ext.name}
                 id={isChat ? 'tutorial-chat' : undefined}
-                className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all hover:bg-accent/10 ${isActive ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
+                className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 ${isActive ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
               >
                 {isActive && (
                   <div
@@ -127,7 +127,7 @@ export default function LateralBar({
                   />
                 )}
                 <IconComponent
-                  className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-transform group-hover:scale-110`}
+                  className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
                 />
               </button>
             )
@@ -138,7 +138,7 @@ export default function LateralBar({
               onClick={() => onNavigate('/notes')}
               title={t('sidebar.notes')}
               id="tutorial-notes"
-              className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all hover:bg-accent/10 ${activeRoute === '/notes' ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
+              className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 ${activeRoute === '/notes' ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
             >
               {activeRoute === '/notes' && (
                 <div
@@ -146,7 +146,7 @@ export default function LateralBar({
                 />
               )}
               <DocumentTextIcon
-                className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-transform group-hover:scale-110`}
+                className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
               />
             </button>
           )
@@ -157,7 +157,7 @@ export default function LateralBar({
               <button
                 onClick={() => onNavigate('/agenda')}
                 title={t('sidebar.agenda') || 'Agenda'}
-                className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all hover:bg-accent/10 ${isActive ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
+                className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 ${isActive ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
               >
                 {isActive && (
                   <div
@@ -165,7 +165,7 @@ export default function LateralBar({
                   />
                 )}
                 <CalendarIcon
-                  className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-transform group-hover:scale-110`}
+                  className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
                 />
               </button>
             )
@@ -196,7 +196,7 @@ export default function LateralBar({
           onClick={() => onNavigate('/extensions')}
           title={t('sidebar.store')}
           id="tutorial-store"
-          className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all hover:bg-accent/10 ${activeRoute === '/extensions' ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
+          className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 ${activeRoute === '/extensions' ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
         >
           {activeRoute === '/extensions' && (
             <div
@@ -204,7 +204,7 @@ export default function LateralBar({
             />
           )}
           <PuzzlePieceIcon
-            className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-transform group-hover:scale-110`}
+            className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
           />
         </button>
 
@@ -212,10 +212,10 @@ export default function LateralBar({
         <button
           onClick={() => setShowAbout(true)}
           title="Sobre"
-          className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all hover:bg-accent/10 text-text-muted hover:text-text`}
+          className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 text-text-muted hover:text-text`}
         >
           <QuestionMarkCircleIcon
-            className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-transform group-hover:scale-110`}
+            className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
           />
         </button>
       </div>
@@ -224,7 +224,7 @@ export default function LateralBar({
         <button
           onClick={onOpenSettings}
           title={t('sidebar.settings')}
-          className={`${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} bg-transparent border-none text-text-muted cursor-pointer flex items-center justify-center transition-all hover:bg-white/5 hover:text-text`}
+          className={`${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} bg-transparent border-none text-text-muted cursor-pointer flex items-center justify-center transition-all duration-300 ease-out hover:bg-white/5 hover:text-text`}
         >
           <Cog6ToothIcon className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'}`} />
         </button>

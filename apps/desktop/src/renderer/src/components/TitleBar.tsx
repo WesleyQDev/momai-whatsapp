@@ -27,7 +27,7 @@ export default function TitleBar({}: TitleBarProps) {
 
   return (
     <div
-      className="h-8 bg-bg flex items-center select-none w-full border-b border-border relative z-[300] app-titlebar px-3"
+      className="h-8 bg-bg/80 backdrop-blur-xl flex items-center select-none w-full border-b border-white/5 relative z-[300] app-titlebar px-3 transition-all duration-500 animate-slide-down"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       {/* Esquerda - Espaçador para manter o centro no centro */}
@@ -48,7 +48,7 @@ export default function TitleBar({}: TitleBarProps) {
       <div className="flex h-full items-center flex-1 justify-end">
         <button
           onClick={handleMinimize}
-          className="h-full w-10 flex items-center justify-center text-text-muted hover:bg-white/5 hover:text-text transition-colors border-none bg-transparent cursor-pointer"
+          className="h-full w-10 flex items-center justify-center text-text-muted hover:bg-white/5 hover:text-text transition-all duration-300 ease-out border-none bg-transparent cursor-pointer"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           title="Minimizar"
         >
@@ -58,7 +58,7 @@ export default function TitleBar({}: TitleBarProps) {
         </button>
         <button
           onClick={handleMaximize}
-          className="h-full w-10 flex items-center justify-center text-text-muted hover:bg-white/5 hover:text-text transition-colors border-none bg-transparent cursor-pointer"
+          className="h-full w-10 flex items-center justify-center text-text-muted hover:bg-white/5 hover:text-text transition-all duration-300 ease-out border-none bg-transparent cursor-pointer"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           title="Maximizar"
         >
@@ -68,7 +68,7 @@ export default function TitleBar({}: TitleBarProps) {
         </button>
         <button
           onClick={handleClose}
-          className="h-full w-10 flex items-center justify-center text-text-muted hover:bg-red-500 hover:text-white transition-colors border-none bg-transparent cursor-pointer"
+          className="h-full w-10 flex items-center justify-center text-text-muted hover:bg-red-500 hover:text-white transition-all duration-300 ease-out border-none bg-transparent cursor-pointer"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           title="Fechar"
         >

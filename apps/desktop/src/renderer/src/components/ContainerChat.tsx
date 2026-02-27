@@ -1,7 +1,8 @@
-import { RefObject, JSX, useState, useEffect } from 'react'
+import { RefObject, JSX, useState, useEffect, useMemo } from 'react'
 import { MessageList, ChatInput } from './chat'
-import { Message, StatusData } from '../services/api'
+import { Message, StatusData, SettingsData, fetchSettings, listMemoryNotes } from '../services/api'
 import { cleanMomaiActions } from '../utils/text'
+import { WelcomeHeader, WelcomeActions } from './chat/WelcomeTips'
 
 interface ContainerChatProps {
   messages: Message[]
@@ -31,6 +32,21 @@ interface ContainerChatProps {
   onRemoveMessage?: (index: number) => void
   isFirstLaunch?: boolean
 }
+
+const ALL_SUGGESTIONS = [
+  'O que tenho na agenda para hoje?',
+  'Quais são as novidades sobre tecnologia?',
+  'Me ajude a organizar minhas notas',
+  'Como está o uso dos recursos do sistema?',
+  'Resuma minhas notas mais recentes',
+  'Quais são as suas capacidades?',
+  'Mostre a interface de lembretes',
+  'Como configurar o FortScript?',
+  'Liste meus lembretes pendentes',
+  'Qual é a previsão do tempo para hoje?',
+  'Me conte uma curiosidade aleatória',
+  'Verifique meus compromissos de amanhã'
+]
 
 const CallModeUI = ({
   onEndCall,
@@ -316,6 +332,41 @@ export default function ContainerChat({
     return (initProgress ?? 0) >= 100 && isBrainReady && !isBrainLoading
   })
   
+  const [settings, setSettings] = useState<SettingsData | null>(null)
+  const [dynamicSuggestion, setDynamicSuggestion] = useState<string | null>(null)
+  
+  const isBrainReady = statusInfo?.brain_ready ?? false
+  const isBrainLoading = statusInfo?.is_loading ?? false
+  const isEmpty = messages.length === 0
+
+  const randomSuggestions = useMemo(() => {
+    // Shuffling inside memo to keep consistency while empty
+    return ALL_SUGGESTIONS.sort(() => Math.random() - 0.5).slice(0, 4)
+  }, [threadId])
+
+  useEffect(() => {
+    if (isEmpty) {
+      const loadData = async () => {
+        try {
+          const s = await fetchSettings()
+          setSettings(s)
+          
+          if (isBrainReady) {
+            const notes = await listMemoryNotes()
+            const validNotes = notes?.filter(n => n.title.trim() !== '') || []
+            if (validNotes.length > 0) {
+              const randomNote = validNotes[Math.floor(Math.random() * validNotes.length)]
+              setDynamicSuggestion(`Anotação: ${randomNote.title}`)
+            }
+          }
+        } catch (e) {
+          console.error(e)
+        }
+      }
+      loadData()
+    }
+  }, [isEmpty, isBrainReady])
+
   useEffect(() => {
     setLocalSessionTitle(null)
   }, [threadId])
@@ -330,12 +381,8 @@ export default function ContainerChat({
     return () => window.removeEventListener('momai_session_title_generated', handleTitleGenerated as EventListener)
   }, [threadId])
 
-  const isBrainReady = statusInfo?.brain_ready ?? false
-  const isBrainLoading = statusInfo?.is_loading ?? false
-  
   const isReallyReady = initProgress >= 100 && isBrainReady && !isBrainLoading
   const displayProgress = !isReallyReady ? Math.min(initProgress, 99) : 100
-  
   const showLoading = !isReallyReady || !animationFinished
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
@@ -343,6 +390,7 @@ export default function ContainerChat({
     ? (!initMessage || initMessage === 'Sistema pronto.' ? defaultWaitingMessage : initMessage)
     : initMessage
 
+  const tier = statusInfo?.ai_tier || settings?.ai_tier || 'pro'
 
   return (
     <div className="bg-transparent w-full h-full flex flex-col overflow-hidden relative">
@@ -361,7 +409,7 @@ export default function ContainerChat({
         />
       ) : (
         <>
-          <div className="flex items-center justify-between gap-4 px-4 pt-4 pb-2">
+          <div className="flex items-center justify-between gap-4 px-4 pt-4 pb-2 z-20">
             <span className="flex-1 text-[11px] font-bold text-text/40 uppercase tracking-wider truncate">
               {(() => {
                 if (threadId === 'default') return 'Sessão Inicial'
@@ -404,34 +452,67 @@ export default function ContainerChat({
           </div>
 
           <div className="flex-1 overflow-hidden relative flex flex-col">
-            <MessageList
-              messages={messages}
-              isLoading={isLoading}
-              messagesEndRef={messagesEndRef}
-              onReopenGraph={onReopenGraph}
-              onGraphOption={onGraphOption}
-              onSendMessage={onSendMessage}
-              onStopVoice={stopCurrentVoice}
-              onStopGeneration={stopCurrentGeneration}
-              onSpeakMessage={onSpeakMessage}
-              onRemoveMessage={onRemoveMessage}
-              speakingIndex={speakingIndex}
-              statusInfo={statusInfo}
-            />
-          </div>
+             {/* Message Area */}
+             <div className="flex-1 relative overflow-hidden">
+                <div className={`absolute inset-0 transition-opacity duration-500 ${isEmpty ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                   {!isEmpty && (
+                     <MessageList
+                       messages={messages}
+                       isLoading={isLoading}
+                       messagesEndRef={messagesEndRef}
+                       onReopenGraph={onReopenGraph}
+                       onGraphOption={onGraphOption}
+                       onSendMessage={onSendMessage}
+                       onStopVoice={stopCurrentVoice}
+                       onStopGeneration={stopCurrentGeneration}
+                       onSpeakMessage={onSpeakMessage}
+                       onRemoveMessage={onRemoveMessage}
+                       speakingIndex={speakingIndex}
+                       statusInfo={statusInfo}
+                     />
+                   )}
+                </div>
+                
+                {/* Home Content Layer */}
+                {isEmpty && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                     {/* Smaller top spacer to keep things higher */}
+                     <div className="flex-1" /> 
+                     
+                     <div className="w-full max-w-4xl flex flex-col items-center animate-in fade-in duration-1000">
+                        <WelcomeHeader statusInfo={statusInfo} settings={settings} />
+                        <div className="mb-10">
+                           <WelcomeActions 
+                             onSendMessage={onSendMessage} 
+                             tier={tier} 
+                             dynamicSuggestion={dynamicSuggestion} 
+                             randomSuggestions={randomSuggestions} 
+                           />
+                        </div>
+                     </div>
 
-          <ChatInput
-            text={text}
-            onSend={onSendMessage}
-            isLoading={isLoading}
-            isModeChanging={isModeChanging}
-            statusInfo={statusInfo}
-            onStopGeneration={stopCurrentGeneration}
-            isCallMode={isCallMode}
-            onToggleCallMode={onToggleCallMode}
-            speakingIndex={speakingIndex}
-            voiceStatus={voiceStatus}
-          />
+                     {/* Larger bottom spacer to push content up from the input */}
+                     <div className="flex-[2]" />
+                  </div>
+                )}
+             </div>
+
+             {/* Fixed Input Area */}
+             <div className="w-full max-w-4xl mx-auto z-30 pb-2">
+                <ChatInput
+                  text={text}
+                  onSend={onSendMessage}
+                  isLoading={isLoading}
+                  isModeChanging={isModeChanging}
+                  statusInfo={statusInfo}
+                  onStopGeneration={stopCurrentGeneration}
+                  isCallMode={isCallMode}
+                  onToggleCallMode={onToggleCallMode}
+                  speakingIndex={speakingIndex}
+                  voiceStatus={voiceStatus}
+                />
+             </div>
+          </div>
         </>
       )}
     </div>

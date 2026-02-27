@@ -217,7 +217,7 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
 
   return (
     <div className="flex flex-col h-full bg-card overflow-hidden">
-      <div className="p-3 border-b border-border/10 flex items-center justify-between">
+      <div className="p-3 border-b border-white/5 flex items-center justify-between">
         <h2 className="text-[9px] font-black text-text-muted/30 uppercase tracking-[0.2em]">
           Próximos
         </h2>
@@ -526,22 +526,24 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
         </div>
       )}
 
-      <div className="p-2 border-t border-border/10 grid grid-cols-2 gap-1.5 shrink-0 bg-bg/50">
-        <button
-          onClick={() => setShowQuickAdd(true)}
-          className="flex items-center justify-center gap-1.5 py-2 bg-accent/10 hover:bg-accent/20 text-accent rounded transition-all active:scale-95"
-        >
-          <PlusIcon className="w-3 h-3" />
-          <span className="text-[9px] font-black uppercase tracking-widest">Criar</span>
-        </button>
-        <button
-          onClick={onNavigate}
-          className="flex items-center justify-center gap-1.5 py-2 bg-white/5 hover:bg-white/10 text-text/60 hover:text-text rounded transition-all active:scale-95 border border-border/5"
-        >
-          <CalendarIcon className="w-3 h-3" />
-          <span className="text-[9px] font-black uppercase tracking-widest">Agenda</span>
-        </button>
-      </div>
+      {displayItems.length > 0 && (
+        <div className="p-2 border-t border-white/5 grid grid-cols-2 gap-1.5 shrink-0 bg-bg/50">
+          <button
+            onClick={() => setShowQuickAdd(true)}
+            className="flex items-center justify-center gap-1.5 py-2 bg-accent/10 hover:bg-accent/20 text-accent rounded transition-all active:scale-95"
+          >
+            <PlusIcon className="w-3 h-3" />
+            <span className="text-[9px] font-black uppercase tracking-widest">Criar</span>
+          </button>
+          <button
+            onClick={onNavigate}
+            className="flex items-center justify-center gap-1.5 py-2 bg-white/5 hover:bg-white/10 text-text/60 hover:text-text rounded transition-all active:scale-95 border border-border/5"
+          >
+            <CalendarIcon className="w-3 h-3" />
+            <span className="text-[9px] font-black uppercase tracking-widest">Agenda</span>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

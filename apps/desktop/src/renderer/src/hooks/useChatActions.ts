@@ -47,13 +47,14 @@ export function useChatActions({
   
   const stopGeneration = useCallback(async () => {
     try {
-      await stopGenerationApi()
+      await Promise.all([stopGenerationApi(), stopVoiceApi()])
     } catch (err) {
-      console.error('Erro ao parar geração:', err)
+      console.error('Erro ao parar geração/voz:', err)
     } finally {
       setIsLoading(false)
+      setSpeakingIndex(null)
     }
-  }, [setIsLoading])
+  }, [setIsLoading, setSpeakingIndex])
 
   const stopVoice = useCallback(async () => {
     try {
@@ -266,7 +267,7 @@ export function useChatActions({
       const msg = messagesRef.current[index]
       if (msg && msg.id) {
         try {
-          await deleteMessageApi(threadId, msg.id)
+          await deleteMessageApi(msg.id as any)
         } catch (err) {
           console.error('Erro ao deletar mensagem:', err)
         }

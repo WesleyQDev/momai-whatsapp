@@ -467,6 +467,10 @@ export function useChatHandlers({
           return updated
         })
       }
+
+      if (data.done) {
+        setIsLoading(false)
+      }
     }
   }, [
     messagesRef,

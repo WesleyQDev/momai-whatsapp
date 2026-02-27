@@ -32,7 +32,7 @@
   "common.on": "Ligado",
   "common.off": "Desligado",
   "common.today": "Hoje",
-  "chatInput.placeholder": "Digite uma mensagem ou diga 'Luna' para falar...",
+  "chatInput.placeholder": "Digite uma mensagem",
   "chatInput.voz": "Voz",
   "chatInput.opcoesVoz": "Opções de Voz",
   "chatInput.reconhecimento": "Ativação por Voz",

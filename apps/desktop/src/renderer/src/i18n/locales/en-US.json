@@ -32,7 +32,7 @@
   "common.on": "On",
   "common.off": "Off",
   "common.today": "Today",
-  "chatInput.placeholder": "Type a message or say 'Luna' to speak...",
+  "chatInput.placeholder": "Type a message",
   "chatInput.voz": "Voice",
   "chatInput.opcoesVoz": "Voice Options",
   "chatInput.reconhecimento": "Recognition",

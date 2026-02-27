@@ -262,7 +262,7 @@ export default function ChatInput({
   return (
     <footer className="p-4 bg-transparent relative">
       <div className="max-w-4xl mx-auto relative">
-        <div className="flex flex-col bg-card border border-border/20 rounded-2xl shadow-xl transition-all duration-200 focus-within:border-accent/40 focus-within:ring-1 focus-within:ring-accent/10">
+        <div className="flex flex-col bg-white/[0.03] hover:bg-white/[0.05] backdrop-blur-xl rounded-2xl transition-all duration-300 focus-within:bg-white/[0.07] focus-within:ring-1 focus-within:ring-white/5">
           <div className="relative">
             {/* Ghost text overlay for autocomplete suggestion */}
             <div
@@ -280,7 +280,7 @@ export default function ChatInput({
             <textarea
               ref={inputRef}
               rows={1}
-              className="flex-1 w-full bg-transparent border-none py-3 px-5 text-[15px] sm:text-[16px] text-text outline-none placeholder:text-text-muted/30 disabled:opacity-50 min-w-0 resize-none scrollbar-none relative z-10"
+              className="flex-1 w-full bg-transparent border-none py-3 px-5 text-[15px] sm:text-[16px] text-text outline-none placeholder:text-text-muted/70 disabled:opacity-50 min-w-0 resize-none scrollbar-none relative z-10"
               style={{ caretColor: 'auto' }}
               value={localText}
               onChange={handleInputChange}
@@ -405,7 +405,7 @@ export default function ChatInput({
                 </button>
               )}
 
-              {(isLoading || isModeChanging || speakingIndex !== null || voiceStatus === 'processing' || statusInfo?.is_loading) ? (
+              {(isLoading || speakingIndex !== null || voiceStatus === 'processing') ? (
                 <button
                   type="button"
                   className="bg-accent text-white rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg shadow-accent/20"

@@ -64,9 +64,6 @@ const MessageList = memo(function MessageList({
       onScroll={handleScroll}
       className="flex-1 flex flex-col gap-5 p-4 overflow-y-auto overflow-x-hidden relative scroll-smooth"
     >
-      {messages.length === 0 && (
-        <WelcomeTips onSendMessage={onSendMessage} statusInfo={statusInfo} />
-      )}
       {messages.map((msg, i) => (
         <MessageItem
           key={i}
