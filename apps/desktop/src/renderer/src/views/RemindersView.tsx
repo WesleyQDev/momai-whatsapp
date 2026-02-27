@@ -55,10 +55,21 @@ const isToday = (date: Date) => {
   )
 }
 
-const isUpcoming = (date: Date) => {
-  const today = new Date()
-  today.setHours(23, 59, 59, 999)
-  return date > today
+const isTomorrow = (date: Date) => {
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  return (
+    date.getFullYear() === tomorrow.getFullYear() &&
+    date.getMonth() === tomorrow.getMonth() &&
+    date.getDate() === tomorrow.getDate()
+  )
+}
+
+const isFuture = (date: Date) => {
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  tomorrow.setHours(23, 59, 59, 999)
+  return date > tomorrow
 }
 
 // --- Main Component ---
@@ -67,9 +78,11 @@ export default function RemindersView() {
   const { t, formatDate, formatTime } = useI18n()
   const [reminders, setReminders] = useState<Reminder[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isRepeatMenuOpen, setIsRepeatMenuOpen] = useState(false)
   const [expandedSections, setExpandedSections] = useState({
     overdue: true,
     today: true,
+    tomorrow: true,
     upcoming: true
   })
 
@@ -107,7 +120,8 @@ export default function RemindersView() {
     return {
       overdue: sorted.filter((r) => isOverdue(new Date(r.scheduled_time))),
       today: sorted.filter((r) => isToday(new Date(r.scheduled_time)) && !isOverdue(new Date(r.scheduled_time))),
-      upcoming: sorted.filter((r) => isUpcoming(new Date(r.scheduled_time)))
+      tomorrow: sorted.filter((r) => isTomorrow(new Date(r.scheduled_time))),
+      upcoming: sorted.filter((r) => isFuture(new Date(r.scheduled_time)))
     }
   }, [reminders])
 
@@ -140,6 +154,7 @@ export default function RemindersView() {
       repeat_value: reminder.repeat_value || 1
     })
     setIsModalOpen(true)
+    setIsRepeatMenuOpen(false)
   }
 
   const handleDelete = async (id: number) => {
@@ -295,7 +310,7 @@ export default function RemindersView() {
               <h1 className="text-2xl font-black text-text tracking-tight flex items-center gap-2">
                 {t('reminders.title') || 'Hoje'}
                 <span className="text-sm font-bold text-accent bg-accent/10 px-2 py-0.5 rounded-full border border-accent/20">
-                  {reminders.filter(r => !isUpcoming(new Date(r.scheduled_time))).length}
+                  {groupedReminders.today.length + groupedReminders.overdue.length}
                 </span>
               </h1>
               <p className="text-[10px] text-text-muted/40 mt-1 font-bold uppercase tracking-wider">
@@ -305,10 +320,12 @@ export default function RemindersView() {
 
             <button
               onClick={handleOpenCreate}
-              className="px-4 py-2 bg-accent text-black rounded-lg text-[10px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 shadow-lg shadow-accent/10 transition-all flex items-center gap-1.5"
+              className="px-5 py-2.5 bg-accent/10 border border-accent/20 text-accent rounded-xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-accent/20 active:scale-95 transition-all flex items-center gap-2 group"
             >
-              <PlusIcon className="w-3.5 h-3.5" />
-              Novo
+              <div className="bg-accent/20 p-1 rounded-md group-hover:rotate-90 transition-transform duration-300">
+                <PlusIcon className="w-3 h-3" />
+              </div>
+              {t('reminders.newReminder') || 'Novo'}
             </button>
           </header>
 
@@ -324,6 +341,20 @@ export default function RemindersView() {
             items={groupedReminders.today} 
             id="today" 
             color="text-accent"
+          />
+
+          <Section 
+            title="Amanhã" 
+            items={groupedReminders.tomorrow} 
+            id="tomorrow" 
+            color="text-emerald-500"
+          />
+
+          <Section 
+            title="Próximos" 
+            items={groupedReminders.upcoming} 
+            id="upcoming" 
+            color="text-violet-500"
           />
 
           {!reminders.length && (
@@ -373,65 +404,125 @@ export default function RemindersView() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-white/5">
-                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-text/5 rounded-md border border-white/5">
-                  <CalendarIcon className="w-3.5 h-3.5 text-accent" />
+                <div 
+                  className="flex items-center gap-1.5 px-3 py-2 bg-text/5 rounded-lg border border-white/5 hover:border-accent/30 transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    const input = e.currentTarget.querySelector('input')
+                    if (input) {
+                      try { input.showPicker() } catch (err) { input.focus() }
+                    }
+                  }}
+                >
+                  <CalendarIcon className="w-4 h-4 text-accent" />
                   <input
                     required
                     type="date"
-                    className="bg-transparent border-none text-[10px] font-bold text-text outline-none p-0 focus:ring-0 w-24"
+                    className="bg-transparent border-none text-[11px] font-black uppercase tracking-tight text-text outline-none p-0 focus:ring-0 w-24 cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden [color-scheme:dark]"
                     value={formData.newDate}
                     onChange={(e) => setFormData({ ...formData, newDate: e.target.value })}
                   />
                 </div>
                 
-                <div className="flex items-center gap-1.5 px-2 py-1.5 bg-text/5 rounded-md border border-white/5">
-                  <ClockIcon className="w-3.5 h-3.5 text-accent" />
+                <div 
+                  className="flex items-center gap-1.5 px-3 py-2 bg-text/5 rounded-lg border border-white/5 hover:border-accent/30 transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    const input = e.currentTarget.querySelector('input')
+                    if (input) {
+                      try { input.showPicker() } catch (err) { input.focus() }
+                    }
+                  }}
+                >
+                  <ClockIcon className="w-4 h-4 text-accent" />
                   <input
                     required
                     type="time"
-                    className="bg-transparent border-none text-[10px] font-bold text-text outline-none p-0 focus:ring-0 w-16"
+                    className="bg-transparent border-none text-[11px] font-black uppercase tracking-tight text-text outline-none p-0 focus:ring-0 w-16 cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden [color-scheme:dark]"
                     value={formData.newTime}
                     onChange={(e) => setFormData({ ...formData, newTime: e.target.value })}
                   />
                 </div>
 
-                <div className="bg-text/5 rounded-md border border-white/5 flex items-center">
-                  <div className="px-2 border-r border-white/5">
-                    <ArrowPathIcon className="w-3.5 h-3.5 text-emerald-500" />
+                {/* Custom Repetition Dropdown */}
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsRepeatMenuOpen(!isRepeatMenuOpen)}
+                      className={`flex items-center gap-2 px-3 py-2 bg-text/5 rounded-lg border transition-all hover:border-accent/30 ${isRepeatMenuOpen ? 'border-accent/50 ring-1 ring-accent/20' : 'border-white/5'}`}
+                    >
+                      <ArrowPathIcon className={`w-4 h-4 ${formData.repeat_interval ? 'text-emerald-500' : 'text-text-muted/40'}`} />
+                      <span className="text-[11px] font-black uppercase tracking-tight text-text/80 min-w-[70px] text-left">
+                        {formData.repeat_interval 
+                           ? t(`reminders.repeat.${formData.repeat_interval}`) || formData.repeat_interval 
+                           : 'Sem repetição'}
+                      </span>
+                      <ChevronDownIcon className={`w-3 h-3 text-text-muted/40 transition-transform ${isRepeatMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isRepeatMenuOpen && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setIsRepeatMenuOpen(false)}></div>
+                        <div className="absolute bottom-full mb-2 left-0 w-48 bg-card border border-white/10 rounded-xl shadow-2xl py-2 z-20 animate-in fade-in slide-in-from-bottom-1 duration-200 backdrop-blur-xl">
+                          {[
+                            { id: null, label: 'Sem repetição' },
+                            { id: 'minutes', label: 'Minutos' },
+                            { id: 'hours', label: 'Horas' },
+                            { id: 'days', label: 'Dias' },
+                            { id: 'weeks', label: 'Semanas' },
+                            { id: 'months', label: 'Meses' }
+                          ].map((opt) => (
+                            <button
+                              key={opt.id || 'none'}
+                              type="button"
+                              className={`w-full px-4 py-2 text-left text-[11px] font-black uppercase tracking-widest flex items-center justify-between transition-colors ${formData.repeat_interval === opt.id ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text hover:bg-white/5'}`}
+                              onClick={() => {
+                                setFormData({
+                                  ...formData,
+                                  repeat_interval: opt.id as any,
+                                  repeat_value: opt.id ? formData.repeat_value || 1 : 1
+                                })
+                                setIsRepeatMenuOpen(false)
+                              }}
+                            >
+                              <span>{opt.label}</span>
+                              {formData.repeat_interval === opt.id && (
+                                <CheckCircleSolid className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <select
-                    className="bg-transparent border-none text-[10px] font-bold text-text outline-none px-2 py-1.5 focus:ring-0"
-                    value={formData.repeat_interval || ''}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        repeat_interval: (e.target.value || null) as any,
-                        repeat_value: e.target.value ? formData.repeat_value || 1 : 1
-                      })
-                    }
-                  >
-                    <option value="">Repetir...</option>
-                    <option value="minutes">Minutos</option>
-                    <option value="hours">Horas</option>
-                    <option value="days">Dias</option>
-                    <option value="weeks">Semanas</option>
-                    <option value="months">Meses</option>
-                  </select>
+
+                  {formData.repeat_interval && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-text/5 rounded-lg border border-white/5 animate-in fade-in slide-in-from-left-2 duration-300">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-text-muted/40">A cada</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="999"
+                        className="w-8 bg-transparent border-none p-0 text-[11px] font-black text-accent outline-none focus:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-center"
+                        value={formData.repeat_value}
+                        onChange={(e) => setFormData({...formData, repeat_value: parseInt(e.target.value) || 1})}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="px-6 py-3 bg-white/5 border-t border-white/5 flex justify-end gap-2">
+            <div className="px-6 py-4 bg-white/5 border-t border-white/5 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 text-[10px] font-black text-text-muted hover:text-text uppercase tracking-widest transition-all"
+                className="px-5 py-2.5 text-[11px] font-black text-text-muted hover:text-text uppercase tracking-widest transition-all rounded-lg hover:bg-white/5"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-6 py-2 bg-accent text-black rounded-lg text-[10px] font-black uppercase tracking-widest hover:brightness-110 shadow-lg shadow-accent/10 transition-all"
+                className="px-8 py-2.5 bg-accent text-white rounded-xl text-[11px] font-black uppercase tracking-[0.2em] hover:brightness-110 shadow-xl shadow-accent/20 transition-all border border-white/10 active:scale-[0.98]"
               >
                 Salvar
               </button>

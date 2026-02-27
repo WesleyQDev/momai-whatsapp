@@ -694,7 +694,7 @@ const MessageItem = memo(function MessageItem({
           {/* 4. Rodapé de Opções */}
           {message.role === 'assistant' && (
             <div className="flex flex-col gap-2 mt-2">
-              {isSpeaking && onStopVoice && !hideStopButton && (
+              {isSpeaking && onStopVoice && !hideStopButton && aiTier !== 'lite' && (
                 <div className="flex justify-end">
                   <button
                     type="button"

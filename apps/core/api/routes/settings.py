@@ -22,6 +22,11 @@ def _sync_update_settings(data: SettingsUpdate):
         if data.ai_tier is not None:
             settings.ai_tier = data.ai_tier
             changes.append("ai_tier")
+            # If changing to lite, force disabled voice features
+            if data.ai_tier == "lite":
+                settings.tts_enabled = False
+                settings.wake_word_enabled = False
+                changes.extend(["tts_enabled", "wake_word_enabled"])
 
         if data.user_name is not None:
             settings.user_name = data.user_name
@@ -51,10 +56,14 @@ def _sync_update_settings(data: SettingsUpdate):
         if data.tts_enabled is not None:
             # Enforce Lite tier restriction
             settings.tts_enabled = data.tts_enabled if settings.ai_tier != "lite" else False
+            if "tts_enabled" not in changes:
+                changes.append("tts_enabled")
 
         if data.wake_word_enabled is not None:
             # Enforce Lite tier restriction
             settings.wake_word_enabled = data.wake_word_enabled if settings.ai_tier != "lite" else False
+            if "wake_word_enabled" not in changes:
+                changes.append("wake_word_enabled")
 
         if data.wake_word_sensitivity is not None:
             settings.wake_word_sensitivity = data.wake_word_sensitivity
@@ -77,7 +86,7 @@ def _sync_update_settings(data: SettingsUpdate):
 
         db.commit()
         db.refresh(settings)
-        return changes, settings.ai_provider, settings.tts_voice, settings.tts_enabled, settings.wake_word_enabled
+        return changes, settings.ai_provider, settings.tts_voice, settings.tts_enabled, settings.wake_word_enabled, settings.ai_tier
     finally:
         db.close()
 
@@ -118,15 +127,15 @@ async def get_settings(db: Session = Depends(get_db)):
 
 @router.patch("/settings")
 async def update_settings(data: SettingsUpdate):
-    changes, provider, tts_voice, tts_enabled, ww_enabled = await asyncio.to_thread(_sync_update_settings, data)
+    changes, provider, tts_voice, tts_enabled, ww_enabled, current_tier = await asyncio.to_thread(_sync_update_settings, data)
 
     if data.tts_voice is not None:
         app_state.tts.tts.set_voice(tts_voice)
 
-    if data.tts_enabled is not None:
+    if "tts_enabled" in changes or data.tts_enabled is not None:
         app_state.tts.tts.set_enabled(tts_enabled)
 
-    if data.wake_word_enabled is not None:
+    if "wake_word_enabled" in changes or data.wake_word_enabled is not None:
         if app_state.ww:
             if ww_enabled:
                 app_state.ww.start()
@@ -135,7 +144,7 @@ async def update_settings(data: SettingsUpdate):
 
     if any(change in changes for change in ["persona", "user_name", "provider", "local_backend", "ai_tier"]):
         # Always re-initialize local LLM
-        app_state.initialize_llm(tier=data.ai_tier)
+        app_state.initialize_llm(tier=current_tier)
         await app_state.broadcast_to_sockets({"type": "model_changed", "data": {"new_mode": "local"}})
 
     # Se o onboarding acabou de ser concluído, inicia os serviços core

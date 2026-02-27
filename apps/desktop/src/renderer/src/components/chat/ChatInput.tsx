@@ -405,7 +405,7 @@ export default function ChatInput({
                 </button>
               )}
 
-              {(isLoading || speakingIndex !== null || voiceStatus === 'processing') ? (
+              {(isLoading || (speakingIndex !== null && aiTier !== 'lite') || voiceStatus === 'processing') ? (
                 <button
                   type="button"
                   className="bg-accent text-white rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg shadow-accent/20"
