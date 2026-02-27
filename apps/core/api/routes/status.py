@@ -27,9 +27,10 @@ async def get_status(db: Session = Depends(get_db)):
     return {
         "status": "ok",
         "mode": app_state.orchestrator.llm_mode,
-        "brain_ready": app_state.orchestrator.llm is not None and app_state.orchestrator.momai_graph is not None,
+        "brain_ready": True if not getattr(settings, "auto_start_llm", True) else (app_state.orchestrator.llm is not None and app_state.orchestrator.momai_graph is not None),
         "is_loading": app_state.orchestrator.is_loading,
         "ai_tier": settings.ai_tier if settings else None,
+        "auto_start_llm": getattr(settings, "auto_start_llm", True),
         "tiers_config": tiers_config,
         "setup": {
             "local_installed": engine_ok,

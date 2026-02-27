@@ -49,6 +49,7 @@ class SettingsUpdate(BaseModel):
     tutorial_completed: bool | None = None
     daily_briefing_enabled: bool | None = None
     ai_tier: str | None = None
+    auto_start_llm: bool | None = None
 
 
 class ExtensionToggle(BaseModel):

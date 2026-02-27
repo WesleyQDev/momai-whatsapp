@@ -105,6 +105,30 @@ export const BrainTab = ({
 
         {/* Hardware e Configuração */}
         <div className="space-y-6 pt-2">
+          {/* Quick Settings */}
+          <div className="flex items-center justify-between p-4 rounded-xl bg-black/30 border border-white/[0.05] shadow-inner mb-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-bold text-text uppercase tracking-tight">
+                {t('settings.brain.autoStartLabel') || 'Iniciar Automaticamente'}
+              </span>
+              <span className="text-[9px] text-text-muted font-medium opacity-60 uppercase tracking-widest leading-relaxed max-w-[200px]">
+                {t('settings.brain.autoStartDesc') || 'Ligar a inteligência local ao abrir a MomAI'}
+              </span>
+            </div>
+            <button
+              onClick={() => updateField('auto_start_llm', !settings.auto_start_llm, true)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                settings.auto_start_llm !== false ? 'bg-accent/80' : 'bg-white/10'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  settings.auto_start_llm !== false ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
           {/* Hardware Section */}
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">

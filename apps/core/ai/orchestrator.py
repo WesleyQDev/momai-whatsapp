@@ -306,14 +306,18 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
                 try:
                     from utils.indexer import index_all_system_tools, index_all_skills
 
-                    asyncio.run(index_all_system_tools())
-                    asyncio.run(index_all_skills())
+                    def _do_index():
+                        import asyncio
+                        asyncio.run(index_all_system_tools())
+                        asyncio.run(index_all_skills())
+                    import threading
+                    threading.Thread(target=_do_index, daemon=True).start()
                 except Exception as sync_err:
                     logger.warning(
                         f"[AI_core] Falha na sincronização de ferramentas: {sync_err}"
                     )
             else:
-                logger.info("[AI_core] Modo Lite detectado. Pulando sincronização vetorial.")
+                logger.info("[AI_core] Modo Lite/Pro detectado. Sincronização vetorial feita conforme demanda.")
 
             report_progress("Reconstruindo Grafo de Agentes...")
 

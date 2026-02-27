@@ -49,8 +49,11 @@ class ResourceManager:
         self.thread = None
         self.lock = threading.Lock()
         self.is_gaming = False
-        self.on_notify_callback = None # Callback to notify the UI (via websocket)
+        self.on_notify_callback = None
         self.start_time = time.time() # Track boot time
+        self.inactivity_thread = None
+        self.inactivity_running = False
+        self.is_inactive = False
         self.initialized = True
 
     def start(self):
@@ -109,6 +112,73 @@ class ResourceManager:
                 logger.error(f"[ResourceManager] Error starting: {e}")
             finally:
                 db.close()
+
+            # Start inactivity monitor
+            if not self.inactivity_thread or not self.inactivity_thread.is_alive():
+                self.inactivity_running = True
+                self.inactivity_thread = threading.Thread(
+                    target=self._inactivity_monitor_loop, 
+                    daemon=True, 
+                    name="Inactivity-Monitor"
+                )
+                self.inactivity_thread.start()
+
+    def _inactivity_monitor_loop(self):
+        import app_state
+        while self.inactivity_running:
+            time.sleep(10)
+            try:
+                # If we are in gaming mode, resources are already suspended
+                if self.is_gaming:
+                    continue
+                
+                import ai.orchestrator as orchestrator
+                
+                # Check inactivity
+                if not getattr(app_state, 'is_ai_busy', lambda: False)():
+                    last_interaction = getattr(app_state, 'last_interaction_time', time.time())
+                    # 180 seconds = 3 minutes
+                    if time.time() - last_interaction > 180 and not self.is_inactive:
+                        if orchestrator.llm_mode == "local" and orchestrator.llm is not None:
+                            logger.info("[ResourceManager] 3 minutes of inactivity detected. Suspending AI to save resources...")
+                            self._suspend_for_inactivity()
+                
+                # Update is_inactive state if user naturally revived it
+                if self.is_inactive and orchestrator.llm is not None:
+                    self.is_inactive = False
+                    
+            except Exception as e:
+                logger.debug(f"[ResourceManager] Inactivity monitor error: {e}")
+
+    def _suspend_for_inactivity(self):
+        try:
+            self.is_inactive = True
+            
+            from ai.embeddings import embeddings
+            embeddings.stop()
+            
+            from ai.providers.local_llama import stop_server
+            stop_server()
+            
+            import ai.orchestrator as orchestrator
+            # Set to None so next chat will trigger on-demand init in stream processor
+            orchestrator.llm = None
+            orchestrator.momai_graph = None
+            orchestrator.llm_mode = "waiting"
+            
+            if app_state.main_loop:
+                import asyncio
+                asyncio.run_coroutine_threadsafe(
+                    app_state.broadcast_to_sockets(
+                        {"type": "model_changed", "data": {"new_mode": "waiting"}}
+                    ),
+                    app_state.main_loop,
+                )
+            
+            gc.collect()
+            logger.info("[ResourceManager] Inactivity suspension complete.")
+        except Exception as e:
+            logger.error(f"[ResourceManager] Error suspending for inactivity: {e}")
 
     def _enter_gaming_mode(self):
         """Action executed when a game is detected."""
@@ -246,6 +316,8 @@ class ResourceManager:
             
             # Stop TTS
             tts.stop_all()
+            
+            self.inactivity_running = False
             
             # FortScript thread is daemon, will die with process
             logger.info("[ResourceManager] Resource manager stopped successfully.")

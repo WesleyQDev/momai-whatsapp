@@ -35,6 +35,25 @@ class StreamProcessor:
             tts.stop_all()
         except: pass
 
+        if not utils.is_loading and (self.llm is None or self.graph is None):
+            import asyncio
+            from database.models import SessionLocal, Settings
+            
+            # Start initialization
+            db = SessionLocal()
+            s = db.query(Settings).first()
+            tier = s.ai_tier if s else "pro"
+            db.close()
+            
+            app_state.initialize_llm(tier=tier)
+            yield f"data: {json.dumps({'status': 'initializing_llm'})}\n\n"
+            
+            # Wait for it to be ready
+            await asyncio.to_thread(app_state.orchestrator.llm_ready_event.wait, timeout=300)
+            
+            self.llm = app_state.orchestrator.llm
+            self.graph = app_state.orchestrator.momai_graph
+
         if utils.is_loading or self.llm is None or self.graph is None:
             status_mode = utils.llm_mode if utils.llm_mode != "waiting" else "inicial"
             msg = f"Aguarde um momento, Senhor. Estou configurando meu motor para o modo {status_mode}."

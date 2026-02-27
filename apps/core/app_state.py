@@ -18,6 +18,7 @@ system_ready = asyncio.Event()
 is_gaming_mode = False
 ai_stack_loaded = False
 ai_busy = False
+last_interaction_time = time.time()
 
 last_init_event: dict[str, Any] = {
     "stage": "pending",
@@ -131,8 +132,10 @@ def set_gaming_mode(enabled: bool) -> None:
 
 def set_ai_busy(enabled: bool) -> None:
     """Marks when the AI pipeline is actively streaming a response."""
-    global ai_busy
+    global ai_busy, last_interaction_time
     ai_busy = enabled
+    if enabled:
+        last_interaction_time = time.time()
 
 
 def is_ai_busy() -> bool:

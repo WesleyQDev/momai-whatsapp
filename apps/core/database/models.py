@@ -39,6 +39,7 @@ class Settings(Base):
     ai_model = Column(String, default="Qwen 3 4B Instruct")
     api_keys = Column(String, default="{}")  # JSON string {"groq": "", "gemini": ""}
     local_backend = Column(String, default="auto")  # auto, cuda, vulkan, cpu
+    auto_start_llm = Column(Boolean, default=True)
 
     # Audio
     tts_voice = Column(String, default="pf_dora")
@@ -209,6 +210,12 @@ def init_db():
             conn.execute(
                 text(
                     "ALTER TABLE settings ADD COLUMN ai_tier TEXT DEFAULT 'pro'"
+                )
+            )
+        if "auto_start_llm" not in cols:
+            conn.execute(
+                text(
+                    "ALTER TABLE settings ADD COLUMN auto_start_llm BOOLEAN DEFAULT 1"
                 )
             )
         conn.commit()

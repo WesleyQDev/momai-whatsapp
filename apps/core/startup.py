@@ -67,7 +67,16 @@ async def start_core_services(settings):
                     app_state.send_init_event("brain", f"LLM: {status}", None), app_state.main_loop
                 )
 
-        app_state.orchestrator.initialize_llm(on_brain_init)
+        if getattr(settings, "auto_start_llm", True):
+            app_state.orchestrator.initialize_llm(on_brain_init)
+        else:
+            if app_state.main_loop:
+                asyncio.run_coroutine_threadsafe(
+                    app_state.send_init_event(
+                        "brain", "LLM local não iniciado automaticamente (auto_start_llm=False)", None
+                    ),
+                    app_state.main_loop,
+                )
 
         # 2. Load skills sequentially for progress feedback
         def load_extensions():
@@ -93,39 +102,7 @@ async def start_core_services(settings):
 
         threading.Thread(target=load_extensions, daemon=True).start()
 
-        # 3. Indexing tools with progress
-        def index_tools():
-            try:
-                from utils.indexer import index_all_system_tools, index_all_skills
-
-                def report_idx(msg):
-                    if app_state.main_loop:
-                        asyncio.run_coroutine_threadsafe(
-                            app_state.send_init_event("brain", msg, None),
-                            app_state.main_loop,
-                        )
-
-                asyncio.run(index_all_system_tools(on_progress=report_idx))
-                
-                def report_skill_idx(msg):
-                    if app_state.main_loop:
-                        asyncio.run_coroutine_threadsafe(
-                            app_state.send_init_event("brain", msg, None),
-                            app_state.main_loop,
-                        )
-                asyncio.run(index_all_skills(on_progress=report_skill_idx))
-                
-                if app_state.main_loop:
-                    asyncio.run_coroutine_threadsafe(
-                        app_state.send_init_event("brain", "Knowledge base indexed", None),
-                        app_state.main_loop,
-                    )
-            except Exception as exc:
-                app_state.logger.warning("[Main] Indexing error: %s", exc)
-
-        threading.Thread(target=index_tools, daemon=True).start()
-
-        # 4. Apply settings
+        # 3. Apply settings
         await app_state.send_init_event("brain", "Applying user preferences...", None)
         app_state.tts.tts.set_voice(settings.tts_voice)
         app_state.tts.tts.set_enabled(settings.tts_enabled)

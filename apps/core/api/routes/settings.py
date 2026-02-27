@@ -71,6 +71,9 @@ def _sync_update_settings(data: SettingsUpdate):
         if data.daily_briefing_enabled is not None:
             settings.daily_briefing_enabled = data.daily_briefing_enabled
 
+        if data.auto_start_llm is not None:
+            settings.auto_start_llm = data.auto_start_llm
+
 
         db.commit()
         db.refresh(settings)
@@ -108,7 +111,8 @@ async def get_settings(db: Session = Depends(get_db)):
         "onboarding_completed": settings.onboarding_completed,
         "tutorial_completed": settings.tutorial_completed,
         "daily_briefing_enabled": settings.daily_briefing_enabled,
-        "ai_tier": settings.ai_tier
+        "ai_tier": settings.ai_tier,
+        "auto_start_llm": settings.auto_start_llm
     }
 
 

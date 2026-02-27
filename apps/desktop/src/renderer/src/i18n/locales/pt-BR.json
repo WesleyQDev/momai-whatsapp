@@ -171,6 +171,8 @@
   "settings.general.languageSection": "Idioma e Interface",
   "settings.brain.title": "Inteligência Local",
   "settings.brain.subtitle": "Gerencie o processamento local e privado da sua assistente.",
+  "settings.brain.autoStartLabel": "Iniciar Automaticamente",
+  "settings.brain.autoStartDesc": "Ligar a inteligência local ao abrir a MomAI",
   "settings.brain.localCoreTitle": "Motor Núcleo",
   "settings.brain.localCoreSubtitle": "Llama.cpp Inference Engine",
   "settings.brain.activeModel": "Modelo Ativo",

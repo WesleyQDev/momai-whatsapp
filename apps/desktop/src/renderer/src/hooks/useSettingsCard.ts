@@ -19,6 +19,7 @@ export interface Settings {
   locale: string
   daily_briefing_enabled: boolean
   ai_tier: 'lite' | 'pro' | 'ultra'
+  auto_start_llm: boolean
 }
 
 export interface LocalDetails {
@@ -59,7 +60,8 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     wake_word_sensitivity: 5,
     locale: 'pt-BR',
     daily_briefing_enabled: false,
-    ai_tier: 'pro'
+    ai_tier: 'pro',
+    auto_start_llm: true
   })
 
   const [installStatus, setInstallStatus] = useState<
