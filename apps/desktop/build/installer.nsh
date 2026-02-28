@@ -39,7 +39,7 @@ Var MomAIClearData
   ${EndIf}
 
   ; Detect previous installation — offer data reset only on reinstall (same version)
-  IfFileExists "$APPDATA\desktop\*.*" 0 skip_init
+  IfFileExists "$APPDATA\MomAI\*.*" 0 skip_init
     MessageBox MB_YESNO|MB_ICONQUESTION "MomAI ja esta instalada.$\r$\nDeseja apagar todos os dados locais e recomecar do zero?" IDYES clearYes IDNO clearNo
     clearYes:
       StrCpy $MomAIClearData "1"
@@ -54,12 +54,14 @@ Var MomAIClearData
     nsExec::ExecToLog 'taskkill /f /im llama-server.exe'
     Sleep 2000
 
-    ; userData path: %APPDATA%\desktop (from package.json "name": "desktop")
+    ; clear old installations data
     RMDir /r "$APPDATA\desktop"
     RMDir /r "$LOCALAPPDATA\desktop"
-    ; Also clean MomAI-named folders (updater, or future migration)
+    
+    ; userData path: %APPDATA%\MomAI (from package.json "productName": "MomAI")
     RMDir /r "$APPDATA\MomAI"
     RMDir /r "$LOCALAPPDATA\MomAI"
+    ; Also clean other MomAI-named folders (updater, or future migration)
     RMDir /r "$LOCALAPPDATA\MomAI-updater"
   ${EndIf}
 !macroend
@@ -142,11 +144,12 @@ Var MomAIClearData
   ${EndIf}
 
   ; Remove all user data
-  ; Real data path: %APPDATA%\desktop (from package.json "name": "desktop")
   RMDir /r "$APPDATA\desktop"
   RMDir /r "$LOCALAPPDATA\desktop"
-  ; Also clean MomAI-named folders (updater, or future migration)
+  
+  ; Real data path: %APPDATA%\MomAI (from package.json "productName": "MomAI")
   RMDir /r "$APPDATA\MomAI"
   RMDir /r "$LOCALAPPDATA\MomAI"
+  ; Also clean MomAI-named folders (updater, or future migration)
   RMDir /r "$LOCALAPPDATA\MomAI-updater"
 !macroend

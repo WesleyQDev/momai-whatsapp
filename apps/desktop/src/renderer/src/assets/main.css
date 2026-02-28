@@ -81,11 +81,11 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-white/5 rounded-full transition-colors hover:bg-white/10;
+    @apply bg-white/20 rounded-full transition-colors hover:bg-white/30;
   }
 
   [data-theme='light'] ::-webkit-scrollbar-thumb {
-    @apply bg-black/10 hover:bg-black/20;
+    @apply bg-black/20 hover:bg-black/30;
   }
 
   .no-drag {

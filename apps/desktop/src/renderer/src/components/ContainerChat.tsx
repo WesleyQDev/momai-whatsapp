@@ -373,6 +373,12 @@ export default function ContainerChat({
   }, [isEmpty, isBrainReady, dataLoaded])
 
   useEffect(() => {
+    if (isModeChanging) {
+      setAnimationFinished(false)
+    }
+  }, [isModeChanging])
+
+  useEffect(() => {
     setLocalSessionTitle(null)
   }, [threadId])
 
@@ -476,7 +482,7 @@ export default function ContainerChat({
           <div className="flex-1 overflow-hidden relative flex flex-col">
              {/* Message Area */}
              <div className="flex-1 relative overflow-hidden">
-                <div className={`absolute inset-0 transition-opacity duration-500 ${isEmpty ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                <div className={`absolute inset-0 flex flex-col transition-opacity duration-500 ${isEmpty ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                    {!isEmpty && (
                      <MessageList
                        messages={messages}

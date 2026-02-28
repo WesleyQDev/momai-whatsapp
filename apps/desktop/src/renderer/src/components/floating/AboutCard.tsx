@@ -107,9 +107,9 @@ export default function AboutCard({ onClose }: AboutCardProps) {
               <p className="text-[9px] text-text-muted text-center mt-1.5 opacity-60 leading-tight">@WesleyDev</p>
             </a>
 
-            {/* Repositório */}
+            {/* Site Oficial */}
             <a
-              href="https://github.com/WesleyQDev/MomAI"
+              href="https://momaiassistente.studio/"
               target="_blank"
               rel="noopener noreferrer"
               className="flex flex-col items-center p-4 bg-bg/50 border border-border/10 rounded-xl hover:border-accent/40 hover:bg-accent/5 transition-all duration-300 group"
@@ -121,44 +121,18 @@ export default function AboutCard({ onClose }: AboutCardProps) {
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2.5"
+                  strokeWidth="2"
                   className="text-accent"
                 >
-                  <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z" />
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                 </svg>
               </div>
-              <h4 className="text-xs font-black text-text uppercase tracking-tight">Código Fonte</h4>
+              <h4 className="text-xs font-black text-text uppercase tracking-tight">Site Oficial</h4>
               <p className="text-[9px] text-text-muted text-center mt-1.5 opacity-60 leading-tight">
-                github.com/WesleyQDev/MomAI
+                momaiassistente.studio
               </p>
-            </a>
-          </div>
-
-          {/* Outras dúvidas */}
-          <div className="bg-bg/40 border border-border/10 p-6 rounded-2xl text-center">
-            <h4 className="text-xs font-black text-text uppercase tracking-widest mb-2">Encontrou um bug?</h4>
-            <p className="text-[10px] text-text-muted/70 mb-5 font-medium leading-relaxed">
-              Ajude-nos a melhorar. Relate problemas ou sugira novas funcionalidades abrindo uma issue no nosso repositório.
-            </p>
-            <a
-              href="https://github.com/WesleyQDev/MomAI/issues"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2.5 px-6 py-2.5 bg-accent text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-accent/90 hover:scale-105 active:scale-95 transition-all duration-300 shadow-lg shadow-accent/20"
-            >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="16" x2="12" y2="12" />
-                <line x1="12" y1="8" x2="12.01" y2="8" />
-              </svg>
-              Abrir Issue no GitHub
             </a>
           </div>
         </div>
