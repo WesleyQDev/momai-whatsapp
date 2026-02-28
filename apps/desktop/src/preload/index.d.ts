@@ -12,6 +12,8 @@ declare global {
       openLogsFolder: () => Promise<void>
       getAppVersion: () => Promise<string>
       isFirstLaunch: () => Promise<boolean>
+      getAutoStart: () => Promise<boolean>
+      setAutoStart: (enabled: boolean) => Promise<boolean>
       onBootstrapError: (
         callback: (error: { type: string; message: string; details?: string }) => void
       ) => () => void

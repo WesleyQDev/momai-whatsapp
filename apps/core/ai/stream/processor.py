@@ -12,14 +12,19 @@ import app_state
 from ai import utils
 from ai.constants import DEFAULT_RECURSION_LIMIT
 from ai.utils import (
-    ensure_summary, save_message_to_db, clean_response, 
-    _is_missing_capability, _build_missing_capability_card, 
-    speak_and_notify, clean_text_for_tts
+    ensure_summary,
+    save_message_to_db,
+    clean_response,
+    _is_missing_capability,
+    _build_missing_capability_card,
+    speak_and_notify,
+    clean_text_for_tts,
 )
 from database.models import SessionLocal, Settings
 import services.voice.tts as tts
 
 logger = logging.getLogger("momai.ai")
+
 
 class StreamProcessor:
     def __init__(self, message_content: str, thread_id: str, graph: Any, llm: Any):
@@ -33,30 +38,35 @@ class StreamProcessor:
         app_state.last_thread_id = self.state.thread_id
         try:
             tts.stop_all()
-        except: pass
+        except:
+            pass
 
         if not utils.is_loading and (self.llm is None or self.graph is None):
             import asyncio
             from database.models import SessionLocal, Settings
-            
+
             # Start initialization
             db = SessionLocal()
             s = db.query(Settings).first()
             tier = s.ai_tier if s else "pro"
             db.close()
-            
+
             app_state.initialize_llm(tier=tier)
             yield f"data: {json.dumps({'status': 'initializing_llm'})}\n\n"
-            
+
             # Wait for it to be ready
-            await asyncio.to_thread(app_state.orchestrator.llm_ready_event.wait, timeout=300)
-            
+            await asyncio.to_thread(
+                app_state.orchestrator.llm_ready_event.wait, timeout=300
+            )
+
             self.llm = app_state.orchestrator.llm
             self.graph = app_state.orchestrator.momai_graph
 
         if utils.is_loading or self.llm is None or self.graph is None:
             status_mode = utils.llm_mode if utils.llm_mode != "waiting" else "inicial"
-            msg = f"Aguarde um momento, Senhor. Estou configurando meu motor para o modo {status_mode}."
+            from utils.i18n import t, get_locale
+
+            msg = t("llm_loading_message", locale=get_locale(), mode=status_mode)
             yield f"data: {json.dumps({'error': msg})}\n\n"
             return
 
@@ -66,12 +76,14 @@ class StreamProcessor:
 
         self.state.prebuffer_limit = self._get_prebuffer_limit()
         self.state.summary_text = await ensure_summary(self.state.thread_id, self.llm)
-        
+
         save_message_to_db(self.state.thread_id, "user", self.state.user_content)
 
         config = {
             "configurable": {"thread_id": self.state.thread_id},
-            "recursion_limit": int(os.getenv("MOMAI_GRAPH_RECURSION_LIMIT", str(DEFAULT_RECURSION_LIMIT))),
+            "recursion_limit": int(
+                os.getenv("MOMAI_GRAPH_RECURSION_LIMIT", str(DEFAULT_RECURSION_LIMIT))
+            ),
         }
         input_data = {
             "messages": [HumanMessage(content=self.state.user_content)],
@@ -81,9 +93,12 @@ class StreamProcessor:
 
         # 2. Stream execution
         try:
-            async for event in self.graph.astream_events(input_data, config=config, version="v2"):
-                if utils.cancel_generation or utils.is_loading: break
-                
+            async for event in self.graph.astream_events(
+                input_data, config=config, version="v2"
+            ):
+                if utils.cancel_generation or utils.is_loading:
+                    break
+
                 async for chunk in self.handler.handle_event(event):
                     yield chunk
 
@@ -103,7 +118,8 @@ class StreamProcessor:
             if settings and settings.prebuffer_chars is not None:
                 limit = int(settings.prebuffer_chars)
             db.close()
-        except: pass
+        except:
+            pass
         return limit
 
     async def _handle_error(self, e: Exception) -> AsyncGenerator[str, None]:
@@ -114,13 +130,15 @@ class StreamProcessor:
         if "429" in error_msg or "rate_limit" in error_msg.lower():
             friendly = "Sir, I have reached the Groq processing limit for this minute. Please wait a few seconds before trying again."
             yield f"data: {json.dumps({'error': friendly})}\n\n"
-            await speak_and_notify("Sorry, Sir. I need a short break due to rate limits.")
+            await speak_and_notify(
+                "Sorry, Sir. I need a short break due to rate limits."
+            )
         else:
             yield f"data: {json.dumps({'error': error_msg})}\n\n"
 
     async def _finalize(self) -> AsyncGenerator[str, None]:
         utils.clear_cancel_generation()
-        
+
         # 1. Sync final state
         try:
             config = {"configurable": {"thread_id": self.state.thread_id}}
@@ -130,11 +148,13 @@ class StreamProcessor:
                 self.state.final_sources = final_state.values.get("sources")
                 self.state.final_snippets = final_state.values.get("snippets")
                 self.state.final_cards = final_state.values.get("cards")
-                
+
                 if self.state.search_count > 0 and self.state.activities_trace:
                     for i in range(len(self.state.activities_trace) - 1, -1, -1):
                         if self.state.activities_trace[i].startswith("Buscando"):
-                            self.state.activities_trace[i] = f"Buscando ({self.state.search_count})"
+                            self.state.activities_trace[i] = (
+                                f"Buscando ({self.state.search_count})"
+                            )
                             break
         except Exception as e:
             logger.debug(f"[AI_core] Error getting final state: {e}")
@@ -144,10 +164,14 @@ class StreamProcessor:
             yield f"data: {json.dumps({'snippets': self.state.final_snippets})}\n\n"
         if self.state.final_cards:
             yield f"data: {json.dumps({'cards': self.state.final_cards})}\n\n"
-        
+
         app_state.set_ai_busy(False)
-        
-        if not self.state.stream_decided and self.state.prebuffer and not self.state.stream_suppressed:
+
+        if (
+            not self.state.stream_decided
+            and self.state.prebuffer
+            and not self.state.stream_suppressed
+        ):
             yield f"data: {json.dumps({'token': self.state.prebuffer})}\n\n"
             self.state.tts_buffer += self.state.prebuffer
 
@@ -156,12 +180,21 @@ class StreamProcessor:
         if final_reply.strip() and self.state.stream_suppressed:
             if self.state.pending_card is None and _is_missing_capability(final_reply):
                 self.state.pending_card = await _build_missing_capability_card(
-                    self.state.user_content, final_reply, self.state.no_tools_available,
-                    self.state.had_tool_call, "responder"
+                    self.state.user_content,
+                    final_reply,
+                    self.state.no_tools_available,
+                    self.state.had_tool_call,
+                    "responder",
                 )
             if self.state.pending_card and self.state.pending_card.get("apply"):
                 final_reply = self.state.pending_card["content"]
-                utils._open_feature_card(self.state.pending_card["content"], self.state.pending_card["cta"], self.state.pending_card.get("action", utils.EXTENSIONS_STORE_ACTION))
+                utils._open_feature_card(
+                    self.state.pending_card["content"],
+                    self.state.pending_card["cta"],
+                    self.state.pending_card.get(
+                        "action", utils.EXTENSIONS_STORE_ACTION
+                    ),
+                )
                 yield f"data: {json.dumps({'token': final_reply})}\n\n"
                 self.state.tts_buffer = final_reply
 
@@ -169,8 +202,12 @@ class StreamProcessor:
         if final_reply.strip():
             pending_graph = app_state.get_pending_graph_data(self.state.thread_id)
             save_message_to_db(
-                self.state.thread_id, "assistant", final_reply,
-                activities=self.state.activities_trace if self.state.activities_trace else None,
+                self.state.thread_id,
+                "assistant",
+                final_reply,
+                activities=self.state.activities_trace
+                if self.state.activities_trace
+                else None,
                 graph_data=pending_graph,
                 sources=self.state.final_sources,
                 snippets=self.state.final_snippets,
@@ -179,7 +216,9 @@ class StreamProcessor:
 
         # 5. Final TTS
         if self.state.tts_buffer.strip():
-            clean_phrase = clean_text_for_tts(clean_response(self.state.tts_buffer)).strip()
+            clean_phrase = clean_text_for_tts(
+                clean_response(self.state.tts_buffer)
+            ).strip()
             if len(clean_phrase) > 1:
                 await speak_and_notify(clean_phrase)
 

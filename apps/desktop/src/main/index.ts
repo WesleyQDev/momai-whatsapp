@@ -7,6 +7,18 @@ import { startPythonBackend, shutdownPython, saveOnboardingCompleted } from './p
 import { logger, getLogsPath } from './logger'
 import { setupUpdater } from './updater'
 
+ipcMain.handle('get-auto-start', () => {
+  return app.getLoginItemSettings().openAtLogin
+})
+
+ipcMain.handle('set-auto-start', (_, enabled: boolean) => {
+  app.setLoginItemSettings({
+    openAtLogin: enabled,
+    openAsHidden: true
+  })
+  return app.getLoginItemSettings().openAtLogin
+})
+
 // Fix for invisible windows on Linux VMs (Hyper-V, VirtualBox) and some Wayland compositors
 if (process.platform === 'linux') {
   app.disableHardwareAcceleration()

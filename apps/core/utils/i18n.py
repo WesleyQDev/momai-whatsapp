@@ -12,6 +12,10 @@ _STRINGS = {
         "tool_protocol_chat_short": "Mantenha respostas curtas para TTS.",
         "tool_protocol_interface_threshold": "Use interface apenas para listas, tabelas, codigos, ou conteudo com mais de {min_chars} caracteres.",
         "tool_protocol_user_request": "Se o usuario pedir explicitamente para mostrar na interface, voce deve usar show_interface.",
+        "llm_loading_message": "Aguarde um momento. Estou configurando meu motor para o modo {mode}.",
+        "status_delegating": "Manager: Delegando para Especialista ({skill})...",
+        "status_calling_tool": "Manager: Chamando ferramenta {tool}...",
+        "status_finalizing": "Finalizando resposta...",
     },
     "en": {
         "missing_capability_card_content": "I can learn this if you install an extension.",
@@ -22,6 +26,10 @@ _STRINGS = {
         "tool_protocol_chat_short": "Keep chat replies short for TTS.",
         "tool_protocol_interface_threshold": "Use the interface only for lists, tables, code, or content over {min_chars} characters.",
         "tool_protocol_user_request": "If the user explicitly asks to show in the interface, you must call show_interface.",
+        "llm_loading_message": "Please wait. I'm setting up my engine for {mode} mode.",
+        "status_delegating": "Manager: Delegating to Specialist ({skill})...",
+        "status_calling_tool": "Manager: Calling tool {tool}...",
+        "status_finalizing": "Finalizing response...",
     },
 }
 
@@ -52,6 +60,7 @@ def get_locale() -> str:
 
     try:
         from database.models import SessionLocal, Settings
+
         db = SessionLocal()
         try:
             settings = db.query(Settings).first()

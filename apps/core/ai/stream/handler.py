@@ -143,11 +143,23 @@ class StreamHandler:
                 tc = msgs[-1].tool_calls[0]
                 if tc["name"] == "activate_skill":
                     skill_arg = tc["args"].get("skill_id", "unknown")
-                    status = f"Manager: Delegando para Especialista ({skill_arg.split('.')[-1]})..."
+                    from utils.i18n import t, get_locale
+
+                    status = t(
+                        "status_delegating",
+                        locale=get_locale(),
+                        skill=skill_arg.split(".")[-1],
+                    )
                 else:
-                    status = f"Manager: Chamando ferramenta {tc['name']}..."
+                    from utils.i18n import t, get_locale
+
+                    status = t(
+                        "status_calling_tool", locale=get_locale(), tool=tc["name"]
+                    )
             else:
-                status = "Finalizando resposta..."
+                from utils.i18n import t, get_locale
+
+                status = t("status_finalizing", locale=get_locale())
 
             if self.state.add_activity(status):
                 yield f"data: {json.dumps({'status': status})}\n\n"

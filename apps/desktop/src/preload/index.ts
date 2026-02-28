@@ -10,6 +10,9 @@ const api = {
   openLogsFolder: (): Promise<void> => electronAPI.ipcRenderer.invoke('open-logs-folder'),
   getAppVersion: (): Promise<string> => electronAPI.ipcRenderer.invoke('get-app-version'),
   isFirstLaunch: (): Promise<boolean> => electronAPI.ipcRenderer.invoke('is-first-launch'),
+  getAutoStart: (): Promise<boolean> => electronAPI.ipcRenderer.invoke('get-auto-start'),
+  setAutoStart: (enabled: boolean): Promise<boolean> =>
+    electronAPI.ipcRenderer.invoke('set-auto-start', enabled),
   onBootstrapError: (
     callback: (error: { type: string; message: string; details?: string }) => void
   ) => {

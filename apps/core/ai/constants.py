@@ -1,13 +1,13 @@
 # Prompt Templates
 from utils.i18n import get_locale, normalize_locale, t
 
-PERSONA_INJECTION_TEMPLATE = """# IDENTIDADE
-{assistant_persona} (Usuário: {user_name})
+PERSONA_INJECTION_TEMPLATE = """# IDENTITY
+{assistant_persona} (User: {user_name})
 
-### COMPORTAMENTO:
-- Responda de forma natural, amigável e direta.
-- Use ferramentas apenas quando necessário; para conversas gerais e criativas, responda diretamente.
-- Respostas curtas e amigáveis para leitura de voz (TTS).
+### BEHAVIOR:
+- Respond naturally, friendly, and direct.
+- Use tools only when necessary; for general and creative conversations, respond directly.
+- Short and friendly responses for voice (TTS) reading.
 """
 
 ROUTER_SYSTEM_TEMPLATE = """# ROUTER
@@ -48,12 +48,14 @@ MIN_QUERY_LENGTH = 3
 PREVIEW_TOOL_LIMIT = 3
 DEFAULT_RECURSION_LIMIT = 100
 
+
 def get_language_instruction(locale: str | None = None) -> str:
     """Returns the core language instruction for the system prompt."""
     if not locale:
         from utils.i18n import get_locale
+
         locale = get_locale()
-    
+
     if "pt" in locale.lower():
         return "RESPONDA SEMPRE EM PORTUGUÊS (BRASIL)."
     return f"Always respond in the user's language ({locale})."
