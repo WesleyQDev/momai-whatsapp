@@ -11,6 +11,7 @@ import ConfirmationCard from './components/floating/ConfirmationCard'
 import OnboardingCard from './components/floating/OnboardingCard'
 import AutoUpdateCard from './components/floating/AutoUpdateCard'
 import MainViewRenderer from './components/MainViewRenderer'
+import AboutCard from './components/floating/AboutCard'
 
 // New modular imports
 import WelcomeScreen from './components/WelcomeScreen'
@@ -69,6 +70,7 @@ function App(): React.JSX.Element {
     'general' | 'brain' | 'voice' | 'economy' | 'updates'
   >('general')
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [showAbout, setShowAbout] = useState(false)
 
   const openSettings = useCallback((tab: 'general' | 'brain' | 'voice' | 'economy' | 'updates' = 'general') => {
     setSettingsTab(tab)
@@ -125,6 +127,7 @@ function App(): React.JSX.Element {
             activeRoute={location.pathname}
             onNavigate={(path) => navigate(path)}
             onOpenSettings={() => openSettings('general')}
+            onOpenAbout={() => setShowAbout(true)}
             isCompact={isCompact}
           />
 
@@ -185,6 +188,8 @@ function App(): React.JSX.Element {
         <SettingsCard onClose={() => setShowSettings(false)} initialTab={settingsTab} />
       )}
 
+      {showAbout && <AboutCard onClose={() => setShowAbout(false)} />}
+
       {showClearConfirm && (
         <ConfirmationCard
           title="Limpar Histórico"
@@ -226,6 +231,7 @@ function App(): React.JSX.Element {
           onFinish={(savedSettings?: Record<string, any>) => {
             setShowOnboarding(false)
             if (savedSettings) setPendingOnboardingSettings(savedSettings)
+            navigate('/')
             window.electron.ipcRenderer.send('app-ready')
           }}
         />

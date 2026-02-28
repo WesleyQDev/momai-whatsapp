@@ -250,6 +250,7 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   }
 
   const resetOnboarding = () => {
+    onClose()
     updateField('onboarding_completed', false, true)
     // @ts-ignore
     window.electron.ipcRenderer.send('reset-onboarding')
