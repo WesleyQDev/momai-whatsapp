@@ -150,27 +150,8 @@ function getSyncLock(corePath: string): SyncResult | null {
   }
 }
 
-function getCoreDependencies(corePath: string): string[] {
-  try {
-    const pyprojectPath = join(corePath, 'pyproject.toml')
-    if (!existsSync(pyprojectPath)) return []
-    const content = readFileSync(pyprojectPath, 'utf-8')
-    const match = content.match(/dependencies\s*=\s*\[([\s\S]*?)\]/)
-    if (!match) return []
 
-    return match[1]
-      .split('\n')
-      .map((line) => line.trim())
-      .map((line) => {
-        const m = line.match(/["'](.*?)["']/)
-        return m ? m[1] : null
-      })
-      .filter((dep): dep is string => !!dep)
-  } catch (e) {
-    logger.error(`[Bootstrap] Error parsing dependencies: ${e}`)
-    return []
-  }
-}
+
 
 function setSyncLock(success: boolean): void {
   try {
@@ -436,14 +417,7 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
       if (isDev) {
         installArgs.push('-e', writableCorePath)
       } else {
-        const deps = getCoreDependencies(writableCorePath)
-        if (deps.length > 0) {
-          installArgs.push(...deps)
-        } else {
-          // Fallback para instalar a própria pasta, se não conseguiu ler as dependências.
-          // --no-deps adicionado aqui se for "apenas quando necessário" (como pedido no briefing).
-          installArgs.push('--no-deps', writableCorePath)
-        }
+        installArgs.push(writableCorePath)
       }
 
       logger.info(`[Bootstrap] Running: "${uvExe}" ${installArgs.join(' ')}`)
