@@ -150,7 +150,7 @@ def stop_server():
         server_process = None
 
 
-def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: int = None, on_progress=None) -> ChatOpenAI | None:
+def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: int = None, on_progress=None, temperature: float = 0.1, top_p: float = 0.8, top_k: int = 20) -> ChatOpenAI | None:
     """
     Downloads and starts the llama-server with the specified model.
 
@@ -160,6 +160,9 @@ def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: in
         ctx_size (int, optional): Context window size.
         gpu_layers (int, optional): Number of layers to offload to GPU.
         on_progress (callable, optional): Callback for progress reporting.
+        temperature (float): Model temperature.
+        top_p (float): Model top_p.
+        top_k (int): Model top_k.
 
     Returns:
         ChatOpenAI | None: A LangChain ChatOpenAI instance pointing to local LLM.
@@ -261,9 +264,9 @@ def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: in
             "--min-p",
             "0.00",
             "--top-p",
-            "0.80",
+            str(top_p),
             "--top-k",
-            "20",
+            str(top_k),
             "--presence-penalty",
             "0.0",
         ]
@@ -341,7 +344,7 @@ def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: in
                         base_url="http://127.0.0.1:8080/v1",
                         api_key="sk-none",
                         model="gpt-4o",
-                        temperature=0.1,
+                        temperature=temperature,
                         streaming=True,
                     )
             except Exception:

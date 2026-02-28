@@ -30,10 +30,12 @@ def _ensure_tts_imports():
         return
 
     import numpy as _np
+
     np = _np
 
     try:
         import sounddevice as _sd
+
         sd = _sd
         HAS_SOUNDDEVICE = True
     except OSError:
@@ -41,11 +43,13 @@ def _ensure_tts_imports():
 
     try:
         import onnxruntime
+
         if "CUDAExecutionProvider" in onnxruntime.get_available_providers():
             ONNX_PROVIDER = "CUDAExecutionProvider"
             logger.info("[TTS] Using GPU acceleration for TTS")
     except Exception as e:
         logger.debug(f"[TTS] GPU check error: {e}")
+
 
 LANG_CODE_MAP = {
     "p": "pt-br",
@@ -149,13 +153,14 @@ class TTSManager:
                         repo_id="thewh1teagle/kokoro-onnx",
                         filename="kokoro-v1.0.onnx",
                         local_dir=model_dir,
-                        token=False
+                        token=False,
                     )
                 except Exception as e:
                     logger.warning(
                         f"[TTS] HF download failed for model: {e}, trying direct download..."
                     )
                     import urllib.request
+
                     url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"
                     logger.info(f"[TTS] Downloading model from {url}...")
                     urllib.request.urlretrieve(url, model_path)
@@ -170,13 +175,14 @@ class TTSManager:
                         repo_id="thewh1teagle/kokoro-onnx",
                         filename="voices-v1.0.bin",
                         local_dir=model_dir,
-                        token=False
+                        token=False,
                     )
                 except Exception as e:
                     logger.warning(
                         f"[TTS] HF download failed for voices: {e}, trying direct download..."
                     )
                     import urllib.request
+
                     url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
                     logger.info(f"[TTS] Downloading voices from {url}...")
                     urllib.request.urlretrieve(url, voices_path)
@@ -321,9 +327,7 @@ class TTSManager:
                 """Pulls audio chunks from the pipe and plays them."""
                 while not self.stop_event.is_set():
                     try:
-                        item = await asyncio.wait_for(
-                            audio_pipe.get(), timeout=0.5
-                        )
+                        item = await asyncio.wait_for(audio_pipe.get(), timeout=0.5)
                     except asyncio.TimeoutError:
                         continue
 
@@ -355,7 +359,7 @@ class TTSManager:
 
                     # msg_type == "audio"
                     if stream:
-                        SUB_CHUNK = 2400  # ~100 ms at 24 kHz
+                        SUB_CHUNK = 480  # ~20 ms at 24 kHz (reduced for lower latency)
                         offset = 0
                         while offset < len(data):
                             with self.state_lock:
@@ -374,9 +378,7 @@ class TTSManager:
                     else:
                         import base64
 
-                        audio_b64 = base64.b64encode(
-                            data.tobytes()
-                        ).decode("utf-8")
+                        audio_b64 = base64.b64encode(data.tobytes()).decode("utf-8")
                         sys.stdout.write(f"[AUDIO_CHUNK] {audio_b64}\n")
                         sys.stdout.flush()
 
@@ -420,8 +422,10 @@ class TTSManager:
             if not self.ready_event.is_set():
                 logger.debug("[TTS] Waiting for initialization...")
                 # Reduce timeout to 0.1s to avoid freezing the LLM stream if TTS is slow
-                if not self.ready_event.wait(timeout=0.1):
-                    logger.debug("[TTS] Still initializing, skipping this phrase.")
+                if not self.ready_event.wait(timeout=3.0):
+                    logger.debug(
+                        "[TTS] Still initializing, will wait for first phrase."
+                    )
                     return
 
             if self.worker_thread is not None and self.worker_thread.is_alive():
@@ -542,8 +546,11 @@ class TTSManager:
         if not self.enabled or not cleaned or len(cleaned) < 3:
             return
 
-        self.start()
+        # Always add to queue first - worker will process when ready
         self.text_queue.put(cleaned)
+
+        # Then try to start worker (waits up to 3s for init)
+        self.start()
 
     def wait_for_completion(self):
         """Waits for all items in the speech queue to be processed."""

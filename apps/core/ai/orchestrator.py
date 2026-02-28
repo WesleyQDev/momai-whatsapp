@@ -197,14 +197,23 @@ def load_tier_config():
         "lite": {
             "repo": "unsloth/LFM2.5-VL-1.6B-GGUF",
             "file": "LFM2.5-VL-1.6B-Q4_K_M.gguf",
+            "temperature": 0.1,
+            "top_p": 0.8,
+            "top_k": 20
         },
         "pro": {
             "repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF",
             "file": "LFM2.5-1.2B-Instruct-Q4_K_M.gguf",
+            "temperature": 0.1,
+            "top_p": 0.8,
+            "top_k": 20
         },
         "ultra": {
             "repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
             "file": "Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf",
+            "temperature": 0.1,
+            "top_p": 0.8,
+            "top_k": 20
         }
     }
     
@@ -295,6 +304,9 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
             ctx_size=config.get("ctx_size"),
             gpu_layers=config.get("gpu_layers"),
             on_progress=report_progress,
+            temperature=config.get("temperature", 0.1),
+            top_p=config.get("top_p", 0.8),
+            top_k=config.get("top_k", 20),
         )
 
         if new_llm:

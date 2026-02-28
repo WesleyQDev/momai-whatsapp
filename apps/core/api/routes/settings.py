@@ -79,6 +79,8 @@ def _sync_update_settings(data: SettingsUpdate):
 
         if data.daily_briefing_enabled is not None:
             settings.daily_briefing_enabled = data.daily_briefing_enabled
+            if data.daily_briefing_enabled:
+                changes.append("daily_briefing_enabled")
 
         if data.auto_start_llm is not None:
             settings.auto_start_llm = data.auto_start_llm
@@ -155,6 +157,11 @@ async def update_settings(data: SettingsUpdate):
         settings = db.query(Settings).first()
         db.close()
         asyncio.create_task(start_core_services(settings))
+
+    # Trigger daily briefing if enabled
+    if "daily_briefing_enabled" in changes:
+        from services.system.briefing import check_and_run_daily_briefing
+        asyncio.create_task(check_and_run_daily_briefing(force=True))
 
 
 @router.post("/settings/voice-sample")

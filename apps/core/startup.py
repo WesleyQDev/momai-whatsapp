@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import psutil
 
 import logging
+
 logger = logging.getLogger("momai.startup")
 logger.info("[Startup] Loading startup module...")
 
@@ -22,7 +23,7 @@ async def init_system_task() -> None:
     try:
         # Scale: 30% - 100% (Electron takes 0% - 30%)
         await app_state.send_init_event("api", "Starting system protocols...", 32)
-        
+
         # O init_db já foi chamado na lifespan de forma síncrona
         await app_state.send_init_event("api", "Database connected & migrated", 35)
 
@@ -39,7 +40,9 @@ async def init_system_task() -> None:
             db.refresh(settings)
 
         if not settings.onboarding_completed:
-            await app_state.send_init_event("ready", "Aguardando conclusão do onboarding...", 100)
+            await app_state.send_init_event(
+                "ready", "Aguardando conclusão do onboarding...", 100
+            )
             app_state.system_ready.set()
             db.close()
             return
@@ -53,10 +56,12 @@ async def init_system_task() -> None:
 async def start_core_services(settings):
     """Inicializa todos os serviços da IA após o onboarding estar concluído."""
     global checkpointer_cm
-    
+
     # Evita inicializar múltiplas vezes se já estiver pronto
-    if app_state.last_init_event.get("progress", 0) >= 100 and \
-       app_state.last_init_event.get("stage") != "ready":
+    if (
+        app_state.last_init_event.get("progress", 0) >= 100
+        and app_state.last_init_event.get("stage") != "ready"
+    ):
         return
 
     try:
@@ -64,7 +69,8 @@ async def start_core_services(settings):
         def on_brain_init(status: str) -> None:
             if app_state.main_loop:
                 asyncio.run_coroutine_threadsafe(
-                    app_state.send_init_event("brain", f"LLM: {status}", None), app_state.main_loop
+                    app_state.send_init_event("brain", f"LLM: {status}", None),
+                    app_state.main_loop,
                 )
 
         if getattr(settings, "auto_start_llm", True):
@@ -73,7 +79,9 @@ async def start_core_services(settings):
             if app_state.main_loop:
                 asyncio.run_coroutine_threadsafe(
                     app_state.send_init_event(
-                        "brain", "LLM local não iniciado automaticamente (auto_start_llm=False)", None
+                        "brain",
+                        "LLM local não iniciado automaticamente (auto_start_llm=False)",
+                        None,
                     ),
                     app_state.main_loop,
                 )
@@ -81,6 +89,7 @@ async def start_core_services(settings):
         # 2. Load skills sequentially for progress feedback
         def load_extensions():
             try:
+
                 def report_ext(msg):
                     if app_state.main_loop:
                         asyncio.run_coroutine_threadsafe(
@@ -112,7 +121,9 @@ async def start_core_services(settings):
         await app_state.send_init_event("extensions", "Resource monitor active", None)
 
         # 5. Checkpointer Setup
-        await app_state.send_init_event("api", "Setting up session persistence...", None)
+        await app_state.send_init_event(
+            "api", "Setting up session persistence...", None
+        )
         try:
             from ai.orchestrator import AsyncSqliteSaver, CHECKPOINT_PATH
             import sqlite3
@@ -134,12 +145,23 @@ async def start_core_services(settings):
                 return cols
 
             expected_checkpoints = {
-                "thread_id", "checkpoint_ns", "checkpoint_id", "parent_checkpoint_id", 
-                "type", "checkpoint", "metadata"
+                "thread_id",
+                "checkpoint_ns",
+                "checkpoint_id",
+                "parent_checkpoint_id",
+                "type",
+                "checkpoint",
+                "metadata",
             }
             expected_writes = {
-                "thread_id", "checkpoint_ns", "checkpoint_id", "task_id", 
-                "idx", "channel", "type", "value"
+                "thread_id",
+                "checkpoint_ns",
+                "checkpoint_id",
+                "task_id",
+                "idx",
+                "channel",
+                "type",
+                "value",
             }
 
             checkpoints_cols = _get_columns("checkpoints")
@@ -203,7 +225,7 @@ async def start_core_services(settings):
                 # Lite tier never has Wake Word
                 if settings.ai_tier == "lite":
                     return
-                    
+
                 if not settings.wake_word_enabled:
                     return
 
@@ -248,7 +270,9 @@ async def start_core_services(settings):
                 try:
                     from services.voice.detector import WakeWordDetector
                 except Exception as import_err:
-                    app_state.logger.warning(f"[startup] WakeWordDetector import failed: {import_err}")
+                    app_state.logger.warning(
+                        f"[startup] WakeWordDetector import failed: {import_err}"
+                    )
                     WakeWordDetector = None
 
                 if WakeWordDetector:
@@ -258,7 +282,15 @@ async def start_core_services(settings):
                         status_callback=on_voice_status,
                         partial_callback=on_voice_partial,
                         bypass_condition=should_bypass_wake_word,
-                        variants=["Luna", "Loona", "Luhna", "Lana", "Lonna", "Lona", "Nuna"],
+                        variants=[
+                            "Luna",
+                            "Loona",
+                            "Luhna",
+                            "Lana",
+                            "Lonna",
+                            "Lona",
+                            "Nuna",
+                        ],
                     )
                     app_state.ww.start()
             except Exception as e:
@@ -267,30 +299,47 @@ async def start_core_services(settings):
         threading.Thread(target=start_wake_word, daemon=True).start()
 
         # 8. Final Sync
-        await app_state.send_init_event("brain", "Synchronizing local intelligence...", None)
+        await app_state.send_init_event(
+            "brain", "Synchronizing local intelligence...", None
+        )
         await asyncio.to_thread(
             app_state.orchestrator.llm_ready_event.wait, timeout=30.0
         )
 
         if settings.tts_enabled and settings.ai_tier != "lite":
             await app_state.send_init_event("voice", "Waking up local voice...", None)
-            app_state.tts.tts.initialize() # New explicit call
+            app_state.tts.tts.initialize()
             await asyncio.to_thread(app_state.tts.tts.wait_until_ready, timeout=10.0)
+            # Start worker thread immediately so it's ready for first phrase
+            app_state.tts.tts.start()
 
         # Marcar como totalmente pronto
         app_state.system_ready.set()
         await app_state.send_init_event("brain", "Sistema operacional e pronto.", 100)
-        
+
         # 9. Check Daily Briefing
         try:
             from services.system.briefing import check_and_run_daily_briefing
+
             asyncio.create_task(check_and_run_daily_briefing())
+            asyncio.create_task(periodic_briefing_check())
         except Exception as e:
             app_state.logger.warning(f"[startup] Daily briefing error: {e}")
-        
+
     except Exception as exc:
         app_state.logger.exception("[InitTask] Fatal error in core services: %s", exc)
         await app_state.send_init_event("error", f"Error: {str(exc)}", 0)
+
+
+async def periodic_briefing_check():
+    """Checks for new day briefing every hour."""
+    while True:
+        await asyncio.sleep(3600) # Every hour
+        try:
+            from services.system.briefing import check_and_run_daily_briefing
+            await check_and_run_daily_briefing()
+        except Exception as e:
+            app_state.logger.debug(f"[startup] Periodic briefing check error: {e}")
 
 
 @asynccontextmanager

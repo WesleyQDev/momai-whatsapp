@@ -7,7 +7,7 @@ import app_state
 
 logger = logging.getLogger("momai.briefing")
 
-async def check_and_run_daily_briefing():
+async def check_and_run_daily_briefing(force: bool = False):
     """
     Checks if a daily briefing is due and runs it if necessary.
     """
@@ -22,11 +22,11 @@ async def check_and_run_daily_briefing():
 
         today_str = date.today().isoformat() # YYYY-MM-DD
         
-        if settings.last_briefing_date == today_str:
+        if not force and settings.last_briefing_date == today_str:
             # Already briefing today
             return
 
-        logger.info(f"[Briefing] Starting daily briefing for {today_str}")
+        logger.info(f"[Briefing] Starting daily briefing for {today_str} (force={force})")
         
         # 1. Generate the briefing text
         briefing_text = await generate_briefing_text(db, settings.user_name)
@@ -47,12 +47,6 @@ async def generate_briefing_text(db: Session, user_name: str) -> str:
     """Generates the speech text for the briefing."""
     now = datetime.now()
     
-    # Day info
-    # weekday_map = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"]
-    # month_map = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
-    
-    # locale = Settings().locale or "pt-BR"
-    # For simplicity and brevity as requested for TTS:
     days_map = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
     pt_months = {
         "1": "janeiro", "2": "fevereiro", "3": "março", "4": "abril", "5": "maio", "6": "junho",
@@ -61,42 +55,61 @@ async def generate_briefing_text(db: Session, user_name: str) -> str:
     
     day_sent = f"Bom dia, {user_name}. Hoje é {days_map[now.weekday()]}, dia {now.day} de {pt_months.get(str(now.month))}."
     
-    # Next activity
-    next_reminder = db.query(Reminder).filter(
+    # Reminders for today
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    
+    reminders_today = db.query(Reminder).filter(
         Reminder.is_active == True,
-        Reminder.scheduled_time > now
-    ).order_by(Reminder.scheduled_time.asc()).first()
+        Reminder.scheduled_time >= today_start,
+        Reminder.scheduled_time <= today_end
+    ).order_by(Reminder.scheduled_time.asc()).all()
     
     agenda_sent = ""
-    if next_reminder:
-        diff = next_reminder.scheduled_time - now
-        hours = diff.seconds // 3600
-        minutes = (diff.seconds % 3600) // 60
-        
-        time_str = ""
-        if diff.days > 0:
-            time_str = f"{diff.days} dia{'s' if diff.days > 1 else ''}"
-        elif hours > 0:
-            time_str = f"{hours} hora{'s' if hours > 1 else ''}"
-            if minutes > 0:
-                time_str += f" e {minutes} minuto{'s' if minutes > 1 else ''}"
+    if reminders_today:
+        count = len(reminders_today)
+        if count == 1:
+            r = reminders_today[0]
+            time_str = r.scheduled_time.strftime("%H:%M")
+            agenda_sent = f" Você tem um compromisso hoje: {r.title}, às {time_str}."
         else:
-            time_str = f"{minutes} minuto{'s' if minutes > 1 else ''}"
+            agenda_sent = f" Você tem {count} compromissos agendados para hoje."
+            # Summarize the first few
+            summary_items = []
+            for r in reminders_today[:3]:
+                summary_items.append(f"{r.title} às {r.scheduled_time.strftime('%H:%M')}")
             
-        agenda_sent = f" Sua próxima atividade é \"{next_reminder.title}\", em {time_str}."
+            agenda_sent += " Entre eles: " + ", ".join(summary_items[:-1]) + (f" e {summary_items[-1]}." if len(summary_items) > 1 else f"{summary_items[0]}.")
+            
+            if count > 3:
+                agenda_sent += f" E mais {count-3} outras atividades."
     else:
-        agenda_sent = " Você não tem atividades agendadas para as próximas horas."
+        # Check for the next one ever
+        next_reminder = db.query(Reminder).filter(
+            Reminder.is_active == True,
+            Reminder.scheduled_time > now
+        ).order_by(Reminder.scheduled_time.asc()).first()
+        
+        if next_reminder:
+            agenda_sent = f" Você não tem nada para hoje, mas sua próxima atividade será \"{next_reminder.title}\", no dia {next_reminder.scheduled_time.day}."
+        else:
+            agenda_sent = " Você não tem atividades agendadas no momento."
         
     return f"{day_sent}{agenda_sent}"
 
 async def run_briefing_speech(text: str):
     """Waits for various components to be ready and then speaks."""
     # Wait for TTS to be initialized
-    for _ in range(30): # Wait up to 30 seconds
-        if app_state.tts and app_state.tts.tts:
-             break
-        await asyncio.sleep(1)
-    
     if app_state.tts and app_state.tts.tts:
-        logger.info(f"[Briefing] Speaking: {text}")
-        app_state.tts.tts.speak(text)
+        logger.info("[Briefing] Waiting for TTS to be ready...")
+        # wait_until_ready is a blocking call, so we run it in a thread to not block the event loop
+        ready = await asyncio.to_thread(app_state.tts.tts.wait_until_ready, 60.0)
+        
+        if ready:
+            logger.info(f"[Briefing] Speaking: {text}")
+            app_state.tts.tts.speak(text)
+        else:
+            logger.warning("[Briefing] TTS not ready after timeout. Briefing skipped.")
+    else:
+        logger.warning("[Briefing] TTS system not available. Briefing skipped.")
+

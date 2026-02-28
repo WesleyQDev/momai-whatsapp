@@ -6,9 +6,15 @@ from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from ai.stream.state import StreamState
 from utils.tokenizer import count_message_tokens
 import app_state
-from ai.utils import clean_response, _build_missing_capability_card, speak_and_notify, clean_text_for_tts
+from ai.utils import (
+    clean_response,
+    _build_missing_capability_card,
+    speak_and_notify,
+    clean_text_for_tts,
+)
 
 logger = logging.getLogger("momai.ai")
+
 
 class StreamHandler:
     def __init__(self, state: StreamState):
@@ -20,38 +26,50 @@ class StreamHandler:
 
         if kind == "on_chain_end":
             if node_name == "search_counter":
-                async for chunk in self._handle_search_count(event): yield chunk
+                async for chunk in self._handle_search_count(event):
+                    yield chunk
             elif node_name == "extract_sources":
-                async for chunk in self._handle_sources(event): yield chunk
+                async for chunk in self._handle_sources(event):
+                    yield chunk
             elif node_name == "router":
-                async for chunk in self._handle_router(event): yield chunk
+                async for chunk in self._handle_router(event):
+                    yield chunk
             elif node_name == "momai_agent":
-                async for chunk in self._handle_manager(event): yield chunk
+                async for chunk in self._handle_manager(event):
+                    yield chunk
 
         elif kind == "on_chain_start":
             if node_name == "specialist_worker":
-                async for chunk in self._handle_specialist(event): yield chunk
+                async for chunk in self._handle_specialist(event):
+                    yield chunk
 
         elif kind == "on_tool_start":
-            async for chunk in self._handle_tool_start(event): yield chunk
+            async for chunk in self._handle_tool_start(event):
+                yield chunk
 
         elif kind == "on_chat_model_start":
             self.state.current_turn_buffer = ""
 
         elif kind == "on_chat_model_stream":
-            async for chunk in self._handle_model_stream(event): yield chunk
+            async for chunk in self._handle_model_stream(event):
+                yield chunk
 
         elif kind == "on_chat_model_end":
-            async for chunk in self._handle_model_end(event): yield chunk
+            async for chunk in self._handle_model_end(event):
+                yield chunk
 
-    async def _handle_search_count(self, event: Dict[str, Any]) -> AsyncGenerator[str, None]:
+    async def _handle_search_count(
+        self, event: Dict[str, Any]
+    ) -> AsyncGenerator[str, None]:
         output = event["data"].get("output")
         if output and isinstance(output, dict):
             self.state.search_count = output.get("search_count", 0)
             if self.state.search_count > 0 and self.state.activities_trace:
                 for i in range(len(self.state.activities_trace) - 1, -1, -1):
                     if self.state.activities_trace[i].startswith("Buscando"):
-                        self.state.activities_trace[i] = f"Buscando ({self.state.search_count})"
+                        self.state.activities_trace[i] = (
+                            f"Buscando ({self.state.search_count})"
+                        )
                         yield f"data: {json.dumps({'status': self.state.activities_trace[i]})}\n\n"
                         break
 
@@ -61,16 +79,18 @@ class StreamHandler:
             sources = output.get("sources")
             if sources:
                 yield f"data: {json.dumps({'sources': sources})}\n\n"
-            
+
             snippets = output.get("snippets")
             if snippets:
                 yield f"data: {json.dumps({'snippets': snippets})}\n\n"
-            
+
             cards = output.get("cards")
             if cards:
                 yield f"data: {json.dumps({'cards': cards})}\n\n"
 
-    async def _handle_specialist(self, event: Dict[str, Any]) -> AsyncGenerator[str, None]:
+    async def _handle_specialist(
+        self, event: Dict[str, Any]
+    ) -> AsyncGenerator[str, None]:
         input_data = event.get("data", {}).get("input", {})
         skill_id = None
         if isinstance(input_data, dict):
@@ -83,7 +103,8 @@ class StreamHandler:
                             if tc.get("name") == "activate_skill":
                                 skill_id = tc.get("args", {}).get("skill_id")
                                 break
-                        if skill_id: break
+                        if skill_id:
+                            break
         if skill_id:
             status = f"Especialista: Executando {skill_id.split('.')[-1]}..."
             if self.state.add_activity(status):
@@ -100,11 +121,13 @@ class StreamHandler:
                     nid = note.get("note_id", "unknown")
                     if nid not in seen_ids:
                         seen_ids.add(nid)
-                        memory_sources.append({
-                            "url": f"momai://note/{nid}",
-                            "title": f"Nota: {note.get('title', 'Sem título')}",
-                            "snippet": note.get("text", "")[:200],
-                        })
+                        memory_sources.append(
+                            {
+                                "url": f"momai://note/{nid}",
+                                "title": f"Nota: {note.get('title', 'Sem título')}",
+                                "snippet": note.get("text", "")[:200],
+                            }
+                        )
                 count = len(memory_sources)
                 status = f"Memória: {count} nota{'s' if count != 1 else ''} relevante{'s' if count != 1 else ''}"
                 if self.state.add_activity(status):
@@ -125,14 +148,16 @@ class StreamHandler:
                     status = f"Manager: Chamando ferramenta {tc['name']}..."
             else:
                 status = "Finalizando resposta..."
-            
+
             if self.state.add_activity(status):
                 yield f"data: {json.dumps({'status': status})}\n\n"
 
-    async def _handle_tool_start(self, event: Dict[str, Any]) -> AsyncGenerator[str, None]:
+    async def _handle_tool_start(
+        self, event: Dict[str, Any]
+    ) -> AsyncGenerator[str, None]:
         name = event["name"]
         self.state.had_tool_call = True
-        
+
         if not self.state.stream_decided and self.state.prebuffer:
             self.state.stream_decided = True
             yield f"data: {json.dumps({'token': self.state.prebuffer})}\n\n"
@@ -154,9 +179,12 @@ class StreamHandler:
             if self.state.add_activity(status):
                 yield f"data: {json.dumps({'status': status})}\n\n"
 
-    async def _handle_model_stream(self, event: Dict[str, Any]) -> AsyncGenerator[str, None]:
+    async def _handle_model_stream(
+        self, event: Dict[str, Any]
+    ) -> AsyncGenerator[str, None]:
         node = event.get("metadata", {}).get("langgraph_node", "")
-        if node == "router": return
+        if node == "router":
+            return
 
         chunk = event["data"]["chunk"]
         if hasattr(chunk, "tool_call_chunks") and chunk.tool_call_chunks:
@@ -165,10 +193,12 @@ class StreamHandler:
             return
 
         content = chunk.content
-        if not content: return
-        
+        if not content:
+            return
+
         filtered_content = "".join(c for c in content if ord(c) <= 0xFFFF)
-        if not filtered_content: return
+        if not filtered_content:
+            return
 
         # Ensure "Finalizando resposta..." and marker
         if not any(a == "Finalizando resposta..." for a in self.state.activities_trace):
@@ -207,19 +237,23 @@ class StreamHandler:
 
         await self._process_tts()
 
-    async def _handle_model_end(self, event: Dict[str, Any]) -> AsyncGenerator[str, None]:
+    async def _handle_model_end(
+        self, event: Dict[str, Any]
+    ) -> AsyncGenerator[str, None]:
         if self.state.current_turn_buffer:
             tokens = self.state.current_turn_buffer
             self.state.current_turn_buffer = ""
-            
-            if not any(a == "Finalizando resposta..." for a in self.state.activities_trace):
+
+            if not any(
+                a == "Finalizando resposta..." for a in self.state.activities_trace
+            ):
                 self.state.add_activity("Finalizando resposta...")
                 yield f"data: {json.dumps({'status': 'Finalizando resposta...'})}\n\n"
                 if "__MOMAI_ACTIONS__" not in self.state.full_content:
                     marker = "\n\n__MOMAI_ACTIONS__\n\n"
                     self.state.full_content += marker
                     yield f"data: {json.dumps({'token': marker})}\n\n"
-            
+
             yield f"data: {json.dumps({'token': tokens})}\n\n"
             self.state.full_content += tokens
             self.state.tts_buffer += tokens
@@ -230,7 +264,11 @@ class StreamHandler:
             if output and hasattr(output, "content") and output.content:
                 if not self.state.full_content:
                     content = clean_response(output.content)
-                    if content and '{"next":' not in content and "show_graph(" not in content:
+                    if (
+                        content
+                        and '{"next":' not in content
+                        and "show_graph(" not in content
+                    ):
                         self.state.full_content = content
                         yield f"data: {json.dumps({'token': content})}\n\n"
                         self.state.tts_buffer += content
@@ -241,14 +279,13 @@ class StreamHandler:
             self.state.prebuffer,
             self.state.no_tools_available,
             self.state.had_tool_call,
-            "responder"
+            "responder",
         )
 
     async def _process_tts(self) -> None:
-        
         while True:
             # Fast Trigger for first response chunk
-            if not self.state.full_content and len(self.state.tts_buffer) > 15:
+            if not self.state.full_content and len(self.state.tts_buffer) > 8:
                 fast_match = re.search(r"(.*?[,!?])\s+", self.state.tts_buffer)
                 if fast_match:
                     chunk = fast_match.group(1).strip()
@@ -267,7 +304,9 @@ class StreamHandler:
 
             # Fallback for long buffer
             if len(self.state.tts_buffer) > 120:
-                sent_match = self.state.sentence_end_pattern.search(self.state.tts_buffer)
+                sent_match = self.state.sentence_end_pattern.search(
+                    self.state.tts_buffer
+                )
                 if sent_match:
                     chunk = sent_match.group(1).strip()
                     self.state.tts_buffer = self.state.tts_buffer[sent_match.end() :]
@@ -279,8 +318,13 @@ class StreamHandler:
                     last_space = self.state.tts_buffer.rfind(" ")
                     if last_space > 50:
                         chunk = self.state.tts_buffer[:last_space].strip()
-                        self.state.tts_buffer = self.state.tts_buffer[last_space:].strip()
+                        self.state.tts_buffer = self.state.tts_buffer[
+                            last_space:
+                        ].strip()
                         await speak_and_notify(clean_text_for_tts(chunk))
-                    else: break
-                else: break
-            else: break
+                    else:
+                        break
+                else:
+                    break
+            else:
+                break
