@@ -534,6 +534,7 @@ export default function ContainerChat({
                   isModeChanging={isModeChanging}
                   statusInfo={statusInfo}
                   onStopGeneration={stopCurrentGeneration}
+                  onStopVoice={stopCurrentVoice}
                   isCallMode={isCallMode}
                   onToggleCallMode={onToggleCallMode}
                   speakingIndex={speakingIndex}

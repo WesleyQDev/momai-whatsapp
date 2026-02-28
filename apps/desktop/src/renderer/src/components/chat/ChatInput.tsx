@@ -21,6 +21,7 @@ interface ChatInputProps {
   isModeChanging?: boolean
   statusInfo: StatusData | null
   onStopGeneration?: () => void
+  onStopVoice?: () => void
   isCallMode?: boolean
   onToggleCallMode?: () => void
   speakingIndex?: number | null
@@ -58,6 +59,7 @@ export default function ChatInput({
   isModeChanging = false,
   statusInfo,
   onStopGeneration,
+  onStopVoice,
   isCallMode = false,
   onToggleCallMode,
   speakingIndex = null,
@@ -405,7 +407,7 @@ export default function ChatInput({
                 </button>
               )}
 
-              {(isLoading || (speakingIndex !== null && aiTier !== 'lite') || voiceStatus === 'processing') ? (
+              {isLoading ? (
                 <button
                   type="button"
                   className="bg-accent text-white rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg shadow-accent/20"

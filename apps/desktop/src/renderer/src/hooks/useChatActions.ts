@@ -47,14 +47,13 @@ export function useChatActions({
   
   const stopGeneration = useCallback(async () => {
     try {
-      await Promise.all([stopGenerationApi(), stopVoiceApi()])
+      await stopGenerationApi()
     } catch (err) {
-      console.error('Erro ao parar geração/voz:', err)
+      console.error('Erro ao parar geração:', err)
     } finally {
       setIsLoading(false)
-      setSpeakingIndex(null)
     }
-  }, [setIsLoading, setSpeakingIndex])
+  }, [setIsLoading])
 
   const stopVoice = useCallback(async () => {
     try {
