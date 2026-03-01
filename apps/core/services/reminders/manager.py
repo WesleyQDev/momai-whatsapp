@@ -63,14 +63,19 @@ class ReminderManager:
             )
         else:
             # Single schedule
-            if reminder.scheduled_time > datetime.now():
+            # Use a small grace period (10s) to allow scheduling "now" reminders
+            now = datetime.now()
+            if reminder.scheduled_time > now or (now - reminder.scheduled_time).total_seconds() < 10:
                 self.scheduler.add_job(
                     self.trigger_reminder,
                     'date',
-                    run_date=reminder.scheduled_time,
+                    run_date=reminder.scheduled_time if reminder.scheduled_time > now else now,
                     id=job_id,
                     args=[reminder.id]
                 )
+                logger.info(f"[Reminders] Scheduled single job for {reminder.scheduled_time}")
+            else:
+                logger.warning(f"[Reminders] Reminder {reminder.id} is in the past ({reminder.scheduled_time}), not scheduling.")
 
     async def trigger_reminder(self, reminder_id: int):
         """
@@ -92,24 +97,58 @@ class ReminderManager:
                     "data": {
                         "id": reminder.id,
                         "title": reminder.title,
-                        "content": reminder.content
+                        "content": reminder.content,
+                        "note_id": reminder.note_id
                     }
                 }))
 
             # 2. Notify via TTS
-            if self.tts_callback:
-                # User wants concise TTS without prefixes like 'Sir, reminder:'
-                msg = f"{reminder.title}. {reminder.content if reminder.content else ''}"
-                self.tts_callback(msg)
+            # For 'reminder' type, we speak the title/content.
+            # For 'cron' type, we skip this and let the agent speak its result.
+            if reminder.voice_response and reminder.action_type == "reminder":
+                import app_state
+                if app_state.tts:
+                    # User wants concise TTS without prefixes like 'Sir, reminder:'
+                    msg = f"{reminder.title}. {reminder.content if reminder.content else ''}"
+                    app_state.tts.speak_sentence(msg)
 
-            # 3. If not recurring, deactivate
+            # 3. Handle Custom Command (Cron-like)
+            if reminder.action_type == "cron":
+                import app_state
+                command = reminder.content if reminder.content and reminder.content.strip() else reminder.title
+                
+                if not command or not command.strip():
+                    logger.warning(f"[Reminders] Skipping cron job {reminder.id}: No command content found.")
+                else:
+                    logger.info(f"[Reminders] Executing agent command: {command}")
+                    if app_state.main_loop:
+                        try:
+                            loop = asyncio.get_running_loop()
+                            if loop == app_state.main_loop:
+                                asyncio.create_task(app_state.process_voice_command(command, speak_response=reminder.voice_response))
+                            else:
+                                asyncio.run_coroutine_threadsafe(
+                                    app_state.process_voice_command(command, speak_response=reminder.voice_response),
+                                    app_state.main_loop
+                                )
+                        except RuntimeError:
+                             asyncio.run_coroutine_threadsafe(
+                                app_state.process_voice_command(command, speak_response=reminder.voice_response),
+                                app_state.main_loop
+                            )
+                    else:
+                        logger.error(f"[Reminders] Cannot execute command: main_loop not initialized in app_state.")
+
+            # 4. If not recurring, deactivate
             if not reminder.repeat_interval:
                 reminder.is_active = False
-                db.commit()
+            
+            db.commit()
+            logger.info(f"[Reminders] Job finished for id {reminder_id}")
         
         db.close()
 
-    def add_reminder(self, title, content, scheduled_time, repeat_interval=None, repeat_value=None):
+    def add_reminder(self, title, content, scheduled_time, repeat_interval=None, repeat_value=None, note_id=None, action_type="reminder", voice_response=True):
         """
         Adds a new reminder to the database and schedules it.
 
@@ -132,6 +171,9 @@ class ReminderManager:
                 scheduled_time=scheduled_time,
                 repeat_interval=repeat_interval,
                 repeat_value=repeat_value,
+                note_id=note_id,
+                action_type=action_type,
+                voice_response=voice_response,
                 is_active=True
             )
             db.add(reminder)

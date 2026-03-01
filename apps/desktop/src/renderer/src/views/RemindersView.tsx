@@ -8,7 +8,9 @@ import {
   ClockIcon,
   ArrowPathIcon,
   PencilSquareIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  SpeakerWaveIcon,
+  CommandLineIcon
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import ReminderForm, { ReminderFormData } from '../components/reminders/ReminderForm'
@@ -32,13 +34,16 @@ interface LegacyReminderFormData {
   newTime: string
   repeat_interval: RepeatInterval
   repeat_value: number
+  note_id?: string | null
+  action_type?: 'reminder' | 'cron'
+  voice_response?: boolean
 }
 
 // --- Helper Functions ---
 
 const getTodayISO = () => new Date().toISOString().split('T')[0]
-const getInOneHourTime = () => {
-  const d = new Date(Date.now() + 3600000)
+const getInOneMinuteTime = () => {
+  const d = new Date(Date.now() + 60000)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
@@ -91,9 +96,11 @@ export default function RemindersView() {
     content: '',
     scheduled_time: '',
     newDate: getTodayISO(),
-    newTime: getInOneHourTime(),
+    newTime: getInOneMinuteTime(),
     repeat_interval: null,
-    repeat_value: 1
+    repeat_value: 1,
+    action_type: 'reminder',
+    voice_response: true
   })
 
   const fetchReminders = async () => {
@@ -131,9 +138,11 @@ export default function RemindersView() {
       content: '',
       scheduled_time: '',
       newDate: getTodayISO(),
-      newTime: getInOneHourTime(),
+      newTime: getInOneMinuteTime(),
       repeat_interval: null,
-      repeat_value: 1
+      repeat_value: 1,
+      action_type: 'reminder',
+      voice_response: true
     })
     setIsModalOpen(true)
   }
@@ -151,7 +160,9 @@ export default function RemindersView() {
       newDate: dateStr,
       newTime: timeStr,
       repeat_interval: reminder.repeat_interval as RepeatInterval,
-      repeat_value: reminder.repeat_value || 1
+      repeat_value: reminder.repeat_value || 1,
+      action_type: (reminder.action_type as any) || 'reminder',
+      voice_response: reminder.voice_response !== undefined ? reminder.voice_response : true
     })
     setIsModalOpen(true)
   }
@@ -167,10 +178,12 @@ export default function RemindersView() {
       content: data.content,
       scheduled_time: data.scheduled_time,
       repeat_interval: data.repeat_interval,
-      repeat_value: data.repeat_interval ? data.repeat_value : null
+      repeat_value: data.repeat_interval ? data.repeat_value : null,
+      action_type: data.action_type || 'reminder',
+      voice_response: data.voice_response
     }
 
-    data.id ? await updateReminder(data.id, payload) : await createReminder(payload)
+    data.id ? await updateReminder(data.id, payload) : await createReminder(payload as any)
     setIsModalOpen(false)
     fetchReminders()
   }
@@ -235,6 +248,20 @@ export default function RemindersView() {
                 <span>R:{r.repeat_value} {r.repeat_interval}</span>
               </div>
             )}
+
+            <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest ${r.action_type === 'cron' ? 'text-indigo-400' : 'text-accent/60'}`}>
+              {r.action_type === 'cron' ? (
+                <>
+                  <CommandLineIcon className="w-3 h-3" />
+                  <span>Agendador</span>
+                </>
+              ) : (
+                <>
+                  <SpeakerWaveIcon className="w-3 h-3" />
+                  <span>Lembrete</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -22,7 +22,10 @@ async def list_reminders_route(db: Session = Depends(get_db)):
             "scheduled_time": reminder.scheduled_time.isoformat(),
             "repeat_interval": reminder.repeat_interval,
             "repeat_value": reminder.repeat_value,
-            "is_active": reminder.is_active
+            "is_active": reminder.is_active,
+            "note_id": reminder.note_id,
+            "action_type": reminder.action_type,
+            "voice_response": reminder.voice_response
         }
         for reminder in reminders
     ]
@@ -52,7 +55,10 @@ async def list_active_reminders(db: Session = Depends(get_db)):
             "content": reminder.content,
             "scheduled_time": reminder.scheduled_time.isoformat(),
             "repeat_interval": reminder.repeat_interval,
-            "repeat_value": reminder.repeat_value
+            "repeat_value": reminder.repeat_value,
+            "note_id": reminder.note_id,
+            "action_type": reminder.action_type,
+            "voice_response": reminder.voice_response
         }
         for reminder in reminders
     ]
@@ -67,7 +73,10 @@ async def create_reminder_route(data: ReminderCreate):
         data.content,
         data.scheduled_time,
         data.repeat_interval,
-        data.repeat_value
+        data.repeat_value,
+        data.note_id,
+        data.action_type,
+        data.voice_response
     )
 
 

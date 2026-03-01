@@ -235,18 +235,17 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     }
   }
 
-  const updateField = (field: string, value: any, saveNow = false) => {
+  const updateField = async (field: string, value: any, saveNow = false): Promise<void> => {
     const newState = { ...settings, [field]: value }
     setSettings(newState)
-    
+
     if (field === 'locale') {
       setLocale(value)
     }
-    
+
     if (saveNow) {
-      return saveSettings(newState)
+      await saveSettings(newState)
     }
-    return Promise.resolve()
   }
 
   const handleDevMode = () => {

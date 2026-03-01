@@ -21,6 +21,9 @@ class Reminder(Base):
     repeat_value = Column(Integer)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now())
+    note_id = Column(String, nullable=True)
+    action_type = Column(String, default="voice")  # 'voice' or 'command'
+    voice_response = Column(Boolean, default=True)
 
 
 class Settings(Base):
@@ -218,4 +221,21 @@ def init_db():
                     "ALTER TABLE settings ADD COLUMN auto_start_llm BOOLEAN DEFAULT 1"
                 )
             )
+        
+        # Migration for reminders.note_id
+        res = conn.execute(text("PRAGMA table_info(reminders)"))
+        rem_cols = {row[1] for row in res.fetchall()}
+        if "note_id" not in rem_cols:
+            conn.execute(
+                text("ALTER TABLE reminders ADD COLUMN note_id TEXT DEFAULT NULL")
+            )
+        if "action_type" not in rem_cols:
+            conn.execute(
+                text("ALTER TABLE reminders ADD COLUMN action_type TEXT DEFAULT 'reminder'")
+            )
+        if "voice_response" not in rem_cols:
+            conn.execute(
+                text("ALTER TABLE reminders ADD COLUMN voice_response BOOLEAN DEFAULT 1")
+            )
+            
         conn.commit()

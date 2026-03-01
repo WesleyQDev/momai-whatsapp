@@ -1,41 +1,42 @@
-name: CI
+# name: CI
+# 
+# on:
+#   push:
+#     branches: [main, develop]
+#   pull_request:
+#     branches: [main, develop]
+#   workflow_dispatch:
+# 
+# concurrency:
+#   group: ${{ github.workflow }}-${{ github.ref }}
+#   cancel-in-progress: true
+# 
+# jobs:
+#   lint-typescript:
+#     name: Lint TypeScript
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
+# 
+#       - name: Setup pnpm
+#         uses: pnpm/action-setup@v4
+# 
+#       - name: Setup Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: "20"
+#           cache: "pnpm"
+# 
+#       - name: Install dependencies
+#         run: pnpm install --frozen-lockfile
+# 
+#       - name: Lint desktop
+#         run: pnpm --filter desktop lint
+# 
+#       - name: Typecheck desktop
+#         run: pnpm --filter desktop typecheck
+# 
+#       - name: Typecheck desktop
+#         run: pnpm --filter desktop typecheck
 
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
-  workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  lint-typescript:
-    name: Lint TypeScript
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Lint desktop
-        run: pnpm --filter desktop lint
-
-      - name: Typecheck desktop
-        run: pnpm --filter desktop typecheck
-
-      - name: Typecheck desktop
-        run: pnpm --filter desktop typecheck

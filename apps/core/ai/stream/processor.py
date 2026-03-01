@@ -27,11 +27,12 @@ logger = logging.getLogger("momai.ai")
 
 
 class StreamProcessor:
-    def __init__(self, message_content: str, thread_id: str, graph: Any, llm: Any):
+    def __init__(self, message_content: str, thread_id: str, graph: Any, llm: Any, speak_response: bool = True):
         self.state = StreamState(thread_id=thread_id, user_content=message_content)
         self.graph = graph
         self.llm = llm
-        self.handler = StreamHandler(self.state)
+        self.speak_response = speak_response
+        self.handler = StreamHandler(self.state, speak_response=speak_response)
 
     async def process(self) -> AsyncGenerator[str, None]:
         # 1. Setup
@@ -215,7 +216,7 @@ class StreamProcessor:
             )
 
         # 5. Final TTS
-        if self.state.tts_buffer.strip():
+        if self.speak_response and self.state.tts_buffer.strip():
             clean_phrase = clean_text_for_tts(
                 clean_response(self.state.tts_buffer)
             ).strip()

@@ -4,7 +4,9 @@ import {
   PencilIcon,
   TrashIcon,
   DocumentDuplicateIcon,
-  CalendarIcon
+  CalendarIcon,
+  SpeakerWaveIcon,
+  CommandLineIcon
 } from '@heroicons/react/24/outline'
 import { useActiveReminders } from '../../hooks/useActiveReminders'
 import { deleteReminder, createReminder, type ActiveReminder } from '../../services/api'
@@ -13,9 +15,8 @@ import { getNextOccurrence, getOccurrenceForDate } from '../../utils/reminders'
 import ReminderForm, { ReminderFormData } from '../reminders/ReminderForm'
 
 const getTodayISO = () => new Date().toISOString().split('T')[0]
-const getInOneHourISO = () => {
-  const d = new Date()
-  d.setHours(d.getHours() + 1)
+const getInOneMinuteISO = () => {
+  const d = new Date(Date.now() + 60000)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
@@ -91,7 +92,9 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
         content: r.content || '',
         scheduled_time: r.scheduled_time,
         repeat_interval: r.repeat_interval as any,
-        repeat_value: r.repeat_value
+        repeat_value: r.repeat_value,
+        action_type: r.action_type,
+        voice_response: r.voice_response
       })
       refresh()
       window.dispatchEvent(new CustomEvent('momai_reminders_updated'))
@@ -112,13 +115,14 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
     setIsSaving(true)
     try {
       const { updateReminder } = await import('../../services/api')
-      
       await updateReminder(editingReminder.id, {
         title: data.title,
         content: data.content,
         scheduled_time: data.scheduled_time,
         repeat_interval: data.repeat_interval as any,
-        repeat_value: data.repeat_interval ? data.repeat_value : null
+        repeat_value: data.repeat_interval ? data.repeat_value : null,
+        action_type: data.action_type || 'reminder',
+        voice_response: data.voice_response
       })
 
       setEditingReminder(null)
@@ -158,7 +162,9 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
         content: data.content,
         scheduled_time: data.scheduled_time,
         repeat_interval: data.repeat_interval as any,
-        repeat_value: data.repeat_interval ? data.repeat_value : null
+        repeat_value: data.repeat_interval ? data.repeat_value : null,
+        action_type: data.action_type || 'reminder',
+        voice_response: data.voice_response
       })
 
       setShowQuickAdd(false)
@@ -282,7 +288,9 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
                             newDate: editingReminder.scheduled_time.split('T')[0],
                             newTime: editingReminder.scheduled_time.split('T')[1].slice(0, 5),
                             repeat_interval: editingReminder.repeat_interval as any,
-                            repeat_value: editingReminder.repeat_value || 1
+                            repeat_value: editingReminder.repeat_value || 1,
+                            action_type: (editingReminder.action_type as any) || 'reminder',
+                            voice_response: editingReminder.voice_response !== undefined ? editingReminder.voice_response : true
                           }}
                           onSubmit={handleUpdate}
                           onCancel={() => setEditingReminder(null)}
@@ -314,6 +322,14 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
                               <span className="font-medium text-accent">
                                 {formatTime(time, { hour: '2-digit', minute: '2-digit' })}
                               </span>
+                              <span className="w-1 h-1 rounded-full bg-text/10" />
+                              <div className={`${r.action_type === 'cron' ? 'text-indigo-400' : 'text-text-muted/40'}`}>
+                                {r.action_type === 'cron' ? (
+                                  <CommandLineIcon className="w-3 h-3" title="Agendador" />
+                                ) : (
+                                  <SpeakerWaveIcon className="w-3 h-3" title="Lembrete" />
+                                )}
+                              </div>
                             </div>
                           </div>
 

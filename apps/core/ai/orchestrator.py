@@ -590,7 +590,7 @@ async def speak_and_notify(text: str) -> None:
     safe_speak(text)
 
 
-async def generate(message: ChatMessage):
+async def generate(message: ChatMessage, speak_response: bool = True):
     """
     Main stream generator for chat responses.
     Delegates implementation to StreamProcessor for better maintainability.
@@ -599,7 +599,8 @@ async def generate(message: ChatMessage):
         message_content=message.content,
         thread_id=message.thread_id,
         graph=momai_graph,
-        llm=llm
+        llm=llm,
+        speak_response=speak_response
     )
     
     async for chunk in processor.process():

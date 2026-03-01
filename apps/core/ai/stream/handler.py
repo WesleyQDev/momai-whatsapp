@@ -17,8 +17,9 @@ logger = logging.getLogger("momai.ai")
 
 
 class StreamHandler:
-    def __init__(self, state: StreamState):
+    def __init__(self, state: StreamState, speak_response: bool = True):
         self.state = state
+        self.speak_response = speak_response
 
     async def handle_event(self, event: Dict[str, Any]) -> AsyncGenerator[str, None]:
         kind = event["event"]
@@ -212,7 +213,7 @@ class StreamHandler:
         if not filtered_content:
             return
 
-        # Ensure "Finalizando resposta..." and marker
+        # Ensure \"Finalizando resposta...\" and marker
         if not any(a == "Finalizando resposta..." for a in self.state.activities_trace):
             status = "Finalizando resposta..."
             self.state.add_activity(status)
@@ -302,7 +303,8 @@ class StreamHandler:
                 if fast_match:
                     chunk = fast_match.group(1).strip()
                     self.state.tts_buffer = self.state.tts_buffer[fast_match.end() :]
-                    await speak_and_notify(clean_text_for_tts(chunk))
+                    if self.speak_response:
+                        await speak_and_notify(clean_text_for_tts(chunk))
                     continue
 
             # Paragraph break
@@ -311,7 +313,8 @@ class StreamHandler:
                 chunk = para_match.group(1).strip()
                 self.state.tts_buffer = self.state.tts_buffer[para_match.end() :]
                 if len(chunk) > 1:
-                    await speak_and_notify(clean_text_for_tts(chunk))
+                    if self.speak_response:
+                        await speak_and_notify(clean_text_for_tts(chunk))
                 continue
 
             # Fallback for long buffer
@@ -323,7 +326,8 @@ class StreamHandler:
                     chunk = sent_match.group(1).strip()
                     self.state.tts_buffer = self.state.tts_buffer[sent_match.end() :]
                     if len(chunk) > 1:
-                        await speak_and_notify(clean_text_for_tts(chunk))
+                        if self.speak_response:
+                            await speak_and_notify(clean_text_for_tts(chunk))
                     continue
 
                 if len(self.state.tts_buffer) > 200:
@@ -333,7 +337,8 @@ class StreamHandler:
                         self.state.tts_buffer = self.state.tts_buffer[
                             last_space:
                         ].strip()
-                        await speak_and_notify(clean_text_for_tts(chunk))
+                        if self.speak_response:
+                            await speak_and_notify(clean_text_for_tts(chunk))
                     else:
                         break
                 else:

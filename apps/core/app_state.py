@@ -199,7 +199,7 @@ async def send_init_event(stage: str, message: str, progress: int | None = None)
     logger.info("[Init %s%%] %s: %s", new_progress, stage, message)
 
 
-async def process_voice_command(text: str) -> None:
+async def process_voice_command(text: str, speak_response: bool = True) -> None:
     """Processes a recognized voice command through the AI engine."""
     # If the text is empty, the user just said the keyword.
     # We provide a prompt to show we are listening.
@@ -218,7 +218,7 @@ async def process_voice_command(text: str) -> None:
         logger.info("[Voice] Calling generate...")
         await broadcast_to_sockets({"type": "assistant", "data": {"status": "Pensando..."}})
         
-        async for chunk in generate(msg):
+        async for chunk in generate(msg, speak_response=speak_response):
             if chunk.startswith("data: "):
                 json_str = chunk.replace("data: ", "").strip()
                 if not json_str:

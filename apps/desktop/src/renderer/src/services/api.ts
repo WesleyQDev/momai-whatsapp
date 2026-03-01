@@ -547,6 +547,9 @@ export interface Reminder {
   repeat_interval: string | null
   repeat_value: number | null
   is_active: boolean
+  note_id?: string | null
+  action_type?: 'reminder' | 'cron'
+  voice_response?: boolean
 }
 
 export interface ActiveReminder {
@@ -556,6 +559,9 @@ export interface ActiveReminder {
   scheduled_time: string
   repeat_interval: string | null
   repeat_value: number | null
+  note_id?: string | null
+  action_type?: 'reminder' | 'cron'
+  voice_response?: boolean
 }
 
 export async function fetchReminders(): Promise<Reminder[]> {
@@ -576,6 +582,9 @@ export async function createReminder(payload: {
   scheduled_time: string
   repeat_interval: string | null
   repeat_value: number | null
+  note_id?: string | null
+  action_type?: 'reminder' | 'cron'
+  voice_response?: boolean
 }): Promise<void> {
   const response = await fetch(`${API_URL}/reminders`, {
     method: 'POST',
@@ -594,6 +603,9 @@ export async function updateReminder(
     repeat_interval?: string | null
     repeat_value?: number | null
     is_active?: boolean
+    note_id?: string | null
+    action_type?: 'reminder' | 'cron'
+    voice_response?: boolean
   }
 ): Promise<void> {
   const response = await fetch(`${API_URL}/reminders/${id}`, {

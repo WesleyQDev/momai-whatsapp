@@ -22,6 +22,9 @@ class ReminderCreate(BaseModel):
     scheduled_time: datetime
     repeat_interval: str | None = None
     repeat_value: int | None = None
+    note_id: str | None = None
+    action_type: str = "reminder"
+    voice_response: bool = True
 
 
 class ReminderUpdate(BaseModel):
@@ -31,6 +34,9 @@ class ReminderUpdate(BaseModel):
     repeat_interval: str | None = None
     repeat_value: int | None = None
     is_active: bool | None = None
+    note_id: str | None = None
+    action_type: str | None = None
+    voice_response: bool | None = None
 
 
 class SettingsUpdate(BaseModel):
