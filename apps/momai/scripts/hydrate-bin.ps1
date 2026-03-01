@@ -101,4 +101,4 @@ if (Test-Path $vcExe) {
     }
 }
 
-Write-Host "[MomAI] Hydration complete! UV, Python and VC Redist are ready in apps/desktop/bin" -ForegroundColor Green
+Write-Host "[MomAI] Hydration complete! UV, Python and VC Redist are ready in apps/momai/bin" -ForegroundColor Green

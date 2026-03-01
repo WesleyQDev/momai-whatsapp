@@ -37,14 +37,14 @@ jobs:
           VERSION="${{ steps.version.outputs.VERSION }}"
           CLEAN_VERSION="${VERSION#v}"
           echo "Setting version to $CLEAN_VERSION"
-          cd apps/desktop
+          cd apps/momai
           npm version "$CLEAN_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
       - name: Build Windows
-        run: pnpm --filter desktop build:win
+        run: pnpm --filter momai build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -53,9 +53,9 @@ jobs:
         with:
           name: win-artifacts
           path: |
-            apps/desktop/dist/*.exe
-            apps/desktop/dist/*.yml
-            apps/desktop/dist/*.blockmap
+            apps/momai/dist/*.exe
+            apps/momai/dist/*.yml
+            apps/momai/dist/*.blockmap
           if-no-files-found: error
           retention-days: 5
 
@@ -86,7 +86,7 @@ jobs:
           VERSION="${{ steps.version.outputs.VERSION }}"
           CLEAN_VERSION="${VERSION#v}"
           echo "Setting version to $CLEAN_VERSION"
-          cd apps/desktop
+          cd apps/momai
           npm version "$CLEAN_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Install system dependencies
@@ -106,7 +106,7 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Build Linux
-        run: pnpm --filter desktop build:linux
+        run: pnpm --filter momai build:linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -115,10 +115,10 @@ jobs:
         with:
           name: linux-artifacts
           path: |
-            apps/desktop/dist/*.AppImage
-            apps/desktop/dist/*.deb
-            apps/desktop/dist/*.yml
-            apps/desktop/dist/*.blockmap
+            apps/momai/dist/*.AppImage
+            apps/momai/dist/*.deb
+            apps/momai/dist/*.yml
+            apps/momai/dist/*.blockmap
           if-no-files-found: error
           retention-days: 5
 

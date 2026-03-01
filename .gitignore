@@ -56,11 +56,11 @@ __pycache__/
 *.so
 .Python
 # build/ <- Allowing build folders for Electron
-!apps/desktop/build/
+!apps/momai/build/
 
 # Hydrated binaries (downloaded at build time, not tracked)
-apps/desktop/bin/python/
-apps/desktop/bin/vc_redist*
+apps/momai/bin/python/
+apps/momai/bin/vc_redist*
 develop-eggs/
 dist/
 downloads/

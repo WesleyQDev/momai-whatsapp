@@ -31,12 +31,12 @@
 #       - name: Install dependencies
 #         run: pnpm install --frozen-lockfile
 # 
-#       - name: Lint desktop
-#         run: pnpm --filter desktop lint
+#       - name: Lint momai
+#         run: pnpm --filter momai lint
 # 
-#       - name: Typecheck desktop
-#         run: pnpm --filter desktop typecheck
+#       - name: Typecheck momai
+#         run: pnpm --filter momai typecheck
 # 
-#       - name: Typecheck desktop
-#         run: pnpm --filter desktop typecheck
+#       - name: Typecheck momai
+#         run: pnpm --filter momai typecheck
 

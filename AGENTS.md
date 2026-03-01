@@ -1,14 +1,14 @@
-# AGENTS.md - MomAI Development Guide
+# AGENTS.md - MomAIOS Development Guide
 
-This file provides guidelines for agentic coding agents working on the MomAI codebase.
+This file provides guidelines for agentic coding agents working on the MomAIOS codebase.
 
 ## Project Overview
 
-MomAI is a local-first, privacy-focused virtual assistant combining LLMs with real computer actions. It's a **monorepo** using pnpm workspaces and Turbo.
+MomAIOS is the monorepo for MomAI, a local-first, privacy-focused virtual assistant combining LLMs with real computer actions. It uses pnpm workspaces and Turbo.
 
 ### Apps Structure
 
-- `apps/desktop/` - Electron + React + TypeScript (GUI)
+- `apps/momai/` - Electron + React + TypeScript (GUI)
 - `apps/core/` - Python/FastAPI (backend AI engine)
 - `apps/internal-docs/` - Docusaurus documentation site
 
@@ -29,10 +29,10 @@ pnpm format           # Format all apps via Turbo
 pnpm docs:internal    # Start internal Docusaurus docs
 ```
 
-### Desktop App (apps/desktop/)
+### Desktop App (apps/momai/)
 
 ```bash
-cd apps/desktop
+cd apps/momai
 
 # Development
 pnpm dev              # Start Electron app in dev mode
@@ -105,7 +105,7 @@ pnpm format           # Prettier write
 - SQLite for persistence
 
 ### Environment Variables
-- Desktop: Uses `.env` files in `apps/desktop/`
+- Desktop: Uses `.env` files in `apps/momai/`
 - Core: Uses `.env` file in `apps/core/`
 
 ---

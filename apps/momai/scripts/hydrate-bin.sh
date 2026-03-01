@@ -48,4 +48,4 @@ rm "$PY_TAR"
 echo "[MomAI] Python installed: $("$BIN_DIR/python/bin/python3" --version)"
 
 # NOTE: VC++ Redistributable is Windows-only, skipping for Linux/macOS
-echo "[MomAI] Hydration complete! UV and Python are ready in apps/desktop/bin"
+echo "[MomAI] Hydration complete! UV and Python are ready in apps/momai/bin"
