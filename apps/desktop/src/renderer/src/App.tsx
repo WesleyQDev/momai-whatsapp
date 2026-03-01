@@ -16,7 +16,7 @@ import AboutCard from './components/floating/AboutCard'
 // New modular imports
 import WelcomeScreen from './components/WelcomeScreen'
 import BootstrapError from './components/BootstrapError'
-import AppSidebar from './components/AppSidebar'
+import InfoPanel from './components/InfoPanel'
 import { useAudioFallback } from './hooks/useAudioFallback'
 import { useAppTheme } from './hooks/useAppTheme'
 import { useAppInitialization } from './hooks/useAppInitialization'
@@ -170,7 +170,7 @@ function App(): React.JSX.Element {
                 )}
 
                 {!isCompact && showSidebar && (
-                  <AppSidebar 
+                  <InfoPanel 
                     statusInfo={statusInfo}
                     settings={settings}
                     chat={chat}

@@ -36,6 +36,14 @@ dependencies = [
     "python-dotenv>=1.0.1",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-mock>=3.14.0",
+    "httpx>=0.28.0",
+]
+
 [build-system]
 requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
@@ -47,3 +55,9 @@ include-package-data = false
 where = ["."]
 include = ["ai*", "api*", "agents*", "database*", "domain*", "services*", "tools*", "utils*"]
 exclude = ["data*", "notes*", "models*", "momai_db*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

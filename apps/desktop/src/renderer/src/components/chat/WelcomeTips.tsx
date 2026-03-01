@@ -35,7 +35,7 @@ function shuffleArray<T>(array: T[]): T[] {
 export function WelcomeHeader({ statusInfo, settings }: { statusInfo: StatusData | null, settings: SettingsData | null }) {
   const userName = settings?.user_name || ''
   const showSeparator = userName && userName !== ''
-  const tier = statusInfo?.ai_tier || settings?.ai_tier || localStorage.getItem('momai_ai_tier') || 'pro'
+  const tier = localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'pro'
 
   return (
     <div className="flex flex-col items-center text-center space-y-6 max-w-md w-full mb-2 animate-in fade-in slide-in-from-bottom-4 duration-1000">
@@ -167,7 +167,7 @@ export default function WelcomeTips({ onSendMessage, statusInfo }: WelcomeTipsPr
     loadDynamic()
   }, [isBrainReady])
 
-  const tier = statusInfo?.ai_tier || settings?.ai_tier || localStorage.getItem('momai_ai_tier') || 'pro'
+  const tier = localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'pro'
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 select-none">

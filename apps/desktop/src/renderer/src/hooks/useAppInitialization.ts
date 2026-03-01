@@ -30,6 +30,8 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
     const handleModeChangeStart = () => {
       setIsFirstLaunch(true)
       setShowWelcome(true)
+      // @ts-ignore
+      window.api.resetWindowSize?.()
     }
     window.addEventListener('momai_tier_change_start', handleModeChangeStart)
 

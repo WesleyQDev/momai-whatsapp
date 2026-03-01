@@ -17,7 +17,7 @@
   "remindersSidebar.repeat.days": "A cada {value} dia(s)",
   "remindersSidebar.repeat.weeks": "A cada {value} semana(s)",
   "remindersSidebar.repeat.months": "A cada {value} mês(es)",
-  "nextReminders.title": "Próximos Agendamentos",
+
   "graphInterface.header": "Interface Auxiliar",
   "graphInterface.footer": "Relatório do Sistema • MomAI",
   "settings.language.uiLabel": "Idioma da UI",

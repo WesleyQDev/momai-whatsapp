@@ -1,5 +1,5 @@
 import { RefObject, JSX, useState, useEffect, useMemo } from 'react'
-import { MessageList, ChatInput } from './chat'
+import { MessageList, ChatInput, LoadingAnimation } from './chat'
 import { Message, StatusData, SettingsData, fetchSettings, listMemoryNotes } from '../services/api'
 import { cleanMomaiActions } from '../utils/text'
 import { WelcomeHeader, WelcomeActions } from './chat/WelcomeTips'
@@ -179,124 +179,6 @@ const CallModeUI = ({
   </div>
 )
 
-const LoadingAnimation = ({
-  progress,
-  message,
-  onComplete,
-  isFirstLaunch
-}: {
-  progress: number
-  message?: string
-  onComplete?: () => void
-  isFirstLaunch?: boolean
-}) => {
-  const [visualProgress, setVisualProgress] = useState(2) // Start at 2% so it's never empty
-  const [isFadingOut, setIsFadingOut] = useState(false)
-  const [seconds, setSeconds] = useState(0)
-
-  useEffect(() => {
-    const startTime = Date.now()
-    const interval = setInterval(() => {
-      setSeconds(Math.floor((Date.now() - startTime) / 1000))
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setVisualProgress((prev) => {
-        if (progress >= 100) {
-          if (prev >= 100) return 100
-          // Snappy jump to 100: completing the rest in very few steps
-          const remaining = 100 - prev
-          const step = Math.max(25, remaining / 2) 
-          return Math.min(100, prev + step)
-        }
-        
-        const baseIncrement = prev < 15 ? 0.4 : 0.02
-        const randomFactor = Math.random() * 0.05
-        const next = prev + baseIncrement + randomFactor
-        
-        // Clamp at 88% only if real progress is far behind
-        // If real progress is > 80%, we allow the visual crawl to go higher
-        const cap = progress > 90 ? 99 : 88
-        const targetValue = Math.max(next, progress * 0.9)
-        
-        return Math.min(targetValue, cap)
-      })
-    }, 100)
-    return () => clearInterval(interval)
-  }, [progress])
-
-  useEffect(() => {
-    if (visualProgress >= 100) {
-      const timer = setTimeout(() => {
-        setIsFadingOut(true)
-        if (onComplete) {
-          setTimeout(onComplete, 500)
-        }
-      }, 200)
-      return () => clearTimeout(timer)
-    }
-    return undefined
-  }, [visualProgress, onComplete])
-
-  return (
-    <div
-      className={`flex-1 flex flex-col items-center justify-center p-12 transition-all duration-500 ${
-        isFadingOut ? 'opacity-0 scale-95 blur-sm' : 'opacity-100 scale-100'
-      }`}
-    >
-      <div className="flex flex-col items-center text-center mb-12 animate-fade-in w-full px-4">
-        <h1 className="text-[12px] font-black text-text/60 tracking-[0.2em] uppercase max-w-[600px] leading-tight">
-          {progress < 100 && isFirstLaunch
-            ? "A primeira inicialização pode levar de 1 a 3 minutos" 
-            : "Bem-vinda à MomAI"}
-        </h1>
-      </div>
-
-      <div className="w-full max-w-sm mb-8 relative z-10">
-        <div className="flex justify-between items-end mb-3 px-1">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-accent/80 animate-pulse mb-1">
-              Inicializando Sistema
-            </span>
-            {localStorage.getItem('momai_dev_mode') === 'true' && (
-              <span className="text-[14px] font-bold text-text/80 tracking-tight">
-                {message || 'Preparando ambiente...'}
-              </span>
-            )}
-          </div>
-          <div className="flex flex-col items-end">
-            <span className="text-[18px] font-black text-text font-mono leading-none mb-1">
-              {Math.round(visualProgress)}%
-            </span>
-          </div>
-        </div>
-
-        <div className="relative h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/10 shadow-inner">
-          <div
-            className="absolute top-0 left-0 h-full bg-accent shadow-[0_0_20px_rgba(139,92,246,0.6)] transition-all duration-300 ease-out rounded-full"
-            style={{ width: `${visualProgress}%` }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-          </div>
-        </div>
-      </div>
-
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-accent/5 rounded-full blur-[120px] transition-all duration-1000"
-          style={{
-            opacity: isFadingOut ? 0 : 1,
-            transform: `translate(-50%, -50%) scale(${0.8 + visualProgress / 200})`
-          }}
-        />
-      </div>
-    </div>
-  )
-}
-
 export default function ContainerChat({
   messages,
   isLoading,
@@ -394,14 +276,14 @@ export default function ContainerChat({
 
   const isReallyReady = initProgress >= 100 && isBrainReady && !isBrainLoading
   const displayProgress = !isReallyReady ? Math.min(initProgress, 99) : 100
-  const showLoading = !animationFinished
+  const showLoading = !animationFinished || (!isBrainReady && !isBrainLoading)
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage = (initProgress >= 100 && (!isBrainReady || isBrainLoading))
     ? (!initMessage || initMessage === 'Sistema pronto.' ? defaultWaitingMessage : initMessage)
     : initMessage
 
-  const tier = statusInfo?.ai_tier || settings?.ai_tier || 'pro'
+  const tier = localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'pro'
 
   return (
     <div className="bg-transparent w-full h-full flex flex-col overflow-hidden relative">

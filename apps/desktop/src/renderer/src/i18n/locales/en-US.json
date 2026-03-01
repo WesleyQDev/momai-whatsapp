@@ -17,7 +17,7 @@
   "remindersSidebar.repeat.days": "Every {value} day(s)",
   "remindersSidebar.repeat.weeks": "Every {value} week(s)",
   "remindersSidebar.repeat.months": "Every {value} month(s)",
-  "nextReminders.title": "Upcoming Reminders",
+
   "graphInterface.header": "Side Interface",
   "graphInterface.footer": "System Report • MomAI",
   "settings.language.uiLabel": "UI Language",

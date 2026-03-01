@@ -19,6 +19,10 @@
     },
     "format": {
       "cache": false
+    },
+    "test": {
+      "dependsOn": ["^test"],
+      "cache": true
     }
   }
 }

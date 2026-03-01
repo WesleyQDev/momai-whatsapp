@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "description": "MomAI",
   "private": true,
-  "scripts": {
+"scripts": {
     "dev": "pnpm --filter desktop dev",
     "dev:desktop": "cd apps/desktop && electron-vite dev",
     "dev:core": "cd apps/core && uvicorn main:app --reload --host 127.0.0.1 --port 8000",
@@ -12,6 +12,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "format": "turbo run format",
+    "test": "turbo run test",
     "docs": "cd apps/docs && mint dev",
     "docs:internal": "pnpm --filter internal-docs start",
     "preinstall": "npx only-allow pnpm"

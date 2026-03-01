@@ -128,6 +128,9 @@ export function registerIpcHandlers(): void {
   ipcMain.on('app-ready', () => {
     const win = getMainWindow()
     if (!win) return
+    if (win.isMaximized()) win.unmaximize()
+    win.setSize(880, 670)
+    win.center()
     win.setMinimumSize(450, 670)
   })
 
@@ -141,6 +144,15 @@ export function registerIpcHandlers(): void {
     } catch (error: any) {
       logger.error('[WindowManager] Falha ao reiniciar backend:', error)
       return { success: false, error: error.message }
+    }
+  })
+
+  ipcMain.on('window-reset-size', () => {
+    const win = getMainWindow()
+    if (win) {
+      if (win.isMaximized()) win.unmaximize()
+      win.setSize(880, 670)
+      win.center()
     }
   })
 }

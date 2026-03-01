@@ -65,7 +65,9 @@ const api = {
   setResizable: (resizable: boolean): void =>
     electronAPI.ipcRenderer.send('window-set-resizable', resizable),
   restartBackend: (): Promise<{ success: boolean; error?: string }> =>
-    electronAPI.ipcRenderer.invoke('restart-backend')
+    electronAPI.ipcRenderer.invoke('restart-backend'),
+  resetWindowSize: (): void =>
+    electronAPI.ipcRenderer.send('window-reset-size')
 }
 
 if (process.contextIsolated) {

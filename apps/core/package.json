@@ -2,6 +2,8 @@
   "name": "core",
   "private": true,
   "scripts": {
-    "dev": "uv run uvicorn main:app --reload --host 127.0.0.1 --port 8000"
+    "dev": "uv run uvicorn main:app --reload --host 127.0.0.1 --port 8000",
+    "test": "uv run pytest",
+    "test:watch": "uv run pytest --watch"
   }
 }

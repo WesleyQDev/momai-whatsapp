@@ -181,6 +181,8 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   }
 
   const handleTierChange = async (tier: 'lite' | 'pro' | 'ultra') => {
+    // @ts-ignore
+    window.api.resetWindowSize?.()
     onClose()
     localStorage.setItem('momai_mode_changing', 'true')
     window.dispatchEvent(new CustomEvent('momai_tier_change_start'))
@@ -192,6 +194,9 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
       
       // @ts-ignore
       await window.api.restartBackend()
+      
+      // @ts-ignore
+      window.api.resetWindowSize?.()
       
       window.location.href = window.location.pathname + '#/'
     } catch (error) {
@@ -250,6 +255,8 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   }
 
   const resetOnboarding = () => {
+    // @ts-ignore
+    window.api.resetWindowSize?.()
     onClose()
     updateField('onboarding_completed', false, true)
     // @ts-ignore
