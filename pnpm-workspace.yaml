@@ -1,6 +1,6 @@
 packages:
   - apps/*
-  - '!apps/desktop'
+  - "!apps/desktop"
   - packages/*
 
 catalog:
