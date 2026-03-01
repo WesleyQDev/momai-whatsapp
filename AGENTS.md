@@ -57,6 +57,7 @@ pnpm format           # Prettier write
 ### Desktop (TypeScript / React / Electron)
 
 **Naming Conventions**:
+
 - Components: PascalCase (`SettingsPanel.tsx`)
 - Hooks: camelCase with `use` prefix (`useAudioRecorder.ts`)
 - Utilities: camelCase (`formatTime.ts`)
@@ -68,23 +69,27 @@ pnpm format           # Prettier write
 **Python Version**: 3.12+
 
 **Style**:
+
 - Follow PEP 8
 - Use type hints (`def process(item: str) -> list[str]:`)
 - Use async/await for I/O operations
 - Prefer dataclasses or Pydantic models for data structures
 
 **Naming**:
+
 - Functions: snake_case (`def process_audio`)
 - Classes: PascalCase (`class AudioProcessor`)
 - Constants: UPPER_SNAKE_CASE
 
 **FastAPI Patterns**:
+
 - Use dependency injection via `Depends()`
 - Define schemas in `api/schemas.py`
 - Routes in `api/routes/*.py`
 - Use Pydantic models for request/response validation
 
 **Error Handling**:
+
 - Use `HTTPException` for HTTP errors
 - Implement global exception handlers in `main.py`
 - Log errors with appropriate severity
@@ -94,17 +99,20 @@ pnpm format           # Prettier write
 ## Environment & Configuration
 
 ### Desktop
+
 - Electron 39.x with electron-vite
 - React 19 + TypeScript 5.9
 - TailwindCSS 3.x for styling
 
 ### Core
+
 - FastAPI with uvicorn
 - LangGraph for agent orchestration
 - LanceDB for semantic search
 - SQLite for persistence
 
 ### Environment Variables
+
 - Desktop: Uses `.env` files in `apps/momai/`
 - Core: Uses `.env` file in `apps/core/`
 

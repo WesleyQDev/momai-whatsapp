@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "description": "MomAIOS monorepo",
   "private": true,
-"scripts": {
+  "scripts": {
     "dev": "pnpm --filter momai dev",
     "dev:momai": "cd apps/momai && electron-vite dev",
     "dev:desktop": "pnpm run dev:momai",

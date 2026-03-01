@@ -38,7 +38,7 @@ jobs:
           CLEAN_VERSION="${VERSION#v}"
           echo "Setting version to $CLEAN_VERSION"
           cd apps/momai
-          npm version "$CLEAN_VERSION" --no-git-tag-version --allow-same-version
+          pnpm version "$CLEAN_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -87,7 +87,7 @@ jobs:
           CLEAN_VERSION="${VERSION#v}"
           echo "Setting version to $CLEAN_VERSION"
           cd apps/momai
-          npm version "$CLEAN_VERSION" --no-git-tag-version --allow-same-version
+          pnpm version "$CLEAN_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Install system dependencies
         run: |
