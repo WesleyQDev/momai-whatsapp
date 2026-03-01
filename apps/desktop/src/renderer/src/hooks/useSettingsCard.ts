@@ -20,6 +20,7 @@ export interface Settings {
   daily_briefing_enabled: boolean
   ai_tier: 'lite' | 'pro' | 'ultra'
   auto_start_llm: boolean
+  onboarding_completed?: boolean
 }
 
 export interface LocalDetails {
@@ -235,14 +236,16 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   }
 
   const updateField = (field: string, value: any, saveNow = false) => {
-    setSettings((prev) => {
-      const newState = { ...prev, [field]: value }
-      if (field === 'locale') {
-        setLocale(value)
-      }
-      if (saveNow) saveSettings(newState)
-      return newState
-    })
+    const newState = { ...settings, [field]: value }
+    setSettings(newState)
+    
+    if (field === 'locale') {
+      setLocale(value)
+    }
+    
+    if (saveNow) {
+      return saveSettings(newState)
+    }
     return Promise.resolve()
   }
 
@@ -254,13 +257,19 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     setTimeout(() => setIsLoading(false), 10)
   }
 
-  const resetOnboarding = () => {
+  const resetOnboarding = async () => {
     // @ts-ignore
     window.api.resetWindowSize?.()
-    onClose()
-    updateField('onboarding_completed', false, true)
+    
+    // We update the field and wait for the save to complete before closing
+    // This ensures the momai_settings_sync event is dispatched while component is still potentially active
+    // and that the API call isn't interrupted by unmounting.
+    await updateField('onboarding_completed', false, true)
+    
     // @ts-ignore
     window.electron.ipcRenderer.send('reset-onboarding')
+    
+    onClose()
   }
 
   return {

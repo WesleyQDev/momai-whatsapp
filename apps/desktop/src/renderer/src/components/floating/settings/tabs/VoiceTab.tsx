@@ -105,19 +105,25 @@ export const VoiceTab = ({
 
       {/* Recursos de Voz */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-black/20">
+        <div className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-black/30 shadow-inner group transition-all duration-300 hover:border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center text-accent">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300 ${
+              settings.daily_briefing_enabled 
+                ? 'bg-accent/20 text-accent shadow-[0_0_20px_rgba(var(--accent),0.15)]' 
+                : 'bg-white/5 text-text-muted/40'
+            }`}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-black text-text uppercase tracking-wider">
+              <span className={`text-xs font-black uppercase tracking-wider transition-colors duration-300 ${
+                settings.daily_briefing_enabled ? 'text-text' : 'text-text-muted'
+              }`}>
                 {t('settings.general.dailyBriefingLabel')}
               </span>
-              <span className="text-[10px] text-text-muted font-medium">
+              <span className="text-[10px] text-text-muted font-medium opacity-60">
                 {t('settings.general.dailyBriefingSubtitle')}
               </span>
             </div>
@@ -126,10 +132,14 @@ export const VoiceTab = ({
             onClick={() =>
               updateField('daily_briefing_enabled', !settings.daily_briefing_enabled, true)
             }
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${settings.daily_briefing_enabled ? 'bg-accent' : 'bg-text-muted/20'}`}
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              settings.daily_briefing_enabled ? 'bg-accent/80' : 'bg-white/10'
+            }`}
           >
             <span
-              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${settings.daily_briefing_enabled ? 'translate-x-4.5' : 'translate-x-1'}`}
+              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                settings.daily_briefing_enabled ? 'translate-x-4' : 'translate-x-0'
+              }`}
             />
           </button>
         </div>
