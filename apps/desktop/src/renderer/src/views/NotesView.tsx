@@ -11,6 +11,10 @@ import {
   updateMemoryNote,
   deleteMemoryNote,
   importMemoryNotes,
+  listMemoryFolders,
+  createMemoryFolder,
+  renameMemoryFolder,
+  openNoteFolder,
   NoteSummary
 } from '../services/api'
 import {
@@ -22,9 +26,13 @@ import {
   ArrowsPointingOutIcon,
   ArrowsPointingInIcon,
   ChevronRightIcon,
+  ChevronDownIcon,
   InboxIcon,
   PencilIcon,
-  PlusIcon
+  PlusIcon,
+  FolderIcon,
+  ArrowUpTrayIcon,
+  DocumentArrowUpIcon
 } from '@heroicons/react/24/outline'
 import { useI18n } from '../i18n'
 import ConfirmationCard from '../components/floating/ConfirmationCard'
@@ -46,12 +54,23 @@ export default function NotesView() {
   const [filterText, setFilterText] = useState('')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [openTabIds, setOpenTabIds] = useState<string[]>([])
+  const [folders, setFolders] = useState<string[]>([])
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']))
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false)
+  const [isImportDropdownOpen, setIsImportDropdownOpen] = useState(false)
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)
+  const [newFolderName, setNewFolderName] = useState('')
+  const folderInputRefSimple = useRef<HTMLInputElement>(null)
 
   // Context Menu & Renaming State
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; noteId: string } | null>(
-    null
-  )
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    id: string
+    type: 'note' | 'folder'
+  } | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renamingFolder, setRenamingFolder] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
 
@@ -82,6 +101,46 @@ export default function NotesView() {
       [note.title || '', note.preview || ''].some((value) => value.toLowerCase().includes(query))
     )
   }, [filterText, notes])
+
+  // Memoized Folder Structure
+  const notesByFolder = useMemo(() => {
+    const map: Record<string, NoteSummary[]> = { root: [] }
+    filteredNotes.forEach((note) => {
+      // note.path is something like "notes/filename.md" or "notes/Folder/abc.md"
+      const parts = note.path.split(/[/\\]/)
+      if (parts.length <= 2) {
+        map.root.push(note)
+      } else {
+        // Skip the first "notes" part if it exists
+        const startIdx = parts[0] === 'notes' ? 1 : 0
+        const folderPath = parts.slice(startIdx, -1).join('/')
+        if (!folderPath) {
+          map.root.push(note)
+        } else {
+          if (!map[folderPath]) map[folderPath] = []
+          map[folderPath].push(note)
+        }
+      }
+    })
+    return map
+  }, [filteredNotes])
+
+  const allFoldersSorted = useMemo(() => {
+    const set = new Set(folders)
+    Object.keys(notesByFolder).forEach((f) => {
+      if (f !== 'root') set.add(f)
+    })
+    return Array.from(set).sort()
+  }, [folders, notesByFolder])
+
+  const loadFolders = async () => {
+    try {
+      const data = await listMemoryFolders()
+      setFolders(data)
+    } catch (e) {
+      console.error('Failed to load folders', e)
+    }
+  }
 
   const loadNotes = async () => {
     setIsLoading(true)
@@ -133,6 +192,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
           await selectNote(firstId)
         }
       }
+      loadFolders()
     } catch (err) {
       setError(t('notes.errors.load'))
     } finally {
@@ -293,45 +353,74 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
   }
 
   // --- Context Menu Handlers ---
-
-  const handleContextMenu = (e: React.MouseEvent, noteId: string) => {
+  
+  const handleContextMenu = (e: React.MouseEvent, id: string, type: 'note' | 'folder' = 'note') => {
     e.preventDefault()
-    setContextMenu({ x: e.clientX, y: e.clientY, noteId })
+    setContextMenu({ x: e.clientX, y: e.clientY, id, type })
   }
 
-  const handleStartRename = (noteId: string, currentTitle: string) => {
-    setRenamingId(noteId)
+  const handleStartRename = (id: string, currentTitle: string, type: 'note' | 'folder' = 'note') => {
+    if (type === 'note') {
+      setRenamingId(id)
+    } else {
+      setRenamingFolder(id)
+    }
     setRenameValue(currentTitle)
     setContextMenu(null)
     setTimeout(() => renameInputRef.current?.focus(), 50)
   }
 
   const handleFinishRename = async () => {
-    if (!renamingId) return
-    if (!renameValue.trim() || renameValue === notes.find((n) => n.id === renamingId)?.title) {
-      setRenamingId(null)
-      return
-    }
-
-    try {
-      // Optimistic update
-      setNotes((prev) => prev.map((n) => (n.id === renamingId ? { ...n, title: renameValue } : n)))
-      if (activeId === renamingId) {
-        setTitle(renameValue)
-        lastSaved.current.title = renameValue
+    if (renamingId) {
+      if (!renameValue.trim() || renameValue === notes.find((n) => n.id === renamingId)?.title) {
+        setRenamingId(null)
+        return
       }
 
-      await updateMemoryNote(renamingId, { title: renameValue })
-    } catch (err) {
-      setError(t('notes.errors.save'))
-    } finally {
-      setRenamingId(null)
+      try {
+        // Optimistic update
+        setNotes((prev) => prev.map((n) => (n.id === renamingId ? { ...n, title: renameValue } : n)))
+        if (activeId === renamingId) {
+          setTitle(renameValue)
+          lastSaved.current.title = renameValue
+        }
+
+        await updateMemoryNote(renamingId, { title: renameValue })
+      } catch (err) {
+        setError(t('notes.errors.save'))
+      } finally {
+        setRenamingId(null)
+      }
+    } else if (renamingFolder) {
+      const oldPath = renamingFolder
+      const newName = renameValue.trim()
+      if (!newName || newName === oldPath.split(/[/\\]/).pop()) {
+        setRenamingFolder(null)
+        return
+      }
+
+      const parts = oldPath.split(/[/\\]/)
+      parts[parts.length - 1] = newName
+      const newPath = parts.join('/')
+
+      try {
+        await renameMemoryFolder(oldPath, newPath)
+        await loadNotes()
+        await loadFolders()
+      } catch (err) {
+        setError('Erro ao renomear pasta')
+      } finally {
+        setRenamingFolder(null)
+      }
     }
   }
 
   const handleKeyDownRename = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleFinishRename()
-    if (e.key === 'Escape') setRenamingId(null)
+    if (e.key === 'Escape') {
+      setRenamingId(null)
+      setRenamingFolder(null)
+    }
   }
 
   const handleImport = async (files: FileList | null) => {
@@ -351,6 +440,66 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
       await loadNotes()
     } catch (err) {
       setError(t('notes.errors.import'))
+    }
+  }
+
+  // --- Folder Management ---
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) {
+      setIsCreatingFolder(false)
+      return
+    }
+
+    try {
+      await createMemoryFolder(newFolderName.trim())
+      setFolders((prev) => [...prev, newFolderName.trim()])
+      setExpandedFolders((prev) => new Set([...prev, newFolderName.trim()]))
+    } catch (e) {
+      setError('Erro ao criar pasta')
+    } finally {
+      setIsCreatingFolder(false)
+      setNewFolderName('')
+    }
+  }
+
+  const toggleFolder = (folderPath: string) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev)
+      if (next.has(folderPath)) next.delete(folderPath)
+      else next.add(folderPath)
+      return next
+    })
+  }
+
+  // --- Drag and Drop ---
+
+  const handleDragStart = (e: React.DragEvent, id: string, type: 'note' | 'folder') => {
+    e.dataTransfer.setData('type', type)
+    e.dataTransfer.setData('id', id)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleDrop = async (e: React.DragEvent, targetFolderPath: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverFolder(null)
+    
+    const type = e.dataTransfer.getData('type')
+    const id = e.dataTransfer.getData('id')
+
+    if (type === 'note') {
+      try {
+        await updateMemoryNote(id, { path: targetFolderPath === 'root' ? '' : targetFolderPath })
+        await loadNotes()
+      } catch (err) {
+        setError('Erro ao mover nota')
+      }
     }
   }
 
@@ -583,7 +732,10 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
   return (
     <div
       className="flex-1 h-full bg-bg text-text flex font-sans overflow-hidden transition-colors duration-300"
-      onClick={() => setContextMenu(null)}
+      onClick={() => {
+        setContextMenu(null)
+        setIsImportDropdownOpen(false)
+      }}
     >
       {/* 1. Sidebar - Minimalist & Functional */}
       {!isSidebarCollapsed && (
@@ -609,68 +761,240 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
               >
                 <PencilSquareIcon className="w-5 h-5 stroke-[1.5]" />
               </button>
-
-              <div className="w-px h-3.5 bg-border/10"></div>
-
+              
               <button
-                onClick={() => fileInputRef.current?.click()}
-                className="p-1.5 text-text-muted hover:text-text hover:bg-white/5 rounded-lg transition-all"
-                title={t('notes.importFiles')}
-              >
-                <DocumentPlusIcon className="w-5 h-5 stroke-[1.5]" />
-              </button>
-              <button
-                onClick={() => folderInputRef.current?.click()}
-                className="p-1.5 text-text-muted hover:text-text hover:bg-white/5 rounded-lg transition-all"
-                title={t('notes.importFolder')}
+                onClick={() => setIsCreatingFolder(true)}
+                className="p-1.5 text-text-muted hover:text-accent hover:bg-white/5 rounded-lg transition-all"
+                title={t('notes.newFolder')}
               >
                 <FolderPlusIcon className="w-5 h-5 stroke-[1.5]" />
               </button>
+
+              <div className="w-px h-3.5 bg-border/10 mx-1"></div>
+
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsImportDropdownOpen(!isImportDropdownOpen)
+                  }}
+                  className="p-1.5 text-text-muted hover:text-text hover:bg-white/5 rounded-lg transition-all"
+                  title="Importar"
+                >
+                  <DocumentArrowUpIcon className="w-5 h-5 stroke-[1.5]" />
+                </button>
+
+                {isImportDropdownOpen && (
+                  <div className="absolute top-full left-0 mt-1 z-30 bg-card border border-border/10 rounded-lg shadow-xl py-1 min-w-[120px] flex flex-col animate-context-menu">
+                    <button
+                      onClick={() => {
+                        fileInputRef.current?.click()
+                        setIsImportDropdownOpen(false)
+                      }}
+                      className="text-left px-3 py-2 text-xs text-text hover:bg-white/5 flex items-center gap-2"
+                    >
+                      <DocumentPlusIcon className="w-3.5 h-3.5 opacity-70" />
+                      {t('notes.importFiles')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        folderInputRef.current?.click()
+                        setIsImportDropdownOpen(false)
+                      }}
+                      className="text-left px-3 py-2 text-xs text-text hover:bg-white/5 flex items-center gap-2"
+                    >
+                      <ArrowUpTrayIcon className="w-3.5 h-3.5 opacity-70" />
+                      {t('notes.importFolder')}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           <div
-            className="flex-1 overflow-y-auto custom-scrollbar px-3 pb-4 space-y-0.5"
+            className={`flex-1 overflow-y-auto custom-scrollbar px-3 pb-4 space-y-0.5 transition-colors ${
+              dragOverFolder === 'root' ? 'bg-accent/5' : ''
+            }`}
             onClick={() => setContextMenu(null)}
+            onDragOver={handleDragOver}
+            onDragEnter={() => setDragOverFolder('root')}
+            onDragLeave={(e) => {
+              // Only clear if we are leaving to somewhere outside the sidebar
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setDragOverFolder(null)
+              }
+            }}
+            onDrop={(e) => handleDrop(e, 'root')}
           >
+            {isCreatingFolder && (
+              <div className="p-1">
+                <input
+                  ref={folderInputRefSimple}
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onBlur={handleCreateFolder}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
+                  placeholder={t('notes.untitledFolder')}
+                  className="w-full bg-input border border-accent/50 rounded-lg px-3 py-2 text-[13px] font-medium text-text outline-none mb-2"
+                  autoFocus
+                />
+              </div>
+            )}
+
             {isLoading && notes.length === 0 ? (
               <div className="p-4 text-center text-xs opacity-30 italic">{t('notes.loading')}</div>
             ) : (
-              filteredNotes.map((note) => (
-                <div key={note.id} onContextMenu={(e) => handleContextMenu(e, note.id)}>
-                  {renamingId === note.id ? (
-                    <input
-                      ref={renameInputRef}
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onBlur={handleFinishRename}
-                      onKeyDown={handleKeyDownRename}
-                      className="w-full bg-input border border-accent/50 rounded-lg px-3 py-2 text-[13px] font-medium text-text outline-none mb-0.5"
-                      autoFocus
-                    />
-                  ) : (
-                    <button
-                      onClick={() => selectNote(note.id, false)}
-                      onAuxClick={(e) => {
-                        if (e.button === 1) selectNote(note.id, true)
-                      }}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg transition-all group relative border border-transparent ${
-                        note.id === activeId
-                          ? 'bg-accent/10 text-accent font-semibold'
-                          : 'text-text-muted hover:bg-white/5 hover:text-text'
-                      }`}
+              <div className="space-y-1">
+                {/* Folders */}
+                {allFoldersSorted.map((folderPath) => {
+                  const isExpanded = expandedFolders.has(folderPath)
+                  const folderNotes = notesByFolder[folderPath] || []
+                  const folderName = folderPath.split('/').pop() || folderPath
+
+                  return (
+                    <div
+                      key={folderPath}
+                      onDragOver={handleDragOver}
+                      onDragEnter={() => setDragOverFolder(folderPath)}
+                      onDragLeave={() => setDragOverFolder(null)}
+                      onDrop={(e) => handleDrop(e, folderPath)}
+                      className="space-y-0.5"
                     >
-                      <div className="text-[13px] truncate">
-                        {note.title || t('notes.untitled')}
-                      </div>
-                      {/* Minimalist active indicator */}
-                      {note.id === activeId && (
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3/5 bg-accent rounded-r-full"></div>
+                      {renamingFolder === folderPath ? (
+                        <div className="px-2 py-0.5">
+                          <input
+                            ref={renameInputRef}
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onBlur={handleFinishRename}
+                            onKeyDown={handleKeyDownRename}
+                            className="w-full bg-input border border-accent/50 rounded-lg px-3 py-1.5 text-[12.5px] font-medium text-text outline-none mb-0.5"
+                            autoFocus
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => toggleFolder(folderPath)}
+                          onContextMenu={(e) => handleContextMenu(e, folderPath, 'folder')}
+                          className={`w-full text-left px-2 py-1.5 rounded-lg transition-all flex items-center gap-2 group ${
+                            dragOverFolder === folderPath
+                              ? 'bg-accent/20 text-accent scale-[1.02]'
+                              : 'text-text-muted hover:bg-white/5 hover:text-text'
+                          }`}
+                        >
+                          <div className="w-4 flex justify-center">
+                            {isExpanded ? (
+                              <ChevronDownIcon className="w-3 h-3 opacity-40 group-hover:opacity-100" />
+                            ) : (
+                              <ChevronRightIcon className="w-3 h-3 opacity-40 group-hover:opacity-100" />
+                            )}
+                          </div>
+                          <FolderIcon className="w-4 h-4 text-accent/60" />
+                          <span className="text-[12.5px] font-medium truncate flex-1 leading-none">
+                            {folderName}
+                          </span>
+                          <span className="text-[10px] opacity-30 group-hover:opacity-60">
+                            {folderNotes.length}
+                          </span>
+                        </button>
                       )}
-                    </button>
-                  )}
-                </div>
-              ))
+
+                      {isExpanded && (
+                        <div className="ml-4 border-l border-border/10 pl-1 space-y-0.5 animate-in fade-in slide-in-from-left-1 duration-200">
+                          {folderNotes.map((note) => (
+                            <div
+                              key={note.id}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, note.id, 'note')}
+                              onContextMenu={(e) => handleContextMenu(e, note.id)}
+                            >
+                              {renamingId === note.id ? (
+                                <input
+                                  ref={renameInputRef}
+                                  value={renameValue}
+                                  onChange={(e) => setRenameValue(e.target.value)}
+                                  onBlur={handleFinishRename}
+                                  onKeyDown={handleKeyDownRename}
+                                  className="w-full bg-input border border-accent/50 rounded-lg px-3 py-2 text-[13px] font-medium text-text outline-none mb-0.5"
+                                  autoFocus
+                                />
+                              ) : (
+                                <button
+                                  onClick={() => selectNote(note.id, false)}
+                                  onAuxClick={(e) => {
+                                    if (e.button === 1) selectNote(note.id, true)
+                                  }}
+                                  className={`w-full text-left px-3 py-2 rounded-lg transition-all group relative border border-transparent ${
+                                    note.id === activeId
+                                      ? 'bg-accent/10 text-accent font-semibold'
+                                      : 'text-text-muted hover:bg-white/5 hover:text-text'
+                                  }`}
+                                >
+                                  <div className="text-[13px] truncate flex items-center gap-2">
+                                    <InboxIcon className="w-4 h-4 opacity-30 group-hover:opacity-60" />
+                                    {note.title || t('notes.untitled')}
+                                  </div>
+                                  {note.id === activeId && (
+                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3/5 bg-accent rounded-r-full"></div>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          {folderNotes.length === 0 && (
+                            <div className="px-3 py-2 text-[10px] text-text-muted/40 italic">
+                              Vazio
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+
+                {/* Root Notes */}
+                {(notesByFolder.root || []).map((note) => (
+                  <div
+                    key={note.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, note.id, 'note')}
+                    onContextMenu={(e) => handleContextMenu(e, note.id)}
+                  >
+                    {renamingId === note.id ? (
+                      <input
+                        ref={renameInputRef}
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onBlur={handleFinishRename}
+                        onKeyDown={handleKeyDownRename}
+                        className="w-full bg-input border border-accent/50 rounded-lg px-2 py-2 text-[13px] font-medium text-text outline-none mb-0.5"
+                        autoFocus
+                      />
+                    ) : (
+                      <button
+                        onClick={() => selectNote(note.id, false)}
+                        onAuxClick={(e) => {
+                          if (e.button === 1) selectNote(note.id, true)
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg transition-all group relative border border-transparent ${
+                          note.id === activeId
+                            ? 'bg-accent/10 text-accent font-semibold'
+                            : 'text-text-muted hover:bg-white/5 hover:text-text'
+                        }`}
+                      >
+                        <div className="text-[13px] truncate flex items-center gap-2">
+                          <InboxIcon className="w-4 h-4 opacity-30 group-hover:opacity-60" />
+                          {note.title || t('notes.untitled')}
+                        </div>
+                        {note.id === activeId && (
+                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3/5 bg-accent rounded-r-full"></div>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </aside>
@@ -686,23 +1010,44 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
           <button
             onClick={() =>
               handleStartRename(
-                contextMenu.noteId,
-                notes.find((n) => n.id === contextMenu.noteId)?.title || ''
+                contextMenu.id,
+                contextMenu.type === 'note'
+                  ? notes.find((n) => n.id === contextMenu.id)?.title || ''
+                  : contextMenu.id.split(/[/\\]/).pop() || '',
+                contextMenu.type
               )
             }
-            className="text-left px-3 py-2 text-xs text-text hover:bg-white/5 flex items-center gap-2"
+            className="text-left px-3 py-1.5 text-xs text-text/80 hover:bg-white/5 hover:text-text flex items-center gap-2 transition-all"
           >
-            <PencilIcon className="w-3.5 h-3.5 opacity-70" />
+            <PencilIcon className="w-3.5 h-3.5 opacity-40 group-hover:opacity-100" />
             Renomear
           </button>
+
+          {contextMenu.type === 'note' && (
+            <button
+              onClick={() => {
+                openNoteFolder(contextMenu.id)
+                setContextMenu(null)
+              }}
+              className="text-left px-3 py-1.5 text-xs text-text/80 hover:bg-white/5 hover:text-text flex items-center gap-2 transition-all"
+            >
+              <FolderIcon className="w-3.5 h-3.5 opacity-40 group-hover:opacity-100" />
+              Abrir local do arquivo
+            </button>
+          )}
+
+          <div className="h-px bg-border/5 my-1 mx-2"></div>
+
           <button
             onClick={() => {
-              handleDeleteNote(contextMenu.noteId)
+              if (contextMenu.type === 'note') {
+                handleDeleteNote(contextMenu.id)
+              }
               setContextMenu(null)
             }}
-            className="text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+            className="text-left px-3 py-1.5 text-xs text-red-500/70 hover:bg-red-500/10 hover:text-red-500 flex items-center gap-2 transition-all"
           >
-            <TrashIcon className="w-3.5 h-3.5 opacity-70" />
+            <TrashIcon className="w-3.5 h-3.5 opacity-40 group-hover:opacity-100" />
             Excluir
           </button>
         </div>

@@ -450,11 +450,15 @@ export async function getMemoryNote(noteId: string): Promise<NoteDetail> {
   return response.json()
 }
 
-export async function createMemoryNote(title: string, content: string): Promise<NoteDetail> {
+export async function createMemoryNote(
+  title: string,
+  content: string,
+  path?: string
+): Promise<NoteDetail> {
   const response = await fetch(`${API_URL}/memory/notes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, content })
+    body: JSON.stringify({ title, content, path })
   })
   if (!response.ok) throw new Error('Erro ao criar nota')
   return response.json()
@@ -462,7 +466,7 @@ export async function createMemoryNote(title: string, content: string): Promise<
 
 export async function updateMemoryNote(
   noteId: string,
-  payload: { title?: string; content?: string }
+  payload: { title?: string; content?: string; path?: string }
 ): Promise<NoteDetail> {
   const response = await fetch(`${API_URL}/memory/notes/${noteId}`, {
     method: 'PATCH',
@@ -471,6 +475,39 @@ export async function updateMemoryNote(
   })
   if (!response.ok) throw new Error('Erro ao atualizar nota')
   return response.json()
+}
+
+export async function openNoteFolder(noteId: string): Promise<boolean> {
+  const response = await fetch(`${API_URL}/memory/notes/${noteId}/open-folder`, {
+    method: 'POST'
+  })
+  if (!response.ok) return false
+  const data = await response.json()
+  return data.success
+}
+
+export async function listMemoryFolders(): Promise<string[]> {
+  const response = await fetch(`${API_URL}/memory/folders`)
+  if (!response.ok) throw new Error('Erro ao listar pastas')
+  return response.json()
+}
+
+export async function createMemoryFolder(path: string): Promise<void> {
+  const response = await fetch(`${API_URL}/memory/folders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path })
+  })
+  if (!response.ok) throw new Error('Erro ao criar pasta')
+}
+
+export async function renameMemoryFolder(oldPath: string, newPath: string): Promise<void> {
+  const response = await fetch(`${API_URL}/memory/folders`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_path: oldPath, new_path: newPath })
+  })
+  if (!response.ok) throw new Error('Erro ao renomear pasta')
 }
 
 export async function deleteMemoryNote(noteId: string): Promise<void> {

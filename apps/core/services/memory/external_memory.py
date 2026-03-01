@@ -215,6 +215,76 @@ def _write_note_file(path: Path, content: str):
     path.write_text(_normalize_text(content), encoding="utf-8")
 
 
+def open_note_folder(note_id: str) -> bool:
+    import subprocess
+    
+    db = SessionLocal()
+    try:
+        note = db.query(ExternalNote).filter(ExternalNote.id == note_id).first()
+        if not note:
+            return False
+        
+        abs_path = os.path.abspath(_resolve_note_path(note.path))
+        if not os.path.exists(abs_path):
+            return False
+            
+        if os.name == 'nt':
+             # Windows: Open explorer and select the file
+            subprocess.Popen(f'explorer /select,"{abs_path}"', shell=True)
+            return True
+        elif os.name == 'posix':
+            # Linux (if needed) - assumes xdg-open exists
+            folder = os.path.dirname(abs_path)
+            subprocess.Popen(['xdg-open', folder])
+            return True
+        return False
+    except Exception as e:
+        print(f"Error opening folder: {e}")
+        return False
+    finally:
+        db.close()
+
+
+def rename_folder(old_path: str, new_path: str) -> bool:
+    notes_dir = _notes_dir()
+    old_abs = notes_dir / old_path
+    new_abs = notes_dir / new_path
+    
+    if not old_abs.exists() or not old_abs.is_dir():
+        return False
+        
+    if new_abs.exists():
+        return False
+        
+    try:
+        # Create parent of new path if needed
+        new_abs.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Rename physical folder
+        os.rename(old_abs, new_abs)
+        
+        # Update database paths for all notes inside this folder
+        db = SessionLocal()
+        try:
+            prefix_old = str(Path(NOTES_DIR_NAME) / old_path).replace("\\", "/") + "/"
+            prefix_new = str(Path(NOTES_DIR_NAME) / new_path).replace("\\", "/") + "/"
+            
+            # Use forward slashes for the LIKE pattern in SQLite
+            notes = db.query(ExternalNote).filter(ExternalNote.path.like(f"{prefix_old}%")).all()
+            for note in notes:
+                # Replace the old prefix with the new one
+                note.path = note.path.replace(prefix_old, prefix_new, 1)
+                note.updated_at = datetime.now()
+            
+            db.commit()
+            return True
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error renaming folder: {e}")
+        return False
+
+
 def _read_note_file(path: Path) -> str:
     if not path.exists():
         return ""
@@ -243,6 +313,27 @@ def list_notes() -> list[dict]:
         db.close()
 
 
+def list_folders() -> list[str]:
+    notes_dir = _notes_dir()
+    if not notes_dir.exists():
+        return []
+        
+    folders = []
+    for root, dirs, files in os.walk(notes_dir):
+        rel_root = os.path.relpath(root, notes_dir)
+        if rel_root == ".":
+            # We don't add the root itself, but we add its direct children if they are dirs
+            for d in dirs:
+                folders.append(d)
+        else:
+            # For deeper levels, we add the path relative to notes/
+            # For each subfolder in dirs, we add rel_root/d
+            for d in dirs:
+                folders.append(os.path.join(rel_root, d).replace("\\", "/"))
+                
+    return folders
+
+
 def get_note(note_id: str) -> dict | None:
     db = SessionLocal()
     try:
@@ -264,14 +355,24 @@ def get_note(note_id: str) -> dict | None:
         db.close()
 
 
-def create_note(title: str, content: str, source: str = "local") -> dict:
+def create_note(title: str, content: str, source: str = "local", path: str | None = None) -> dict:
     _ensure_notes_dir()
     note_id = str(uuid.uuid4())
-    filename = _note_filename(note_id)
-    relative_path = str(Path(NOTES_DIR_NAME) / filename)
-    path = _resolve_note_path(relative_path)
-
-    _write_note_file(path, content)
+    
+    if path:
+        # User requested a specific subfolder path
+        clean_path = path.strip().strip("/").strip("\\")
+        if not clean_path.endswith(".md"):
+            filename = f"{note_id}.md"
+            relative_path = str(Path(NOTES_DIR_NAME) / clean_path / filename)
+        else:
+            relative_path = str(Path(NOTES_DIR_NAME) / clean_path)
+    else:
+        filename = _note_filename(note_id)
+        relative_path = str(Path(NOTES_DIR_NAME) / filename)
+        
+    abs_path = _resolve_note_path(relative_path)
+    _write_note_file(abs_path, content)
 
     db = SessionLocal()
     try:
@@ -293,17 +394,43 @@ def create_note(title: str, content: str, source: str = "local") -> dict:
     return get_note(note_id)
 
 
-def update_note(note_id: str, title: str | None, content: str | None) -> dict | None:
+def update_note(note_id: str, title: str | None, content: str | None, path: str | None = None) -> dict | None:
     db = SessionLocal()
     try:
         note = db.query(ExternalNote).filter(ExternalNote.id == note_id).first()
         if not note:
             return None
+        
         if title is not None:
             note.title = title.strip() or note.title
+            
         if content is not None:
-            path = _resolve_note_path(note.path)
-            _write_note_file(path, content)
+            abs_path = _resolve_note_path(note.path)
+            _write_note_file(abs_path, content)
+            
+        if path is not None:
+            old_rel_path = note.path
+            new_rel_path = path
+            
+            # If path doesn't have .md, it's just a folder, we keep the original filename
+            if not path.endswith(".md"):
+                filename = Path(old_rel_path).name
+                new_rel_path = str(Path(NOTES_DIR_NAME) / path.strip("/\\") / filename)
+            
+            if old_rel_path != new_rel_path:
+                old_abs = _resolve_note_path(old_rel_path)
+                new_abs = _resolve_note_path(new_rel_path)
+                
+                if old_abs.exists():
+                    new_abs.parent.mkdir(parents=True, exist_ok=True)
+                    old_abs.rename(new_abs)
+                else:
+                    # If file didn't exist for some reason, just write content
+                    content_to_write = content if content is not None else _read_note_file(old_abs)
+                    _write_note_file(new_abs, content_to_write)
+                
+                note.path = new_rel_path
+
         note.updated_at = datetime.now()
         db.commit()
     finally:

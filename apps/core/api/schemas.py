@@ -65,11 +65,13 @@ class GamingAppCreate(BaseModel):
 class NoteCreate(BaseModel):
     title: str
     content: str = ""
+    path: str | None = None
 
 
 class NoteUpdate(BaseModel):
     title: str | None = None
     content: str | None = None
+    path: str | None = None
 
 
 class NoteImportItem(BaseModel):
@@ -93,6 +95,11 @@ class InstallRequest(BaseModel):
 class InstallExtensionRequest(BaseModel):
     id: str
     download_url: str
+
+
+class FolderRename(BaseModel):
+    old_path: str
+    new_path: str
 
 
 class ExtensionActionRequest(BaseModel):
