@@ -248,7 +248,24 @@ function getWritableCorePath(originalCorePath: string): string {
   }
 }
 
+async function checkVenvHealth(pythonExe: string): Promise<boolean> {
+  if (!existsSync(pythonExe)) return false
+  try {
+    // Verificamos se as dependências básicas estão presentes e se o interpretador está funcional
+    // O import do 'site' é testado implicitamente, o que ajuda a detectar erros no .pth (como o _distutils_hack)
+    execSync(`"${pythonExe}" -c "import dotenv; import fastapi; import uvicorn"`, {
+      stdio: 'ignore',
+      timeout: 5000
+    })
+    return true
+  } catch (err) {
+    logger.warn('[Bootstrap] Venv health check failed:', err)
+    return false
+  }
+}
+
 async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
+
   const isDev = is.dev && process.env['ELECTRON_RENDERER_URL']
 
   const corePath = isDev
@@ -328,19 +345,31 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
 
   // PARALLEL: Create venv AND prepare sync in parallel
   const writableCorePath = getWritableCorePath(corePath)
-  const needsVenv = !existsSync(pythonExe)
+  let isHealthy = await checkVenvHealth(pythonExe)
+  const needsVenv = !existsSync(pythonExe) || !isHealthy
 
   if (needsVenv) {
+    if (!isHealthy && existsSync(pythonExe)) {
+      logger.warn('[Bootstrap] Ambiente detectado como corrompido ou incompleto. Forçando recriação...')
+      try {
+        if (existsSync(venvPath)) {
+          rmSync(venvPath, { recursive: true, force: true })
+          logger.info('[Bootstrap] Ambiente antigo removido para recriação.')
+        }
+      } catch (e) {
+        logger.error('[Bootstrap] Erro ao remover ambiente antigo:', e)
+      }
+    }
     logger.info('[Bootstrap] Ambiente não encontrado. Iniciando setup com uv...')
     sendInitProgress('Criando ambiente isolado...', 10)
 
     if (!existsSync(userDataPath)) mkdirSync(userDataPath, { recursive: true })
 
     try {
-      logger.info(`[Bootstrap] Running: "${uvExe}" venv "${venvPath}" --python 3.12 --seed`)
+      logger.info(`[Bootstrap] Running: "${uvExe}" venv "${venvPath}" --python 3.12`)
       logger.info('[Bootstrap] uv will download Python automatically if not found')
       await new Promise<void>((resolve, reject) => {
-        const child = spawn(uvExe, ['venv', venvPath, '--python', '3.12', '--seed'], {
+        const child = spawn(uvExe, ['venv', venvPath, '--python', '3.12'], {
           shell: false,
           stdio: 'pipe',
           windowsVerbatimArguments: false
@@ -405,7 +434,13 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
 
   // PARALLEL: Sync dependencies while continuing
   const syncLock = getSyncLock(corePath)
-  if (!syncLock || syncLock.needsSync) {
+  // Re-check health after potential venv recreation
+  if (needsVenv) isHealthy = await checkVenvHealth(pythonExe)
+
+  if (!syncLock || syncLock.needsSync || !isHealthy) {
+    if (!isHealthy && existsSync(pythonExe)) {
+      logger.warn('[Bootstrap] Ambiente detectado como corrompido ou incompleto. Forçando sincronização...')
+    }
     logger.info('[Bootstrap] Sincronizando dependências do core...')
     sendInitProgress('Instalando dependências...', 25)
 
