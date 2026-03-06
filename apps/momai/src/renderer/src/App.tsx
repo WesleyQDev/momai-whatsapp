@@ -26,11 +26,11 @@ import { useOverlayBridge } from './hooks/useOverlayBridge'
 function App(): React.JSX.Element {
   const navigate = useNavigate()
   const location = useLocation()
-  
+
   // Custom Hooks for logic separation
   const chat = useChat()
   const { graphState, handleGraphOption, closeGraph, clearHistory } = chat
-  
+
   const {
     statusInfo,
     hasUpdate,
@@ -72,10 +72,13 @@ function App(): React.JSX.Element {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [showAbout, setShowAbout] = useState(false)
 
-  const openSettings = useCallback((tab: 'general' | 'brain' | 'voice' | 'economy' | 'updates' = 'general') => {
-    setSettingsTab(tab)
-    setShowSettings(true)
-  }, [])
+  const openSettings = useCallback(
+    (tab: 'general' | 'brain' | 'voice' | 'economy' | 'updates' = 'general') => {
+      setSettingsTab(tab)
+      setShowSettings(true)
+    },
+    []
+  )
 
   // Event Listeners registration
   useAppEvents({ openSettings, handleGraphOption })
@@ -97,7 +100,7 @@ function App(): React.JSX.Element {
     '/agenda': 'RemindersDashboard',
     '/': 'ChatDashboard'
   }
-  
+
   const uiView = viewMapping[location.pathname] || 'ChatDashboard'
   const isChat = uiView === 'ChatDashboard'
   const showSidebar = uiView === 'ChatDashboard'
@@ -111,13 +114,16 @@ function App(): React.JSX.Element {
           version={appVersion}
         />
       )}
-      
+
       <div
         className="h-full flex flex-col overflow-hidden bg-bg"
         style={{
           transition: 'opacity 0.6s ease-in',
           opacity: showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked ? 0 : 1,
-          pointerEvents: showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked ? 'none' : 'auto'
+          pointerEvents:
+            showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked
+              ? 'none'
+              : 'auto'
         }}
       >
         <TitleBar onClearHistory={triggerClearHistory} activeRoute={location.pathname} />
@@ -170,7 +176,7 @@ function App(): React.JSX.Element {
                 )}
 
                 {!isCompact && showSidebar && (
-                  <InfoPanel 
+                  <InfoPanel
                     statusInfo={statusInfo}
                     settings={settings}
                     chat={chat}

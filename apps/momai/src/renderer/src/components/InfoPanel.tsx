@@ -12,11 +12,19 @@ interface InfoPanelProps {
   isBooting?: boolean
 }
 
-const InfoPanel = ({ statusInfo, settings, chat, historyOpen, setHistoryOpen, isBooting }: InfoPanelProps) => {
+const InfoPanel = ({
+  statusInfo,
+  settings,
+  chat,
+  historyOpen,
+  setHistoryOpen,
+  isBooting
+}: InfoPanelProps) => {
   const navigate = useNavigate()
-  
-  const currentTier = localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'pro'
-  
+
+  const currentTier =
+    localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'pro'
+
   const isThinking = chat.voiceStatus === 'processing' || chat.isLoading || statusInfo?.is_loading
 
   return (

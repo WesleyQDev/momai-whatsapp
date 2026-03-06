@@ -248,7 +248,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
                 const recurrence = getRecurrenceMeta(t, r.repeat_interval, r.repeat_value)
 
                 let dateLabel = 'Hoje'
-                
+
                 if (!isToday) {
                   const tomorrow = new Date(today)
                   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -291,7 +291,10 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
                             repeat_interval: editingReminder.repeat_interval as any,
                             repeat_value: editingReminder.repeat_value || 1,
                             action_type: (editingReminder.action_type as any) || 'reminder',
-                            voice_response: editingReminder.voice_response !== undefined ? editingReminder.voice_response : true
+                            voice_response:
+                              editingReminder.voice_response !== undefined
+                                ? editingReminder.voice_response
+                                : true
                           }}
                           onSubmit={handleUpdate}
                           onCancel={() => setEditingReminder(null)}
@@ -324,7 +327,9 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
                                 {formatTime(time, { hour: '2-digit', minute: '2-digit' })}
                               </span>
                               <span className="w-1 h-1 rounded-full bg-text/10" />
-                              <div className={`${r.action_type === 'cron' ? 'text-indigo-400' : 'text-text-muted/40'}`}>
+                              <div
+                                className={`${r.action_type === 'cron' ? 'text-indigo-400' : 'text-text-muted/40'}`}
+                              >
                                 {r.action_type === 'cron' ? (
                                   <CommandLineIcon className="w-3 h-3" title="Agendador" />
                                 ) : (
@@ -346,7 +351,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
                                 {recurrence.label}
                               </span>
                             )}
-                            
+
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
                                 onClick={() => handleOpenEdit(r)}
