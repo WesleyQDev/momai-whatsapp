@@ -1,5 +1,5 @@
 import os
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from api.schemas import MemorySearch, NoteCreate, NoteUpdate, NotesImport, FolderRename
 
@@ -39,6 +39,15 @@ async def rename_memory_folder(payload: FolderRename):
     if not success:
         return {"status": "error", "message": "Failed to rename folder"}
     return {"status": "success"}
+
+
+@router.delete("/memory/folders")
+async def delete_memory_folder(path: str):
+    from services.memory.external_memory import delete_folder
+    success = delete_folder(path)
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to delete folder")
+    return {"status": "deleted"}
 
 
 @router.get("/memory/notes/{note_id}")

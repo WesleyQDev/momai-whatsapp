@@ -140,7 +140,6 @@ export async function sendChatMessage(
   }
 }
 
-
 export async function fetchStatus(): Promise<StatusData> {
   const response = await fetch(`${API_URL}/status`, {
     method: 'GET',
@@ -508,6 +507,14 @@ export async function renameMemoryFolder(oldPath: string, newPath: string): Prom
     body: JSON.stringify({ old_path: oldPath, new_path: newPath })
   })
   if (!response.ok) throw new Error('Erro ao renomear pasta')
+}
+
+export async function deleteMemoryFolder(path: string): Promise<void> {
+  const encodedPath = encodeURIComponent(path)
+  const response = await fetch(`${API_URL}/memory/folders?path=${encodedPath}`, {
+    method: 'DELETE'
+  })
+  if (!response.ok) throw new Error('Erro ao excluir pasta')
 }
 
 export async function deleteMemoryNote(noteId: string): Promise<void> {

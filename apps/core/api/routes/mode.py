@@ -24,8 +24,17 @@ async def set_mode(mode_data: ModeChange):
 
 @router.post("/mode/call-mode")
 async def set_call_mode(data: CallModeUpdate):
-    """Enable or disable call mode (voice without wake word)."""
+    """Enable or disable call mode (voice without wake word). Ultra tier only."""
     enabled = data.enabled
+
+    if enabled:
+        from database.models import SessionLocal, Settings
+        db = SessionLocal()
+        settings = db.query(Settings).first()
+        db.close()
+        if not settings or settings.ai_tier != "ultra":
+            return {"status": "error", "message": "Call mode only available in Ultra tier"}
+
     app_state.set_call_mode(enabled)
 
     # Flush audio buffers to discard any speech captured before activation/deactivation

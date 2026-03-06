@@ -22,6 +22,7 @@ const getInOneMinuteISO = () => {
 
 interface RemindersSidebarProps {
   onNavigate?: () => void
+  isBooting?: boolean
 }
 
 /**
@@ -66,7 +67,7 @@ function getRecurrenceMeta(
   }
 }
 
-export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) {
+export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSidebarProps) {
   const { reminders, refresh } = useActiveReminders()
   const { t, formatTime } = useI18n()
   const [showQuickAdd, setShowQuickAdd] = useState(false)
@@ -217,7 +218,7 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
                   variant="inline"
                 />
               </div>
-            ) : (
+            ) : !isBooting ? (
               <button
                 onClick={() => setShowQuickAdd(true)}
                 className="px-6 py-3 bg-accent/5 hover:bg-accent/10 border border-accent/10 rounded-xl text-accent transition-all active:scale-95 group flex items-center gap-3"
@@ -227,7 +228,7 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
                   Novo Lembrete
                 </span>
               </button>
-            )}
+            ) : null}
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto custom-scrollbar px-2 space-y-1 pb-4 pt-2">
@@ -410,7 +411,7 @@ export default function RemindersSidebar({ onNavigate }: RemindersSidebarProps) 
         </div>
       )}
 
-      {displayItems.length > 0 && (
+      {displayItems.length > 0 && !isBooting && (
         <div className="p-4 pt-1 flex flex-col gap-2 shrink-0">
           <div className="grid grid-cols-2 gap-2">
             <button

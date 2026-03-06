@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -283,6 +284,37 @@ def rename_folder(old_path: str, new_path: str) -> bool:
     except Exception as e:
         logger.error(f"Error renaming folder: {e}")
         return False
+
+
+def delete_folder(folder_path: str) -> bool:
+    clean_folder_path = (folder_path or "").strip().strip("/").strip("\\")
+    if not clean_folder_path:
+        return False
+
+    notes_dir = _notes_dir()
+    target_abs = notes_dir / clean_folder_path
+    if not target_abs.exists() or not target_abs.is_dir():
+        return False
+
+    db = SessionLocal()
+    try:
+        prefix = str(Path(NOTES_DIR_NAME) / clean_folder_path).replace("\\", "/") + "/"
+        db.query(ExternalNote).filter(ExternalNote.path.like(f"{prefix}%")).delete(synchronize_session=False)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error deleting folder records from DB: {e}")
+        return False
+    finally:
+        db.close()
+
+    try:
+        shutil.rmtree(target_abs)
+    except Exception as e:
+        logger.error(f"Error deleting folder from filesystem: {e}")
+        return False
+
+    return True
 
 
 def _read_note_file(path: Path) -> str:

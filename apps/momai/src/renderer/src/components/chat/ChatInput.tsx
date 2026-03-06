@@ -79,13 +79,8 @@ export default function ChatInput({
   const [aiTier, setAiTier] = useState<string | null>(null)
   const [isQuickRecording, setIsQuickRecording] = useState(false)
 
-  const {
-    suggestion,
-    addToHistory,
-    getSuggestion,
-    clearSuggestion,
-    acceptSuggestion
-  } = useAutocomplete()
+  const { suggestion, addToHistory, getSuggestion, clearSuggestion, acceptSuggestion } =
+    useAutocomplete()
 
   // Sync local text with external text
   useEffect(() => {
@@ -182,7 +177,16 @@ export default function ChatInput({
     clearSuggestion()
     onSend(localText)
     setLocalText('')
-  }, [localText, isLoading, isModeChanging, isBrainReady, isBrainLoading, addToHistory, clearSuggestion, onSend])
+  }, [
+    localText,
+    isLoading,
+    isModeChanging,
+    isBrainReady,
+    isBrainLoading,
+    addToHistory,
+    clearSuggestion,
+    onSend
+  ])
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -274,9 +278,7 @@ export default function ChatInput({
               style={{ lineHeight: 'inherit' }}
             >
               <span className="invisible">{localText}</span>
-              {suggestion && (
-                <span className="text-text-muted/25 select-none">{suggestion}</span>
-              )}
+              {suggestion && <span className="text-text-muted/25 select-none">{suggestion}</span>}
             </div>
 
             <textarea
@@ -317,7 +319,9 @@ export default function ChatInput({
                       onClick={() => toggleSetting('wake_word_enabled')}
                       disabled={!settingsLoaded || isSavingSettings || aiTier !== 'ultra'}
                       className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-all ${
-                        voiceSettings.wake_word_enabled && aiTier === 'ultra' ? 'bg-accent/5 text-accent' : ''
+                        voiceSettings.wake_word_enabled && aiTier === 'ultra'
+                          ? 'bg-accent/5 text-accent'
+                          : ''
                       } ${aiTier !== 'ultra' ? 'cursor-default opacity-80' : ''}`}
                     >
                       <MicrophoneIcon
@@ -327,9 +331,11 @@ export default function ChatInput({
                         <span className="text-[11px] font-bold">
                           {t('chatInput.reconhecimento')}
                         </span>
-                        <span className={`text-[9px] font-medium leading-tight ${aiTier === 'ultra' ? 'text-text-muted opacity-70' : aiTier === 'lite' ? 'text-emerald-500' : 'text-red-500'}`}>
-                          {aiTier === 'ultra' 
-                            ? t('chatInput.reconhecimentoDesc') 
+                        <span
+                          className={`text-[9px] font-medium leading-tight ${aiTier === 'ultra' ? 'text-text-muted opacity-70' : aiTier === 'lite' ? 'text-emerald-500' : 'text-red-500'}`}
+                        >
+                          {aiTier === 'ultra'
+                            ? t('chatInput.reconhecimentoDesc')
                             : 'Recurso disponível no Ultra'}
                         </span>
                       </div>
@@ -346,7 +352,9 @@ export default function ChatInput({
                       onClick={() => toggleSetting('tts_enabled')}
                       disabled={!settingsLoaded || isSavingSettings || aiTier === 'lite'}
                       className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-all border-t border-border/10 ${
-                        voiceSettings.tts_enabled && aiTier !== 'lite' ? 'bg-accent/5 text-accent' : ''
+                        voiceSettings.tts_enabled && aiTier !== 'lite'
+                          ? 'bg-accent/5 text-accent'
+                          : ''
                       } ${aiTier === 'lite' ? 'cursor-default opacity-80' : ''}`}
                     >
                       <SpeakerWaveIcon
@@ -354,9 +362,11 @@ export default function ChatInput({
                       />
                       <div className="flex flex-col items-start flex-1">
                         <span className="text-[11px] font-bold">{t('chatInput.falar')}</span>
-                        <span className={`text-[9px] font-medium leading-tight ${aiTier !== 'lite' ? 'text-text-muted opacity-70' : 'text-emerald-500'}`}>
-                          {aiTier !== 'lite' 
-                            ? t('chatInput.falarDesc') 
+                        <span
+                          className={`text-[9px] font-medium leading-tight ${aiTier !== 'lite' ? 'text-text-muted opacity-70' : 'text-emerald-500'}`}
+                        >
+                          {aiTier !== 'lite'
+                            ? t('chatInput.falarDesc')
                             : 'Recurso disponível a partir do Pro'}
                         </span>
                       </div>
@@ -366,7 +376,6 @@ export default function ChatInput({
                         />
                       )}
                     </button>
-                    
                   </div>
                 )}
               </div>
@@ -394,9 +403,11 @@ export default function ChatInput({
                         : 'text-text-muted/20 cursor-not-allowed grayscale'
                   }`}
                   title={
-                    aiTier !== 'ultra' 
-                      ? 'Transcrição de voz disponível apenas no modo Ultra' 
-                      : isQuickRecording ? 'Escutando...' : 'Gravar mensagem de voz'
+                    aiTier !== 'ultra'
+                      ? 'Transcrição de voz disponível apenas no modo Ultra'
+                      : isQuickRecording
+                        ? 'Escutando...'
+                        : 'Gravar mensagem de voz'
                   }
                 >
                   {isQuickRecording ? (
@@ -432,7 +443,7 @@ export default function ChatInput({
                   className={`rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${
                     isCallMode
                       ? 'bg-red-500 text-white shadow-lg shadow-red-500/20'
-                      : aiTier === 'ultra' 
+                      : aiTier === 'ultra'
                         ? 'bg-white/5 text-text-muted hover:text-text hover:bg-white/10 border border-border/10'
                         : 'bg-white/[0.02] text-text-muted/20 cursor-not-allowed grayscale'
                   }`}

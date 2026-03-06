@@ -1,13 +1,16 @@
 import { app } from 'electron'
-import { spawn, execSync } from 'child_process'
+import { spawn, spawnSync, execSync } from 'child_process'
 import { join, resolve } from 'path'
 import { createConnection } from 'net'
 import {
   existsSync,
   mkdirSync,
+  realpathSync,
   readFileSync,
+  readdirSync,
   writeFileSync,
   statSync,
+  lstatSync,
   unlinkSync,
   rmSync
 } from 'fs'
@@ -24,8 +27,70 @@ import { API_HOST, API_PORT } from './constants'
 import { is } from '@electron-toolkit/utils'
 import { logger } from './logger'
 
-const userDataPath = app.getPath('userData')
+function resolveUserDataPath(rawPath: string): string {
+  try {
+    const localAppData = process.env.LOCALAPPDATA
+    const packageFamilyNameEnv = process.env.PACKAGE_FAMILY_NAME
+
+    if (process.platform === 'win32' && localAppData) {
+      const buildMsixRoamingPath = (family: string): string =>
+        join(localAppData, 'Packages', family, 'LocalCache', 'Roaming', 'MomAI')
+
+      const ensureAndUsePath = (candidate: string): string => {
+        if (!existsSync(candidate)) {
+          mkdirSync(candidate, { recursive: true })
+        }
+        logger.info(`[Bootstrap] Using MSIX LocalCache roaming path: ${candidate}`)
+        return candidate
+      }
+
+      if (packageFamilyNameEnv) {
+        return ensureAndUsePath(buildMsixRoamingPath(packageFamilyNameEnv))
+      }
+
+      const windowsAppsMatch = process.execPath.match(/WindowsApps\\([^\\]+)\\/i)
+      if (windowsAppsMatch?.[1]) {
+        // Example full name: Publisher.AppName_0.8.1.0_x64__publisherid
+        const fullName = windowsAppsMatch[1]
+        const familyMatch = fullName.match(/^(.+?)_[^_]+_[^_]+__(.+)$/)
+        if (familyMatch?.[1] && familyMatch?.[2]) {
+          const derivedFamily = `${familyMatch[1]}_${familyMatch[2]}`
+          return ensureAndUsePath(buildMsixRoamingPath(derivedFamily))
+        }
+      }
+
+      // Last fallback: find a package folder that looks like MomAI.
+      const packagesDir = join(localAppData, 'Packages')
+      if (existsSync(packagesDir)) {
+        const candidates = readdirSync(packagesDir)
+          .filter((name) => /momai/i.test(name))
+          .map((name) => buildMsixRoamingPath(name))
+          .filter((p) => existsSync(p))
+
+        if (candidates.length > 0) {
+          return ensureAndUsePath(candidates[0])
+        }
+      }
+    }
+
+    if (!existsSync(rawPath)) {
+      mkdirSync(rawPath, { recursive: true })
+    }
+    const resolved = realpathSync(rawPath)
+    if (resolved !== rawPath) {
+      logger.info(`[Bootstrap] userData redirected to: ${resolved}`)
+    }
+    return resolved
+  } catch (e) {
+    logger.warn('[Bootstrap] Could not resolve real userData path, using raw path:', e)
+    return rawPath
+  }
+}
+
+const userDataPath = resolveUserDataPath(app.getPath('userData'))
 const SYNC_LOCK_FILE = join(userDataPath, '.sync.lock')
+const UV_CACHE_PATH = join(userDataPath, 'uv_cache')
+const UV_PYTHON_INSTALL_PATH = join(userDataPath, 'uv_python')
 const ONBOARDING_FILE = join(userDataPath, 'onboarding_completed.json')
 const INIT_PROGRESS_REGEX = /\[Init (\d+)%\]\s+[^:]+:\s+(.+)/
 
@@ -150,9 +215,6 @@ function getSyncLock(corePath: string): SyncResult | null {
   }
 }
 
-
-
-
 function setSyncLock(success: boolean): void {
   try {
     writeFileSync(
@@ -248,24 +310,203 @@ function getWritableCorePath(originalCorePath: string): string {
   }
 }
 
-async function checkVenvHealth(pythonExe: string): Promise<boolean> {
-  if (!existsSync(pythonExe)) return false
+function repairPyvenvCfg(venvPath: string): boolean {
+  const pyvenvCfg = join(venvPath, 'pyvenv.cfg')
+  if (existsSync(pyvenvCfg)) return true
+
+  logger.warn('[Bootstrap] pyvenv.cfg missing after venv creation, attempting recovery...')
+
+  const pythonDir = findManagedPythonDir()
+  if (!pythonDir) {
+    logger.error('[Bootstrap] No managed Python found for pyvenv.cfg recovery')
+    return false
+  }
+
   try {
-    // Verificamos se as dependências básicas estão presentes e se o interpretador está funcional
-    // O import do 'site' é testado implicitamente, o que ajuda a detectar erros no .pth (como o _distutils_hack)
-    execSync(`"${pythonExe}" -c "import dotenv; import fastapi; import uvicorn"`, {
-      stdio: 'ignore',
-      timeout: 5000
-    })
+    const pythonBin = process.platform === 'win32' ? 'python.exe' : 'python3'
+    if (!existsSync(join(pythonDir, pythonBin))) {
+      logger.error('[Bootstrap] Could not find managed Python binary for pyvenv.cfg recovery')
+      return false
+    }
+
+    writeFileSync(pyvenvCfg, `home = ${pythonDir}\ninclude-system-site-packages = false\n`, 'utf8')
+    logger.info(`[Bootstrap] pyvenv.cfg recovered with home = ${pythonDir}`)
     return true
-  } catch (err) {
-    logger.warn('[Bootstrap] Venv health check failed:', err)
+  } catch (e) {
+    logger.error('[Bootstrap] Failed to recover pyvenv.cfg:', e)
     return false
   }
 }
 
-async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
+function findManagedPythonDir(): string | null {
+  if (!existsSync(UV_PYTHON_INSTALL_PATH)) return null
+  try {
+    const entries = readdirSync(UV_PYTHON_INSTALL_PATH)
+    const pythonBin = process.platform === 'win32' ? 'python.exe' : 'python3'
+    // Filter to real cpython-3.12.x directories (skip symlinks/junctions like cpython-3.12-...)
+    const cpythonDirs = entries
+      .filter((e) => /^cpython-3\.12\.\d+/.test(e))
+      .filter((e) => {
+        try {
+          const st = lstatSync(join(UV_PYTHON_INSTALL_PATH, e))
+          return st.isDirectory() && !st.isSymbolicLink()
+        } catch {
+          return false
+        }
+      })
+      .sort()
+      .reverse() // Highest version first
 
+    for (const dir of cpythonDirs) {
+      const basePath = join(UV_PYTHON_INSTALL_PATH, dir)
+      const candidates = [basePath, join(basePath, 'install'), join(basePath, 'python')]
+      const found = candidates.find((p) => existsSync(join(p, pythonBin)))
+      if (found) return found
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function removePthFiles(pythonDir: string): void {
+  try {
+    const entries = readdirSync(pythonDir)
+    for (const entry of entries) {
+      if (entry.endsWith('._pth')) {
+        const pthPath = join(pythonDir, entry)
+        unlinkSync(pthPath)
+        logger.info(`[Bootstrap] Removed restrictive ._pth file: ${entry}`)
+      }
+    }
+  } catch (e) {
+    logger.warn('[Bootstrap] Could not clean ._pth files:', e)
+  }
+}
+
+function verifyManagedPython(pythonDir: string): boolean {
+  const pythonBin = process.platform === 'win32' ? 'python.exe' : 'python3'
+  const pythonExePath = join(pythonDir, pythonBin)
+  if (!existsSync(pythonExePath)) return false
+  try {
+    execSync(`"${pythonExePath}" -c "import sys; print(sys.version)"`, {
+      stdio: 'pipe',
+      timeout: 10000,
+      env: {
+        ...process.env,
+        PYTHONHOME: undefined,
+        PYTHONPATH: undefined,
+        VIRTUAL_ENV: undefined
+      } as NodeJS.ProcessEnv
+    })
+    logger.info('[Bootstrap] Managed Python verification passed')
+    return true
+  } catch (e) {
+    logger.warn('[Bootstrap] Managed Python verification failed:', e)
+    return false
+  }
+}
+
+async function createVenvWithPython(pythonExePath: string, venvPath: string): Promise<void> {
+  logger.info(`[Bootstrap] Fallback: creating venv via python -m venv at ${venvPath}`)
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(pythonExePath, ['-m', 'venv', venvPath], {
+      env: {
+        ...process.env,
+        VIRTUAL_ENV: undefined,
+        PYTHONHOME: undefined,
+        PYTHONPATH: undefined
+      },
+      shell: false,
+      stdio: 'pipe',
+      windowsVerbatimArguments: false
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout?.on('data', (data) => {
+      const line = data.toString().trim()
+      stdout += line
+      logger.info(`[python -m venv] ${line}`)
+    })
+    child.stderr?.on('data', (data) => {
+      const line = data.toString().trim()
+      stderr += line
+      logger.info(`[python -m venv stderr] ${line}`)
+    })
+    child.on('close', (code) => {
+      if (code === 0) {
+        logger.info('[Bootstrap] Fallback venv created successfully via python -m venv')
+        resolve()
+      } else {
+        reject(new Error(stderr || stdout || `python -m venv failed with code ${code}`))
+      }
+    })
+    child.on('error', reject)
+  })
+}
+
+async function checkVenvHealth(pythonExe: string): Promise<boolean> {
+  if (!existsSync(pythonExe)) return false
+
+  // 1) Interpreter sanity check
+  const interpreterCheck = spawnSync(pythonExe, ['-c', 'import sys; print(sys.version)'], {
+    timeout: 5000,
+    encoding: 'utf8',
+    shell: false,
+    env: {
+      ...process.env,
+      PYTHONHOME: undefined,
+      PYTHONPATH: undefined,
+      VIRTUAL_ENV: undefined
+    }
+  })
+
+  if (interpreterCheck.status !== 0) {
+    const stderr = (interpreterCheck.stderr || '').toString().trim()
+    logger.warn(
+      `[Bootstrap] Venv interpreter check failed (code: ${interpreterCheck.status ?? 'unknown'}): ${stderr || 'no stderr output'}`
+    )
+    return false
+  }
+
+  // 2) Required deps check (first run can legitimately miss these before uv pip install)
+  const depsCheck = spawnSync(
+    pythonExe,
+    [
+      '-c',
+      'import importlib.util as u; mods=("dotenv","fastapi","uvicorn"); missing=[m for m in mods if u.find_spec(m) is None]; print(",".join(missing))'
+    ],
+    {
+      timeout: 5000,
+      encoding: 'utf8',
+      shell: false,
+      env: {
+        ...process.env,
+        PYTHONHOME: undefined,
+        PYTHONPATH: undefined,
+        VIRTUAL_ENV: undefined
+      }
+    }
+  )
+
+  if (depsCheck.status !== 0) {
+    const stderr = (depsCheck.stderr || '').toString().trim()
+    logger.warn(
+      `[Bootstrap] Venv dependency probe failed (code: ${depsCheck.status ?? 'unknown'}): ${stderr || 'no stderr output'}`
+    )
+    return false
+  }
+
+  const missingDeps = (depsCheck.stdout || '').toString().trim()
+  if (missingDeps) {
+    logger.info(`[Bootstrap] Venv missing dependencies (expected before sync): ${missingDeps}`)
+    return false
+  }
+
+  return true
+}
+
+async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
   const isDev = is.dev && process.env['ELECTRON_RENDERER_URL']
 
   const corePath = isDev
@@ -350,7 +591,9 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
 
   if (needsVenv) {
     if (!isHealthy && existsSync(pythonExe)) {
-      logger.warn('[Bootstrap] Ambiente detectado como corrompido ou incompleto. Forçando recriação...')
+      logger.warn(
+        '[Bootstrap] Ambiente detectado como corrompido ou incompleto. Forçando recriação...'
+      )
       try {
         if (existsSync(venvPath)) {
           rmSync(venvPath, { recursive: true, force: true })
@@ -364,12 +607,100 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
     sendInitProgress('Criando ambiente isolado...', 10)
 
     if (!existsSync(userDataPath)) mkdirSync(userDataPath, { recursive: true })
+    if (!existsSync(UV_CACHE_PATH)) mkdirSync(UV_CACHE_PATH, { recursive: true })
+    if (!existsSync(UV_PYTHON_INSTALL_PATH)) mkdirSync(UV_PYTHON_INSTALL_PATH, { recursive: true })
 
+    // Migrate old TEMP-based Python installation to userData
+    const oldTempPythonPath = join(process.env.TEMP || app.getPath('temp'), 'momai-uv-python')
+    if (existsSync(oldTempPythonPath) && oldTempPythonPath !== UV_PYTHON_INSTALL_PATH) {
+      try {
+        rmSync(oldTempPythonPath, { recursive: true, force: true })
+        logger.info('[Bootstrap] Cleaned up old TEMP-based Python installation')
+      } catch (e) {
+        logger.warn('[Bootstrap] Could not clean old Python path:', e)
+      }
+    }
+
+    const uvBaseEnv: Record<string, string | undefined> = {
+      ...process.env,
+      UV_PYTHON_INSTALL_DIR: UV_PYTHON_INSTALL_PATH,
+      UV_CACHE_DIR: UV_CACHE_PATH,
+      VIRTUAL_ENV: undefined,
+      PYTHONHOME: undefined
+    }
+
+    // Step 1: Pre-install Python (download only, no querying)
+    if (!findManagedPythonDir()) {
+      sendInitProgress('Baixando interpretador Python...', 12)
+      logger.info(`[Bootstrap] Pre-installing Python 3.12 to ${UV_PYTHON_INSTALL_PATH}`)
+      try {
+        await new Promise<void>((resolve) => {
+          const child = spawn(uvExe, ['python', 'install', '3.12'], {
+            env: uvBaseEnv,
+            shell: false,
+            stdio: 'pipe'
+          })
+          let stderr = ''
+          child.stdout?.on('data', (data) => {
+            const line = data.toString().trim()
+            logger.info(`[uv python install] ${line}`)
+            if (line.includes('Downloading')) {
+              sendInitProgress('Baixando interpretador Python...', 12)
+            }
+          })
+          child.stderr?.on('data', (data) => {
+            const line = data.toString().trim()
+            stderr += line
+            logger.info(`[uv python install stderr] ${line}`)
+            if (line.includes('Downloading')) {
+              sendInitProgress('Baixando interpretador Python...', 12)
+            }
+          })
+          child.on('close', (code) => {
+            if (code === 0) {
+              logger.info('[Bootstrap] Python 3.12 pre-installed successfully.')
+              resolve()
+            } else {
+              logger.warn(`[Bootstrap] uv python install exited with code ${code}: ${stderr}`)
+              resolve() // Non-fatal: uv venv will retry the download
+            }
+          })
+          child.on('error', (err) => {
+            logger.warn('[Bootstrap] uv python install spawn error:', err)
+            resolve() // Non-fatal
+          })
+        })
+      } catch {
+        logger.warn('[Bootstrap] uv python install failed, will retry in uv venv')
+      }
+    }
+
+    // Step 2: Prepare managed Python for MSIX compatibility
+    const managedPythonDir = findManagedPythonDir()
+    if (managedPythonDir) {
+      // Remove ._pth files that restrict sys.path and break uv's interpreter query
+      removePthFiles(managedPythonDir)
+
+      logger.info(`[Bootstrap] Adding managed Python to PATH: ${managedPythonDir}`)
+      uvBaseEnv.PATH = `${managedPythonDir};${join(managedPythonDir, 'DLLs')};${process.env.PATH || ''}`
+
+      if (!verifyManagedPython(managedPythonDir)) {
+        logger.warn('[Bootstrap] Managed Python failed verification, will let uv re-download')
+      }
+    }
+
+    // Step 3: Create venv using explicit python path when available (avoids MSIX query issues)
     try {
-      logger.info(`[Bootstrap] Running: "${uvExe}" venv "${venvPath}" --python 3.12`)
-      logger.info('[Bootstrap] uv will download Python automatically if not found')
+      const pythonBin = process.platform === 'win32' ? 'python.exe' : 'python3'
+      const explicitPython = managedPythonDir ? join(managedPythonDir, pythonBin) : null
+      const venvArgs =
+        explicitPython && existsSync(explicitPython)
+          ? ['venv', venvPath, '--python', explicitPython]
+          : ['venv', venvPath, '--python', '3.12']
+      logger.info(`[Bootstrap] Running: "${uvExe}" ${venvArgs.join(' ')}`)
       await new Promise<void>((resolve, reject) => {
-        const child = spawn(uvExe, ['venv', venvPath, '--python', '3.12'], {
+        const child = spawn(uvExe, venvArgs, {
+          env: uvBaseEnv,
           shell: false,
           stdio: 'pipe',
           windowsVerbatimArguments: false
@@ -423,12 +754,42 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
         })
       })
     } catch (err: any) {
-      const error: BootstrapError = {
-        type: 'venv_failed',
-        message: 'Failed to create Python virtual environment',
-        details: err.message || String(err)
+      const errText = err?.message || String(err)
+      const pythonBin = process.platform === 'win32' ? 'python.exe' : 'python3'
+      const explicitPython = managedPythonDir ? join(managedPythonDir, pythonBin) : null
+      const canFallbackToStdlibVenv =
+        !!explicitPython &&
+        existsSync(explicitPython) &&
+        /Failed to inspect Python interpreter|Querying Python at .* failed|0xc0000135/i.test(
+          errText
+        )
+
+      if (canFallbackToStdlibVenv) {
+        logger.warn(
+          '[Bootstrap] uv venv failed due to interpreter inspection. Falling back to python -m venv (MSIX compatibility).'
+        )
+        try {
+          await createVenvWithPython(explicitPython, venvPath)
+        } catch (fallbackErr: any) {
+          const error: BootstrapError = {
+            type: 'venv_failed',
+            message: 'Failed to create Python virtual environment',
+            details: `${errText}\nFallback failed: ${fallbackErr?.message || String(fallbackErr)}`
+          }
+          return error
+        }
+      } else {
+        const error: BootstrapError = {
+          type: 'venv_failed',
+          message: 'Failed to create Python virtual environment',
+          details: errText
+        }
+        return error
       }
-      return error
+    }
+
+    if (!repairPyvenvCfg(venvPath)) {
+      logger.error('[Bootstrap] pyvenv.cfg could not be verified or repaired')
     }
   }
 
@@ -439,26 +800,42 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
 
   if (!syncLock || syncLock.needsSync || !isHealthy) {
     if (!isHealthy && existsSync(pythonExe)) {
-      logger.warn('[Bootstrap] Ambiente detectado como corrompido ou incompleto. Forçando sincronização...')
+      logger.warn(
+        '[Bootstrap] Ambiente detectado como corrompido ou incompleto. Forçando sincronização...'
+      )
     }
     logger.info('[Bootstrap] Sincronizando dependências do core...')
     sendInitProgress('Instalando dependências...', 25)
 
     try {
-      const uvCacheDir = join(userDataPath, 'uv_cache')
-      if (!existsSync(uvCacheDir)) mkdirSync(uvCacheDir, { recursive: true })
+      if (!existsSync(UV_CACHE_PATH)) mkdirSync(UV_CACHE_PATH, { recursive: true })
 
-      const installArgs = ['pip', 'install', '--no-progress', '--cache-dir', uvCacheDir]
+      const installArgs = ['pip', 'install', '--no-progress', '--cache-dir', UV_CACHE_PATH]
       if (isDev) {
         installArgs.push('-e', writableCorePath)
       } else {
         installArgs.push(writableCorePath)
       }
 
+      const pipManagedDir = findManagedPythonDir()
+      const pipEnv: Record<string, string | undefined> = {
+        ...process.env,
+        VIRTUAL_ENV: venvPath,
+        UV_CACHE_DIR: UV_CACHE_PATH,
+        UV_PYTHON_INSTALL_DIR: UV_PYTHON_INSTALL_PATH,
+        PYTHONHOME: undefined,
+        PYTHONPATH: undefined,
+        ...(pipManagedDir
+          ? {
+              PATH: `${pipManagedDir};${join(pipManagedDir, 'DLLs')};${process.env.PATH || ''}`
+            }
+          : {})
+      }
+
       logger.info(`[Bootstrap] Running: "${uvExe}" ${installArgs.join(' ')}`)
       await new Promise<void>((resolve, reject) => {
         const child = spawn(uvExe, installArgs, {
-          env: { ...process.env, VIRTUAL_ENV: venvPath, UV_CACHE_DIR: uvCacheDir },
+          env: pipEnv,
           shell: false,
           stdio: 'pipe',
           windowsVerbatimArguments: false
@@ -482,7 +859,7 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
           const line = data.toString().trim()
           stderr += line
           logger.info(`[uv pip stderr] ${line}`)
-          
+
           if (line.includes('Downloading')) {
             const match = line.match(/Downloading\s+([^\s]+)/)
             if (match) {

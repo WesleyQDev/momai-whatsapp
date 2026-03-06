@@ -222,11 +222,8 @@ async def start_core_services(settings):
         # 7. Wake Word
         def start_wake_word():
             try:
-                # Lite tier never has Wake Word
-                if settings.ai_tier == "lite":
-                    return
-
-                if not settings.wake_word_enabled:
+                # Only ultra tier has Wake Word
+                if settings.ai_tier != "ultra":
                     return
 
                 def on_wake_word(text: str) -> None:
@@ -292,7 +289,8 @@ async def start_core_services(settings):
                             "Nuna",
                         ],
                     )
-                    app_state.ww.start()
+                    if settings.wake_word_enabled:
+                        app_state.ww.start()
             except Exception as e:
                 app_state.logger.warning(f"[startup] Wake word error: {e}")
 

@@ -27,6 +27,11 @@ def _sync_update_settings(data: SettingsUpdate):
                 settings.tts_enabled = False
                 settings.wake_word_enabled = False
                 changes.extend(["tts_enabled", "wake_word_enabled"])
+            # Only ultra has wake word
+            elif data.ai_tier != "ultra":
+                settings.wake_word_enabled = False
+                if "wake_word_enabled" not in changes:
+                    changes.append("wake_word_enabled")
 
         if data.user_name is not None:
             settings.user_name = data.user_name
@@ -60,8 +65,8 @@ def _sync_update_settings(data: SettingsUpdate):
                 changes.append("tts_enabled")
 
         if data.wake_word_enabled is not None:
-            # Enforce Lite tier restriction
-            settings.wake_word_enabled = data.wake_word_enabled if settings.ai_tier != "lite" else False
+            # Only ultra tier can enable wake word
+            settings.wake_word_enabled = data.wake_word_enabled if settings.ai_tier == "ultra" else False
             if "wake_word_enabled" not in changes:
                 changes.append("wake_word_enabled")
 
@@ -131,10 +136,10 @@ async def get_settings(db: Session = Depends(get_db)):
 async def update_settings(data: SettingsUpdate):
     changes, provider, tts_voice, tts_enabled, ww_enabled, current_tier = await asyncio.to_thread(_sync_update_settings, data)
 
-    if data.tts_voice is not None:
+    if data.tts_voice is not None and app_state.tts:
         app_state.tts.tts.set_voice(tts_voice)
 
-    if "tts_enabled" in changes or data.tts_enabled is not None:
+    if ("tts_enabled" in changes or data.tts_enabled is not None) and app_state.tts:
         app_state.tts.tts.set_enabled(tts_enabled)
 
     if "wake_word_enabled" in changes or data.wake_word_enabled is not None:

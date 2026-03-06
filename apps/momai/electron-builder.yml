@@ -38,6 +38,21 @@ nsis:
   createDesktopShortcut: always
   include: build/installer.nsh
   oneClick: true
+appx:
+  displayName: MomAI - Assistente local
+  identityName: WesleyDeveloperStudios.MomAI-Assistentelocal
+  applicationId: MomAI
+  publisher: CN=DD4A9768-285C-45F0-982B-113F2C63C677
+  publisherDisplayName: Wesley Developer Studios
+  minVersion: 10.0.17763.0
+  maxVersionTested: 10.0.26100.0
+  languages:
+    - pt-BR
+    - en-US
+  backgroundColor: '#1a1a2e'
+  showNameOnTiles: true
+  setBuildNumber: false
+  customManifestPath: build/appx/AppxManifest.xml
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:

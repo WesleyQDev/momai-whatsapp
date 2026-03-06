@@ -115,7 +115,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   const handleFinish = async () => {
     if (!name.trim()) return
     setIsSaving(true)
-    
+
     // Ensure window becomes resizable right before going into the app
     window.api?.setResizable?.(true)
 
@@ -159,36 +159,61 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
         {/* Subtle background pattern/glow */}
-        <div className={`absolute -top-24 -right-24 w-48 h-48 ${styles.iconBg} blur-[80px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none`} />
+        <div
+          className={`absolute -top-24 -right-24 w-48 h-48 ${styles.iconBg} blur-[80px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none`}
+        />
 
         <div className="relative z-10 flex flex-row items-center gap-6 w-full pointer-events-none">
           <div
             className={`w-16 h-16 shrink-0 rounded-xl ${styles.iconBg} flex items-center justify-center ${styles.text} shadow-inner border border-white/5 transition-all duration-500 group-hover:scale-110 group-hover:rotate-3`}
           >
             {id === 'lite' && (
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
                 <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
               </svg>
             )}
             {id === 'pro' && (
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
               </svg>
             )}
             {id === 'ultra' && (
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
             )}
           </div>
-          
+
           <div className="flex flex-col items-start w-full">
             <h3 className={`text-2xl font-bold ${styles.text} uppercase tracking-tight mb-1`}>
               {t(`onboarding.tier.${id}.title`)}
             </h3>
-            
+
             <div className="w-full">
-              <p className={`text-[13px] ${styles.text} font-medium leading-relaxed text-left w-full opacity-80 max-w-[400px]`}>
+              <p
+                className={`text-[13px] ${styles.text} font-medium leading-relaxed text-left w-full opacity-80 max-w-[400px]`}
+              >
                 {t(`onboarding.tier.${id}.hover`)}
               </p>
             </div>
@@ -196,7 +221,14 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         </div>
 
         <div className="absolute right-8 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all duration-500 text-accent/50">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+          >
             <path d="M9 18l6-6-6-6" />
           </svg>
         </div>
@@ -205,10 +237,16 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   }
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[301] bg-bg flex animate-fade-in overflow-hidden select-none transition-colors duration-500"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+        <span className="text-[10px] font-black text-text-muted/70 uppercase tracking-[0.18em]">
+          Version {appVersion}
+        </span>
+      </div>
+
       {/* Left Pane - Branding & Status */}
       <div className="w-[350px] bg-sidebar pt-2 pb-12 px-10 flex flex-col justify-between items-center border-r border-border/10 relative overflow-hidden transition-colors duration-500 shrink-0">
         <div className="relative z-10 flex flex-col items-center text-center w-full">
@@ -221,25 +259,44 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
             <h1 className="text-3xl font-black text-text tracking-tighter uppercase leading-[0.9]">
               MomAI
               <br />
-              <span className="text-accent underline decoration-accent/10 text-[16px] tracking-normal lowercase">100% local e gratuita</span>
+              <span className="text-accent underline decoration-accent/10 text-[16px] tracking-normal lowercase">
+                100% local e gratuita
+              </span>
             </h1>
 
             {/* Requirements Section */}
             <div className="w-full pt-12 space-y-6">
               <div className="flex items-center gap-2.5 border-b border-white/5 pb-3 mb-2">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent/80">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  className="text-accent/80"
+                >
                   <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
                   <line x1="8" y1="21" x2="16" y2="21" />
                   <line x1="12" y1="17" x2="12" y2="21" />
                 </svg>
-                <span className="text-[10px] font-black text-text/60 uppercase tracking-[0.2em]">Requisitos</span>
+                <span className="text-[10px] font-black text-text/60 uppercase tracking-[0.2em]">
+                  Requisitos
+                </span>
               </div>
 
               <div className="space-y-6">
                 {/* Lite */}
                 <div className="flex gap-4 items-center group/req">
                   <div className="text-emerald-500 shrink-0">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
                       <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                     </svg>
                   </div>
@@ -251,7 +308,14 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                 {/* Pro */}
                 <div className="flex gap-4 items-center group/req">
                   <div className="text-red-500 shrink-0">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                     </svg>
                   </div>
@@ -263,7 +327,14 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                 {/* Ultra */}
                 <div className="flex gap-4 items-center group/req">
                   <div className="text-yellow-400 shrink-0">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                     </svg>
                   </div>
@@ -278,7 +349,9 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
 
         <div className="space-y-4 relative z-10 w-full max-w-[200px] flex flex-col items-center">
           <div className="flex items-center gap-3">
-            <div className={`w-2 h-2 rounded-full bg-accent ${step === 1 ? 'animate-pulse' : ''}`} />
+            <div
+              className={`w-2 h-2 rounded-full bg-accent ${step === 1 ? 'animate-pulse' : ''}`}
+            />
             <span className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em]">
               {step === 1 ? 'Intelligence Selection' : 'Personality Setup'}
             </span>
@@ -324,7 +397,14 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                   style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                 >
                   <div className="w-7 h-7 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center group-hover:bg-accent group-hover:text-white transition-all shadow-sm">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                    >
                       <path d="M19 12H5M12 19l-7-7 7-7" />
                     </svg>
                   </div>
@@ -461,7 +541,6 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                 )}
               </div>
 
-
               <div className="pt-6 space-y-6">
                 <button
                   onClick={handleFinish}
@@ -474,7 +553,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                 >
                   {/* Glossy overlay effect */}
                   <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  
+
                   <span className="relative z-10 transition-transform duration-500">
                     {isSaving ? 'Configuring System...' : t('onboarding.finish')}
                   </span>

@@ -5,6 +5,13 @@ import { logger } from './logger'
 import { shutdownPython } from './pythonManager'
 import { app } from 'electron'
 
+function isMSIXBuild(): boolean {
+  return (
+    process.platform === 'win32' &&
+    (process.resourcesPath?.includes('WindowsApps') || app.getPath('exe')?.includes('WindowsApps'))
+  )
+}
+
 export function setupUpdater(): void {
   // autoUpdater.autoDownload = false is crucial for Delta updates
   // It gives us control over when to download and show progress in React
@@ -57,10 +64,10 @@ export function setupUpdater(): void {
   // IPC Hooks for React Renderer
   ipcMain.handle('check-for-updates', async () => {
     try {
-      if (app.isPackaged) {
+      if (app.isPackaged && !isMSIXBuild()) {
         return await autoUpdater.checkForUpdates()
       } else {
-        logger.info('[Updater] Dev mode: Skipping update check.')
+        logger.info('[Updater] Skipping update check (dev mode or MSIX build).')
         return null
       }
     } catch (e: any) {
@@ -93,12 +100,14 @@ export function setupUpdater(): void {
     }
   })
 
-  // Check on startup if packaged
-  if (app.isPackaged) {
+  // Check on startup if packaged (skip for MSIX - updates via Microsoft Store)
+  if (app.isPackaged && !isMSIXBuild()) {
     autoUpdater.checkForUpdates().catch((err) => {
       logger.error(`[Updater] Initial check-for-updates failed: ${err}`)
     })
-  } else {
+  } else if (!app.isPackaged) {
     logger.info('[Updater] Dev mode: Skipping initial update check.')
+  } else {
+    logger.info('[Updater] MSIX build: Skipping auto-updater (updates via Microsoft Store).')
   }
 }

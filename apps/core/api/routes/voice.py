@@ -88,8 +88,8 @@ async def control_wake_word(control: WakeWordControl):
         settings = db.query(Settings).first()
         db.close()
         
-        if control.enabled and settings and settings.ai_tier == "lite":
-            return {"success": False, "message": "Wake word not allowed in Lite tier"}
+        if control.enabled and settings and settings.ai_tier != "ultra":
+            return {"success": False, "message": "Wake word only available in Ultra tier"}
 
         if control.enabled:
             if not app_state.ww.running:

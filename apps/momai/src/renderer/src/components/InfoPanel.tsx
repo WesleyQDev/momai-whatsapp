@@ -9,9 +9,10 @@ interface InfoPanelProps {
   chat: any
   historyOpen: boolean
   setHistoryOpen: (open: boolean) => void
+  isBooting?: boolean
 }
 
-const InfoPanel = ({ statusInfo, settings, chat, historyOpen, setHistoryOpen }: InfoPanelProps) => {
+const InfoPanel = ({ statusInfo, settings, chat, historyOpen, setHistoryOpen, isBooting }: InfoPanelProps) => {
   const navigate = useNavigate()
   
   const currentTier = localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'pro'
@@ -24,7 +25,7 @@ const InfoPanel = ({ statusInfo, settings, chat, historyOpen, setHistoryOpen }: 
       <AssistantStatus currentTier={currentTier} isThinking={isThinking} />
 
       <div className="flex-1 rounded-xl bg-card border border-border/10 shadow-2xl overflow-hidden relative flex flex-col">
-        <RemindersSidebar onNavigate={() => navigate('/agenda')} />
+        <RemindersSidebar onNavigate={() => navigate('/agenda')} isBooting={isBooting} />
         {historyOpen && (
           <div className="absolute inset-0 z-20">
             <ChatHistoryPopover

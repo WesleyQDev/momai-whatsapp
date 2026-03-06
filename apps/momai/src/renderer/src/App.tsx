@@ -176,6 +176,7 @@ function App(): React.JSX.Element {
                     chat={chat}
                     historyOpen={historyOpen}
                     setHistoryOpen={setHistoryOpen}
+                    isBooting={isBooting}
                   />
                 )}
               </div>

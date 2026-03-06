@@ -14,6 +14,7 @@ import {
   listMemoryFolders,
   createMemoryFolder,
   renameMemoryFolder,
+  deleteMemoryFolder,
   openNoteFolder,
   NoteSummary
 } from '../services/api'
@@ -49,6 +50,9 @@ export default function NotesView() {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isBootstrappingNotes, setIsBootstrappingNotes] = useState(true)
+  const [notesInitProgress, setNotesInitProgress] = useState(0)
+  const [isCreatingWelcomeNote, setIsCreatingWelcomeNote] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filterText, setFilterText] = useState('')
@@ -60,6 +64,7 @@ export default function NotesView() {
   const [isImportDropdownOpen, setIsImportDropdownOpen] = useState(false)
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)
   const [newFolderName, setNewFolderName] = useState('')
+  const isNotesUiLocked = isBootstrappingNotes || isCreatingWelcomeNote
   const folderInputRefSimple = useRef<HTMLInputElement>(null)
 
   // Context Menu & Renaming State
@@ -75,7 +80,10 @@ export default function NotesView() {
   const renameInputRef = useRef<HTMLInputElement>(null)
 
   // Delete Confirmation State
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{
+    type: 'note' | 'folder'
+    id: string
+  } | null>(null)
 
   // Slash Command State
   const [slashMenu, setSlashMenu] = useState<{
@@ -88,6 +96,7 @@ export default function NotesView() {
   // Refs
   const lastSaved = useRef({ title: '', content: '' })
   const saveTimer = useRef<number | null>(null)
+  const notesLoadRetryTimer = useRef<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const folderInputRef = useRef<HTMLInputElement | null>(null)
   const editorViewRef = useRef<EditorView | null>(null)
@@ -142,11 +151,54 @@ export default function NotesView() {
     }
   }
 
+  const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms))
+
+  const isRetryableNotesLoadError = (err: unknown): boolean => {
+    if (err instanceof TypeError) return true
+    const message = err instanceof Error ? err.message : String(err)
+    return /failed to fetch|networkerror|load failed|fetch/i.test(message)
+  }
+
+  const listMemoryNotesWithRetry = async (maxWaitMs = 90000): Promise<NoteSummary[]> => {
+    const start = Date.now()
+    let attempt = 0
+    let lastError: unknown = null
+
+    while (Date.now() - start < maxWaitMs) {
+      attempt += 1
+      try {
+        return await listMemoryNotes()
+      } catch (err) {
+        lastError = err
+        if (!isRetryableNotesLoadError(err)) {
+          throw err
+        }
+
+        // Backend can still be booting right after onboarding, so retry before surfacing an error.
+        const retryDelayMs = Math.min(2500, 400 + attempt * 180)
+        const retryProgress = 12 + (attempt % 8) * 2
+        setNotesInitProgress(retryProgress)
+        await wait(retryDelayMs)
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('Failed to list memory notes')
+  }
+
   const loadNotes = async () => {
+    if (notesLoadRetryTimer.current) {
+      window.clearTimeout(notesLoadRetryTimer.current)
+      notesLoadRetryTimer.current = null
+    }
+
+    let shouldKeepLoading = false
+    setIsBootstrappingNotes(true)
+    setNotesInitProgress(10)
     setIsLoading(true)
     setError(null)
     try {
-      const data = await listMemoryNotes()
+      const data = await listMemoryNotesWithRetry()
+      setNotesInitProgress(35)
 
       const hasWelcomeNote = data.some((n) => n.title === 'Bem-vindo ao Sistema de Notas')
 
@@ -157,6 +209,8 @@ export default function NotesView() {
         !isCreatingDefaultNote.current
       ) {
         isCreatingDefaultNote.current = true
+        setIsCreatingWelcomeNote(true)
+        setNotesInitProgress(55)
         const defaultTitle = 'Bem-vindo ao Sistema de Notas'
         const defaultContent = `# 📝 Bem-vindo ao Sistema de Notas
 Aqui é onde toda a memória estruturada da MomAI fica guardada!
@@ -175,28 +229,47 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
 
         try {
           const newNote = await createMemoryNote(defaultTitle, defaultContent)
+          setNotesInitProgress(80)
           localStorage.setItem('momai_default_note_created', 'true')
           setNotes([newNote])
           await selectNote(newNote.id)
+          setNotesInitProgress(100)
         } catch (e) {
           console.error('Failed to create default note', e)
           setNotes([])
         } finally {
           isCreatingDefaultNote.current = false
+          setIsCreatingWelcomeNote(false)
         }
       } else {
+        setNotesInitProgress(65)
         setNotes(data)
         if (!activeId && data.length > 0) {
           const firstId = data[0].id
           setOpenTabIds([firstId])
           await selectNote(firstId)
         }
+        setNotesInitProgress(100)
       }
       loadFolders()
     } catch (err) {
-      setError(t('notes.errors.load'))
+      console.error('Failed to load notes after retries', err)
+      shouldKeepLoading = true
+
+      const nextProgress = notesInitProgress >= 30 ? 14 : Math.min(30, notesInitProgress + 3)
+      setNotesInitProgress(nextProgress)
+
+      notesLoadRetryTimer.current = window.setTimeout(() => {
+        void loadNotes()
+      }, 1800)
     } finally {
-      setIsLoading(false)
+      if (shouldKeepLoading) {
+        setIsLoading(true)
+        setIsBootstrappingNotes(true)
+      } else {
+        setIsLoading(false)
+        setIsBootstrappingNotes(false)
+      }
     }
   }
 
@@ -273,7 +346,13 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
   }
 
   useEffect(() => {
-    loadNotes()
+    void loadNotes()
+
+    return () => {
+      if (notesLoadRetryTimer.current) {
+        window.clearTimeout(notesLoadRetryTimer.current)
+      }
+    }
   }, [])
 
   // Auto-Save Logic
@@ -311,6 +390,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
   }, [activeId, title, content, isLoading])
 
   const handleCreateNote = async () => {
+    if (isNotesUiLocked) return
     setError(null)
     setFilterText('')
     try {
@@ -325,41 +405,71 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
   const handleDeleteNote = (id?: string) => {
     const targetId = id || activeId
     if (!targetId) return
-    setDeleteConfirmId(targetId)
+    setDeleteConfirmTarget({ type: 'note', id: targetId })
+  }
+
+  const handleDeleteFolder = (folderPath: string) => {
+    if (!folderPath) return
+    setDeleteConfirmTarget({ type: 'folder', id: folderPath })
   }
 
   const confirmDeleteNote = async () => {
-    if (!deleteConfirmId) return
-    const targetId = deleteConfirmId
-    setDeleteConfirmId(null)
+    if (!deleteConfirmTarget) return
+    const target = deleteConfirmTarget
+    setDeleteConfirmTarget(null)
     setError(null)
+
     try {
-      await deleteMemoryNote(targetId)
-      const updated = notes.filter((n) => n.id !== targetId)
-      setNotes(updated)
-      if (activeId === targetId) {
-        const newTabs = openTabIds.filter(id => id !== targetId)
-        setOpenTabIds(newTabs)
-        if (newTabs.length > 0) await selectNote(newTabs[newTabs.length - 1])
-        else {
+      if (target.type === 'note') {
+        await deleteMemoryNote(target.id)
+        const updated = notes.filter((n) => n.id !== target.id)
+        setNotes(updated)
+        if (activeId === target.id) {
+          const newTabs = openTabIds.filter((id) => id !== target.id)
+          setOpenTabIds(newTabs)
+          if (newTabs.length > 0) await selectNote(newTabs[newTabs.length - 1])
+          else {
+            setActiveId(null)
+            setTitle('')
+            setContent('')
+          }
+        }
+      } else {
+        await deleteMemoryFolder(target.id)
+
+        // Close tabs that belong to deleted folder.
+        const deletedPrefix = `notes/${target.id}/`
+        const deletedNoteIds = new Set(
+          notes.filter((n) => n.path.replace(/\\/g, '/').startsWith(deletedPrefix)).map((n) => n.id)
+        )
+
+        setOpenTabIds((prev) => prev.filter((id) => !deletedNoteIds.has(id)))
+        if (activeId && deletedNoteIds.has(activeId)) {
           setActiveId(null)
           setTitle('')
           setContent('')
         }
+
+        await loadNotes()
+        await loadFolders()
       }
     } catch (err) {
-      setError(t('notes.errors.delete'))
+      setError(target.type === 'folder' ? 'Erro ao excluir pasta' : t('notes.errors.delete'))
     }
   }
 
   // --- Context Menu Handlers ---
-  
+
   const handleContextMenu = (e: React.MouseEvent, id: string, type: 'note' | 'folder' = 'note') => {
     e.preventDefault()
     setContextMenu({ x: e.clientX, y: e.clientY, id, type })
   }
 
-  const handleStartRename = (id: string, currentTitle: string, type: 'note' | 'folder' = 'note') => {
+  const handleStartRename = (
+    id: string,
+    currentTitle: string,
+    type: 'note' | 'folder' = 'note'
+  ) => {
     if (type === 'note') {
       setRenamingId(id)
     } else {
@@ -379,7 +489,9 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
 
       try {
         // Optimistic update
-        setNotes((prev) => prev.map((n) => (n.id === renamingId ? { ...n, title: renameValue } : n)))
+        setNotes((prev) =>
+          prev.map((n) => (n.id === renamingId ? { ...n, title: renameValue } : n))
+        )
         if (activeId === renamingId) {
           setTitle(renameValue)
           lastSaved.current.title = renameValue
@@ -424,6 +536,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
   }
 
   const handleImport = async (files: FileList | null) => {
+    if (isNotesUiLocked) return
     if (!files || files.length === 0) return
     setError(null)
     try {
@@ -446,6 +559,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
   // --- Folder Management ---
 
   const handleCreateFolder = async () => {
+    if (isNotesUiLocked) return
     if (!newFolderName.trim()) {
       setIsCreatingFolder(false)
       return
@@ -489,7 +603,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
     e.preventDefault()
     e.stopPropagation()
     setDragOverFolder(null)
-    
+
     const type = e.dataTransfer.getData('type')
     const id = e.dataTransfer.getData('id')
 
@@ -679,12 +793,12 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
           const pos = state.selection.main.head
           const line = state.doc.lineAt(pos)
           const lineText = line.text.slice(0, pos - line.from)
-          
+
           const match = lineText.match(/(?:^|\s)\/(\w*)$/)
           if (match) {
             const query = match[1]
             const slashPos = line.from + lineText.lastIndexOf('/')
-            
+
             // Wait for next tick to ensure view is updated and coords are accurate
             setTimeout(() => {
               const coords = update.view.coordsAtPos(pos)
@@ -753,63 +867,65 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
             </div>
 
             {/* Toolbar Actions */}
-            <div className="flex items-center gap-0.5">
-              <button
-                onClick={handleCreateNote}
-                className="p-1.5 text-text-muted hover:text-accent hover:bg-white/5 rounded-lg transition-all"
-                title={t('notes.newNote')}
-              >
-                <PencilSquareIcon className="w-5 h-5 stroke-[1.5]" />
-              </button>
-              
-              <button
-                onClick={() => setIsCreatingFolder(true)}
-                className="p-1.5 text-text-muted hover:text-accent hover:bg-white/5 rounded-lg transition-all"
-                title={t('notes.newFolder')}
-              >
-                <FolderPlusIcon className="w-5 h-5 stroke-[1.5]" />
-              </button>
-
-              <div className="w-px h-3.5 bg-border/10 mx-1"></div>
-
-              <div className="relative">
+            {!isNotesUiLocked && (
+              <div className="flex items-center gap-0.5">
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setIsImportDropdownOpen(!isImportDropdownOpen)
-                  }}
-                  className="p-1.5 text-text-muted hover:text-text hover:bg-white/5 rounded-lg transition-all"
-                  title="Importar"
+                  onClick={handleCreateNote}
+                  className="p-1.5 text-text-muted hover:text-accent hover:bg-white/5 rounded-lg transition-all"
+                  title={t('notes.newNote')}
                 >
-                  <DocumentArrowUpIcon className="w-5 h-5 stroke-[1.5]" />
+                  <PencilSquareIcon className="w-5 h-5 stroke-[1.5]" />
                 </button>
 
-                {isImportDropdownOpen && (
-                  <div className="absolute top-full left-0 mt-1 z-30 bg-card border border-border/10 rounded-lg shadow-xl py-1 min-w-[120px] flex flex-col animate-context-menu">
-                    <button
-                      onClick={() => {
-                        fileInputRef.current?.click()
-                        setIsImportDropdownOpen(false)
-                      }}
-                      className="text-left px-3 py-2 text-xs text-text hover:bg-white/5 flex items-center gap-2"
-                    >
-                      <DocumentPlusIcon className="w-3.5 h-3.5 opacity-70" />
-                      {t('notes.importFiles')}
-                    </button>
-                    <button
-                      onClick={() => {
-                        folderInputRef.current?.click()
-                        setIsImportDropdownOpen(false)
-                      }}
-                      className="text-left px-3 py-2 text-xs text-text hover:bg-white/5 flex items-center gap-2"
-                    >
-                      <ArrowUpTrayIcon className="w-3.5 h-3.5 opacity-70" />
-                      {t('notes.importFolder')}
-                    </button>
-                  </div>
-                )}
+                <button
+                  onClick={() => setIsCreatingFolder(true)}
+                  className="p-1.5 text-text-muted hover:text-accent hover:bg-white/5 rounded-lg transition-all"
+                  title={t('notes.newFolder')}
+                >
+                  <FolderPlusIcon className="w-5 h-5 stroke-[1.5]" />
+                </button>
+
+                <div className="w-px h-3.5 bg-border/10 mx-1"></div>
+
+                <div className="relative">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setIsImportDropdownOpen(!isImportDropdownOpen)
+                    }}
+                    className="p-1.5 text-text-muted hover:text-text hover:bg-white/5 rounded-lg transition-all"
+                    title="Importar"
+                  >
+                    <DocumentArrowUpIcon className="w-5 h-5 stroke-[1.5]" />
+                  </button>
+
+                  {isImportDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-1 z-30 bg-card border border-border/10 rounded-lg shadow-xl py-1 min-w-[120px] flex flex-col animate-context-menu">
+                      <button
+                        onClick={() => {
+                          fileInputRef.current?.click()
+                          setIsImportDropdownOpen(false)
+                        }}
+                        className="text-left px-3 py-2 text-xs text-text hover:bg-white/5 flex items-center gap-2"
+                      >
+                        <DocumentPlusIcon className="w-3.5 h-3.5 opacity-70" />
+                        {t('notes.importFiles')}
+                      </button>
+                      <button
+                        onClick={() => {
+                          folderInputRef.current?.click()
+                          setIsImportDropdownOpen(false)
+                        }}
+                        className="text-left px-3 py-2 text-xs text-text hover:bg-white/5 flex items-center gap-2"
+                      >
+                        <ArrowUpTrayIcon className="w-3.5 h-3.5 opacity-70" />
+                        {t('notes.importFolder')}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div
@@ -1040,9 +1156,8 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
 
           <button
             onClick={() => {
-              if (contextMenu.type === 'note') {
-                handleDeleteNote(contextMenu.id)
-              }
+              if (contextMenu.type === 'note') handleDeleteNote(contextMenu.id)
+              else handleDeleteFolder(contextMenu.id)
               setContextMenu(null)
             }}
             className="text-left px-3 py-1.5 text-xs text-red-500/70 hover:bg-red-500/10 hover:text-red-500 flex items-center gap-2 transition-all"
@@ -1087,9 +1202,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
                         : 'text-text-muted/60 hover:text-text hover:bg-white/5'
                     }`}
                   >
-                    <span className="truncate flex-1">
-                      {note.title || t('notes.untitled')}
-                    </span>
+                    <span className="truncate flex-1">{note.title || t('notes.untitled')}</span>
                     <button
                       onClick={(e) => closeTab(e, tabId)}
                       className={`p-0.5 rounded-md hover:bg-white/10 transition-all ${
@@ -1104,13 +1217,15 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
             </div>
 
             {/* Add Tab Button */}
-            <button
-              onClick={handleCreateNote}
-              className="p-1 text-text-muted/40 hover:text-text hover:bg-white/10 rounded-md transition-all ml-1 mb-1"
-              title={t('notes.newNote')}
-            >
-              <PlusIcon className="w-4 h-4" />
-            </button>
+            {!isNotesUiLocked && (
+              <button
+                onClick={handleCreateNote}
+                className="p-1 text-text-muted/40 hover:text-text hover:bg-white/10 rounded-md transition-all ml-1 mb-1"
+                title={t('notes.newNote')}
+              >
+                <PlusIcon className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-4 pr-4">
@@ -1136,7 +1251,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
                 </span>
               </div>
             )}
-            
+
             {activeId && (
               <button
                 onClick={() => handleDeleteNote(activeId)}
@@ -1155,6 +1270,31 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
             {error}
           </div>
         )}
+
+        {isNotesUiLocked && (
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-40 w-[min(520px,92%)] bg-card/95 border border-border/20 rounded-xl px-4 py-3 backdrop-blur-md shadow-xl">
+            <div className="text-[11px] font-semibold tracking-wide text-text-muted uppercase">
+              <span>Carregando notas</span>
+            </div>
+            <div className="relative mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
+              <div
+                className="absolute inset-y-0 left-0 w-1/3 rounded-full bg-accent/90"
+                style={{ animation: 'notes-indeterminate 1.25s ease-in-out infinite' }}
+              />
+            </div>
+            <p className="mt-2 text-[12px] text-text-muted/70">
+              Aguarde um instante enquanto sincronizamos suas notas e preparamos a nota de
+              boas-vindas.
+            </p>
+          </div>
+        )}
+
+        <style>
+          {`@keyframes notes-indeterminate {
+              0% { transform: translateX(-130%); }
+              100% { transform: translateX(330%); }
+            }`}
+        </style>
 
         <div className="flex-1 relative overflow-hidden flex mt-4 h-full">
           {activeId ? (
@@ -1224,16 +1364,20 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
         {...({ webkitdirectory: '' } as any)}
       />
 
-      {deleteConfirmId && (
+      {deleteConfirmTarget && (
         <ConfirmationCard
-          title={t('notes.confirmDelete')}
+          title={deleteConfirmTarget.type === 'folder' ? 'Excluir pasta' : t('notes.confirmDelete')}
           message={
-            t('notes.confirmDeleteMessage') ||
-            'Tem certeza que deseja excluir esta nota? Esta ação não pode ser desfeita.'
+            deleteConfirmTarget.type === 'folder'
+              ? 'Tem certeza que deseja excluir esta pasta e todas as notas dentro dela? Esta ação não pode ser desfeita.'
+              : t('notes.confirmDeleteMessage') ||
+                'Tem certeza que deseja excluir esta nota? Esta ação não pode ser desfeita.'
           }
           options={['Confirmar', 'Cancelar']}
-          onSelect={(opt) => (opt === 'Confirmar' ? confirmDeleteNote() : setDeleteConfirmId(null))}
-          onCancel={() => setDeleteConfirmId(null)}
+          onSelect={(opt) =>
+            opt === 'Confirmar' ? confirmDeleteNote() : setDeleteConfirmTarget(null)
+          }
+          onCancel={() => setDeleteConfirmTarget(null)}
         />
       )}
     </div>
