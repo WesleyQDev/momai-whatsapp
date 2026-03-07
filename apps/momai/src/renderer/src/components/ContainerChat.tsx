@@ -213,10 +213,10 @@ export default function ContainerChat({
     const isBrainLoading = statusInfo?.is_loading ?? false
     return (initProgress ?? 0) >= 100 && isBrainReady && !isBrainLoading
   })
-  
+
   const [settings, setSettings] = useState<SettingsData | null>(null)
   const [dynamicSuggestion, setDynamicSuggestion] = useState<string | null>(null)
-  
+
   const isBrainReady = statusInfo?.brain_ready ?? false
   const isBrainLoading = statusInfo?.is_loading ?? false
   const isEmpty = messages.length === 0
@@ -235,10 +235,10 @@ export default function ContainerChat({
           const s = await fetchSettings()
           setSettings(s)
           setDataLoaded(true)
-          
+
           if (isBrainReady) {
             const notes = await listMemoryNotes()
-            const validNotes = notes?.filter(n => n.title.trim() !== '') || []
+            const validNotes = notes?.filter((n) => n.title.trim() !== '') || []
             if (validNotes.length > 0) {
               const randomNote = validNotes[Math.floor(Math.random() * validNotes.length)]
               setDynamicSuggestion(`Anotação: ${randomNote.title}`)
@@ -247,7 +247,7 @@ export default function ContainerChat({
         } catch (e) {
           console.error(e)
           // Avoid infinite retry loop on failure
-          setDataLoaded(true) 
+          setDataLoaded(true)
         }
       }
       loadData()
@@ -271,7 +271,11 @@ export default function ContainerChat({
       }
     }
     window.addEventListener('momai_session_title_generated', handleTitleGenerated as EventListener)
-    return () => window.removeEventListener('momai_session_title_generated', handleTitleGenerated as EventListener)
+    return () =>
+      window.removeEventListener(
+        'momai_session_title_generated',
+        handleTitleGenerated as EventListener
+      )
   }, [threadId])
 
   const isReallyReady = initProgress >= 100 && isBrainReady && !isBrainLoading
@@ -279,11 +283,15 @@ export default function ContainerChat({
   const showLoading = !animationFinished || (!isBrainReady && !isBrainLoading)
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
-  const displayMessage = (initProgress >= 100 && (!isBrainReady || isBrainLoading))
-    ? (!initMessage || initMessage === 'Sistema pronto.' ? defaultWaitingMessage : initMessage)
-    : initMessage
+  const displayMessage =
+    initProgress >= 100 && (!isBrainReady || isBrainLoading)
+      ? !initMessage || initMessage === 'Sistema pronto.'
+        ? defaultWaitingMessage
+        : initMessage
+      : initMessage
 
-  const tier = localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'
+  const tier =
+    localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'
 
   return (
     <div className="bg-transparent w-full h-full flex flex-col overflow-hidden relative">
@@ -307,7 +315,7 @@ export default function ContainerChat({
               {(() => {
                 if (threadId === 'default') return 'Sessão Inicial'
                 if (localSessionTitle) return localSessionTitle
-                const firstUserMsg = messages.find(m => m.role === 'user')
+                const firstUserMsg = messages.find((m) => m.role === 'user')
                 if (!firstUserMsg) return 'Nova Sessão'
                 const clean = cleanMomaiActions(firstUserMsg.content)
                 return clean
@@ -319,7 +327,14 @@ export default function ContainerChat({
                 onClick={() => setThreadId(`sessao_${Date.now()}`)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/20 hover:border-accent/40 rounded-full transition-all uppercase tracking-wider h-[34px]"
               >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                >
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
@@ -332,11 +347,7 @@ export default function ContainerChat({
                 className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border bg-accent/10 text-accent border-accent/30 hover:bg-accent/20 hover:border-accent/50 hover:shadow-accent-glow transition-all duration-300 font-semibold text-[11px] tracking-wide h-[34px]"
                 title="Conversas anteriores"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  className="w-3.5 h-3.5"
-                >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                 </svg>
                 <span>Conversas anteriores</span>
@@ -351,8 +362,8 @@ export default function ContainerChat({
                 Iniciando Módulo de IA... {Math.round(initProgress)}%
               </span>
               <div className="w-32 h-1.5 bg-white/10 rounded-full overflow-hidden shadow-inner">
-                <div 
-                  className="h-full bg-accent relative transition-all duration-300 ease-out shadow-[0_0_10px_rgba(139,92,246,0.6)]" 
+                <div
+                  className="h-full bg-accent relative transition-all duration-300 ease-out shadow-[0_0_10px_rgba(139,92,246,0.6)]"
                   style={{ width: `${initProgress}%` }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
@@ -362,67 +373,69 @@ export default function ContainerChat({
           )}
 
           <div className="flex-1 overflow-hidden relative flex flex-col">
-             {/* Message Area */}
-             <div className="flex-1 relative overflow-hidden">
-                <div className={`absolute inset-0 flex flex-col transition-opacity duration-500 ${isEmpty ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                   {!isEmpty && (
-                     <MessageList
-                       messages={messages}
-                       isLoading={isLoading}
-                       messagesEndRef={messagesEndRef}
-                       onReopenGraph={onReopenGraph}
-                       onGraphOption={onGraphOption}
-                       onSendMessage={onSendMessage}
-                       onStopVoice={stopCurrentVoice}
-                       onStopGeneration={stopCurrentGeneration}
-                       onSpeakMessage={onSpeakMessage}
-                       onRemoveMessage={onRemoveMessage}
-                       speakingIndex={speakingIndex}
-                       statusInfo={statusInfo}
-                     />
-                   )}
-                </div>
-                
-                {/* Home Content Layer */}
-                {isEmpty && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                     {/* Smaller top spacer to keep things higher */}
-                     <div className="flex-1" /> 
-                     
-                     <div className="w-full max-w-4xl flex flex-col items-center animate-in fade-in duration-1000">
-                        <WelcomeHeader statusInfo={statusInfo} settings={settings} />
-                        <div className="mb-10">
-                           <WelcomeActions 
-                             onSendMessage={onSendMessage} 
-                             tier={tier} 
-                             dynamicSuggestion={dynamicSuggestion} 
-                             randomSuggestions={randomSuggestions} 
-                           />
-                        </div>
-                     </div>
-
-                     {/* Larger bottom spacer to push content up from the input */}
-                     <div className="flex-[2]" />
-                  </div>
+            {/* Message Area */}
+            <div className="flex-1 relative overflow-hidden">
+              <div
+                className={`absolute inset-0 flex flex-col transition-opacity duration-500 ${isEmpty ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+              >
+                {!isEmpty && (
+                  <MessageList
+                    messages={messages}
+                    isLoading={isLoading}
+                    messagesEndRef={messagesEndRef}
+                    onReopenGraph={onReopenGraph}
+                    onGraphOption={onGraphOption}
+                    onSendMessage={onSendMessage}
+                    onStopVoice={stopCurrentVoice}
+                    onStopGeneration={stopCurrentGeneration}
+                    onSpeakMessage={onSpeakMessage}
+                    onRemoveMessage={onRemoveMessage}
+                    speakingIndex={speakingIndex}
+                    statusInfo={statusInfo}
+                  />
                 )}
-             </div>
+              </div>
 
-             {/* Fixed Input Area */}
-             <div className="w-full max-w-4xl mx-auto z-30 pb-2">
-                <ChatInput
-                  text={text}
-                  onSend={onSendMessage}
-                  isLoading={isLoading}
-                  isModeChanging={isModeChanging}
-                  statusInfo={statusInfo}
-                  onStopGeneration={stopCurrentGeneration}
-                  onStopVoice={stopCurrentVoice}
-                  isCallMode={isCallMode}
-                  onToggleCallMode={onToggleCallMode}
-                  speakingIndex={speakingIndex}
-                  voiceStatus={voiceStatus}
-                />
-             </div>
+              {/* Home Content Layer */}
+              {isEmpty && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  {/* Smaller top spacer to keep things higher */}
+                  <div className="flex-1" />
+
+                  <div className="w-full max-w-4xl flex flex-col items-center animate-in fade-in duration-1000">
+                    <WelcomeHeader statusInfo={statusInfo} settings={settings} />
+                    <div className="mb-10">
+                      <WelcomeActions
+                        onSendMessage={onSendMessage}
+                        tier={tier}
+                        dynamicSuggestion={dynamicSuggestion}
+                        randomSuggestions={randomSuggestions}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Larger bottom spacer to push content up from the input */}
+                  <div className="flex-[2]" />
+                </div>
+              )}
+            </div>
+
+            {/* Fixed Input Area */}
+            <div className="w-full max-w-4xl mx-auto z-30 pb-2">
+              <ChatInput
+                text={text}
+                onSend={onSendMessage}
+                isLoading={isLoading}
+                isModeChanging={isModeChanging}
+                statusInfo={statusInfo}
+                onStopGeneration={stopCurrentGeneration}
+                onStopVoice={stopCurrentVoice}
+                isCallMode={isCallMode}
+                onToggleCallMode={onToggleCallMode}
+                speakingIndex={speakingIndex}
+                voiceStatus={voiceStatus}
+              />
+            </div>
           </div>
         </>
       )}

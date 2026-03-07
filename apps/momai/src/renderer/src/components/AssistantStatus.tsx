@@ -23,14 +23,29 @@ export const AssistantStatus = ({ currentTier, isThinking }: AssistantStatusProp
       <div className="relative flex flex-col items-center -mt-3 animate-in fade-in slide-in-from-bottom-3 duration-700">
         {/* Partículas Animadas ao Redor */}
         <div className="absolute -inset-6 pointer-events-none">
-          <div className="absolute top-1/2 left-0 w-1 h-1 rounded-full bg-accent/60 animate-pulse" style={{ animationDuration: '1.5s' }} />
-          <div className="absolute top-1/2 right-0 w-1 h-1 rounded-full bg-accent/60 animate-pulse" style={{ animationDuration: '1.5s', animationDelay: '0.3s' }} />
-          <div className="absolute top-0 left-1/2 w-1.5 h-1.5 rounded-full bg-accent/40 animate-ping" style={{ animationDuration: '2s' }} />
-          <div className="absolute bottom-0 left-1/2 w-1 h-1 rounded-full bg-accent/50 animate-pulse" style={{ animationDuration: '1.8s', animationDelay: '0.5s' }} />
+          <div
+            className="absolute top-1/2 left-0 w-1 h-1 rounded-full bg-accent/60 animate-pulse"
+            style={{ animationDuration: '1.5s' }}
+          />
+          <div
+            className="absolute top-1/2 right-0 w-1 h-1 rounded-full bg-accent/60 animate-pulse"
+            style={{ animationDuration: '1.5s', animationDelay: '0.3s' }}
+          />
+          <div
+            className="absolute top-0 left-1/2 w-1.5 h-1.5 rounded-full bg-accent/40 animate-ping"
+            style={{ animationDuration: '2s' }}
+          />
+          <div
+            className="absolute bottom-0 left-1/2 w-1 h-1 rounded-full bg-accent/50 animate-pulse"
+            style={{ animationDuration: '1.8s', animationDelay: '0.5s' }}
+          />
         </div>
 
         <div className="relative">
-          <div className="absolute -inset-3 bg-accent/20 blur-2xl animate-pulse" style={{ animationDuration: '3s' }} />
+          <div
+            className="absolute -inset-3 bg-accent/20 blur-2xl animate-pulse"
+            style={{ animationDuration: '3s' }}
+          />
           <span className="relative text-[11px] font-bold text-text-muted/60 whitespace-nowrap">
             {(() => {
               if (isThinking) {
@@ -54,9 +69,17 @@ export const AssistantStatus = ({ currentTier, isThinking }: AssistantStatusProp
                 )
               }
               if (currentTier === 'lite') {
-                return <span className="text-emerald-400 font-black text-[11px] drop-shadow-[0_0_10px_rgba(52,211,153,0.4)] uppercase tracking-[0.15em]">Modo Lite</span>
+                return (
+                  <span className="text-emerald-400 font-black text-[11px] drop-shadow-[0_0_10px_rgba(52,211,153,0.4)] uppercase tracking-[0.15em]">
+                    Modo Lite
+                  </span>
+                )
               }
-              return <span className="text-accent/60 font-black text-[11px] drop-shadow-[0_0_10px_rgba(var(--accent),0.4)] uppercase tracking-[0.15em]">MomAI</span>
+              return (
+                <span className="text-accent/60 font-black text-[11px] drop-shadow-[0_0_10px_rgba(var(--accent),0.4)] uppercase tracking-[0.15em]">
+                  MomAI
+                </span>
+              )
             })()}
           </span>
         </div>

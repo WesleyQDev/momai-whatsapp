@@ -32,10 +32,17 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled
 }
 
-export function WelcomeHeader({ statusInfo, settings }: { statusInfo: StatusData | null, settings: SettingsData | null }) {
+export function WelcomeHeader({
+  statusInfo,
+  settings
+}: {
+  statusInfo: StatusData | null
+  settings: SettingsData | null
+}) {
   const userName = settings?.user_name || ''
   const showSeparator = userName && userName !== ''
-  const tier = localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'
+  const tier =
+    localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'
 
   return (
     <div className="flex flex-col items-center text-center space-y-6 max-w-md w-full mb-2 animate-in fade-in slide-in-from-bottom-4 duration-1000">
@@ -47,7 +54,14 @@ export function WelcomeHeader({ statusInfo, settings }: { statusInfo: StatusData
           </span>
           {tier !== 'ultra' && (
             <span className="px-2 py-1 rounded-md bg-accent/10 border border-accent/20 text-[10px] font-black uppercase tracking-widest text-accent/80 flex items-center gap-1.5 mt-1">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+              >
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
               </svg>
               {tier}
@@ -60,7 +74,8 @@ export function WelcomeHeader({ statusInfo, settings }: { statusInfo: StatusData
           </p>
           {tier !== 'ultra' && (
             <p className="text-[11px] text-text-muted/30 font-medium max-w-xs text-center pt-2 leading-relaxed">
-              Este ambiente prioriza a economia. Para recursos avançados como voz e web, mude para o modo <span className="text-accent/60 font-bold">Ultra</span>.
+              Este ambiente prioriza a economia. Para recursos avançados como voz e web, mude para o
+              modo <span className="text-accent/60 font-bold">Ultra</span>.
             </p>
           )}
         </div>
@@ -69,10 +84,15 @@ export function WelcomeHeader({ statusInfo, settings }: { statusInfo: StatusData
   )
 }
 
-export function WelcomeActions({ onSendMessage, tier, dynamicSuggestion, randomSuggestions }: { 
-  onSendMessage: (text: string) => void, 
-  tier: string,
-  dynamicSuggestion: string | null,
+export function WelcomeActions({
+  onSendMessage,
+  tier,
+  dynamicSuggestion,
+  randomSuggestions
+}: {
+  onSendMessage: (text: string) => void
+  tier: string
+  dynamicSuggestion: string | null
   randomSuggestions: string[]
 }) {
   if (tier !== 'ultra') return null
@@ -167,17 +187,18 @@ export default function WelcomeTips({ onSendMessage, statusInfo }: WelcomeTipsPr
     loadDynamic()
   }, [isBrainReady])
 
-  const tier = localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'
+  const tier =
+    localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-4 select-none">
-       <WelcomeHeader statusInfo={statusInfo} settings={settings} />
-       <WelcomeActions 
-         onSendMessage={onSendMessage} 
-         tier={tier} 
-         dynamicSuggestion={dynamicSuggestion} 
-         randomSuggestions={randomSuggestions} 
-       />
+      <WelcomeHeader statusInfo={statusInfo} settings={settings} />
+      <WelcomeActions
+        onSendMessage={onSendMessage}
+        tier={tier}
+        dynamicSuggestion={dynamicSuggestion}
+        randomSuggestions={randomSuggestions}
+      />
     </div>
   )
 }
