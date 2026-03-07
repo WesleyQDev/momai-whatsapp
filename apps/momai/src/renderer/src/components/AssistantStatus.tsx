@@ -61,9 +61,9 @@ export const AssistantStatus = ({ currentTier, isThinking }: AssistantStatusProp
               if (currentTier === 'ultra') {
                 return (
                   <div className="flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-[0_0_8px_rgba(var(--accent),0.6)]" />
-                    <span className="text-accent font-black text-[11px] uppercase tracking-[0.15em] drop-shadow-[0_0_8px_rgba(var(--accent),0.4)]">
-                      TENTE DIZER "LUNA"
+                    <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.6)]" />
+                    <span className="text-yellow-400 font-black text-[11px] uppercase tracking-[0.15em] drop-shadow-[0_0_8px_rgba(250,204,21,0.4)]">
+                      DIGA "LUNA"
                     </span>
                   </div>
                 )
@@ -72,6 +72,13 @@ export const AssistantStatus = ({ currentTier, isThinking }: AssistantStatusProp
                 return (
                   <span className="text-emerald-400 font-black text-[11px] drop-shadow-[0_0_10px_rgba(52,211,153,0.4)] uppercase tracking-[0.15em]">
                     Modo Lite
+                  </span>
+                )
+              }
+              if (currentTier === 'pro') {
+                return (
+                  <span className="text-red-400 font-black text-[11px] drop-shadow-[0_0_10px_rgba(248,113,113,0.4)] uppercase tracking-[0.15em]">
+                    Modo Pro
                   </span>
                 )
               }

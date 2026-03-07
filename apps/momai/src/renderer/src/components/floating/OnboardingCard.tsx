@@ -103,6 +103,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
 
   const handleSelectTier = async (tier: string) => {
     setSelectedTier(tier)
+    localStorage.setItem('momai_ai_tier', tier)
     setStep(2)
     // Silently trigger tier application
     try {
