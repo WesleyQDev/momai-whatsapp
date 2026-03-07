@@ -23,9 +23,9 @@ const InfoPanel = ({
   const navigate = useNavigate()
 
   const currentTier =
-    localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'pro'
+    localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'
 
-  const isThinking = chat.voiceStatus === 'processing' || chat.isLoading || statusInfo?.is_loading
+  const isThinking = chat.isLoading || statusInfo?.is_loading
 
   return (
     <div className="w-[300px] flex flex-col gap-2 h-full shrink-0">

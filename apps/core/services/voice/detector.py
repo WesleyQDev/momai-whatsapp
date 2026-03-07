@@ -111,6 +111,9 @@ class WakeWordDetector:
         self.last_text = ""
         self.last_text_time = 0.0
         self.text_repeat_cooldown = 1.0
+
+        # Gate keyword detection (call mode bypass always works)
+        self.wake_word_active = True
     
     def _load_model(self):
         """Lazy load heavy dependencies and model."""
@@ -561,6 +564,8 @@ class WakeWordDetector:
                 break
 
         if detected_variation:
+            if not self.wake_word_active:
+                return
             if (now - self.last_trigger_time) < self.trigger_cooldown:
                 return
 

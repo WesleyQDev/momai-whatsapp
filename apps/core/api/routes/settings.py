@@ -144,10 +144,7 @@ async def update_settings(data: SettingsUpdate):
 
     if "wake_word_enabled" in changes or data.wake_word_enabled is not None:
         if app_state.ww:
-            if ww_enabled:
-                app_state.ww.start()
-            else:
-                app_state.ww.stop()
+            app_state.ww.wake_word_active = ww_enabled
 
     if any(change in changes for change in ["persona", "user_name", "provider", "local_backend", "ai_tier"]):
         # Always re-initialize local LLM

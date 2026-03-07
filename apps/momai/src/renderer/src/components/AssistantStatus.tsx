@@ -56,7 +56,7 @@ export const AssistantStatus = ({ currentTier, isThinking }: AssistantStatusProp
               if (currentTier === 'lite') {
                 return <span className="text-emerald-400 font-black text-[11px] drop-shadow-[0_0_10px_rgba(52,211,153,0.4)] uppercase tracking-[0.15em]">Modo Lite</span>
               }
-              return <span className="text-rose-500 font-black text-[11px] drop-shadow-[0_0_10px_rgba(244,63,94,0.4)] uppercase tracking-[0.15em]">Modo Pro</span>
+              return <span className="text-accent/60 font-black text-[11px] drop-shadow-[0_0_10px_rgba(var(--accent),0.4)] uppercase tracking-[0.15em]">MomAI</span>
             })()}
           </span>
         </div>

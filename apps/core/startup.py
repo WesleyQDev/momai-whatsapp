@@ -289,8 +289,8 @@ async def start_core_services(settings):
                             "Nuna",
                         ],
                     )
-                    if settings.wake_word_enabled:
-                        app_state.ww.start()
+                    app_state.ww.wake_word_active = True
+                    app_state.ww.start()
             except Exception as e:
                 app_state.logger.warning(f"[startup] Wake word error: {e}")
 

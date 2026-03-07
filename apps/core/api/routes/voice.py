@@ -92,14 +92,14 @@ async def control_wake_word(control: WakeWordControl):
             return {"success": False, "message": "Wake word only available in Ultra tier"}
 
         if control.enabled:
+            app_state.ww.wake_word_active = True
             if not app_state.ww.running:
                 app_state.ww.start()
-                logger.info("[VoiceAPI] Wake word enabled")
+            logger.info("[VoiceAPI] Wake word enabled")
             return {"success": True, "message": "Wake word enabled"}
         else:
-            if app_state.ww.running:
-                app_state.ww.stop()
-                logger.info("[VoiceAPI] Wake word disabled")
+            app_state.ww.wake_word_active = False
+            logger.info("[VoiceAPI] Wake word disabled")
             return {"success": True, "message": "Wake word disabled"}
 
     except Exception as e:

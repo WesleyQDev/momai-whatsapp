@@ -283,7 +283,7 @@ export default function ContainerChat({
     ? (!initMessage || initMessage === 'Sistema pronto.' ? defaultWaitingMessage : initMessage)
     : initMessage
 
-  const tier = localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'pro'
+  const tier = localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'
 
   return (
     <div className="bg-transparent w-full h-full flex flex-col overflow-hidden relative">
