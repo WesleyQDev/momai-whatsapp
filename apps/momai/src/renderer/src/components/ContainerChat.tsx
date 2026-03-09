@@ -209,9 +209,8 @@ export default function ContainerChat({
 }: ContainerChatProps): JSX.Element {
   const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
   const [animationFinished, setAnimationFinished] = useState(() => {
-    const isBrainReady = statusInfo?.brain_ready ?? false
     const isBrainLoading = statusInfo?.is_loading ?? false
-    return (initProgress ?? 0) >= 100 && isBrainReady && !isBrainLoading
+    return (initProgress ?? 0) >= 100 && !isBrainLoading
   })
 
   const [settings, setSettings] = useState<SettingsData | null>(null)
@@ -278,9 +277,9 @@ export default function ContainerChat({
       )
   }, [threadId])
 
-  const isReallyReady = initProgress >= 100 && isBrainReady && !isBrainLoading
-  const displayProgress = !isReallyReady ? Math.min(initProgress, 99) : 100
-  const showLoading = !animationFinished || (!isBrainReady && !isBrainLoading)
+  const isSystemDone = initProgress >= 100 && !isBrainLoading
+  const displayProgress = isSystemDone ? 100 : Math.min(initProgress, 99)
+  const showLoading = !animationFinished || (initProgress < 100 && !isBrainReady && !isBrainLoading)
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage =

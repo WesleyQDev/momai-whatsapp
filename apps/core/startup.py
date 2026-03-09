@@ -305,15 +305,13 @@ async def start_core_services(settings):
         )
 
         if settings.tts_enabled and settings.ai_tier != "lite":
-            await app_state.send_init_event("voice", "Waking up local voice...", None)
-            app_state.tts.tts.initialize()
-            await asyncio.to_thread(app_state.tts.tts.wait_until_ready, timeout=10.0)
-            # Start worker thread immediately so it's ready for first phrase
-            app_state.tts.tts.start()
-
-        # Marcar como totalmente pronto
-        app_state.system_ready.set()
-        await app_state.send_init_event("brain", "Sistema operacional e pronto.", 100)
+            try:
+                await app_state.send_init_event("voice", "Waking up local voice...", None)
+                app_state.tts.tts.initialize()
+                await asyncio.to_thread(app_state.tts.tts.wait_until_ready, timeout=10.0)
+                app_state.tts.tts.start()
+            except Exception as tts_err:
+                app_state.logger.warning(f"[startup] TTS init error: {tts_err}")
 
         # 9. Check Daily Briefing
         try:
@@ -326,7 +324,9 @@ async def start_core_services(settings):
 
     except Exception as exc:
         app_state.logger.exception("[InitTask] Fatal error in core services: %s", exc)
-        await app_state.send_init_event("error", f"Error: {str(exc)}", 0)
+    finally:
+        app_state.system_ready.set()
+        await app_state.send_init_event("brain", "Sistema operacional e pronto.", 100)
 
 
 async def periodic_briefing_check():

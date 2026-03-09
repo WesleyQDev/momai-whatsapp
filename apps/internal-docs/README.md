@@ -1,41 +1,46 @@
-# Website
+# Internal Docs - MomAI
 
-This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
+Documentação interna da MomAI baseada em Docusaurus.
 
-## Installation
+## Requisitos
+
+- Node.js 20+
+- pnpm
+
+## Instalar dependências
+
+No monorepo (raiz):
 
 ```bash
-yarn
+pnpm install
 ```
 
-## Local Development
+## Desenvolvimento local
+
+Na raiz do monorepo:
 
 ```bash
-yarn start
+pnpm docs:internal
 ```
 
-This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
+Ou executando apenas o workspace:
+
+```bash
+pnpm --filter internal-docs start
+```
 
 ## Build
 
 ```bash
-yarn build
+pnpm --filter internal-docs build
 ```
 
-This command generates static content into the `build` directory and can be served using any static contents hosting service.
+O build final é gerado em `apps/internal-docs/build`.
 
-## Deployment
+## Estrutura principal
 
-Using SSH:
-
-```bash
-USE_SSH=true yarn deploy
-```
-
-Not using SSH:
-
-```bash
-GIT_USER=<Your GitHub username> yarn deploy
-```
-
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+- `docs/`: páginas da documentação técnica
+- `blog/`: notas internas e anuncios
+- `blog/`: notas internas e anúncios
+- `docusaurus.config.ts`: configuração do site
+- `sidebars.ts`: organização de navegação das docs

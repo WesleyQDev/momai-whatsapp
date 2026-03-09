@@ -1012,8 +1012,9 @@ export async function startPythonBackend(): Promise<void> {
     // Wait for the server to be up before notifying renderer to start HTTP requests
     const host = API_HOST
     const port = API_PORT
+    const portTimeout = state.isFirstLaunch ? 120000 : 90000
 
-    waitForPort(port, host, 60000)
+    waitForPort(port, host, portTimeout)
       .then(() => {
         logger.info(`[Electron] Backend HTTP server is online on ${host}:${port}`)
 

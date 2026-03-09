@@ -83,15 +83,15 @@ import utils.downloader as downloader
 from database.models import SessionLocal, Settings
 
 
-def get_paths():
+def get_paths(forced_backend=None):
     """
     Returns the paths for binaries and models based on the installed backend.
 
     Returns:
         dict: Paths for 'exe', 'models' and the detected 'backend'.
     """
-    # Aponta para apps/core (dois níveis acima de ai/providers/)
-    base_dir = Path(__file__).parent.parent.parent
+    env_path = os.environ.get("MOMAI_CORE_PATH")
+    base_dir = Path(env_path) if env_path else Path(__file__).parent.parent.parent
 
     # Fetch user preference from database
     db = SessionLocal()
@@ -101,14 +101,15 @@ def get_paths():
 
     backend = "cpu"  # Default fallback
 
-    if preferred_backend != "auto":
-        # Prioritize user preference even if not yet installed,
-        # so ensure_engine_installed can detect the absence and install it.
+    if forced_backend:
+        backend = forced_backend
+    elif preferred_backend != "auto":
         backend = preferred_backend
     else:
-        # Auto mode: find info on the best installed build
         hw_info = downloader.get_hardware_info()
         backend = hw_info.get("backend", "cpu")
+
+    logger.info(f"[local_model] Resolved base_dir={base_dir}, backend={backend}")
 
     exe_name = "llama-server.exe" if platform.system() == "Windows" else "llama-server"
     exe_path = base_dir / "bin" / backend / exe_name
@@ -178,7 +179,33 @@ def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: in
     stop_server()
 
     try:
+        result = _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperature, top_p, top_k)
+        if result is not None:
+            return result
+
+        # If primary backend failed, try CPU fallback
         paths = get_paths()
+        if paths["backend"] != "cpu":
+            report(f"Backend {paths['backend']} failed. Falling back to CPU...")
+            result = _try_start_server(repo_id, filename, ctx_size, 0, report, temperature, top_p, top_k, forced_backend="cpu")
+            if result is not None:
+                return result
+
+        return None
+
+    except Exception as e:
+        report(f"Critical error: {str(e)}")
+        stop_server()
+        return None
+
+
+def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperature, top_p, top_k, forced_backend=None) -> ChatOpenAI | None:
+    global server_process
+
+    stop_server()
+
+    try:
+        paths = get_paths(forced_backend=forced_backend)
         local_model_path = paths["models"] / filename
 
         if local_model_path.exists():
@@ -232,12 +259,14 @@ def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: in
                     f"Local engine ({paths['backend']}) not found and auto-installation failed."
                 )
             # Refresh paths after installation
-            paths = get_paths()
+            paths = get_paths(forced_backend=forced_backend)
             abs_exe_path = str(paths["exe"].resolve())
 
         import psutil
 
         physical_cores = psutil.cpu_count(logical=False) or 4
+
+        report(f"Using backend: {paths['backend']} | exe: {abs_exe_path}")
 
         cmd = [
             abs_exe_path,
@@ -273,8 +302,9 @@ def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: in
 
         report("Starting local LLM process...")
 
-        # Log llama-server output for debugging
-        llama_log_path = Path(__file__).parent / "llama_server.log"
+        env_path = os.environ.get("MOMAI_CORE_PATH")
+        log_base = Path(env_path) if env_path else Path(__file__).parent
+        llama_log_path = log_base / "llama_server.log"
         llama_log_file = open(llama_log_path, "w", encoding="utf-8")
 
         server_process = subprocess.Popen(
@@ -360,6 +390,6 @@ def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: in
         return None
 
     except Exception as e:
-        report(f"Critical error: {str(e)}")
+        report(f"Error starting backend {paths['backend']}: {str(e)}")
         stop_server()
         return None

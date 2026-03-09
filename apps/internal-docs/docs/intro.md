@@ -2,46 +2,36 @@
 sidebar_position: 1
 ---
 
-# Tutorial Intro
+# MomAI Internal Docs
 
-Let's discover **Docusaurus in less than 5 minutes**.
+Esta documentação cobre a arquitetura e as decisões técnicas da MomAI no monorepo.
 
-## Getting Started
+## Escopo
 
-Get started by **creating a new site**.
+- App desktop: Electron + React (`apps/momai`)
+- Core local: FastAPI + orquestração de IA (`apps/core`)
+- Documentação interna: Docusaurus (`apps/internal-docs`)
 
-Or **try Docusaurus immediately** with **[docusaurus.new](https://docusaurus.new)**.
+## Como navegar
 
-### What you'll need
+- Seção Electron: boot, janelas, preload e IPC
+- Seção Core: app FastAPI, serviços e rotas
+- Modos Lite/Pro/Ultra: limites e comportamento esperado
 
-- [Node.js](https://nodejs.org/en/download/) version 20.0 or above:
-  - When installing Node.js, you are recommended to check all checkboxes related to dependencies.
+## Executar docs localmente
 
-## Generate a new site
-
-Generate a new Docusaurus site using the **classic template**.
-
-The classic template will automatically be added to your project after you run the command:
-
-```bash
-npm init docusaurus@latest my-website classic
-```
-
-You can type this command into Command Prompt, Powershell, Terminal, or any other integrated terminal of your code editor.
-
-The command also installs all necessary dependencies you need to run Docusaurus.
-
-## Start your site
-
-Run the development server:
+Na raiz do monorepo:
 
 ```bash
-cd my-website
-npm run start
+pnpm docs:internal
 ```
 
-The `cd` command changes the directory you're working with. In order to work with your newly created Docusaurus site, you'll need to navigate the terminal there.
+Ou diretamente no workspace:
 
-The `npm run start` command builds your website locally and serves it through a development server, ready for you to view at http://localhost:3000/.
+```bash
+pnpm --filter internal-docs start
+```
 
-Open `docs/intro.md` (this page) and edit some lines: the site **reloads automatically** and displays your changes.
+## Objetivo desta docs
+
+Evitar conhecimento implícito e acelerar onboarding técnico do time.

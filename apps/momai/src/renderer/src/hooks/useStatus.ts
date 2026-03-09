@@ -42,7 +42,7 @@ export function useStatus() {
 
   const isBrainReady = statusInfo?.brain_ready ?? false
   const isBrainLoading = statusInfo?.is_loading ?? false
-  const isReady = initProgress >= 100 && !isBooting && isBrainReady && !isBrainLoading
+  const isReady = initProgress >= 100 && !isBooting && !isBrainLoading
 
   // Polling de fallback para progresso de init
   const checkInitProgress = useCallback(async () => {
