@@ -94,7 +94,7 @@ export default function MainViewRenderer({
 
   return (
     <div
-      className={`flex-1 flex min-h-0 ${isChat && !isCompact ? 'max-w-[420px] rounded-xl bg-card border border-border/10 shadow-2xl relative overflow-hidden shrink-0' : 'w-full h-full'}`}
+      className={`flex min-h-0 ${isChat && !isCompact ? 'basis-[clamp(420px,46vw,860px)] min-w-[420px] max-w-[860px] rounded-xl bg-card border border-border/10 shadow-2xl relative overflow-hidden shrink' : 'flex-1 w-full h-full'}`}
     >
       <Component
         onOpenSettings={onOpenSettings}

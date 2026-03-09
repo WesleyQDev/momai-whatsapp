@@ -28,7 +28,7 @@ const InfoPanel = ({
   const isThinking = chat.isLoading || statusInfo?.is_loading
 
   return (
-    <div className="w-[300px] flex flex-col gap-2 h-full shrink-0">
+    <div className="basis-[clamp(300px,26vw,420px)] min-w-[300px] max-w-[420px] flex flex-col gap-2 h-full shrink">
       {/* Componente que exibe o Status/Modo/Luna */}
       <AssistantStatus currentTier={currentTier} isThinking={isThinking} />
 

@@ -103,6 +103,15 @@ export default function NotesView() {
   const folderInputRef = useRef<HTMLInputElement | null>(null)
   const editorViewRef = useRef<EditorView | null>(null)
   const isCreatingDefaultNote = useRef(false)
+  const titleInputRef = useRef<HTMLInputElement | null>(null)
+  const shouldSelectTitleRef = useRef(false)
+
+  const focusAndSelectTitle = () => {
+    const input = titleInputRef.current
+    if (!input) return
+    input.focus()
+    input.select()
+  }
 
   // Memoized Filtered List
   const filteredNotes = useMemo(() => {
@@ -279,7 +288,8 @@ export default function NotesView() {
     }
   }
 
-  const selectNote = async (noteId: string, forceNewTab = false) => {
+  const selectNote = async (noteId: string, forceNewTab = false, selectTitleOnOpen = false) => {
+    if (selectTitleOnOpen) shouldSelectTitleRef.current = true
     if (activeId === noteId && title !== '') return // Already selected
 
     // If we are replacing the current tab or switching away, check if the old one was empty
@@ -346,6 +356,17 @@ export default function NotesView() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!shouldSelectTitleRef.current || !activeId) return
+
+    const raf = window.requestAnimationFrame(() => {
+      focusAndSelectTitle()
+      shouldSelectTitleRef.current = false
+    })
+
+    return () => window.cancelAnimationFrame(raf)
+  }, [activeId, title])
+
   // Auto-Save Logic
   useEffect(() => {
     if (!activeId || isLoading) return
@@ -387,7 +408,7 @@ export default function NotesView() {
     try {
       const note = await createMemoryNote(t('notes.newNoteTitleDefault'), '')
       setNotes((prev) => [note, ...prev])
-      await selectNote(note.id, true)
+      await selectNote(note.id, true, true)
     } catch (err) {
       setError(t('notes.errors.create'))
     }
@@ -1028,9 +1049,9 @@ export default function NotesView() {
                                 />
                               ) : (
                                 <button
-                                  onClick={() => selectNote(note.id, false)}
+                                  onClick={() => selectNote(note.id, false, true)}
                                   onAuxClick={(e) => {
-                                    if (e.button === 1) selectNote(note.id, true)
+                                    if (e.button === 1) selectNote(note.id, true, true)
                                   }}
                                   className={`w-full text-left px-3 py-2 rounded-lg transition-all group relative border border-transparent ${
                                     note.id === activeId
@@ -1080,9 +1101,9 @@ export default function NotesView() {
                       />
                     ) : (
                       <button
-                        onClick={() => selectNote(note.id, false)}
+                        onClick={() => selectNote(note.id, false, true)}
                         onAuxClick={(e) => {
-                          if (e.button === 1) selectNote(note.id, true)
+                          if (e.button === 1) selectNote(note.id, true, true)
                         }}
                         className={`w-full text-left px-3 py-2 rounded-lg transition-all group relative border border-transparent ${
                           note.id === activeId
@@ -1186,7 +1207,7 @@ export default function NotesView() {
                 return (
                   <div
                     key={tabId}
-                    onClick={() => selectNote(tabId)}
+                    onClick={() => selectNote(tabId, false, true)}
                     className={`group flex items-center gap-2 px-3 h-full min-w-[100px] max-w-[180px] cursor-pointer transition-all border-x border-t border-transparent text-[11px] font-medium tracking-tight relative rounded-t-lg ${
                       isActive
                         ? 'bg-card/60 text-accent border-border/10'
@@ -1225,7 +1246,12 @@ export default function NotesView() {
               <div className="hidden lg:flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-text-muted/30">
                 <span>Notes</span>
                 <ChevronRightIcon className="w-2.5 h-2.5" />
-                <span className="text-text-muted/50">{title || 'Untitled'}</span>
+                <span
+                  onClick={focusAndSelectTitle}
+                  className="text-text-muted/50 cursor-text hover:text-text-muted/70 transition-colors"
+                >
+                  {title || 'Untitled'}
+                </span>
               </div>
             )}
 
@@ -1301,8 +1327,10 @@ export default function NotesView() {
                   />
                 )}
                 <input
+                  ref={titleInputRef}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  onClick={(e) => e.currentTarget.select()}
                   placeholder={t('notes.untitled')}
                   className="w-full bg-transparent text-4xl font-bold text-text mb-4 outline-none placeholder:text-text-muted/20 border-none px-8"
                 />

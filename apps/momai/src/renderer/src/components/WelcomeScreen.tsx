@@ -68,11 +68,11 @@ const WelcomeScreen = ({
 
         {isFirstLaunch ? (
           <div className="flex flex-col items-center space-y-4 animate-in fade-in slide-in-from-bottom-10 duration-[1500ms] delay-500">
-            <h1 className="text-4xl font-bold text-white tracking-tight leading-tight">
-              Sua assistente está <span className="text-white">acordando</span>...
+            <h1 className="text-4xl font-bold text-text tracking-tight leading-tight">
+              Sua assistente está <span className="text-accent">acordando</span>...
             </h1>
 
-            <p className="text-xs font-bold text-violet-400/80 uppercase tracking-tight animate-pulse">
+            <p className="text-xs font-bold text-accent/80 uppercase tracking-tight animate-pulse">
               Inicializando ambiente • 1 a 3 minutos
             </p>
           </div>

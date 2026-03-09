@@ -144,7 +144,7 @@ function App(): React.JSX.Element {
 
             <div className="relative z-10 flex-1 flex min-h-0 overflow-hidden bg-transparent">
               <div
-                className={`w-full h-full flex ${isCompact ? 'flex-col' : `flex-row ${isChat ? 'p-6 gap-6 justify-center' : ''}`}`}
+                className={`w-full h-full flex ${isCompact ? 'flex-col' : `flex-row ${isChat ? 'p-6 gap-6 justify-center w-full max-w-[1500px] mx-auto' : ''}`}`}
               >
                 <MainViewRenderer
                   viewName={uiView}
