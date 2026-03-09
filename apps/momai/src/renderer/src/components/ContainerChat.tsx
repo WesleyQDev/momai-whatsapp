@@ -3,6 +3,7 @@ import { MessageList, ChatInput, LoadingAnimation } from './chat'
 import { Message, StatusData, SettingsData, fetchSettings, listMemoryNotes } from '../services/api'
 import { cleanMomaiActions } from '../utils/text'
 import { WelcomeHeader, WelcomeActions } from './chat/WelcomeTips'
+import { useI18n } from '../i18n'
 
 interface ContainerChatProps {
   messages: Message[]
@@ -33,21 +34,6 @@ interface ContainerChatProps {
   isFirstLaunch?: boolean
 }
 
-const ALL_SUGGESTIONS = [
-  'O que tenho na agenda para hoje?',
-  'Quais são as novidades sobre tecnologia?',
-  'Me ajude a organizar minhas notas',
-  'Como está o uso dos recursos do sistema?',
-  'Resuma minhas notas mais recentes',
-  'Quais são as suas capacidades?',
-  'Mostre a interface de lembretes',
-  'Como configurar o FortScript?',
-  'Liste meus lembretes pendentes',
-  'Qual é a previsão do tempo para hoje?',
-  'Me conte uma curiosidade aleatória',
-  'Verifique meus compromissos de amanhã'
-]
-
 const CallModeUI = ({
   onEndCall,
   history = [],
@@ -56,128 +42,144 @@ const CallModeUI = ({
   onEndCall: () => void
   history?: { id: string; role: 'user' | 'assistant'; content: string }[]
   status?: 'idle' | 'listening' | 'processing'
-}) => (
-  <div className="flex-1 flex flex-col items-center justify-center p-8 bg-transparent">
-    {/* Visual Center Piece */}
-    <div className="relative w-24 h-24 mb-8 flex items-center justify-center">
-      {/* Dynamic Glows */}
-      <div
-        className={`absolute inset-0 bg-accent/20 rounded-full blur-2xl transition-all duration-700 ${status !== 'idle' ? 'opacity-100 scale-150' : 'opacity-20 scale-100'}`}
-      />
-      <div
-        className={`absolute inset-2 bg-accent/10 rounded-full blur-xl transition-all duration-1000 ${status === 'listening' ? 'opacity-100 scale-110' : 'opacity-0 scale-90'}`}
-      />
+}) => <CallModeContent onEndCall={onEndCall} history={history} status={status} />
 
-      {/* Animated Rings */}
-      {status === 'listening' && (
-        <>
-          <div className="absolute inset-[-4px] border-2 border-accent/30 rounded-full animate-[ping_2s_infinite]" />
-          <div className="absolute inset-[-12px] border border-accent/10 rounded-full animate-[ping_3s_infinite]" />
-        </>
-      )}
+const CallModeContent = ({
+  onEndCall,
+  history = [],
+  status = 'idle'
+}: {
+  onEndCall: () => void
+  history?: { id: string; role: 'user' | 'assistant'; content: string }[]
+  status?: 'idle' | 'listening' | 'processing'
+}) => {
+  const { t } = useI18n()
 
-      {/* Core Icon Container */}
-      <div
-        className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-500 z-10 backdrop-blur-md shadow-2xl ${
-          status === 'processing'
-            ? 'bg-accent/30 border-2 border-accent animate-pulse shadow-accent/40'
-            : 'bg-accent/20 border-2 border-accent/40 shadow-accent/10'
-        }`}
-      >
-        {status === 'processing' ? (
-          <div className="w-10 h-10 border-4 border-white/10 border-t-white rounded-full animate-spin" />
-        ) : (
-          <svg
-            width="36"
-            height="32"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-white"
-          >
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-            <line x1="12" y1="19" x2="12" y2="22" />
-          </svg>
-        )}
-      </div>
-    </div>
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-8 bg-transparent">
+      {/* Visual Center Piece */}
+      <div className="relative w-24 h-24 mb-8 flex items-center justify-center">
+        {/* Dynamic Glows */}
+        <div
+          className={`absolute inset-0 bg-accent/20 rounded-full blur-2xl transition-all duration-700 ${status !== 'idle' ? 'opacity-100 scale-150' : 'opacity-20 scale-100'}`}
+        />
+        <div
+          className={`absolute inset-2 bg-accent/10 rounded-full blur-xl transition-all duration-1000 ${status === 'listening' ? 'opacity-100 scale-110' : 'opacity-0 scale-90'}`}
+        />
 
-    {/* Status Message */}
-    <div className="h-6 mb-8 text-center flex flex-col justify-center">
-      <span
-        className={`text-[11px] font-black uppercase tracking-[0.5em] transition-all duration-500 ${
-          status === 'listening' ? 'text-accent animate-pulse' : 'text-text-muted/40'
-        }`}
-      >
-        {status === 'listening'
-          ? 'Escutando'
-          : status === 'processing'
-            ? 'Processando'
-            : 'Aguardando'}
-      </span>
-    </div>
-
-    {/* Main Content Area - Mostra usuário e IA separados */}
-    <div
-      className="w-full max-w-[500px] mb-8 overflow-hidden relative flex flex-col items-center justify-center gap-1"
-      style={{
-        height: '80px'
-      }}
-    >
-      {(() => {
-        const lastUser = history.filter((h) => h.role === 'user').pop()
-        const lastAssistant = history.filter((h) => h.role === 'assistant').pop()
-
-        return (
+        {/* Animated Rings */}
+        {status === 'listening' && (
           <>
-            {/* Mensagem do Usuário */}
-            {lastUser && (
-              <p
-                className="text-center text-[10px] text-white/60 font-medium px-4 w-full"
-                style={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {lastUser.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()}
-              </p>
-            )}
-
-            {/* Mensagem da IA - máx 2 linhas com ... */}
-            {lastAssistant && (
-              <p
-                className="text-center text-xs text-text font-medium px-4 w-full"
-                style={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden'
-                }}
-              >
-                {lastAssistant.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()}
-              </p>
-            )}
+            <div className="absolute inset-[-4px] border-2 border-accent/30 rounded-full animate-[ping_2s_infinite]" />
+            <div className="absolute inset-[-12px] border border-accent/10 rounded-full animate-[ping_3s_infinite]" />
           </>
-        )
-      })()}
-    </div>
+        )}
 
-    {/* Footer Action */}
-    <button
-      type="button"
-      onClick={onEndCall}
-      className="group relative flex items-center gap-4 px-10 py-4 bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-500/40 text-text hover:text-red-500 rounded-3xl transition-all duration-500 active:scale-95 shadow-2xl backdrop-blur-xl"
-    >
-      <div className="w-2.5 h-2.5 bg-red-500 rounded-full group-hover:animate-ping" />
-      <span className="font-extrabold text-xs uppercase tracking-widest">Desconectar</span>
-    </button>
-  </div>
-)
+        {/* Core Icon Container */}
+        <div
+          className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-500 z-10 backdrop-blur-md shadow-2xl ${
+            status === 'processing'
+              ? 'bg-accent/30 border-2 border-accent animate-pulse shadow-accent/40'
+              : 'bg-accent/20 border-2 border-accent/40 shadow-accent/10'
+          }`}
+        >
+          {status === 'processing' ? (
+            <div className="w-10 h-10 border-4 border-white/10 border-t-white rounded-full animate-spin" />
+          ) : (
+            <svg
+              width="36"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-white"
+            >
+              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="22" />
+            </svg>
+          )}
+        </div>
+      </div>
+
+      {/* Status Message */}
+      <div className="h-6 mb-8 text-center flex flex-col justify-center">
+        <span
+          className={`text-[11px] font-black uppercase tracking-[0.5em] transition-all duration-500 ${
+            status === 'listening' ? 'text-accent animate-pulse' : 'text-text-muted/40'
+          }`}
+        >
+          {status === 'listening'
+            ? t('home.call.listening')
+            : status === 'processing'
+              ? t('home.call.processing')
+              : t('home.call.waiting')}
+        </span>
+      </div>
+
+      {/* Main Content Area - Mostra usuário e IA separados */}
+      <div
+        className="w-full max-w-[500px] mb-8 overflow-hidden relative flex flex-col items-center justify-center gap-1"
+        style={{
+          height: '80px'
+        }}
+      >
+        {(() => {
+          const lastUser = history.filter((h) => h.role === 'user').pop()
+          const lastAssistant = history.filter((h) => h.role === 'assistant').pop()
+
+          return (
+            <>
+              {/* Mensagem do Usuário */}
+              {lastUser && (
+                <p
+                  className="text-center text-[10px] text-white/60 font-medium px-4 w-full"
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {lastUser.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()}
+                </p>
+              )}
+
+              {/* Mensagem da IA - máx 2 linhas com ... */}
+              {lastAssistant && (
+                <p
+                  className="text-center text-xs text-text font-medium px-4 w-full"
+                  style={{
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {lastAssistant.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()}
+                </p>
+              )}
+            </>
+          )
+        })()}
+      </div>
+
+      {/* Footer Action */}
+      <button
+        type="button"
+        onClick={onEndCall}
+        className="group relative flex items-center gap-4 px-10 py-4 bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-500/40 text-text hover:text-red-500 rounded-3xl transition-all duration-500 active:scale-95 shadow-2xl backdrop-blur-xl"
+      >
+        <div className="w-2.5 h-2.5 bg-red-500 rounded-full group-hover:animate-ping" />
+        <span className="font-extrabold text-xs uppercase tracking-widest">
+          {t('home.call.disconnect')}
+        </span>
+      </button>
+    </div>
+  )
+}
 
 export default function ContainerChat({
   messages,
@@ -207,6 +209,7 @@ export default function ContainerChat({
   onRemoveMessage,
   isFirstLaunch = false
 }: ContainerChatProps): JSX.Element {
+  const { t } = useI18n()
   const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
   const [animationFinished, setAnimationFinished] = useState(() => {
     const isBrainLoading = statusInfo?.is_loading ?? false
@@ -220,10 +223,18 @@ export default function ContainerChat({
   const isBrainLoading = statusInfo?.is_loading ?? false
   const isEmpty = messages.length === 0
 
+  const allSuggestions = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, idx) => t(`home.suggestion.${idx}`)).filter(
+        (value) => !value.startsWith('home.suggestion.')
+      ),
+    [t]
+  )
+
   const randomSuggestions = useMemo(() => {
     // Shuffling inside memo to keep consistency while empty
-    return ALL_SUGGESTIONS.sort(() => Math.random() - 0.5).slice(0, 4)
-  }, [threadId])
+    return allSuggestions.sort(() => Math.random() - 0.5).slice(0, 4)
+  }, [allSuggestions, threadId])
 
   const [dataLoaded, setDataLoaded] = useState(false)
 
@@ -240,7 +251,7 @@ export default function ContainerChat({
             const validNotes = notes?.filter((n) => n.title.trim() !== '') || []
             if (validNotes.length > 0) {
               const randomNote = validNotes[Math.floor(Math.random() * validNotes.length)]
-              setDynamicSuggestion(`Anotação: ${randomNote.title}`)
+              setDynamicSuggestion(t('home.noteSuggestionPrefix', { title: randomNote.title }))
             }
           }
         } catch (e) {
@@ -251,7 +262,7 @@ export default function ContainerChat({
       }
       loadData()
     }
-  }, [isEmpty, isBrainReady, dataLoaded])
+  }, [isEmpty, isBrainReady, dataLoaded, t])
 
   useEffect(() => {
     if (isModeChanging) {
@@ -312,10 +323,10 @@ export default function ContainerChat({
           <div className="flex items-center justify-between gap-4 px-4 pt-4 pb-2 z-20">
             <span className="flex-1 text-[11px] font-bold text-text/40 uppercase tracking-wider truncate">
               {(() => {
-                if (threadId === 'default') return 'Sessão Inicial'
+                if (threadId === 'default') return t('home.session.initial')
                 if (localSessionTitle) return localSessionTitle
                 const firstUserMsg = messages.find((m) => m.role === 'user')
-                if (!firstUserMsg) return 'Nova Sessão'
+                if (!firstUserMsg) return t('home.session.new')
                 const clean = cleanMomaiActions(firstUserMsg.content)
                 return clean
               })()}
@@ -337,19 +348,19 @@ export default function ContainerChat({
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
-                Nova
+                {t('home.newSession')}
               </button>
               <button
                 type="button"
                 data-history-trigger="true"
                 onClick={() => setHistoryOpen?.(true)}
                 className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border bg-accent/10 text-accent border-accent/30 hover:bg-accent/20 hover:border-accent/50 hover:shadow-accent-glow transition-all duration-300 font-semibold text-[11px] tracking-wide h-[34px]"
-                title="Conversas anteriores"
+                title={t('home.history.previousConversations')}
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                 </svg>
-                <span>Conversas anteriores</span>
+                <span>{t('home.history.previousConversations')}</span>
               </button>
             </div>
           </div>
@@ -358,7 +369,7 @@ export default function ContainerChat({
           {isBrainLoading && initProgress < 100 && (
             <div className="px-4 py-1 mx-4 mt-2 bg-black/40 border border-accent/20 rounded-lg flex items-center justify-between animate-fade-in backdrop-blur-md z-20 shadow-lg">
               <span className="text-[10px] font-bold text-accent tracking-wider uppercase animate-pulse">
-                Iniciando Módulo de IA... {Math.round(initProgress)}%
+                {t('home.bootingAi')}... {Math.round(initProgress)}%
               </span>
               <div className="w-32 h-1.5 bg-white/10 rounded-full overflow-hidden shadow-inner">
                 <div

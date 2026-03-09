@@ -44,13 +44,17 @@ const BootstrapError = ({ error }: BootstrapErrorProps) => {
 
         <div className="flex gap-3">
           <button
-            onClick={() => window.electron.ipcRenderer.invoke('open-logs-folder')}
+            onClick={() => window.api.openLogsFolder()}
             className="flex-1 px-4 py-2 bg-text/5 hover:bg-text/10 border border-text/10 rounded-lg text-sm text-text/70 hover:text-text transition-colors"
           >
             Ver Logs
           </button>
           <button
-            onClick={() => (window.location.href = window.location.pathname + '#/')}
+            onClick={() => {
+              window.api.restartBackend().then(() => {
+                window.location.href = window.location.pathname + '#/'
+              })
+            }}
             className="flex-1 px-4 py-2 bg-accent hover:bg-accent/80 rounded-lg text-sm text-white font-medium transition-colors"
           >
             Tentar Novamente

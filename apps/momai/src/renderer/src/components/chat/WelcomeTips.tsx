@@ -1,25 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { StatusData, listMemoryNotes, fetchSettings, SettingsData } from '../../services/api'
+import { useI18n } from '../../i18n'
 
 interface WelcomeTipsProps {
   onSendMessage: (text: string) => void
   statusInfo: StatusData | null
 }
-
-const ALL_SUGGESTIONS = [
-  'O que tenho na agenda para hoje?',
-  'Quais são as novidades sobre tecnologia?',
-  'Me ajude a organizar minhas notas',
-  'Como está o uso dos recursos do sistema?',
-  'Resuma minhas notas mais recentes',
-  'Quais são as suas capacidades?',
-  'Mostre a interface de lembretes',
-  'Como configurar o FortScript?',
-  'Liste meus lembretes pendentes',
-  'Qual é a previsão do tempo para hoje?',
-  'Me conte uma curiosidade aleatória',
-  'Verifique meus compromissos de amanhã'
-]
 
 const MAX_SUGGESTIONS = 4
 
@@ -39,6 +25,7 @@ export function WelcomeHeader({
   statusInfo: StatusData | null
   settings: SettingsData | null
 }) {
+  const { t } = useI18n()
   const userName = settings?.user_name || ''
   const showSeparator = userName && userName !== ''
   const tier =
@@ -49,7 +36,8 @@ export function WelcomeHeader({
       <div className="space-y-1">
         <h2 className="text-[32px] font-extrabold text-text tracking-tight flex items-center justify-center gap-3">
           <span>
-            Olá{showSeparator ? ', ' : ''}
+            {t('home.greeting')}
+            {showSeparator ? ', ' : ' '}
             {userName}
           </span>
           {tier !== 'ultra' && (
@@ -70,12 +58,11 @@ export function WelcomeHeader({
         </h2>
         <div className="flex flex-col gap-1 items-center">
           <p className="text-[16px] text-text-muted/60 font-semibold tracking-tight">
-            Como posso te ajudar hoje?
+            {t('home.askHelp')}
           </p>
           {tier !== 'ultra' && (
             <p className="text-[11px] text-text-muted/30 font-medium max-w-xs text-center pt-2 leading-relaxed">
-              Este ambiente prioriza a economia. Para recursos avançados como voz e web, mude para o
-              modo <span className="text-accent/60 font-bold">Ultra</span>.
+              {t('home.economyHint')} <span className="text-accent/60 font-bold">Ultra</span>.
             </p>
           )}
         </div>
@@ -123,13 +110,22 @@ export function WelcomeActions({
 }
 
 export default function WelcomeTips({ onSendMessage, statusInfo }: WelcomeTipsProps) {
+  const { t } = useI18n()
   const [dynamicSuggestion, setDynamicSuggestion] = useState<string | null>(null)
   const [settings, setSettings] = useState<SettingsData | null>(null)
   const isBrainReady = statusInfo?.brain_ready ?? false
 
+  const allSuggestions = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, idx) => t(`home.suggestion.${idx}`)).filter(
+        (value) => !value.startsWith('home.suggestion.')
+      ),
+    [t]
+  )
+
   const randomSuggestions = useMemo(() => {
-    return shuffleArray(ALL_SUGGESTIONS).slice(0, MAX_SUGGESTIONS)
-  }, [])
+    return shuffleArray(allSuggestions).slice(0, MAX_SUGGESTIONS)
+  }, [allSuggestions])
 
   useEffect(() => {
     const cachedName = localStorage.getItem('momai_user_name')
@@ -145,7 +141,7 @@ export default function WelcomeTips({ onSendMessage, statusInfo }: WelcomeTipsPr
           localStorage.setItem('momai_user_name', data.user_name)
         }
       } catch (err) {
-        console.error('Erro ao carregar configurações para boas-vindas:', err)
+        console.error('Failed to load settings for welcome state:', err)
       }
     }
     loadSettings()
@@ -178,14 +174,14 @@ export default function WelcomeTips({ onSendMessage, statusInfo }: WelcomeTipsPr
 
         if (validNotes.length > 0) {
           const randomNote = validNotes[Math.floor(Math.random() * validNotes.length)]
-          setDynamicSuggestion(`Anotação: ${randomNote.title}`)
+          setDynamicSuggestion(t('home.noteSuggestionPrefix', { title: randomNote.title }))
         }
       } catch (err) {
-        console.error('Erro ao carregar notas para sugestão:', err)
+        console.error('Failed to load notes for smart suggestion:', err)
       }
     }
     loadDynamic()
-  }, [isBrainReady])
+  }, [isBrainReady, t])
 
   const tier =
     localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'

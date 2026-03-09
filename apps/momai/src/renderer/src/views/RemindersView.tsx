@@ -126,7 +126,9 @@ export default function RemindersView() {
 
     return {
       overdue: sorted.filter((r) => isOverdue(new Date(r.scheduled_time))),
-      today: sorted.filter((r) => isToday(new Date(r.scheduled_time)) && !isOverdue(new Date(r.scheduled_time))),
+      today: sorted.filter(
+        (r) => isToday(new Date(r.scheduled_time)) && !isOverdue(new Date(r.scheduled_time))
+      ),
       tomorrow: sorted.filter((r) => isTomorrow(new Date(r.scheduled_time))),
       upcoming: sorted.filter((r) => isFuture(new Date(r.scheduled_time)))
     }
@@ -195,7 +197,7 @@ export default function RemindersView() {
   const TaskItem = ({ r }: { r: Reminder }) => {
     const date = new Date(r.scheduled_time)
     const overdue = isOverdue(date)
-    
+
     return (
       <div className="group flex items-start gap-3 p-3 hover:bg-white/5 border-b border-border/5 transition-all">
         <button
@@ -212,21 +214,27 @@ export default function RemindersView() {
               {r.title}
             </h3>
             <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-               <button 
-                onClick={(e) => { e.stopPropagation(); handleOpenEdit(r) }}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleOpenEdit(r)
+                }}
                 className="p-1 hover:bg-accent/10 rounded text-text-muted hover:text-accent transition-all"
               >
                 <PencilSquareIcon className="w-3.5 h-3.5" />
               </button>
-              <button 
-                onClick={(e) => { e.stopPropagation(); handleDelete(r.id) }}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDelete(r.id)
+                }}
                 className="p-1 hover:bg-rose-500/10 rounded text-text-muted hover:text-rose-500 transition-all"
               >
                 <TrashIcon className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
-          
+
           {r.content && (
             <p className="text-[11px] text-text-muted/60 mt-0.5 line-clamp-1 leading-relaxed">
               {r.content}
@@ -234,7 +242,9 @@ export default function RemindersView() {
           )}
 
           <div className="flex flex-wrap items-center gap-3 mt-1.5">
-            <div className={`flex items-center gap-1 text-[10px] font-bold ${overdue ? 'text-rose-500' : 'text-text-muted/40'}`}>
+            <div
+              className={`flex items-center gap-1 text-[10px] font-bold ${overdue ? 'text-rose-500' : 'text-text-muted/40'}`}
+            >
               <CalendarIcon className="w-3 h-3" />
               <span>{formatDate(date, { day: 'numeric', month: 'short' })}</span>
               <span className="mx-0.5 opacity-30">•</span>
@@ -245,20 +255,24 @@ export default function RemindersView() {
             {r.repeat_interval && (
               <div className="flex items-center gap-1 text-[10px] uppercase font-black tracking-widest text-emerald-500/70">
                 <ArrowPathIcon className="w-3 h-3" />
-                <span>R:{r.repeat_value} {r.repeat_interval}</span>
+                <span>
+                  R:{r.repeat_value} {r.repeat_interval}
+                </span>
               </div>
             )}
 
-            <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest ${r.action_type === 'cron' ? 'text-indigo-400' : 'text-accent/60'}`}>
+            <div
+              className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest ${r.action_type === 'cron' ? 'text-indigo-400' : 'text-accent/60'}`}
+            >
               {r.action_type === 'cron' ? (
                 <>
                   <CommandLineIcon className="w-3 h-3" />
-                  <span>Agendador</span>
+                  <span>{t('reminders.type.scheduler')}</span>
                 </>
               ) : (
                 <>
                   <SpeakerWaveIcon className="w-3 h-3" />
-                  <span>Lembrete</span>
+                  <span>{t('reminders.type.reminder')}</span>
                 </>
               )}
             </div>
@@ -268,46 +282,50 @@ export default function RemindersView() {
     )
   }
 
-  const Section = ({ 
-    title, 
-    items, 
-    id, 
-    color = "text-text", 
-    isOverdue = false 
-  }: { 
-    title: string, 
-    items: Reminder[], 
-    id: keyof typeof expandedSections,
-    color?: string,
+  const Section = ({
+    title,
+    items,
+    id,
+    color = 'text-text',
+    isOverdue = false
+  }: {
+    title: string
+    items: Reminder[]
+    id: keyof typeof expandedSections
+    color?: string
     isOverdue?: boolean
   }) => {
     if (items.length === 0 && id !== 'today') return null
 
     return (
       <div className="mb-4">
-        <div 
+        <div
           className="flex items-center justify-between py-1.5 cursor-pointer group select-none px-1"
           onClick={() => toggleSection(id)}
         >
           <div className="flex items-center gap-1.5">
-            <div className={`transition-transform duration-200 ${expandedSections[id] ? 'rotate-90' : ''}`}>
+            <div
+              className={`transition-transform duration-200 ${expandedSections[id] ? 'rotate-90' : ''}`}
+            >
               <ChevronRightIcon className="w-3 h-3 text-text-muted/30" />
             </div>
-            <h2 className={`text-xs font-black uppercase tracking-widest ${isOverdue ? 'text-rose-500' : color} opacity-80`}>
+            <h2
+              className={`text-xs font-black uppercase tracking-widest ${isOverdue ? 'text-rose-500' : color} opacity-80`}
+            >
               {title}
             </h2>
             <span className="text-[9px] font-black text-text-muted/20 ml-1">{items.length}</span>
           </div>
         </div>
-        
+
         {expandedSections[id] && (
           <div className="mt-1 bg-white/[0.01] rounded-lg border border-white/5 overflow-hidden">
             {items.length > 0 ? (
-              items.map(r => <TaskItem key={r.id} r={r} />)
+              items.map((r) => <TaskItem key={r.id} r={r} />)
             ) : (
               <div className="p-8 text-center bg-transparent">
                 <p className="text-xs text-text-muted/30 uppercase font-black tracking-widest">
-                  Nenhuma tarefa para hoje
+                  {t('reminders.emptyToday')}
                 </p>
               </div>
             )}
@@ -322,8 +340,8 @@ export default function RemindersView() {
       <main className="flex-1 overflow-y-auto custom-scrollbar bg-bg relative">
         {/* Background Gradients */}
         <div className="absolute inset-0 pointer-events-none opacity-40">
-           <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-accent/5 blur-[120px] rounded-full" />
-           <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-violet-500/5 blur-[100px] rounded-full" />
+          <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-accent/5 blur-[120px] rounded-full" />
+          <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-violet-500/5 blur-[100px] rounded-full" />
         </div>
 
         <div className="max-w-2xl mx-auto px-4 py-8 relative z-10">
@@ -351,31 +369,31 @@ export default function RemindersView() {
             </button>
           </header>
 
-          <Section 
-            title="Atrasadas" 
-            items={groupedReminders.overdue} 
-            id="overdue" 
-            isOverdue 
+          <Section
+            title={t('reminders.sections.overdue')}
+            items={groupedReminders.overdue}
+            id="overdue"
+            isOverdue
           />
-          
-          <Section 
-            title="Hoje" 
-            items={groupedReminders.today} 
-            id="today" 
+
+          <Section
+            title={t('reminders.sections.today')}
+            items={groupedReminders.today}
+            id="today"
             color="text-accent"
           />
 
-          <Section 
-            title="Amanhã" 
-            items={groupedReminders.tomorrow} 
-            id="tomorrow" 
+          <Section
+            title={t('reminders.sections.tomorrow')}
+            items={groupedReminders.tomorrow}
+            id="tomorrow"
             color="text-emerald-500"
           />
 
-          <Section 
-            title="Próximos" 
-            items={groupedReminders.upcoming} 
-            id="upcoming" 
+          <Section
+            title={t('reminders.sections.upcoming')}
+            items={groupedReminders.upcoming}
+            id="upcoming"
             color="text-violet-500"
           />
 
@@ -385,13 +403,13 @@ export default function RemindersView() {
                 <CheckCircleIcon className="w-8 h-8 text-accent/20" />
               </div>
               <p className="text-sm font-bold text-text-muted/40 uppercase tracking-widest">
-                Tudo pronto por aqui
+                {t('reminders.emptyState.title')}
               </p>
-              <button 
+              <button
                 onClick={handleOpenCreate}
                 className="mt-6 text-xs font-black text-accent hover:text-accent/80 underline underline-offset-8 decoration-dotted"
               >
-                CRIAR SEU PRIMEIRO LEMBRETE
+                {t('reminders.emptyState.cta')}
               </button>
             </div>
           )}

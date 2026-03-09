@@ -122,9 +122,7 @@ export const BrainTab = ({
             </div>
             <div className="grid grid-cols-2 gap-3">
               {/* GPU Card - Exibição */}
-              <div
-                className="p-3.5 rounded-xl border bg-black/30 border-white/[0.05] flex flex-col gap-2 relative overflow-hidden"
-              >
+              <div className="p-3.5 rounded-xl border bg-black/30 border-white/[0.05] flex flex-col gap-2 relative overflow-hidden">
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2">
                     <svg
@@ -141,7 +139,7 @@ export const BrainTab = ({
                       <line x1="18" y1="10" x2="18" y2="14" />
                     </svg>
                     <span className="text-[9px] font-bold uppercase tracking-widest leading-none">
-                      Placa de Vídeo
+                      {t('settings.brain.gpuLabel')}
                     </span>
                   </div>
                 </div>
@@ -151,16 +149,14 @@ export const BrainTab = ({
                 {['cuda', 'vulkan'].includes(localDetails.recommended_build || '') && (
                   <div className="mt-1">
                     <span className="text-[8px] font-bold text-green-500/80 uppercase tracking-widest px-1">
-                      Recomendado
+                      {t('settings.brain.recommended')}
                     </span>
                   </div>
                 )}
               </div>
 
               {/* CPU Card - Exibição */}
-              <div
-                className="p-3.5 rounded-xl border bg-black/30 border-white/[0.05] flex flex-col gap-2 relative overflow-hidden"
-              >
+              <div className="p-3.5 rounded-xl border bg-black/30 border-white/[0.05] flex flex-col gap-2 relative overflow-hidden">
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2">
                     <svg
@@ -176,7 +172,7 @@ export const BrainTab = ({
                       <path d="M9 1v3m6-3v3M9 20v3m6-3v3M20 9h3m-3 6h3M1 9h3m-3 6h3" />
                     </svg>
                     <span className="text-[9px] font-bold uppercase tracking-widest leading-none">
-                      Processador
+                      {t('settings.brain.processorLabel')}
                     </span>
                   </div>
                 </div>
@@ -186,7 +182,7 @@ export const BrainTab = ({
                 {localDetails.recommended_build === 'cpu' && (
                   <div className="mt-1">
                     <span className="text-[8px] font-bold text-green-500/80 uppercase tracking-widest px-1">
-                      Recomendado
+                      {t('settings.brain.recommended')}
                     </span>
                   </div>
                 )}
@@ -212,7 +208,7 @@ export const BrainTab = ({
                     <line x1="18" y1="10" x2="18" y2="14" />
                   </svg>
                   <span className="text-[10px] font-bold text-text uppercase tracking-wide">
-                    Usar Placa de Vídeo
+                    {t('settings.brain.useGpuLabel')}
                   </span>
                 </div>
                 <span className="text-[9px] text-text-muted font-medium opacity-50">
@@ -221,8 +217,10 @@ export const BrainTab = ({
                       ? localDetails.current_local_backend || ''
                       : settings.local_backend
                   )
-                    ? `Ativado (${localDetails.recommended_build === 'cuda' ? 'CUDA' : 'VULKAN'})`
-                    : 'Desativado (usando CPU)'}
+                    ? t('settings.brain.gpuEnabled', {
+                        mode: localDetails.recommended_build === 'cuda' ? 'CUDA' : 'VULKAN'
+                      })
+                    : t('settings.brain.gpuDisabled')}
                 </span>
               </div>
               <button
@@ -281,7 +279,7 @@ export const BrainTab = ({
               >
                 <path d="M9 18l6-6-6-6" />
               </svg>
-              Avançado
+              {t('settings.brain.advanced')}
             </button>
             {isAdvancedHardwareOpen && (
               <div className="flex flex-col gap-1.5 min-h-[200px] animate-in slide-in-from-top-2 fade-in duration-300">
@@ -312,7 +310,7 @@ export const BrainTab = ({
                   {
                     id: 'cpu',
                     label: t('settings.brain.backend.cpu'),
-                    desc: 'Processamento padrão via processador (mais lento).'
+                    desc: t('settings.brain.backend.cpuDesc')
                   }
                 ].map((opt) => {
                   const isSelected = settings.local_backend === opt.id
@@ -338,7 +336,7 @@ export const BrainTab = ({
                           {opt.label}
                           {opt.id === 'auto' && (
                             <span className="ml-2 text-[9px] text-green-500 font-bold opacity-80 uppercase tracking-tighter">
-                              Recomendado
+                              {t('settings.brain.recommended')}
                             </span>
                           )}
                         </span>
@@ -350,7 +348,7 @@ export const BrainTab = ({
                       <div className="flex items-center gap-4">
                         {!isInstalled && (
                           <div className="flex items-center gap-2 bg-accent/20 px-3 py-1.5 rounded-lg text-[10px] font-black text-accent uppercase tracking-tighter hover:bg-accent/30 transition-colors">
-                            <span>Instalar</span>
+                            <span>{t('settings.brain.installNow')}</span>
                             <svg
                               width="12"
                               height="12"
@@ -370,7 +368,7 @@ export const BrainTab = ({
                         {isSelected ? (
                           <div className="flex items-center gap-2 text-accent">
                             <span className="text-[10px] font-black uppercase tracking-widest opacity-80">
-                              Configurado
+                              {t('settings.brain.configured')}
                             </span>
                             <div className="w-5 h-5 rounded-full bg-accent flex items-center justify-center text-white shadow-lg shadow-accent/20 scale-90">
                               <svg

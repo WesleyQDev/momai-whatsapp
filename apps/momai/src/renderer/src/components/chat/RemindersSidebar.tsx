@@ -89,7 +89,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
     setContextMenu(null)
     try {
       await createReminder({
-        title: `${r.title} (Cópia)`,
+        title: `${r.title} (${t('common.duplicate')})`,
         content: r.content || '',
         scheduled_time: r.scheduled_time,
         repeat_interval: r.repeat_interval as any,
@@ -199,7 +199,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
     <div className="flex flex-col h-full bg-card overflow-hidden">
       <div className="p-3 border-b border-white/5 flex items-center justify-between">
         <h2 className="text-[10px] font-black text-text-muted/50 uppercase tracking-[0.2em]">
-          Próximos
+          {t('reminders.sections.upcoming')}
         </h2>
         <span className="flex items-center justify-center w-4 h-4 bg-text/5 rounded-full text-[10px] font-black text-text-muted/30">
           {displayItems.length}
@@ -225,7 +225,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
               >
                 <PlusIcon className="w-4 h-4" />
                 <span className="text-[11px] font-black uppercase tracking-[0.2em]">
-                  Novo Lembrete
+                  {t('reminders.newReminder')}
                 </span>
               </button>
             ) : null}
@@ -247,7 +247,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
               return displayItems.map(({ reminder: r, time, isToday }) => {
                 const recurrence = getRecurrenceMeta(t, r.repeat_interval, r.repeat_value)
 
-                let dateLabel = 'Hoje'
+                let dateLabel = t('common.today')
 
                 if (!isToday) {
                   const tomorrow = new Date(today)
@@ -258,7 +258,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
                     time.getMonth() === tomorrow.getMonth() &&
                     time.getFullYear() === tomorrow.getFullYear()
                   ) {
-                    dateLabel = 'Amanhã'
+                    dateLabel = t('common.tomorrow')
                   } else {
                     dateLabel = time.toLocaleDateString(undefined, {
                       day: '2-digit',
@@ -267,7 +267,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
                   }
                 }
 
-                const showHeader = dateLabel !== 'Hoje' && dateLabel !== lastDateLabel
+                const showHeader = dateLabel !== t('common.today') && dateLabel !== lastDateLabel
                 if (showHeader) lastDateLabel = dateLabel
 
                 const content = (
@@ -310,7 +310,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
                         <button
                           onClick={() => handleDelete(r.id)}
                           className="shrink-0 w-5 h-5 rounded-full border-2 border-text/20 group-hover:border-accent/50 transition-all flex items-center justify-center active:scale-90"
-                          title="Concluir lembrete"
+                          title={t('reminders.actions.complete')}
                         >
                           <div className="w-2.5 h-2.5 rounded-full bg-accent opacity-0 group-hover:opacity-20 active:opacity-100 transition-all" />
                         </button>
@@ -331,9 +331,15 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
                                 className={`${r.action_type === 'cron' ? 'text-indigo-400' : 'text-text-muted/40'}`}
                               >
                                 {r.action_type === 'cron' ? (
-                                  <CommandLineIcon className="w-3 h-3" title="Agendador" />
+                                  <CommandLineIcon
+                                    className="w-3 h-3"
+                                    title={t('reminders.type.scheduler')}
+                                  />
                                 ) : (
-                                  <SpeakerWaveIcon className="w-3 h-3" title="Lembrete" />
+                                  <SpeakerWaveIcon
+                                    className="w-3 h-3"
+                                    title={t('reminders.type.reminder')}
+                                  />
                                 )}
                               </div>
                             </div>
@@ -356,14 +362,14 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
                               <button
                                 onClick={() => handleOpenEdit(r)}
                                 className="p-1 text-text/30 hover:text-accent transition-colors"
-                                title="Editar"
+                                title={t('common.edit')}
                               >
                                 <PencilIcon className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => handleDelete(r.id)}
                                 className="p-1 text-text/30 hover:text-rose-500 transition-colors"
-                                title="Excluir"
+                                title={t('common.delete')}
                               >
                                 <TrashIcon className="w-3.5 h-3.5" />
                               </button>
@@ -393,14 +399,14 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
             className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-text-muted hover:text-text hover:bg-accent/10 flex items-center gap-2 transition-colors"
           >
             <PencilIcon className="w-3.5 h-3.5 text-accent" />
-            Editar
+            {t('common.edit')}
           </button>
           <button
             onClick={() => handleDuplicate(contextMenu.reminder)}
             className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-text-muted hover:text-text hover:bg-accent/10 flex items-center gap-2 transition-colors"
           >
             <DocumentDuplicateIcon className="w-3.5 h-3.5 text-emerald-500" />
-            Duplicar
+            {t('common.duplicate')}
           </button>
           <div className="h-px bg-border/10 my-1" />
           <button
@@ -411,7 +417,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
             className="w-full px-3 py-1.5 text-left text-[11px] font-bold text-rose-500 hover:bg-rose-500/10 flex items-center gap-2 transition-colors"
           >
             <TrashIcon className="w-3.5 h-3.5" />
-            Excluir
+            {t('common.delete')}
           </button>
         </div>
       )}
@@ -426,14 +432,18 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
               <div className="bg-accent/20 p-1 rounded-md group-hover:rotate-90 transition-transform duration-300">
                 <PlusIcon className="w-3 h-3" />
               </div>
-              <span className="text-[11px] font-black uppercase tracking-[0.2em]">Criar</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.2em]">
+                {t('common.create')}
+              </span>
             </button>
             <button
               onClick={onNavigate}
               className="flex items-center justify-center gap-2 py-2.5 bg-white/[0.02] hover:bg-white/[0.05] text-text/60 hover:text-text/80 rounded-xl transition-all active:scale-95 border border-white/5"
             >
               <CalendarIcon className="w-3.5 h-3.5" />
-              <span className="text-[11px] font-black uppercase tracking-[0.15em]">Agenda</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.15em]">
+                {t('reminders.title')}
+              </span>
             </button>
           </div>
         </div>

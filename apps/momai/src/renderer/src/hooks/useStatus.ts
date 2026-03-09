@@ -155,7 +155,7 @@ export function useStatus() {
     const handleModelChangeProgress = (e: any) => {
       const { status } = e.detail
       setInitMessage(translateMessage(status))
-      
+
       // Parse "(X%)" from status string if present
       const match = status.match(/\((\d+)%\)/)
       if (match) {

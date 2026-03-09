@@ -211,7 +211,7 @@ export default function LateralBar({
         {/* About Icon */}
         <button
           onClick={onOpenAbout}
-          title="Sobre"
+          title={t('sidebar.about')}
           className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 text-text-muted hover:text-text`}
         >
           <QuestionMarkCircleIcon

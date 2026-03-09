@@ -140,10 +140,10 @@ export const GeneralTab = ({
           <div className="flex items-center justify-between p-4 rounded-xl bg-black/30 border border-white/[0.05] shadow-inner">
             <div className="flex flex-col gap-1 pr-4">
               <span className="text-[11px] font-bold text-text uppercase tracking-tight">
-                Iniciar com o Windows
+                {t('settings.general.autoStartWindowsLabel')}
               </span>
               <span className="text-[9px] text-text-muted font-medium opacity-60">
-                Ao ligar o computador
+                {t('settings.general.autoStartWindowsDesc')}
               </span>
             </div>
             <button
@@ -164,7 +164,7 @@ export const GeneralTab = ({
             <div className="flex flex-col gap-1 pr-4 relative">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-bold text-text uppercase tracking-tight">
-                  IA Local
+                  {t('settings.general.localAiLabel')}
                 </span>
                 <button
                   onClick={() => setShowIaTooltip(!showIaTooltip)}
@@ -187,15 +187,17 @@ export const GeneralTab = ({
                   </svg>
                   {showIaTooltip && (
                     <div className="absolute bottom-full left-0 mb-2 w-64 p-2.5 rounded-lg bg-gray-800/95 border border-white/5 text-[10px] text-text-muted/80 leading-relaxed z-50">
-                      <span className="font-bold">Ligado:</span> Consome mais RAM/VRAM, mas a primeira resposta é imediata
+                      <span className="font-bold">{t('common.on')}:</span>{' '}
+                      {t('settings.general.localAiTooltipOn')}
                       <br />
-                      <span className="font-bold">Desligado:</span> Libera RAM/VRAM, mas a primeira mensagem pode demorar mais
+                      <span className="font-bold">{t('common.off')}:</span>{' '}
+                      {t('settings.general.localAiTooltipOff')}
                     </div>
                   )}
                 </button>
               </div>
               <span className="text-[9px] text-text-muted font-medium opacity-60">
-                Iniciar ao abrir o app
+                {t('settings.general.localAiDesc')}
               </span>
             </div>
             <button
@@ -216,7 +218,7 @@ export const GeneralTab = ({
         <div className="space-y-4 pt-6 border-t border-border/40">
           <div className="flex items-center justify-between px-1">
             <label className="text-[10px] font-black text-text-muted uppercase tracking-widest opacity-70">
-              Modalidade da Assistente
+              {t('settings.general.assistantModeLabel')}
             </label>
           </div>
 
@@ -224,10 +226,10 @@ export const GeneralTab = ({
             {[
               {
                 id: 'lite',
-                title: 'Modo Lite',
+                title: t('settings.tier.lite.title'),
                 model: tiersConfig?.lite?.file || 'Qwen 3 0.6B',
-                description: 'Apenas texto. Foco total em agilidade e economia de recursos.',
-                requirement: 'Usa ~1.5GB RAM',
+                description: t('settings.tier.lite.description'),
+                requirement: t('settings.tier.lite.requirement'),
                 color: 'text-emerald-500',
                 bg: 'bg-emerald-500/10',
                 icon: (
@@ -245,10 +247,10 @@ export const GeneralTab = ({
               },
               {
                 id: 'pro',
-                title: 'Modo Pro',
+                title: t('settings.tier.pro.title'),
                 model: tiersConfig?.pro?.file || 'LFM 2.5 1.2B',
-                description: 'Texto rápido e processamento de voz / síntese neural ativados.',
-                requirement: 'Usa ~2.8GB (RAM/VRAM)',
+                description: t('settings.tier.pro.description'),
+                requirement: t('settings.tier.pro.requirement'),
                 color: 'text-red-500',
                 bg: 'bg-red-500/10',
                 icon: (
@@ -266,11 +268,10 @@ export const GeneralTab = ({
               },
               {
                 id: 'ultra',
-                title: 'Modo Ultra',
+                title: t('settings.tier.ultra.title'),
                 model: tiersConfig?.ultra?.file || 'Qwen 3 4B',
-                description:
-                  'Capacidade máxima com reconhecimento avançado, voz, internet e calendário.',
-                requirement: 'Usa ~5.5GB (RAM/VRAM)',
+                description: t('settings.tier.ultra.description'),
+                requirement: t('settings.tier.ultra.requirement'),
                 color: 'text-yellow-400',
                 bg: 'bg-yellow-400/10',
                 icon: (
@@ -393,7 +394,7 @@ export const GeneralTab = ({
               <polyline points="16 18 22 12 16 6" />
               <polyline points="8 6 2 12 8 18" />
             </svg>
-            Modo Desenvolvedor
+            {t('settings.general.devMode')}
           </button>
 
           <button
@@ -411,7 +412,7 @@ export const GeneralTab = ({
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
               <path d="M3 3v5h5" />
             </svg>
-            Reiniciar Boas-vindas
+            {t('settings.general.resetOnboarding')}
           </button>
         </div>
       </div>

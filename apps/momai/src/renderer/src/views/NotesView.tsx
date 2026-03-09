@@ -43,6 +43,8 @@ import SlashCommandMenu from '../components/notes/SlashCommandMenu'
 
 export default function NotesView() {
   const { t } = useI18n()
+  const welcomeNoteTitle = t('notes.welcome.title')
+  const welcomeNoteContent = t('notes.welcome.content')
 
   // State
   const [notes, setNotes] = useState<NoteSummary[]>([])
@@ -200,7 +202,9 @@ export default function NotesView() {
       const data = await listMemoryNotesWithRetry()
       setNotesInitProgress(35)
 
-      const hasWelcomeNote = data.some((n) => n.title === 'Bem-vindo ao Sistema de Notas')
+      const hasWelcomeNote = data.some(
+        (n) => n.title === welcomeNoteTitle || n.title === 'Bem-vindo ao Sistema de Notas'
+      )
 
       if (
         data.length === 0 &&
@@ -211,21 +215,8 @@ export default function NotesView() {
         isCreatingDefaultNote.current = true
         setIsCreatingWelcomeNote(true)
         setNotesInitProgress(55)
-        const defaultTitle = 'Bem-vindo ao Sistema de Notas'
-        const defaultContent = `# 📝 Bem-vindo ao Sistema de Notas
-Aqui é onde toda a memória estruturada da MomAI fica guardada!
-
-## 🧠 Como isso funciona?
-Quando você pedir para "Anotar algo", "Salvar essa ideia" ou "Lembrar disso para mais tarde", eu virei aqui e criarei uma nota organizadinha pra você.
-
-## ✍️ O que você pode fazer por aqui:
-- **Organizar suas ideias:** Escreva manualmente o que desejar. Damos suporte a Markdown, então sinta-se livre para usar negrito, títulos e listas!
-- **Arrastar e Soltar:** Você pode importar e exportar arquivos \`.md\` tranquilamente pelo botão de pastas acima.
-- **Pedir resumos:** Como minhas anotações formam a minha "memória principal", você pode voltar ao bate-papo e me pedir coisas como: "O que tenho nas minhas notas sobre X?" ou "Leia minhas notas e faça um resumo". Eu vou acessar isso instantaneamente!
-
-> 💡 **Dica da Luna:** Você pode renomear uma nota clicando com o botão direito sobre ela na barra lateral.
-
-Sinta-se em casa, suas informações estão estruturadas e seguras!`
+        const defaultTitle = welcomeNoteTitle
+        const defaultContent = welcomeNoteContent
 
         try {
           const newNote = await createMemoryNote(defaultTitle, defaultContent)
@@ -454,7 +445,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
         await loadFolders()
       }
     } catch (err) {
-      setError(target.type === 'folder' ? 'Erro ao excluir pasta' : t('notes.errors.delete'))
+      setError(target.type === 'folder' ? t('notes.errors.deleteFolder') : t('notes.errors.delete'))
     }
   }
 
@@ -520,7 +511,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
         await loadNotes()
         await loadFolders()
       } catch (err) {
-        setError('Erro ao renomear pasta')
+        setError(t('notes.errors.renameFolder'))
       } finally {
         setRenamingFolder(null)
       }
@@ -570,7 +561,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
       setFolders((prev) => [...prev, newFolderName.trim()])
       setExpandedFolders((prev) => new Set([...prev, newFolderName.trim()]))
     } catch (e) {
-      setError('Erro ao criar pasta')
+      setError(t('notes.errors.createFolder'))
     } finally {
       setIsCreatingFolder(false)
       setNewFolderName('')
@@ -612,7 +603,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
         await updateMemoryNote(id, { path: targetFolderPath === 'root' ? '' : targetFolderPath })
         await loadNotes()
       } catch (err) {
-        setError('Erro ao mover nota')
+        setError(t('notes.errors.moveNote'))
       }
     }
   }
@@ -860,7 +851,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
               <input
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
-                placeholder="Buscar notas..."
+                placeholder={t('notes.searchPlaceholder')}
                 className="w-full bg-input/50 hover:bg-input border border-transparent focus:border-border/20 rounded-lg pl-9 pr-3 py-2 text-xs font-medium focus:outline-none transition-all placeholder:text-text-muted/40"
               />
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted/40 group-focus-within:text-accent transition-colors" />
@@ -894,7 +885,7 @@ Sinta-se em casa, suas informações estão estruturadas e seguras!`
                       setIsImportDropdownOpen(!isImportDropdownOpen)
                     }}
                     className="p-1.5 text-text-muted hover:text-text hover:bg-white/5 rounded-lg transition-all"
-                    title="Importar"
+                    title={t('notes.importFiles')}
                   >
                     <DocumentArrowUpIcon className="w-5 h-5 stroke-[1.5]" />
                   </button>

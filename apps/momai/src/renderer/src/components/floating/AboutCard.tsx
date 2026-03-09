@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import FloatingCard from './FloatingCard'
+import { useI18n } from '../../i18n'
 
 interface AboutCardProps {
   onClose: () => void
 }
 
 export default function AboutCard({ onClose }: AboutCardProps) {
+  const { t } = useI18n()
   const [version, setVersion] = useState('...')
 
   useEffect(() => {
@@ -13,35 +15,43 @@ export default function AboutCard({ onClose }: AboutCardProps) {
   }, [])
 
   return (
-    <FloatingCard onClose={onClose} width="max-w-lg">
+    <FloatingCard onClose={onClose} width="max-w-3xl" overlayPaddingClass="px-4 pb-4 pt-14 sm:p-4">
       <div className="relative max-h-[90vh] overflow-y-auto custom-scrollbar -mx-4 -my-4">
         {/* Header */}
-        <div className="flex flex-col items-center p-6 text-center border-b border-border bg-sidebar/30">
-          <h2 className="text-xl font-black text-text uppercase tracking-[0.2em]">MomAI</h2>
-          <p className="text-xs text-accent font-bold mt-1 tracking-wider uppercase opacity-80">{version}</p>
-          <div className="w-12 h-[2px] bg-accent/30 my-4 rounded-full" />
-          <p className="text-sm text-text-muted">Assistente pessoal inteligente projetado para simplificar sua vida digital.</p>
-          <p className="text-xs text-text-muted mt-6 uppercase tracking-widest opacity-60">Desenvolvido por</p>
-          <p className="text-base font-black text-text mt-1">Wesley Developer Studios</p>
-          <p className="text-[10px] text-text-muted/40 mt-6 font-medium">
-            © 2025-2026 MomAI. Todos os direitos reservados.
+        <div className="flex flex-col items-center px-4 pt-10 pb-6 sm:px-6 sm:pt-7 sm:pb-7 text-center border-b border-border bg-sidebar/30">
+          <h2 className="text-lg sm:text-xl font-black text-text uppercase tracking-[0.2em]">
+            MomAI
+          </h2>
+          <p className="text-xs text-accent font-bold mt-1 tracking-wider uppercase opacity-80">
+            {version}
+          </p>
+          <div className="w-12 h-[2px] bg-accent/30 my-3 sm:my-4 rounded-full" />
+          <p className="text-sm text-text-muted max-w-xl leading-relaxed">
+            {t('about.description')}
+          </p>
+          <p className="text-xs text-text-muted mt-6 uppercase tracking-widest opacity-60">
+            {t('about.developedBy')}
+          </p>
+          <p className="text-base sm:text-lg font-black text-text mt-1">Wesley Developer Studios</p>
+          <p className="text-[10px] text-text-muted/40 mt-5 sm:mt-6 font-medium px-2">
+            {t('about.copyright')}
           </p>
         </div>
 
         {/* Contato */}
-        <div className="p-8">
-          <h3 className="text-xs font-black text-text/80 mb-6 uppercase tracking-widest flex items-center gap-2">
+        <div className="p-4 sm:p-6 lg:p-8">
+          <h3 className="text-xs font-black text-text/80 mb-4 sm:mb-6 uppercase tracking-widest flex items-center gap-2">
             <div className="w-1.5 h-4 bg-accent rounded-full" />
-            Suporte e Contato
+            {t('about.supportAndContact')}
           </h3>
-          
-          <div className="grid grid-cols-2 gap-4 mb-8">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
             {/* Email */}
             <a
               href="mailto:wesleyqueirozdeveloper@gmail.com"
-              className="flex flex-col items-center p-4 bg-bg/50 border border-border/10 rounded-xl hover:border-accent/40 hover:bg-accent/5 transition-all duration-300 group"
+              className="flex flex-col items-center p-3 sm:p-4 bg-bg/50 border border-border/10 rounded-xl hover:border-accent/40 hover:bg-accent/5 transition-all duration-300 group min-h-[132px]"
             >
-              <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-accent/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
                 <svg
                   width="20"
                   height="20"
@@ -56,7 +66,7 @@ export default function AboutCard({ onClose }: AboutCardProps) {
                 </svg>
               </div>
               <h4 className="text-xs font-black text-text uppercase tracking-tight">Email</h4>
-              <p className="text-[9px] text-text-muted text-center mt-1.5 opacity-60 leading-tight">
+              <p className="text-[10px] text-text-muted text-center mt-1.5 opacity-60 leading-tight break-all px-1">
                 wesleyqueirozdeveloper@gmail.com
               </p>
             </a>
@@ -66,9 +76,9 @@ export default function AboutCard({ onClose }: AboutCardProps) {
               href="https://github.com/Wesley-Developer-Studios"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex flex-col items-center p-4 bg-bg/50 border border-border/10 rounded-xl hover:border-accent/40 hover:bg-accent/5 transition-all duration-300 group"
+              className="flex flex-col items-center p-3 sm:p-4 bg-bg/50 border border-border/10 rounded-xl hover:border-accent/40 hover:bg-accent/5 transition-all duration-300 group min-h-[132px]"
             >
-              <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-accent/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
                 <svg
                   width="20"
                   height="20"
@@ -80,7 +90,7 @@ export default function AboutCard({ onClose }: AboutCardProps) {
                 </svg>
               </div>
               <h4 className="text-xs font-black text-text uppercase tracking-tight">GitHub</h4>
-              <p className="text-[9px] text-text-muted text-center mt-1.5 opacity-60 leading-tight">
+              <p className="text-[10px] text-text-muted text-center mt-1.5 opacity-60 leading-tight px-1">
                 Wesley Developer Studios
               </p>
             </a>
@@ -90,9 +100,9 @@ export default function AboutCard({ onClose }: AboutCardProps) {
               href="https://www.youtube.com/@WesleyDev"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex flex-col items-center p-4 bg-bg/50 border border-border/10 rounded-xl hover:border-accent/40 hover:bg-accent/5 transition-all duration-300 group"
+              className="flex flex-col items-center p-3 sm:p-4 bg-bg/50 border border-border/10 rounded-xl hover:border-accent/40 hover:bg-accent/5 transition-all duration-300 group min-h-[132px]"
             >
-              <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-accent/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
                 <svg
                   width="20"
                   height="20"
@@ -104,7 +114,9 @@ export default function AboutCard({ onClose }: AboutCardProps) {
                 </svg>
               </div>
               <h4 className="text-xs font-black text-text uppercase tracking-tight">YouTube</h4>
-              <p className="text-[9px] text-text-muted text-center mt-1.5 opacity-60 leading-tight">@WesleyDev</p>
+              <p className="text-[10px] text-text-muted text-center mt-1.5 opacity-60 leading-tight">
+                @WesleyDev
+              </p>
             </a>
 
             {/* Site Oficial */}
@@ -112,9 +124,9 @@ export default function AboutCard({ onClose }: AboutCardProps) {
               href="https://momaiassistente.studio/"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex flex-col items-center p-4 bg-bg/50 border border-border/10 rounded-xl hover:border-accent/40 hover:bg-accent/5 transition-all duration-300 group"
+              className="flex flex-col items-center p-3 sm:p-4 bg-bg/50 border border-border/10 rounded-xl hover:border-accent/40 hover:bg-accent/5 transition-all duration-300 group min-h-[132px]"
             >
-              <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-accent/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
                 <svg
                   width="20"
                   height="20"
@@ -129,8 +141,10 @@ export default function AboutCard({ onClose }: AboutCardProps) {
                   <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                 </svg>
               </div>
-              <h4 className="text-xs font-black text-text uppercase tracking-tight">Site Oficial</h4>
-              <p className="text-[9px] text-text-muted text-center mt-1.5 opacity-60 leading-tight">
+              <h4 className="text-xs font-black text-text uppercase tracking-tight">
+                {t('about.officialSite')}
+              </h4>
+              <p className="text-[10px] text-text-muted text-center mt-1.5 opacity-60 leading-tight break-all px-1">
                 momaiassistente.studio
               </p>
             </a>

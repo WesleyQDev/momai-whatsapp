@@ -5,16 +5,20 @@ interface FloatingCardProps {
   title?: string
   onClose?: () => void
   width?: string
+  overlayPaddingClass?: string
 }
 
 export default function FloatingCard({
   children,
   title,
   onClose,
-  width = 'max-w-md'
+  width = 'max-w-md',
+  overlayPaddingClass = 'p-4'
 }: FloatingCardProps) {
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+    <div
+      className={`fixed inset-0 z-[200] flex items-center justify-center ${overlayPaddingClass} bg-black/40 backdrop-blur-sm animate-fade-in`}
+    >
       <div
         className={`w-full ${width} bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-zoom-in`}
         onClick={(e) => e.stopPropagation()}
