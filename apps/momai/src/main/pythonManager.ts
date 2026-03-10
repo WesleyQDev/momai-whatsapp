@@ -901,11 +901,61 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
   return { pythonExe, corePath: writableCorePath, uvExe, venvPath }
 }
 
+/**
+ * Find VC++ Runtime (VCLibs) framework package directories for MSIX.
+ * Child processes spawned outside the MSIX VFS need these paths in PATH.
+ */
+function findVCLibsDirs(): string[] {
+  if (process.platform !== 'win32') return []
+  try {
+    const programFiles = process.env.ProgramFiles || 'C:\\Program Files'
+    const waDir = join(programFiles, 'WindowsApps')
+    if (!existsSync(waDir)) return []
+    const entries = readdirSync(waDir, { withFileTypes: true })
+    return entries
+      .filter(
+        (e) =>
+          e.isDirectory() &&
+          e.name.startsWith('Microsoft.VCLibs.140.00') &&
+          e.name.includes('Desktop')
+      )
+      .map((e) => join(waDir, e.name))
+      .filter((d) => existsSync(join(d, 'vcruntime140.dll')))
+  } catch {
+    return []
+  }
+}
+
 function buildEnv(venvPath: string, dataDir: string, uvExe: string) {
   const isWin = process.platform === 'win32'
   const systemLocale = process.env.LC_ALL || process.env.LANG || 'C.UTF-8'
+
+  let envPath = process.env.PATH || ''
+  if (isWin) {
+    const sysRoot = process.env.SystemRoot || 'C:\\Windows'
+    const system32 = join(sysRoot, 'System32')
+    const sitePackages = join(venvPath, 'Lib', 'site-packages')
+    const pkgDirs: string[] = []
+    for (const pkg of ['onnxruntime', 'ctranslate2']) {
+      for (const sub of ['', 'capi', 'libs']) {
+        pkgDirs.push(join(sitePackages, pkg, ...(sub ? [sub] : [])))
+      }
+      pkgDirs.push(join(sitePackages, `${pkg}.libs`))
+    }
+    // Find VCLibs framework package dir for MSIX child processes
+    const vcLibsDirs = findVCLibsDirs()
+    const dllDirs = [...pkgDirs, ...vcLibsDirs, system32, sysRoot].filter((d) => {
+      try {
+        return existsSync(d)
+      } catch {
+        return false
+      }
+    })
+    envPath = [...dllDirs, envPath].join(';')
+  }
+
   const base: Record<string, string | undefined> = {
-    PATH: process.env.PATH,
+    PATH: envPath,
     TEMP: process.env.TEMP,
     TMP: process.env.TMP,
     VIRTUAL_ENV: venvPath,
@@ -922,7 +972,10 @@ function buildEnv(venvPath: string, dataDir: string, uvExe: string) {
   if (isWin) {
     // Windows-specific environment variables
     base.SystemRoot = process.env.SystemRoot
+    base.WINDIR = process.env.WINDIR || process.env.SystemRoot
     base.SystemDrive = process.env.SystemDrive
+    base.COMSPEC = process.env.COMSPEC
+    base.PATHEXT = process.env.PATHEXT
     base.USERPROFILE = process.env.USERPROFILE
     base.APPDATA = process.env.APPDATA
     base.LOCALAPPDATA = process.env.LOCALAPPDATA

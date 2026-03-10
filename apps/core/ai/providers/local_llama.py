@@ -83,6 +83,24 @@ import utils.downloader as downloader
 from database.models import SessionLocal, Settings
 
 
+def _find_vcruntime_dir() -> str | None:
+    """Locate the directory containing vcruntime140.dll for MSIX child processes."""
+    if os.name != "nt":
+        return None
+    try:
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetModuleHandleW("vcruntime140.dll")
+        if handle:
+            buf = ctypes.create_unicode_buffer(260)
+            if kernel32.GetModuleFileNameW(handle, buf, 260):
+                d = os.path.dirname(buf.value)
+                if os.path.isdir(d):
+                    return d
+    except Exception:
+        pass
+    return None
+
+
 def get_paths(forced_backend=None):
     """
     Returns the paths for binaries and models based on the installed backend.
@@ -268,6 +286,23 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
 
         report(f"Using backend: {paths['backend']} | exe: {abs_exe_path}")
 
+        exe_dir = str(Path(abs_exe_path).parent)
+
+        if not Path(abs_exe_path).exists():
+            report(f"FATAL: exe not found at {abs_exe_path}")
+            return None
+
+        expected_dlls = ["ggml.dll", "llama.dll", "ggml-base.dll"]
+        missing = [d for d in expected_dlls if not (Path(exe_dir) / d).exists()]
+        if missing:
+            report(f"WARNING: Missing DLLs in {exe_dir}: {missing}")
+
+        if os.name == "nt":
+            try:
+                os.add_dll_directory(exe_dir)
+            except OSError:
+                pass
+
         cmd = [
             abs_exe_path,
             "-m",
@@ -283,7 +318,7 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
             "--parallel",
             "1",
             "--flash-attn",
-            "on",
+            "auto",
             "--cache-prompt",
             "-b",
             "2048",
@@ -305,15 +340,27 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
         env_path = os.environ.get("MOMAI_CORE_PATH")
         log_base = Path(env_path) if env_path else Path(__file__).parent
         llama_log_path = log_base / "llama_server.log"
-        llama_log_file = open(llama_log_path, "w", encoding="utf-8")
+        llama_log_file = open(llama_log_path, "wb", buffering=0)
+
+        proc_env = os.environ.copy()
+        path_parts = [exe_dir]
+        if os.name == "nt":
+            sys_root = os.environ.get("SystemRoot", r"C:\Windows")
+            path_parts.append(os.path.join(sys_root, "System32"))
+            path_parts.append(sys_root)
+            vc_dir = _find_vcruntime_dir()
+            if vc_dir:
+                path_parts.insert(1, vc_dir)
+        path_parts.append(proc_env.get("PATH", ""))
+        proc_env["PATH"] = os.pathsep.join(path_parts)
 
         server_process = subprocess.Popen(
             cmd,
             stdout=llama_log_file,
             stderr=llama_log_file,
-            encoding="utf-8",
-            errors="replace",
-            creationflags=0,
+            cwd=exe_dir,
+            env=proc_env,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
         )
 
         # Assign to Job Object (Windows Magic)
@@ -337,13 +384,24 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
                 return None
 
             if server_process.poll() is not None:
-                # Server died, check log
+                exit_code = server_process.returncode
+                llama_log_file.close()
+
+                extra_info = ""
+                if exit_code == 3221225781:  # 0xC0000135 STATUS_DLL_NOT_FOUND
+                    try:
+                        dir_files = list(Path(exe_dir).iterdir())
+                        dll_list = [f.name for f in dir_files if f.suffix in (".dll", ".exe")]
+                        extra_info = f"\nSTATUS_DLL_NOT_FOUND (0xC0000135) - Missing system DLL. exe_dir={exe_dir} files({len(dll_list)})={dll_list[:20]}"
+                    except Exception:
+                        extra_info = f"\nSTATUS_DLL_NOT_FOUND - exe_dir={exe_dir}"
+
                 try:
-                    with open(llama_log_path, "r", encoding="utf-8") as f:
+                    with open(llama_log_path, "r", encoding="utf-8", errors="replace") as f:
                         log_content = f.read()[-500:]
-                    report(f"Local LLM died unexpectedly! Log:\n{log_content}")
+                    report(f"Local LLM died unexpectedly! exit_code={exit_code} Log:\n{log_content}{extra_info}")
                 except Exception:
-                    report("Local LLM died unexpectedly and log could not be read.")
+                    report(f"Local LLM died unexpectedly (exit_code={exit_code}) and log could not be read.")
                 return None
 
             # Dynamic Progress Tracking via log file
@@ -385,11 +443,14 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
                 report(f"Inicializando motor IA... ({(i * 250) // 1000}s decorridos)")
             time.sleep(0.25)
 
+        llama_log_file.close()
         report("Local LLM startup timeout reached.")
         stop_server()
         return None
 
     except Exception as e:
         report(f"Error starting backend {paths['backend']}: {str(e)}")
+        if 'llama_log_file' in dir() and not llama_log_file.closed:
+            llama_log_file.close()
         stop_server()
         return None

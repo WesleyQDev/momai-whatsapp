@@ -130,14 +130,14 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       }
       // Signal main process first (works offline - saves to local file)
       window.api?.markFirstLaunchFinished?.(payload)
-      // Call onFinish to allow App.tsx to queue if backend is not ready
-      onFinish(payload)
-      // Try to sync with backend (non-blocking)
+      // Try to sync with backend directly
       try {
         await api.patch('/settings', payload)
         window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: payload }))
+        onFinish()
       } catch (apiError) {
         console.warn('[Onboarding] Backend not ready, settings will be queued by App.tsx')
+        onFinish(payload)
       }
     } catch (error) {
       console.error('Erro ao salvar onboarding:', error)

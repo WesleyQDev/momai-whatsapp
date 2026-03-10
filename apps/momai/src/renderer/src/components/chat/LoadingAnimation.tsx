@@ -19,21 +19,16 @@ export default function LoadingAnimation({
   useEffect(() => {
     const interval = setInterval(() => {
       setVisualProgress((prev) => {
-        if (progress >= 100) {
-          if (prev >= 100) return 100
-          const remaining = 100 - prev
-          const step = Math.max(25, remaining / 2)
-          return Math.min(100, prev + step)
+        // Stay slow and steady until backend confirms completion.
+        if (progress < 100) {
+          const slowStep = 0.1
+          return Math.min(99, prev + slowStep)
         }
 
-        const baseIncrement = prev < 15 ? 0.4 : 0.02
-        const randomFactor = Math.random() * 0.05
-        const next = prev + baseIncrement + randomFactor
+        if (prev >= 100) return 100
 
-        const cap = progress > 90 ? 99 : 88
-        const targetValue = Math.max(next, progress * 0.9)
-
-        return Math.min(targetValue, cap)
+        const finishStep = 4
+        return Math.min(100, prev + finishStep)
       })
     }, 100)
     return () => clearInterval(interval)

@@ -7,11 +7,7 @@ interface WelcomeScreenProps {
   version: string
 }
 
-const WelcomeScreen = ({
-  onComplete,
-  isFirstLaunch,
-  version
-}: WelcomeScreenProps) => {
+const WelcomeScreen = ({ onComplete, isFirstLaunch, version }: WelcomeScreenProps) => {
   const [fading, setFading] = useState(false)
 
   useEffect(() => {
@@ -44,12 +40,10 @@ const WelcomeScreen = ({
     >
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute inset-0 bg-bg" />
-        <div 
-          className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-violet-500/5 rounded-full blur-[120px] animate-[pulse_6s_ease-in-out_infinite]" 
-        />
-        <div 
-          className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-violet-500/5 rounded-full blur-[120px] animate-[pulse_6s_ease-in-out_infinite]" 
-          style={{ animationDelay: '3s' }} 
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-violet-500/5 rounded-full blur-[120px] animate-[pulse_6s_ease-in-out_infinite]" />
+        <div
+          className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-violet-500/5 rounded-full blur-[120px] animate-[pulse_6s_ease-in-out_infinite]"
+          style={{ animationDelay: '3s' }}
         />
       </div>
 
@@ -78,14 +72,8 @@ const WelcomeScreen = ({
           </div>
         ) : (
           <>
-            <h1 className="text-5xl font-bold text-text mb-4 tracking-wide">
-              MomAI
-            </h1>
-            {version && (
-              <p className="text-xs text-text-muted/30 font-mono">
-                v{version}
-              </p>
-            )}
+            <h1 className="text-5xl font-bold text-text mb-4 tracking-wide">MomAI</h1>
+            {version && <p className="text-xs text-text-muted/30 font-mono">v{version}</p>}
           </>
         )}
       </div>

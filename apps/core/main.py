@@ -1,5 +1,41 @@
 import os
+import sys
 import logging
+
+# Ensure native DLLs (VC++ Runtime, etc.) can be found in MSIX environments
+if sys.platform == "win32":
+    sys_root = os.environ.get("SystemRoot", r"C:\Windows")
+    system32 = os.path.join(sys_root, "System32")
+    current_path = os.environ.get("PATH", "")
+    if system32.lower() not in current_path.lower():
+        os.environ["PATH"] = system32 + ";" + sys_root + ";" + current_path
+    try:
+        os.add_dll_directory(system32)
+    except (OSError, AttributeError):
+        pass
+    # Also add venv site-packages DLL dirs (onnxruntime, ctranslate2)
+    venv = os.environ.get("VIRTUAL_ENV")
+    if venv:
+        site_pkgs = os.path.join(venv, "Lib", "site-packages")
+        for pkg in ("onnxruntime", "ctranslate2"):
+            dll_dirs = []
+            pkg_dir = os.path.join(site_pkgs, pkg)
+            if os.path.isdir(pkg_dir):
+                dll_dirs.append(pkg_dir)
+                for sub in ("capi", "libs"):
+                    sub_dir = os.path.join(pkg_dir, sub)
+                    if os.path.isdir(sub_dir):
+                        dll_dirs.append(sub_dir)
+            libs_dir = os.path.join(site_pkgs, f"{pkg}.libs")
+            if os.path.isdir(libs_dir):
+                dll_dirs.append(libs_dir)
+            for d in dll_dirs:
+                try:
+                    os.add_dll_directory(d)
+                except (OSError, AttributeError):
+                    pass
+                if d.lower() not in current_path.lower():
+                    os.environ["PATH"] = d + ";" + os.environ["PATH"]
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 

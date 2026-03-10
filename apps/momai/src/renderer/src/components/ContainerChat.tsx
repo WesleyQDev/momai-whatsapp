@@ -211,16 +211,17 @@ export default function ContainerChat({
 }: ContainerChatProps): JSX.Element {
   const { t } = useI18n()
   const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
+  const isBrainReady = statusInfo?.brain_ready ?? false
+  const isBrainLoading = statusInfo?.is_loading ?? false
+  const isSystemDone = initProgress >= 100 && isBrainReady && !isBrainLoading
+
   const [animationFinished, setAnimationFinished] = useState(() => {
-    const isBrainLoading = statusInfo?.is_loading ?? false
-    return (initProgress ?? 0) >= 100 && !isBrainLoading
+    return isSystemDone
   })
 
   const [settings, setSettings] = useState<SettingsData | null>(null)
   const [dynamicSuggestion, setDynamicSuggestion] = useState<string | null>(null)
 
-  const isBrainReady = statusInfo?.brain_ready ?? false
-  const isBrainLoading = statusInfo?.is_loading ?? false
   const isEmpty = messages.length === 0
 
   const allSuggestions = useMemo(
@@ -288,9 +289,8 @@ export default function ContainerChat({
       )
   }, [threadId])
 
-  const isSystemDone = initProgress >= 100 && !isBrainLoading
   const displayProgress = isSystemDone ? 100 : Math.min(initProgress, 99)
-  const showLoading = !animationFinished || (initProgress < 100 && !isBrainReady && !isBrainLoading)
+  const showLoading = !animationFinished || !isSystemDone
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage =

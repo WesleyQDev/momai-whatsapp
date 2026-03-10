@@ -171,10 +171,28 @@ class EmbeddingEngine:
             ]
 
             # Silences the embeddings server output
+            exe_dir = str(Path(paths["exe"]).parent)
+            proc_env = os.environ.copy()
+            path_parts = [exe_dir]
+            if os.name == "nt":
+                sys_root = os.environ.get("SystemRoot", r"C:\Windows")
+                path_parts.append(os.path.join(sys_root, "System32"))
+                path_parts.append(sys_root)
+            path_parts.append(proc_env.get("PATH", ""))
+            proc_env["PATH"] = os.pathsep.join(path_parts)
+
+            if os.name == "nt":
+                try:
+                    os.add_dll_directory(exe_dir)
+                except OSError:
+                    pass
+
             self._process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                cwd=exe_dir,
+                env=proc_env,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
             )
 

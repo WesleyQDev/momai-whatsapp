@@ -155,9 +155,6 @@ async def apply_tier(tier: str, db: Session = Depends(get_db)):
     settings.assistant_persona = config["persona"]
     db.commit()
 
-    # Inicia o motor de IA IMEDIATAMENTE em segundo plano
-    app_state.orchestrator.initialize_llm()
-
     # Inicia instalação de componentes adicionais
     async def background_install():
         def report_setup(msg):

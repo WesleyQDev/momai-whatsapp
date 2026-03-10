@@ -146,12 +146,8 @@ async def update_settings(data: SettingsUpdate):
         if app_state.ww:
             app_state.ww.wake_word_active = ww_enabled
 
-    if any(change in changes for change in ["persona", "user_name", "provider", "local_backend", "ai_tier"]):
-        # Always re-initialize local LLM
-        app_state.initialize_llm(tier=current_tier)
-        await app_state.broadcast_to_sockets({"type": "model_changed", "data": {"new_mode": "local"}})
-
     # Se o onboarding acabou de ser concluído, inicia os serviços core
+    # (start_core_services will handle LLM init, so skip the ai_tier re-init below)
     if data.onboarding_completed is True:
         from startup import start_core_services
         # Busca configurações atualizadas para o startup
@@ -159,6 +155,9 @@ async def update_settings(data: SettingsUpdate):
         settings = db.query(Settings).first()
         db.close()
         asyncio.create_task(start_core_services(settings))
+    elif any(change in changes for change in ["persona", "user_name", "provider", "local_backend", "ai_tier"]):
+        app_state.initialize_llm(tier=current_tier)
+        await app_state.broadcast_to_sockets({"type": "model_changed", "data": {"new_mode": "local"}})
 
     # Trigger daily briefing if enabled
     if "daily_briefing_enabled" in changes:

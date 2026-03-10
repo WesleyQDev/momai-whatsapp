@@ -7,6 +7,7 @@ import icon from '../../assets/icon.png'
 import { DocumentTextIcon } from '@heroicons/react/24/outline'
 import { ExtrasRenderer } from './ExtrasRenderer'
 import MessageContextMenu from './MessageContextMenu'
+import { useI18n } from '../../i18n'
 
 interface MessageItemProps {
   message: Message
@@ -35,6 +36,7 @@ const MessageItem = memo(function MessageItem({
   onRetry,
   aiTier = 'pro'
 }: MessageItemProps): JSX.Element {
+  const { t } = useI18n()
   const [showTrace, setShowTrace] = useState(true)
   const [showToolDetails, setShowToolDetails] = useState(true)
   const [openToolIndex, setOpenToolIndex] = useState<number | null>(null)
@@ -43,6 +45,7 @@ const MessageItem = memo(function MessageItem({
   const [openSources, setOpenSources] = useState(false)
   const [revealedSources, setRevealedSources] = useState<number>(0)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [showReportConfirm, setShowReportConfirm] = useState(false)
   const startTimesRef = useRef<Record<number, number>>({})
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -91,6 +94,19 @@ const MessageItem = memo(function MessageItem({
     if (!onStopVoice) return
     onStopVoice()
     setHideStopButton(true)
+  }
+
+  const handleReportResponse = () => {
+    setShowReportConfirm(true)
+  }
+
+  const handleCancelReport = () => {
+    setShowReportConfirm(false)
+  }
+
+  const handleConfirmReport = () => {
+    setShowReportConfirm(false)
+    window.open('https://forms.office.com/r/NH3BQ1awVA', '_blank')
   }
 
   useEffect(() => {
@@ -753,6 +769,43 @@ const MessageItem = memo(function MessageItem({
                   </div>
                 </button>
               )}
+              <div className="flex justify-start">
+                <div className="flex flex-col items-start gap-2">
+                  <button
+                    type="button"
+                    onClick={handleReportResponse}
+                    className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/5 hover:bg-white/10 border border-border/20 text-[12px] text-text-muted/80 hover:text-red-500 transition-colors"
+                    title={t('chat.report.title')}
+                    aria-label={t('chat.report.title')}
+                  >
+                    <span aria-hidden="true">🚩</span>
+                  </button>
+
+                  {showReportConfirm && (
+                    <div className="w-full max-w-[320px] p-3 rounded-xl border border-border/20 bg-card/95 shadow-xl backdrop-blur-sm">
+                      <p className="text-xs text-text-muted leading-relaxed">
+                        {t('chat.report.message')}
+                      </p>
+                      <div className="mt-3 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleCancelReport}
+                          className="px-3 py-1.5 rounded-lg text-xs border border-border/20 bg-white/5 hover:bg-white/10 text-text-muted transition-colors"
+                        >
+                          {t('chat.report.cancel')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleConfirmReport}
+                          className="px-3 py-1.5 rounded-lg text-xs bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 transition-colors"
+                        >
+                          {t('chat.report.confirm')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>

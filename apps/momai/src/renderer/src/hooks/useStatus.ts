@@ -50,12 +50,7 @@ export function useStatus() {
       const data = await (fetchInitStatus() as any)
 
       setInitMessage(translateMessage(data.message))
-      setInitProgress((prev) => {
-        if (data.progress >= 100) {
-          setIsBooting(false)
-        }
-        return Math.max(prev, data.progress)
-      })
+      setInitProgress((prev) => Math.max(prev, data.progress))
     } catch {
       // Silent fail
     }
@@ -101,10 +96,6 @@ export function useStatus() {
       setLastProgressTime(Date.now())
       setIsStalled(false)
       setIsRetrying(false)
-
-      if (progress >= 100) {
-        setIsBooting(false)
-      }
     }
 
     window.addEventListener('momai_init_progress', handleInitProgress)
@@ -124,9 +115,6 @@ export function useStatus() {
         window.dispatchEvent(new CustomEvent('momai_backend_ready'))
       }
 
-      if (data.progress >= 100) {
-        setIsBooting(false)
-      }
     })
 
     // Listen for backend ready signal

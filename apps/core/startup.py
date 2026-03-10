@@ -53,16 +53,19 @@ async def init_system_task() -> None:
         app_state.logger.error(f"[Startup] Error in startup sequence: {e}")
 
 
+_core_services_started = False
+_core_services_lock = asyncio.Lock()
+
+
 async def start_core_services(settings):
     """Inicializa todos os serviços da IA após o onboarding estar concluído."""
-    global checkpointer_cm
+    global checkpointer_cm, _core_services_started
 
-    # Evita inicializar múltiplas vezes se já estiver pronto
-    if (
-        app_state.last_init_event.get("progress", 0) >= 100
-        and app_state.last_init_event.get("stage") != "ready"
-    ):
-        return
+    async with _core_services_lock:
+        if _core_services_started:
+            logger.info("[Startup] Core services already started, skipping.")
+            return
+        _core_services_started = True
 
     try:
         # 1. Start LLM initialization in background
