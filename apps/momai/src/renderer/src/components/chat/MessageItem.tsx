@@ -57,7 +57,7 @@ const MessageItem = memo(function MessageItem({
     try {
       const text = cleanMomaiActions(message.content)
       if (!text) return
-      
+
       let success = false
       if (navigator.clipboard) {
         try {

@@ -114,7 +114,6 @@ export function useStatus() {
         setBackendOnline(true)
         window.dispatchEvent(new CustomEvent('momai_backend_ready'))
       }
-
     })
 
     // Listen for backend ready signal

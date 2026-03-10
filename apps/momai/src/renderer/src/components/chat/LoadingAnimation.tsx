@@ -56,8 +56,8 @@ export default function LoadingAnimation({
       <div className="flex flex-col items-center text-center mb-12 animate-fade-in w-full px-4">
         <h1 className="text-[12px] font-black text-text/60 tracking-[0.2em] uppercase max-w-[600px] leading-tight">
           {progress < 100 && isFirstLaunch
-            ? "A primeira inicialização pode levar de 1 a 3 minutos"
-            : "Bem-vinda à MomAI"}
+            ? 'A primeira inicialização pode levar de 1 a 3 minutos'
+            : 'Bem-vinda à MomAI'}
         </h1>
       </div>
 
