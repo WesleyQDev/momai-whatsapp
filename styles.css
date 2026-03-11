@@ -780,10 +780,31 @@ p.subtitle {
 
 .btn-group {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   animation: fadeInUp 1s ease-out 0.3s forwards;
   opacity: 0;
+}
+
+.cta-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.other-downloads-link {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  opacity: 0.7;
+}
+
+.other-downloads-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  opacity: 1;
 }
 
 .btn-primary {
