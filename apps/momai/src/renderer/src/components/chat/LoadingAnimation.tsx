@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useI18n } from '@renderer/i18n'
 
 interface LoadingAnimationProps {
   progress: number
@@ -13,6 +14,7 @@ export default function LoadingAnimation({
   onComplete,
   isFirstLaunch
 }: LoadingAnimationProps) {
+  const { t } = useI18n()
   const [visualProgress, setVisualProgress] = useState(2)
   const [isFadingOut, setIsFadingOut] = useState(false)
 
@@ -59,6 +61,14 @@ export default function LoadingAnimation({
             ? 'A primeira inicialização pode levar de 1 a 3 minutos'
             : 'Bem-vinda à MomAI'}
         </h1>
+        {Math.round(visualProgress) >= 99 && progress < 100 && (
+          <p
+            className="mt-3 text-[11px] font-medium text-accent/80 tracking-wide animate-pulse"
+            style={{ animation: 'fadeIn 0.6s ease-in' }}
+          >
+            {t('loading.almostReady')}
+          </p>
+        )}
       </div>
 
       <div className="w-full max-w-sm mb-8 relative z-10">

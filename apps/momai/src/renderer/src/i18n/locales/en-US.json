@@ -392,5 +392,6 @@
   "splash.tip.desc.8": "The assistant uses vector memory to remember facts and preferences in the long term.",
   "splash.tip.title.9": "Real-time Search",
   "splash.tip.desc.9": "The assistant can search for up-to-date information on the internet using DuckDuckGo.",
-  "splash.tag": "Productivity Tip"
+  "splash.tag": "Productivity Tip",
+  "loading.almostReady": "You’re at 99% — hang tight, it’ll open shortly"
 }

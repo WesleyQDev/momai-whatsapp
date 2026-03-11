@@ -378,10 +378,26 @@
 
         function applyDownloadUrls(winUrl, linuxUrl, os, version) {
             displayVersion(version);
-            const primaryUrl = os === 'linux' ? linuxUrl : winUrl;
+            const winUrlStore = "ms-windows-store://pdp/?ProductId=9NM4JG67CGCD&mode=mini";
+            const isWin = os === 'win';
+            const primaryUrl = os === 'linux' ? linuxUrl : winUrlStore;
+            const winIcon = `<img src="Icone%20microsoft%20store.png" alt="Microsoft Store" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; transition: transform 0.3s ease;">`;
+
             document.querySelectorAll('nav .btn-download').forEach(el => {
                 el.href = primaryUrl;
+                const span = el.querySelector('span');
+                if (span) {
+                    span.textContent = isWin ? 'Microsoft Store' : 'Download';
+                    if (isWin && !el.querySelector('img')) {
+                        span.insertAdjacentHTML('beforebegin', winIcon);
+                    }
+                }
             });
+
+            if (isWin) {
+                const navVersion = document.getElementById('navVersion');
+                if (navVersion) navVersion.textContent = '';
+            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {

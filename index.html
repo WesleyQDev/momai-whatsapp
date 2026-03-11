@@ -159,17 +159,17 @@
         async function updateDownloadLinks() {
             const repo = "WesleyQDev/MomAI-App";
             const os = detectPlatform();
-            const storageKeyWin = "momai_latest_win";
-            const storageKeyLinux = "momai_latest_linux";
-            const versionKey = "momai_latest_version";
-
-            const cachedWin = sessionStorage.getItem(storageKeyWin);
+            const storageKeyExe = "momai_latest_exe_v3";
+            const storageKeyLinux = "momai_latest_linux_v3";
+            const versionKey = "momai_latest_version_v3";
+ 
+            const cachedExe = sessionStorage.getItem(storageKeyExe);
             const cachedLinux = sessionStorage.getItem(storageKeyLinux);
             const cachedVersion = sessionStorage.getItem(versionKey);
-
-            if ((os === 'linux' ? cachedLinux : cachedWin) && cachedVersion) {
+            
+            if (cachedVersion && (os === 'linux' ? cachedLinux : cachedExe)) {
                 applyDownloadUrls(
-                    cachedWin || 'https://github.com/WesleyQDev/MomAI-App/releases/latest',
+                    cachedExe || 'https://github.com/WesleyQDev/MomAI-App/releases/latest',
                     cachedLinux || 'https://github.com/WesleyQDev/MomAI-App/releases/latest',
                     os, cachedVersion
                 );
@@ -194,16 +194,15 @@
                     const winAsset = data.assets.find(a => a.name.endsWith('.exe'));
                     const linuxAsset = data.assets.find(a => a.name.endsWith('.AppImage'))
                                    || data.assets.find(a => a.name.endsWith('.deb'));
-
                     const version = data.tag_name || data.name || '';
-                    const winUrl = winAsset?.browser_download_url || `https://github.com/${repo}/releases/latest`;
+                    const winExeUrl = winAsset?.browser_download_url || "https://github.com/WesleyQDev/MomAI-App/releases/latest";
                     const linuxUrl = linuxAsset?.browser_download_url || `https://github.com/${repo}/releases/latest`;
 
-                    if (winUrl) sessionStorage.setItem(storageKeyWin, winUrl);
+                    if (winExeUrl) sessionStorage.setItem(storageKeyExe, winExeUrl);
                     if (linuxUrl) sessionStorage.setItem(storageKeyLinux, linuxUrl);
                     if (version) sessionStorage.setItem(versionKey, version);
 
-                    applyDownloadUrls(winUrl, linuxUrl, os, version);
+                    applyDownloadUrls(winExeUrl, linuxUrl, os, version);
                 }
             } catch (err) {
                 console.error("Erro ao buscar release do GitHub:", err);
@@ -218,34 +217,45 @@
             }
         }
 
-        function applyDownloadUrls(winUrl, linuxUrl, os, version) {
+        function applyDownloadUrls(winExeUrl, linuxUrl, os, version) {
             const cleanVersion = version.replace(/^v/, '');
             displayVersion(version);
 
-            const primaryUrl = os === 'linux' ? linuxUrl : winUrl;
+            const winUrlStore = "ms-windows-store://pdp/?ProductId=9NM4JG67CGCD&mode=mini";
             const isLinux = os === 'linux';
             
-            const winIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1V11.724H0V3.449ZM0 12.333H9.75V21.9L0 20.55V12.333ZM10.709 1.956L24 0V11.724H10.709V1.956ZM10.709 12.333H24V24L10.709 22.044V12.333Z"/></svg>`;
+            const winIcon = `<img src="Icone%20microsoft%20store.png" alt="Microsoft Store" style="width: 28px; height: 28px; vertical-align: middle; transition: transform 0.3s ease;">`;
             const linuxIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.001 0c-2.311 0-4.184 1.769-4.184 3.951 0 .61.144 1.185.401 1.693C5.556 6.845 3.82 9.079 3.82 11.405c0 1.259.511 2.457 1.439 3.324l.011.01.011-.004c.15.244.316.481.503.708l.006.008.006-.007a8.536 8.536 0 0 0 2.503 6.6l.004.004h1.002a2.41 2.41 0 0 1 1.458-.888l1.238-.284 1.238.284a2.41 2.41 0 0 1 1.458.888h1.002l.004-.004a8.536 8.536 0 0 0 2.503-6.6l.006.007.006-.008c.187-.227.353-.464.503-.708l.011.004.011-.01c.928-.867 1.439-2.065 1.439-3.324 0-2.326-1.736-4.56-4.397-5.761.257-.508.401-1.083.401-1.693C16.185 1.769 14.311 0 12.001 0zm0 1.2c1.648 0 2.984 1.232 2.984 2.751 0 .626-.226 1.21-.611 1.68l.004.004c-1.423-.451-2.924-.451-4.347 0l.004-.004a2.657 2.657 0 0 1-.611-1.68C9.417 2.432 10.753 1.2 12.001 1.2z"/></svg>`;
 
             const heroBtn = document.getElementById('heroDownloadBtn');
             if (heroBtn) {
-                heroBtn.href = primaryUrl;
+                // Hero button goes to Linux or MS Store (with according logos)
+                heroBtn.href = isLinux ? linuxUrl : winUrlStore;
                 const iconContainer = heroBtn.querySelector('svg');
                 if (iconContainer) iconContainer.outerHTML = isLinux ? linuxIcon : winIcon;
                 
                 const span = heroBtn.querySelector('span:not(.hero-version)');
-                if (span) span.textContent = isLinux ? 'Download para Linux' : 'Download para Windows';
+                if (span) {
+                    span.textContent = isLinux ? 'Download para Linux' : 'Microsoft Store';
+                }
                 
                 const versionSpan = heroBtn.querySelector('.hero-version');
-                if (versionSpan) versionSpan.textContent = `v${cleanVersion}`;
+                if (versionSpan) {
+                    versionSpan.textContent = isLinux ? `v${cleanVersion}` : '';
+                }
             }
 
             const winBtn = document.getElementById('winDownloadBtn');
             if (winBtn) {
-                winBtn.href = winUrl;
+                // EXE platform button STRICTLY GitHub
+                winBtn.href = winExeUrl;
                 const status = winBtn.querySelector('.platform-status');
                 if (status) status.textContent = `Instalar (v${cleanVersion})`;
+            }
+
+            const msStoreBtn = document.getElementById('msStoreBtn');
+            if (msStoreBtn) {
+                msStoreBtn.href = winUrlStore;
             }
 
             const linuxBtn = document.getElementById('linuxDownloadBtn');
@@ -255,9 +265,21 @@
                 if (status) status.textContent = `AppImage (v${cleanVersion})`;
             }
 
-            // Navbar download buttons remain minimalist
+            // Navbar download buttons: Linux or MS Store (with according logo)
             document.querySelectorAll('nav .btn-download').forEach(el => {
-                el.href = primaryUrl;
+                el.href = isLinux ? linuxUrl : winUrlStore;
+                const span = el.querySelector('span');
+                if (!isLinux) {
+                    if (span) span.textContent = 'Microsoft Store';
+                    if (!el.querySelector('img')) {
+                        span.insertAdjacentHTML('beforebegin', winIcon.replace('width: 28px; height: 28px;', 'width: 18px; height: 18px; margin-right: 6px;'));
+                    }
+                    // Hide global nav version if on Windows
+                    const navVersion = document.getElementById('navVersion');
+                    if (navVersion) navVersion.textContent = '';
+                } else {
+                    if (span) span.textContent = 'Download';
+                }
             });
         }
 
@@ -330,7 +352,7 @@
         <p class="subtitle">A MomAI é uma assistente inteligente que roda inteiramente na sua máquina. Sem nuvem, sem assinaturas, sem coleta de dados.</p>
         
         <div class="btn-group">
-            <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" class="btn-primary btn-download" id="heroDownloadBtn">
+            <a href="ms-windows-store://pdp/?ProductId=9NM4JG67CGCD&mode=mini" class="btn-primary btn-download" id="heroDownloadBtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                     <polyline points="7 10 12 15 17 10"></polyline>
@@ -457,13 +479,22 @@
                     </h3>
                     
                     <div class="platform-list">
-                        <!-- Windows -->
+                         <!-- Windows EXE -->
                         <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" id="winDownloadBtn" class="platform-btn">
                             <div class="platform-info">
-                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1V11.724H0V3.449ZM0 12.333H9.75V21.9L0 20.55V12.333ZM10.709 1.956L24 0V11.724H10.709V1.956ZM10.709 12.333H24V24L10.709 22.044V12.333Z"/></svg>
-                                <span class="platform-name">Windows</span>
+                                <svg viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px;"><path d="M0 3.449L9.75 2.1V11.724H0V3.449ZM0 12.333H9.75V21.9L0 20.55V12.333ZM10.709 1.956L24 0V11.724H10.709V1.956ZM10.709 12.333H24V24L10.709 22.044V12.333Z"/></svg>
+                                <span class="platform-name">Windows (.exe)</span>
                             </div>
                             <span class="platform-status">Instalar</span>
+                        </a>
+
+                        <!-- Microsoft Store -->
+                        <a href="ms-windows-store://pdp/?ProductId=9NM4JG67CGCD&mode=mini" id="msStoreBtn" class="platform-btn">
+                            <div class="platform-info">
+                                <img src="Icone%20microsoft%20store.png" alt="Microsoft Store" style="width: 32px; height: 32px;">
+                                <span class="platform-name">Microsoft Store</span>
+                            </div>
+                            <span class="platform-status">Obter</span>
                         </a>
 
                         <!-- Linux -->

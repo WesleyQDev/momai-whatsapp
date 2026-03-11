@@ -41,7 +41,13 @@ export function WelcomeHeader({
             {userName}
           </span>
           {tier !== 'ultra' && (
-            <span className="px-2 py-1 rounded-md bg-accent/10 border border-accent/20 text-[10px] font-black uppercase tracking-widest text-accent/80 flex items-center gap-1.5 mt-1">
+            <span
+              className={`px-2 py-1 rounded-md border text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 mt-1 ${
+                tier === 'pro'
+                  ? 'bg-red-500/10 border-red-500/20 text-red-500/80 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
+                  : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500/80 shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+              }`}
+            >
               <svg
                 width="10"
                 height="10"
