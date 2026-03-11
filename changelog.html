@@ -91,7 +91,6 @@
             </button>
             <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" class="btn-primary btn-download" style="padding: 0.45rem 0.9rem; font-size: 0.8rem; background: rgba(255,255,255,0.1); color: var(--text);">
                 <span>Download</span>
-                <span id="navVersion" style="margin-left: 6px; font-size: 0.7rem; opacity: 0.7; font-weight: 400;"></span>
             </a>
             <button class="menu-toggle" aria-label="Menu" id="menuToggle">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -149,7 +148,6 @@
             
             if (cachedUrl && cachedVersion) {
                 applyDownloadUrl(cachedUrl, isLinux);
-                displayVersion(cachedVersion);
                 return;
             }
 
@@ -181,7 +179,6 @@
                         sessionStorage.setItem(storageKey, downloadUrl);
                         sessionStorage.setItem(versionKey, version);
                         applyDownloadUrl(downloadUrl, isLinux);
-                        displayVersion(version);
                     }
                 }
             } catch (err) {
@@ -189,13 +186,6 @@
             }
         }
 
-        function displayVersion(version) {
-            const cleanVersion = version.replace(/^v/, '');
-            const navVersion = document.getElementById('navVersion');
-            if (navVersion && cleanVersion) {
-                navVersion.textContent = `v${cleanVersion}`;
-            }
-        }
 
         function applyDownloadUrl(url, isLinux) {
             const winIcon = `<img src="Icone%20microsoft%20store.png" alt="Microsoft Store" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; transition: transform 0.3s ease;">`;
@@ -212,11 +202,6 @@
                     }
                 }
             });
-
-            if (isWin) {
-                const navVersion = document.getElementById('navVersion');
-                if (navVersion) navVersion.textContent = '';
-            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {

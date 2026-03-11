@@ -893,7 +893,8 @@ p.subtitle {
   transition: opacity 0.3s;
 }
 
-.btn-primary span {
+.btn-primary span,
+.btn-primary img {
   position: relative;
   z-index: 1;
 }
