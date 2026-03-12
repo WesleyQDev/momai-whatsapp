@@ -1398,7 +1398,7 @@ p.subtitle {
   letter-spacing: -0.5px;
   margin-bottom: 0.75rem;
   position: relative;
-  color: #ffffff;
+  color: var(--accent);
 }
 
 .cta-section p {
