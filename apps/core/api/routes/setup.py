@@ -112,29 +112,48 @@ async def uninstall_engine(backend: str | None = None):
     return {"status": "error", "message": "Falha ao remover arquivos"}
 
 
-# AI Tiers Configuration
-from ai.orchestrator import TIER_CONFIG
+# AI Tiers Configuration (lazy-loaded to avoid importing orchestrator at module level)
+import json as _json
 
-TIERS = {
-    "lite": {
-        **TIER_CONFIG["lite"],
-        "voice": False,
-        "wake_word": False,
-        "persona": "Você é MomAI Lite, uma assistente rápida e eficiente. Seu foco é utilidade direta."
-    },
-    "pro": {
-        **TIER_CONFIG["pro"],
-        "voice": True,
-        "wake_word": False,
-        "persona": "Você é MomAI Pro, uma assistente equilibrada e inteligente. Você ajuda o usuário com tarefas complexas de forma eficiente."
-    },
-    "ultra": {
-        **TIER_CONFIG["ultra"],
-        "voice": True,
-        "wake_word": True,
-        "persona": "Você é MomAI Ultra, a experiência máxima em inteligência local. Você é proativa, inteligente e capaz de ouvir e falar com o usuário fluentemente."
+def _load_tier_config():
+    config_path = os.path.join(os.path.dirname(__file__), "..", "..", "ai_tiers.json")
+    defaults = {
+        "lite": {"repo": "unsloth/LFM2.5-VL-1.6B-GGUF", "file": "LFM2.5-VL-1.6B-Q4_K_M.gguf", "temperature": 0.1, "top_p": 0.8, "top_k": 20},
+        "pro": {"repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF", "file": "LFM2.5-1.2B-Instruct-Q4_K_M.gguf", "temperature": 0.1, "top_p": 0.8, "top_k": 20},
+        "ultra": {"repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF", "file": "Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf", "temperature": 0.1, "top_p": 0.8, "top_k": 20},
     }
-}
+    if not os.path.exists(config_path):
+        return defaults
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            return _json.load(f)
+    except Exception:
+        return defaults
+
+def _build_tiers():
+    tier_config = _load_tier_config()
+    return {
+        "lite": {
+            **tier_config["lite"],
+            "voice": False,
+            "wake_word": False,
+            "persona": "Você é MomAI Lite, uma assistente rápida e eficiente. Seu foco é utilidade direta."
+        },
+        "pro": {
+            **tier_config["pro"],
+            "voice": True,
+            "wake_word": False,
+            "persona": "Você é MomAI Pro, uma assistente equilibrada e inteligente. Você ajuda o usuário com tarefas complexas de forma eficiente."
+        },
+        "ultra": {
+            **tier_config["ultra"],
+            "voice": True,
+            "wake_word": True,
+            "persona": "Você é MomAI Ultra, a experiência máxima em inteligência local. Você é proativa, inteligente e capaz de ouvir e falar com o usuário fluentemente."
+        }
+    }
+
+TIERS = _build_tiers()
 
 
 @router.post("/setup/apply-tier")
