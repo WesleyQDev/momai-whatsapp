@@ -177,6 +177,7 @@ export async function fetchInitStatus(): Promise<{
   stage: string
   message: string
   progress: number
+  error?: string | null
 }> {
   const response = await fetch(`${API_URL}/init-status`)
   if (!response.ok) throw new Error('Erro ao buscar status de inicialização')

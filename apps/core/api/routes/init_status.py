@@ -13,5 +13,6 @@ async def get_init_status():
         "message": app_state.last_init_event["message"],
         "progress": app_state.last_init_event["progress"],
         "ai_stack_loaded": app_state.ai_stack_loaded,
-        "is_ready": app_state.last_init_event["progress"] >= 100
+        "is_ready": app_state.last_init_event["progress"] >= 100,
+        "error": app_state.startup_error,
     }

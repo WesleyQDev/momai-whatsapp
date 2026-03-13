@@ -44,8 +44,16 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
       }
     )
 
+    const handleBootstrapError = (e: any) => {
+      if (e.detail) {
+        setBootstrapError(e.detail)
+      }
+    }
+    window.addEventListener('momai_bootstrap_error', handleBootstrapError)
+
     return () => {
       window.removeEventListener('momai_tier_change_start', handleModeChangeStart)
+      window.removeEventListener('momai_bootstrap_error', handleBootstrapError)
       removeBootError()
     }
   }, [])

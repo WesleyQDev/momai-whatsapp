@@ -18,6 +18,7 @@ system_ready = asyncio.Event()
 is_gaming_mode = False
 ai_stack_loaded = False
 ai_busy = False
+startup_error: str | None = None
 last_interaction_time = time.time()
 
 last_init_event: dict[str, Any] = {
@@ -78,46 +79,61 @@ async def initialize_ai_stack() -> None:
         logger.info("[Main] Loading AI stack...")
         # Give a small gap for heartbeats/sockets
         await asyncio.sleep(0.1)
-    import ai.orchestrator as orch
+
+    try:
+        import ai.orchestrator as orch
+    except Exception as e:
+        logger.exception("[Main] Failed to import ai.orchestrator: %s", e)
+        startup_error_msg = f"AI module import failed: {e}"
+        globals()["startup_error"] = startup_error_msg
+        await send_init_event("error", startup_error_msg, 0)
+        raise
 
     orchestrator = orch
     from ai.orchestrator import generate as gen_func, initialize_llm as init_llm
 
     generate = gen_func
     initialize_llm = init_llm
-    from services.voice.detector import WakeWordDetector as WWD
+
+    try:
+        from services.voice.detector import WakeWordDetector as WWD
+    except Exception as e:
+        logger.warning("[Main] WakeWordDetector import skipped: %s", e)
+        WWD = None
 
     WakeWordDetector = WWD
     from services.reminders.manager import ReminderManager as RM
 
     ReminderManager = RM
-    import services.voice.tts as t
+
+    try:
+        import services.voice.tts as t
+    except Exception as e:
+        logger.warning("[Main] TTS import skipped: %s", e)
+        t = None
 
     tts = t
 
-    # Connect TTS callbacks to socket broadcast
-    def on_tts_start():
-        if main_loop:
-            asyncio.run_coroutine_threadsafe(
-                broadcast_to_sockets({"type": "tts_start"}), main_loop
-            )
+    if t:
+        # Connect TTS callbacks to socket broadcast
+        def on_tts_start():
+            if main_loop:
+                asyncio.run_coroutine_threadsafe(
+                    broadcast_to_sockets({"type": "tts_start"}), main_loop
+                )
 
-    def on_tts_stop():
-        if main_loop:
-            asyncio.run_coroutine_threadsafe(
-                broadcast_to_sockets({"type": "tts_stop"}), main_loop
-            )
+        def on_tts_stop():
+            if main_loop:
+                asyncio.run_coroutine_threadsafe(
+                    broadcast_to_sockets({"type": "tts_stop"}), main_loop
+                )
 
-    t.tts.on_speech_start = on_tts_start
-    t.tts.on_speech_stop = on_tts_stop
+        t.tts.on_speech_start = on_tts_start
+        t.tts.on_speech_stop = on_tts_stop
 
     from services.extensions.manager import extension_manager as em
 
     extension_manager = em
-
-    # Lazy load embeddings - only load when actually needed
-    # This saves ~30s on startup
-    # embeddings.load() is called on first use in embeddings.py
 
     ai_stack_loaded = True
     logger.info("[Main] AI stack loaded.")

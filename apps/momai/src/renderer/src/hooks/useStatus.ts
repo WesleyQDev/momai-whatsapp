@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { StatusData, fetchStatus, updateMode, fetchInitStatus } from '../services/api'
 
-const STALLED_TIMEOUT_MS = 60000
+const STALLED_TIMEOUT_MS = 20000
 
 const MESSAGE_TRANSLATIONS: Record<string, string> = {
   'Creating isolated environment...': 'Criando ambiente isolado...',
@@ -210,20 +210,63 @@ export function useStatus() {
     }
   }, [checkStatus, checkInitProgress, isBooting, backendOnline])
 
-  // Detectar progresso estagnado
+  // Watchdog: detect stalled progress and check /init-status for errors
   useEffect(() => {
-    if (isBooting && initProgress < 100 && !isStalled) {
-      const interval = setInterval(() => {
-        const timeSinceLastProgress = Date.now() - lastProgressTime
-        if (timeSinceLastProgress > STALLED_TIMEOUT_MS && !isRetrying) {
+    if (!isBooting || initProgress >= 100 || isStalled || isRetrying) return undefined
+
+    const interval = setInterval(async () => {
+      const timeSinceLastProgress = Date.now() - lastProgressTime
+
+      if (timeSinceLastProgress < STALLED_TIMEOUT_MS) return
+
+      // Only check init-status if backend HTTP is reachable
+      if (!backendOnline) {
+        setIsStalled(true)
+        setInitMessage('Isso está demorando mais que o normal...')
+        return
+      }
+
+      try {
+        const data = await fetchInitStatus()
+
+        if (data.error) {
           setIsStalled(true)
-          setInitMessage('Isso está demorando mais que o normal...')
+          window.dispatchEvent(
+            new CustomEvent('momai_bootstrap_error', {
+              detail: {
+                type: 'startup_failed',
+                message: 'Backend initialization failed',
+                details: data.error
+              }
+            })
+          )
+          return
         }
-      }, 5000)
-      return () => clearInterval(interval)
-    }
-    return undefined
-  }, [isBooting, initProgress, lastProgressTime, isStalled, isRetrying])
+
+        if (data.stage === 'error') {
+          setIsStalled(true)
+          window.dispatchEvent(
+            new CustomEvent('momai_bootstrap_error', {
+              detail: {
+                type: 'startup_failed',
+                message: data.message || 'Backend initialization failed',
+                details: data.message
+              }
+            })
+          )
+          return
+        }
+
+        setIsStalled(true)
+        setInitMessage('Isso está demorando mais que o normal...')
+      } catch {
+        setIsStalled(true)
+        setInitMessage('Isso está demorando mais que o normal...')
+      }
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [isBooting, initProgress, lastProgressTime, isStalled, isRetrying, backendOnline])
 
   return {
     statusInfo,

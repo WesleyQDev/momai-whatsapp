@@ -50,7 +50,15 @@ async def init_system_task() -> None:
         await start_core_services(settings)
         db.close()
     except Exception as e:
-        app_state.logger.error(f"[Startup] Error in startup sequence: {e}")
+        app_state.logger.exception("[Startup] Fatal error in startup sequence: %s", e)
+        app_state.startup_error = str(e)
+        await app_state.send_init_event(
+            "error",
+            f"Startup failed: {e}",
+            0,
+        )
+    finally:
+        app_state.system_ready.set()
 
 
 _core_services_started = False
@@ -116,8 +124,9 @@ async def start_core_services(settings):
 
         # 3. Apply settings
         await app_state.send_init_event("brain", "Applying user preferences...", None)
-        app_state.tts.tts.set_voice(settings.tts_voice)
-        app_state.tts.tts.set_enabled(settings.tts_enabled)
+        if app_state.tts and hasattr(app_state.tts, "tts"):
+            app_state.tts.tts.set_voice(settings.tts_voice)
+            app_state.tts.tts.set_enabled(settings.tts_enabled)
 
         resource_manager.on_notify_callback = app_state.notify_economy_change
         resource_manager.start()
@@ -303,11 +312,13 @@ async def start_core_services(settings):
         await app_state.send_init_event(
             "brain", "Synchronizing local intelligence...", None
         )
-        await asyncio.to_thread(
+        llm_ready = await asyncio.to_thread(
             app_state.orchestrator.llm_ready_event.wait, timeout=30.0
         )
+        if not llm_ready:
+            logger.warning("[Startup] LLM ready timeout after 30s, continuing anyway")
 
-        if settings.tts_enabled and settings.ai_tier != "lite":
+        if settings.tts_enabled and settings.ai_tier != "lite" and app_state.tts:
             try:
                 await app_state.send_init_event("voice", "Waking up local voice...", None)
                 app_state.tts.tts.initialize()
@@ -327,9 +338,17 @@ async def start_core_services(settings):
 
     except Exception as exc:
         app_state.logger.exception("[InitTask] Fatal error in core services: %s", exc)
+        app_state.startup_error = str(exc)
+        await app_state.send_init_event(
+            "error",
+            f"Core services failed: {exc}",
+            0,
+        )
+        return
     finally:
         app_state.system_ready.set()
-        await app_state.send_init_event("brain", "Sistema operacional e pronto.", 100)
+
+    await app_state.send_init_event("brain", "Sistema operacional e pronto.", 100)
 
 
 async def periodic_briefing_check():

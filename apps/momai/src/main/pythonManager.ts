@@ -1308,17 +1308,28 @@ export async function startPythonBackend(): Promise<void> {
         .filter((l) => l.length > 0)
       for (const line of lines) {
         const lower = line.toLowerCase()
-        // Improved log classification
+        // Classify by Python standard log format: "timestamp - logger - LEVEL - message"
         const isInfo =
           lower.startsWith('info:') ||
+          lower.includes(' - info - ') ||
+          lower.includes(' info ') ||
           lower.startsWith('successfully') ||
           lower.includes('using loop:') ||
           lower.includes('awaiting initialization') ||
-          lower.includes("couldn't access the hub")
+          lower.includes("couldn't access the hub") ||
+          lower.includes('connection closed') ||
+          lower.includes('connection made') ||
+          lower.includes('started server process')
 
-        const isWarning = lower.includes('warning')
+        const isWarning =
+          lower.includes('warning') ||
+          lower.includes(' - warning - ')
 
-        if (isInfo) {
+        const isDebug =
+          lower.includes(' - debug - ') ||
+          lower.startsWith('debug:')
+
+        if (isInfo || isDebug) {
           logger.info(`[Python] ${line}`)
         } else if (isWarning) {
           logger.warn(`[Python] ${line}`)
