@@ -29,6 +29,8 @@ win:
         - '!**/__pycache__'
     - from: 'bin'
       to: 'bin'
+    - from: 'bin/wheels'
+      to: 'wheels'
     - from: 'build/diagnostic.bat'
       to: 'diagnostic.bat'
 nsis:
@@ -85,6 +87,8 @@ linux:
         - '!**/__pycache__'
     - from: 'bin'
       to: 'bin'
+    - from: 'bin/wheels'
+      to: 'wheels'
     - from: 'build/diagnostic.sh'
       to: 'diagnostic.sh'
 appImage:

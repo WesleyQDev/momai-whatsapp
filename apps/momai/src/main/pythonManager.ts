@@ -91,6 +91,20 @@ const userDataPath = resolveUserDataPath(app.getPath('userData'))
 const SYNC_LOCK_FILE = join(userDataPath, '.sync.lock')
 const UV_CACHE_PATH = join(userDataPath, 'uv_cache')
 const UV_PYTHON_INSTALL_PATH = join(userDataPath, 'uv_python')
+
+function findBundledPythonDir(): string | null {
+  const isDev = is.dev && process.env['ELECTRON_RENDERER_URL']
+  const bundledPath = isDev
+    ? join(app.getAppPath(), 'bin', 'python')
+    : join(process.resourcesPath, 'bin', 'python')
+  const pythonBin = process.platform === 'win32' ? 'python.exe' : 'python3'
+  if (existsSync(join(bundledPath, pythonBin))) {
+    logger.info(`[Bootstrap] Found bundled Python at: ${bundledPath}`)
+    return bundledPath
+  }
+  return null
+}
+
 const ONBOARDING_FILE = join(userDataPath, 'onboarding_completed.json')
 const INIT_PROGRESS_REGEX = /\[Init (\d+)%\]\s+[^:]+:\s+(.+)/
 
@@ -316,16 +330,16 @@ function repairPyvenvCfg(venvPath: string): boolean {
 
   logger.warn('[Bootstrap] pyvenv.cfg missing after venv creation, attempting recovery...')
 
-  const pythonDir = findManagedPythonDir()
+  const pythonDir = findBundledPythonDir() || findManagedPythonDir()
   if (!pythonDir) {
-    logger.error('[Bootstrap] No managed Python found for pyvenv.cfg recovery')
+    logger.error('[Bootstrap] No Python found for pyvenv.cfg recovery')
     return false
   }
 
   try {
     const pythonBin = process.platform === 'win32' ? 'python.exe' : 'python3'
     if (!existsSync(join(pythonDir, pythonBin))) {
-      logger.error('[Bootstrap] Could not find managed Python binary for pyvenv.cfg recovery')
+      logger.error('[Bootstrap] Could not find Python binary for pyvenv.cfg recovery')
       return false
     }
 
@@ -743,63 +757,122 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
       PYTHONHOME: undefined
     }
 
-    // Step 1: Pre-install Python (download only, no querying)
-    if (!findManagedPythonDir()) {
-      sendInitProgress('Baixando interpretador Python...', 12)
-      logger.info(`[Bootstrap] Pre-installing Python 3.12 to ${UV_PYTHON_INSTALL_PATH}`)
-      try {
-        await new Promise<void>((resolve) => {
-          const child = spawn(uvExe, ['python', 'install', '3.12'], {
-            env: uvBaseEnv,
-            shell: false,
-            stdio: 'pipe'
-          })
-          let stderr = ''
-          child.stdout?.on('data', (data) => {
-            const line = data.toString().trim()
-            logger.info(`[uv python install] ${line}`)
-            if (line.includes('Downloading')) {
-              sendInitProgress('Baixando interpretador Python...', 12)
+    // Step 1: Resolve the Python interpreter to use for venv creation
+    // Priority: bundled CPython (bin/python/) > managed (uv_python/) > download via uv
+    // Bundled Python works in both dev (apps/momai/bin/python/) and production (resources/bin/python/)
+    const bundledPythonDir = findBundledPythonDir()
+    let resolvedPythonDir: string | null = null
+
+    if (bundledPythonDir) {
+      logger.info(`[Bootstrap] Using bundled Python: ${bundledPythonDir}`)
+      sendInitProgress('Preparando interpretador Python...', 12)
+
+      const isMsixPath = bundledPythonDir.includes('WindowsApps')
+
+      if (isMsixPath) {
+        // MSIX: Python in WindowsApps is read-only and blocked from execSync/uv.
+        // Copy it to a writable location (userData) so uv venv can use it.
+        const writablePythonDir = join(UV_PYTHON_INSTALL_PATH, 'bundled-python')
+        const pythonBin = process.platform === 'win32' ? 'python.exe' : 'python3'
+
+        if (!existsSync(join(writablePythonDir, pythonBin))) {
+          logger.info(`[Bootstrap] MSIX: Copying bundled Python to writable location...`)
+          sendInitProgress('Copiando interpretador Python...', 12)
+          try {
+            if (existsSync(writablePythonDir)) {
+              rmSync(writablePythonDir, { recursive: true, force: true })
             }
-          })
-          child.stderr?.on('data', (data) => {
-            const line = data.toString().trim()
-            stderr += line
-            logger.info(`[uv python install stderr] ${line}`)
-            if (line.includes('Downloading')) {
-              sendInitProgress('Baixando interpretador Python...', 12)
-            }
-          })
-          child.on('close', (code) => {
-            if (code === 0) {
-              logger.info('[Bootstrap] Python 3.12 pre-installed successfully.')
-              resolve()
-            } else {
-              logger.warn(`[Bootstrap] uv python install exited with code ${code}: ${stderr}`)
-              resolve() // Non-fatal: uv venv will retry the download
-            }
-          })
-          child.on('error', (err) => {
-            logger.warn('[Bootstrap] uv python install spawn error:', err)
-            resolve() // Non-fatal
-          })
-        })
-      } catch {
-        logger.warn('[Bootstrap] uv python install failed, will retry in uv venv')
+            mkdirSync(writablePythonDir, { recursive: true })
+            execSync(`xcopy "${bundledPythonDir}" "${writablePythonDir}\\" /E /I /Y /Q`, {
+              stdio: 'ignore',
+              timeout: 30000
+            })
+            logger.info(`[Bootstrap] MSIX: Bundled Python copied to ${writablePythonDir}`)
+          } catch (e) {
+            logger.error('[Bootstrap] MSIX: Failed to copy bundled Python:', e)
+          }
+        } else {
+          logger.info(`[Bootstrap] MSIX: Writable Python already exists at ${writablePythonDir}`)
+        }
+
+        if (existsSync(join(writablePythonDir, pythonBin))) {
+          removePthFiles(writablePythonDir)
+          resolvedPythonDir = writablePythonDir
+        } else {
+          logger.warn('[Bootstrap] MSIX: Writable Python not found after copy, falling back')
+        }
+      } else {
+        // Non-MSIX: use bundled Python directly
+        removePthFiles(bundledPythonDir)
+        if (verifyManagedPython(bundledPythonDir)) {
+          resolvedPythonDir = bundledPythonDir
+        } else {
+          logger.warn('[Bootstrap] Bundled Python failed verification, falling back to uv download')
+        }
       }
     }
 
-    // Step 2: Prepare managed Python for MSIX compatibility
-    const managedPythonDir = findManagedPythonDir()
+    if (!resolvedPythonDir) {
+      resolvedPythonDir = findManagedPythonDir()
+
+      if (!resolvedPythonDir) {
+        sendInitProgress('Baixando interpretador Python...', 12)
+        logger.info(`[Bootstrap] Pre-installing Python 3.12 to ${UV_PYTHON_INSTALL_PATH}`)
+        try {
+          await new Promise<void>((resolve) => {
+            const child = spawn(uvExe, ['python', 'install', '3.12'], {
+              env: uvBaseEnv,
+              shell: false,
+              stdio: 'pipe'
+            })
+            let stderr = ''
+            child.stdout?.on('data', (data) => {
+              const line = data.toString().trim()
+              logger.info(`[uv python install] ${line}`)
+              if (line.includes('Downloading')) {
+                sendInitProgress('Baixando interpretador Python...', 12)
+              }
+            })
+            child.stderr?.on('data', (data) => {
+              const line = data.toString().trim()
+              stderr += line
+              logger.info(`[uv python install stderr] ${line}`)
+              if (line.includes('Downloading')) {
+                sendInitProgress('Baixando interpretador Python...', 12)
+              }
+            })
+            child.on('close', (code) => {
+              if (code === 0) {
+                logger.info('[Bootstrap] Python 3.12 pre-installed successfully.')
+                resolve()
+              } else {
+                logger.warn(`[Bootstrap] uv python install exited with code ${code}: ${stderr}`)
+                resolve()
+              }
+            })
+            child.on('error', (err) => {
+              logger.warn('[Bootstrap] uv python install spawn error:', err)
+              resolve()
+            })
+          })
+        } catch {
+          logger.warn('[Bootstrap] uv python install failed, will retry in uv venv')
+        }
+
+        resolvedPythonDir = findManagedPythonDir()
+      }
+    }
+
+    // Step 2: Prepare resolved Python for MSIX compatibility
+    const managedPythonDir = resolvedPythonDir
     if (managedPythonDir) {
-      // Remove ._pth files that restrict sys.path and break uv's interpreter query
       removePthFiles(managedPythonDir)
 
-      logger.info(`[Bootstrap] Adding managed Python to PATH: ${managedPythonDir}`)
+      logger.info(`[Bootstrap] Adding Python to PATH: ${managedPythonDir}`)
       uvBaseEnv.PATH = `${managedPythonDir};${join(managedPythonDir, 'DLLs')};${process.env.PATH || ''}`
 
-      if (!verifyManagedPython(managedPythonDir)) {
-        logger.warn('[Bootstrap] Managed Python failed verification, will let uv re-download')
+      if (!managedPythonDir.includes('bundled-python') && !verifyManagedPython(managedPythonDir)) {
+        logger.warn('[Bootstrap] Python failed verification')
       }
     }
 
@@ -919,19 +992,35 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
       )
     }
     logger.info('[Bootstrap] Sincronizando dependências do core...')
-    sendInitProgress('Instalando dependências...', 25)
+
+    // Resolve local wheel cache for offline installation
+    const wheelsDir = isDev
+      ? join(app.getAppPath(), 'bin', 'wheels')
+      : join(process.resourcesPath, 'wheels')
+    const hasLocalWheels = existsSync(wheelsDir)
+
+    if (hasLocalWheels) {
+      logger.info(`[Bootstrap] Using local wheel cache: ${wheelsDir}`)
+      sendInitProgress('Instalando dependências offline...', 25)
+    } else {
+      logger.info('[Bootstrap] No local wheel cache found, will download from internet')
+      sendInitProgress('Instalando dependências...', 25)
+    }
 
     try {
       if (!existsSync(UV_CACHE_PATH)) mkdirSync(UV_CACHE_PATH, { recursive: true })
 
       const installArgs = ['pip', 'install', '--no-progress', '--cache-dir', UV_CACHE_PATH]
+      if (hasLocalWheels) {
+        installArgs.push('--find-links', wheelsDir)
+      }
       if (isDev) {
         installArgs.push('-e', writableCorePath)
       } else {
         installArgs.push(writableCorePath)
       }
 
-      const pipManagedDir = findManagedPythonDir()
+      const pipPythonDir = findBundledPythonDir() || findManagedPythonDir()
       const pipEnv: Record<string, string | undefined> = {
         ...process.env,
         VIRTUAL_ENV: venvPath,
@@ -939,9 +1028,9 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
         UV_PYTHON_INSTALL_DIR: UV_PYTHON_INSTALL_PATH,
         PYTHONHOME: undefined,
         PYTHONPATH: undefined,
-        ...(pipManagedDir
+        ...(pipPythonDir
           ? {
-              PATH: `${pipManagedDir};${join(pipManagedDir, 'DLLs')};${process.env.PATH || ''}`
+              PATH: `${pipPythonDir};${join(pipPythonDir, 'DLLs')};${process.env.PATH || ''}`
             }
           : {})
       }

@@ -49,3 +49,49 @@ echo "[MomAI] Python installed: $("$BIN_DIR/python/bin/python3" --version)"
 
 # NOTE: VC++ Redistributable is Windows-only, skipping for Linux/macOS
 echo "[MomAI] Hydration complete! UV and Python are ready in apps/momai/bin"
+
+# 3. Download dependency wheels for offline installation
+WHEELS_DIR="$BIN_DIR/wheels"
+CORE_DIR="$SCRIPTPATH/../../core"
+LOCK_FILE="$BIN_DIR/requirements-linux.lock"
+UV_EXE="$BIN_DIR/uv"
+PYTHON_EXE="$BIN_DIR/python/bin/python3"
+
+echo "[MomAI] Generating lockfile for Linux..."
+"$UV_EXE" pip compile "$CORE_DIR/pyproject.toml" \
+    --python-version 3.12 \
+    --python-platform linux \
+    --output-file "$LOCK_FILE"
+
+if [ $? -ne 0 ]; then
+    echo "[MomAI] WARNING: Failed to generate lockfile. Wheels will not be cached."
+else
+    rm -rf "$WHEELS_DIR"
+    mkdir -p "$WHEELS_DIR"
+
+    if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
+        PIP_PLATFORM="manylinux2014_aarch64"
+    else
+        PIP_PLATFORM="manylinux2014_x86_64"
+    fi
+
+    echo "[MomAI] Downloading dependency wheels for $PIP_PLATFORM..."
+    "$PYTHON_EXE" -m pip download \
+        -d "$WHEELS_DIR" \
+        -r "$LOCK_FILE" \
+        --only-binary :all: \
+        --platform "$PIP_PLATFORM" \
+        --python-version 3.12 \
+        --implementation cp \
+        --quiet
+
+    if [ $? -ne 0 ]; then
+        echo "[MomAI] WARNING: Some wheels failed to download. Runtime will fallback to internet."
+    else
+        WHEEL_COUNT=$(find "$WHEELS_DIR" -name "*.whl" | wc -l)
+        TOTAL_SIZE=$(du -sh "$WHEELS_DIR" | cut -f1)
+        echo "[MomAI] Downloaded $WHEEL_COUNT wheels ($TOTAL_SIZE)"
+    fi
+fi
+
+echo "[MomAI] Full hydration complete! All binaries and wheels are ready."

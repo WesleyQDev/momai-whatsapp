@@ -102,3 +102,46 @@ if (Test-Path $vcExe) {
 }
 
 Write-Host "[MomAI] Hydration complete! UV, Python and VC Redist are ready in apps/momai/bin" -ForegroundColor Green
+
+# 4. Download dependency wheels for offline installation
+$wheelsDir = Join-Path $binDir "wheels"
+$coreDir = Join-Path (Join-Path $PSScriptRoot "..") "..\core"
+$lockFile = Join-Path $binDir "requirements-win.lock"
+$pyprojectFile = Join-Path $coreDir "pyproject.toml"
+
+Write-Host "[MomAI] Generating lockfile for Windows..." -ForegroundColor Cyan
+Write-Host "[MomAI] Core dir: $coreDir" -ForegroundColor Gray
+& $uvExe pip compile "$pyprojectFile" `
+    --python-version 3.12 `
+    --python-platform windows `
+    --output-file "$lockFile" 2>&1 | ForEach-Object { Write-Host "  $_" }
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "[MomAI] Failed to generate lockfile. Wheels will not be cached."
+} else {
+    if (Test-Path $wheelsDir) { Remove-WithRetry $wheelsDir | Out-Null }
+    New-Item -ItemType Directory -Path $wheelsDir | Out-Null
+
+    Write-Host "[MomAI] Downloading dependency wheels..." -ForegroundColor Cyan
+    & $pythonExe -m pip download `
+        -d "$wheelsDir" `
+        -r "$lockFile" `
+        --only-binary :all: `
+        --platform win_amd64 `
+        --python-version 3.12 `
+        --implementation cp `
+        --quiet 2>&1 | ForEach-Object { Write-Host "  $_" }
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "[MomAI] Some wheels failed to download. Runtime will fallback to internet."
+    } else {
+        $wheelCount = (Get-ChildItem $wheelsDir -Filter "*.whl" -ErrorAction SilentlyContinue).Count
+        $totalSize = [math]::Round(
+            (Get-ChildItem $wheelsDir -Recurse -File -ErrorAction SilentlyContinue |
+             Measure-Object -Property Length -Sum).Sum / 1MB, 1
+        )
+        Write-Host "[MomAI] Downloaded $wheelCount wheels ($totalSize MB)" -ForegroundColor Green
+    }
+}
+
+Write-Host "[MomAI] Full hydration complete! All binaries and wheels are ready." -ForegroundColor Green

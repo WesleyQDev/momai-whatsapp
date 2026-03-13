@@ -43,6 +43,37 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Download dependency wheels
+        shell: pwsh
+        run: |
+          $binDir = "apps/momai/bin"
+          $wheelsDir = "$binDir/wheels"
+          $lockFile = "$binDir/requirements-win.lock"
+          $pythonExe = "$binDir/python/python.exe"
+
+          uv pip compile apps/core/pyproject.toml `
+            --python-version 3.12 `
+            --python-platform windows `
+            --output-file $lockFile
+
+          if (-not (Test-Path $pythonExe)) {
+            Write-Host "Bundled Python not found, skipping wheel download"
+            exit 0
+          }
+
+          New-Item -ItemType Directory -Path $wheelsDir -Force | Out-Null
+          & $pythonExe -m pip download `
+            -d $wheelsDir `
+            -r $lockFile `
+            --only-binary :all: `
+            --platform win_amd64 `
+            --python-version 3.12 `
+            --implementation cp `
+            --quiet
+
       - name: Build Windows
         run: pnpm --filter momai build:win
         env:
@@ -104,6 +135,37 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Download dependency wheels
+        run: |
+          BIN_DIR="apps/momai/bin"
+          WHEELS_DIR="$BIN_DIR/wheels"
+          LOCK_FILE="$BIN_DIR/requirements-linux.lock"
+          PYTHON_EXE="$BIN_DIR/python/bin/python3"
+
+          uv pip compile apps/core/pyproject.toml \
+            --python-version 3.12 \
+            --python-platform linux \
+            --output-file "$LOCK_FILE"
+
+          if [ ! -f "$PYTHON_EXE" ]; then
+            echo "Bundled Python not found, skipping wheel download"
+            exit 0
+          fi
+
+          chmod +x "$PYTHON_EXE"
+          mkdir -p "$WHEELS_DIR"
+          "$PYTHON_EXE" -m pip download \
+            -d "$WHEELS_DIR" \
+            -r "$LOCK_FILE" \
+            --only-binary :all: \
+            --platform manylinux2014_x86_64 \
+            --python-version 3.12 \
+            --implementation cp \
+            --quiet
 
       - name: Build Linux
         run: pnpm --filter momai build:linux
