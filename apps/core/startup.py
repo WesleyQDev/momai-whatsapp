@@ -76,6 +76,10 @@ async def start_core_services(settings):
         _core_services_started = True
 
     try:
+        # Pre-warm: start model download while LLM setup detects GPU etc.
+        from ai.model_prefetch import start_model_prefetch
+        start_model_prefetch()
+
         # 1. Start LLM initialization in background
         def on_brain_init(status: str) -> None:
             if app_state.main_loop:
@@ -369,6 +373,10 @@ async def lifespan(app):
     # Inicializa banco de dados SINCRONAMENTE antes de abrir para requisições
     # Isso evita o erro "no such table: messages" em máquinas rápidas
     await asyncio.to_thread(init_db)
+
+    # Pre-download model in background (overlaps with AI stack import)
+    from ai.model_prefetch import start_model_prefetch
+    start_model_prefetch()
 
     # Start all initialization tasks in parallel
     asyncio.create_task(init_system_task())

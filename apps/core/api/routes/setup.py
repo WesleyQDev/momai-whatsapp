@@ -186,6 +186,10 @@ async def apply_tier(tier: str, db: Session = Depends(get_db)):
             )
 
         try:
+            # Start model download ASAP — runs in parallel with voice/component setup below
+            from ai.model_prefetch import start_model_prefetch
+            start_model_prefetch(tier_override=tier)
+
             # 1. Component Cleanup
             from services.voice.tts import tts
             if not config.get("voice"):
