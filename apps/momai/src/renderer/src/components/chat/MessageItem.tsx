@@ -315,14 +315,18 @@ const MessageItem = memo(function MessageItem({
             </div>
           </div>
         ) : (
-          <div className="w-8 h-8 rounded-full bg-accent/5 flex items-center justify-center text-[10px] font-bold text-text-muted border border-border/20">
+          <div className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
             EU
           </div>
         )}
       </div>
 
       <div
-        className={`relative break-words overflow-hidden min-w-0 max-w-full transition-all duration-300 ${message.role === 'assistant' ? 'flex-1 pt-0.5 text-text text-[15px] sm:text-[16px] leading-relaxed message' : 'bg-accent/5 border border-border/30 p-3 px-4 rounded-xl rounded-tr-none text-text text-[14px] sm:text-[15px] message'}`}
+        className={`relative break-words overflow-hidden min-w-0 max-w-full transition-all duration-300 ${
+          message.role === 'assistant'
+            ? 'flex-1 pt-0.5 text-text text-[15px] sm:text-[16px] leading-relaxed message'
+            : 'bg-zinc-100 dark:bg-[#282A2C] p-3 px-4 rounded-2xl rounded-tr-none text-text text-[15px] sm:text-[16px] message'
+        }`}
       >
         <div className="flex flex-col gap-0 transition-all duration-300 overflow-hidden">
           {/* 1. Aviso Inicial */}
