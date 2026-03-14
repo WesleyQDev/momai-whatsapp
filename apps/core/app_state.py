@@ -197,9 +197,10 @@ async def send_init_event(stage: str, message: str, progress: int | None = None)
     global last_init_event
 
     current_progress = last_init_event.get("progress", 0)
-    
+
     if progress is None:
-        # Incremento sutil para dar sensacao de progresso continuo
+        if current_progress >= 100:
+            return
         new_progress = min(99, current_progress + 1)
     elif progress == 0 and stage == "error":
         new_progress = 0

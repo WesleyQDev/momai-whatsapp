@@ -147,46 +147,44 @@ class TTSManager:
             if not os.path.exists(model_path):
                 logger.info("[TTS] Downloading Kokoro model...")
                 try:
-                    from huggingface_hub import hf_hub_download
-
-                    model_path = hf_hub_download(
-                        repo_id="thewh1teagle/kokoro-onnx",
-                        filename="kokoro-v1.0.onnx",
-                        local_dir=model_dir,
-                        token=False,
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"[TTS] HF download failed for model: {e}, trying direct download..."
-                    )
                     import urllib.request
 
                     url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"
                     logger.info(f"[TTS] Downloading model from {url}...")
                     urllib.request.urlretrieve(url, model_path)
                     logger.info("[TTS] Model download complete.")
+                except Exception as e:
+                    logger.warning(
+                        f"[TTS] GitHub download failed for model: {e}, trying HuggingFace..."
+                    )
+                    from huggingface_hub import hf_hub_download
+
+                    model_path = hf_hub_download(
+                        repo_id="adrianlyjak/kokoro-onnx",
+                        filename="kokoro-v1.0.onnx",
+                        local_dir=model_dir,
+                    )
 
             if not os.path.exists(voices_path):
                 logger.info("[TTS] Downloading voices file...")
                 try:
-                    from huggingface_hub import hf_hub_download
-
-                    voices_path = hf_hub_download(
-                        repo_id="thewh1teagle/kokoro-onnx",
-                        filename="voices-v1.0.bin",
-                        local_dir=model_dir,
-                        token=False,
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"[TTS] HF download failed for voices: {e}, trying direct download..."
-                    )
                     import urllib.request
 
                     url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
                     logger.info(f"[TTS] Downloading voices from {url}...")
                     urllib.request.urlretrieve(url, voices_path)
                     logger.info("[TTS] Voices download complete.")
+                except Exception as e:
+                    logger.warning(
+                        f"[TTS] GitHub download failed for voices: {e}, trying HuggingFace..."
+                    )
+                    from huggingface_hub import hf_hub_download
+
+                    voices_path = hf_hub_download(
+                        repo_id="adrianlyjak/kokoro-onnx",
+                        filename="voices-v1.0.bin",
+                        local_dir=model_dir,
+                    )
 
             providers = [ONNX_PROVIDER]
             if ONNX_PROVIDER == "CPUExecutionProvider":

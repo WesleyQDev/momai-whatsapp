@@ -366,15 +366,6 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
                     ),
                     app_state.main_loop,
                 )
-                # Scale: 30% - 100% (Electron takes 0% - 30%)
-                asyncio.run_coroutine_threadsafe(
-                    app_state.send_init_event("api", "Starting system protocols...", 32),
-                    app_state.main_loop
-                )
-                asyncio.run_coroutine_threadsafe(
-                    asyncio.to_thread(init_db),
-                    app_state.main_loop
-                )
                 app_state.set_graph_state(None, False)
 
             is_loading = False

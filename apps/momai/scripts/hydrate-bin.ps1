@@ -132,9 +132,30 @@ if ($LASTEXITCODE -ne 0) {
         --implementation cp `
         --quiet 2>&1 | ForEach-Object { Write-Host "  $_" }
 
+    # Also download build-system dependencies (setuptools, wheel) for fully offline builds
+    Write-Host "[MomAI] Downloading build-system wheels..." -ForegroundColor Cyan
+    & $pythonExe -m pip download `
+        -d "$wheelsDir" `
+        "setuptools>=69" "wheel" `
+        --only-binary :all: `
+        --python-version 3.12 `
+        --quiet 2>&1 | ForEach-Object { Write-Host "  $_" }
+
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "[MomAI] Some wheels failed to download. Runtime will fallback to internet."
     } else {
+        # Build FortScript wheel from monorepo and add to wheels cache
+        $fortscriptDir = Join-Path (Join-Path $PSScriptRoot "..") "..\fortscript"
+        if (Test-Path $fortscriptDir) {
+            Write-Host "[MomAI] Building FortScript wheel..." -ForegroundColor Cyan
+            & $pythonExe -m pip wheel --no-deps --wheel-dir "$wheelsDir" "$fortscriptDir" 2>&1 | ForEach-Object { Write-Host "  $_" }
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning "[MomAI] Failed to build FortScript wheel."
+            } else {
+                Write-Host "[MomAI] FortScript wheel added to cache." -ForegroundColor Green
+            }
+        }
+
         $wheelCount = (Get-ChildItem $wheelsDir -Filter "*.whl" -ErrorAction SilentlyContinue).Count
         $totalSize = [math]::Round(
             (Get-ChildItem $wheelsDir -Recurse -File -ErrorAction SilentlyContinue |

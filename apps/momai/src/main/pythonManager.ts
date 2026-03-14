@@ -14,6 +14,7 @@ import {
   unlinkSync,
   rmSync
 } from 'fs'
+import { cp } from 'fs/promises'
 import {
   state,
   setPythonProcess,
@@ -292,10 +293,14 @@ function isRunningFromSnap(): boolean {
   return !!process.env.SNAP_NAME
 }
 
-function getWritableCorePath(originalCorePath: string): string {
-  const isWritable = checkWritePermission(originalCorePath)
+async function getWritableCorePath(originalCorePath: string): Promise<string> {
+  // MSIX: the main process can write via VFS virtualization, but spawned
+  // subprocesses (uv, setuptools) do NOT inherit the MSIX package identity
+  // and will get PermissionError when accessing WindowsApps paths.
+  const isMsixPath =
+    process.platform === 'win32' && /WindowsApps/i.test(originalCorePath)
 
-  if (isWritable) {
+  if (!isMsixPath && checkWritePermission(originalCorePath)) {
     return originalCorePath
   }
 
@@ -309,8 +314,20 @@ function getWritableCorePath(originalCorePath: string): string {
     }
 
     sendInitProgress('Preparando arquivos do sistema...', 7)
-    if (process.platform === 'win32') {
-      execSync(`xcopy "${originalCorePath}" "${tempDir}\\" /E /I /Y`, { stdio: 'ignore' })
+    if (isMsixPath) {
+      // MSIX VFS: subprocesses can't access WindowsApps paths.
+      // Use Node.js async cp() which runs in-process with MSIX package identity
+      // and doesn't block the main thread (allows window to render).
+      await cp(originalCorePath, tempDir, { recursive: true })
+    } else if (process.platform === 'win32') {
+      const result = spawnSync(
+        'robocopy',
+        [originalCorePath, tempDir, '/E', '/NP', '/NFL', '/NDL', '/NJH', '/NJS'],
+        { stdio: 'pipe', timeout: 60000, encoding: 'utf8', windowsVerbatimArguments: true }
+      )
+      if ((result.status ?? 16) >= 8) {
+        throw new Error(`robocopy failed with exit code ${result.status}: ${result.stderr || ''}`)
+      }
     } else {
       execSync(`cp -r "${originalCorePath}" "${tempDir}"`, { stdio: 'ignore' })
     }
@@ -713,7 +730,7 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
   }
 
   // PARALLEL: Create venv AND prepare sync in parallel
-  const writableCorePath = getWritableCorePath(corePath)
+  const writableCorePath = await getWritableCorePath(corePath)
   let isHealthy = await checkVenvHealth(pythonExe)
   const needsVenv = !existsSync(pythonExe) || !isHealthy
 
@@ -775,27 +792,64 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
         const writablePythonDir = join(UV_PYTHON_INSTALL_PATH, 'bundled-python')
         const pythonBin = process.platform === 'win32' ? 'python.exe' : 'python3'
 
-        if (!existsSync(join(writablePythonDir, pythonBin))) {
+        const isCopyComplete = (dir: string): boolean => {
+          // Verify python.exe AND critical stdlib modules exist
+          const checks = [
+            join(dir, pythonBin),
+            join(dir, 'Lib', 'urllib'),
+            join(dir, 'Lib', 'importlib'),
+            join(dir, 'Lib', 'pathlib.py')
+          ]
+          return checks.every((p) => existsSync(p))
+        }
+
+        const needsCopy =
+          !existsSync(join(writablePythonDir, pythonBin)) || !isCopyComplete(writablePythonDir)
+
+        if (needsCopy) {
+          if (
+            existsSync(join(writablePythonDir, pythonBin)) &&
+            !isCopyComplete(writablePythonDir)
+          ) {
+            logger.warn(
+              '[Bootstrap] MSIX: Existing Python copy is incomplete (missing stdlib). Re-copying...'
+            )
+          }
           logger.info(`[Bootstrap] MSIX: Copying bundled Python to writable location...`)
           sendInitProgress('Copiando interpretador Python...', 12)
+          let copySuccess = false
           try {
             if (existsSync(writablePythonDir)) {
               rmSync(writablePythonDir, { recursive: true, force: true })
             }
             mkdirSync(writablePythonDir, { recursive: true })
-            execSync(`xcopy "${bundledPythonDir}" "${writablePythonDir}\\" /E /I /Y /Q`, {
-              stdio: 'ignore',
-              timeout: 30000
-            })
+
+            // MSIX VFS: subprocesses can't access WindowsApps paths.
+            // Use Node.js async cp() which runs in-process with MSIX package identity.
+            await cp(bundledPythonDir, writablePythonDir, { recursive: true })
             logger.info(`[Bootstrap] MSIX: Bundled Python copied to ${writablePythonDir}`)
+            copySuccess = true
           } catch (e) {
             logger.error('[Bootstrap] MSIX: Failed to copy bundled Python:', e)
+          }
+
+          if (!copySuccess || !isCopyComplete(writablePythonDir)) {
+            logger.error(
+              '[Bootstrap] MSIX: Python copy is incomplete or failed. Cleaning up partial copy...'
+            )
+            try {
+              if (existsSync(writablePythonDir)) {
+                rmSync(writablePythonDir, { recursive: true, force: true })
+              }
+            } catch {
+              // best-effort cleanup
+            }
           }
         } else {
           logger.info(`[Bootstrap] MSIX: Writable Python already exists at ${writablePythonDir}`)
         }
 
-        if (existsSync(join(writablePythonDir, pythonBin))) {
+        if (isCopyComplete(writablePythonDir)) {
           removePthFiles(writablePythonDir)
           resolvedPythonDir = writablePythonDir
         } else {
@@ -1013,9 +1067,22 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
       const installArgs = ['pip', 'install', '--no-progress', '--cache-dir', UV_CACHE_PATH]
       if (hasLocalWheels) {
         installArgs.push('--find-links', wheelsDir)
+        if (!isDev) {
+          const files = readdirSync(wheelsDir)
+          const hasBuildDeps =
+            files.some((f) => f.startsWith('setuptools-')) &&
+            files.some((f) => f.startsWith('wheel-'))
+          if (hasBuildDeps) {
+            installArgs.push('--no-index')
+          }
+        }
       }
       if (isDev) {
         installArgs.push('-e', writableCorePath)
+        const fortscriptPath = join(app.getAppPath(), '..', 'fortscript')
+        if (existsSync(fortscriptPath)) {
+          installArgs.push(fortscriptPath)
+        }
       } else {
         installArgs.push(writableCorePath)
       }

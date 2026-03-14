@@ -316,11 +316,13 @@ async def start_core_services(settings):
         await app_state.send_init_event(
             "brain", "Synchronizing local intelligence...", None
         )
+        from ai.model_prefetch import _downloaded as model_prefetched
+        llm_timeout = 30.0 if model_prefetched else 120.0
         llm_ready = await asyncio.to_thread(
-            app_state.orchestrator.llm_ready_event.wait, timeout=30.0
+            app_state.orchestrator.llm_ready_event.wait, timeout=llm_timeout
         )
         if not llm_ready:
-            logger.warning("[Startup] LLM ready timeout after 30s, continuing anyway")
+            logger.warning("[Startup] LLM ready timeout after %.0fs, continuing anyway", llm_timeout)
 
         if settings.tts_enabled and settings.ai_tier != "lite" and app_state.tts:
             try:

@@ -85,9 +85,26 @@ else
         --implementation cp \
         --quiet
 
+    # Also download build-system dependencies for fully offline builds
+    echo "[MomAI] Downloading build-system wheels..."
+    "$PYTHON_EXE" -m pip download \
+        -d "$WHEELS_DIR" \
+        "setuptools>=69" "wheel" \
+        --only-binary :all: \
+        --python-version 3.12 \
+        --quiet
+
     if [ $? -ne 0 ]; then
         echo "[MomAI] WARNING: Some wheels failed to download. Runtime will fallback to internet."
     else
+        # Build FortScript wheel from monorepo and add to wheels cache
+        FORTSCRIPT_DIR="$SCRIPTPATH/../../fortscript"
+        if [ -d "$FORTSCRIPT_DIR" ]; then
+            echo "[MomAI] Building FortScript wheel..."
+            "$PYTHON_EXE" -m pip wheel --no-deps --wheel-dir "$WHEELS_DIR" "$FORTSCRIPT_DIR" || \
+                echo "[MomAI] WARNING: Failed to build FortScript wheel."
+        fi
+
         WHEEL_COUNT=$(find "$WHEELS_DIR" -name "*.whl" | wc -l)
         TOTAL_SIZE=$(du -sh "$WHEELS_DIR" | cut -f1)
         echo "[MomAI] Downloaded $WHEEL_COUNT wheels ($TOTAL_SIZE)"

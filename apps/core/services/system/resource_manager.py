@@ -5,24 +5,12 @@ import logging
 import atexit
 import time
 import gc
-from pathlib import Path
-from typing import List
-
-# Add FortScript to sys.path to ensure we can import it
-# Structure: apps/core/services/system/resource_manager.py -> apps/fortscript/src
-FORT_PATH = Path(__file__).parent.parent.parent.parent / "fortscript" / "src"
-if FORT_PATH.exists() and str(FORT_PATH) not in sys.path:
-    sys.path.append(str(FORT_PATH))
 
 try:
-    from fortscript.main import FortScript, Callbacks
+    from fortscript import FortScript, Callbacks
 except ImportError:
-    # Fallback case not in expected path (ex: installed via pip)
-    try:
-        from fortscript import FortScript, Callbacks
-    except ImportError:
-        FortScript = None
-        Callbacks = None
+    FortScript = None
+    Callbacks = None
 
 # Delayed imports
 # from database.models import SessionLocal, GamingApp, Settings

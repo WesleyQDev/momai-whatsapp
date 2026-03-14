@@ -23,7 +23,7 @@ export default function LoadingAnimation({
       setVisualProgress((prev) => {
         // Stay slow and steady until backend confirms completion.
         if (progress < 100) {
-          const slowStep = 0.1
+          const slowStep = 0.05
           return Math.min(99, prev + slowStep)
         }
 
