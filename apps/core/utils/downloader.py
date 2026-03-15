@@ -20,7 +20,7 @@ def _get_base_dir():
 
 
 # Settings
-LLAMA_VERSION = "b8138"  # Manual override (momentarily disabled updates)
+LLAMA_VERSION = "b8354"  # Manual override (momentarily disabled updates)
 BASE_URL_TEMPLATE = "https://github.com/ggerganov/llama.cpp/releases/download/{version}"
 BASE_DIR = _get_base_dir()
 BIN_PATH = BASE_DIR / "bin"

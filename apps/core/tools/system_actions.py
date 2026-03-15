@@ -1,8 +1,6 @@
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 import webbrowser
-from langchain_community.tools import DuckDuckGoSearchRun, DuckDuckGoSearchResults
-from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 from typing import List, Literal, Dict, Any, Optional
 import os
 import re
@@ -12,20 +10,6 @@ import asyncio
 import app_state
 from ai import utils
 
-# Search instances
-# Web search with structured results (list format, pt-br region)
-search_api = DuckDuckGoSearchAPIWrapper(
-    region="pt-br", safesearch="moderate", max_results=5
-)
-search = DuckDuckGoSearchResults(api_wrapper=search_api, output_format="list")
-
-# News search for current events
-news_api = DuckDuckGoSearchAPIWrapper(
-    region="pt-br", safesearch="moderate", max_results=5
-)
-search_news = DuckDuckGoSearchResults(
-    api_wrapper=news_api, backend="news", output_format="list"
-)
 
 # Global state
 current_mode = "local"
@@ -775,12 +759,6 @@ def get_capabilities():
 
 
 # Core Tools
-search.name = "duckduckgo_search"
-search.description = "Search the internet for real-time information. IMPORTANT: If the user asks about multiple different topics or locations, make SEPARATE calls for EACH one. For example, if they ask about weather in São Paulo AND Rio de Janeiro, call this tool twice - once for each location. Never combine multiple queries in a single call."
-
-# News search tool
-search_news.name = "duckduckgo_news"
-search_news.description = "Search for recent news and current events. Use this when the user asks about 'what happened', 'news', 'latest', 'recent events', or wants to know about current affairs. Returns news articles with titles, sources, and dates."
 
 TOOLS = [
     show_interface,
