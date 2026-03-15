@@ -9,6 +9,7 @@ MomAIOS is the monorepo for MomAI, a local-first, privacy-focused virtual assist
 ### Apps Structure
 
 - `apps/momai/` - Electron + React + TypeScript (GUI)
+- `apps/momai-saude/` - React Native + Expo (Mobile App)
 - `apps/core/` - Python/FastAPI (backend AI engine)
 - `apps/internal-docs/` - Docusaurus documentation site
 
@@ -21,6 +22,7 @@ MomAIOS is the monorepo for MomAI, a local-first, privacy-focused virtual assist
 ```bash
 pnpm dev              # Start desktop app in dev mode
 pnpm dev:core         # Start Python backend only
+pnpm dev:saude        # Start Mobile app (Expo)
 pnpm dev:all          # Run both core and desktop concurrently
 pnpm build            # Build all apps via Turbo
 pnpm lint             # Lint all apps via Turbo
@@ -48,6 +50,20 @@ pnpm typecheck        # Full TypeScript check (node + web)
 pnpm typecheck:node   # Typecheck Node/preload only
 pnpm typecheck:web    # Typecheck React/web only
 pnpm format           # Prettier write
+
+### Mobile App (apps/momai-saude/)
+
+```bash
+cd apps/momai-saude
+
+# Development
+pnpm start            # Start Expo dev server
+pnpm android          # Run on Android emulator
+pnpm ios              # Run on iOS simulator
+
+# Linting & Typecheck
+pnpm typecheck        # Run TypeScript check
+```
 ```
 
 ---

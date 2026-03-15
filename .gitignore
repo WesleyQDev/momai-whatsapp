@@ -153,3 +153,17 @@ p.txt
 nul
 
 .dev-data/
+
+# ====================
+# React Native / Expo (Saude)
+# ====================
+.expo/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+apps/momai-saude/ios/
+apps/momai-saude/android/
+*.jks
+*.p8
+*.p12
+*.mobileprovision
