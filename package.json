@@ -9,8 +9,6 @@
     "dev:desktop": "pnpm run dev:momai",
     "dev:core": "cd apps/core && uvicorn main:app --reload --host 127.0.0.1 --port 8000",
     "dev:all": "concurrently \"pnpm dev:core\" \"pnpm --filter momai dev\"",
-    "dev:saude": "pnpm --filter momai-saude start",
-    "dev:mobile": "pnpm run dev:saude",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
