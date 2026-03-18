@@ -169,7 +169,7 @@ def stop_server():
         server_process = None
 
 
-def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: int = None, on_progress=None, temperature: float = 0.1, top_p: float = 0.8, top_k: int = 20) -> ChatOpenAI | None:
+def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: int = None, on_progress=None, temperature: float = 0.1, top_p: float = 0.8, top_k: int = 20, presence_penalty: float = 0.0, repetition_penalty: float = 1.1) -> ChatOpenAI | None:
     """
     Downloads and starts the llama-server with the specified model.
 
@@ -197,7 +197,7 @@ def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: in
     stop_server()
 
     try:
-        result = _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperature, top_p, top_k)
+        result = _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperature, top_p, top_k, presence_penalty, repetition_penalty)
         if result is not None:
             return result
 
@@ -205,7 +205,7 @@ def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: in
         paths = get_paths()
         if paths["backend"] != "cpu":
             report(f"Backend {paths['backend']} failed. Falling back to CPU...")
-            result = _try_start_server(repo_id, filename, ctx_size, 0, report, temperature, top_p, top_k, forced_backend="cpu")
+            result = _try_start_server(repo_id, filename, ctx_size, 0, report, temperature, top_p, top_k, presence_penalty, repetition_penalty, forced_backend="cpu")
             if result is not None:
                 return result
 
@@ -217,7 +217,7 @@ def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: in
         return None
 
 
-def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperature, top_p, top_k, forced_backend=None) -> ChatOpenAI | None:
+def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperature, top_p, top_k, presence_penalty, repetition_penalty, forced_backend=None) -> ChatOpenAI | None:
     global server_process
 
     stop_server()
@@ -303,6 +303,9 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
             except OSError:
                 pass
 
+        # Parallel slots for concurrent requests (title generation, chat, summary, etc)
+        PARALLEL_SLOTS = 4
+
         cmd = [
             abs_exe_path,
             "-m",
@@ -310,13 +313,13 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
             "--port",
             "8080",
             "-c",
-            str(ctx_size or CTX_SIZE),
+            str((ctx_size or CTX_SIZE) * PARALLEL_SLOTS),
             "-t",
             str(physical_cores),
             "-ngl",
             str(gpu_layers if gpu_layers is not None else 99),
             "--parallel",
-            "1",
+            str(PARALLEL_SLOTS),
             "--flash-attn",
             "auto",
             "--cache-prompt",
@@ -332,7 +335,9 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
             "--top-k",
             str(top_k),
             "--presence-penalty",
-            "0.0",
+            str(presence_penalty),
+            "--repeat-penalty",
+            str(repetition_penalty),
         ]
 
         report("Starting local LLM process...")

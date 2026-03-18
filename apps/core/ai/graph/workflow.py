@@ -336,13 +336,19 @@ def create_momai_graph(
                 else prompt | llm
             )
             budget = _compute_history_budget(system_prompt, state.get("summary"))
-            result = await chain.ainvoke(
+            full_msg = None
+            async for chunk in chain.astream(
                 {
                     "messages": get_valid_history(
                         state["messages"], MAX_HISTORY_MESSAGES, budget
                     )
                 }
-            )
+            ):
+                if full_msg is None:
+                    full_msg = chunk
+                else:
+                    full_msg += chunk
+            result = full_msg
             return {"messages": [result]}
         except Exception as e:
             logger.error(f"Error in manager_node: {str(e)}")
@@ -456,7 +462,13 @@ def create_momai_graph(
             else:
                 user_input = task
 
-            worker_res = await chain.ainvoke({"task": user_input})
+            full_worker_msg = None
+            async for chunk in chain.astream({"task": user_input}):
+                if full_worker_msg is None:
+                    full_worker_msg = chunk
+                else:
+                    full_worker_msg += chunk
+            worker_res = full_worker_msg
 
             # If tool calls, return them for graph to execute
             if hasattr(worker_res, "tool_calls") and worker_res.tool_calls:

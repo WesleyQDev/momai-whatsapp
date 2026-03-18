@@ -198,21 +198,27 @@ def load_tier_config():
             "file": "LFM2.5-VL-1.6B-Q4_K_M.gguf",
             "temperature": 0.1,
             "top_p": 0.8,
-            "top_k": 20
+            "top_k": 20,
+            "presence_penalty": 0.0,
+            "repetition_penalty": 1.1
         },
         "pro": {
             "repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF",
             "file": "LFM2.5-1.2B-Instruct-Q4_K_M.gguf",
             "temperature": 0.1,
             "top_p": 0.8,
-            "top_k": 20
+            "top_k": 20,
+            "presence_penalty": 0.0,
+            "repetition_penalty": 1.1
         },
         "ultra": {
             "repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
             "file": "Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf",
             "temperature": 0.1,
             "top_p": 0.8,
-            "top_k": 20
+            "top_k": 20,
+            "presence_penalty": 0.0,
+            "repetition_penalty": 1.1
         }
     }
     
@@ -306,6 +312,8 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
             temperature=config.get("temperature", 0.1),
             top_p=config.get("top_p", 0.8),
             top_k=config.get("top_k", 20),
+            presence_penalty=config.get("presence_penalty", 0.0),
+            repetition_penalty=config.get("repetition_penalty", 1.1),
         )
 
         if new_llm:

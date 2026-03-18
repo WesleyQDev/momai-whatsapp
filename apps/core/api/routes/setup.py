@@ -118,9 +118,9 @@ import json as _json
 def _load_tier_config():
     config_path = os.path.join(os.path.dirname(__file__), "..", "..", "ai_tiers.json")
     defaults = {
-        "lite": {"repo": "unsloth/LFM2.5-VL-1.6B-GGUF", "file": "LFM2.5-VL-1.6B-Q4_K_M.gguf", "temperature": 0.1, "top_p": 0.8, "top_k": 20},
-        "pro": {"repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF", "file": "LFM2.5-1.2B-Instruct-Q4_K_M.gguf", "temperature": 0.1, "top_p": 0.8, "top_k": 20},
-        "ultra": {"repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF", "file": "Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf", "temperature": 0.1, "top_p": 0.8, "top_k": 20},
+        "lite": {"repo": "unsloth/LFM2.5-VL-1.6B-GGUF", "file": "LFM2.5-VL-1.6B-Q4_K_M.gguf", "temperature": 0.1, "top_p": 0.8, "top_k": 20, "presence_penalty": 0.0, "repetition_penalty": 1.1},
+        "pro": {"repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF", "file": "LFM2.5-1.2B-Instruct-Q4_K_M.gguf", "temperature": 0.1, "top_p": 0.8, "top_k": 20, "presence_penalty": 0.0, "repetition_penalty": 1.1},
+        "ultra": {"repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF", "file": "Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf", "temperature": 0.1, "top_p": 0.8, "top_k": 20, "presence_penalty": 0.0, "repetition_penalty": 1.1},
     }
     if not os.path.exists(config_path):
         return defaults
