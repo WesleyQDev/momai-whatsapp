@@ -626,6 +626,37 @@ nav {
   color: var(--accent);
 }
 
+.nav-pill {
+  padding: 0.4rem 0.8rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: 100px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.nav-pill img {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+
+[data-theme="light"] .nav-pill {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.nav-pill:hover {
+  opacity: 0.8;
+}
+
 .nav-version {
   font-size: 0.7rem;
   color: var(--text-tertiary);
