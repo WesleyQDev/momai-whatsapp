@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MomAI Saúde — Sua Assistente de Saúde Inteligente</title>
+    <meta name="description" content="MomAI Saúde é sua assistente pessoal de saúde que ajuda a monitorar calorias, passos e hidratação com privacidade absoluta no seu celular.">
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,slnt,wdth,wght,ROND@8..144,-10..0,25..150,400..500,0..100&family=Google+Sans+Text:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-KFD10X8EW7"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-KFD10X8EW7');
+</script>
+<body> 
+
+    <!-- Background Effects -->
+    <div class="bg-effects">
+        <div class="bg-stars" id="bgStars"></div>
+        <div class="bg-glow bg-glow-1"></div>
+        <div class="bg-glow bg-glow-2"></div>
+        <div class="bg-glow bg-glow-3"></div>
+    </div>
+
+    <script>
+        // Generate stars like Sailor Moon
+        const bgStars = document.getElementById('bgStars');
+        const starCount = 80;
+        
+        for (let i = 0; i < starCount; i++) {
+            const star = document.createElement('div');
+            const is4Point = Math.random() > 0.85;
+            const size = Math.random() * 3 + 1;
+            const x = Math.random() * 100;
+            const y = Math.random() * 100;
+            const delay = Math.random() * 5;
+            const duration = Math.random() * 3 + 2;
+            
+            star.className = is4Point ? 'star star-4pt' : 'star';
+            if (!is4Point) {
+                const colors = ['star-gold', 'star-pink', 'star-blue'];
+                star.classList.add(colors[Math.floor(Math.random() * colors.length)]);
+            }
+            
+            star.style.cssText = `
+                left: ${x}%;
+                top: ${y}%;
+                width: ${size}px;
+                height: ${size}px;
+                animation-delay: ${delay}s;
+                animation-duration: ${duration}s;
+            `;
+            
+            bgStars.appendChild(star);
+        }
+    </script>
+
+    <!-- Navbar -->
+    <div class="update-banner" id="updateBannerBtn" style="cursor: default;">
+        ✨ Acompanhe sua saúde em tempo real com MomAI Saúde
+    </div>
+    <nav>
+        <div class="nav-left">
+            <a href="index.html" class="logo">
+                <img src="icon.png" alt="MomAI Saúde">
+                MomAI Saúde
+            </a>
+            <ul class="nav-links">
+                <li><a href="como-usar.html">Como usar</a></li>
+                <li><a href="contato.html">Contato</a></li>
+                <li><a href="form.html">Reportar Erro</a></li>
+                <li><a href="doar.html" class="donate-link">Doar</a></li>
+            </ul>
+        </div>
+        <div class="nav-right">
+            <button class="theme-toggle" id="themeToggle" aria-label="Alternar tema">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+            </button>
+            <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" class="btn-primary btn-download" style="padding: 0.45rem 0.9rem; font-size: 0.8rem; background: rgba(255,255,255,0.1); color: var(--text);">
+                <img src="assets/android.png" alt="Android" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px;">
+                <span>Baixar aplicativo</span>
+            </a>
+            <button class="menu-toggle" aria-label="Menu" id="menuToggle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <script>
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+        
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        html.setAttribute('data-theme', savedTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        });
+
+        const menuToggle = document.getElementById('menuToggle');
+        const navLinks = document.querySelector('.nav-links');
+
+        menuToggle.addEventListener('click', () => {
+            navLinks.classList.toggle('active');
+            const icon = menuToggle.querySelector('svg');
+            if (navLinks.classList.contains('active')) {
+                icon.innerHTML = '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>';
+            } else {
+                icon.innerHTML = '<line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line>';
+            }
+        });
+
+        navLinks.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                navLinks.classList.remove('active');
+                menuToggle.querySelector('svg').innerHTML = '<line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line>';
+            });
+        });
+
+        // --- OS Detection ---
+        function detectPlatform() {
+            const ua = navigator.userAgent.toLowerCase();
+            const platform = (navigator.platform || '').toLowerCase();
+            if (platform.includes('linux') || ua.includes('linux')) return 'linux';
+            if (platform.includes('mac') || ua.includes('mac')) return 'mac';
+            return 'win';
+        }
+
+        async function updateDownloadLinks() {
+            const repo = "WesleyQDev/MomAI-App";
+            const os = detectPlatform();
+            const storageKeyExe = "momai_latest_exe_v3";
+            const storageKeyLinux = "momai_latest_linux_v3";
+            const versionKey = "momai_latest_version_v3";
+ 
+            const cachedExe = sessionStorage.getItem(storageKeyExe);
+            const cachedLinux = sessionStorage.getItem(storageKeyLinux);
+            const cachedVersion = sessionStorage.getItem(versionKey);
+            
+            if (cachedVersion && (os === 'linux' ? cachedLinux : cachedExe)) {
+                applyDownloadUrls(
+                    cachedExe || 'https://github.com/WesleyQDev/MomAI-App/releases/latest',
+                    cachedLinux || 'https://github.com/WesleyQDev/MomAI-App/releases/latest',
+                    os, cachedVersion
+                );
+                return;
+            }
+
+            try {
+                let res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`);
+                let data;
+
+                if (res.ok) {
+                    data = await res.json();
+                } else if (res.status === 404) {
+                    const resList = await fetch(`https://api.github.com/repos/${repo}/releases`);
+                    if (resList.ok) {
+                        const list = await resList.json();
+                        if (list && list.length > 0) data = list[0];
+                    }
+                }
+
+                if (data && data.assets) {
+                    const winAsset = data.assets.find(a => a.name.endsWith('.exe'));
+                    const linuxAsset = data.assets.find(a => a.name.endsWith('.AppImage'))
+                                   || data.assets.find(a => a.name.endsWith('.deb'));
+                    const version = data.tag_name || data.name || '';
+                    const winExeUrl = winAsset?.browser_download_url || "https://github.com/WesleyQDev/MomAI-App/releases/latest";
+                    const linuxUrl = linuxAsset?.browser_download_url || `https://github.com/${repo}/releases/latest`;
+
+                    if (winExeUrl) sessionStorage.setItem(storageKeyExe, winExeUrl);
+                    if (linuxUrl) sessionStorage.setItem(storageKeyLinux, linuxUrl);
+                    if (version) sessionStorage.setItem(versionKey, version);
+
+                    applyDownloadUrls(winExeUrl, linuxUrl, os, version);
+                }
+            } catch (err) {
+                console.error("Erro ao buscar release do GitHub:", err);
+            }
+        }
+
+
+        function applyDownloadUrls(winExeUrl, linuxUrl, os, version) {
+            const cleanVersion = version.replace(/^v/, '');
+
+            const winUrlStore = "https://github.com/WesleyQDev/MomAI-App/releases/latest";
+            const isLinux = os === 'linux';
+            
+            const winIcon = `<img src="assets/android.png" alt="Android" style="width: 28px; height: 28px; vertical-align: middle; transition: transform 0.3s ease;">`;
+            const linuxIcon = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.001 0c-2.311 0-4.184 1.769-4.184 3.951 0 .61.144 1.185.401 1.693C5.556 6.845 3.82 9.079 3.82 11.405c0 1.259.511 2.457 1.439 3.324l.011.01.011-.004c.15.244.316.481.503.708l.006.008.006-.007a8.536 8.536 0 0 0 2.503 6.6l.004.004h1.002a2.41 2.41 0 0 1 1.458-.888l1.238-.284 1.238.284a2.41 2.41 0 0 1 1.458.888h1.002l.004-.004a8.536 8.536 0 0 0 2.503-6.6l.006.007.006-.008c.187-.227.353-.464.503-.708l.011.004.011-.01c.928-.867 1.439-2.065 1.439-3.324 0-2.326-1.736-4.56-4.397-5.761.257-.508.401-1.083.401-1.693C16.185 1.769 14.311 0 12.001 0zm0 1.2c1.648 0 2.984 1.232 2.984 2.751 0 .626-.226 1.21-.611 1.68l.004.004c-1.423-.451-2.924-.451-4.347 0l.004-.004a2.657 2.657 0 0 1-.611-1.68C9.417 2.432 10.753 1.2 12.001 1.2z"/></svg>`;
+
+            const heroBtn = document.getElementById('heroDownloadBtn');
+            if (heroBtn) {
+                // Hero button goes to Linux or MS Store (with according logos)
+                heroBtn.href = isLinux ? linuxUrl : winUrlStore;
+                const existingIcon = heroBtn.querySelector('svg, img');
+                if (existingIcon) existingIcon.outerHTML = isLinux ? linuxIcon : winIcon;
+                
+                const span = heroBtn.querySelector('span:not(.hero-version)');
+                if (span) {
+                    span.textContent = isLinux ? 'Download para Linux' : 'Baixar aplicativo';
+                }
+                
+                const versionSpan = heroBtn.querySelector('.hero-version');
+                if (versionSpan) {
+                    versionSpan.textContent = isLinux ? `v${cleanVersion}` : '';
+                }
+            }
+
+            const winBtn = document.getElementById('winDownloadBtn');
+            if (winBtn) {
+                // EXE platform button STRICTLY GitHub
+                winBtn.href = winExeUrl;
+                const status = winBtn.querySelector('.platform-status');
+                if (status) status.textContent = `Instalar (v${cleanVersion})`;
+            }
+
+            const msStoreBtn = document.getElementById('msStoreBtn');
+            if (msStoreBtn) {
+                msStoreBtn.href = winUrlStore;
+            }
+
+            const linuxBtn = document.getElementById('linuxDownloadBtn');
+            if (linuxBtn) {
+                linuxBtn.href = linuxUrl;
+                const status = linuxBtn.querySelector('.platform-status');
+                if (status) status.textContent = `AppImage (v${cleanVersion})`;
+            }
+
+            // Navbar download buttons: Linux or MS Store (with according logo)
+            document.querySelectorAll('nav .btn-download').forEach(el => {
+                el.href = isLinux ? linuxUrl : winUrlStore;
+                const span = el.querySelector('span');
+                if (!isLinux) {
+                    if (span) span.textContent = 'Baixar aplicativo';
+                    if (!el.querySelector('img')) {
+                        span.insertAdjacentHTML('beforebegin', winIcon.replace('width: 28px; height: 28px;', 'width: 18px; height: 18px; margin-right: 6px;'));
+                    }
+                } else {
+                    if (span) span.textContent = 'Download';
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDownloadLinks();
+
+            // Rastreamento de Cliques de Download
+
+            // Rastreamento de Cliques de Download
+            document.querySelectorAll('.btn-download, .btn-alt-download').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const os = detectPlatform();
+                    gtag('event', 'file_download', {
+                        'file_extension': btn.href.split('.').pop(),
+                        'file_name': btn.href.split('/').pop(),
+                        'link_text': btn.innerText.trim(),
+                        'platform': os
+                    });
+                });
+            });
+        });
+
+        // Scroll animations
+        const fadeElements = document.querySelectorAll('.feature, .step');
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        fadeElements.forEach(el => {
+            el.classList.add('fade-in');
+            observer.observe(el);
+        });
+    </script>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-logo">
+            <div class="hero-logo-ring"></div>
+            <div class="hero-logo-shine"></div>
+            <img src="icon.gif" alt="MomAI Saúde" class="hero-logo-img">
+        </div>
+        <div class="badge">Sua Assistente de Saúde</div>
+        <h1>Vida saudável,<br>na palma da sua mão.</h1>
+        <p class="subtitle">A MomAI Saúde é uma assistente inteligente que ajuda você a monitorar calorias, passos e hidratação. Tudo 100% privado, no seu dispositivo.</p>
+        
+        <div class="btn-group">
+            <div class="cta-wrapper">
+                <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" class="btn-primary btn-download" id="heroDownloadBtn">
+                    <img src="assets/android.png" alt="Android" style="width: 28px; height: 28px; vertical-align: middle; margin-right: 8px;">
+                    <span>Baixar aplicativo</span>
+                </a>
+                <a href="#download" class="other-platforms-link" style="margin-top: 1rem; display: block; color: var(--text-secondary); font-size: 0.9rem; text-decoration: none;">Ver outras plataformas</a>
+            </div>
+            <a href="#features" class="btn-secondary">Conhecer Recursos</a>
+        </div>
+    </section>
+
+    <!-- Video Demo -->
+    <section class="video-section">
+        <div class="video-container">
+            <div class="video-wrapper">
+                <iframe 
+                    src="https://www.youtube.com/embed/fzyV0VCn_ZM" 
+                    title="MomAI Saúde - Demo"
+                    frameborder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                    allowfullscreen>
+                </iframe>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features-section" id="features">
+        <div class="section-title">
+            <h2>Por que escolher a MomAI Saúde?</h2>
+            <p>Uma assistente projetada para quem valoriza privacidade, controle e simplicidade.</p>
+        </div>
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+                </div>
+                <h3>Contagem de Calorias</h3>
+                <p>Monitore sua alimentação de forma simples. A MomAI Saúde ajuda você a manter o equilíbrio nutricional diário.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16c.5 1 1.5 2 3 2s2.5-1 3-2 1.5-2 3-2 2.5 1 3 2 1.5 2 3 2 2.5-1 3-2"/></svg>
+                </div>
+                <h3>Passos e Atividade</h3>
+                <p>Acompanhe seu progresso diário automaticamente. Visualize seus passos, distância e metas batidas.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                </div>
+                <h3>Desafio da Água</h3>
+                <p>Mantenha-se hidratado com lembretes inteligentes. Registre seu consumo e complete seu desafio diário.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                </div>
+                <h3>Privacidade Total</h3>
+                <p>Seus dados de saúde nunca saem do dispositivo. Sem nuvem, sem rastreamento, apenas você e seu progresso.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                </div>
+                <h3>Lembretes Inteligentes</h3>
+                <p>Agende horários para água, remédios ou treinos. A MomAI Saúde mantém você no ritmo certo o dia todo.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"/></svg>
+                </div>
+                <h3>Insights de Saúde</h3>
+                <p>Receba dicas personalizadas baseadas no seu perfil, rodando IA de forma 100% local e segura.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="how-section" id="how">
+        <div class="section-title">
+            <h2>Como funciona</h2>
+            <p>Em três passos simples, sua jornada de bem-estar começa.</p>
+        </div>
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <h3>Instale o App</h3>
+                <p>Baixe o aplicativo. Instalação rápida e interface intuitiva desde o primeiro toque.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <h3>Defina suas Metas</h3>
+                <p>Configure seus objetivos de peso, passos e hidratação. A MomAI Saúde se adapta ao seu estilo de vida.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <h3>Acompanhe e Evolua</h3>
+                <p>Registre seu dia e receba insights inteligentes para manter sua saúde sempre em dia.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="download-section" id="download">
+        <div class="download-container">
+            <div class="section-title">
+                <h2>Baixe a MomAI Saúde</h2>
+                <p>Sua jornada para um estilo de vida mais saudável começa aqui.</p>
+            </div>
+
+            <div class="mega-card">
+                <!-- Coluna de Downloads -->
+                <div class="mega-card-downloads">
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Plataformas
+                    </h3>
+                    
+                    <div class="platform-list">
+                        <!-- Android -->
+                        <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" class="platform-btn">
+                            <div class="platform-info">
+                                <svg viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px;"><path d="M17.525 10.42a1.366 1.366 0 0 0-1.364 1.365 1.366 1.366 0 0 0 1.364 1.365 1.365 1.365 0 0 0 1.365-1.365 1.365 1.365 0 0 0-1.365-1.365zm-11.05 0a1.366 1.366 0 0 0-1.365 1.365 1.366 1.366 0 0 0 1.365 1.365 1.365 1.365 0 0 0 1.365-1.365 1.365 1.365 0 0 0-1.365-1.365zm11.396-3.82l1.9-3.297a.417.417 0 0 0-.153-.574.422.422 0 0 0-.58.15L17.114 6.2a11.17 11.17 0 0 0-5.114-1.242 11.238 11.238 0 0 0-5.115 1.24l-1.92-3.32a.419.419 0 0 0-.575-.152.417.417 0 0 0-.154.57l1.9 3.29A11.348 11.348 0 0 0 1.838 14.544h20.324A11.332 11.332 0 0 0 17.87 6.6z"/></svg>
+                                <span class="platform-name">Google Play (Android)</span>
+                            </div>
+                            <span class="platform-status">Baixar</span>
+                        </a>
+
+                        <!-- iOS -->
+                        <div class="platform-btn disabled">
+                            <div class="platform-info">
+                                <svg viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px;"><path d="M16.591.954C17.72 2.308 18.428 4.148 18.232 5.922c-1.545.062-3.415-.898-4.577-2.3-1.026-1.229-1.83-3.08-1.583-4.82 1.706.126 3.4 1.054 4.519 2.152M22.036 17.513c-1.396 4.026-3.87 8.356-6.195 8.356s-2.071-.853-4.5-1.066c-2.43-.21-3.692 1.066-6.014 1.066-2.324 0-4.708-3.097-6.953-7.51-2.906-5.717-2.618-12.016 1.764-15.11 1.956-1.378 4.29-1.637 5.768-1.637s2.5.64 4.545.64c2.045 0 2.946-.64 5.215-.64s4.298.544 5.768 1.637c-.772.486-2.909 2.055-2.909 5.343 0 3.737 3.018 5.708 3.511 5.922z" /></svg>
+                                <span class="platform-name">App Store (iOS)</span>
+                            </div>
+                            <span class="platform-status">Em breve</span>
+                        </div>
+
+                        <!-- Windows (Desktop) -->
+                        <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" class="platform-btn" style="opacity: 0.6; font-size: 0.9em;">
+                            <div class="platform-info">
+                                <svg viewBox="0 0 24 24" fill="currentColor" style="width: 24px; height: 24px;"><path d="M0 3.449L9.75 2.1V11.724H0V3.449ZM0 12.333H9.75V21.9L0 20.55V12.333ZM10.709 1.956L24 0V11.724H10.709V1.956ZM10.709 12.333H24V24L10.709 22.044V12.333Z"/></svg>
+                                <span class="platform-name">Desktop (Windows)</span>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Coluna de Requisitos -->
+                <div class="mega-card-specs">
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12" y2="18"></line></svg>
+                        Compatibilidade
+                    </h3>
+ 
+                    <div class="spec-group">
+                        <h4>Mínimos (Android 10+)</h4>
+                        <div class="spec-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                            <strong>Armazenamento:</strong> <span>500MB</span>
+                        </div>
+                        <div class="spec-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 10h20M2 14h20M6 6v12M10 6v12M14 6v12M18 6v12"></path></svg>
+                            <strong>RAM:</strong> <span>4GB</span>
+                        </div>
+                    </div>
+ 
+                    <div class="spec-group">
+                        <h4>Sistemas Suportados</h4>
+                        <div class="spec-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                            <strong>Android:</strong> <span>v10.0 ou superior</span>
+                        </div>
+                        <div class="spec-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V6M5 13l7-7 7 7"/></svg>
+                            <strong>iOS:</strong> <span>Em breve (v15+)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+            <img src="icon.png" alt="MomAI Saúde" class="footer-logo">
+        <div class="footer-org">Wesley Developer Studios</div>
+        <div class="footer-links">
+            <span>© 2026 MomAI Saúde</span>
+            <a href="https://github.com/WesleyQDev" target="_blank">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+                GitHub
+            </a>
+            <a href="https://www.youtube.com/@WesleyDev" target="_blank">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                </svg>
+                YouTube
+            </a>
+            <a href="https://github.com/WesleyQDev/MomAI" target="_blank">Repositório</a>
+        </div>
+        <div class="footer-copyright">
+            Desenvolvido com foco em privacidade
+        </div>
+    </footer>
+
+    <!-- Update Modal -->
+    <!-- O modal de atualização foi removido conforme solicitação -->
+</body>
+</html>
