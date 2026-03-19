@@ -1,76 +1,61 @@
 import os
+import sys
+import logging
 from pathlib import Path
 from typing import List
-from langchain_community.agent_toolkits import FileManagementToolkit
-import logging
-import platform
-import subprocess
+
+# Ensure the extension directory is in sys.path for sibling imports
+_ext_dir = str(Path(__file__).parent.absolute())
+if _ext_dir not in sys.path:
+    sys.path.append(_ext_dir)
+
+from fs_database import FileIndexDB
+from fs_indexer import FolderIndexer
+from fs_tools import (
+    init_tools,
+    search_and_open_folder,
+    search_folder_index,
+    open_in_explorer,
+    list_directory_content,
+)
 
 logger = logging.getLogger("momai.skill.file_system")
+
 
 class FileSystemPlugin:
     def __init__(self, manifest):
         self.manifest = manifest
-        # Define um diretório raiz seguro para as operações de arquivo
-        # Usamos apps/core/data/storage como padrão
-        self.root_dir = Path("apps/core/data/storage").absolute()
-        
-        if not self.root_dir.exists():
-            self.root_dir.mkdir(parents=True, exist_ok=True)
-            
-        self.toolkit = FileManagementToolkit(
-            root_dir=str(self.root_dir),
-            selected_tools=["read_file", "write_file", "list_directory", "move_file", "copy_file", "file_delete", "file_search"]
-        )
+
+        # Resolve core root from extension path: .../apps/core/skills_extensions/file_system
+        extension_dir = Path(__file__).parent.absolute()
+        core_root = extension_dir.parent.parent
+        self.data_dir = core_root / "data" / "file_system"
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+
+        self.db = FileIndexDB(str(self.data_dir / "file_index.db"))
+        self.user_home = Path(os.path.expanduser("~")).absolute()
+        self.indexer = FolderIndexer(self.db, max_depth=6)
+
+        init_tools(self.db, self.user_home)
 
     def register_tools(self) -> List:
-        """
-        Registra as ferramentas do FileManagementToolkit e as customizadas.
-        """
-        from langchain_core.tools import StructuredTool
-
-        def open_in_explorer_func(folder_path: str = ".") -> str:
-            """
-            Opens a folder in the computer's file explorer.
-            The folder_path is relative to the internal storage root.
-            """
-            try:
-                full_path = (self.root_dir / folder_path).resolve()
-                
-                # Security check: ensures the path is inside the root_dir
-                if not str(full_path).startswith(str(self.root_dir)):
-                     return f"Erro: Caminho fora do diretório raiz permitido."
-
-                if not full_path.exists():
-                    return f"Erro: O diretório '{folder_path}' não existe."
-
-                # Platform-specific opening
-                if platform.system() == "Windows":
-                    os.startfile(str(full_path))
-                elif platform.system() == "Darwin":  # macOS
-                    subprocess.run(["open", str(full_path)], check=True)
-                else:  # Linux
-                    subprocess.run(["xdg-open", str(full_path)], check=True)
-
-                return f"Sucesso: Abrindo '{folder_path}' no explorador de arquivos."
-            except Exception as e:
-                logger.error(f"[File System] Erro ao abrir explorer: {e}")
-                return f"Erro ao abrir explorador: {str(e)}"
-
-        open_explorer_tool = StructuredTool.from_function(
-            func=open_in_explorer_func,
-            name="open_in_explorer",
-            description="Opens a folder in the computer's file explorer. Path is relative to root storage."
-        )
-
-        tools = self.toolkit.get_tools()
-        tools.append(open_explorer_tool)
-        return tools
+        return [
+            search_and_open_folder,
+            search_folder_index,
+            open_in_explorer,
+            list_directory_content,
+        ]
 
     def on_startup(self):
-        """Executado ao carregar a extensão no boot."""
-        logger.info(f"[File System] Inicializada! Root: {self.root_dir}")
+        logger.info(f"[File System] Starting – User home: {self.user_home}")
+        try:
+            self.indexer.scan()
+        except Exception as e:
+            logger.info(f"[File System] Scan check: {e}")
+
 
 def initialize(manifest):
-    """Ponto de entrada para inicializar a classe da extensão."""
-    return FileSystemPlugin(manifest)
+    plugin = FileSystemPlugin(manifest)
+    # Start background indexing immediately after init
+    plugin.on_startup()
+    return plugin

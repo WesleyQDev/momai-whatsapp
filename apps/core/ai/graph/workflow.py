@@ -474,13 +474,85 @@ def create_momai_graph(
                     "task": task,
                 }
 
-            # No more tool calls - return final answer
+            # Fallback: detect tool calls written as plain text by local LLMs
+            # e.g. 'search_and_open_folder("Trabalhos")' or 'search_folder_index("fotos")'
             final_content = (
                 worker_res.content
                 if hasattr(worker_res, "content")
                 else str(worker_res)
             )
 
+            if available_tools and final_content:
+                log_event("Specialist", f"No tool_calls in response. Raw LLM output: {final_content[:200]!r}")
+
+                parsed_tool_name = None
+                parsed_arg = None
+
+                tool_map = {t.name: t for t in available_tools}
+                # Also map names without underscores for fuzzy matching
+                fuzzy_map = {t.name.replace("_", ""): t.name for t in available_tools}
+
+                # Pattern 1: tool_name("arg") or tool_name('arg') with parentheses
+                for tname in tool_map:
+                    pat = re.escape(tname) + r'\s*\(\s*["\']?(.+?)["\']?\s*\)'
+                    m = re.search(pat, final_content)
+                    if m:
+                        parsed_tool_name = tname
+                        parsed_arg = m.group(1).strip().strip("\"'")
+                        break
+
+                # Pattern 2: fuzzy name without underscores, e.g. "searchfolderindex"
+                if not parsed_tool_name:
+                    content_lower = final_content.lower().replace("_", "")
+                    for fuzzy_name, real_name in fuzzy_map.items():
+                        if fuzzy_name in content_lower:
+                            parsed_tool_name = real_name
+                            # Try to extract argument from parentheses after fuzzy name
+                            idx = content_lower.index(fuzzy_name)
+                            after = final_content[idx + len(fuzzy_name):]
+                            paren_match = re.search(r'\(\s*["\']?(.+?)["\']?\s*\)', after)
+                            if paren_match:
+                                parsed_arg = paren_match.group(1).strip().strip("\"'")
+                            break
+
+                # Pattern 3: exact tool name appears anywhere in text (no parens)
+                if not parsed_tool_name:
+                    for tname in tool_map:
+                        if tname in final_content:
+                            parsed_tool_name = tname
+                            break
+
+                # If we found a tool name but no argument, use the original task as the arg
+                if parsed_tool_name and not parsed_arg:
+                    parsed_arg = task
+
+                if parsed_tool_name:
+                    target_tool = tool_map[parsed_tool_name]
+                    schema = target_tool.args_schema
+                    if schema:
+                        field_names = list(schema.__fields__.keys())
+                        first_field = field_names[0] if field_names else "query"
+                    else:
+                        first_field = "query"
+
+                    import uuid
+                    synthetic_call_id = f"fallback_{uuid.uuid4().hex[:8]}"
+                    synthetic_msg = AIMessage(
+                        content="",
+                        tool_calls=[{
+                            "id": synthetic_call_id,
+                            "name": parsed_tool_name,
+                            "args": {first_field: parsed_arg},
+                        }],
+                    )
+                    log_event("Specialist", f"Fallback parser: {parsed_tool_name}({first_field}={parsed_arg!r})")
+                    return {
+                        "messages": [synthetic_msg],
+                        "skill_id": skill_id,
+                        "task": task,
+                    }
+
+            # No more tool calls - return final answer
             # Get tool_call_id from state or from skill_call
             tool_call_id = state.get("tool_call_id")
             if (
@@ -500,6 +572,7 @@ def create_momai_graph(
                 "skill_id": None,
                 "task": None,
             }
+
         except Exception as e:
             logger.error(f"Error in specialist_node: {str(e)}")
             # Fallback for specialist error
