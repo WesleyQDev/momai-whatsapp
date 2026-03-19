@@ -42,6 +42,8 @@ const InfoPanel = ({
               isOpen={historyOpen}
               setIsOpen={setHistoryOpen}
               isSidebarVariant
+              stopCurrentGeneration={chat.stopCurrentGeneration}
+              stopCurrentVoice={chat.stopCurrentVoice}
             />
           </div>
         )}

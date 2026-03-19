@@ -190,7 +190,6 @@ export default function LateralBar({
 
         <div className="w-8 h-[1px] bg-border/30 my-2" />
 
-        {/* Store Icon - temporarily disabled
         <button
           onClick={() => onNavigate('/extensions')}
           title={t('sidebar.store')}
@@ -206,7 +205,6 @@ export default function LateralBar({
             className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
           />
         </button>
-        */}
 
         {/* About Icon */}
         <button

@@ -714,21 +714,6 @@ const MessageItem = memo(function MessageItem({
           {/* 4. Rodapé de Opções */}
           {message.role === 'assistant' && (
             <div className="flex flex-col gap-2 mt-2">
-              {isSpeaking && onStopVoice && !hideStopButton && aiTier !== 'lite' && (
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={handleStopVoiceClick}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-all animate-pulse"
-                  >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                      <rect x="6" y="5" width="4" height="14" rx="1" />
-                      <rect x="14" y="5" width="4" height="14" rx="1" />
-                    </svg>
-                    <span className="text-[10px] font-semibold">Parar</span>
-                  </button>
-                </div>
-              )}
               {message.graphData?.view === 'chat' && (
                 <div className="flex flex-wrap gap-2">
                   {message.graphData.options?.map((option) => {
@@ -773,42 +758,59 @@ const MessageItem = memo(function MessageItem({
                   </div>
                 </button>
               )}
-              <div className="flex justify-start">
-                <div className="flex flex-col items-start gap-2">
-                  <button
-                    type="button"
-                    onClick={handleReportResponse}
-                    className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/5 hover:bg-white/10 border border-border/20 text-[12px] text-text-muted/80 hover:text-red-500 transition-colors"
-                    title={t('chat.report.title')}
-                    aria-label={t('chat.report.title')}
-                  >
-                    <span aria-hidden="true">🚩</span>
-                  </button>
 
-                  {showReportConfirm && (
-                    <div className="w-full max-w-[320px] p-3 rounded-xl border border-border/20 bg-card/95 shadow-xl backdrop-blur-sm">
-                      <p className="text-xs text-text-muted leading-relaxed">
-                        {t('chat.report.message')}
-                      </p>
-                      <div className="mt-3 flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={handleCancelReport}
-                          className="px-3 py-1.5 rounded-lg text-xs border border-border/20 bg-white/5 hover:bg-white/10 text-text-muted transition-colors"
-                        >
-                          {t('chat.report.cancel')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleConfirmReport}
-                          className="px-3 py-1.5 rounded-lg text-xs bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 transition-colors"
-                        >
-                          {t('chat.report.confirm')}
-                        </button>
-                      </div>
-                    </div>
+              <div className="flex flex-col items-start gap-2">
+                <div className="flex items-center gap-2">
+                  {hasActualContent && (
+                    <button
+                      type="button"
+                      onClick={handleReportResponse}
+                      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/5 hover:bg-white/10 border border-border/20 text-[12px] text-text-muted/80 hover:text-red-500 transition-colors"
+                      title={t('chat.report.title')}
+                      aria-label={t('chat.report.title')}
+                    >
+                      <span aria-hidden="true">🚩</span>
+                    </button>
+                  )}
+
+                  {isSpeaking && onStopVoice && !hideStopButton && aiTier !== 'lite' && (
+                    <button
+                      type="button"
+                      onClick={handleStopVoiceClick}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-all animate-pulse"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="5" width="4" height="14" rx="1" />
+                        <rect x="14" y="5" width="4" height="14" rx="1" />
+                      </svg>
+                      <span className="text-[10px] font-semibold">Parar</span>
+                    </button>
                   )}
                 </div>
+
+                {hasActualContent && showReportConfirm && (
+                  <div className="w-full max-w-[320px] p-3 rounded-xl border border-border/20 bg-card/95 shadow-xl backdrop-blur-sm">
+                    <p className="text-xs text-text-muted leading-relaxed">
+                      {t('chat.report.message')}
+                    </p>
+                    <div className="mt-3 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCancelReport}
+                        className="px-3 py-1.5 rounded-lg text-xs border border-border/20 bg-white/5 hover:bg-white/10 text-text-muted transition-colors"
+                      >
+                        {t('chat.report.cancel')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleConfirmReport}
+                        className="px-3 py-1.5 rounded-lg text-xs bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 transition-colors"
+                      >
+                        {t('chat.report.confirm')}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

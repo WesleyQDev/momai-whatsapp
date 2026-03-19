@@ -104,9 +104,7 @@ export function useChat() {
   // Stop generation/voice on thread change
   useEffect(() => {
     if (currentThreadRef.current !== threadId) {
-      if (isLoading) {
-        actions.stopGeneration()
-      }
+      actions.stopGeneration()
       actions.stopVoice()
       currentThreadRef.current = threadId
     }

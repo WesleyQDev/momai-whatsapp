@@ -164,31 +164,27 @@ def create_momai_graph(
                     "next": "momai_agent",
                 }
 
-            tasks = []
-            memory_task = None
-            if tier != "lite":
-                memory_task = search_memory(last_msg)
-                tasks.append(memory_task)
-
-            search_skills_task = None
+            # 1. Skill Discovery (Hierarchical Priority)
+            skill_hits = []
             if tier == "ultra":
-                search_skills_task = vector_db.search_skills(
+                skill_hits = await vector_db.search_skills(
                     last_msg, limit=SKILL_SEARCH_LIMIT
                 )
-                tasks.append(search_skills_task)
 
-            results = await asyncio.gather(*tasks) if tasks else []
+            # Determine Skill Confidence
+            top_skill_dist = min([h.get("_distance", 1.0) for h in skill_hits]) if skill_hits else 1.0
+            # High confidence means we likely have a clear action command
+            is_action_high_conf = top_skill_dist < 0.25
 
-            # Unpack results safely
+            # 2. Memory Discovery (Fallback or Contextual)
             memory_hits = []
-            skill_hits = []
-
-            idx = 0
-            if memory_task:
-                memory_hits = results[idx]
-                idx += 1
-            if search_skills_task:
-                skill_hits = results[idx]
+            # Optimization: Skip memory search if we are very confident about a specific skill
+            # unless the query seems to explicitly mention notes (no regex, just semantic fallback)
+            if tier != "lite":
+                if is_action_high_conf:
+                    log_event("Discovery", f"High confidence skill found ({top_skill_dist:.2f}). Skipping memory search for efficiency.")
+                else:
+                    memory_hits = await search_memory(last_msg)
 
             mem_context = ""
             if memory_hits:

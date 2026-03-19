@@ -8,6 +8,7 @@ intents:
   - Mover ou renomear {arquivo} para {novo_nome}
   - Copiar {arquivo} para {novo_nome}
   - Deletar {arquivo}
+  - Abrir {pasta} no explorador de arquivos
 metadata:
   author: WesleyQDev
   version: 0.1.0

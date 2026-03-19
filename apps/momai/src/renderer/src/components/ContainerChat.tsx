@@ -334,7 +334,11 @@ export default function ContainerChat({
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={() => setThreadId(`sessao_${Date.now()}`)}
+                onClick={() => {
+                  stopCurrentGeneration?.()
+                  stopCurrentVoice?.()
+                  setThreadId(`sessao_${Date.now()}`)
+                }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/20 hover:border-accent/40 rounded-full transition-all uppercase tracking-wider h-[34px]"
               >
                 <svg

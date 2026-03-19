@@ -7,9 +7,11 @@ interface Props {
   isOpen: boolean
   setIsOpen: (open: boolean) => void
   isSidebarVariant?: boolean
+  stopCurrentGeneration?: () => void
+  stopCurrentVoice?: () => void
 }
 
-export function ChatHistoryPopover({ threadId, setThreadId, isOpen, setIsOpen, isSidebarVariant }: Props) {
+export function ChatHistoryPopover({ threadId, setThreadId, isOpen, setIsOpen, isSidebarVariant, stopCurrentGeneration, stopCurrentVoice }: Props) {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -75,6 +77,8 @@ export function ChatHistoryPopover({ threadId, setThreadId, isOpen, setIsOpen, i
     try {
       await clearChatHistory(sessionId)
       if (threadId === sessionId) {
+        stopCurrentGeneration?.()
+        stopCurrentVoice?.()
         setThreadId(`sessao_${Date.now()}`)
       }
       await loadSessions()
@@ -84,6 +88,8 @@ export function ChatHistoryPopover({ threadId, setThreadId, isOpen, setIsOpen, i
   }
 
   const handleSelect = (sessionId: string) => {
+    stopCurrentGeneration?.()
+    stopCurrentVoice?.()
     setThreadId(sessionId)
     setIsOpen(false)
   }
@@ -139,6 +145,8 @@ export function ChatHistoryPopover({ threadId, setThreadId, isOpen, setIsOpen, i
             <div className="flex items-center gap-2">
               <button
                 onClick={() => {
+                  stopCurrentGeneration?.()
+                  stopCurrentVoice?.()
                   setThreadId(`sessao_${Date.now()}`)
                   setIsOpen(false)
                 }}

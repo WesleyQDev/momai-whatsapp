@@ -296,7 +296,10 @@ class StreamHandler:
         )
 
     async def _process_tts(self) -> None:
+        from ai import utils
         while True:
+            if utils.cancel_generation:
+                break
             # Fast Trigger for first response chunk
             if not self.state.full_content and len(self.state.tts_buffer) > 8:
                 fast_match = re.search(r"(.*?[,!?])\s+", self.state.tts_buffer)

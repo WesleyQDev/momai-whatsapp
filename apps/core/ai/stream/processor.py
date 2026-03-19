@@ -216,7 +216,7 @@ class StreamProcessor:
             )
 
         # 5. Final TTS
-        if self.speak_response and self.state.tts_buffer.strip():
+        if not utils.cancel_generation and self.speak_response and self.state.tts_buffer.strip():
             clean_phrase = clean_text_for_tts(
                 clean_response(self.state.tts_buffer)
             ).strip()

@@ -22,9 +22,8 @@ async def handle_chat_stream(message: ChatMessage):
 @router.post("/chat/stop")
 async def stop_chat_generation():
     try:
-        import ai.orchestrator as orchestrator
-
-        orchestrator.request_cancel_generation()
+        from ai import utils
+        utils.request_cancel_generation()
     except Exception:
         # Orchestrator might not be loaded yet
         pass
@@ -117,9 +116,8 @@ async def delete_chat_history(thread_id: str = "default"):
     from ai.orchestrator import clear_history_db
 
     try:
-        import ai.orchestrator as orchestrator
-
-        orchestrator.request_cancel_generation()
+        from ai import utils
+        utils.request_cancel_generation()
     except Exception:
         # Orchestrator might not be loaded yet
         pass
