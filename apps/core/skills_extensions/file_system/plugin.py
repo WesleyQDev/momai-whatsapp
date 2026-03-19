@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import threading
 from pathlib import Path
 from typing import List
 
@@ -47,15 +48,18 @@ class FileSystemPlugin:
         ]
 
     def on_startup(self):
-        logger.info(f"[File System] Starting – User home: {self.user_home}")
+        """Runs the file scan in a background thread to not block the main process."""
+        logger.info(f"[File System] Initializing in background thread.")
         try:
-            self.indexer.scan()
+            # Start scan in a daemon thread so it doesn't block shutdown
+            thread = threading.Thread(target=self.indexer.scan, daemon=True)
+            thread.start()
         except Exception as e:
-            logger.info(f"[File System] Scan check: {e}")
+            logger.error(f"[File System] Failed to start background scan: {e}")
 
 
 def initialize(manifest):
     plugin = FileSystemPlugin(manifest)
-    # Start background indexing immediately after init
+    # Start background indexing immediately – won't block the core anymore
     plugin.on_startup()
     return plugin

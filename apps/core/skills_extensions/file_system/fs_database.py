@@ -9,12 +9,18 @@ class FileIndexDB:
         self._init_db()
 
     def _get_connection(self):
-        return sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path)
+        # Performance Tuning Pragma settings
+        conn.execute("PRAGMA journal_mode = WAL")  # Write Ahead Logging for better concurrency
+        conn.execute("PRAGMA synchronous = NORMAL") # Reduced locking for better speed
+        conn.execute("PRAGMA cache_size = 5000")   # Larger cache (5000 pages, about ~20MB)
+        conn.execute("PRAGMA threads = 4")         # Parallel worker threads (if FTS supports)
+        return conn
 
     def _init_db(self):
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            # Standard table for metadata
+            # Standard table for metadata (id is unique rowid)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS folders_index (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,14 +31,16 @@ class FileIndexDB:
                 )
             """)
             
-            # FTS5 table for fast searching
+            # FTS5 table for fast searches
             try:
+                # We prioritize name, then path
                 cursor.execute("""
                     CREATE VIRTUAL TABLE IF NOT EXISTS folders_fts USING fts5(
                         name,
                         path,
                         content='folders_index',
-                        content_rowid='id'
+                        content_rowid='id',
+                        tokenize='porter unicode61'
                     )
                 """)
                 # Triggers to keep FTS in sync
@@ -66,20 +74,20 @@ class FileIndexDB:
     def insert_folders(self, folders: List[Dict]):
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            # Multi-threading optimization: WAL handles concurrent writes
             cursor.executemany("""
                 INSERT OR IGNORE INTO folders_index (name, path, depth, last_mtime)
                 VALUES (:name, :path, :depth, :last_mtime)
             """, folders)
             conn.commit()
 
-    def search(self, query: str, limit: int = 10) -> List[Dict]:
+    def search(self, query: str, limit: int = 15) -> List[Dict]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            # Rank search results using the FTS5 table
-            # We use name match preferably
             try:
-                # Basic cleanup and suffix search
+                # Optimized search: Rank by name match exactly, then partial
                 clean_query = query.replace('"', '').replace("'", "")
+                # Search name column first for priority results
                 search_expr = f'name:"{clean_query}"* OR "{clean_query}"*'
                 
                 cursor.execute("""
@@ -91,7 +99,6 @@ class FileIndexDB:
                 """, (search_expr, limit))
                 return [{"name": r[0], "path": r[1]} for r in cursor.fetchall()]
             except sqlite3.OperationalError:
-                # Fallback to simple LIKE if FTS fails or query is invalid
                 cursor.execute("""
                     SELECT name, path FROM folders_index 
                     WHERE name LIKE ? OR path LIKE ? 
