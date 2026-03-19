@@ -34,6 +34,7 @@ def search_and_open_folder(query: str) -> str:
     Searches indexed folders for a name matching the query and opens the best
     result directly in the native file explorer.
     Use this when the user asks to 'open a folder' by name.
+    If multiple candidate folders are found, returns a list to let the user choose.
     """
     if not _db:
         return "Error: File index not initialized."
@@ -42,25 +43,29 @@ def search_and_open_folder(query: str) -> str:
         results = _db.search(query, limit=5)
 
         if not results:
-            return f"No folders found matching '{query}'."
+            return f"Não encontrei nenhuma pasta correspondente a '{query}'."
 
-        exact = [r for r in results if r["name"].lower() == query.lower()]
-        target = exact[0] if exact else results[0]
+        # Se houver mais de um resultado no índice para a busca, 
+        # perguntamos ao usuário para que ele decida qual abrir.
+        if len(results) > 1:
+            options = "\n".join([f"- {r['name']} em {r['path']}" for r in results])
+            return f"Encontrei {len(results)} opções para '{query}'. Qual delas você deseja abrir?\n{options}"
+
+        # Caso contrário, se existir apenas um resultado, abrimos diretamente.
+        target = results[0]
+
 
         target_path = Path(target["path"])
         if not target_path.exists():
-            return f"Folder '{target['name']}' was indexed but no longer exists at {target['path']}."
+            return f"A pasta '{target['name']}' estava indexada, mas não foi encontrada no disco: {target['path']}"
 
         _open_native(target_path)
+        return f"Abri a pasta '{target['name']}' em {target['path']}."
 
-        if len(results) == 1 or exact:
-            return f"Opened '{target['name']}' at {target['path']}."
-
-        extras = "\n".join(f"  - {r['name']} -> {r['path']}" for r in results[1:])
-        return f"Opened '{target['name']}' at {target['path']}.\nOther matches:\n{extras}"
     except Exception as e:
         logger.error(f"search_and_open_folder error: {e}")
-        return f"Error: {str(e)}"
+        return f"Erro ao pesquisar/abrir pasta: {str(e)}"
+
 
 
 @tool(args_schema=SearchInput)
