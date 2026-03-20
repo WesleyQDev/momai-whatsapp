@@ -728,13 +728,41 @@ nav {
     display: block;
   }
 
-  .nav-right .btn-primary {
+  .nav-right .btn-primary, .nav-right .nav-pill {
     display: none;
   }
 
-  .nav-version {
-    display: none;
+  .nav-links a.donate-link {
+    margin: 0.5rem 1rem;
+    padding: 1rem 1.5rem !important;
+    text-align: center;
+    border-radius: 12px;
+    background: rgba(197, 138, 249, 0.1);
+    border: 1px dashed #c58af9;
+    font-weight: 600 !important;
   }
+
+  .mobile-nav-link {
+    display: block !important;
+  }
+
+  .mobile-nav-link a {
+    color: #c58af9 !important;
+    font-family: 'Google Sans Flex', sans-serif;
+    font-weight: 600 !important;
+    background: rgba(197, 138, 249, 0.1);
+    margin: 0.5rem 1rem;
+    border-radius: 12px;
+    border-left: 4px solid #c58af9;
+    padding: 1rem 1.5rem !important;
+    display: flex !important;
+    align-items: center;
+    gap: 0.5rem;
+  }
+}
+
+.mobile-nav-link {
+  display: none;
 }
 
 /* ---- Hero ---- */
