@@ -64,6 +64,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
@@ -1861,6 +1862,7 @@ footer {
   height: auto;
   max-width: 160px;
   max-height: 160px;
+  object-fit: contain;
   border-radius: 20px;
   position: relative;
   z-index: 2;
@@ -1949,6 +1951,7 @@ footer {
   .hero-logo-img {
     width: 80px;
     height: 80px;
+    object-fit: contain;
     border-radius: 16px;
   }
   .hero-logo-ring {
@@ -1999,9 +2002,11 @@ footer {
 
   .btn-group {
     flex-direction: column;
+    align-items: center;
     width: 100%;
     max-width: 320px;
     gap: 0.8rem;
+    margin: 0 auto;
   }
   .btn-primary,
   .btn-secondary {
