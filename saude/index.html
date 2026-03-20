@@ -313,26 +313,150 @@
                     <img src="assets/android.png" alt="Android" style="width: 28px; height: 28px; vertical-align: middle; margin-right: 8px;">
                     <span>Baixar aplicativo</span>
                 </a>
-                <a href="#download" class="other-platforms-link" style="margin-top: 1rem; display: block; color: var(--text-secondary); font-size: 0.9rem; text-decoration: none;">Ver outras plataformas</a>
+                <a href="como-usar.html" class="hero-promo-text">Dicas de saúde MomAI</a>
             </div>
-            <a href="#features" class="btn-secondary">Conhecer Recursos</a>
+        </div>
+    </section>
+    
+    <!-- Health Tips Cards -->
+    <section class="health-promo-section">
+        <div class="health-tips-grid">
+            <!-- Saúde Física -->
+            <div class="health-tip-card" onclick="openHealthModal('fisica')">
+                <div class="health-tip-image">
+                    <img src="assets/saude_fisica.png" alt="Saúde Física">
+                </div>
+                <div class="health-tip-content">
+                    <h3>Saúde Física</h3>
+                    <p>Mantenha seu corpo em movimento e melhore sua vitalidade com hábitos saudáveis e exercícios diários.</p>
+                </div>
+            </div>
+
+            <!-- Saúde Mental -->
+            <div class="health-tip-card" onclick="openHealthModal('mental')">
+                <div class="health-tip-image">
+                    <img src="assets/saude_mental.png" alt="Saúde Mental">
+                </div>
+                <div class="health-tip-content">
+                    <h3>Saúde Mental</h3>
+                    <p>Cultive clareza e foco. Descubra técnicas de atenção plena para manter sua mente equilibrada e produtiva.</p>
+                </div>
+            </div>
+
+            <!-- Saúde Emocional -->
+            <div class="health-tip-card" onclick="openHealthModal('emocional')">
+                <div class="health-tip-image">
+                    <img src="assets/saude_emocional.png" alt="Saúde Emocional">
+                </div>
+                <div class="health-tip-content">
+                    <h3>Saúde Emocional</h3>
+                    <p>Desenvolva resiliência e autoconhecimento para lidar com seus sentimentos de forma leve e saudável.</p>
+                </div>
+            </div>
+
+            <!-- Saúde Social -->
+            <div class="health-tip-card" onclick="openHealthModal('social')">
+                <div class="health-tip-image">
+                    <img src="assets/saude_social.png" alt="Saúde Social">
+                </div>
+                <div class="health-tip-content">
+                    <h3>Saúde Social</h3>
+                    <p>Fortaleça seus laços e conexões. Aprenda a importância do apoio comunitário para o seu bem-estar geral.</p>
+                </div>
+            </div>
         </div>
     </section>
 
-    <!-- Video Demo -->
-    <section class="video-section">
-        <div class="video-container">
-            <div class="video-wrapper">
-                <iframe 
-                    src="https://www.youtube.com/embed/fzyV0VCn_ZM" 
-                    title="MomAI Saúde - Demo"
-                    frameborder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                    allowfullscreen>
-                </iframe>
+    <!-- Health Modal -->
+    <div class="health-modal-overlay" id="healthModal">
+        <div class="health-modal-content">
+            <button class="health-close-modal" id="closeHealthModal">&times;</button>
+            <div class="health-modal-image">
+                <img id="modalHealthImage" src="" alt="">
+            </div>
+            <div class="health-modal-body">
+                <h2 id="modalHealthTitle">Título</h2>
+                <ul class="health-tips-list" id="modalHealthTips">
+                    <!-- Tips will be inserted here -->
+                </ul>
             </div>
         </div>
-    </section>
+    </div>
+
+    <script>
+        const healthData = {
+            fisica: {
+                title: "Saúde Física",
+                image: "assets/saude_fisica.png",
+                tips: [
+                    "<strong>Alimentação Balanceada:</strong> Priorize frutas, vegetais e proteínas em suas refeições.",
+                    "<strong>Hidratação Constante:</strong> Beba pelo menos 2 a 3 litros de água por dia.",
+                    "<strong>Atividade Física:</strong> Pratique pelo menos 30 minutos de exercícios diariamente.",
+                    "<strong>Sono de Qualidade:</strong> Durma entre 7 a 9 horas para recuperação total do corpo."
+                ]
+            },
+            mental: {
+                title: "Saúde Mental",
+                image: "assets/saude_mental.png",
+                tips: [
+                    "<strong>Prática de Mindfulness:</strong> Reserve momentos para meditação e redução do estresse.",
+                    "<strong>Pausas Criativas:</strong> Faça pequenos intervalos durante o trabalho para refrescar a mente.",
+                    "<strong>Definição de Limites:</strong> Aprenda a proteger seu tempo e energia mental.",
+                    "<strong>Estímulo Cognitivo:</strong> Mantenha o cérebro ativo com leitura e novos aprendizados."
+                ]
+            },
+            emocional: {
+                title: "Saúde Emocional",
+                image: "assets/saude_emocional.png",
+                tips: [
+                    "<strong>Autoconhecimento:</strong> Identifique e nomeie suas emoções no dia a dia.",
+                    "<strong>Resiliência:</strong> Encare desafios como oportunidades de crescimento.",
+                    "<strong>Autocompaixão:</strong> Seja gentil consigo mesmo em momentos de dificuldade.",
+                    "<strong>Busca por Apoio:</strong> Não hesite em conversar com profissionais se necessário."
+                ]
+            },
+            social: {
+                title: "Saúde Social",
+                image: "assets/saude_social.png",
+                tips: [
+                    "<strong>Conexões Fortes:</strong> Mantenha contato regular com amigos e familiares.",
+                    "<strong>Participação Comunitária:</strong> Envolva-se em atividades de grupo e voluntariado.",
+                    "<strong>Comunicação Assertiva:</strong> Expresse seus sentimentos de forma clara e respeitosa.",
+                    "<strong>Qualidade nos Encontros:</strong> Priorize conversas profundas e trocas reais."
+                ]
+            }
+        };
+
+        const healthModal = document.getElementById('healthModal');
+        const closeHealthModal = document.getElementById('closeHealthModal');
+
+        function openHealthModal(topic) {
+            const data = healthData[topic];
+            if (!data) return;
+
+            document.getElementById('modalHealthImage').src = data.image;
+            document.getElementById('modalHealthTitle').textContent = data.title;
+            
+            const tipsList = document.getElementById('modalHealthTips');
+            tipsList.innerHTML = data.tips.map(tip => `<li>${tip}</li>`).join('');
+
+            healthModal.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent scroll
+        }
+
+        closeHealthModal.addEventListener('click', () => {
+            healthModal.classList.remove('active');
+            document.body.style.overflow = ''; // Restore scroll
+        });
+
+        healthModal.addEventListener('click', (e) => {
+            if (e.target === healthModal) {
+                healthModal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        });
+    </script>
+
 
     <!-- Features -->
     <section class="features-section" id="features">
@@ -407,85 +531,6 @@
                 <div class="step-number">3</div>
                 <h3>Acompanhe e Evolua</h3>
                 <p>Registre seu dia e receba insights inteligentes para manter sua saúde sempre em dia.</p>
-            </div>
-        </div>
-    </section>
-
-    <section class="download-section" id="download">
-        <div class="download-container">
-            <div class="section-title">
-                <h2>Baixe a MomAI Saúde</h2>
-                <p>Sua jornada para um estilo de vida mais saudável começa aqui.</p>
-            </div>
-
-            <div class="mega-card">
-                <!-- Coluna de Downloads -->
-                <div class="mega-card-downloads">
-                    <h3>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                        Plataformas
-                    </h3>
-                    
-                    <div class="platform-list">
-                        <!-- Android -->
-                        <a href="https://github.com/WesleyQDev/MomAI-App/releases/download/momaisaude-beta/app-release.apk" class="platform-btn">
-                            <div class="platform-info">
-                                <svg viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px;"><path d="M17.525 10.42a1.366 1.366 0 0 0-1.364 1.365 1.366 1.366 0 0 0 1.364 1.365 1.365 1.365 0 0 0 1.365-1.365 1.365 1.365 0 0 0-1.365-1.365zm-11.05 0a1.366 1.366 0 0 0-1.365 1.365 1.366 1.366 0 0 0 1.365 1.365 1.365 1.365 0 0 0 1.365-1.365 1.365 1.365 0 0 0-1.365-1.365zm11.396-3.82l1.9-3.297a.417.417 0 0 0-.153-.574.422.422 0 0 0-.58.15L17.114 6.2a11.17 11.17 0 0 0-5.114-1.242 11.238 11.238 0 0 0-5.115 1.24l-1.92-3.32a.419.419 0 0 0-.575-.152.417.417 0 0 0-.154.57l1.9 3.29A11.348 11.348 0 0 0 1.838 14.544h20.324A11.332 11.332 0 0 0 17.87 6.6z"/></svg>
-                                <span class="platform-name">Android (APK Beta)</span>
-                            </div>
-                            <span class="platform-status">Baixar</span>
-                        </a>
-
-                        <!-- iOS -->
-                        <div class="platform-btn disabled">
-                            <div class="platform-info">
-                                <svg viewBox="0 0 24 24" fill="currentColor" style="width: 28px; height: 28px;"><path d="M16.591.954C17.72 2.308 18.428 4.148 18.232 5.922c-1.545.062-3.415-.898-4.577-2.3-1.026-1.229-1.83-3.08-1.583-4.82 1.706.126 3.4 1.054 4.519 2.152M22.036 17.513c-1.396 4.026-3.87 8.356-6.195 8.356s-2.071-.853-4.5-1.066c-2.43-.21-3.692 1.066-6.014 1.066-2.324 0-4.708-3.097-6.953-7.51-2.906-5.717-2.618-12.016 1.764-15.11 1.956-1.378 4.29-1.637 5.768-1.637s2.5.64 4.545.64c2.045 0 2.946-.64 5.215-.64s4.298.544 5.768 1.637c-.772.486-2.909 2.055-2.909 5.343 0 3.737 3.018 5.708 3.511 5.922z" /></svg>
-                                <span class="platform-name">App Store (iOS)</span>
-                            </div>
-                            <span class="platform-status">Em breve</span>
-                        </div>
-
-                        <!-- Windows (Desktop) -->
-                        <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" class="platform-btn" style="opacity: 0.6; font-size: 0.9em;">
-                            <div class="platform-info">
-                                <svg viewBox="0 0 24 24" fill="currentColor" style="width: 24px; height: 24px;"><path d="M0 3.449L9.75 2.1V11.724H0V3.449ZM0 12.333H9.75V21.9L0 20.55V12.333ZM10.709 1.956L24 0V11.724H10.709V1.956ZM10.709 12.333H24V24L10.709 22.044V12.333Z"/></svg>
-                                <span class="platform-name">Desktop (Windows)</span>
-                            </div>
-                        </a>
-                    </div>
-                </div>
-
-                <!-- Coluna de Requisitos -->
-                <div class="mega-card-specs">
-                    <h3>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12" y2="18"></line></svg>
-                        Compatibilidade
-                    </h3>
- 
-                    <div class="spec-group">
-                        <h4>Mínimos (Android 10+)</h4>
-                        <div class="spec-item">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                            <strong>Armazenamento:</strong> <span>500MB</span>
-                        </div>
-                        <div class="spec-item">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 10h20M2 14h20M6 6v12M10 6v12M14 6v12M18 6v12"></path></svg>
-                            <strong>RAM:</strong> <span>4GB</span>
-                        </div>
-                    </div>
- 
-                    <div class="spec-group">
-                        <h4>Sistemas Suportados</h4>
-                        <div class="spec-item">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                            <strong>Android:</strong> <span>v10.0 ou superior</span>
-                        </div>
-                        <div class="spec-item">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V6M5 13l7-7 7 7"/></svg>
-                            <strong>iOS:</strong> <span>Em breve (v15+)</span>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </section>
