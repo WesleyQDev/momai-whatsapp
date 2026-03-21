@@ -38,6 +38,9 @@ class StreamHandler:
             elif node_name == "momai_agent":
                 async for chunk in self._handle_manager(event):
                     yield chunk
+            elif node_name == "specialist_worker":
+                async for chunk in self._handle_specialist_end(event):
+                    yield chunk
 
         elif kind == "on_chain_start":
             if node_name == "specialist_worker":
@@ -110,6 +113,39 @@ class StreamHandler:
             status = f"Especialista: Executando {skill_id.split('.')[-1]}..."
             if self.state.add_activity(status):
                 yield f"data: {json.dumps({'status': status})}\n\n"
+
+    async def _handle_specialist_end(
+        self, event: Dict[str, Any]
+    ) -> AsyncGenerator[str, None]:
+        """Handle specialist final output when it bypasses the Manager (direct pass-through)."""
+        output = event["data"].get("output")
+        if not output or not isinstance(output, dict):
+            return
+
+        msgs = output.get("messages", [])
+        active_skill = output.get("active_skill_id")
+
+        # Only intercept when specialist is done (active_skill_id cleared)
+        # and the last message is a ToolMessage (direct answer, not a tool_call)
+        if active_skill is not None:
+            return
+
+        for msg in reversed(msgs):
+            if isinstance(msg, ToolMessage) and msg.content:
+                content = clean_response(msg.content)
+                if content and not content.startswith("SYSTEM:") and not content.startswith("Error:"):
+                    if not self.state.full_content:
+                        self.state.stream_decided = True
+                        self.state.had_tool_call = True
+
+                        if not any(a == "Finalizando resposta..." for a in self.state.activities_trace):
+                            self.state.add_activity("Finalizando resposta...")
+                            yield f"data: {json.dumps({'status': 'Finalizando resposta...'})}\n\n"
+
+                        self.state.full_content = content
+                        self.state.tts_buffer += content
+                        yield f"data: {json.dumps({'token': content})}\n\n"
+                break
 
     async def _handle_router(self, event: Dict[str, Any]) -> AsyncGenerator[str, None]:
         output = event["data"].get("output")

@@ -80,7 +80,7 @@ class VectorDB:
         """Searches for the most relevant tools in the database."""
         return await self._safe_search("tools", query, limit)
 
-    async def add_skills(self, skills_data: list[dict]):
+    async def add_skills(self, skills_data: list[dict], overwrite: bool = True):
         """
         Adds agent/skill descriptions and intents to the vector database for functional routing.
         Expected: [{'id': '...', 'name': '...', 'description': '...', 'intents': [...]}]
@@ -132,6 +132,10 @@ class VectorDB:
         
         if data_with_vectors:
             try:
+                if overwrite:
+                    self.connect().drop_table("skills")
+                    table = self.get_table("skills", schema=schema)
+
                 table.add(data_with_vectors)
             except Exception as e:
                 logger.error(f"[VectorDB] Error adding skills to LanceDB: {e}")
@@ -187,7 +191,7 @@ class VectorDB:
             except Exception as e:
                 logger.error(f"[VectorDB] Error adding intents to LanceDB: {e}")
 
-    async def add_tools(self, tools_data: list[dict]):
+    async def add_tools(self, tools_data: list[dict], overwrite: bool = True):
         """
         Adds tools to the vector database.
         Expected: [{'name': '...', 'description': '...', 'metadata': {}}]
@@ -242,6 +246,10 @@ class VectorDB:
         
         if data_with_vectors:
             try:
+                if overwrite:
+                    self.connect().drop_table("tools")
+                    table = self.get_table("tools", schema=schema)
+
                 table.add(data_with_vectors)
             except Exception as e:
                 logger.error(f"[VectorDB] Error adding tools to LanceDB: {e}")

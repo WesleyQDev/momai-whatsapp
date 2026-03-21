@@ -1,6 +1,6 @@
 ---
-name: App Launcher
-description: Registra, lista e abre aplicativos locais do usuário a partir de seus caminhos (paths) absolutos. Permite gerenciar apps frequentes.
+name: Iniciar Aplicativos
+description: Registra e abre APLICATIVOS locais (programas, jogos, .exe) instalados. Não utilize para abrir pastas comuns do Windows.
 intents:
   - Registrar app [nome] no caminho [path]
   - Salvar app [nome]

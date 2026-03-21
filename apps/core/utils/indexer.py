@@ -11,11 +11,6 @@ logger = logging.getLogger(__name__)
 
 
 async def index_all_system_tools(on_progress=None):
-    try:
-        vector_db.connect().drop_table("tools")
-    except:
-        pass
-
     tools_to_index = []
     for tool in TOOLS:
         if on_progress:
@@ -43,11 +38,6 @@ async def index_all_system_tools(on_progress=None):
 
 
 async def index_all_skills(on_progress=None):
-    try:
-        vector_db.connect().drop_table("skills")
-    except:
-        pass
-
     skills_to_index = []
     from domain.skill import Skill
 

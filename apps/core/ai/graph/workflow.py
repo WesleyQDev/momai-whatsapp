@@ -70,7 +70,7 @@ def print_execution_panel(
     logger.info("")
     
     if skills:
-        skill_names = [f"'{s['id']}'" for s in skills]
+        skill_names = [f"'{s['id']}' ({s.get('confidence', 0):.0f}%)" for s in skills]
         logger.info(f"{RESET}{CYAN}[Skills]{RESET} {', '.join(skill_names)}")
     if notes:
         notes_titles = [n.get('title', 'Nota') for n in notes]
@@ -197,7 +197,7 @@ def create_momai_graph(
     async def discovery_router(state: AgentState):
         try:
             if not state.get("messages"):
-                return {"next": "momai_agent", "fast_path": True}
+                return {"next": "momai_agent", "fast_path": True, "tool_results": []}
             last_msg = str(state["messages"][-1].content)
             logger.debug(f"[Discovery] Query: {last_msg}")
 
@@ -208,10 +208,32 @@ def create_momai_graph(
             is_math = re.match(r"^[\d\s.,/*+\-()^?]+$", last_msg.strip())
 
             if is_greeting or is_short or is_math:
+                # Mesmo em respostas curtas, tentamos manter a skill ativa se houver uma no histórico recente
+                recent_skill = None
+                for m in reversed(state["messages"][-5:]):
+                    if isinstance(m, AIMessage) and m.tool_calls:
+                        for tc in m.tool_calls:
+                            if tc["name"] == "activate_skill":
+                                recent_skill = tc["args"].get("skill_id")
+                                break
+                    if recent_skill: break
+
+                discovered = []
+                if recent_skill:
+                    skill_obj = extension_manager.get_skill(recent_skill)
+                    if skill_obj:
+                        discovered.append({
+                            "id": skill_obj.id,
+                            "name": skill_obj.name,
+                            "description": skill_obj.description,
+                            "confidence": 100.0 # Contextual carry-over
+                        })
+
                 return {
-                    "fast_path": True,
-                    "discovered_skills": [],
+                    "fast_path": len(discovered) == 0,
+                    "discovered_skills": discovered,
                     "next": "momai_agent",
+                    "tool_results": [],
                 }
 
             # 1. Skill Discovery (Hierarchical Priority)
@@ -270,13 +292,7 @@ def create_momai_graph(
                         dist < SKILL_SIMILARITY_THRESHOLD
                     ):  # Less strict threshold for cosine distance
                         seen_ids.add(skill_id)
-                        skills_brief.append(
-                            {
-                                "id": skill_id,
-                                "name": hit["name"],
-                                "description": hit["description"],
-                            }
-                        )
+                        
                         # Convert distance to confidence (0.0 distance = 100%, 1.0+ distance = 0%)
                         confidence = max(
                             0,
@@ -284,6 +300,15 @@ def create_momai_graph(
                                 CONFIDENCE_PERCENT_SCALE,
                                 (1 - dist) * CONFIDENCE_PERCENT_SCALE,
                             ),
+                        )
+
+                        skills_brief.append(
+                            {
+                                "id": skill_id,
+                                "name": hit["name"],
+                                "description": hit["description"],
+                                "confidence": confidence
+                            }
                         )
                         
                         if confidence > best_confidence:
@@ -293,6 +318,28 @@ def create_momai_graph(
                         logger.debug(
                             f"[Discovery] Found Potential Skill: {skill_id} (conf: {confidence:.1f}%)",
                         )
+            
+            # --- CONTEXT CARRY-OVER ---
+            # Se já estávamos falando com uma skill, garantimos que ela esteja na lista (se não estiver)
+            # Isso evita que comandos de contexto como "a última" ou "abrir" mudem de agende
+            recent_skill_id = None
+            for m in reversed(state["messages"][-5:]):
+                if hasattr(m, "tool_calls") and m.tool_calls:
+                    for tc in m.tool_calls:
+                        if tc["name"] == "activate_skill":
+                            recent_skill_id = tc["args"].get("skill_id")
+                            break
+                if recent_skill_id: break
+
+            if recent_skill_id and recent_skill_id not in seen_ids:
+                s_obj = extension_manager.get_skill(recent_skill_id)
+                if s_obj:
+                    skills_brief.insert(0, {
+                        "id": s_obj.id,
+                        "name": s_obj.name,
+                        "description": s_obj.description,
+                        "confidence": 95.0 # Contextual weight
+                    })
             
             # --- HIGH CONFIDENCE SHORTCUT ---
             # If we have a very high confidence and only one clear skill candidate, 
@@ -322,6 +369,7 @@ def create_momai_graph(
                 "memory_notes": memory_hits if memory_hits else None,
                 "fast_path": False,
                 "tool_usage": {},
+                "tool_results": [],
                 "messages": [shortcut_msg] if shortcut_msg else []
             }
         except Exception as e:
@@ -331,6 +379,7 @@ def create_momai_graph(
                 "memory_context": "",
                 "fast_path": True,
                 "next": "momai_agent",
+                "tool_results": [],
             }
 
     async def manager_node(state: AgentState):
@@ -524,10 +573,44 @@ def create_momai_graph(
             ])
             worker_llm = llm.bind_tools(available_tools) if available_tools else llm
 
-            # Tool results from previous iteration
             tool_results = state.get("tool_results", [])
             if tool_results:
-                results_text = "\n\n".join(tool_results)
+                # --- OPTIMIZATION: Skip LLM if tool result is self-explanatory ---
+                # If the tool already returned readable text and we have no more tools to call,
+                # pass the result directly as the final answer without an extra LLM call.
+                combined_result = "\n\n".join(tool_results)
+                is_error = any(r.startswith("SYSTEM:") or r.startswith("Tool execution failed") for r in tool_results)
+                is_short_enough = len(combined_result) < 2000
+                
+                if is_short_enough and not is_error and combined_result.strip():
+                    logger.debug(f"[Specialist] Tool result is self-explanatory, skipping LLM call")
+                    
+                    print_execution_panel(
+                        title=f"SPECIALIST: {skill_id} (direct)",
+                        valid_history=[],
+                        response_content=combined_result,
+                        color="green",
+                        tools=state.get("tool_usage"),
+                        available_tools=available_tools,
+                        task=task,
+                        tool_results=tool_results
+                    )
+
+                    tool_call_id = state.get("tool_call_id")
+                    if not tool_call_id and hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+                        tool_call_id = last_msg.tool_calls[0]["id"]
+
+                    return {
+                        "messages": [
+                            ToolMessage(
+                                content=combined_result,
+                                tool_call_id=tool_call_id or "unknown",
+                            )
+                        ],
+                        "active_skill_id": None
+                    }
+
+                results_text = combined_result
                 user_input = PREVIOUS_RESULTS_TEMPLATE.format(
                     count=len(tool_results), results_text=results_text, task=task
                 )
@@ -793,9 +876,9 @@ def create_momai_graph(
                 tool = registry.get(tool_name)
 
                 # Dynamic Limit Detection
-                skill_id = state.get("skill_id")
-                if skill_id:
-                    skill = extension_manager.get_skill(skill_id)
+                active_skill = state.get("active_skill_id")
+                if active_skill:
+                    skill = extension_manager.get_skill(active_skill)
                     tool_limits = skill.get_tool_limits() if skill else {}
                 else:
                     tool_limits = {}
@@ -857,8 +940,8 @@ def create_momai_graph(
                     )
 
             # Determine next step: if specialist called tools, go back to specialist; else go to manager
-            has_skill_id = bool(state.get("skill_id"))
-            next_step = "prepare_tool_results" if has_skill_id else "momai_agent"
+            has_active_skill = bool(state.get("active_skill_id"))
+            next_step = "prepare_tool_results" if has_active_skill else "momai_agent"
             return {
                 "messages": tool_messages,
                 "tool_usage": tool_usage,
@@ -872,9 +955,14 @@ def create_momai_graph(
     def prepare_tool_results(state: AgentState):
         """Convert ToolMessage results to format for specialist."""
         tool_results = []
-        for msg in state["messages"]:
+        recent_tool_msgs = []
+        for msg in reversed(state["messages"]):
+            if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
+                break
             if isinstance(msg, ToolMessage):
-                tool_results.append(msg.content)
+                recent_tool_msgs.append(msg.content)
+        
+        tool_results = list(reversed(recent_tool_msgs))
         return {"tool_results": tool_results, "next_step": None}
 
     workflow = StateGraph(AgentState)
@@ -909,7 +997,7 @@ def create_momai_graph(
 
     def route_tools(state: AgentState):
         """Route tools output: if in a skill, prepare results first, else just extract sources."""
-        if state.get("skill_id"):
+        if state.get("active_skill_id"):
             return "prepare_tool_results"
         return "extract_sources"
 
@@ -924,7 +1012,18 @@ def create_momai_graph(
         return "momai_agent"
 
     def route_search_counter(state: AgentState):
-        """After search counter, go back to manager to see if more steps are needed."""
+        """After search counter: if specialist already answered, go to END. Otherwise, back to manager."""
+        # If we came from a specialist that produced a final answer,
+        # skip the Manager entirely — no need for an extra LLM call.
+        if state.get("active_skill_id") is None:
+            # active_skill_id is cleared when specialist gives a final text answer
+            last_msg = state["messages"][-1]
+            if isinstance(last_msg, ToolMessage) or (
+                isinstance(last_msg, AIMessage) and not (
+                    hasattr(last_msg, "tool_calls") and last_msg.tool_calls
+                )
+            ):
+                return END
         return "momai_agent"
 
     workflow.add_conditional_edges("momai_agent", route_manager)
