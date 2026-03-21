@@ -29,6 +29,12 @@ import { is } from '@electron-toolkit/utils'
 import { logger } from './logger'
 
 function resolveUserDataPath(rawPath: string): string {
+  // Em modo de desenvolvimento, não queremos ser redirecionados para a pasta de dados do MSIX instalado.
+  // Isso garante que o pnpm run dev use a pasta .dev-data local.
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    return rawPath
+  }
+
   try {
     const localAppData = process.env.LOCALAPPDATA
     const packageFamilyNameEnv = process.env.PACKAGE_FAMILY_NAME
