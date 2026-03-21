@@ -9,13 +9,13 @@ import psutil
 import logging
 
 logger = logging.getLogger("momai.startup")
-logger.info("[Startup] Loading startup module...")
+logger.debug("[Startup] Loading startup module...")
 
 import app_state
 from database.models import SessionLocal, Settings, init_db
 from services.system.resource_manager import resource_manager
 
-logger.info("[Startup] Startup module loaded.")
+logger.debug("[Startup] Startup module loaded.")
 
 
 async def init_system_task() -> None:
@@ -71,7 +71,7 @@ async def start_core_services(settings):
 
     async with _core_services_lock:
         if _core_services_started:
-            logger.info("[Startup] Core services already started, skipping.")
+            logger.debug("[Startup] Core services already started, skipping.")
             return
         _core_services_started = True
 
@@ -418,7 +418,7 @@ async def lifespan(app):
             await app_state.orchestrator.checkpointer_cleanup.__aexit__(
                 None, None, None
             )
-            app_state.logger.info("[Main] Checkpointer closed.")
+            app_state.logger.debug("[Main] Checkpointer closed.")
         except Exception as exc:
             app_state.logger.exception("[Main] Error closing checkpointer: %s", exc)
 
@@ -428,14 +428,14 @@ async def lifespan(app):
         from ai.embeddings import embeddings
 
         embeddings.stop()
-        app_state.logger.info("[FastAPI] Embeddings server stopped.")
+        app_state.logger.debug("[FastAPI] Embeddings server stopped.")
     except Exception as exc:
         app_state.logger.exception("[FastAPI] Error stopping embeddings: %s", exc)
 
     if app_state.reminder_manager:
         try:
             app_state.reminder_manager.stop()
-            app_state.logger.info("[FastAPI] Reminder manager stopped.")
+            app_state.logger.debug("[FastAPI] Reminder manager stopped.")
         except Exception as exc:
             app_state.logger.exception(
                 "[FastAPI] Error stopping reminder manager: %s", exc
@@ -444,7 +444,7 @@ async def lifespan(app):
     if app_state.ww:
         try:
             app_state.ww.stop()
-            app_state.logger.info("[FastAPI] Wake word detector stopped.")
+            app_state.logger.debug("[FastAPI] Wake word detector stopped.")
         except Exception as exc:
             app_state.logger.exception(
                 "[FastAPI] Error stopping wake word detector: %s", exc
@@ -454,16 +454,16 @@ async def lifespan(app):
         from ai.providers.local_llama import stop_server
 
         stop_server()
-        app_state.logger.info("[FastAPI] Main LLM server stopped.")
+        app_state.logger.debug("[FastAPI] Main LLM server stopped.")
     except Exception as exc:
         app_state.logger.exception("[FastAPI] Error stopping LLM server: %s", exc)
 
     try:
         if app_state.tts:
             app_state.tts.stop_all()
-            app_state.logger.info("[FastAPI] TTS workers stopped.")
+            app_state.logger.debug("[FastAPI] TTS workers stopped.")
     except Exception as exc:
         app_state.logger.exception("[FastAPI] Error stopping TTS: %s", exc)
 
     time.sleep(0.5)
-    app_state.logger.info("[FastAPI] Shutdown complete.")
+    app_state.logger.debug("[FastAPI] Shutdown complete.")

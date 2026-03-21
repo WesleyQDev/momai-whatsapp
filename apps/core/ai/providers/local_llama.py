@@ -127,7 +127,7 @@ def get_paths(forced_backend=None):
         hw_info = downloader.get_hardware_info()
         backend = hw_info.get("backend", "cpu")
 
-    logger.info(f"[local_model] Resolved base_dir={base_dir}, backend={backend}")
+    logger.debug(f"[local_model] Resolved base_dir={base_dir}, backend={backend}")
 
     exe_name = "llama-server.exe" if platform.system() == "Windows" else "llama-server"
     exe_path = base_dir / "bin" / backend / exe_name
@@ -149,7 +149,7 @@ def stop_server():
     """Stops the llama-server if it is currently running."""
     global server_process
     if server_process:
-        logger.info("[local_model] Stopping previous Llama.cpp server...")
+        logger.debug("[local_model] Stopping previous Llama.cpp server...")
         try:
             # Try to terminate gracefully
             server_process.terminate()
@@ -340,7 +340,7 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
             str(repetition_penalty),
         ]
 
-        report("Starting local LLM process...")
+        logger.debug("[Local LLM] Starting local LLM process...")
 
         env_path = os.environ.get("MOMAI_CORE_PATH")
         log_base = Path(env_path) if env_path else Path(__file__).parent
@@ -380,7 +380,7 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
                 logger.warning(f"[local_model] Error assigning Job: {e}")
 
         # Healthcheck Loop
-        report("Waiting for local LLM initialization (Healthcheck)...")
+        logger.debug("[Local LLM] Waiting for local LLM initialization (Healthcheck)...")
         last_percent = -1
         for i in range(240):  # 240 * 0.25 = 60s
             # Safety check: server_process might be killed by ResourceManager

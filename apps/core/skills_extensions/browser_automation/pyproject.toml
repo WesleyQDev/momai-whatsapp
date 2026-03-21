@@ -1,0 +1,14 @@
+[project]
+name = "browser_automation"
+version = "0.1.0"
+description = "Extensão para automação web usando Playwright e LangChain"
+authors = [{ name = "MomAI" }]
+dependencies = [
+    "langchain-community",
+    "playwright>=1.41.0",
+    "beautifulsoup4"
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

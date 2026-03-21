@@ -93,7 +93,7 @@ class Skill(BaseModel):
         tools_file = os.path.join(skill_dir, "tools.py")
 
         if not os.path.exists(tools_file):
-            logger.info(
+            logger.debug(
                 f"[Skill {self.id}] No tools.py found, using allowed_tools from manifest"
             )
             return self._tools
@@ -123,7 +123,7 @@ class Skill(BaseModel):
                                 f"[Skill {self.id}] Found callable {attr_name}: _is_tool={has_is_tool}, name={getattr(attr, 'name', None)}"
                             )
 
-                logger.info(
+                logger.debug(
                     f"[Skill {self.id}] Loaded {len(self._tools)} tools from tools.py"
                 )
             else:

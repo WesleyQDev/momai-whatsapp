@@ -149,20 +149,22 @@ class ExtensionInstaller:
                         shutil.move(str(item), str(target_dir))
 
     def _install_dependencies(self, target_dir: Path):
-        """Installs dependencies using uv (preferred) or pip."""
+        """Installs dependencies locally in a 'lib' directory to avoid global environment pollution."""
         pyproject = target_dir / "pyproject.toml"
         requirements = target_dir / "requirements.txt"
         
         uv_bin = os.environ.get("MOMAI_UV_BIN", "uv")
+        lib_dir = target_dir / "lib"
         
         try:
             if pyproject.exists():
-                logger.info(f"[Installer] Found pyproject.toml, running 'uv sync'...")
-                subprocess.run([uv_bin, "sync"], cwd=str(target_dir), check=True)
+                logger.info(f"[Installer] Found pyproject.toml, installing isolated via 'uv pip install --target lib .'...")
+                subprocess.run([uv_bin, "pip", "install", "--target", str(lib_dir), ".", "--python", sys.executable], cwd=str(target_dir), check=True)
             elif requirements.exists():
-                logger.info(f"[Installer] Found requirements.txt, running 'pip install'...")
+                logger.info(f"[Installer] Found requirements.txt, installing isolated via 'uv pip install --target lib -r'...")
                 subprocess.run(
-                    [sys.executable, "-m", "pip", "install", "-r", str(requirements)], 
+                    [uv_bin, "pip", "install", "-r", str(requirements), "--target", str(lib_dir), "--python", sys.executable], 
+                    cwd=str(target_dir),
                     check=True
                 )
         except Exception as e:

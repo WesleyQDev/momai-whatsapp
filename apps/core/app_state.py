@@ -178,7 +178,7 @@ def set_graph_state(view: str | None, bypass_wake_word: bool = False) -> None:
     """Updates the active UI graph state."""
     global active_graph
     active_graph = {"view": view, "bypass_wake_word": bypass_wake_word}
-    logger.info("[Main] Graph State changed: %s", active_graph)
+    logger.debug("[Main] Graph State changed: %s", active_graph)
 
 
 async def broadcast_to_sockets(message: dict) -> None:
@@ -213,7 +213,7 @@ async def send_init_event(stage: str, message: str, progress: int | None = None)
     last_init_event = {"stage": stage, "message": message, "progress": new_progress}
 
     await broadcast_to_sockets({"type": "init_progress", "data": last_init_event})
-    logger.info("[Init %s%%] %s: %s", new_progress, stage, message)
+    logger.debug("[Init %s%%] %s: %s", new_progress, stage, message)
 
 
 async def process_voice_command(text: str, speak_response: bool = True) -> None:
@@ -223,8 +223,8 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
     if not text or len(text.strip()) < 2:
         text = "Oi"  # This will trigger a greeting/ready response from the AI
 
-    logger.info("[Voice] Processing: %s (Thread: %s)", text, last_thread_id)
-    logger.info("[Voice] Active websockets: %d", len(active_websockets))
+    logger.info("[Voice] Processing: %s", text)
+    logger.debug("[Voice] Thread: %s, Active sockets: %d", last_thread_id, len(active_websockets))
 
     await broadcast_to_sockets({"type": "user", "content": text})
 
@@ -232,7 +232,7 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
 
     msg = ChatMessage(content=text, thread_id=last_thread_id)
     try:
-        logger.info("[Voice] Calling generate...")
+        logger.debug("[Voice] Calling generate...")
         await broadcast_to_sockets({"type": "assistant", "data": {"status": "Pensando..."}})
         
         async for chunk in generate(msg, speak_response=speak_response):
@@ -245,7 +245,7 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
                     await broadcast_to_sockets({"type": "assistant", "data": data})
                 except json.JSONDecodeError as e:
                     logger.debug("[Voice] Failed to decode stream chunk: %s", e)
-        logger.info("[Voice] Generate completed")
+        logger.debug("[Voice] Generate completed")
     except Exception as exc:
         logger.exception("Error processing voice: %s", exc)
         await broadcast_to_sockets({"type": "assistant", "data": {"error": str(exc)}})

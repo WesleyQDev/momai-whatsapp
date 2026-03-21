@@ -133,7 +133,7 @@ class TTSManager:
         """Initializes the TTS pipeline using kokoro-onnx."""
         _ensure_tts_imports()
         try:
-            logger.info("[TTS] Loading Kokoro-ONNX...")
+            logger.debug("[TTS] Loading Kokoro-ONNX...")
 
             from kokoro_onnx import Kokoro
             import onnxruntime as ort
@@ -194,7 +194,7 @@ class TTSManager:
 
             self.has_tts = True
             self.ready_event.set()
-            logger.info("✅ [TTS] Kokoro-ONNX ready!")
+            logger.debug("✅ [TTS] Kokoro-ONNX ready!")
         except Exception as e:
             self._error = str(e)
             self.has_tts = False
@@ -435,7 +435,7 @@ class TTSManager:
                 )
                 self.worker_thread = None
 
-            logger.info("[TTS] Starting new worker thread...")
+            logger.debug("[TTS] Starting new worker thread...")
             self.stop_event.clear()
 
             new_thread = threading.Thread(
@@ -488,7 +488,7 @@ class TTSManager:
         except Exception as e:
             logger.debug(f"[TTS] Queue clear error: {e}")
 
-        logger.info("[TTS] Playback stopped and queue cleared.")
+        logger.debug("[TTS] Playback stopped and queue cleared.")
 
     def set_voice(self, voice_name: str):
         """Sets the voice for Kokoro-ONNX."""

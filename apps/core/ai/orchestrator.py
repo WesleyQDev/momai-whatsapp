@@ -97,12 +97,12 @@ async def clear_history_db(thread_id: str = None):
     try:
         if thread_id:
             num = db.query(Message).filter(Message.thread_id == thread_id).delete()
-            logger.info(
+            logger.debug(
                 f"[AI_core] Deleted {num} messages from momai.db (thread: {thread_id})"
             )
         else:
             num = db.query(Message).delete()
-            logger.info(f"[AI_core] Deleted {num} messages from momai.db (all)")
+            logger.debug(f"[AI_core] Deleted {num} messages from momai.db (all)")
         db.commit()
     except Exception as e:
         logger.error(f"[AI_core] Error clearing DB history: {e}")
@@ -125,7 +125,7 @@ async def clear_history_db(thread_id: str = None):
                 await conn.execute("DELETE FROM checkpoints")
                 await conn.execute("DELETE FROM writes")
             await conn.commit()
-            logger.info(f"[AI_core] Graph memory cleared for thread: {thread_id or 'all'}")
+            logger.debug(f"[AI_core] Graph memory cleared for thread: {thread_id or 'all'}")
     except Exception as e:
         logger.error(f"[AI_core] Error clearing checkpoints: {e}")
 
@@ -243,7 +243,7 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
     import asyncio
 
     def report_progress(status: str):
-        logger.info(f"[AI_core] {status}")
+        logger.debug(f"[AI_core] {status}")
         if callable(on_init_progress):
             on_init_progress(status)
 
@@ -269,14 +269,14 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
             
             # Se o tier não foi definido, não carrega modelo.
             if not s or not s.ai_tier:
-                logger.info("[AI_core] Tier não selecionado. Pulando carregamento automático.")
+                logger.debug("[AI_core] Tier não selecionado. Pulando carregamento automático.")
                 is_loading = False
                 llm_mode = "waiting"
                 db.close()
                 return
 
             if not s.onboarding_completed and not onboarding_bypass:
-                logger.info("[AI_core] Onboarding pendente. Pulando carregamento automático.")
+                logger.debug("[AI_core] Onboarding pendente. Pulando carregamento automático.")
                 is_loading = False
                 llm_mode = "waiting"
                 db.close()
@@ -317,7 +317,7 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
         )
 
         if new_llm:
-            logger.info(f"[AI_core] Modelo Local instanciado. Reconstruindo Grafo...")
+            logger.debug(f"[AI_core] Modelo Local instanciado. Reconstruindo Grafo...")
             report_progress("Atualizando conhecimento de ferramentas...")
 
             # Sync Vector DB with Tools/Skills (Only for Ultra since it's the only one with embeddings now)
@@ -336,7 +336,7 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
                         f"[AI_core] Falha na sincronização de ferramentas: {sync_err}"
                     )
             else:
-                logger.info("[AI_core] Modo Lite/Pro detectado. Sincronização vetorial feita conforme demanda.")
+                logger.debug("[AI_core] Modo Lite/Pro detectado. Sincronização vetorial feita conforme demanda.")
 
             report_progress("Reconstruindo Grafo de Agentes...")
 
@@ -360,7 +360,7 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
                     init_error = None
 
                 report_progress("Tudo pronto, Senhor!")
-                logger.info(f"[AI_core] Motor de IA Local está pronto!")
+                logger.debug(f"[AI_core] Motor de IA Local está pronto!")
             except Exception as graph_err:
                 logger.error(f"[AI_core] Erro na Reconstrução do Grafo: {graph_err}")
                 raise graph_err

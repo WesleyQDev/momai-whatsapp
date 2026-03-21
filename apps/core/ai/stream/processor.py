@@ -77,7 +77,6 @@ class StreamProcessor:
 
         self.state.prebuffer_limit = self._get_prebuffer_limit()
         self.state.summary_text = await ensure_summary(self.state.thread_id, self.llm)
-
         save_message_to_db(self.state.thread_id, "user", self.state.user_content)
 
         config = {
@@ -201,6 +200,14 @@ class StreamProcessor:
 
         # 4. Persistence
         if final_reply.strip():
+            clean_log_reply = final_reply.split('__MOMAI_ACTIONS__')[0].strip()
+            
+            # Print each line of the reply with a proper log prefix
+            for line in clean_log_reply.split('\n'):
+                if line.strip():
+                    logger.info(f"MomAI: {line.strip()}")
+            logger.info("---------------")
+            
             pending_graph = app_state.get_pending_graph_data(self.state.thread_id)
             save_message_to_db(
                 self.state.thread_id,

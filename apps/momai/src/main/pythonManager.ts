@@ -1311,26 +1311,40 @@ export async function startPythonBackend(): Promise<void> {
 
     setPythonProcess(pythonProcess)
     pythonProcess.stdout?.on('data', (data) => {
-      const line = data.toString().trim()
-
-      // Intercept audio chunks for frontend playback fallback
-      if (line.startsWith('[AUDIO_CHUNK]')) {
-        const audioB64 = line.replace('[AUDIO_CHUNK]', '').trim()
-        const mainWindow = getMainWindow()
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('play-audio-chunk', audioB64)
-        }
-        return
+      const rawStr = data.toString()
+      
+      // Directly output to terminal preserving ANSI, \r, and TUI codes!
+      if (is.dev) {
+        process.stdout.write(rawStr)
+      } else {
+        // Fallback for production log files
+        const cleanLine = rawStr.trim()
+        if (cleanLine) logger.info(`[Python] ${cleanLine}`)
       }
 
-      logger.info(`[Python] ${line}`)
+      // Process for app events safely
+      const lines = rawStr.split(/\r?\n/)
+      for (const line of lines) {
+        const tLine = line.trim()
+        if (!tLine) continue
 
-      // Parse init progress from Python stdout: [Init 10%] api: message
-      const initMatch = line.match(INIT_PROGRESS_REGEX)
-      if (initMatch) {
-        const progress = parseInt(initMatch[1], 10)
-        const message = initMatch[2]
-        sendInitProgress(message, progress)
+        // Intercept audio chunks for frontend playback fallback
+        if (tLine.startsWith('[AUDIO_CHUNK]')) {
+          const audioB64 = tLine.replace('[AUDIO_CHUNK]', '').trim()
+          const mainWindow = getMainWindow()
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('play-audio-chunk', audioB64)
+          }
+          continue
+        }
+
+        // Parse init progress
+        const initMatch = tLine.match(INIT_PROGRESS_REGEX)
+        if (initMatch) {
+          const progress = parseInt(initMatch[1], 10)
+          const message = initMatch[2]
+          sendInitProgress(message, progress)
+        }
       }
     })
 

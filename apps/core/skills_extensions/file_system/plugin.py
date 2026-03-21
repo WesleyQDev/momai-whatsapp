@@ -49,7 +49,7 @@ class FileSystemPlugin:
 
     def on_startup(self):
         """Runs the file scan in a background thread to not block the main process."""
-        logger.info(f"[File System] Initializing in background thread.")
+        logger.debug(f"[File System] Initializing in background thread.")
         try:
             # Start scan in a daemon thread so it doesn't block shutdown
             thread = threading.Thread(target=self.indexer.scan, daemon=True)

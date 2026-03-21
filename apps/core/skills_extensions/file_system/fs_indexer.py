@@ -53,7 +53,7 @@ class FolderIndexer:
         to keep existing indexed data and only add new folders.
         """
         roots = _get_drive_roots()
-        logger.info(f"[File System] Scanning {len(roots)} drive(s) (Full Scan depth={self.max_depth})")
+        logger.debug(f"[File System] Scanning {len(roots)} drive(s) (Full Scan depth={self.max_depth})")
         start_time = time.time()
         total_indexed = 0
 
@@ -68,7 +68,7 @@ class FolderIndexer:
                 logger.error(f"Error scanning drive {root}: {e}")
 
         elapsed = time.time() - start_time
-        logger.info(f"[File System] Scan completed in {elapsed:.2f}s. {total_indexed} total folders processed.")
+        logger.debug(f"[File System] Scan completed in {elapsed:.2f}s. {total_indexed} total folders processed.")
 
     def _recursive_scan(self, current_path: str, current_depth: int, batch: List[Dict]):
         if current_depth > self.max_depth:

@@ -9,7 +9,7 @@ router = APIRouter()
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     app_state.active_websockets.append(websocket)
-    app_state.logger.info(f"[WS] Client connected. Total: {len(app_state.active_websockets)}")
+    app_state.logger.debug(f"[WS] Client connected. Total: {len(app_state.active_websockets)}")
     try:
         if not app_state.ai_stack_loaded:
             await app_state.initialize_ai_stack()
@@ -34,13 +34,13 @@ async def websocket_endpoint(websocket: WebSocket):
                     thread_id = msg.get("thread_id")
                     if thread_id:
                         app_state.last_thread_id = thread_id
-                        app_state.logger.info(f"[WS] Session synced: {thread_id}")
+                        app_state.logger.debug(f"[WS] Session synced: {thread_id}")
             except Exception as e:
                 app_state.logger.debug(f"[WS] Failed to parse message: {e}")
     except WebSocketDisconnect:
         if websocket in app_state.active_websockets:
             app_state.active_websockets.remove(websocket)
-            app_state.logger.info(f"[WS] Client disconnected. Total: {len(app_state.active_websockets)}")
+            app_state.logger.debug(f"[WS] Client disconnected. Total: {len(app_state.active_websockets)}")
     except Exception as e:
         if websocket in app_state.active_websockets:
             app_state.active_websockets.remove(websocket)

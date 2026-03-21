@@ -226,7 +226,7 @@ async def speak_and_notify(text: str) -> None:
     # Check if TTS is enabled before attempting to speak or notify
     import app_state
     if app_state.tts and app_state.tts.tts.enabled:
-        logger.info(f"[Voice] Speaking: {text[:50]}...")
+        logger.debug(f"[Voice] Speaking: {text[:50]}...")
         safe_speak(text)
         # We don't need to broadcast tts_start here anymore because 
         # app_state.py already handles it reactively via on_speech_start

@@ -5,7 +5,9 @@ import json
 import importlib.util
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+import pluggy
 from domain.skill import Skill
+from services.extensions.specs import MomAIExtensionSpec
 
 logger = logging.getLogger(__name__)
 
@@ -85,9 +87,14 @@ class Extension(Skill):
                 sys.modules[spec.name] = module
                 spec.loader.exec_module(module)
                 
-                if hasattr(module, "initialize"):
+                if hasattr(module, "plugin_instance"):
+                    self.plugin = module.plugin_instance
+                    # O registro no 'pluggy' será feito no get_tools do Registry,
+                    # ou podemos registrar diretamente aqui se tivermos a referência
+                    logger.debug(f"[Extension {self.id}] Plugin instanciado via Pluggy (plugin_instance).")
+                elif hasattr(module, "initialize"):
                     self.plugin = module.initialize(self.manifest)
-                    logger.info(f"[Extension {self.id}] Plugin initialized via initialize().")
+                    logger.debug(f"[Extension {self.id}] Plugin initialized via initialize().")
                 else:
                     # Fallback: search for a class with 'Plugin' in the name
                     plugin_class = None
@@ -98,7 +105,7 @@ class Extension(Skill):
                     
                     if plugin_class and isinstance(plugin_class, type):
                         self.plugin = plugin_class(self.manifest)
-                        logger.info(f"[Extension {self.id}] Plugin initialized via class {plugin_class.__name__}.")
+                        logger.debug(f"[Extension {self.id}] Plugin initialized via class {plugin_class.__name__}.")
                     else:
                         logger.warning(f"[Extension {self.id}] No entry point found in plugin.py.")
         except Exception as e:
@@ -110,7 +117,18 @@ class Extension(Skill):
         
         if hasattr(self.plugin, "register_tools"):
             try:
-                tools = self.plugin.register_tools()
+                # Tanto o estilo legacy quanto o novo Hook (@hookimpl) vão chamar este método
+                # mas no caso do Pluggy, o manager também chamará tudo via self.pm.hook
+                # Para evitar duplicidade se register_tools for um Hook, tratamos aqui:
+                
+                # Se for dict (manifest) é legacy
+                import inspect
+                sig = inspect.signature(self.plugin.register_tools)
+                if len(sig.parameters) > 0:
+                    tools = self.plugin.register_tools(self.manifest)
+                else:
+                    tools = self.plugin.register_tools()
+                    
                 return tools if isinstance(tools, list) else []
             except Exception as e:
                 logger.error(f"[Extension {self.id}] register_tools error: {e}")
@@ -152,6 +170,11 @@ class SkillRegistry:
 
         self.skills: Dict[str, Skill] = {}
         self._skill_tools: Dict[str, Any] = {}
+        
+        # 🔌 Setup do Pluggy PluginManager
+        self.pm = pluggy.PluginManager("momai")
+        self.pm.add_hookspecs(MomAIExtensionSpec)
+        
         self._ensure_dirs()
 
     def _get_user_extensions_dir(self) -> Path:
@@ -213,16 +236,28 @@ class SkillRegistry:
             skill = Skill.from_file(skill_id, str(skill_path))
             skill.metadata["category"] = category
             
+            # Isoleted Environment: prepends `lib/` to sys.path if it exists
+            lib_path = path / "lib"
+            if lib_path.exists() and str(lib_path) not in sys.path:
+                sys.path.insert(0, str(lib_path))
+            
             # 2. Upgrade to Extension if plugin.py exists
             plugin_path = path / "plugin.py"
             if plugin_path.exists():
                 item = Extension.from_skill(skill)
+                # Opcional: Registra o plugin globalmente no PM
+                if item.plugin:
+                    plugin_name = f"ext_{skill_id}"
+                    # Unregister to avoid "Plugin name already registered" error
+                    # if the extensions are reloaded.
+                    self.pm.unregister(name=plugin_name)
+                    self.pm.register(item.plugin, name=plugin_name)
             else:
                 item = skill
             
             self.skills[skill_id] = item
             
-            # 3. Load tools
+            # 3. Load tools - Chamado SOMENTE por demanda no agente depois
             item_tools = item.get_tools()
             if item_tools:
                 from utils.safe_tools import SafeExtensionTool

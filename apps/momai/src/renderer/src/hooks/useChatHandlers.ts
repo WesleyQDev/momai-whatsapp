@@ -65,9 +65,6 @@ export function useChatHandlers({
       setSpeakingIndex(null)
     } else if (msg.type === 'voice_status') {
       setVoiceStatus(msg.status)
-      if (msg.status === 'listening' && (window as any).api) {
-        (window as any).api.focus()
-      }
     } else if (msg.type === 'tool_start') {
       const toolId = msg.data?.id || `${msg.data?.name || 'tool'}-${Date.now()}`
       setMessages((prev) => {

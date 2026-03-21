@@ -371,11 +371,17 @@ const MessageItem = memo(function MessageItem({
                       let prefix = 'Tool: '
 
                       if (isSkill) {
-                        name = activity
+                        const rawName = activity
                           .replace(/especialista: executando/i, '')
                           .replace(/\.\.\.$/, '')
                           .trim()
-                        prefix = 'Skill: '
+                        
+                        // Humanização escalável sem hardcode: remove underscores e capitaliza
+                        name = rawName
+                          .split('_')
+                          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                          .join(' ')
+                        prefix = 'Acessando Skill: '
                       } else if (isMemory) {
                         name = activity
                           .replace(/memória:/i, '')
@@ -383,10 +389,17 @@ const MessageItem = memo(function MessageItem({
                           .trim()
                         prefix = 'Memória: '
                       } else {
-                        name = activity
+                        const rawName = activity
                           .replace(/manager: chamando ferramenta/i, '')
                           .replace(/\.\.\.$/, '')
                           .trim()
+                        
+                        // Humanização generalista também para ferramentas
+                        name = rawName
+                          .split('_')
+                          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                          .join(' ')
+                        prefix = 'Usando: '
                       }
 
                       return (
@@ -552,7 +565,6 @@ const MessageItem = memo(function MessageItem({
 
               {/* Status de Execução - minimalista */}
               {isLoading &&
-                displayActivities.length > 0 &&
                 !toolsFinished &&
                 (() => {
                   const searchActivity = displayActivities.find((a) =>
@@ -565,9 +577,11 @@ const MessageItem = memo(function MessageItem({
                     ? 'Buscando...'
                     : toolActivity
                       ? toolActivity.replace(/manager: chamando ferramenta/i, '').trim() + '...'
-                      : 'Executando...'
+                      : displayActivities.length > 0
+                        ? 'Executando...'
+                        : 'Pensando...'
                   return (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 mt-1 min-h-[16px]">
                       <span className="text-[11px] text-zinc-400 animate-pulse">{label}</span>
                     </div>
                   )

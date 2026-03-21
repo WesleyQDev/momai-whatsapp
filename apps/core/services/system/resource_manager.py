@@ -164,7 +164,7 @@ class ResourceManager:
                 )
             
             gc.collect()
-            logger.info("[ResourceManager] Inactivity suspension complete.")
+            logger.debug("[ResourceManager] Inactivity suspension complete.")
         except Exception as e:
             logger.error(f"[ResourceManager] Error suspending for inactivity: {e}")
 
@@ -204,7 +204,7 @@ class ResourceManager:
             
             stop_server() # Llama.cpp (main LLM)
             tts.stop_all() # TTS
-            logger.info("[ResourceManager] Heavy services suspended successfully.")
+            logger.debug("[ResourceManager] Heavy services suspended successfully.")
             
             # NOVO: Notificar FastAPI que está em gaming mode
             try:
@@ -214,11 +214,11 @@ class ResourceManager:
                 pass
             
             # NOVO: Garbage collection agressivo
-            logger.info("[ResourceManager] Running aggressive garbage collection...")
+            logger.debug("[ResourceManager] Running aggressive garbage collection...")
             gc.collect()
             
             # NOVO: Descarregar módulos opcionais da memória
-            logger.info("[ResourceManager] Unloading optional modules...")
+            logger.debug("[ResourceManager] Unloading optional modules...")
             modules_to_unload = [
                 'langchain', 'langchain_core', 'langgraph', 
                 'embeddings', 'services.reminders', 'services.extensions'

@@ -240,7 +240,7 @@ def open_note_folder(note_id: str) -> bool:
             return True
         return False
     except Exception as e:
-        print(f"Error opening folder: {e}")
+        logger.error(f"Error opening folder: {e}")
         return False
     finally:
         db.close()

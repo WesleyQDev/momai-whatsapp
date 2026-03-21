@@ -102,7 +102,7 @@ class EmbeddingEngine:
                 else:
                     os.environ["HF_HUB_OFFLINE"] = "1"
         else:
-            logger.info(f"[Embeddings] Using cached model: {MODEL_FILE}")
+            logger.debug(f"[Embeddings] Using cached model: {MODEL_FILE}")
         return str(model_path.resolve())
 
     def load(self):
@@ -148,7 +148,7 @@ class EmbeddingEngine:
 
             model_path = self._get_model_path()
 
-            logger.info(
+            logger.debug(
                 f"[Embeddings] Starting llama-server for embeddings on port {self._port}..."
             )
 
@@ -216,7 +216,7 @@ class EmbeddingEngine:
                         f"http://127.0.0.1:{self._port}/health", timeout=0.5
                     )
                     if res.status_code == 200:
-                        logger.info("[Embeddings] Servidor de embeddings pronto!")
+                        logger.debug("[Embeddings] Servidor de embeddings pronto!")
                         break
                 except Exception:
                     # Healthcheck failed, server not ready yet

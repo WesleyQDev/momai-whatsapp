@@ -6,17 +6,18 @@ api_router = APIRouter()
 def include_routes():
     import logging
     logger = logging.getLogger(__name__)
-    logger.info("[Router] Registering API routes...")
+    logger.debug("[Router] Registering API routes...")
     
-    logger.info("[Router] Importing route modules...")
+    logger.debug("[Router] Importing route modules...")
     
     import time
     start = time.time()
+
     
     def load_route(name, import_func):
         s = time.time()
         res = import_func()
-        logger.info(f"  - {name} loaded in {time.time() - s:.2f}s")
+        logger.debug(f"  - {name} loaded in {time.time() - s:.2f}s")
         return res
 
     chat = load_route("chat", lambda: __import__("api.routes.chat", fromlist=["router"]))
@@ -34,8 +35,8 @@ def include_routes():
     ws = load_route("ws", lambda: __import__("api.routes.ws", fromlist=["router"]))
     diagnostic = load_route("diagnostic", lambda: __import__("api.routes.diagnostic", fromlist=["router"]))
     
-    logger.info(f"[Router] Route modules imported in {time.time() - start:.2f}s")
-    logger.info("[Router] Attaching routers to main router...")
+    logger.debug(f"[Router] Route modules imported in {time.time() - start:.2f}s")
+    logger.debug("[Router] Attaching routers to main router...")
 
     api_router.include_router(chat.router)
     api_router.include_router(voice.router)
@@ -51,6 +52,6 @@ def include_routes():
     api_router.include_router(hardware.router)
     api_router.include_router(ws.router)
     api_router.include_router(diagnostic.router)
-    logger.info("[Router] All routes registered successfully.")
+    logger.debug("[Router] All routes registered successfully.")
 
 # include_routes()

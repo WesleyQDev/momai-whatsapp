@@ -29,6 +29,8 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "onnxruntime>=1.20.0,<1.25.0",
     "fortscript>=0.4.0",
+    "playwright>=1.58.0",
+    "beautifulsoup4>=4.14.3",
 ]
 
 [project.optional-dependencies]
