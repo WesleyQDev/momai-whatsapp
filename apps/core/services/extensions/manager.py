@@ -286,7 +286,9 @@ class SkillRegistry:
     def get_all_skills(self) -> List[Dict]:
         """Returns all loaded skills and extensions formatted for UI."""
         result = []
-        for s_id, s in self.skills.items():
+        # Iterate over a copy of the dictionary to avoid 'changed size during iteration' errors
+        # if the background loader is still running.
+        for s_id, s in list(self.skills.items()):
             item = {
                 "id": s_id,
                 "name": s.name,

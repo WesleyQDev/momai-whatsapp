@@ -9,13 +9,13 @@ from utils.i18n import t, get_locale
 import asyncio
 import app_state
 from ai import utils
-
+import json
 
 # Global state
 current_mode = "local"
 version = "v0"
 
-MIN_INTERFACE_CHARS = int(os.getenv("MOMAI_MIN_INTERFACE_CHARS", "240"))
+MIN_INTERFACE_CHARS = int(os.getenv("MOMAI_MIN_INTERFACE_CHARS", "450"))
 
 _MISSING_CAPABILITY_UI_PATTERNS = [
     r"acesso negado",
@@ -68,34 +68,42 @@ def _should_offer_extension_store(
 def _should_use_side_panel(
     content: str, options: list[str] | None, ui_schema: dict | None
 ) -> bool:
-    if ui_schema or (options and len(options) > 0):
-        return True
     if not content:
         return False
 
+    # Only use side panel for very long content
     if len(content) >= _get_min_interface_chars():
         return True
 
-    if re.search(r"(^|\n)\s*[-*]\s+", content):
+    # Use side panel for medium-long code blocks
+    if "```" in content and len(content) > 600:
         return True
-    if re.search(r"(^|\n)#{1,6}\s+", content):
-        return True
-    if "```" in content:
-        return True
-    if "|" in content and "\n" in content:
+        
+    # Use side panel for tables only if they have significant content
+    if "|" in content and content.count("\n") > 4:
+        # A table with more than 4 lines is worth a panel
         return True
 
     return False
 
+
+class ActionButton(BaseModel):
+    label: str = Field(description="Human-readable text displayed on the button (e.g. 'Abrir D:\\mãe').")
+    tool: str = Field(description="Tool name to execute. Use 'open_in_explorer' with arg 'path' when you already know the full path. Use 'search_and_open_folder' with arg 'query' only for name-based search.")
+    args: Dict[str, Any] = Field(default={}, description="Arguments matching the tool's schema exactly. For open_in_explorer: {\"path\": \"C:\\\\...\"}, for search_and_open_folder: {\"query\": \"name\"}.")
 
 class ShowInterfaceInput(BaseModel):
     view: Literal["side"] = Field(
         default="side", description="The view type. Currently only 'side' is supported."
     )
     content: str = Field(description="Markdown content to display.")
-    options: Optional[List[str]] = Field(default=[], description="Action buttons for the user.")
+    options: Optional[List[str]] = Field(default=[], description="Legacy action buttons. Use action_buttons instead.")
+    action_buttons: Optional[List[ActionButton]] = Field(
+        default=[],
+        description="List of buttons for the user. ALWAYS USE THIS if you want the user to trigger a tool with a specific target on click."
+    )
     ui_schema: Optional[Dict[str, Any]] = Field(
-        default=None, description="Dynamic UI JSON schema."
+        default=None, description="Dynamic UI JSON schema for complex forms."
     )
     bypass_wake_word: bool = Field(
         default=False, description="Whether to activate mic immediately."
@@ -104,12 +112,14 @@ class ShowInterfaceInput(BaseModel):
 
 class ShowChatCardInput(BaseModel):
     content: str = Field(description="Markdown content to display.")
-    options: Optional[List[str]] = Field(default=[], description="Action buttons for the user.")
-    options_map: Optional[Dict[str, str]] = Field(
-        default=None, description="Optional label map for options."
+    options: Optional[List[str]] = Field(default=[], description="Legacy action buttons. Use action_buttons instead.")
+    options_map: Optional[Dict[str, str]] = Field(default=None, description="Legacy map.")
+    action_buttons: Optional[List[ActionButton]] = Field(
+        default=[],
+        description="List of buttons for the user to select from. ALWAYS USE THIS if you want the user to trigger a tool on click."
     )
     ui_schema: Optional[Dict[str, Any]] = Field(
-        default=None, description="Dynamic UI JSON schema."
+        default=None, description="Dynamic UI JSON schema for complex forms."
     )
 
 
@@ -118,15 +128,36 @@ def show_interface(
     content: str,
     view: Literal["side"] = "side",
     options: list[str] = None,
+    action_buttons: list = None,
+    options_map: dict = None,
     ui_schema: dict = None,
     bypass_wake_word: bool = False,
 ):
     """
     Displays a graphical side interface (UI) to the user.
-    MANDATORY Usage: Use this whenever the user asks to "show", "list", or "open interface", OR when displaying lists, markdown tables, or long content.
+    Usage: Use this ONLY for very extensive responses (long reports, full code files, large data tables) 
+    or when the user explicitly asks to "open the interface". 
+    For short answers (weather, single facts, short lists), let the content remain in the chat bubble.
     """
     if options is None:
         options = []
+    if options_map is None:
+        options_map = {}
+        
+    if action_buttons:
+        for btn in action_buttons:
+            if isinstance(btn, dict): # if passed via JSON parsed dict
+                l = btn.get('label', '')
+                t = btn.get('tool', '')
+                a = btn.get('args', {})
+            else:                     # if passed as ActionButton model directly
+                l = btn.label
+                t = btn.tool
+                a = btn.args
+            raw_val = f"__TOOL__:{t}:{json.dumps(a, ensure_ascii=False)}"
+            options.append(raw_val)
+            options_map[raw_val] = l
+
     # Force view to be 'side' just in case
     view = "side"
 
@@ -146,7 +177,7 @@ def show_interface(
 
     if not _should_use_side_panel(content, options, ui_schema):
         return show_chat_card.invoke(
-            {"content": content, "options": options, "ui_schema": ui_schema}
+            {"content": content, "options": options, "options_map": options_map, "ui_schema": ui_schema}
         )
     app_state.set_graph_state(view, bypass_wake_word)
 
@@ -154,6 +185,7 @@ def show_interface(
         "view": view,
         "content": content,
         "options": options,
+        "options_map": options_map,
         "ui_schema": ui_schema,
         "bypass_wake_word": bypass_wake_word,
     }
@@ -178,6 +210,7 @@ def show_chat_card(
     content: str,
     options: list[str] = None,
     options_map: dict = None,
+    action_buttons: list = None,
     ui_schema: dict = None,
 ):
     """Displays a chat-only card without opening side or center panels."""
@@ -185,6 +218,21 @@ def show_chat_card(
         options = []
     if options_map is None:
         options_map = {}
+        
+    if action_buttons:
+        for btn in action_buttons:
+            if isinstance(btn, dict):
+                l = btn.get('label', '')
+                t = btn.get('tool', '')
+                a = btn.get('args', {})
+            else:
+                l = btn.label
+                t = btn.tool
+                a = btn.args
+            raw_val = f"__TOOL__:{t}:{json.dumps(a, ensure_ascii=False)}"
+            options.append(raw_val)
+            options_map[raw_val] = l
+
     graph_data = {
         "view": "chat",
         "content": content,

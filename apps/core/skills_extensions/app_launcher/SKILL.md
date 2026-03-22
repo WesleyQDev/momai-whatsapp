@@ -1,6 +1,6 @@
 ---
 name: Iniciar Aplicativos
-description: Registra e abre APLICATIVOS locais (programas, jogos, .exe) instalados. Não utilize para abrir pastas comuns do Windows.
+description: Registra e abre APLICATIVOS locais (programas, jogos, .exe) instalados no computador. NÃO use para abrir sites ou URLs no navegador.
 intents:
   - Registrar app [nome] no caminho [path]
   - Salvar app [nome]

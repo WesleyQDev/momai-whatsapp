@@ -144,7 +144,7 @@ function App(): React.JSX.Element {
 
             <div className="relative z-10 flex-1 flex min-h-0 overflow-hidden bg-transparent">
               <div
-                className={`w-full h-full flex ${isCompact ? 'flex-col' : `flex-row ${isChat ? 'p-6 gap-6 justify-center w-full max-w-[1500px] mx-auto' : ''}`}`}
+                className={`w-full h-full flex ${isCompact ? 'flex-col' : `flex-row ${isChat ? 'p-4 xl:p-4 gap-4 xl:gap-8 justify-center w-full max-w-[1500px] mx-auto overflow-x-auto overflow-y-hidden' : ''}`}`}
               >
                 <MainViewRenderer
                   viewName={uiView}
@@ -162,14 +162,10 @@ function App(): React.JSX.Element {
                 />
 
                 {graphState.view === 'side' && !isCompact && (
-                  <div className="flex-1 min-w-[320px] max-w-[600px] rounded-xl bg-card border border-border/10 shadow-2xl overflow-hidden relative animate-in slide-in-from-right duration-500">
+                  <div className="flex-1 min-w-[280px] xl:min-w-[380px] max-w-[650px] rounded-xl bg-card border border-border/10 shadow-2xl overflow-hidden relative animate-in slide-in-from-right duration-500 shrink">
                     <GraphInterface
                       view="side"
                       content={graphState.content}
-                      options={graphState.options}
-                      optionsMap={graphState.optionsMap}
-                      uiSchema={graphState.uiSchema}
-                      onOptionSelect={handleGraphOption}
                       onClose={closeGraph}
                     />
                   </div>
@@ -214,10 +210,6 @@ function App(): React.JSX.Element {
         <GraphInterface
           view="center"
           content={graphState.content}
-          options={graphState.options}
-          optionsMap={graphState.optionsMap}
-          uiSchema={graphState.uiSchema}
-          onOptionSelect={handleGraphOption}
           onClose={closeGraph}
         />
       )}

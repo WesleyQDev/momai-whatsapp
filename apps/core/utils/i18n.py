@@ -16,6 +16,7 @@ _STRINGS = {
         "status_delegating": "Manager: Delegando para Especialista ({skill})...",
         "status_calling_tool": "Manager: Chamando ferramenta {tool}...",
         "status_finalizing": "Finalizando resposta...",
+        "no_response_found": "Desculpe, não consegui formular uma resposta para isso.",
     },
     "en": {
         "missing_capability_card_content": "I can learn this if you install an extension.",
@@ -30,6 +31,7 @@ _STRINGS = {
         "status_delegating": "Manager: Delegating to Specialist ({skill})...",
         "status_calling_tool": "Manager: Calling tool {tool}...",
         "status_finalizing": "Finalizing response...",
+        "no_response_found": "Sorry, I couldn't formulate a response to that.",
     },
 }
 

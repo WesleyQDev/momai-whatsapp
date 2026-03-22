@@ -274,7 +274,7 @@ export default function ChatInput({
             <div
               ref={ghostRef}
               aria-hidden="true"
-              className="absolute inset-0 pointer-events-none py-3 px-5 text-[15px] sm:text-[16px] whitespace-pre-wrap break-words overflow-hidden"
+              className="absolute inset-0 pointer-events-none py-2 px-4 text-[15px] sm:text-[16px] whitespace-pre-wrap break-words overflow-hidden"
               style={{ lineHeight: 'inherit' }}
             >
               <span className="invisible">{localText}</span>
@@ -284,7 +284,7 @@ export default function ChatInput({
             <textarea
               ref={inputRef}
               rows={1}
-              className="flex-1 w-full bg-transparent border-none py-3 px-5 text-[15px] sm:text-[16px] text-text outline-none placeholder:text-text-muted/70 disabled:opacity-50 min-w-0 resize-none scrollbar-none relative z-10"
+              className="flex-1 w-full bg-transparent border-none py-2 px-4 text-[15px] sm:text-[16px] text-text outline-none placeholder:text-text-muted/70 disabled:opacity-50 min-w-0 resize-none scrollbar-none relative z-10"
               style={{ caretColor: 'auto' }}
               value={localText}
               onChange={handleInputChange}

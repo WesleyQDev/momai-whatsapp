@@ -567,6 +567,12 @@ def create_momai_graph(
                     else:
                         log_event("Guardrail", f"Tool '{t.name}' reached its limit ({limit}).")
 
+            # Add System UI tools so the specialist can render interactive UI!
+            all_reg = get_all_tools_registry()
+            for t_name in ["show_chat_card", "show_interface"]:
+                if all_reg.get(t_name):
+                    available_tools.append(all_reg[t_name])
+
             prompt = ChatPromptTemplate.from_messages([
                 ("system", system_instructions),
                 ("human", "{task}")
@@ -579,9 +585,15 @@ def create_momai_graph(
                 # If the tool already returned readable text and we have no more tools to call,
                 # pass the result directly as the final answer without an extra LLM call.
                 combined_result = "\n\n".join(tool_results)
-                is_error = any(r.startswith("SYSTEM:") or r.startswith("Tool execution failed") for r in tool_results)
-                is_short_enough = len(combined_result) < 2000
                 
+                # Expand error detection to technical failures (Playwright, Timeout, API errors, etc.)
+                error_keywords = ["SYSTEM:", "Tool execution failed", "Error:", "Exception:", "Timeout", "Page.goto", "failed:"]
+                is_error = any(any(k in r for k in error_keywords) for r in tool_results)
+                
+                # Modifying shortcut: Search results and large lists SHOULD go through the LLM for humanization.
+                is_search = "search" in skill_id or "web" in skill_id
+                is_short_enough = len(combined_result) < 500 and not is_search and "Encontrei " not in combined_result and "Found " not in combined_result
+
                 if is_short_enough and not is_error and combined_result.strip():
                     logger.debug(f"[Specialist] Tool result is self-explanatory, skipping LLM call")
                     

@@ -305,6 +305,72 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
 
         # Parallel slots for concurrent requests (title generation, chat, summary, etc)
         PARALLEL_SLOTS = 4
+        
+        # VRAM protection logic for dynamic context sizing
+        actual_ctx_size = ctx_size or CTX_SIZE
+        try:
+            vram_mb = None
+            import subprocess
+            
+            if paths["backend"] == "cuda":
+                # Check NVIDIA VRAM using nvidia-smi
+                res = subprocess.run(['nvidia-smi', '--query-gpu=memory.total', '--format=csv,noheader,nounits'], stdout=subprocess.PIPE, text=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+                if res.returncode == 0 and res.stdout.strip():
+                    vram_mb = int(res.stdout.strip().split('\n')[0])
+                    
+            # Fallback for AMD/Intel on Windows (Vulkan)
+            if not vram_mb and os.name == "nt":
+                try:
+                    cmd = 'powershell -NoProfile -Command "(Get-CimInstance Win32_VideoController | Measure-Object -Property AdapterRAM -Maximum).Maximum"'
+                    res = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                    if res.returncode == 0 and res.stdout.strip():
+                        val = int(res.stdout.strip())
+                        if val > 0:
+                            vram_mb = val // (1024 * 1024)
+                except Exception:
+                    pass
+
+            if vram_mb:
+                # WMI AdapterRAM caps at 4095 MB on Windows for >4GB GPUs. We treat 4095 as 8GB explicitly.
+                if vram_mb <= 3200:
+                    max_ctx = 2048
+                    PARALLEL_SLOTS = 2
+                elif vram_mb < 4090:
+                    max_ctx = 4096
+                    PARALLEL_SLOTS = 2
+                elif vram_mb <= 8200: # Handls the 4095MB Windows bug up to 8GB
+                    max_ctx = 8192
+                    PARALLEL_SLOTS = 4
+                else:
+                    max_ctx = 16384
+                    PARALLEL_SLOTS = 4
+            else:
+                max_ctx = 8192
+                PARALLEL_SLOTS = 4
+
+            # Extra protection for CPU mode based on system RAM
+            if paths["backend"] == "cpu":
+                import psutil
+                sys_ram_mb = psutil.virtual_memory().total // (1024 * 1024)
+                if sys_ram_mb <= 8000:
+                    max_ctx = 2048
+                    PARALLEL_SLOTS = 2
+                elif sys_ram_mb <= 16000:
+                    max_ctx = 4096
+                    PARALLEL_SLOTS = 4
+
+            if actual_ctx_size > max_ctx:
+                vram_str = f"{vram_mb}MB" if vram_mb else "Desconhecida"
+                if paths["backend"] == "cpu":
+                    vram_str = "RAM do Sistema"
+                report(f"Limitando o Context Window de {actual_ctx_size} para {max_ctx} protegendo a memoria ({vram_str}).")
+                actual_ctx_size = max_ctx
+                
+        except Exception as e:
+            report(f"Aviso de deteccao de VRAM: {e}")
+            
+        # VERY IMPORTANT: Export the actual context size so the MomAI Tokenizer knows!
+        os.environ["MOMAI_CTX_SIZE"] = str(actual_ctx_size)
 
         cmd = [
             abs_exe_path,
@@ -313,7 +379,7 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
             "--port",
             "8080",
             "-c",
-            str((ctx_size or CTX_SIZE) * PARALLEL_SLOTS),
+            str(actual_ctx_size * PARALLEL_SLOTS),
             "-t",
             str(physical_cores),
             "-ngl",

@@ -84,6 +84,24 @@ export function useChatActions({
       }
 
       setText('')
+
+      if (isSilent) {
+        try {
+          await sendChatMessage(content, threadId, {
+            onToken: () => {},
+            onStatus: () => {},
+            onSources: () => {},
+            onSnippets: () => {},
+            onCards: () => {},
+            onDone: () => {},
+            onError: (err) => console.error('[SilentTool] Error:', err)
+          })
+        } catch (err) {
+          console.error('[SilentTool] Error:', err)
+        }
+        return
+      }
+
       setIsLoading(true)
       toolTraceRef.current = { activeMsgId: null, byToolId: {} }
       
@@ -315,7 +333,7 @@ export function useChatActions({
         return
       }
       if (option === 'dismiss') return
-      sendMessage(option)
+      sendMessage(option, option.startsWith('__TOOL__:'))
     },
     [setGraphState, sendMessage]
   )

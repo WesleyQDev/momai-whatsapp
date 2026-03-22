@@ -130,7 +130,6 @@ export function registerIpcHandlers(): void {
     if (!win) return
     if (win.isMaximized()) win.unmaximize()
     win.setSize(880, 670)
-    win.center()
     win.setMinimumSize(450, 670)
   })
 

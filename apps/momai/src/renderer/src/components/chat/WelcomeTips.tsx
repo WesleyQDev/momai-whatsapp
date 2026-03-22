@@ -34,7 +34,7 @@ export function WelcomeHeader({
   return (
     <div className="flex flex-col items-center text-center space-y-6 max-w-md w-full mb-2 animate-in fade-in slide-in-from-bottom-4 duration-1000">
       <div className="space-y-1">
-        <h2 className="text-[32px] font-extrabold text-text tracking-tight flex items-center justify-center gap-3">
+        <h2 className="text-3xl font-extrabold text-text tracking-tight flex items-center justify-center gap-3">
           <span>
             {t('home.greeting')}
             {showSeparator ? ', ' : ' '}

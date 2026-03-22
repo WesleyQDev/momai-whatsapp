@@ -133,7 +133,9 @@ class StreamHandler:
         for msg in reversed(msgs):
             if isinstance(msg, ToolMessage) and msg.content:
                 content = clean_response(msg.content)
-                if content and not content.startswith("SYSTEM:") and not content.startswith("Error:"):
+                if content:
+                    # We might want to filter generic SYSTEM: NO_RESULTS but for user UX, 
+                    # it's better to show 'something' than a stuck '...' bubble.
                     if not self.state.full_content:
                         self.state.stream_decided = True
                         self.state.had_tool_call = True

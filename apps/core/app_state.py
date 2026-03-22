@@ -183,11 +183,17 @@ def set_graph_state(view: str | None, bypass_wake_word: bool = False) -> None:
 
 async def broadcast_to_sockets(message: dict) -> None:
     """Broadcasts a JSON message to all connected WebSockets."""
-    for ws in active_websockets:
+    # iterate over a copy of the list to avoid collection-has-changed errors
+    for ws in list(active_websockets):
         try:
             await ws.send_json(message)
         except Exception as exc:
             logger.warning("[WebSocket] Broadcast error: %s", exc)
+            if ws in active_websockets:
+                try:
+                    active_websockets.remove(ws)
+                except ValueError:
+                    pass
 
 
 async def send_init_event(stage: str, message: str, progress: int | None = None) -> None:

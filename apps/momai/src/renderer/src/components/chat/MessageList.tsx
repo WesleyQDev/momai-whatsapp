@@ -64,22 +64,27 @@ const MessageList = memo(function MessageList({
       onScroll={handleScroll}
       className="flex-1 flex flex-col gap-5 p-4 overflow-y-auto overflow-x-hidden relative scroll-smooth"
     >
-      {messages.map((msg, i) => (
-        <MessageItem
-          key={i}
-          message={msg}
-          isLoading={isLoading && i === messages.length - 1 && msg.role === 'assistant'}
-          onReopenGraph={onReopenGraph}
-          onGraphOption={onGraphOption}
-          isSpeaking={speakingIndex === i}
-          onStopVoice={onStopVoice}
-          onStopGeneration={onStopGeneration}
-          onSpeak={() => onSpeakMessage?.(msg.content, i)}
-          onDelete={() => onRemoveMessage?.(i)}
-          onRetry={() => onSendMessage(msg.content)}
-          aiTier={statusInfo?.ai_tier || 'pro'}
-        />
-      ))}
+      {messages.map((msg, i) => {
+        // Prevent system tool action triggers from being visibly rendered as chat balloons
+        if (msg.role === 'user' && msg.content.startsWith('__TOOL__:')) return null
+        
+        return (
+          <MessageItem
+            key={i}
+            message={msg}
+            isLoading={isLoading && i === messages.length - 1 && msg.role === 'assistant'}
+            onReopenGraph={onReopenGraph}
+            onGraphOption={onGraphOption}
+            isSpeaking={speakingIndex === i}
+            onStopVoice={onStopVoice}
+            onStopGeneration={onStopGeneration}
+            onSpeak={() => onSpeakMessage?.(msg.content, i)}
+            onDelete={() => onRemoveMessage?.(i)}
+            onRetry={() => onSendMessage(msg.content)}
+            aiTier={statusInfo?.ai_tier || 'pro'}
+          />
+        )
+      })}
 
       <div ref={messagesEndRef} />
     </main>

@@ -6,6 +6,14 @@ intents:
   - Extrair texto da página atual
   - Buscar por {texto} na web
   - Clicar em {seletor}
+  - Abra o {site} no navegador
+  - Abrir {site} no browser
+  - Abra o YouTube
+  - Abra o Google
+  - Entrar no site {url}
+  - Acessar {site}
+  - Abrir página web
+  - Open {site} in browser
 metadata:
   author: MomAI
   version: 0.1.0

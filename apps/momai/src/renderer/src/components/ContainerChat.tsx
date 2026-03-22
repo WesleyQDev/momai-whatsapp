@@ -416,7 +416,7 @@ export default function ContainerChat({
                   {/* Smaller top spacer to keep things higher */}
                   <div className="flex-1" />
 
-                  <div className="w-full max-w-4xl flex flex-col items-center animate-in fade-in duration-1000">
+                  <div className="w-full max-w-3xl flex flex-col items-center animate-in fade-in duration-1000">
                     <WelcomeHeader statusInfo={statusInfo} settings={settings} />
                     <div className="mb-10">
                       <WelcomeActions
@@ -435,7 +435,7 @@ export default function ContainerChat({
             </div>
 
             {/* Fixed Input Area */}
-            <div className="w-full max-w-4xl mx-auto z-30 pb-2">
+            <div className="w-full max-w-3xl mx-auto z-30 pb-2">
               <ChatInput
                 text={text}
                 onSend={onSendMessage}

@@ -43,10 +43,24 @@ def search_and_open_folder(query: str) -> str:
         results = _db.search(query, limit=5)
 
         if not results:
+            stripped = query.lower()
+            for prefix in ["abrir ", "pasta ", "folder ", "open ", "a pasta ", "abrir pasta "]:
+                stripped = stripped.replace(prefix, "")
+            stripped = stripped.strip()
+            if stripped and stripped != query.lower():
+                results = _db.search(stripped, limit=5)
+
+        if not results and " " in query:
+            for word in query.split():
+                word = word.strip()
+                if len(word) >= 2 and word.lower() not in ("abrir", "pasta", "folder", "open", "a", "o", "de", "do", "da", "em", "na", "no"):
+                    results = _db.search(word, limit=5)
+                    if results:
+                        break
+
+        if not results:
             return f"Não encontrei nenhuma pasta correspondente a '{query}'."
 
-        # Se houver mais de um resultado no índice para a busca, 
-        # perguntamos ao usuário para que ele decida qual abrir.
         if len(results) > 1:
             options = "\n".join([f"- {r['name']} em {r['path']}" for r in results])
             return f"Encontrei {len(results)} opções para '{query}'. Qual delas você deseja abrir?\n{options}"

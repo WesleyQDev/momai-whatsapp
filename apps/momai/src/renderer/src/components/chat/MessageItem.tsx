@@ -3,11 +3,88 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Message } from '../../services/api'
 import { cleanMomaiActions } from '../../utils/text'
+
+// Helper to clean markdown and technical tags from snippets/titles for a cleaner UI
+const cleanUIMetadata = (text: string) => {
+  if (!text) return ''
+  return text
+    .replace(/[#*`_~>\[\]\(\)]/g, '') // Remove markdown symbols
+    .replace(/Nota:/i, '')            // Remove redundant 'Nota:'
+    .replace(/\s+/g, ' ')            // Normalize spaces
+    .trim()
+}
 import icon from '../../assets/icon.png'
-import { DocumentTextIcon } from '@heroicons/react/24/outline'
+import { DocumentTextIcon, ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { ExtrasRenderer } from './ExtrasRenderer'
 import MessageContextMenu from './MessageContextMenu'
 import { useI18n } from '../../i18n'
+import { DynamicRenderer } from '../DynamicRenderer'
+
+const CodeBlock = ({ children, className }: any) => {
+  const [copied, setCopied] = useState(false)
+  const code = String(children?.props?.children || children || '').replace(/\n$/, '')
+  
+  const onCopy = () => {
+    if (!code) return
+    navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="relative group my-4">
+      <div className="absolute right-3 top-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={onCopy}
+          className="p-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 text-white/70 hover:text-white transition-all backdrop-blur-sm"
+        >
+          {copied ? <CheckIcon className="w-4 h-4 text-green-400" /> : <ClipboardIcon className="w-4 h-4" />}
+        </button>
+      </div>
+      <pre className={className}>
+        {children}
+      </pre>
+    </div>
+  )
+}
+
+const Markdown = ({ children, components = {} }: { children: string; components?: any }) => {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        pre: ({ node, ...props }) => <CodeBlock {...props} />,
+        table: ({ node, ...props }) => (
+          <div className="overflow-x-auto my-4 scrollbar-thin">
+            <table
+              className="min-w-full border-collapse border border-border/20 rounded-lg overflow-hidden"
+              {...props}
+            />
+          </div>
+        ),
+        thead: ({ node, ...props }) => <thead className="bg-white/5" {...props} />,
+        th: ({ node, ...props }) => (
+          <th
+            className="px-4 py-2.5 text-left text-[10px] font-black text-accent/90 uppercase tracking-widest border border-border/10"
+            {...props}
+          />
+        ),
+        td: ({ node, ...props }) => (
+          <td
+            className="px-4 py-2 text-sm text-text-muted border border-border/10"
+            {...props}
+          />
+        ),
+        tr: ({ node, ...props }) => (
+          <tr className="hover:bg-white/[0.02] transition-colors" {...props} />
+        ),
+        ...components
+      }}
+    >
+      {children}
+    </ReactMarkdown>
+  )
+}
 
 interface MessageItemProps {
   message: Message
@@ -158,12 +235,47 @@ const MessageItem = memo(function MessageItem({
   const totalStagesCount = displayActivities.length + toolSteps.length
   const hasStageData = totalStagesCount > 0
 
-  // Check if tools have finished based on activities
-  const isFinalizing = displayActivities.some((a) =>
+  const displayContentStr = String(displayContent || '')
+  const ACTION_MARKER = '__MOMAI_ACTIONS__'
+  const hasMarker = displayContentStr.includes(ACTION_MARKER)
+
+  const [isThinkingOpen, setIsThinkingOpen] = useState(false)
+
+  // Function to extract <think> tags from text
+  const processThinkTags = (text: string) => {
+    const thinkRegex = /<think>([\s\S]*?)<\/think>/g
+    let match
+    const thoughts: string[] = []
+    let cleanText = text
+
+    while ((match = thinkRegex.exec(text)) !== null) {
+      thoughts.push(match[1].trim())
+    }
+    
+    cleanText = text.replace(thinkRegex, '').trim()
+    return { thoughts, cleanText }
+  }
+
+  const textParts = hasMarker ? displayContentStr.split(ACTION_MARKER) : [displayContentStr]
+  
+  // Process each part for thinking tags
+  const processedParts = textParts.map(part => processThinkTags(part))
+  
+  const introData = processedParts[0]
+  const introText = introData?.cleanText
+  const introThoughts = introData?.thoughts || []
+  
+  const finalResponseData = hasMarker ? processedParts[1] : null
+  const finalResponseText = finalResponseData?.cleanText || ''
+  const finalResponseThoughts = finalResponseData?.thoughts || []
+  
+  const allThoughts = [...introThoughts, ...finalResponseThoughts]
+
+  const isFinalizing = (message.activities || []).some((a) =>
     a.toLowerCase().includes('finalizando resposta')
   )
   const hasActualContent = message.content !== '...' && message.content.length > 0 && !isToolTrace
-  const toolsFinished = isFinalizing || hasActualContent
+  const toolsFinished = hasActualContent || (hasMarker && (finalResponseText?.length ?? 0) > 0)
 
   // Efeito para gerenciar a abertura/fechamento automático das fontes
   useEffect(() => {
@@ -274,13 +386,6 @@ const MessageItem = memo(function MessageItem({
     return ''
   }
 
-  const displayContentStr = String(displayContent || '')
-  const ACTION_MARKER = '__MOMAI_ACTIONS__'
-  const hasMarker = displayContentStr.includes(ACTION_MARKER)
-
-  const textParts = hasMarker ? displayContentStr.split(ACTION_MARKER) : [displayContentStr]
-  const introText = textParts[0]?.trim()
-  const finalResponseText = hasMarker ? textParts[1]?.trim() : ''
 
   return (
     <div
@@ -325,16 +430,62 @@ const MessageItem = memo(function MessageItem({
         className={`relative break-words overflow-hidden min-w-0 max-w-full transition-all duration-300 ${
           message.role === 'assistant'
             ? 'flex-1 pt-0.5 text-text text-[15px] sm:text-[16px] leading-relaxed message'
-            : 'bg-zinc-100 dark:bg-[#282A2C] p-3 px-4 rounded-2xl rounded-tr-none text-text text-[15px] sm:text-[16px] message'
+            : 'bg-zinc-100 dark:bg-[#282A2C] p-3 px-4 rounded-lg rounded-tr-none text-text text-[15px] sm:text-[16px] message'
         }`}
       >
         <div className="flex flex-col gap-0 transition-all duration-300 overflow-hidden">
+          {/* Thinking Block */}
+          {allThoughts.length > 0 && (
+            <div className="think-container animate-in fade-in slide-in-from-top-2 duration-500">
+              <button
+                type="button"
+                onClick={() => setIsThinkingOpen(!isThinkingOpen)}
+                className="think-header w-full"
+              >
+                <div className="flex items-center gap-2 flex-1">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    className="text-text/30"
+                  >
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                  <span>Pensamento</span>
+                </div>
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  className={`text-text/30 transition-transform duration-300 ${isThinkingOpen ? 'rotate-180' : ''}`}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              {isThinkingOpen && (
+                <div className="think-content animate-in fade-in zoom-in-95 duration-300">
+                  {allThoughts.map((thought, i) => (
+                    <div key={i} className={i > 0 ? 'mt-4 pt-4 border-t border-white/5' : ''}>
+                      <Markdown>{thought}</Markdown>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 1. Aviso Inicial */}
           {introText && (
             <div
               className={`transition-all duration-500 ${hasStageData || isLoading ? 'mb-2' : ''} animate-in fade-in`}
             >
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{introText}</ReactMarkdown>
+              <Markdown>{introText}</Markdown>
             </div>
           )}
 
@@ -452,9 +603,10 @@ const MessageItem = memo(function MessageItem({
                 </div>
               )}
 
-              {/* Sources com ícone de lupa - uma por uma */}
+              {/* Sources expandidas - inline e minimalista */}
               {message.sources && message.sources.length > 0 && openSources && (
-                <div className="mt-2 flex flex-col gap-2 animate-in fade-in slide-in-from-top-4 duration-500 ease-out">
+                <div className="mt-2 p-3 border border-zinc-200 dark:border-zinc-700/50 rounded-md animate-in fade-in duration-300">
+                  <div className="flex flex-col gap-1.5 text-[13px] text-zinc-500 dark:text-zinc-400">
                   {message.sources.map((source, idx) => {
                     const isRevealed = idx < revealedSources
                     const isNote = source.url.startsWith('momai://note/')
@@ -476,79 +628,46 @@ const MessageItem = memo(function MessageItem({
                     const displayTitle = hasValidTitle ? source.title : domain
 
                     if (!isRevealed) {
-                      const isNextToLoad = idx === revealedSources
-                      if (isLoading && !isNextToLoad) return null
+                      if (isLoading && idx === revealedSources) {
+                        return (
+                          <span key={`placeholder-${idx}`} className="text-zinc-600 dark:text-zinc-500 animate-pulse">
+                            Buscando...
+                          </span>
+                        )
+                      }
+                      return null
+                    }
 
+                    const cleanTitle = cleanUIMetadata(displayTitle)
+
+                    if (isNote) {
                       return (
-                        <div
-                          key={`placeholder-${idx}`}
-                          className="flex items-start gap-2 animate-pulse"
+                        <span
+                          key={`${source.url}-${idx}`}
+                          className="animate-in fade-in duration-300"
+                          style={{ animationDelay: `${idx * 0.05}s`, animationFillMode: 'both' }}
                         >
-                          <div
-                            className={`w-4 h-4 rounded-full ${isNote ? 'bg-purple-200 dark:bg-purple-900/30' : 'bg-zinc-200 dark:bg-zinc-800'} flex-shrink-0 mt-0.5`}
-                          />
-                          <div className="flex flex-col min-w-0 gap-1.5 flex-1">
-                            <div className="h-3 w-1/3 bg-zinc-200 dark:bg-zinc-800 rounded-full" />
-                            <div className="h-2 w-2/3 bg-zinc-100 dark:bg-zinc-900 rounded-full" />
-                          </div>
-                        </div>
+                          📄 Consulta na Anotação "<span className="text-purple-400 font-medium">{cleanTitle}</span>"
+                        </span>
                       )
                     }
 
                     return (
                       <a
                         key={`${source.url}-${idx}`}
-                        href={isNote ? '#' : source.url}
-                        target={isNote ? '_self' : '_blank'}
+                        href={source.url}
+                        target="_blank"
                         rel="noopener noreferrer"
-                        className="group flex items-start gap-3 p-2 -ml-2 rounded-xl hover:bg-accent/5 transition-all duration-300 animate-in fade-in slide-in-from-left-4 zoom-in-95"
-                        style={{ animationDelay: `${idx * 0.08}s`, animationFillMode: 'both' }}
-                        onClick={(e) => {
-                          if (isNote) e.preventDefault()
-                        }}
+                        className="inline-flex items-center gap-1.5 hover:text-accent transition-colors animate-in fade-in duration-300"
+                        style={{ animationDelay: `${idx * 0.05}s`, animationFillMode: 'both' }}
                       >
-                        <div
-                          className={`w-8 h-8 rounded-lg ${isNote ? 'bg-purple-500/10' : 'bg-zinc-100 dark:bg-white/5'} flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:bg-accent/10 transition-all duration-300`}
-                        >
-                          {isNote ? (
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
-                              className="text-purple-500 group-hover:text-accent transition-colors"
-                            >
-                              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                            </svg>
-                          ) : (
-                            <svg
-                              className="w-4 h-4 text-zinc-400 group-hover:text-accent transition-colors"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.5"
-                            >
-                              <circle cx="11" cy="11" r="8" />
-                              <path d="m21 21-4.35-4.35" />
-                            </svg>
-                          )}
-                        </div>
-                        <div className="flex flex-col min-w-0 flex-1">
-                          <span className="text-[14px] font-semibold text-text group-hover:text-accent transition-colors truncate">
-                            {displayTitle}
-                          </span>
-                          {source.snippet && source.snippet.trim() && (
-                            <span className="text-[12px] text-zinc-500 dark:text-zinc-400 line-clamp-2 mt-0.5 leading-snug">
-                              {source.snippet}
-                            </span>
-                          )}
-                        </div>
+                        <span className="text-zinc-600 dark:text-zinc-500">↗</span>
+                        <span className="hover:underline underline-offset-2">{cleanTitle}</span>
+                        <span className="text-zinc-600 dark:text-zinc-600 text-[11px]">({domain})</span>
                       </a>
                     )
                   })}
+                  </div>
                 </div>
               )}
 
@@ -691,52 +810,43 @@ const MessageItem = memo(function MessageItem({
           {/* 3. Resposta Final */}
           {finalResponseText && (
             <div className="transition-all duration-500 animate-in fade-in">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  table: ({ node, ...props }) => (
-                    <div className="overflow-x-auto my-4 scrollbar-thin">
-                      <table
-                        className="min-w-full border-collapse border border-border/20 rounded-lg overflow-hidden"
-                        {...props}
-                      />
-                    </div>
-                  ),
-                  thead: ({ node, ...props }) => <thead className="bg-white/5" {...props} />,
-                  th: ({ node, ...props }) => (
-                    <th
-                      className="px-4 py-2.5 text-left text-[10px] font-black text-accent/90 uppercase tracking-widest border border-border/10"
-                      {...props}
-                    />
-                  ),
-                  td: ({ node, ...props }) => (
-                    <td
-                      className="px-4 py-2 text-sm text-text-muted border border-border/10"
-                      {...props}
-                    />
-                  ),
-                  tr: ({ node, ...props }) => (
-                    <tr className="hover:bg-white/[0.02] transition-colors" {...props} />
-                  )
-                }}
-              >
-                {finalResponseText}
-              </ReactMarkdown>
+              <Markdown>{finalResponseText}</Markdown>
             </div>
           )}
 
           {/* 4. Rodapé de Opções */}
           {message.role === 'assistant' && (
-            <div className="flex flex-col gap-2 mt-2">
-              {message.graphData?.view === 'chat' && (
-                <div className="flex flex-wrap gap-2">
-                  {message.graphData.options?.map((option) => {
+            <div className="flex flex-col gap-3 mt-3">
+              {message.graphData?.uiSchema && (
+                <div className="w-full mt-1 bg-white/[0.02] border border-white/5 p-4 rounded-xl animate-fade-in shadow-sm relative overflow-hidden">
+                  <DynamicRenderer 
+                    schema={message.graphData.uiSchema} 
+                    onAction={(actionId, value) => {
+                      const payload = JSON.stringify({ action: actionId, value })
+                      onGraphOption(payload)
+                    }} 
+                  />
+                </div>
+              )}
+              {message.graphData?.options && message.graphData.options.length > 0 && (
+                <div className="flex flex-wrap gap-2 animate-fade-in mt-1">
+                  {message.graphData.options.map((option) => {
                     const label = optionsMap[option] || option
                     return (
                       <button
                         key={option}
                         onClick={() => onGraphOption(option)}
-                        className="px-3 py-1.5 rounded-full text-[11px] font-semibold border border-border/20 bg-accent/5 text-text-muted hover:bg-accent/10 hover:border-accent/30 transition-all"
+                        className={`px-4 py-1.5 rounded-full text-[12px] font-medium transition-all active:scale-95 border ${
+                          option.toLowerCase() === 'sim' ||
+                          option.toLowerCase() === 'confirmar' ||
+                          option.toLowerCase() === 'yes'
+                            ? 'bg-accent/10 border-accent/20 text-accent hover:bg-accent/20 hover:border-accent/30'
+                            : option.toLowerCase() === 'não' ||
+                                option.toLowerCase() === 'cancelar' ||
+                                option.toLowerCase() === 'no'
+                              ? 'bg-red-500/10 border-red-500/20 text-red-500 hover:bg-red-500/20'
+                              : 'bg-white/5 border-border/10 text-text/80 hover:bg-white/10 hover:text-white'
+                        }`}
                       >
                         {label}
                       </button>
@@ -744,15 +854,15 @@ const MessageItem = memo(function MessageItem({
                   })}
                 </div>
               )}
-              {message.graphData && message.graphData.view !== 'chat' && (
+              {message.graphData && message.graphData.view === 'side' && message.graphData.content && (
                 <button
                   onClick={() => onReopenGraph(message.graphData)}
-                  className="flex items-center gap-3 w-full p-3 bg-accent/5 border border-border/20 rounded-lg hover:bg-accent/10 hover:border-accent/30 transition-all group text-left cursor-pointer"
+                  className="flex items-center gap-3 w-full p-3 bg-accent/5 border border-border/20 rounded-xl hover:bg-accent/10 hover:border-accent/30 transition-all group text-left cursor-pointer shadow-sm animate-fade-in mt-1"
                 >
-                  <div className="w-8 h-8 rounded bg-accent/20 flex items-center justify-center text-accent group-hover:scale-110 transition-transform flex-shrink-0">
+                  <div className="w-9 h-9 rounded-lg bg-accent/20 flex items-center justify-center text-accent group-hover:scale-105 transition-transform flex-shrink-0">
                     <svg
-                      width="16"
-                      height="16"
+                      width="18"
+                      height="18"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -762,12 +872,12 @@ const MessageItem = memo(function MessageItem({
                       <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
                     </svg>
                   </div>
-                  <div className="flex flex-col min-0">
-                    <span className="text-sm font-medium text-text group-hover:text-accent transition-colors truncate">
-                      Interface Gerada
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-semibold text-white/90 group-hover:text-white transition-colors truncate">
+                      Interface Auxiliar Gerada
                     </span>
                     <span className="text-xs text-text-muted truncate">
-                      Clique para visualizar o relatório dinâmico
+                      Clique para visualizar os dados de conteúdo
                     </span>
                   </div>
                 </button>
