@@ -148,6 +148,7 @@ export function useChat() {
     speakingIndex,
     speakMessage: actions.speakMessage,
     removeMessage: actions.removeMessage,
+    regenerateMessage: actions.regenerateMessage,
     isCallMode,
     toggleCallMode: actions.toggleCallMode,
     voiceStatus,

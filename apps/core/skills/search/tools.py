@@ -89,7 +89,7 @@ async def news_search(query: str) -> str:
                     {
                         "title": "Notícias Recentes",
                         "content": f"Encontradas {len(results)} notícias sobre '{query}'",
-                        "icon": "📰",
+                        "icon": "news",
                     }
                 ],
             },

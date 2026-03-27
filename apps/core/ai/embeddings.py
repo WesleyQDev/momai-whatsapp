@@ -253,7 +253,7 @@ class EmbeddingEngine:
                 timeout=10,
             )
             elapsed = (time.time() - start_time) * 1000
-            if elapsed > 1000:
+            if elapsed > 2500:
                 logger.warning(
                     f"[Embeddings] SLOW EMBEDDING: {elapsed:.1f}ms for text: '{text[:50]}...'"
                 )

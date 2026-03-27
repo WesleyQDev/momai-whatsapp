@@ -1,4 +1,4 @@
-import { JSX, memo, useEffect, useState, useRef } from 'react'
+import React, { JSX, memo, useEffect, useState, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Message } from '../../services/api'
@@ -19,6 +19,20 @@ import { ExtrasRenderer } from './ExtrasRenderer'
 import MessageContextMenu from './MessageContextMenu'
 import { useI18n } from '../../i18n'
 import { DynamicRenderer } from '../DynamicRenderer'
+
+export const humanizeToolName = (name: string) => {
+  const lower = (name || '').toLowerCase()
+  if (lower.includes('duckduckgo') || lower.includes('search')) return 'Busca na web'
+  if (lower.includes('reminder')) return 'Lembretes'
+  if (lower.includes('interface')) return 'Interface'
+  if (lower.includes('os') || lower.includes('shell')) return 'Sistema OS'
+  if (lower.includes('browser') || lower.includes('navigate')) return 'Navegador'
+  if (lower.includes('youtube')) return 'YouTube'
+  
+  // Try to capitalize the first letter if we fallback
+  const fallback = name || 'Ferramenta'
+  return fallback.charAt(0).toUpperCase() + fallback.slice(1)
+}
 
 const CodeBlock = ({ children, className }: any) => {
   const [copied, setCopied] = useState(false)
@@ -50,39 +64,68 @@ const CodeBlock = ({ children, className }: any) => {
 
 const Markdown = ({ children, components = {} }: { children: string; components?: any }) => {
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+    <div 
+      className={`prose prose-zinc dark:prose-invert max-w-none 
+                 prose-p:leading-[1.6] prose-p:text-[15px] prose-p:text-zinc-800 dark:prose-p:text-zinc-300 prose-p:!m-0 prose-p:!mb-1
+                 prose-pre:p-0 prose-pre:bg-transparent prose-pre:m-0
+                 prose-li:text-[15px] prose-li:text-zinc-800 dark:prose-li:text-zinc-300 prose-li:!my-0.5 prose-li:!p-0
+                 prose-ul:!my-1 prose-ul:!pl-0 prose-ul:!ml-5 prose-ul:!list-outside prose-ul:!marker:text-zinc-400
+                 prose-ol:!my-1 prose-ol:!pl-0 prose-ol:!ml-5 prose-ol:!list-outside prose-ol:!marker:text-zinc-400
+                 prose-strong:text-zinc-900 dark:prose-strong:text-zinc-100 prose-strong:font-bold
+                 prose-h1:text-zinc-900 dark:prose-h1:text-zinc-100 prose-h1:font-bold prose-h1:!m-0 prose-h1:!mt-2 prose-h1:!mb-1 prose-h1:!text-[15px]
+                 prose-h2:text-zinc-900 dark:prose-h2:text-zinc-100 prose-h2:font-bold prose-h2:!m-0 prose-h2:!mt-2 prose-h2:!mb-1 prose-h2:!text-[15px]
+                 prose-h3:text-zinc-900 dark:prose-h3:text-zinc-100 prose-h3:font-bold prose-h3:!m-0 prose-h3:!mt-1 prose-h3:!mb-1 prose-h3:!text-[15px]
+                 prose-h4:text-zinc-900 dark:prose-h4:text-zinc-100 prose-h4:font-bold prose-h4:!m-0 prose-h4:!mt-1 prose-h4:!mb-1 prose-h4:!text-[15px]
+                 prose-hr:!my-4 prose-hr:border-zinc-200 dark:prose-hr:border-white/10
+                 prose-a:text-blue-500 hover:prose-a:text-blue-600 dark:prose-a:text-blue-400`}
+    >
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
       components={{
         pre: ({ node, ...props }) => <CodeBlock {...props} />,
+        code: ({ node, inline, className, children, ...props }: any) => {
+          if (inline) {
+            return (
+              <code 
+                className="bg-zinc-100 dark:bg-white/10 text-red-500 dark:text-red-400 px-1.5 py-0.5 rounded-[4px] font-mono text-[13px] tracking-tight mx-0.5" 
+                {...props}
+              >
+                {children}
+              </code>
+            )
+          }
+          return <code className={className} {...props}>{children}</code>
+        },
         table: ({ node, ...props }) => (
-          <div className="overflow-x-auto my-4 scrollbar-thin">
+          <div className="overflow-x-auto my-4 scrollbar-thin rounded-lg border border-border/20">
             <table
-              className="min-w-full border-collapse border border-border/20 rounded-lg overflow-hidden"
+              className="min-w-full border-collapse overflow-hidden font-sans"
               {...props}
             />
           </div>
         ),
-        thead: ({ node, ...props }) => <thead className="bg-white/5" {...props} />,
+        thead: ({ node, ...props }) => <thead className="bg-zinc-50 dark:bg-white/5 border-b border-border/20" {...props} />,
         th: ({ node, ...props }) => (
           <th
-            className="px-4 py-2.5 text-left text-[10px] font-black text-accent/90 uppercase tracking-widest border border-border/10"
+            className="px-4 py-3 text-left text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider"
             {...props}
           />
         ),
         td: ({ node, ...props }) => (
           <td
-            className="px-4 py-2 text-sm text-text-muted border border-border/10"
+            className="px-4 py-3 text-[14px] text-zinc-700 dark:text-zinc-300 border-b border-border/10 last:border-0"
             {...props}
           />
         ),
         tr: ({ node, ...props }) => (
-          <tr className="hover:bg-white/[0.02] transition-colors" {...props} />
+          <tr className="hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors" {...props} />
         ),
         ...components
       }}
     >
       {children}
     </ReactMarkdown>
+    </div>
   )
 }
 
@@ -114,16 +157,60 @@ const MessageItem = memo(function MessageItem({
   aiTier = 'pro'
 }: MessageItemProps): JSX.Element {
   const { t } = useI18n()
-  const [showTrace, setShowTrace] = useState(true)
-  const [showToolDetails, setShowToolDetails] = useState(true)
-  const [openToolIndex, setOpenToolIndex] = useState<number | null>(null)
+  const [openToolIndex, setOpenToolIndex] = useState<Record<number, number | null>>({})
   const [hideStopButton, setHideStopButton] = useState(false)
   const [elapsedSeconds, setElapsedSeconds] = useState<Record<number, number>>({})
   const [openSources, setOpenSources] = useState(false)
   const [revealedSources, setRevealedSources] = useState<number>(0)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [showReportConfirm, setShowReportConfirm] = useState(false)
+  const [isCopied, setIsCopied] = useState(false)
+  const [toolsBlockExpanded, setToolsBlockExpanded] = useState<Record<number, boolean>>({})
+  const [memoryBlockExpanded, setMemoryBlockExpanded] = useState<Record<number, boolean>>({})
+  const [toolsActive, setToolsActive] = useState<Record<number, boolean>>({})
   const startTimesRef = useRef<Record<number, number>>({})
+
+  // Resolve fluttering for tools block expander state
+  useEffect(() => {
+    if (!message.toolSteps) return
+
+    const activeSegments: Record<number, boolean> = {}
+    
+    // Check each segment individually
+    const segments = new Set(message.toolSteps.map((s: any) => s.segment || 0))
+    
+    segments.forEach((segmentIdx: number) => {
+      const segmentSteps = message.toolSteps!.filter((s: any) => (s.segment || 0) === segmentIdx)
+      const hasRunningStep = segmentSteps.some((s: any) => s.status === 'running')
+      const isWaitingForFirstText = isLoading && (!message.content || message.content.length === 0) && segmentIdx === 0
+      
+      activeSegments[segmentIdx] = hasRunningStep || isWaitingForFirstText
+    })
+
+    setToolsActive(activeSegments)
+
+    // Schedule clearing active state for segments that just finished
+    const timer = setTimeout(() => {
+      setToolsActive(prev => {
+        const next = { ...prev }
+        Object.keys(next).forEach(k => {
+          if (!activeSegments[Number(k)]) {
+            next[Number(k)] = false
+          }
+        })
+        return next
+      })
+    }, 3000)
+    
+    return () => clearTimeout(timer)
+  }, [message.toolSteps, isLoading, message.content])
+
+  // Reset tool details when loading finishes or reset
+  useEffect(() => {
+    if (!isLoading) {
+      setOpenToolIndex({})
+    }
+  }, [isLoading])
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -162,6 +249,9 @@ const MessageItem = memo(function MessageItem({
         }
         document.body.removeChild(textArea)
       }
+      
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 2000)
     } catch (err) {
       console.error('Copy error:', err)
     }
@@ -226,7 +316,9 @@ const MessageItem = memo(function MessageItem({
           ? toolTraceText
           : message.content
   const optionsMap = message.graphData?.optionsMap || message.graphData?.options_map || {}
-  const toolSteps = Array.isArray(toolTrace?.steps) ? toolTrace.steps : []
+  const toolSteps = Array.isArray(message.toolSteps) && message.toolSteps.length > 0 
+    ? message.toolSteps 
+    : (Array.isArray(toolTrace?.steps) ? toolTrace.steps : [])
   const filteredActivities = (message.activities || []).filter(
     (a) => !a.toLowerCase().includes('running capability')
   )
@@ -234,6 +326,72 @@ const MessageItem = memo(function MessageItem({
   const displayActivities = filteredActivities
   const totalStagesCount = displayActivities.length + toolSteps.length
   const hasStageData = totalStagesCount > 0
+
+  const unifiedSteps = useMemo(() => {
+    const rawSteps: any[] = []
+    
+    // First, map Memory from activities
+    const memoryActivities = displayActivities.filter(a => a.toLowerCase().includes('memória:'))
+    memoryActivities.forEach((act, originalIdx) => {
+      rawSteps.push({
+        isMemory: true,
+        name: act.replace(/memória:/i, '').replace(/\.\.\.$/, '').trim(),
+        originalIdx,
+        status: 'done',
+        segment: 0
+      })
+    })
+
+    // Then, map actual tool steps
+    toolSteps.forEach((step, originalIdx) => {
+      let isSkill = false
+      let displayName = String(step.name || 'tool')
+      
+      if (displayName === 'activate_skill') {
+        isSkill = true
+        try {
+          const parsedQuery = JSON.parse(step.query)
+          displayName = `Lendo habilidade de ${parsedQuery.skill_id}`
+        } catch {
+          displayName = 'Adquirindo nova habilidade'
+        }
+      } else {
+        displayName = humanizeToolName(displayName)
+      }
+
+      rawSteps.push({
+        isMemory: false,
+        name: displayName,
+        rawName: step.name,
+        isSkill,
+        step,
+        status: step.status,
+        originalIdx,
+        segment: step.segment || 0
+      })
+    })
+
+    // Grouping identically-named tools if they are adjacent
+    const grouped: any[] = []
+    for (const item of rawSteps) {
+      if (grouped.length === 0) {
+        grouped.push({ ...item, count: 1, usages: item.isMemory ? [] : [item.step] })
+        continue
+      }
+      const last = grouped[grouped.length - 1]
+      // Condition to group
+      if (!item.isMemory && !last.isMemory && item.name === last.name && item.segment === last.segment) {
+        last.count += 1
+        last.usages.push(item.step)
+        // update status to running if any is running
+        if (item.status === 'running') last.status = 'running'
+      } else {
+        grouped.push({ ...item, count: 1, usages: item.isMemory ? [] : [item.step] })
+      }
+    }
+    
+    return grouped
+  }, [displayActivities, toolSteps])
 
   const displayContentStr = String(displayContent || '')
   const ACTION_MARKER = '__MOMAI_ACTIONS__'
@@ -282,7 +440,6 @@ const MessageItem = memo(function MessageItem({
     if (message.sources && message.sources.length > 0) {
       // 1. Abrir fontes se elas acabaram de chegar e ainda não estamos finalizando a resposta
       if (isLoading && !isFinalizing) {
-        setOpenSources(true)
         if (message.sources.length <= revealedSources) {
           setRevealedSources(0)
         }
@@ -300,8 +457,7 @@ const MessageItem = memo(function MessageItem({
     }
   }, [message.sources, isLoading])
 
-  // Compute if trace should be visible - show when loading and has stages, or when explicitly shown
-  const shouldShowTrace = (isLoading && hasStageData) || showTrace
+
 
   // Track start time for running steps
   useEffect(() => {
@@ -346,14 +502,6 @@ const MessageItem = memo(function MessageItem({
     return `${text.slice(0, max)}...`
   }
 
-  const humanizeToolName = (name: string) => {
-    const lower = (name || '').toLowerCase()
-    if (lower.includes('duckduckgo') || lower.includes('search')) return 'Busca na web'
-    if (lower.includes('reminder')) return 'Lembretes'
-    if (lower.includes('interface')) return 'Interface'
-    return name || 'Ferramenta'
-  }
-
   const humanizeActivity = (activity: string) => {
     const lower = activity.toLowerCase()
     if (lower.includes('especialista: executando')) {
@@ -373,12 +521,6 @@ const MessageItem = memo(function MessageItem({
     }
     if (lower.includes('discovery:')) {
       return activity.replace(/discovery:/i, '').trim()
-    }
-    if (lower.includes('usando skill:')) {
-      return activity.replace(/usando skill:/i, '').trim()
-    }
-    if (lower.includes('usando ferramenta:')) {
-      return activity.replace(/usando ferramenta:/i, '').trim()
     }
     if (lower.includes('buscando')) {
       return activity
@@ -440,7 +582,7 @@ const MessageItem = memo(function MessageItem({
               <button
                 type="button"
                 onClick={() => setIsThinkingOpen(!isThinkingOpen)}
-                className="think-header w-full"
+                className="think-header w-full text-[15px]"
               >
                 <div className="flex items-center gap-2 flex-1">
                   <svg
@@ -457,7 +599,7 @@ const MessageItem = memo(function MessageItem({
                   <span>Pensamento</span>
                 </div>
                 <svg
-                  width="10"
+                  width="12"
                   height="10"
                   viewBox="0 0 24 24"
                   fill="none"
@@ -480,339 +622,211 @@ const MessageItem = memo(function MessageItem({
             </div>
           )}
 
-          {/* 1. Aviso Inicial */}
-          {introText && (
-            <div
-              className={`transition-all duration-500 ${hasStageData || isLoading ? 'mb-2' : ''} animate-in fade-in`}
-            >
-              <Markdown>{introText}</Markdown>
-            </div>
-          )}
+          {/* Renderização em Segmentos (Texto e Ações Intercalados) */}
+          {processedParts.map((part, segmentIdx) => {
+            const segmentSteps = unifiedSteps.filter((s: any) => (s.segment || 0) === segmentIdx)
+            const isLastPart = segmentIdx === processedParts.length - 1
+            const hasSegmentData = segmentSteps.length > 0
+            const showLoadingStatus = isLastPart && isLoading && !toolsFinished
+            const hasGlobalExtras = isLastPart && (message.snippets?.length || message.cards?.length)
+            const hasSources = isLastPart && message.sources && message.sources.length > 0
+            const showActionsContainer = message.role === 'assistant' && (hasSegmentData || showLoadingStatus || hasSources || hasGlobalExtras)
 
-          {/* Área de Ações - Skills, Tools e Sources integrados */}
-          {message.role === 'assistant' && (hasStageData || isLoading) && (
-            <div className="flex flex-col gap-1 mb-2">
-              {/* Skills, Tools e Sources - todos inline juntos */}
-              {(displayActivities.filter((a) => {
-                const lower = a.toLowerCase()
-                return (
-                  lower.includes('especialista: executando') ||
-                  lower.includes('manager: chamando ferramenta') ||
-                  lower.includes('memória:')
-                )
-              }).length > 0 ||
-                (message.sources && message.sources.length > 0)) && (
-                <div className="flex flex-wrap gap-x-2 gap-y-0.5 items-center animate-in slide-in-from-left-2 fade-in duration-300">
-                  {/* Skills/Tools inline */}
-                  {displayActivities
-                    .filter((a) => {
-                      const lower = a.toLowerCase()
-                      return (
-                        lower.includes('especialista: executando') ||
-                        lower.includes('manager: chamando ferramenta') ||
-                        lower.includes('memória:')
-                      )
-                    })
-                    .map((activity, idx) => {
-                      const lower = activity.toLowerCase()
-                      const isSkill = lower.includes('especialista: executando')
-                      const isMemory = lower.includes('memória:')
-
-                      let name = ''
-                      let prefix = 'Tool: '
-
-                      if (isSkill) {
-                        const rawName = activity
-                          .replace(/especialista: executando/i, '')
-                          .replace(/\.\.\.$/, '')
-                          .trim()
-                        
-                        // Humanização escalável sem hardcode: remove underscores e capitaliza
-                        name = rawName
-                          .split('_')
-                          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                          .join(' ')
-                        prefix = 'Acessando Skill: '
-                      } else if (isMemory) {
-                        name = activity
-                          .replace(/memória:/i, '')
-                          .replace(/\.\.\.$/, '')
-                          .trim()
-                        prefix = 'Memória: '
-                      } else {
-                        const rawName = activity
-                          .replace(/manager: chamando ferramenta/i, '')
-                          .replace(/\.\.\.$/, '')
-                          .trim()
-                        
-                        // Humanização generalista também para ferramentas
-                        name = rawName
-                          .split('_')
-                          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                          .join(' ')
-                        prefix = 'Usando: '
-                      }
-
-                      return (
-                        <span
-                          key={`activity-${idx}`}
-                          className="inline-flex items-center gap-1 text-[12px] font-medium text-zinc-500"
-                        >
-                          <DocumentTextIcon
-                            className={`w-3 h-3 ${isMemory ? 'text-purple-500' : 'text-blue-500'}`}
-                          />
-                          {prefix}
-                          {name}
-                        </span>
-                      )
-                    })}
-
-                  {/* Fontes inline */}
-                  {message.sources && message.sources.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setOpenSources(!openSources)}
-                      className="inline-flex items-center gap-1 text-[12px] font-medium text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        className="text-zinc-400"
-                      >
-                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                      </svg>
-                      <span>Fontes ({message.sources.length})</span>
-                      <svg
-                        width="8"
-                        height="8"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        className={`text-zinc-400 transition-transform duration-200 ${openSources ? 'rotate-180' : ''}`}
-                      >
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Sources expandidas - inline e minimalista */}
-              {message.sources && message.sources.length > 0 && openSources && (
-                <div className="mt-2 p-3 border border-zinc-200 dark:border-zinc-700/50 rounded-md animate-in fade-in duration-300">
-                  <div className="flex flex-col gap-1.5 text-[13px] text-zinc-500 dark:text-zinc-400">
-                  {message.sources.map((source, idx) => {
-                    const isRevealed = idx < revealedSources
-                    const isNote = source.url.startsWith('momai://note/')
-                    const urlObj = (() => {
-                      if (isNote) return null
-                      try {
-                        return new URL(source.url)
-                      } catch {
-                        return null
-                      }
-                    })()
-                    const domain = isNote
-                      ? 'Memória Local'
-                      : urlObj
-                        ? urlObj.hostname.replace('www.', '')
-                        : source.url
-                    const hasValidTitle =
-                      source.title && source.title.length > 3 && source.title !== domain
-                    const displayTitle = hasValidTitle ? source.title : domain
-
-                    if (!isRevealed) {
-                      if (isLoading && idx === revealedSources) {
-                        return (
-                          <span key={`placeholder-${idx}`} className="text-zinc-600 dark:text-zinc-500 animate-pulse">
-                            Buscando...
-                          </span>
-                        )
-                      }
-                      return null
-                    }
-
-                    const cleanTitle = cleanUIMetadata(displayTitle)
-
-                    if (isNote) {
-                      return (
-                        <span
-                          key={`${source.url}-${idx}`}
-                          className="animate-in fade-in duration-300"
-                          style={{ animationDelay: `${idx * 0.05}s`, animationFillMode: 'both' }}
-                        >
-                          📄 Consulta na Anotação "<span className="text-purple-400 font-medium">{cleanTitle}</span>"
-                        </span>
-                      )
-                    }
-
-                    return (
-                      <a
-                        key={`${source.url}-${idx}`}
-                        href={source.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 hover:text-accent transition-colors animate-in fade-in duration-300"
-                        style={{ animationDelay: `${idx * 0.05}s`, animationFillMode: 'both' }}
-                      >
-                        <span className="text-zinc-600 dark:text-zinc-500">↗</span>
-                        <span className="hover:underline underline-offset-2">{cleanTitle}</span>
-                        <span className="text-zinc-600 dark:text-zinc-600 text-[11px]">({domain})</span>
-                      </a>
-                    )
-                  })}
-                  </div>
-                </div>
-              )}
-
-              {/* Snippets and Cards from Skills - use ExtrasRenderer for all extras */}
-              {(message.snippets?.length || message.cards?.length) && (
-                <div className="mt-2">
-                  <ExtrasRenderer
-                    snippets={message.snippets}
-                    cards={message.cards}
-                    isLoading={isLoading}
-                  />
-                </div>
-              )}
-
-              {/* Status de Execução - minimalista */}
-              {isLoading &&
-                !toolsFinished &&
-                (() => {
-                  const searchActivity = displayActivities.find((a) =>
-                    a.toLowerCase().includes('buscando')
-                  )
-                  const toolActivity = displayActivities.find((a) =>
-                    a.toLowerCase().includes('chamando')
-                  )
-                  const label = searchActivity
-                    ? 'Buscando...'
-                    : toolActivity
-                      ? toolActivity.replace(/manager: chamando ferramenta/i, '').trim() + '...'
-                      : displayActivities.length > 0
-                        ? 'Executando...'
-                        : 'Pensando...'
-                  return (
-                    <div className="flex items-center gap-1.5 mt-1 min-h-[16px]">
-                      <span className="text-[11px] text-zinc-400 animate-pulse">{label}</span>
-                    </div>
-                  )
-                })()}
-
-              {/* Cards de Ferramentas - mais compactos */}
-              {toolSteps.length > 0 && (
-                <div className="flex flex-col gap-1 mt-0.5">
-                  {toolSteps.map((step, idx) => {
-                    const toolName = String(step.name || 'tool')
-                    const isRunning = step.status === 'running'
-                    const isExpanded = openToolIndex === idx || isRunning
-                    return (
-                      <div
-                        key={`tool-${idx}`}
-                        className={`flex flex-col rounded-lg border transition-all duration-500 ${isRunning ? 'border-blue-500/30 bg-blue-500/[0.03]' : 'border-zinc-200 dark:border-white/5 bg-zinc-500/[0.01]'}`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setOpenToolIndex(openToolIndex === idx ? null : idx)}
-                          className="flex items-center justify-between px-2.5 py-2 text-left group"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div
-                              className={`flex-shrink-0 w-4 h-4 rounded flex items-center justify-center border transition-all duration-300 ${isRunning ? 'bg-blue-500 border-blue-400 text-white shadow-[0_0_8px_rgba(59,130,246,0.3)]' : 'bg-white dark:bg-white/5 border-zinc-200 dark:border-white/10 text-zinc-400'}`}
-                            >
-                              {isRunning ? (
-                                <svg
-                                  className="w-2 h-2 animate-spin"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                >
-                                  <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" />
-                                </svg>
-                              ) : (
-                                <svg
-                                  width="10"
-                                  height="10"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="3"
-                                >
-                                  <polyline points="20 6 9 17 4 12"></polyline>
-                                </svg>
-                              )}
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <span
-                                className={`text-[9px] font-bold uppercase tracking-wider ${isRunning ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-600 dark:text-zinc-400'}`}
-                              >
-                                {humanizeToolName(toolName)}
-                              </span>
-                              {isRunning && (
-                                <span className="text-[7px] text-blue-500/60 font-bold animate-pulse">
-                                  {elapsedSeconds[idx] || 0}s
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <svg
-                            width="8"
-                            height="8"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                            className={`text-zinc-300 dark:text-white/10 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`}
-                          >
-                            <polyline points="9 6 15 12 9 18"></polyline>
-                          </svg>
-                        </button>
-                        {isExpanded && (
-                          <div className="px-2.5 pb-2 pt-0.5 flex flex-col gap-2 animate-in fade-in duration-300">
-                            {step.query && (
-                              <div className="flex flex-col gap-0.5 ml-7">
-                                <span className="text-[6px] font-black uppercase tracking-[0.2em] text-zinc-400/40">
-                                  Input
-                                </span>
-                                <div className="text-[9px] text-zinc-500 dark:text-zinc-400 leading-relaxed font-mono border-l border-zinc-200 dark:border-white/10 pl-2 break-words">
-                                  {step.query}
-                                </div>
-                              </div>
-                            )}
-                            {step.result && (
-                              <div className="flex flex-col gap-0.5 ml-7">
-                                <span className="text-[6px] font-black uppercase tracking-[0.2em] text-zinc-400/40">
-                                  Output
-                                </span>
-                                <div className="text-[9px] text-zinc-400/70 dark:text-zinc-500 leading-relaxed font-mono border-l border-zinc-200 dark:border-white/10 pl-2 break-words">
-                                  {minimizeText(step.result, 300)}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
+            return (
+              <React.Fragment key={`segment-${segmentIdx}`}>
+                {/* 1. Bloco de Ações para este segmento (Agora em cima) */}
+                {showActionsContainer && (
+                  <div className="flex flex-col gap-0.5 mb-1">
+                    
+                    {/* Render Extras (Snippets/Cards) - Only on the first segment or if it's the only one */}
+                    {hasGlobalExtras && (
+                      <div className="mt-2 text-zinc-800 dark:text-zinc-200">
+                        <ExtrasRenderer
+                          snippets={message.snippets}
+                          cards={message.cards}
+                          isLoading={isLoading}
+                        />
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+                    )}
 
-          {/* 3. Resposta Final */}
-          {finalResponseText && (
-            <div className="transition-all duration-500 animate-in fade-in">
-              <Markdown>{finalResponseText}</Markdown>
-            </div>
-          )}
+                    {/* Status de Execução Genérico */}
+                    {showLoadingStatus && !hasSegmentData && (
+                      (() => {
+                        const searchActivity = displayActivities.find((a) => a.toLowerCase().includes('buscando'))
+                        const toolActivity = displayActivities.find((a) => a.toLowerCase().includes('chamando'))
+                        const label = searchActivity ? 'Buscando...' : toolActivity ? toolActivity.replace(/manager: chamando ferramenta/i, '').trim() + '...' : displayActivities.length > 0 ? 'Executando...' : 'Pensando...'
+                        return (
+                          <div className="flex items-center gap-1.5 mt-1 min-h-[16px]">
+                            <span className="text-[13px] text-zinc-400 animate-pulse">{label}</span>
+                          </div>
+                        )
+                      })()
+                    )}
+
+                    {/* Lista de Ações (Tools e Memória em blocos separados) */}
+                    {hasSegmentData && (
+                      <div className="flex flex-col mt-0.5 mb-0 gap-1.5">
+                        {(() => {
+                          const memSteps = segmentSteps.filter((s: any) => s.isMemory)
+                          const tSteps = segmentSteps.filter((s: any) => !s.isMemory)
+                          
+                          return (
+                            <>
+                              {/* BLOCO DE MEMÓRIA */}
+                              {memSteps.length > 0 && (
+                                <div className="flex flex-col">
+                                  <button
+                                    type="button"
+                                    onClick={() => setMemoryBlockExpanded(prev => ({ ...prev, [segmentIdx]: !prev[segmentIdx] }))}
+                                    className="flex items-center gap-2 text-[15px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors self-start mb-0.5"
+                                  >
+                                    <span>Analisando o sistema de notas</span>
+                                    <svg
+                                      width="10"
+                                      height="10"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.5"
+                                      className={`transition-transform duration-200 ${memoryBlockExpanded[segmentIdx] ? 'rotate-180' : ''}`}
+                                    >
+                                      <polyline points="6 9 12 15 18 9" />
+                                    </svg>
+                                  </button>
+
+                                  <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out origin-top ${memoryBlockExpanded[segmentIdx] ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                                    <div className="overflow-hidden">
+                                      <div className="flex flex-col ml-1 relative">
+                                        <div className="absolute left-[7px] top-4 bottom-6 w-[2px] bg-zinc-200 dark:bg-white/10 rounded-full"></div>
+                                        {memSteps.map((group, idx) => (
+                                          <div key={`mem-${segmentIdx}-${idx}`} className="flex items-start gap-4 mb-5 relative group z-10 animate-in fade-in duration-300">
+                                            <div className="mt-0.5 w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 bg-card border border-purple-300 dark:border-purple-500/50 text-purple-500 z-10">
+                                              <DocumentTextIcon className="w-2.5 h-2.5" />
+                                            </div>
+                                            <div className="flex flex-col min-w-0 pt-[1px] w-full">
+                                              <span className="text-[13px] font-medium tracking-wide text-zinc-700 dark:text-zinc-300">
+                                                Memória: {group.name}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* BLOCO DE FERRAMENTAS (O "Executou n comandos") */}
+                              <div className="flex flex-col">
+                                {tSteps.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setToolsBlockExpanded(prev => ({ ...prev, [segmentIdx]: !prev[segmentIdx] }))}
+                                    className="flex items-center gap-2 text-[15px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors self-start mb-0.5"
+                                  >
+                                    <span>
+                                      {(() => {
+                                        const isRunning = tSteps.some((s: any) => s.status === 'running')
+                                        const skillName = message.activeSkill ? ` usando ${humanizeToolName(message.activeSkill)}` : ''
+                                        const count = tSteps.length
+                                        const verb = isRunning ? 'Executando' : 'Executou'
+                                        return `${verb} ${count} comando${count > 1 ? 's' : ''}${skillName}${isRunning ? '...' : ''}`
+                                      })()}
+                                    </span>
+                                    <svg
+                                      width="10"
+                                      height="10"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.5"
+                                      className={`transition-transform duration-200 ${toolsBlockExpanded[segmentIdx] || tSteps.some((s: any) => s.status === 'running') ? 'rotate-180' : ''}`}
+                                    >
+                                      <polyline points="6 9 12 15 18 9" />
+                                    </svg>
+                                  </button>
+                                )}
+
+                                <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out origin-top ${toolsBlockExpanded[segmentIdx] || tSteps.some((s: any) => s.status === 'running') ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                                  <div className="overflow-hidden">
+                                    <div className="flex flex-col ml-1 relative">
+                                      <div className="absolute left-[7px] top-4 bottom-4 w-[2px] bg-zinc-200 dark:bg-white/10 rounded-full"></div>
+                                      
+                                      {tSteps.map((group, idx) => (
+                                        <div key={`step-${segmentIdx}-${idx}`} className="flex items-start gap-4 mb-5 relative group z-10 animate-in fade-in duration-300">
+                                          <div className={`mt-0.5 w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 bg-card border ${group.status === 'running' ? 'border-blue-400 text-blue-500' : 'border-zinc-300 dark:border-white/20 text-zinc-500 dark:text-zinc-400'} z-10`}>
+                                            {group.status === 'running' ? (
+                                              <svg className="w-2.5 h-2.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                                <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" />
+                                              </svg>
+                                            ) : (
+                                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                                <polyline points="4 17 10 11 4 5"></polyline>
+                                                <line x1="12" y1="19" x2="20" y2="19"></line>
+                                              </svg>
+                                            )}
+                                          </div>
+                                          <div className="flex flex-col min-w-0 pt-[1px] w-full">
+                                            <span className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">{group.name}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+
+                                      {/* Fontes integradas (Móvido para DENTRO da lista principal para visual vertical) */}
+                                      {isLastPart && message.sources && message.sources.length > 0 && (
+                                        <div className="flex items-start gap-4 mb-5 relative z-10 animate-in fade-in duration-300">
+                                          <div className="mt-0.5 w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 bg-card border border-zinc-300 dark:border-white/20 text-zinc-500 dark:text-zinc-400 z-10">
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                            </svg>
+                                          </div>
+                                          <div className="flex flex-col min-w-0 pt-[1px]">
+                                            <button type="button" onClick={() => setOpenSources(!openSources)} className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300 hover:text-accent flex items-center gap-1.5">
+                                               Fontes ({message.sources.length})
+                                               <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className={`transition-transform duration-200 ${openSources ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9" /></svg>
+                                            </button>
+                                            {openSources && (
+                                              <div className="mt-1 flex flex-col gap-1">
+                                                {message.sources.map((s, idx) => (
+                                                  <a key={idx} href={s.url} target="_blank" rel="noreferrer" className="text-[12px] text-blue-500 hover:underline">{cleanUIMetadata(s.title || s.url)}</a>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Finalizador */}
+                                      {tSteps.every((s: any) => s.status !== 'running') && (
+                                        <div className="flex items-center gap-4 mt-1 relative z-10">
+                                          <div className="w-[16px] h-[16px] rounded-full flex items-center justify-center flex-shrink-0 border-[1.5px] border-zinc-400 text-zinc-500 ml-[0.5px]">
+                                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                                          </div>
+                                          <span className="text-[13px] font-bold text-zinc-700 dark:text-zinc-300">Concluído</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </>
+                          )
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. Conteúdo do Texto (Markdown) (Agora embaixo) */}
+                {part.cleanText && part.cleanText.length > 0 && (
+                  <div className="transition-all duration-500 animate-in fade-in py-0.5">
+                    <Markdown>{part.cleanText}</Markdown>
+                  </div>
+                )}
+              </React.Fragment>
+            )
+          })}
 
           {/* 4. Rodapé de Opções */}
           {message.role === 'assistant' && (
@@ -886,15 +900,63 @@ const MessageItem = memo(function MessageItem({
               <div className="flex flex-col items-start gap-2">
                 <div className="flex items-center gap-2">
                   {hasActualContent && (
-                    <button
-                      type="button"
-                      onClick={handleReportResponse}
-                      className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/5 hover:bg-white/10 border border-border/20 text-[12px] text-text-muted/80 hover:text-red-500 transition-colors"
-                      title={t('chat.report.title')}
-                      aria-label={t('chat.report.title')}
-                    >
-                      <span aria-hidden="true">🚩</span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleCopy}
+                        className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors opacity-50 hover:opacity-100"
+                        title="Copiar"
+                        aria-label="Copiar resposta"
+                      >
+                        {isCopied ? <CheckIcon className="w-[14px] h-[14px] text-green-500" /> : <ClipboardIcon className="w-[14px] h-[14px]" />}
+                      </button>
+
+                      {onRetry && (
+                        <button
+                          type="button"
+                          onClick={onRetry}
+                          className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors opacity-50 hover:opacity-100"
+                          title="Regerar resposta"
+                          aria-label="Regerar resposta"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                            <path d="M21 3v5h-5" />
+                          </svg>
+                        </button>
+                      )}
+
+                      {onSpeak && aiTier !== 'lite' && !isSpeaking && (
+                        <button
+                          type="button"
+                          onClick={onSpeak}
+                          className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors opacity-50 hover:opacity-100"
+                          title="Ouvir resposta"
+                          aria-label="Ouvir resposta"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                          </svg>
+                        </button>
+                      )}
+
+                      <div className="w-[1px] h-3 bg-zinc-200 dark:bg-white/10 mx-0.5"></div>
+
+                      <button
+                        type="button"
+                        onClick={handleReportResponse}
+                        className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-red-500 transition-colors opacity-50 hover:opacity-100"
+                        title={t('chat.report.title')}
+                        aria-label={t('chat.report.title')}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                          <line x1="4" y1="22" x2="4" y2="15" />
+                        </svg>
+                      </button>
+                    </>
                   )}
 
                   {isSpeaking && onStopVoice && !hideStopButton && aiTier !== 'lite' && (

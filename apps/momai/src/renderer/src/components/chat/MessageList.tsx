@@ -14,6 +14,7 @@ interface MessageListProps {
   onStopGeneration?: () => void
   onSpeakMessage?: (content: string, index: number) => void
   onRemoveMessage?: (index: number) => void
+  onRegenerateMessage?: (index: number) => void
   speakingIndex?: number | null
   statusInfo: StatusData | null
 }
@@ -29,6 +30,7 @@ const MessageList = memo(function MessageList({
   onStopGeneration,
   onSpeakMessage,
   onRemoveMessage,
+  onRegenerateMessage,
   speakingIndex = null,
   statusInfo
 }: MessageListProps): JSX.Element {
@@ -80,7 +82,7 @@ const MessageList = memo(function MessageList({
             onStopGeneration={onStopGeneration}
             onSpeak={() => onSpeakMessage?.(msg.content, i)}
             onDelete={() => onRemoveMessage?.(i)}
-            onRetry={() => onSendMessage(msg.content)}
+            onRetry={msg.role === 'assistant' ? () => onRegenerateMessage?.(i) : () => onSendMessage(msg.content)}
             aiTier={statusInfo?.ai_tier || 'pro'}
           />
         )

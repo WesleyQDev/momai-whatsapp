@@ -372,6 +372,14 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
         # VERY IMPORTANT: Export the actual context size so the MomAI Tokenizer knows!
         os.environ["MOMAI_CTX_SIZE"] = str(actual_ctx_size)
 
+        # Automatically detect any mmproj file in the models directory for Vision support
+        mmproj_file = None
+        for file in paths["models"].iterdir():
+            if file.is_file() and "mmproj" in file.name.lower():
+                mmproj_file = str(file.resolve())
+                report(f"Detected Vision Projector (mmproj): {file.name}")
+                break
+
         cmd = [
             abs_exe_path,
             "-m",
@@ -405,6 +413,9 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
             "--repeat-penalty",
             str(repetition_penalty),
         ]
+        
+        if mmproj_file:
+            cmd.extend(["--mmproj", mmproj_file])
 
         logger.debug("[Local LLM] Starting local LLM process...")
 

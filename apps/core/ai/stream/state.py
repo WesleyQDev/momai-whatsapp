@@ -21,10 +21,14 @@ class StreamState:
     
     # Trace and UI state
     activities_trace: List[str] = field(default_factory=list)
+    tool_steps: List[Dict[str, Any]] = field(default_factory=list)
     shown_node_types: Set[str] = field(default_factory=set)
     had_tool_call: bool = False
     no_tools_available: Optional[bool] = None
     search_count: int = 0
+    current_tool_segment: int = 0
+    text_produced_since_last_tool: bool = False
+    active_skill_name: Optional[str] = None
     
     # Final data
     pending_card: Optional[Dict[str, Any]] = None

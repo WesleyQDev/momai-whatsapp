@@ -31,6 +31,7 @@ interface ContainerChatProps {
   setHistoryOpen?: (open: boolean) => void
   onSpeakMessage?: (content: string, index: number) => void
   onRemoveMessage?: (index: number) => void
+  onRegenerateMessage?: (index: number) => void
   isFirstLaunch?: boolean
 }
 
@@ -207,6 +208,7 @@ export default function ContainerChat({
   setHistoryOpen,
   onSpeakMessage,
   onRemoveMessage,
+  onRegenerateMessage,
   isFirstLaunch = false
 }: ContainerChatProps): JSX.Element {
   const { t } = useI18n()
@@ -404,6 +406,7 @@ export default function ContainerChat({
                     onStopGeneration={stopCurrentGeneration}
                     onSpeakMessage={onSpeakMessage}
                     onRemoveMessage={onRemoveMessage}
+                    onRegenerateMessage={onRegenerateMessage}
                     speakingIndex={speakingIndex}
                     statusInfo={statusInfo}
                   />

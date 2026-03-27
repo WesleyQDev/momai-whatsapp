@@ -348,6 +348,11 @@ class StreamProcessor:
             logger.info("---------------")
             
             pending_graph = app_state.get_pending_graph_data(self.state.thread_id)
+            if self.state.tool_steps:
+                if pending_graph is None:
+                    pending_graph = {}
+                pending_graph["tool_steps"] = self.state.tool_steps
+
             save_message_to_db(
                 self.state.thread_id,
                 "assistant",

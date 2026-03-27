@@ -58,6 +58,10 @@ class StreamHandler:
             async for chunk in self._handle_model_stream(event):
                 yield chunk
 
+        elif kind == "on_tool_end":
+            async for chunk in self._handle_tool_end(event):
+                yield chunk
+
         elif kind == "on_chat_model_end":
             async for chunk in self._handle_model_end(event):
                 yield chunk
@@ -110,9 +114,11 @@ class StreamHandler:
                         if skill_id:
                             break
         if skill_id:
-            status = f"Especialista: Executando {skill_id.split('.')[-1]}..."
+            self.state.active_skill_name = skill_id.split('.')[-1]
+            status = f"Especialista: Executando {self.state.active_skill_name}..."
             if self.state.add_activity(status):
                 yield f"data: {json.dumps({'status': status})}\n\n"
+                yield f"data: {json.dumps({'active_skill': self.state.active_skill_name})}\n\n"
 
     async def _handle_specialist_end(
         self, event: Dict[str, Any]
@@ -207,15 +213,46 @@ class StreamHandler:
         self, event: Dict[str, Any]
     ) -> AsyncGenerator[str, None]:
         name = event["name"]
-        self.state.had_tool_call = True
+        
+        # Track tool locally for rich UI
+        input_data = event.get("data", {}).get("input", {})
+        query_str = json.dumps(input_data, ensure_ascii=False) if isinstance(input_data, dict) else str(input_data)
+        
+        self.state.tool_steps.append({
+            "name": name,
+            "status": "running",
+            "query": query_str,
+            "result": None,
+            "segment": self.state.current_tool_segment
+        })
+        yield f"data: {json.dumps({'tool_steps': self.state.tool_steps})}\n\n"
 
+        # Flush prebuffer as intro text BEFORE inserting the marker
         if not self.state.stream_decided and self.state.prebuffer:
             self.state.stream_decided = True
             yield f"data: {json.dumps({'token': self.state.prebuffer})}\n\n"
+            self.state.full_content += self.state.prebuffer
             self.state.tts_buffer += self.state.prebuffer
             self.state.prebuffer = ""
 
-        if "__MOMAI_ACTIONS__" not in self.state.full_content:
+        # Insert __MOMAI_ACTIONS__ marker at the right position
+        is_first_tool = not self.state.had_tool_call
+        self.state.had_tool_call = True
+
+        if is_first_tool:
+            # First tool call ever: insert the first marker
+            marker = "\n\n__MOMAI_ACTIONS__\n\n"
+            self.state.full_content += marker
+            yield f"data: {json.dumps({'token': marker})}\n\n"
+        elif self.state.text_produced_since_last_tool:
+            # Already had tools, but AI spoke since then → start a NEW segment
+            self.state.current_tool_segment += 1
+            self.state.text_produced_since_last_tool = False
+            
+            # Update the recently added step to the NEW segment
+            if self.state.tool_steps:
+                self.state.tool_steps[-1]["segment"] = self.state.current_tool_segment
+
             marker = "\n\n__MOMAI_ACTIONS__\n\n"
             self.state.full_content += marker
             yield f"data: {json.dumps({'token': marker})}\n\n"
@@ -230,6 +267,22 @@ class StreamHandler:
             if self.state.add_activity(status):
                 yield f"data: {json.dumps({'status': status})}\n\n"
 
+    async def _handle_tool_end(self, event: Dict[str, Any]) -> AsyncGenerator[str, None]:
+        name = event["name"]
+        output = event.get("data", {}).get("output", "")
+        
+        # Determine string representation of output
+        out_str = str(output) if not isinstance(output, str) else output
+        
+        # Update the last matching tool step to done 
+        for step in reversed(self.state.tool_steps):
+            if step["name"] == name and step["status"] == "running":
+                step["status"] = "done"
+                step["result"] = out_str
+                break
+                
+        yield f"data: {json.dumps({'tool_steps': self.state.tool_steps})}\n\n"
+
     async def _handle_model_stream(
         self, event: Dict[str, Any]
     ) -> AsyncGenerator[str, None]:
@@ -240,7 +293,8 @@ class StreamHandler:
         chunk = event["data"]["chunk"]
         if hasattr(chunk, "tool_call_chunks") and chunk.tool_call_chunks:
             self.state.current_turn_buffer = ""
-            self.state.prebuffer = ""
+            # DO NOT clear prebuffer here — it contains intro text
+            # that will be properly flushed in _handle_tool_start
             return
 
         content = chunk.content
@@ -251,15 +305,11 @@ class StreamHandler:
         if not filtered_content:
             return
 
-        # Ensure \"Finalizando resposta...\" and marker
-        if not any(a == "Finalizando resposta..." for a in self.state.activities_trace):
+        # Show \"Finalizando resposta...\" ONLY after a tool has been called
+        if self.state.had_tool_call and not any(a == "Finalizando resposta..." for a in self.state.activities_trace):
             status = "Finalizando resposta..."
             self.state.add_activity(status)
             yield f"data: {json.dumps({'status': status})}\n\n"
-            if "__MOMAI_ACTIONS__" not in self.state.full_content:
-                marker = "\n\n__MOMAI_ACTIONS__\n\n"
-                self.state.full_content += marker
-                yield f"data: {json.dumps({'token': marker})}\n\n"
 
         if not self.state.full_content:
             if self.state.had_tool_call:
@@ -282,6 +332,9 @@ class StreamHandler:
                         self.state.tts_buffer += self.state.prebuffer
                         self.state.prebuffer = ""
         elif not self.state.stream_suppressed:
+            if self.state.had_tool_call:
+                self.state.text_produced_since_last_tool = True
+                
             yield f"data: {json.dumps({'token': filtered_content})}\n\n"
             self.state.full_content += filtered_content
             self.state.tts_buffer += filtered_content
@@ -295,15 +348,11 @@ class StreamHandler:
             tokens = self.state.current_turn_buffer
             self.state.current_turn_buffer = ""
 
-            if not any(
+            if self.state.had_tool_call and not any(
                 a == "Finalizando resposta..." for a in self.state.activities_trace
             ):
                 self.state.add_activity("Finalizando resposta...")
                 yield f"data: {json.dumps({'status': 'Finalizando resposta...'})}\n\n"
-                if "__MOMAI_ACTIONS__" not in self.state.full_content:
-                    marker = "\n\n__MOMAI_ACTIONS__\n\n"
-                    self.state.full_content += marker
-                    yield f"data: {json.dumps({'token': marker})}\n\n"
 
             yield f"data: {json.dumps({'token': tokens})}\n\n"
             self.state.full_content += tokens

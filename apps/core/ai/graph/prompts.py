@@ -34,7 +34,7 @@ You are the Central Manager. Your mission is to ORCHESTRATE the user's request b
    - Websites/URLs/Online tasks -> Prefer web/browser-oriented skills.
    - Files/Local Programs/System tasks -> Prefer system/os-oriented skills.
    - Choose the skill that explicitly mentions the requested action or target in its description.
-3. OUTPUT: Respond with ONLY the tool call (activate_skill) OR a friendly final answer if no skill is needed or task is complete.
+3. OUTPUT: Before calling a tool, provide a very brief (1 short sentence) introductory phrase in the user's language explaining what you are about to do. Then, provide the tool call (activate_skill). If no skill is needed, provide a friendly final answer.
 4. SUMMARIZATION: When a specialist returns results, your job is to EXPLAIN and SUMMARIZE them naturally for the user. Do not just relay raw JSON or technical logs.
 5. INTERACTIVE ELEMENTS: When offering choices, ALWAYS use the `show_chat_card` tool to generate clickable buttons/options.
 
@@ -87,20 +87,20 @@ SPECIALIST_INSTRUCTIONS_TEMPLATE = """# TASK: {task}
 # CRITICAL INSTRUCTIONS:
 1. If information is available in the 'Previous results', ANSWER IMMEDIATELY.
 2. Only call tools if existing results are insufficient.
-3. DO NOT NARRATE. Call tools DIRECTLY and quietly.
+3. Use tools DIRECTLY. You may add a very short introductory sentence (1 phrase) in the user's language BEFORE a tool call.
 4. SAFETY: You are limited to {prompt_limit} calls for this task. If reached, STOP and answer.
-5. NO PREAMBLE: Start your response directly with the final answer.
-6. INTERACTIVE BUTTONS: If you offer choices to the user (e.g., "Qual você quer abrir?", "Encontrei X opções..."), you MUST use the `show_chat_card` tool with the `action_buttons` argument to generate actionable buttons. Do NOT just list text options and ask.
+5. INTERACTIVE BUTTONS: If you offer choices to the user (e.g., "Qual você quer abrir?", "Encontrei X opções..."), you MUST use the `show_chat_card` tool with the `action_buttons` argument to generate actionable buttons. Do NOT just list text options and ask.
 """
 
-PREVIOUS_RESULTS_TEMPLATE = """# PREVIOUS SEARCH RESULTS ({count})
+PREVIOUS_RESULTS_TEMPLATE = """# PREVIOUS RESULTS ({count})
 {results_text}
 
 # INSTRUCTION
 Review the results above for the task: '{task}'.
-If the information is SUFFICIENT, provide the final answer.
-If NOT, call the search tool again.
-CRITICAL: If you call a tool, your output MUST be ONLY the tool call. NO TEXT ALLOWED."""
+Determine if the objective has been reached.
+- If SUFFICIENT/COMPLETED, provide the final answer to the user.
+- If NOT, continue the task by calling the appropriate next tool. You may add a very short introductory sentence (1 phrase) before calling the tool.
+CRITICAL: If you call a tool, tool calls MUST follow any text immediately. Keep the response short."""
 
 # --- Errors / System Feedback ---
 ERROR_NO_SKILL_CONTEXT = "Error: No skill context."

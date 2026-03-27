@@ -465,6 +465,28 @@ export function useChatHandlers({
         })
       }
 
+      if (data.tool_steps) {
+        setMessages((prev) => {
+          const updated = [...prev]
+          const lastIdx = findLastAssistantIndex(updated)
+          if (lastIdx >= 0) {
+            updated[lastIdx] = { ...updated[lastIdx], toolSteps: data.tool_steps }
+          }
+          return updated
+        })
+      }
+
+      if (data.active_skill) {
+        setMessages((prev) => {
+          const updated = [...prev]
+          const lastIdx = findLastAssistantIndex(updated)
+          if (lastIdx >= 0) {
+            updated[lastIdx] = { ...updated[lastIdx], activeSkill: data.active_skill }
+          }
+          return updated
+        })
+      }
+
       if (data.done) {
         setIsLoading(false)
       }

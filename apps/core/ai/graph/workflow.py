@@ -568,10 +568,29 @@ def create_momai_graph(
                         log_event("Guardrail", f"Tool '{t.name}' reached its limit ({limit}).")
 
             # Add System UI tools so the specialist can render interactive UI!
+            # Apply limits to UI tools as well to prevent infinite loops when search tools are exhausted.
             all_reg = get_all_tools_registry()
+            ui_tool_limit = tool_limits.get("ui", tool_limits.get("default", DEFAULT_TOOL_LIMIT))
             for t_name in ["show_chat_card", "show_interface"]:
-                if all_reg.get(t_name):
-                    available_tools.append(all_reg[t_name])
+                t = all_reg.get(t_name)
+                if t:
+                    if tool_usage.get(t_name, 0) < ui_tool_limit:
+                        available_tools.append(t)
+                    else:
+                        log_event("Guardrail", f"UI tool '{t_name}' reached its limit ({ui_tool_limit}). Hiding.")
+
+            # Safety: if no tools available at all, force a final answer now to break the loop
+            if not available_tools:
+                logger.warning(f"[Specialist] All tools exhausted for skill '{skill_id}'. Forcing final answer.")
+                tool_call_id = state.get("tool_call_id")
+                if not tool_call_id and hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+                    tool_call_id = last_msg.tool_calls[0]["id"]
+                results = state.get("tool_results", [])
+                fallback_content = "\n\n".join(results) if results else "Não foi possível obter mais informações com as ferramentas disponíveis."
+                return {
+                    "messages": [ToolMessage(content=fallback_content, tool_call_id=tool_call_id or "unknown")],
+                    "active_skill_id": None
+                }
 
             prompt = ChatPromptTemplate.from_messages([
                 ("system", system_instructions),
@@ -590,9 +609,11 @@ def create_momai_graph(
                 error_keywords = ["SYSTEM:", "Tool execution failed", "Error:", "Exception:", "Timeout", "Page.goto", "failed:"]
                 is_error = any(any(k in r for k in error_keywords) for r in tool_results)
                 
+                is_sequential = skill.metadata.get("is_sequential", False) if skill else False
+                
                 # Modifying shortcut: Search results and large lists SHOULD go through the LLM for humanization.
                 is_search = "search" in skill_id or "web" in skill_id
-                is_short_enough = len(combined_result) < 500 and not is_search and "Encontrei " not in combined_result and "Found " not in combined_result
+                is_short_enough = len(combined_result) < 500 and not is_search and not is_sequential and "Encontrei " not in combined_result and "Found " not in combined_result
 
                 if is_short_enough and not is_error and combined_result.strip():
                     logger.debug(f"[Specialist] Tool result is self-explanatory, skipping LLM call")
@@ -923,8 +944,9 @@ def create_momai_graph(
                         if extras:
                             tool_msg_kwargs["additional_kwargs"] = {"extras": extras}
 
+                        content_val = processed_res if isinstance(processed_res, list) else str(processed_res)
                         tool_messages.append(
-                            ToolMessage(content=str(processed_res), **tool_msg_kwargs)
+                            ToolMessage(content=content_val, **tool_msg_kwargs)
                         )
                     except Exception as tool_err:
                         logger.error(
@@ -1015,12 +1037,11 @@ def create_momai_graph(
 
     def route_extract_sources(state: AgentState):
         """Route after source extraction: back to specialist if they still have tools to call, else back to manager."""
-        last_msg = state["messages"][-1]
-        # If the last worker response has tool calls, we must go back to tools (via specialist)
-        if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+        # If we have an active skill, it means the specialist hasn't given a final answer yet, so loop back to it.
+        if state.get("active_skill_id"):
             return "specialist_worker"
 
-        # If no more tool calls from specialist, go back to manager to wrap up
+        # Otherwise, go back to manager
         return "momai_agent"
 
     def route_search_counter(state: AgentState):

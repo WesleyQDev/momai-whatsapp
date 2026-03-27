@@ -6,6 +6,7 @@ import {
   TrashIcon,
   ArrowPathIcon
 } from '@heroicons/react/24/outline'
+import { useI18n } from '../../i18n'
 
 interface MessageContextMenuProps {
   x: number
@@ -30,6 +31,7 @@ export default function MessageContextMenu({
   isUser,
   showSpeak = true
 }: MessageContextMenuProps): JSX.Element {
+  const { t } = useI18n()
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -42,26 +44,26 @@ export default function MessageContextMenu({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [onClose])
 
-  // Ajustar posição para não sair da tela
-  const adjustedX = Math.min(x, window.innerWidth - 180)
-  const adjustedY = Math.min(y, window.innerHeight - 200)
+  // Ajustar posição para não sair da tela (usando uma largura e altura estimadas menores)
+  const adjustedX = Math.min(x, window.innerWidth - 160)
+  const adjustedY = Math.min(y, window.innerHeight - 180)
 
   const menu = (
     <div
       ref={menuRef}
-      className="fixed z-[9999] w-44 bg-card/95 backdrop-blur-xl border border-border/40 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+      className="fixed z-[9999] min-w-[150px] bg-zinc-50/90 dark:bg-[#1a1b1e]/90 backdrop-blur-md border border-black/5 dark:border-white/5 rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
       style={{ top: adjustedY, left: adjustedX }}
     >
-      <div className="flex flex-col p-1.5">
+      <div className="flex flex-col p-1">
         <button
           onClick={() => {
             onCopy()
             onClose()
           }}
-          className="flex items-center gap-2.5 px-3 py-2 text-sm text-text hover:bg-accent/10 rounded-lg transition-colors group"
+          className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-white/10 rounded-md transition-colors whitespace-nowrap"
         >
-          <ClipboardDocumentIcon className="w-4 h-4 text-text-muted group-hover:text-accent" />
-          <span>Copiar Texto</span>
+          <ClipboardDocumentIcon className="w-4 h-4 opacity-70" />
+          <span>{isUser ? t('chat.context.copyUser') : t('chat.context.copyAssistant')}</span>
         </button>
 
         {!isUser && showSpeak && (
@@ -70,37 +72,37 @@ export default function MessageContextMenu({
               onSpeak()
               onClose()
             }}
-            className="flex items-center gap-2.5 px-3 py-2 text-sm text-text hover:bg-accent/10 rounded-lg transition-colors group"
+            className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-white/10 rounded-md transition-colors whitespace-nowrap"
           >
-            <SpeakerWaveIcon className="w-4 h-4 text-text-muted group-hover:text-accent" />
-            <span>Ouvir Mensagem</span>
+            <SpeakerWaveIcon className="w-4 h-4 opacity-70" />
+            <span>{t('chat.context.speak')}</span>
           </button>
         )}
 
-        {isUser && onRetry && (
+        {onRetry && (
           <button
             onClick={() => {
               onRetry()
               onClose()
             }}
-            className="flex items-center gap-2.5 px-3 py-2 text-sm text-text hover:bg-accent/10 rounded-lg transition-colors group"
+            className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-white/10 rounded-md transition-colors whitespace-nowrap"
           >
-            <ArrowPathIcon className="w-4 h-4 text-text-muted group-hover:text-accent" />
-            <span>Tentar Novamente</span>
+            <ArrowPathIcon className="w-4 h-4 opacity-70" />
+            <span>{isUser ? t('chat.context.retryUser') : t('chat.context.retryAssistant')}</span>
           </button>
         )}
 
-        <div className="h-px bg-border/20 my-1 mx-1" />
+        <div className="h-px bg-black/5 dark:bg-white/10 my-1 mx-1" />
 
         <button
           onClick={() => {
             onDelete()
             onClose()
           }}
-          className="flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 rounded-lg transition-colors group"
+          className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-md transition-colors whitespace-nowrap"
         >
-          <TrashIcon className="w-4 h-4 opacity-70 group-hover:opacity-100" />
-          <span>Excluir</span>
+          <TrashIcon className="w-4 h-4 opacity-80" />
+          <span>{t('chat.context.delete')}</span>
         </button>
       </div>
     </div>

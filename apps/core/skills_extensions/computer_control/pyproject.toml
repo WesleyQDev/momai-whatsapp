@@ -1,0 +1,9 @@
+[project]
+name = "computer-control"
+version = "0.1.0"
+description = "Computer Control Skill for MomAI"
+dependencies = [
+    "pyautogui>=0.9.54",
+    "Pillow>=10.0.0",
+    "uiautomation>=2.0.19; sys_platform == 'win32'",
+]

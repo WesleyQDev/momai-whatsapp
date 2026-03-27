@@ -53,6 +53,7 @@ const ChatView = (props: any) => {
       setHistoryOpen={props.setHistoryOpen}
       onSpeakMessage={props.chat.speakMessage}
       onRemoveMessage={props.chat.removeMessage}
+      onRegenerateMessage={props.chat.regenerateMessage}
       isFirstLaunch={props.isFirstLaunch}
     />
   )

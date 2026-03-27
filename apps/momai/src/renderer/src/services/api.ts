@@ -23,6 +23,8 @@ export interface Message {
   sources?: Source[]
   snippets?: Snippet[]
   cards?: Card[]
+  toolSteps?: any[]
+  activeSkill?: string
 }
 
 export interface StatusData {
@@ -47,6 +49,8 @@ export interface ChatStreamCallbacks {
   onSources?: (sources: Source[]) => void
   onSnippets?: (snippets: Snippet[]) => void
   onCards?: (cards: Card[]) => void
+  onToolSteps?: (steps: any[]) => void
+  onActiveSkill?: (skillName: string) => void
 }
 
 export interface Source {
@@ -126,6 +130,14 @@ export async function sendChatMessage(
           callbacks.onCards(data.cards)
         }
 
+        if (data.tool_steps && callbacks.onToolSteps) {
+          callbacks.onToolSteps(data.tool_steps)
+        }
+
+        if (data.active_skill && callbacks.onActiveSkill) {
+          callbacks.onActiveSkill(data.active_skill)
+        }
+
         if (data.error) {
           callbacks.onError(data.error)
         }
@@ -202,7 +214,8 @@ export async function fetchChatHistory(threadId: string = 'default'): Promise<Me
     ...msg,
     sources: msg.sources ? JSON.parse(msg.sources) : undefined,
     snippets: msg.snippets ? JSON.parse(msg.snippets) : undefined,
-    cards: msg.cards ? JSON.parse(msg.cards) : undefined
+    cards: msg.cards ? JSON.parse(msg.cards) : undefined,
+    toolSteps: (msg.graph_data && msg.graph_data.tool_steps) ? msg.graph_data.tool_steps : undefined
   }))
 }
 

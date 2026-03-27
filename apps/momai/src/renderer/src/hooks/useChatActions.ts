@@ -66,10 +66,10 @@ export function useChatActions({
   }, [setSpeakingIndex])
 
   const sendMessage = useCallback(
-    async (content: string, isSilent: boolean = false) => {
+    async (content: string, isSilent: boolean = false, skipUserMessage: boolean = false) => {
       if (!content.trim()) return
 
-      if (!isSilent) {
+      if (!isSilent && !skipUserMessage) {
         const userMessage: Message = { role: 'user', content }
         setMessages((prev) => [...prev, userMessage])
 
@@ -93,6 +93,7 @@ export function useChatActions({
             onSources: () => {},
             onSnippets: () => {},
             onCards: () => {},
+            onToolSteps: () => {},
             onDone: () => {},
             onError: (err) => console.error('[SilentTool] Error:', err)
           })
@@ -232,6 +233,28 @@ export function useChatActions({
               return updated
             })
           },
+          onToolSteps: (toolSteps) => {
+            if (currentThreadRef.current !== messageThreadId) return
+            setMessages((prev) => {
+              const updated = [...prev]
+              const lastIdx = updated.length - 1
+              if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                updated[lastIdx] = { ...updated[lastIdx], toolSteps }
+              }
+              return updated
+            })
+          },
+          onActiveSkill: (skillName) => {
+            if (currentThreadRef.current !== messageThreadId) return
+            setMessages((prev) => {
+              const updated = [...prev]
+              const lastIdx = updated.length - 1
+              if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                updated[lastIdx] = { ...updated[lastIdx], activeSkill: skillName }
+              }
+              return updated
+            })
+          },
           onDone: () => {
             if (currentThreadRef.current !== messageThreadId) return
             setIsLoading(false)
@@ -294,6 +317,28 @@ export function useChatActions({
     [threadId, setMessages, messagesRef]
   )
 
+  const regenerateMessage = useCallback(
+    async (index: number) => {
+      const msgs = messagesRef.current
+      const assistantMsg = msgs[index]
+      if (!assistantMsg || assistantMsg.role !== 'assistant') return
+
+      let userPrompt = ''
+      for (let i = index - 1; i >= 0; i--) {
+        if (msgs[i].role === 'user') {
+          userPrompt = msgs[i].content
+          break
+        }
+      }
+
+      if (!userPrompt) return
+
+      await removeMessage(index)
+      await sendMessage(userPrompt, false, true)
+    },
+    [messagesRef, removeMessage, sendMessage]
+  )
+
   const speakMessage = useCallback(async (content: string, index: number) => {
     const cleanText = cleanMomaiActions(content)
     if (!cleanText) return
@@ -339,6 +384,7 @@ export function useChatActions({
   )
 
   return {
+    regenerateMessage,
     sendMessage,
     handleClear,
     removeMessage,
