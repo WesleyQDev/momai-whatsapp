@@ -28,7 +28,14 @@ logger = logging.getLogger("momai.ai")
 
 
 class StreamProcessor:
-    def __init__(self, message_content: str, thread_id: str, graph: Any, llm: Any, speak_response: bool = True):
+    def __init__(
+        self,
+        message_content: str,
+        thread_id: str,
+        graph: Any,
+        llm: Any,
+        speak_response: bool = True,
+    ):
         self.state = StreamState(thread_id=thread_id, user_content=message_content)
         self.graph = graph
         self.llm = llm
@@ -64,6 +71,15 @@ class StreamProcessor:
             self.llm = app_state.orchestrator.llm
             self.graph = app_state.orchestrator.momai_graph
 
+        if utils.is_loading and (self.llm is None or self.graph is None):
+            import asyncio
+
+            await asyncio.to_thread(
+                app_state.orchestrator.llm_ready_event.wait, timeout=300
+            )
+            self.llm = app_state.orchestrator.llm
+            self.graph = app_state.orchestrator.momai_graph
+
         if utils.is_loading or self.llm is None or self.graph is None:
             status_mode = utils.llm_mode if utils.llm_mode != "waiting" else "inicial"
             from utils.i18n import t, get_locale
@@ -82,7 +98,7 @@ class StreamProcessor:
         tool_bypass_name = None
         tool_bypass_args = {}
         bypass_content = self.state.user_content.strip()
-        
+
         try:
             # Check JSON payload from Dynamic UI Schema
             if bypass_content.startswith("{") and bypass_content.endswith("}"):
@@ -95,7 +111,7 @@ class StreamProcessor:
                 elif action.startswith("tool:"):
                     tool_bypass_name = action.replace("tool:", "")
                     tool_bypass_args = payload.get("value", {})
-                    
+
             # Check String __TOOL__ prefix from normal options
             elif bypass_content.startswith("__TOOL__:"):
                 parts = bypass_content.split(":", 2)
@@ -106,34 +122,43 @@ class StreamProcessor:
                             tool_bypass_args = json.loads(parts[2])
                         except:
                             tool_bypass_args = {"input": parts[2]}
-            
+
             # Execute if valid
             if tool_bypass_name:
                 from tools.system_actions import get_all_tools_registry
+
                 registry = get_all_tools_registry(force_refresh=True)
                 if tool_bypass_name in registry:
                     tool_func = registry[tool_bypass_name]
                     import asyncio
-                    
-                    logger.info(f"[AI_core] Direct Tool Execution Bypass: {tool_bypass_name}({tool_bypass_args})")
-                    
+
+                    logger.info(
+                        f"[AI_core] Direct Tool Execution Bypass: {tool_bypass_name}({tool_bypass_args})"
+                    )
+
                     async def _invoke_tool(func, args):
                         if asyncio.iscoroutinefunction(func.invoke):
                             return await func.ainvoke(args)
                         return await asyncio.to_thread(func.invoke, args)
-                    
+
                     try:
                         res = await _invoke_tool(tool_func, tool_bypass_args)
                         tool_bypass_result = str(res)
                     except Exception as first_err:
-                        if "validation error" in str(first_err).lower() or "Field required" in str(first_err):
-                            logger.warning(f"[AI_core] Arg mismatch for '{tool_bypass_name}', attempting remap...")
-                            
+                        if "validation error" in str(
+                            first_err
+                        ).lower() or "Field required" in str(first_err):
+                            logger.warning(
+                                f"[AI_core] Arg mismatch for '{tool_bypass_name}', attempting remap..."
+                            )
+
                             # Get the expected field names from the tool schema
-                            schema = getattr(tool_func, 'args_schema', None)
-                            expected_fields = list(schema.model_fields.keys()) if schema else []
+                            schema = getattr(tool_func, "args_schema", None)
+                            expected_fields = (
+                                list(schema.model_fields.keys()) if schema else []
+                            )
                             provided_values = list(tool_bypass_args.values())
-                            
+
                             remapped = False
                             # Strategy 1: If there's exactly 1 required field and 1 provided value, map directly
                             if len(expected_fields) >= 1 and len(provided_values) >= 1:
@@ -142,31 +167,42 @@ class StreamProcessor:
                                     res = await _invoke_tool(tool_func, new_args)
                                     tool_bypass_result = str(res)
                                     remapped = True
-                                    logger.info(f"[AI_core] Remapped args: {tool_bypass_args} -> {new_args}")
+                                    logger.info(
+                                        f"[AI_core] Remapped args: {tool_bypass_args} -> {new_args}"
+                                    )
                                 except Exception:
                                     pass
-                            
+
                             # Strategy 2: If value looks like a path, try open_in_explorer directly
                             if not remapped and provided_values:
                                 val = str(provided_values[0])
-                                if ('\\' in val or '/' in val) and registry.get("open_in_explorer"):
+                                if ("\\" in val or "/" in val) and registry.get(
+                                    "open_in_explorer"
+                                ):
                                     try:
-                                        res = await _invoke_tool(registry["open_in_explorer"], {"path": val})
+                                        res = await _invoke_tool(
+                                            registry["open_in_explorer"], {"path": val}
+                                        )
                                         tool_bypass_result = str(res)
                                         remapped = True
-                                        logger.info(f"[AI_core] Fallback to open_in_explorer with path='{val}'")
+                                        logger.info(
+                                            f"[AI_core] Fallback to open_in_explorer with path='{val}'"
+                                        )
                                     except Exception:
                                         pass
-                            
+
                             if not remapped:
                                 raise first_err
                         else:
                             raise
                 else:
-                    logger.warning(f"[AI_core] Direct bypass requested but tool '{tool_bypass_name}' not found.")
+                    logger.warning(
+                        f"[AI_core] Direct bypass requested but tool '{tool_bypass_name}' not found."
+                    )
         except Exception as e:
             logger.error(f"[AI_core] Direct tool bypass error: {e}")
             import traceback
+
             traceback.print_exc()
 
         self.state.summary_text = await ensure_summary(self.state.thread_id, self.llm)
@@ -176,12 +212,12 @@ class StreamProcessor:
             # Tool executed successfully, bypass the graph entirely
             clean_reply = clean_response(tool_bypass_result)
             yield f"data: {json.dumps({'token': clean_reply})}\n\n"
-            
+
             save_message_to_db(self.state.thread_id, "assistant", clean_reply)
-            
+
             if self.speak_response:
                 await speak_and_notify(clean_text_for_tts(clean_reply))
-                
+
             yield f"data: {json.dumps({'done': True})}\n\n"
             app_state.set_ai_busy(False)
             return
@@ -198,7 +234,7 @@ class StreamProcessor:
             "search_count": 0,
         }
         last_activity_time = time.time()
-        
+
         # 2. Stream execution
         try:
             if self.graph is None:
@@ -206,13 +242,17 @@ class StreamProcessor:
                 yield f"data: {json.dumps({'error': 'Motor de IA não inicializado corretamente.'})}\n\n"
                 return
 
-            logger.debug(f"[AI_core] Starting graph stream for thread {self.state.thread_id}")
+            logger.debug(
+                f"[AI_core] Starting graph stream for thread {self.state.thread_id}"
+            )
 
             async for event in self.graph.astream_events(
                 input_data, config=config, version="v2"
             ):
                 if utils.cancel_generation or utils.is_loading:
-                    logger.debug("[AI_core] Generation cancelled or stack reloading, breaking stream.")
+                    logger.debug(
+                        "[AI_core] Generation cancelled or stack reloading, breaking stream."
+                    )
                     break
 
                 # Send heartbeat if no event for 10s
@@ -307,11 +347,12 @@ class StreamProcessor:
 
         # 3. Handle missing capability cards and empty fallbacks
         final_reply = clean_response(self.state.full_content)
-        
-        # If the reply is still empty after everything, provide a small fallback 
+
+        # If the reply is still empty after everything, provide a small fallback
         # to avoid the app looking "stuck" with no response.
         if not final_reply.strip():
             from utils.i18n import t, get_locale
+
             final_reply = t("no_response_found", locale=get_locale())
             yield f"data: {json.dumps({'token': final_reply})}\n\n"
             self.state.full_content = final_reply
@@ -339,14 +380,14 @@ class StreamProcessor:
 
         # 4. Persistence
         if final_reply.strip():
-            clean_log_reply = final_reply.split('__MOMAI_ACTIONS__')[0].strip()
-            
+            clean_log_reply = final_reply.split("__MOMAI_ACTIONS__")[0].strip()
+
             # Print each line of the reply with a proper log prefix
-            for line in clean_log_reply.split('\n'):
+            for line in clean_log_reply.split("\n"):
                 if line.strip():
                     logger.info(f"MomAI: {line.strip()}")
             logger.info("---------------")
-            
+
             pending_graph = app_state.get_pending_graph_data(self.state.thread_id)
             if self.state.tool_steps:
                 if pending_graph is None:
@@ -367,7 +408,11 @@ class StreamProcessor:
             )
 
         # 5. Final TTS
-        if not utils.cancel_generation and self.speak_response and self.state.tts_buffer.strip():
+        if (
+            not utils.cancel_generation
+            and self.speak_response
+            and self.state.tts_buffer.strip()
+        ):
             clean_phrase = clean_text_for_tts(
                 clean_response(self.state.tts_buffer)
             ).strip()

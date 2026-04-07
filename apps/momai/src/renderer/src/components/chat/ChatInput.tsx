@@ -431,7 +431,12 @@ export default function ChatInput({
                   type="button"
                   className="bg-transparent text-text-muted rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-110 hover:text-text hover:bg-white/5 active:scale-90 disabled:opacity-40"
                   onClick={handleSend}
-                  disabled={isLoading || isModeChanging || !isBrainReady || isBrainLoading}
+                  disabled={
+                    isLoading ||
+                    isModeChanging ||
+                    !isBrainReady ||
+                    isBrainLoading
+                  }
                   title="Enviar mensagem"
                 >
                   <PaperAirplaneIcon className="w-5 h-5" />

@@ -210,6 +210,7 @@ function createMainWindow(): BrowserWindow {
     width: 880,
     height: 670,
     show: false,
+    backgroundColor: '#0a0a0a',
     frame: false,
     resizable: true,
     center: true,

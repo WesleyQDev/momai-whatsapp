@@ -78,6 +78,7 @@ async def start_core_services(settings):
     try:
         # Pre-warm: start model download while LLM setup detects GPU etc.
         from ai.model_prefetch import start_model_prefetch
+
         start_model_prefetch()
 
         # 1. Start LLM initialization in background
@@ -313,22 +314,36 @@ async def start_core_services(settings):
         threading.Thread(target=start_wake_word, daemon=True).start()
 
         # 8. Final Sync
-        await app_state.send_init_event(
-            "brain", "Synchronizing local intelligence...", None
-        )
-        from ai.model_prefetch import _downloaded as model_prefetched
-        llm_timeout = 30.0 if model_prefetched else 120.0
-        llm_ready = await asyncio.to_thread(
-            app_state.orchestrator.llm_ready_event.wait, timeout=llm_timeout
-        )
-        if not llm_ready:
-            logger.warning("[Startup] LLM ready timeout after %.0fs, continuing anyway", llm_timeout)
+        should_auto_start_llm = getattr(settings, "auto_start_llm", True)
+        if should_auto_start_llm:
+            await app_state.send_init_event(
+                "brain", "Synchronizing local intelligence...", None
+            )
+            from ai.model_prefetch import _downloaded as model_prefetched
+
+            llm_timeout = 30.0 if model_prefetched else 120.0
+            llm_ready = await asyncio.to_thread(
+                app_state.orchestrator.llm_ready_event.wait, timeout=llm_timeout
+            )
+            if not llm_ready:
+                logger.warning(
+                    "[Startup] LLM ready timeout after %.0fs, continuing anyway",
+                    llm_timeout,
+                )
+        else:
+            await app_state.send_init_event(
+                "brain", "LLM local aguardando primeira mensagem", None
+            )
 
         if settings.tts_enabled and settings.ai_tier != "lite" and app_state.tts:
             try:
-                await app_state.send_init_event("voice", "Waking up local voice...", None)
+                await app_state.send_init_event(
+                    "voice", "Waking up local voice...", None
+                )
                 app_state.tts.tts.initialize()
-                await asyncio.to_thread(app_state.tts.tts.wait_until_ready, timeout=10.0)
+                await asyncio.to_thread(
+                    app_state.tts.tts.wait_until_ready, timeout=10.0
+                )
                 app_state.tts.tts.start()
             except Exception as tts_err:
                 app_state.logger.warning(f"[startup] TTS init error: {tts_err}")
@@ -360,9 +375,10 @@ async def start_core_services(settings):
 async def periodic_briefing_check():
     """Checks for new day briefing every hour."""
     while True:
-        await asyncio.sleep(3600) # Every hour
+        await asyncio.sleep(3600)  # Every hour
         try:
             from services.system.briefing import check_and_run_daily_briefing
+
             await check_and_run_daily_briefing()
         except Exception as e:
             app_state.logger.debug(f"[startup] Periodic briefing check error: {e}")
@@ -378,6 +394,7 @@ async def lifespan(app):
 
     # Pre-download model in background (overlaps with AI stack import)
     from ai.model_prefetch import start_model_prefetch
+
     start_model_prefetch()
 
     # Start all initialization tasks in parallel

@@ -144,7 +144,9 @@ def _download_model(repo_id: str, filename: str, models_dir: Path) -> None:
                 local_dir=models_dir,
                 progress_callback=lambda cur, tot: _notify(
                     f"Downloading model: {cur / 1024 / 1024:.0f}MB / {tot / 1024 / 1024:.0f}MB"
-                ) if tot > 0 else None,
+                )
+                if tot > 0
+                else None,
             )
         except TypeError:
             hf_hub_download(
