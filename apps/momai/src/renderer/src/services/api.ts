@@ -382,6 +382,7 @@ export interface SettingsData {
   onboarding_completed?: boolean
   tutorial_completed?: boolean
   ai_tier?: string | null
+  skip_intro?: boolean
 }
 
 export async function fetchSettings(): Promise<SettingsData> {

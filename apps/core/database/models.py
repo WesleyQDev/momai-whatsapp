@@ -52,6 +52,7 @@ class Settings(Base):
 
     # UI/Locale
     locale = Column(String, default="pt-BR")
+    skip_intro = Column(Boolean, default=False)
 
     ai_tier = Column(String, default=None)  # lite, pro, ultra
 
@@ -155,6 +156,10 @@ def init_db():
             conn.execute(
                 text("ALTER TABLE settings ADD COLUMN locale TEXT DEFAULT 'pt-BR'")
             )
+        if "skip_intro" not in cols:
+            conn.execute(
+                text("ALTER TABLE settings ADD COLUMN skip_intro BOOLEAN DEFAULT 0")
+            )
         if "min_interface_chars" not in cols:
             conn.execute(
                 text(
@@ -211,17 +216,13 @@ def init_db():
             )
         if "ai_tier" not in cols:
             conn.execute(
-                text(
-                    "ALTER TABLE settings ADD COLUMN ai_tier TEXT DEFAULT 'pro'"
-                )
+                text("ALTER TABLE settings ADD COLUMN ai_tier TEXT DEFAULT 'pro'")
             )
         if "auto_start_llm" not in cols:
             conn.execute(
-                text(
-                    "ALTER TABLE settings ADD COLUMN auto_start_llm BOOLEAN DEFAULT 1"
-                )
+                text("ALTER TABLE settings ADD COLUMN auto_start_llm BOOLEAN DEFAULT 1")
             )
-        
+
         # Migration for reminders.note_id
         res = conn.execute(text("PRAGMA table_info(reminders)"))
         rem_cols = {row[1] for row in res.fetchall()}
@@ -231,11 +232,15 @@ def init_db():
             )
         if "action_type" not in rem_cols:
             conn.execute(
-                text("ALTER TABLE reminders ADD COLUMN action_type TEXT DEFAULT 'reminder'")
+                text(
+                    "ALTER TABLE reminders ADD COLUMN action_type TEXT DEFAULT 'reminder'"
+                )
             )
         if "voice_response" not in rem_cols:
             conn.execute(
-                text("ALTER TABLE reminders ADD COLUMN voice_response BOOLEAN DEFAULT 1")
+                text(
+                    "ALTER TABLE reminders ADD COLUMN voice_response BOOLEAN DEFAULT 1"
+                )
             )
-            
+
         conn.commit()

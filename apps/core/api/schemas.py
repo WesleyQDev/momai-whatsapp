@@ -56,6 +56,7 @@ class SettingsUpdate(BaseModel):
     daily_briefing_enabled: bool | None = None
     ai_tier: str | None = None
     auto_start_llm: bool | None = None
+    skip_intro: bool | None = None
 
 
 class ExtensionToggle(BaseModel):

@@ -198,6 +198,8 @@
   "settings.general.autoStartWindowsDesc": "Ao ligar o computador",
   "settings.general.localAiLabel": "IA Local",
   "settings.general.localAiDesc": "Iniciar ao abrir o app",
+  "settings.general.skipIntroLabel": "Cortar introdução",
+  "settings.general.skipIntroDesc": "Pula a animação de abertura ao iniciar o app",
   "settings.general.localAiTooltipOn": "Consome mais RAM/VRAM, mas a primeira resposta é imediata.",
   "settings.general.localAiTooltipOff": "Libera RAM/VRAM, mas a primeira mensagem pode demorar mais.",
   "settings.general.assistantModeLabel": "Modalidade da Assistente",

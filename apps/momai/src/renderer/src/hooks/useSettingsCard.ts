@@ -20,6 +20,7 @@ export interface Settings {
   daily_briefing_enabled: boolean
   ai_tier: 'lite' | 'pro' | 'ultra'
   auto_start_llm: boolean
+  skip_intro?: boolean
   onboarding_completed?: boolean
 }
 
@@ -62,7 +63,8 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     locale: 'pt-BR',
     daily_briefing_enabled: false,
     ai_tier: 'pro',
-    auto_start_llm: true
+    auto_start_llm: true,
+    skip_intro: false
   })
 
   const [installStatus, setInstallStatus] = useState<

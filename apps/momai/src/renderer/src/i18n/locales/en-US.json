@@ -198,6 +198,8 @@
   "settings.general.autoStartWindowsDesc": "When the computer turns on",
   "settings.general.localAiLabel": "Local AI",
   "settings.general.localAiDesc": "Start when opening the app",
+  "settings.general.skipIntroLabel": "Skip intro",
+  "settings.general.skipIntroDesc": "Skips the opening animation when launching the app",
   "settings.general.localAiTooltipOn": "Uses more RAM/VRAM, but the first response is immediate.",
   "settings.general.localAiTooltipOff": "Frees RAM/VRAM, but the first message can take longer.",
   "settings.general.assistantModeLabel": "Assistant Mode",

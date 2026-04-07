@@ -4,7 +4,9 @@ import { useI18n } from '../i18n'
 
 export function useAppInitialization(isOnline: boolean, isReady: boolean) {
   const { setLocale } = useI18n()
-  const [showWelcome, setShowWelcome] = useState(true)
+  const [showWelcome, setShowWelcome] = useState(
+    () => localStorage.getItem('momai_skip_intro') !== 'true'
+  )
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingAttempted, setOnboardingAttempted] = useState(false)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
@@ -23,13 +25,20 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
   const [pendingOnboardingSettings, setPendingOnboardingSettings] = useState<Record<string, any> | null>(null)
 
   useEffect(() => {
+    if (!settingsLoaded) return
+    if (settings?.skip_intro) {
+      setShowWelcome(false)
+    }
+  }, [settingsLoaded, settings?.skip_intro])
+
+  useEffect(() => {
     if (localStorage.getItem('momai_mode_changing') === 'true') {
       localStorage.removeItem('momai_mode_changing')
     }
 
     const handleModeChangeStart = () => {
       setIsFirstLaunch(true)
-      setShowWelcome(true)
+      setShowWelcome(localStorage.getItem('momai_skip_intro') !== 'true')
       // @ts-ignore
       window.api.resetWindowSize?.()
     }
@@ -85,6 +94,9 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
       try {
         const data = await fetchSettings()
         setSettings(data)
+        if (typeof data.skip_intro === 'boolean') {
+          localStorage.setItem('momai_skip_intro', String(data.skip_intro))
+        }
         if (data.locale) {
           setLocale(data.locale as any)
         }
@@ -112,9 +124,15 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
     const handleSync = (e: any) => {
       if (e.detail) {
         setSettings(e.detail)
+        if (typeof e.detail.skip_intro === 'boolean') {
+          localStorage.setItem('momai_skip_intro', String(e.detail.skip_intro))
+          if (e.detail.skip_intro) {
+            setShowWelcome(false)
+          }
+        }
         if (e.detail.onboarding_completed === false) {
           setIsFirstLaunch(true)
-          setShowWelcome(true)
+          setShowWelcome(localStorage.getItem('momai_skip_intro') !== 'true')
           setTimeout(() => {
             setShowOnboarding(true)
             setOnboardingAttempted(false)

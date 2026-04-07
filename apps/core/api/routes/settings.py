@@ -60,13 +60,17 @@ def _sync_update_settings(data: SettingsUpdate):
 
         if data.tts_enabled is not None:
             # Enforce Lite tier restriction
-            settings.tts_enabled = data.tts_enabled if settings.ai_tier != "lite" else False
+            settings.tts_enabled = (
+                data.tts_enabled if settings.ai_tier != "lite" else False
+            )
             if "tts_enabled" not in changes:
                 changes.append("tts_enabled")
 
         if data.wake_word_enabled is not None:
             # Only ultra tier can enable wake word
-            settings.wake_word_enabled = data.wake_word_enabled if settings.ai_tier == "ultra" else False
+            settings.wake_word_enabled = (
+                data.wake_word_enabled if settings.ai_tier == "ultra" else False
+            )
             if "wake_word_enabled" not in changes:
                 changes.append("wake_word_enabled")
 
@@ -90,10 +94,19 @@ def _sync_update_settings(data: SettingsUpdate):
         if data.auto_start_llm is not None:
             settings.auto_start_llm = data.auto_start_llm
 
+        if data.skip_intro is not None:
+            settings.skip_intro = data.skip_intro
 
         db.commit()
         db.refresh(settings)
-        return changes, settings.ai_provider, settings.tts_voice, settings.tts_enabled, settings.wake_word_enabled, settings.ai_tier
+        return (
+            changes,
+            settings.ai_provider,
+            settings.tts_voice,
+            settings.tts_enabled,
+            settings.wake_word_enabled,
+            settings.ai_tier,
+        )
     finally:
         db.close()
 
@@ -128,13 +141,21 @@ async def get_settings(db: Session = Depends(get_db)):
         "tutorial_completed": settings.tutorial_completed,
         "daily_briefing_enabled": settings.daily_briefing_enabled,
         "ai_tier": settings.ai_tier,
-        "auto_start_llm": settings.auto_start_llm
+        "auto_start_llm": settings.auto_start_llm,
+        "skip_intro": settings.skip_intro,
     }
 
 
 @router.patch("/settings")
 async def update_settings(data: SettingsUpdate):
-    changes, provider, tts_voice, tts_enabled, ww_enabled, current_tier = await asyncio.to_thread(_sync_update_settings, data)
+    (
+        changes,
+        provider,
+        tts_voice,
+        tts_enabled,
+        ww_enabled,
+        current_tier,
+    ) = await asyncio.to_thread(_sync_update_settings, data)
 
     if data.tts_voice is not None and app_state.tts:
         app_state.tts.tts.set_voice(tts_voice)
@@ -150,18 +171,25 @@ async def update_settings(data: SettingsUpdate):
     # (start_core_services will handle LLM init, so skip the ai_tier re-init below)
     if data.onboarding_completed is True:
         from startup import start_core_services
+
         # Busca configurações atualizadas para o startup
         db = SessionLocal()
         settings = db.query(Settings).first()
         db.close()
         asyncio.create_task(start_core_services(settings))
-    elif any(change in changes for change in ["persona", "user_name", "provider", "local_backend", "ai_tier"]):
+    elif any(
+        change in changes
+        for change in ["persona", "user_name", "provider", "local_backend", "ai_tier"]
+    ):
         app_state.initialize_llm(tier=current_tier)
-        await app_state.broadcast_to_sockets({"type": "model_changed", "data": {"new_mode": "local"}})
+        await app_state.broadcast_to_sockets(
+            {"type": "model_changed", "data": {"new_mode": "local"}}
+        )
 
     # Trigger daily briefing if enabled
     if "daily_briefing_enabled" in changes:
         from services.system.briefing import check_and_run_daily_briefing
+
         asyncio.create_task(check_and_run_daily_briefing(force=True))
 
 
@@ -169,9 +197,9 @@ async def update_settings(data: SettingsUpdate):
 async def play_voice_sample(data: dict):
     voice = data.get("voice")
     text = data.get("text", "Olá, eu sou sua assistente MomAI.")
-    
+
     if voice:
         app_state.tts.tts.set_voice(voice)
         app_state.tts.tts.speak(text)
-    
+
     return {"status": "playing"}
