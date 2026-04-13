@@ -2,23 +2,24 @@ from dataclasses import dataclass, field
 import re
 from typing import Set, List, Dict, Any, Optional
 
+
 @dataclass
 class StreamState:
     thread_id: str
     user_content: str
     summary_text: Optional[str] = None
-    
+
     # Internal buffers
     tts_buffer: str = ""
     full_content: str = ""
     prebuffer: str = ""
     current_turn_buffer: str = ""
-    
+
     # Stream control
     stream_decided: bool = False
     stream_suppressed: bool = False
     prebuffer_limit: int = 0
-    
+
     # Trace and UI state
     activities_trace: List[str] = field(default_factory=list)
     tool_steps: List[Dict[str, Any]] = field(default_factory=list)
@@ -29,12 +30,14 @@ class StreamState:
     current_tool_segment: int = 0
     text_produced_since_last_tool: bool = False
     active_skill_name: Optional[str] = None
-    
+
     # Final data
     pending_card: Optional[Dict[str, Any]] = None
     final_sources: Optional[List[Dict[str, Any]]] = None
     final_snippets: Optional[List[Dict[str, Any]]] = None
     final_cards: Optional[List[Dict[str, Any]]] = None
+    injected_memory_context: Optional[str] = None
+    injected_memory_sources: Optional[List[Dict[str, Any]]] = None
 
     # Patterns
     paragraph_pattern: re.Pattern = re.compile(r"(.*?\n{2,})", re.DOTALL)

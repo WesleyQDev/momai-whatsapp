@@ -6,6 +6,20 @@ import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager
 import { startPythonBackend, shutdownPython, saveOnboardingCompleted } from './pythonManager'
 import { logger, getLogsPath } from './logger'
 import { setupUpdater } from './updater'
+import {
+  createFolder,
+  createNote,
+  deleteFolder,
+  deleteNote,
+  getNote,
+  importNotes,
+  listFolders,
+  listNotes,
+  openNoteFolder,
+  renameFolder,
+  searchNotes,
+  updateNote
+} from './notesService'
 
 ipcMain.handle('get-auto-start', () => {
   return app.getLoginItemSettings().openAtLogin
@@ -72,6 +86,29 @@ ipcMain.on('report-bootstrap-error', (_, error: string) => {
     state.mainWindow.webContents.send('bootstrap-failed', error)
   }
 })
+
+ipcMain.handle('notes:list', async () => listNotes())
+ipcMain.handle('notes:get', async (_, noteId: string) => getNote(noteId))
+ipcMain.handle('notes:create', async (_, payload: { title: string; content: string; path?: string }) =>
+  createNote(payload.title, payload.content, payload.path)
+)
+ipcMain.handle(
+  'notes:update',
+  async (_, noteId: string, payload: { title?: string; content?: string; path?: string }) =>
+    updateNote(noteId, payload)
+)
+ipcMain.handle('notes:delete', async (_, noteId: string) => deleteNote(noteId))
+ipcMain.handle('notes:import', async (_, files: { name: string; content: string }[]) =>
+  importNotes(files)
+)
+ipcMain.handle('notes:folders:list', async () => listFolders())
+ipcMain.handle('notes:folders:create', async (_, pathValue: string) => createFolder(pathValue))
+ipcMain.handle('notes:folders:rename', async (_, oldPath: string, newPath: string) =>
+  renameFolder(oldPath, newPath)
+)
+ipcMain.handle('notes:folders:delete', async (_, pathValue: string) => deleteFolder(pathValue))
+ipcMain.handle('notes:open-folder', async (_, noteId: string) => openNoteFolder(noteId))
+ipcMain.handle('notes:search', async (_, query: string, limit?: number) => searchNotes(query, limit ?? 6))
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.wesleyqdev.momai')

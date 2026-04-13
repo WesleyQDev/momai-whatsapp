@@ -14,7 +14,6 @@ class EndpointFilter(logging.Filter):
             "/extensions",
             "/reminders/active",
             "/settings",
-            "/memory/notes",
             "/chat/history",
             "/chat/stream",
             "/chat/title",
@@ -23,16 +22,15 @@ class EndpointFilter(logging.Filter):
         return not any(endpoint in msg for endpoint in noisy_endpoints)
 
 
-
-
 class ColorFormatter(logging.Formatter):
     """Custom format to avoid dual timestamps and inject ANSI colors."""
+
     COLORS = {
-        "DEBUG": "\033[90m",      # Gray
-        "INFO": "\033[0m",        # Default Terminal (was Cyan)
-        "WARNING": "\033[33m",    # Yellow
-        "ERROR": "\033[31m",      # Red
-        "CRITICAL": "\033[1;31m", # Bold Red
+        "DEBUG": "\033[90m",  # Gray
+        "INFO": "\033[0m",  # Default Terminal (was Cyan)
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
+        "CRITICAL": "\033[1;31m",  # Bold Red
     }
     RESET = "\033[0m"
 
@@ -44,9 +42,11 @@ class ColorFormatter(logging.Formatter):
             return f"{color}{msg}{self.RESET}"
         return f"{color}[{record.levelname}] {msg}{self.RESET}"
 
+
 def configure_logging() -> None:
     try:
         import colorama
+
         colorama.just_fix_windows_console()
     except Exception:
         pass
@@ -61,20 +61,18 @@ def configure_logging() -> None:
 
 def install_uvicorn_access_filter() -> None:
     logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
-    
+
     # Silence websocket acceptance logs from uvicorn.error
     class UvicornErrorFilter(logging.Filter):
         def filter(self, record: logging.LogRecord) -> bool:
             return "WebSocket" not in record.getMessage()
-            
+
     logging.getLogger("uvicorn.error").addFilter(UvicornErrorFilter())
-    
+
     # Silence third-party schedulers and HTTP clients
     logging.getLogger("apscheduler.scheduler").setLevel(logging.WARNING)
     logging.getLogger("apscheduler.executors.default").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
-
-
 
 
 def patch_thread_start() -> None:

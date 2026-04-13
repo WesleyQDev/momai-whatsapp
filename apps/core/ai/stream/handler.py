@@ -114,7 +114,7 @@ class StreamHandler:
                         if skill_id:
                             break
         if skill_id:
-            self.state.active_skill_name = skill_id.split('.')[-1]
+            self.state.active_skill_name = skill_id.split(".")[-1]
             status = f"Especialista: Executando {self.state.active_skill_name}..."
             if self.state.add_activity(status):
                 yield f"data: {json.dumps({'status': status})}\n\n"
@@ -140,13 +140,16 @@ class StreamHandler:
             if isinstance(msg, ToolMessage) and msg.content:
                 content = clean_response(msg.content)
                 if content:
-                    # We might want to filter generic SYSTEM: NO_RESULTS but for user UX, 
+                    # We might want to filter generic SYSTEM: NO_RESULTS but for user UX,
                     # it's better to show 'something' than a stuck '...' bubble.
                     if not self.state.full_content:
                         self.state.stream_decided = True
                         self.state.had_tool_call = True
 
-                        if not any(a == "Finalizando resposta..." for a in self.state.activities_trace):
+                        if not any(
+                            a == "Finalizando resposta..."
+                            for a in self.state.activities_trace
+                        ):
                             self.state.add_activity("Finalizando resposta...")
                             yield f"data: {json.dumps({'status': 'Finalizando resposta...'})}\n\n"
 
@@ -156,29 +159,13 @@ class StreamHandler:
                 break
 
     async def _handle_router(self, event: Dict[str, Any]) -> AsyncGenerator[str, None]:
-        output = event["data"].get("output")
-        if output and isinstance(output, dict):
-            mem_notes = output.get("memory_notes")
-            if output.get("memory_context") and mem_notes:
-                seen_ids = set()
-                memory_sources = []
-                for note in mem_notes:
-                    nid = note.get("note_id", "unknown")
-                    if nid not in seen_ids:
-                        seen_ids.add(nid)
-                        memory_sources.append(
-                            {
-                                "url": f"momai://note/{nid}",
-                                "title": f"Nota: {note.get('title', 'Sem título')}",
-                                "snippet": note.get("text", "")[:200],
-                            }
-                        )
-                count = len(memory_sources)
-                status = f"Memória: {count} nota{'s' if count != 1 else ''} relevante{'s' if count != 1 else ''}"
-                if self.state.add_activity(status):
-                    yield f"data: {json.dumps({'status': status})}\n\n"
-                if memory_sources:
-                    yield f"data: {json.dumps({'sources': memory_sources})}\n\n"
+        if self.state.injected_memory_sources:
+            count = len(self.state.injected_memory_sources)
+            status = f"Memoria: {count} nota{'s' if count != 1 else ''} relevante{'s' if count != 1 else ''}"
+            if self.state.add_activity(status):
+                yield f"data: {json.dumps({'status': status})}\n\n"
+            yield f"data: {json.dumps({'sources': self.state.injected_memory_sources})}\n\n"
+            self.state.injected_memory_sources = None
 
     async def _handle_manager(self, event: Dict[str, Any]) -> AsyncGenerator[str, None]:
         output = event["data"].get("output")
@@ -213,18 +200,24 @@ class StreamHandler:
         self, event: Dict[str, Any]
     ) -> AsyncGenerator[str, None]:
         name = event["name"]
-        
+
         # Track tool locally for rich UI
         input_data = event.get("data", {}).get("input", {})
-        query_str = json.dumps(input_data, ensure_ascii=False) if isinstance(input_data, dict) else str(input_data)
-        
-        self.state.tool_steps.append({
-            "name": name,
-            "status": "running",
-            "query": query_str,
-            "result": None,
-            "segment": self.state.current_tool_segment
-        })
+        query_str = (
+            json.dumps(input_data, ensure_ascii=False)
+            if isinstance(input_data, dict)
+            else str(input_data)
+        )
+
+        self.state.tool_steps.append(
+            {
+                "name": name,
+                "status": "running",
+                "query": query_str,
+                "result": None,
+                "segment": self.state.current_tool_segment,
+            }
+        )
         yield f"data: {json.dumps({'tool_steps': self.state.tool_steps})}\n\n"
 
         # Flush prebuffer as intro text BEFORE inserting the marker
@@ -248,7 +241,7 @@ class StreamHandler:
             # Already had tools, but AI spoke since then → start a NEW segment
             self.state.current_tool_segment += 1
             self.state.text_produced_since_last_tool = False
-            
+
             # Update the recently added step to the NEW segment
             if self.state.tool_steps:
                 self.state.tool_steps[-1]["segment"] = self.state.current_tool_segment
@@ -267,20 +260,22 @@ class StreamHandler:
             if self.state.add_activity(status):
                 yield f"data: {json.dumps({'status': status})}\n\n"
 
-    async def _handle_tool_end(self, event: Dict[str, Any]) -> AsyncGenerator[str, None]:
+    async def _handle_tool_end(
+        self, event: Dict[str, Any]
+    ) -> AsyncGenerator[str, None]:
         name = event["name"]
         output = event.get("data", {}).get("output", "")
-        
+
         # Determine string representation of output
         out_str = str(output) if not isinstance(output, str) else output
-        
-        # Update the last matching tool step to done 
+
+        # Update the last matching tool step to done
         for step in reversed(self.state.tool_steps):
             if step["name"] == name and step["status"] == "running":
                 step["status"] = "done"
                 step["result"] = out_str
                 break
-                
+
         yield f"data: {json.dumps({'tool_steps': self.state.tool_steps})}\n\n"
 
     async def _handle_model_stream(
@@ -306,7 +301,9 @@ class StreamHandler:
             return
 
         # Show \"Finalizando resposta...\" ONLY after a tool has been called
-        if self.state.had_tool_call and not any(a == "Finalizando resposta..." for a in self.state.activities_trace):
+        if self.state.had_tool_call and not any(
+            a == "Finalizando resposta..." for a in self.state.activities_trace
+        ):
             status = "Finalizando resposta..."
             self.state.add_activity(status)
             yield f"data: {json.dumps({'status': status})}\n\n"
@@ -334,7 +331,7 @@ class StreamHandler:
         elif not self.state.stream_suppressed:
             if self.state.had_tool_call:
                 self.state.text_produced_since_last_tool = True
-                
+
             yield f"data: {json.dumps({'token': filtered_content})}\n\n"
             self.state.full_content += filtered_content
             self.state.tts_buffer += filtered_content
@@ -384,6 +381,7 @@ class StreamHandler:
 
     async def _process_tts(self) -> None:
         from ai import utils
+
         while True:
             if utils.cancel_generation:
                 break

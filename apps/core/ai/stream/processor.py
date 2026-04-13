@@ -35,8 +35,12 @@ class StreamProcessor:
         graph: Any,
         llm: Any,
         speak_response: bool = True,
+        memory_context: Optional[str] = None,
+        memory_sources: Optional[list[dict]] = None,
     ):
         self.state = StreamState(thread_id=thread_id, user_content=message_content)
+        self.state.injected_memory_context = memory_context
+        self.state.injected_memory_sources = memory_sources
         self.graph = graph
         self.llm = llm
         self.speak_response = speak_response
@@ -228,8 +232,15 @@ class StreamProcessor:
                 os.getenv("MOMAI_GRAPH_RECURSION_LIMIT", str(DEFAULT_RECURSION_LIMIT))
             ),
         }
+        user_msg = self.state.user_content
+        if self.state.injected_memory_context:
+            user_msg = (
+                f"{self.state.injected_memory_context}\n\n"
+                f"PERGUNTA DO USUARIO:\n{self.state.user_content}"
+            )
+
         input_data = {
-            "messages": [HumanMessage(content=self.state.user_content)],
+            "messages": [HumanMessage(content=user_msg)],
             "summary": self.state.summary_text,
             "search_count": 0,
         }

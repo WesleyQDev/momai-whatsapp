@@ -17,9 +17,13 @@ from dotenv import load_dotenv
 from ai.graph.workflow import create_momai_graph
 from ai import utils
 from ai.utils import (
-    save_message_to_db, load_history_from_db, clean_response, 
-    clean_text_for_tts, speak_and_notify, _is_missing_capability,
-    _build_missing_capability_card
+    save_message_to_db,
+    load_history_from_db,
+    clean_response,
+    clean_text_for_tts,
+    speak_and_notify,
+    _is_missing_capability,
+    _build_missing_capability_card,
 )
 from ai.stream.processor import StreamProcessor
 
@@ -125,7 +129,9 @@ async def clear_history_db(thread_id: str = None):
                 await conn.execute("DELETE FROM checkpoints")
                 await conn.execute("DELETE FROM writes")
             await conn.commit()
-            logger.debug(f"[AI_core] Graph memory cleared for thread: {thread_id or 'all'}")
+            logger.debug(
+                f"[AI_core] Graph memory cleared for thread: {thread_id or 'all'}"
+            )
     except Exception as e:
         logger.error(f"[AI_core] Error clearing checkpoints: {e}")
 
@@ -176,9 +182,9 @@ def initialize_llm(on_init_progress=None, tier=None, onboarding_bypass=False):
     init_error = None
 
     thread = threading.Thread(
-        target=_initialize_llm_task, 
-        args=(on_init_progress,), 
-        kwargs={'provided_tier': tier, 'onboarding_bypass': onboarding_bypass}
+        target=_initialize_llm_task,
+        args=(on_init_progress,),
+        kwargs={"provided_tier": tier, "onboarding_bypass": onboarding_bypass},
     )
     thread.daemon = True
     try:
@@ -190,6 +196,7 @@ def initialize_llm(on_init_progress=None, tier=None, onboarding_bypass=False):
 # AI Tiers Configuration
 TIERS_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "ai_tiers.json")
 
+
 def load_tier_config():
     """Loads AI tier configuration from JSON file or returns defaults."""
     defaults = {
@@ -200,7 +207,7 @@ def load_tier_config():
             "top_p": 0.8,
             "top_k": 20,
             "presence_penalty": 0.0,
-            "repetition_penalty": 1.1
+            "repetition_penalty": 1.1,
         },
         "pro": {
             "repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF",
@@ -209,7 +216,7 @@ def load_tier_config():
             "top_p": 0.8,
             "top_k": 20,
             "presence_penalty": 0.0,
-            "repetition_penalty": 1.1
+            "repetition_penalty": 1.1,
         },
         "ultra": {
             "repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
@@ -218,10 +225,10 @@ def load_tier_config():
             "top_p": 0.8,
             "top_k": 20,
             "presence_penalty": 0.0,
-            "repetition_penalty": 1.1
-        }
+            "repetition_penalty": 1.1,
+        },
     }
-    
+
     if not os.path.exists(TIERS_CONFIG_PATH):
         return defaults
 
@@ -232,10 +239,13 @@ def load_tier_config():
         logger.warning(f"[AI_core] Error loading ai_tiers.json: {e}")
         return defaults
 
+
 TIER_CONFIG = load_tier_config()
 
 
-def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_bypass=False):
+def _initialize_llm_task(
+    on_init_progress=None, provided_tier=None, onboarding_bypass=False
+):
     """Internal task to initialize the local LLM and rebuild the graph."""
     global llm, llm_with_tools, llm_mode, momai_graph, is_loading, init_error
 
@@ -263,20 +273,25 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
 
         tier = provided_tier
         from database.models import SessionLocal, Settings, init_db
+
         if not tier:
             db = SessionLocal()
             s = db.query(Settings).first()
-            
+
             # Se o tier não foi definido, não carrega modelo.
             if not s or not s.ai_tier:
-                logger.debug("[AI_core] Tier não selecionado. Pulando carregamento automático.")
+                logger.debug(
+                    "[AI_core] Tier não selecionado. Pulando carregamento automático."
+                )
                 is_loading = False
                 llm_mode = "waiting"
                 db.close()
                 return
 
             if not s.onboarding_completed and not onboarding_bypass:
-                logger.debug("[AI_core] Onboarding pendente. Pulando carregamento automático.")
+                logger.debug(
+                    "[AI_core] Onboarding pendente. Pulando carregamento automático."
+                )
                 is_loading = False
                 llm_mode = "waiting"
                 db.close()
@@ -296,12 +311,12 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
 
         # Refresh TIER_CONFIG from file
         tier_config = load_tier_config()
-        
+
         if tier not in tier_config:
             tier = "pro"
 
         config = tier_config[tier]
-        
+
         report_progress(f"Configurando motor Llama.cpp ({tier.upper()})...")
         new_llm = load_model(
             repo_id=config["repo"],
@@ -327,16 +342,21 @@ def _initialize_llm_task(on_init_progress=None, provided_tier=None, onboarding_b
 
                     def _do_index():
                         import asyncio
+
                         asyncio.run(index_all_system_tools())
                         asyncio.run(index_all_skills())
+
                     import threading
+
                     threading.Thread(target=_do_index, daemon=True).start()
                 except Exception as sync_err:
                     logger.warning(
                         f"[AI_core] Falha na sincronização de ferramentas: {sync_err}"
                     )
             else:
-                logger.debug("[AI_core] Modo Lite/Pro detectado. Sincronização vetorial feita conforme demanda.")
+                logger.debug(
+                    "[AI_core] Modo Lite/Pro detectado. Sincronização vetorial feita conforme demanda."
+                )
 
             report_progress("Reconstruindo Grafo de Agentes...")
 
@@ -515,9 +535,10 @@ async def _build_missing_capability_card(
         return {"apply": False}
 
     locale = get_locale()
-    
+
     # Se estiver no modo lite, sugerimos Ultra ao inves de Extensões se o contexto for de limitações
     from database.models import SessionLocal, Settings
+
     db = SessionLocal()
     try:
         s = db.query(Settings).first()
@@ -530,14 +551,14 @@ async def _build_missing_capability_card(
             "apply": True,
             "content": t("suggest_ultra_card_content", locale=locale),
             "cta": t("suggest_ultra_card_cta", locale=locale),
-            "action": ULTRA_MODE_ACTION
+            "action": ULTRA_MODE_ACTION,
         }
 
     return {
         "apply": True,
         "content": t("missing_capability_card_content", locale=locale),
         "cta": t("missing_capability_card_cta", locale=locale),
-        "action": EXTENSIONS_STORE_ACTION
+        "action": EXTENSIONS_STORE_ACTION,
     }
 
 
@@ -598,8 +619,10 @@ async def generate(message: ChatMessage, speak_response: bool = True):
         thread_id=message.thread_id,
         graph=momai_graph,
         llm=llm,
-        speak_response=speak_response
+        speak_response=speak_response,
+        memory_context=message.memory_context,
+        memory_sources=message.memory_sources,
     )
-    
+
     async for chunk in processor.process():
         yield chunk

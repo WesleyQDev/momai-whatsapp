@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -6,6 +7,8 @@ from pydantic import BaseModel
 class ChatMessage(BaseModel):
     content: str
     thread_id: str = "default"
+    memory_context: str | None = None
+    memory_sources: list[dict] | None = None
 
 
 class ModeChange(BaseModel):
@@ -69,32 +72,6 @@ class GamingAppCreate(BaseModel):
     executable: str
 
 
-class NoteCreate(BaseModel):
-    title: str
-    content: str = ""
-    path: str | None = None
-
-
-class NoteUpdate(BaseModel):
-    title: str | None = None
-    content: str | None = None
-    path: str | None = None
-
-
-class NoteImportItem(BaseModel):
-    name: str
-    content: str
-
-
-class NotesImport(BaseModel):
-    files: list[NoteImportItem]
-
-
-class MemorySearch(BaseModel):
-    query: str
-    limit: int | None = None
-
-
 class InstallRequest(BaseModel):
     backend: str | None = None
 
@@ -104,11 +81,20 @@ class InstallExtensionRequest(BaseModel):
     download_url: str
 
 
-class FolderRename(BaseModel):
-    old_path: str
-    new_path: str
-
-
 class ExtensionActionRequest(BaseModel):
     action: str
     payload: dict | None = None
+
+
+class PluginExecuteRequest(BaseModel):
+    skill_id: str
+    tool_name: str
+    args: Dict[str, Any]
+
+
+class PluginInfo(BaseModel):
+    id: str
+    name: str
+    description: str
+    intents: Optional[List[str]] = None
+    tools: List[str] = []

@@ -32,6 +32,23 @@ declare global {
       markFirstLaunchFinished: (settings: any) => void
       restartBackend: () => Promise<{ success: boolean; error?: string }>
       setResizable?: (resizable: boolean) => void
+      notes: {
+        list: () => Promise<any[]>
+        get: (noteId: string) => Promise<any | null>
+        create: (payload: { title: string; content: string; path?: string }) => Promise<any>
+        update: (
+          noteId: string,
+          payload: { title?: string; content?: string; path?: string }
+        ) => Promise<any | null>
+        delete: (noteId: string) => Promise<boolean>
+        import: (files: { name: string; content: string }[]) => Promise<void>
+        listFolders: () => Promise<string[]>
+        createFolder: (path: string) => Promise<void>
+        renameFolder: (oldPath: string, newPath: string) => Promise<boolean>
+        deleteFolder: (path: string) => Promise<boolean>
+        openFolder: (noteId: string) => Promise<boolean>
+        search: (query: string, limit?: number) => Promise<any[]>
+      }
     }
   }
 }

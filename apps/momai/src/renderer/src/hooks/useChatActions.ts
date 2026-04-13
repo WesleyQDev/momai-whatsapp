@@ -2,6 +2,8 @@ import { useCallback } from 'react'
 import {
   Message,
   sendChatMessage,
+  searchMemory,
+  Source,
   clearChatHistory,
   stopVoice as stopVoiceApi,
   deleteMessage as deleteMessageApi,
@@ -44,6 +46,47 @@ export function useChatActions({
   isCallModeRef,
   setText
 }: UseChatActionsProps) {
+  const buildInjectedMemory = useCallback(async (content: string) => {
+    const query = content.trim()
+    if (!query || query.length < 3) {
+      return { memory_context: undefined as string | undefined, memory_sources: undefined as Source[] | undefined }
+    }
+
+    try {
+      const hits = await searchMemory(query, 6)
+      if (!hits.length) {
+        return { memory_context: undefined, memory_sources: undefined }
+      }
+
+      const unique = new Map<string, typeof hits[number]>()
+      for (const hit of hits) {
+        if (!unique.has(hit.note_id)) unique.set(hit.note_id, hit)
+      }
+
+      const selected = Array.from(unique.values()).slice(0, 4)
+      const sections = selected
+        .map((hit) => {
+          const text = (hit.text || '').trim()
+          if (!text) return ''
+          return `--- [TITULO DA NOTA: ${String(hit.title || 'Nota').toUpperCase()}] ---\n${text}\n`
+        })
+        .filter(Boolean)
+
+      const memory_context = sections.length
+        ? `CONHECIMENTO (NOTAS LOCAIS):\n${sections.join('\n')}`
+        : undefined
+
+      const memory_sources: Source[] = selected.map((hit) => ({
+        url: `momai://note/${hit.note_id}`,
+        title: `Nota: ${hit.title || 'Sem título'}`,
+        snippet: (hit.text || '').slice(0, 200)
+      }))
+
+      return { memory_context, memory_sources }
+    } catch {
+      return { memory_context: undefined, memory_sources: undefined }
+    }
+  }, [])
   
   const stopGeneration = useCallback(async () => {
     try {
@@ -87,6 +130,7 @@ export function useChatActions({
 
       if (isSilent) {
         try {
+          const memoryPayload = await buildInjectedMemory(content)
           await sendChatMessage(content, threadId, {
             onToken: () => {},
             onStatus: () => {},
@@ -96,7 +140,7 @@ export function useChatActions({
             onToolSteps: () => {},
             onDone: () => {},
             onError: (err) => console.error('[SilentTool] Error:', err)
-          })
+          }, memoryPayload)
         } catch (err) {
           console.error('[SilentTool] Error:', err)
         }
@@ -117,6 +161,7 @@ export function useChatActions({
       const isFirstMessage = messagesRef.current.length <= 1
 
       try {
+        const memoryPayload = await buildInjectedMemory(content)
         await sendChatMessage(content, threadId, {
           onToken: (token) => {
             if (currentThreadRef.current !== messageThreadId) return
@@ -280,7 +325,7 @@ export function useChatActions({
               return updated
             })
           }
-        })
+        }, memoryPayload)
       } catch (err) {
         setIsLoading(false)
         console.error('Erro ao enviar mensagem:', err)

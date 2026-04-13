@@ -53,6 +53,11 @@ export interface ChatStreamCallbacks {
   onActiveSkill?: (skillName: string) => void
 }
 
+export interface ChatMessageOptions {
+  memory_context?: string
+  memory_sources?: Source[]
+}
+
 export interface Source {
   url: string
   title: string
@@ -74,12 +79,13 @@ export interface Card {
 export async function sendChatMessage(
   content: string,
   threadId: string,
-  callbacks: ChatStreamCallbacks
+  callbacks: ChatStreamCallbacks,
+  options?: ChatMessageOptions
 ): Promise<void> {
   const response = await fetch(`${API_URL}/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content, thread_id: threadId })
+    body: JSON.stringify({ content, thread_id: threadId, ...options })
   })
 
   if (!response.ok) {
@@ -453,15 +459,13 @@ export interface MemorySearchResult {
 }
 
 export async function listMemoryNotes(): Promise<NoteSummary[]> {
-  const response = await fetch(`${API_URL}/memory/notes`)
-  if (!response.ok) throw new Error('Erro ao listar notas')
-  return response.json()
+  return window.api.notes.list()
 }
 
 export async function getMemoryNote(noteId: string): Promise<NoteDetail> {
-  const response = await fetch(`${API_URL}/memory/notes/${noteId}`)
-  if (!response.ok) throw new Error('Erro ao buscar nota')
-  return response.json()
+  const note = await window.api.notes.get(noteId)
+  if (!note) throw new Error('Erro ao buscar nota')
+  return note
 }
 
 export async function createMemoryNote(
@@ -469,94 +473,51 @@ export async function createMemoryNote(
   content: string,
   path?: string
 ): Promise<NoteDetail> {
-  const response = await fetch(`${API_URL}/memory/notes`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, content, path })
-  })
-  if (!response.ok) throw new Error('Erro ao criar nota')
-  return response.json()
+  return window.api.notes.create({ title, content, path })
 }
 
 export async function updateMemoryNote(
   noteId: string,
   payload: { title?: string; content?: string; path?: string }
 ): Promise<NoteDetail> {
-  const response = await fetch(`${API_URL}/memory/notes/${noteId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  })
-  if (!response.ok) throw new Error('Erro ao atualizar nota')
-  return response.json()
+  const updated = await window.api.notes.update(noteId, payload)
+  if (!updated) throw new Error('Erro ao atualizar nota')
+  return updated
 }
 
 export async function openNoteFolder(noteId: string): Promise<boolean> {
-  const response = await fetch(`${API_URL}/memory/notes/${noteId}/open-folder`, {
-    method: 'POST'
-  })
-  if (!response.ok) return false
-  const data = await response.json()
-  return data.success
+  return window.api.notes.openFolder(noteId)
 }
 
 export async function listMemoryFolders(): Promise<string[]> {
-  const response = await fetch(`${API_URL}/memory/folders`)
-  if (!response.ok) throw new Error('Erro ao listar pastas')
-  return response.json()
+  return window.api.notes.listFolders()
 }
 
 export async function createMemoryFolder(path: string): Promise<void> {
-  const response = await fetch(`${API_URL}/memory/folders`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path })
-  })
-  if (!response.ok) throw new Error('Erro ao criar pasta')
+  await window.api.notes.createFolder(path)
 }
 
 export async function renameMemoryFolder(oldPath: string, newPath: string): Promise<void> {
-  const response = await fetch(`${API_URL}/memory/folders`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ old_path: oldPath, new_path: newPath })
-  })
-  if (!response.ok) throw new Error('Erro ao renomear pasta')
+  const success = await window.api.notes.renameFolder(oldPath, newPath)
+  if (!success) throw new Error('Erro ao renomear pasta')
 }
 
 export async function deleteMemoryFolder(path: string): Promise<void> {
-  const encodedPath = encodeURIComponent(path)
-  const response = await fetch(`${API_URL}/memory/folders?path=${encodedPath}`, {
-    method: 'DELETE'
-  })
-  if (!response.ok) throw new Error('Erro ao excluir pasta')
+  const success = await window.api.notes.deleteFolder(path)
+  if (!success) throw new Error('Erro ao excluir pasta')
 }
 
 export async function deleteMemoryNote(noteId: string): Promise<void> {
-  const response = await fetch(`${API_URL}/memory/notes/${noteId}`, {
-    method: 'DELETE'
-  })
-  if (!response.ok) throw new Error('Erro ao remover nota')
+  const deleted = await window.api.notes.delete(noteId)
+  if (!deleted) throw new Error('Erro ao remover nota')
 }
 
 export async function importMemoryNotes(files: { name: string; content: string }[]): Promise<void> {
-  const response = await fetch(`${API_URL}/memory/notes/import`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ files })
-  })
-  if (!response.ok) throw new Error('Erro ao importar notas')
+  await window.api.notes.import(files)
 }
 
 export async function searchMemory(query: string, limit = 6): Promise<MemorySearchResult[]> {
-  const response = await fetch(`${API_URL}/memory/search`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, limit })
-  })
-  if (!response.ok) throw new Error('Erro ao buscar memoria')
-  const data = await response.json()
-  return data.results || []
+  return window.api.notes.search(query, limit)
 }
 
 // --- REMINDERS ---
