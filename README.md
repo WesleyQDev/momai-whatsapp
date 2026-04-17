@@ -48,6 +48,10 @@ Para instruções de instalação, guia de contribuição, detalhes técnicos e 
 
 **[https://wesleyqdev.github.io/momai](https://wesleyqdev.github.io/momai)**
 
+Para a documentação técnica raiz (Spec-Driven, Arc42 + C4, ADR e specs incrementais), veja:
+
+**[docs/README.md](docs/README.md)**
+
 ## Licença
 
 Este projeto está licenciado sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
