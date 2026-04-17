@@ -1302,7 +1302,14 @@ function buildEnv(venvPath: string, dataDir: string, uvExe: string) {
 
 let restartAttempts = 0
 
-export async function startPythonBackend(): Promise<void> {
+export interface PythonBackendStartOptions {
+  host?: string
+  port?: number
+  announceOnline?: boolean
+  reportBootstrapErrors?: boolean
+}
+
+export async function startPythonBackend(options: PythonBackendStartOptions = {}): Promise<void> {
   try {
     const checkVenvPath = join(userDataPath, 'python_env')
     const pythonExeCheck =
@@ -1333,6 +1340,13 @@ export async function startPythonBackend(): Promise<void> {
 
     const { uvExe } = result
     const env = buildEnv(venvPath, dataDir, uvExe)
+    const host = options.host || API_HOST
+    const port = options.port ?? API_PORT
+    const announceOnline = options.announceOnline ?? true
+    const reportBootstrapErrors = options.reportBootstrapErrors ?? true
+    const isPrimaryBackend = announceOnline || reportBootstrapErrors
+    env.HOST = host
+    env.PORT = String(port)
     env.MOMAI_CORE_PATH = corePath
 
     let stderrBuffer = ''
@@ -1385,8 +1399,6 @@ export async function startPythonBackend(): Promise<void> {
     })
 
     // Wait for the server to be up before notifying renderer to start HTTP requests
-    const host = API_HOST
-    const port = API_PORT
     const portTimeout = state.isFirstLaunch ? 120000 : 90000
 
     waitForPort(port, host, portTimeout)
@@ -1397,7 +1409,7 @@ export async function startPythonBackend(): Promise<void> {
         restartAttempts = 0
 
         const window = getMainWindow()
-        if (window && !window.isDestroyed()) {
+        if (announceOnline && window && !window.isDestroyed()) {
           window.webContents.send('backend-online')
         }
       })
@@ -1406,7 +1418,7 @@ export async function startPythonBackend(): Promise<void> {
 
         // Send error to renderer when port detection fails
         const window = getMainWindow()
-        if (window && !window.isDestroyed()) {
+        if (reportBootstrapErrors && window && !window.isDestroyed()) {
           window.webContents.send('bootstrap-error', {
             type: 'startup_failed',
             message: 'Backend failed to start',
@@ -1472,11 +1484,11 @@ export async function startPythonBackend(): Promise<void> {
 
           // Notify renderer about retry
           const window = getMainWindow()
-          if (window && !window.isDestroyed()) {
+          if (isPrimaryBackend && window && !window.isDestroyed()) {
             window.webContents.send('backend-retry')
           }
 
-          setTimeout(() => startPythonBackend(), 2000)
+          setTimeout(() => startPythonBackend(options), 2000)
           return
         }
 
@@ -1508,7 +1520,9 @@ export async function startPythonBackend(): Promise<void> {
 
         // Reset counter before sending error so manual retries from UI can work
         restartAttempts = 0
-        sendErrorToRenderer(error)
+        if (reportBootstrapErrors) {
+          sendErrorToRenderer(error)
+        }
       }
     })
 
@@ -1520,7 +1534,9 @@ export async function startPythonBackend(): Promise<void> {
         message: 'Failed to start Python backend',
         details: err.message
       }
-      sendErrorToRenderer(error)
+      if (reportBootstrapErrors) {
+        sendErrorToRenderer(error)
+      }
     })
   } catch (err: any) {
     logger.error('[Electron] Falha ao iniciar backend:', err)
@@ -1529,7 +1545,9 @@ export async function startPythonBackend(): Promise<void> {
       message: 'Unexpected error during startup',
       details: err.message || String(err)
     }
-    sendErrorToRenderer(error)
+    if (options.reportBootstrapErrors ?? true) {
+      sendErrorToRenderer(error)
+    }
   }
 }
 

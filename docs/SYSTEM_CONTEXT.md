@@ -25,7 +25,8 @@ Descrever o sistema MomAI no contexto externo: atores, sistemas vizinhos e front
 Dentro da MomAI:
 
 - Desktop app (`apps/momai`) com Electron/React.
-- Core backend (`apps/core`) com FastAPI e orquestracao de IA.
+- Core Node local (`apps/momai/scripts/node-core.js`) como backend primario.
+- Python sidecar (`apps/core`) para voz/ML sob demanda.
 - Persistencia local (SQLite + LanceDB).
 
 Fora da MomAI:
@@ -36,7 +37,7 @@ Fora da MomAI:
 ## Fluxo de alto nivel
 
 1. Usuario envia entrada por texto/voz no Desktop.
-2. Desktop encaminha para Core via HTTP/WebSocket.
-3. Core processa intencao, seleciona agentes/tools e responde com streaming.
-4. Desktop renderiza resposta e apresenta feedback visual/voz.
-
+2. Desktop encaminha para Core Node via HTTP/WebSocket (`127.0.0.1:8000`).
+3. Core Node processa chat com inferencia local (`llama.cpp`) e responde com streaming.
+4. Quando necessario, Core Node aciona sidecar Python para voz/ML.
+5. Desktop renderiza resposta e apresenta feedback visual/voz.

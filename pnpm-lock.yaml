@@ -79,13 +79,13 @@ importers:
         version: 0.27.2(apache-arrow@18.1.0)
       '@langchain/core':
         specifier: ^1.1.39
-        version: 1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0)
+        version: 1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
       '@langchain/langgraph':
         specifier: ^1.2.8
-        version: 1.2.8(@langchain/core@1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@4.3.6)
+        version: 1.2.8(@langchain/core@1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@4.3.6)
       '@langchain/openai':
         specifier: ^1.4.3
-        version: 1.4.3(@langchain/core@1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0))(ws@8.19.0)
+        version: 1.4.3(@langchain/core@1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(ws@8.20.0)
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3
@@ -110,6 +110,9 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
+      ws:
+        specifier: ^8.20.0
+        version: 8.20.0
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -7834,6 +7837,18 @@ packages:
       utf-8-validate:
         optional: true
 
+  ws@8.20.0:
+    resolution: {integrity: sha512-sAt8BhgNbzCtgGbt2OxmpuryO63ZoDk/sqaB/znQm94T4fCEsy/yV+7CdC1kJhOU9lboAEU7R3kquuycDoibVA==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   wsl-utils@0.1.0:
     resolution: {integrity: sha512-h3Fbisa2nKGPxCpm89Hk33lBLsnaGBvctQopaBSOW/uIs6FTe1ATyAnKFJrzVs9vpGdsTe73WF3V4lIsk4Gacw==}
     engines: {node: '>=18'}
@@ -10556,7 +10571,7 @@ snapshots:
       '@lancedb/lancedb-win32-arm64-msvc': 0.27.2
       '@lancedb/lancedb-win32-x64-msvc': 0.27.2
 
-  '@langchain/core@1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0)':
+  '@langchain/core@1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       '@standard-schema/spec': 1.1.0
@@ -10564,7 +10579,7 @@ snapshots:
       camelcase: 6.3.0
       decamelize: 1.2.0
       js-tiktoken: 1.0.21
-      langsmith: 0.5.16(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0)
+      langsmith: 0.5.16(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
       mustache: 4.2.0
       p-queue: 6.6.2
       uuid: 11.1.0
@@ -10576,27 +10591,27 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/langgraph-checkpoint@1.0.1(@langchain/core@1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0))':
+  '@langchain/langgraph-checkpoint@1.0.1(@langchain/core@1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))':
     dependencies:
-      '@langchain/core': 1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0)
+      '@langchain/core': 1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
       uuid: 10.0.0
 
-  '@langchain/langgraph-sdk@1.8.8(@langchain/core@1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+  '@langchain/langgraph-sdk@1.8.8(@langchain/core@1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@types/json-schema': 7.0.15
       p-queue: 9.1.2
       p-retry: 7.1.1
       uuid: 13.0.0
     optionalDependencies:
-      '@langchain/core': 1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0)
+      '@langchain/core': 1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
-  '@langchain/langgraph@1.2.8(@langchain/core@1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@4.3.6)':
+  '@langchain/langgraph@1.2.8(@langchain/core@1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@4.3.6)':
     dependencies:
-      '@langchain/core': 1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0)
-      '@langchain/langgraph-checkpoint': 1.0.1(@langchain/core@1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0))
-      '@langchain/langgraph-sdk': 1.8.8(@langchain/core@1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@langchain/core': 1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
+      '@langchain/langgraph-checkpoint': 1.0.1(@langchain/core@1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))
+      '@langchain/langgraph-sdk': 1.8.8(@langchain/core@1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@standard-schema/spec': 1.1.0
       uuid: 10.0.0
       zod: 4.3.6
@@ -10606,11 +10621,11 @@ snapshots:
       - svelte
       - vue
 
-  '@langchain/openai@1.4.3(@langchain/core@1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0))(ws@8.19.0)':
+  '@langchain/openai@1.4.3(@langchain/core@1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0))(ws@8.20.0)':
     dependencies:
-      '@langchain/core': 1.1.39(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0)
+      '@langchain/core': 1.1.39(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0)
       js-tiktoken: 1.0.21
-      openai: 6.33.0(ws@8.19.0)(zod@4.3.6)
+      openai: 6.33.0(ws@8.20.0)(zod@4.3.6)
       zod: 4.3.6
     transitivePeerDependencies:
       - ws
@@ -14262,7 +14277,7 @@ snapshots:
 
   kleur@3.0.3: {}
 
-  langsmith@0.5.16(openai@6.33.0(ws@8.19.0)(zod@4.3.6))(ws@8.19.0):
+  langsmith@0.5.16(openai@6.33.0(ws@8.20.0)(zod@4.3.6))(ws@8.20.0):
     dependencies:
       chalk: 5.6.2
       console-table-printer: 2.15.0
@@ -14270,8 +14285,8 @@ snapshots:
       semver: 7.7.3
       uuid: 10.0.0
     optionalDependencies:
-      openai: 6.33.0(ws@8.19.0)(zod@4.3.6)
-      ws: 8.19.0
+      openai: 6.33.0(ws@8.20.0)(zod@4.3.6)
+      ws: 8.20.0
 
   latest-version@7.0.0:
     dependencies:
@@ -15227,9 +15242,9 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai@6.33.0(ws@8.19.0)(zod@4.3.6):
+  openai@6.33.0(ws@8.20.0)(zod@4.3.6):
     optionalDependencies:
-      ws: 8.19.0
+      ws: 8.20.0
       zod: 4.3.6
 
   opener@1.5.2: {}
@@ -17550,6 +17565,8 @@ snapshots:
   ws@7.5.10: {}
 
   ws@8.19.0: {}
+
+  ws@8.20.0: {}
 
   wsl-utils@0.1.0:
     dependencies:

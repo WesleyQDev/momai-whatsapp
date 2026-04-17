@@ -9,21 +9,28 @@ Relacionados: [CONTAINER_ARCHITECTURE.md](./CONTAINER_ARCHITECTURE.md), [RUNTIME
 
 Detalhar componentes criticos em Desktop e Core.
 
-## Core (`apps/core`)
+## Core Node (`apps/momai`)
 
-- `main.py`: entrada da aplicacao FastAPI.
-- `startup.py`: inicializacao progressiva de IA, skills e servicos.
-- `api/router.py` + `api/routes/*`: composicao de endpoints.
-- `ai/orchestrator.py`: coordenacao de conversa, contexto e ferramentas.
-- `ai/tool_selector.py`: selecao de tools/skills por intencao.
+- `scripts/node-core.js`: backend local primario (HTTP + WS) e orquestracao runtime.
+- `src/main/coreManager.ts`: lifecycle do backend Node e retry/backoff de processo.
+- Integracao com `llama.cpp` (`apps/core/bin/*/llama-server`) para inferencia local.
+- Persistencia local de runtime (sessoes, settings, reminders e metadados de chat).
+
+## Python Sidecar (`apps/core`)
+
+- `main.py`: runtime FastAPI usado como sidecar especializado.
+- `startup.py`: bootstrap enxuto (DB + registry de plugins), sem stack LLM principal.
 - `services/voice/*`: wake word, transcricao e TTS.
-- `services/reminders/*`: agendamento e execucao de lembretes.
-- `database/models.py` + `database/vector_db.py`: persistencia relacional e vetorial.
+- Endpoints mantidos no sidecar:
+  - `/voice/*` (transcricao e controle de wake word)
+  - `/chat/speak` e `/chat/stop-voice` (ponte TTS)
+  - `/plugins/*` (listagem e execucao de tools)
 
 ## Desktop (`apps/momai`)
 
 - `src/main/index.ts`: lifecycle, IPC global e bootstrap.
-- `src/main/pythonManager.ts`: preparo e start do backend local.
+- `src/main/coreManager.ts`: start/stop do Core Node local.
+- `src/main/pythonManager.ts`: start sob demanda do sidecar Python.
 - `src/main/windowManager.ts`: janelas, overlay, eventos de UI.
 - `src/preload/index.ts`: surface segura `window.api`.
 - `src/renderer/src/App.tsx`: orquestracao de views e onboarding.
@@ -31,12 +38,11 @@ Detalhar componentes criticos em Desktop e Core.
 ## Pontos de acoplamento criticos
 
 - Endpoints de chat/estado e eventos de bootstrap.
-- Eventos IPC do preload para comandos de janela e backend.
-- Contratos de schema API em `apps/core/api/schemas.py`.
+- Eventos IPC do preload para comandos de janela e controle de backend.
+- Contrato HTTP/WS estavel em `127.0.0.1:8000` para evitar refactor imediato de UI.
 
 ## Riscos arquiteturais observados
 
-- Crescimento de acoplamento entre bootstrap do Electron e estado do Core.
-- Divergencia de contrato quando UI e Core evoluem em ritmos diferentes.
+- Divergencia de contrato quando API Node e UI evoluem em ritmos diferentes.
+- Regressao de voz caso sidecar Python nao mantenha paridade funcional.
 - Complexidade crescente em extensoes sem governanca de contratos.
-

@@ -1,405 +1,44 @@
 import asyncio
 import os
 import threading
-import time
 from contextlib import asynccontextmanager
 
+import logging
 import psutil
 
-import logging
+import app_state
+from database.models import init_db
 
 logger = logging.getLogger("momai.startup")
-logger.debug("[Startup] Loading startup module...")
-
-import app_state
-from database.models import SessionLocal, Settings, init_db
-from services.system.resource_manager import resource_manager
-
-logger.debug("[Startup] Startup module loaded.")
 
 
-async def init_system_task() -> None:
-    """Background task to initialize the system with granular progress reporting."""
+async def init_sidecar_task() -> None:
+    """Initialize only the runtime pieces required by the Python sidecar."""
     try:
-        # Scale: 30% - 100% (Electron takes 0% - 30%)
-        await app_state.send_init_event("api", "Starting system protocols...", 32)
+        await app_state.send_init_event("api", "Starting Python sidecar...", 40)
+        await app_state.send_init_event("api", "Database connected & migrated", 70)
 
-        # O init_db já foi chamado na lifespan de forma síncrona
-        await app_state.send_init_event("api", "Database connected & migrated", 35)
+        # Warm extension discovery in background for faster first /plugins request.
+        await app_state.send_init_event("plugins", "Loading plugin registry...", 85)
+        await app_state.ensure_extension_manager_loaded()
 
-        await app_state.send_init_event("brain", "Loading AI stack modules...", 40)
-        await app_state.initialize_ai_stack()
-        await app_state.send_init_event("brain", "Core AI modules ready", 45)
-
-        db = SessionLocal()
-        settings = db.query(Settings).first()
-        if not settings:
-            settings = Settings()
-            db.add(settings)
-            db.commit()
-            db.refresh(settings)
-
-        if not settings.onboarding_completed:
-            await app_state.send_init_event(
-                "ready", "Aguardando conclusão do onboarding...", 100
-            )
-            app_state.system_ready.set()
-            db.close()
-            return
-
-        await start_core_services(settings)
-        db.close()
+        await app_state.send_init_event("ready", "Sidecar ready.", 100)
     except Exception as e:
-        app_state.logger.exception("[Startup] Fatal error in startup sequence: %s", e)
+        logger.exception("[Startup] Sidecar initialization failed: %s", e)
         app_state.startup_error = str(e)
-        await app_state.send_init_event(
-            "error",
-            f"Startup failed: {e}",
-            0,
-        )
+        await app_state.send_init_event("error", f"Startup failed: {e}", 0)
     finally:
         app_state.system_ready.set()
-
-
-_core_services_started = False
-_core_services_lock = asyncio.Lock()
-
-
-async def start_core_services(settings):
-    """Inicializa todos os serviços da IA após o onboarding estar concluído."""
-    global checkpointer_cm, _core_services_started
-
-    async with _core_services_lock:
-        if _core_services_started:
-            logger.debug("[Startup] Core services already started, skipping.")
-            return
-        _core_services_started = True
-
-    try:
-        # Pre-warm: start model download while LLM setup detects GPU etc.
-        from ai.model_prefetch import start_model_prefetch
-
-        start_model_prefetch()
-
-        # 1. Start LLM initialization in background
-        def on_brain_init(status: str) -> None:
-            if app_state.main_loop:
-                asyncio.run_coroutine_threadsafe(
-                    app_state.send_init_event("brain", f"LLM: {status}", None),
-                    app_state.main_loop,
-                )
-
-        if getattr(settings, "auto_start_llm", True):
-            app_state.orchestrator.initialize_llm(on_brain_init)
-        else:
-            if app_state.main_loop:
-                asyncio.run_coroutine_threadsafe(
-                    app_state.send_init_event(
-                        "brain",
-                        "LLM local não iniciado automaticamente (auto_start_llm=False)",
-                        None,
-                    ),
-                    app_state.main_loop,
-                )
-
-        # 2. Load skills sequentially for progress feedback
-        def load_extensions():
-            try:
-
-                def report_ext(msg):
-                    if app_state.main_loop:
-                        asyncio.run_coroutine_threadsafe(
-                            app_state.send_init_event("extensions", msg, None),
-                            app_state.main_loop,
-                        )
-
-                app_state.extension_manager.load_all(on_progress=report_ext)
-                skill_count = len(app_state.extension_manager.get_all_skills())
-                if app_state.main_loop:
-                    asyncio.run_coroutine_threadsafe(
-                        app_state.send_init_event(
-                            "extensions", f"{skill_count} skills discovered", None
-                        ),
-                        app_state.main_loop,
-                    )
-            except Exception as e:
-                app_state.logger.warning(f"[startup] Extensions load error: {e}")
-
-        threading.Thread(target=load_extensions, daemon=True).start()
-
-        # 3. Apply settings
-        await app_state.send_init_event("brain", "Applying user preferences...", None)
-        if app_state.tts and hasattr(app_state.tts, "tts"):
-            app_state.tts.tts.set_voice(settings.tts_voice)
-            app_state.tts.tts.set_enabled(settings.tts_enabled)
-
-        resource_manager.on_notify_callback = app_state.notify_economy_change
-        resource_manager.start()
-        await app_state.send_init_event("extensions", "Resource monitor active", None)
-
-        # 5. Checkpointer Setup
-        await app_state.send_init_event(
-            "api", "Setting up session persistence...", None
-        )
-        try:
-            from ai.orchestrator import AsyncSqliteSaver, CHECKPOINT_PATH
-            import sqlite3
-
-            checkpointer_cm = AsyncSqliteSaver.from_conn_string(CHECKPOINT_PATH)
-            app_state.orchestrator.checkpointer = await checkpointer_cm.__aenter__()
-            app_state.orchestrator.checkpointer_cleanup = checkpointer_cm
-
-            conn = sqlite3.connect(CHECKPOINT_PATH)
-            conn.execute("PRAGMA journal_mode=WAL")
-
-            def _get_columns(table_name: str) -> set[str]:
-                cols = set()
-                try:
-                    for row in conn.execute(f"PRAGMA table_info({table_name})"):
-                        cols.add(str(row[1]))
-                except Exception:
-                    pass
-                return cols
-
-            expected_checkpoints = {
-                "thread_id",
-                "checkpoint_ns",
-                "checkpoint_id",
-                "parent_checkpoint_id",
-                "type",
-                "checkpoint",
-                "metadata",
-            }
-            expected_writes = {
-                "thread_id",
-                "checkpoint_ns",
-                "checkpoint_id",
-                "task_id",
-                "idx",
-                "channel",
-                "type",
-                "value",
-            }
-
-            checkpoints_cols = _get_columns("checkpoints")
-            writes_cols = _get_columns("writes")
-
-            if checkpoints_cols and not expected_checkpoints.issubset(checkpoints_cols):
-                conn.execute("DROP TABLE IF EXISTS checkpoints")
-                checkpoints_cols = set()
-            if writes_cols and not expected_writes.issubset(writes_cols):
-                conn.execute("DROP TABLE IF EXISTS writes")
-                writes_cols = set()
-
-            if not checkpoints_cols:
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS checkpoints (
-                        thread_id TEXT NOT NULL,
-                        checkpoint_ns TEXT NOT NULL DEFAULT '',
-                        checkpoint_id TEXT NOT NULL,
-                        parent_checkpoint_id TEXT,
-                        type TEXT,
-                        checkpoint BLOB,
-                        metadata BLOB,
-                        PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id)
-                    )
-                """)
-
-            if not writes_cols:
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS writes (
-                        thread_id TEXT NOT NULL,
-                        checkpoint_ns TEXT NOT NULL DEFAULT '',
-                        checkpoint_id TEXT NOT NULL,
-                        task_id TEXT NOT NULL,
-                        idx INTEGER NOT NULL,
-                        channel TEXT NOT NULL,
-                        type TEXT,
-                        value BLOB,
-                        PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx)
-                    )
-                """)
-
-            conn.commit()
-            conn.close()
-        except Exception as exc:
-            app_state.logger.exception("[Main] Checkpointer Error: %s", exc)
-
-        # 6. Services
-        await app_state.send_init_event("api", "Starting background managers...", None)
-        try:
-            app_state.reminder_manager = app_state.ReminderManager(
-                broadcast_callback=app_state.broadcast_to_sockets,
-                tts_callback=app_state.tts.speak_sentence,
-            )
-            app_state.reminder_manager.start()
-        except Exception as e:
-            app_state.logger.warning(f"[startup] Reminder manager error: {e}")
-
-        # 7. Wake Word
-        def start_wake_word():
-            try:
-                # Only ultra tier has Wake Word
-                if settings.ai_tier != "ultra":
-                    return
-
-                def on_wake_word(text: str) -> None:
-                    if app_state.main_loop:
-                        asyncio.run_coroutine_threadsafe(
-                            app_state.process_voice_command(text), app_state.main_loop
-                        )
-
-                def on_voice_status(status: str) -> None:
-                    if app_state.main_loop:
-                        asyncio.run_coroutine_threadsafe(
-                            app_state.broadcast_to_sockets(
-                                {"type": "voice_status", "status": status}
-                            ),
-                            app_state.main_loop,
-                        )
-
-                def on_voice_partial(text: str) -> None:
-                    if app_state.main_loop:
-                        asyncio.run_coroutine_threadsafe(
-                            app_state.broadcast_to_sockets(
-                                {"type": "voice_partial", "text": text}
-                            ),
-                            app_state.main_loop,
-                        )
-
-                def should_bypass_wake_word() -> bool:
-                    state = app_state.get_graph_state()
-                    return app_state.is_call_mode() or (
-                        state["view"] is not None and state["bypass_wake_word"]
-                    )
-
-                if app_state.main_loop:
-                    asyncio.run_coroutine_threadsafe(
-                        app_state.send_init_event(
-                            "brain", "Initializing voice capture...", None
-                        ),
-                        app_state.main_loop,
-                    )
-
-                try:
-                    from services.voice.detector import WakeWordDetector
-                except Exception as import_err:
-                    app_state.logger.warning(
-                        f"[startup] WakeWordDetector import failed: {import_err}"
-                    )
-                    WakeWordDetector = None
-
-                if WakeWordDetector:
-                    app_state.ww = WakeWordDetector(
-                        keyword="Luna",
-                        callback=on_wake_word,
-                        status_callback=on_voice_status,
-                        partial_callback=on_voice_partial,
-                        bypass_condition=should_bypass_wake_word,
-                        variants=[
-                            "Luna",
-                            "Loona",
-                            "Luhna",
-                            "Lana",
-                            "Lonna",
-                            "Lona",
-                            "Nuna",
-                        ],
-                    )
-                    app_state.ww.wake_word_active = True
-                    app_state.ww.start()
-            except Exception as e:
-                app_state.logger.warning(f"[startup] Wake word error: {e}")
-
-        threading.Thread(target=start_wake_word, daemon=True).start()
-
-        # 8. Final Sync
-        should_auto_start_llm = getattr(settings, "auto_start_llm", True)
-        if should_auto_start_llm:
-            await app_state.send_init_event(
-                "brain", "Synchronizing local intelligence...", None
-            )
-            from ai.model_prefetch import _downloaded as model_prefetched
-
-            llm_timeout = 30.0 if model_prefetched else 120.0
-            llm_ready = await asyncio.to_thread(
-                app_state.orchestrator.llm_ready_event.wait, timeout=llm_timeout
-            )
-            if not llm_ready:
-                logger.warning(
-                    "[Startup] LLM ready timeout after %.0fs, continuing anyway",
-                    llm_timeout,
-                )
-        else:
-            await app_state.send_init_event(
-                "brain", "LLM local aguardando primeira mensagem", None
-            )
-
-        if settings.tts_enabled and settings.ai_tier != "lite" and app_state.tts:
-            try:
-                await app_state.send_init_event(
-                    "voice", "Waking up local voice...", None
-                )
-                app_state.tts.tts.initialize()
-                await asyncio.to_thread(
-                    app_state.tts.tts.wait_until_ready, timeout=10.0
-                )
-                app_state.tts.tts.start()
-            except Exception as tts_err:
-                app_state.logger.warning(f"[startup] TTS init error: {tts_err}")
-
-        # 9. Check Daily Briefing
-        try:
-            from services.system.briefing import check_and_run_daily_briefing
-
-            asyncio.create_task(check_and_run_daily_briefing())
-            asyncio.create_task(periodic_briefing_check())
-        except Exception as e:
-            app_state.logger.warning(f"[startup] Daily briefing error: {e}")
-
-    except Exception as exc:
-        app_state.logger.exception("[InitTask] Fatal error in core services: %s", exc)
-        app_state.startup_error = str(exc)
-        await app_state.send_init_event(
-            "error",
-            f"Core services failed: {exc}",
-            0,
-        )
-        return
-    finally:
-        app_state.system_ready.set()
-
-    await app_state.send_init_event("brain", "Sistema operacional e pronto.", 100)
-
-
-async def periodic_briefing_check():
-    """Checks for new day briefing every hour."""
-    while True:
-        await asyncio.sleep(3600)  # Every hour
-        try:
-            from services.system.briefing import check_and_run_daily_briefing
-
-            await check_and_run_daily_briefing()
-        except Exception as e:
-            app_state.logger.debug(f"[startup] Periodic briefing check error: {e}")
 
 
 @asynccontextmanager
 async def lifespan(app):
     app_state.main_loop = asyncio.get_running_loop()
 
-    # Inicializa banco de dados SINCRONAMENTE antes de abrir para requisições
-    # Isso evita o erro "no such table: messages" em máquinas rápidas
+    # Keep DB migration at startup so settings/voice routes can query immediately.
     await asyncio.to_thread(init_db)
 
-    # Pre-download model in background (overlaps with AI stack import)
-    from ai.model_prefetch import start_model_prefetch
-
-    start_model_prefetch()
-
-    # Start all initialization tasks in parallel
-    asyncio.create_task(init_system_task())
-    asyncio.create_task(app_state.broadcast_resource_usage())
+    asyncio.create_task(init_sidecar_task())
 
     def monitor_parent() -> None:
         """Exits if parent process (Electron) dies."""
@@ -413,74 +52,21 @@ async def lifespan(app):
         except Exception as e:
             app_state.logger.debug(f"[startup] parent monitor error: {e}")
 
-    if os.name == "nt":
-        threading.Thread(target=monitor_parent, daemon=True).start()
-    else:
-        threading.Thread(target=monitor_parent, daemon=True).start()
+    threading.Thread(target=monitor_parent, daemon=True).start()
 
     yield
 
     if app_state.ww:
-        app_state.ww.stop()
-    if app_state.reminder_manager:
-        app_state.reminder_manager.stop()
-    resource_manager.stop()
-
-    if (
-        app_state.orchestrator
-        and hasattr(app_state.orchestrator, "checkpointer_cleanup")
-        and app_state.orchestrator.checkpointer_cleanup
-    ):
-        try:
-            await app_state.orchestrator.checkpointer_cleanup.__aexit__(
-                None, None, None
-            )
-            app_state.logger.debug("[Main] Checkpointer closed.")
-        except Exception as exc:
-            app_state.logger.exception("[Main] Error closing checkpointer: %s", exc)
-
-    app_state.logger.info("[FastAPI] Shutting down...")
-
-    try:
-        from ai.embeddings import embeddings
-
-        embeddings.stop()
-        app_state.logger.debug("[FastAPI] Embeddings server stopped.")
-    except Exception as exc:
-        app_state.logger.exception("[FastAPI] Error stopping embeddings: %s", exc)
-
-    if app_state.reminder_manager:
-        try:
-            app_state.reminder_manager.stop()
-            app_state.logger.debug("[FastAPI] Reminder manager stopped.")
-        except Exception as exc:
-            app_state.logger.exception(
-                "[FastAPI] Error stopping reminder manager: %s", exc
-            )
-
-    if app_state.ww:
         try:
             app_state.ww.stop()
-            app_state.logger.debug("[FastAPI] Wake word detector stopped.")
-        except Exception as exc:
-            app_state.logger.exception(
-                "[FastAPI] Error stopping wake word detector: %s", exc
-            )
+        except Exception:
+            pass
 
     try:
-        from ai.providers.local_llama import stop_server
+        import services.voice.tts as tts
 
-        stop_server()
-        app_state.logger.debug("[FastAPI] Main LLM server stopped.")
-    except Exception as exc:
-        app_state.logger.exception("[FastAPI] Error stopping LLM server: %s", exc)
+        tts.stop_all()
+    except Exception:
+        pass
 
-    try:
-        if app_state.tts:
-            app_state.tts.stop_all()
-            app_state.logger.debug("[FastAPI] TTS workers stopped.")
-    except Exception as exc:
-        app_state.logger.exception("[FastAPI] Error stopping TTS: %s", exc)
-
-    time.sleep(0.5)
-    app_state.logger.debug("[FastAPI] Shutdown complete.")
+    logger.debug("[FastAPI] Sidecar shutdown complete.")

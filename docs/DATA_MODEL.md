@@ -20,9 +20,10 @@ Mapear entidades de dados, persistencia e politicas de retencao no contexto loca
 
 ## Persistencia atual (as-is)
 
-- SQLite: dados estruturados de aplicacao.
+- Arquivo local (`node-core-store.json`): sessoes, mensagens, settings e reminders no Core Node.
+- SQLite: dados estruturados e historicos mantidos por componentes legados/sidecar.
 - LanceDB: indice vetorial para busca semantica e roteamento.
-- Arquivos locais: configuracoes e artefatos operacionais.
+- Arquivos locais: configuracoes, modelos GGUF e artefatos operacionais.
 
 ## Regras de retencao (baseline)
 
@@ -35,4 +36,3 @@ Mapear entidades de dados, persistencia e politicas de retencao no contexto loca
 - Catalogo formal de entidades e campos por modulo.
 - Politica de expiracao por tipo de dado.
 - Procedimento de exportacao/backup/restauracao.
-

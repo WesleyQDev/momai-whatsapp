@@ -1,21 +1,11 @@
 from fastapi import APIRouter
-from api.routes import chat, voice, status, plugins, ws, reminders, settings, setup
+from api.routes import voice, plugins, chat_voice
 
 api_router = APIRouter()
 
 
 def include_routes():
-    # Chat and Voice kept for streaming/audio heavy tasks (optional, can be moved to node later)
-    api_router.include_router(chat.router)
+    # Sidecar Python: expose voice + plugin execution + TTS bridge endpoints.
     api_router.include_router(voice.router)
-    api_router.include_router(status.router)
-    # The new plugin runner endpoint
     api_router.include_router(plugins.router)
-    # Essential routes for GUI and core functionality
-    api_router.include_router(ws.router)
-    api_router.include_router(reminders.router)
-    api_router.include_router(settings.router)
-    api_router.include_router(setup.router)
-
-
-include_routes()
+    api_router.include_router(chat_voice.router)

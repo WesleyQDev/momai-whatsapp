@@ -34,6 +34,7 @@ WakeWordDetector = None
 ReminderManager = None
 tts = None
 extension_manager = None
+extensions_loaded = False
 
 active_graph = {"view": None, "bypass_wake_word": False}
 
@@ -56,6 +57,7 @@ def set_call_mode(enabled: bool) -> None:
 
 
 _ai_stack_lock = asyncio.Lock()
+_extension_manager_lock = asyncio.Lock()
 
 async def initialize_ai_stack() -> None:
     """Lazy load heavy AI modules."""
@@ -137,6 +139,24 @@ async def initialize_ai_stack() -> None:
 
     ai_stack_loaded = True
     logger.info("[Main] AI stack loaded.")
+
+
+async def ensure_extension_manager_loaded() -> None:
+    """Lazily initialize and load extension registry for sidecar plugin routes."""
+    global extension_manager, extensions_loaded
+
+    if extension_manager is not None and extensions_loaded:
+        return
+
+    async with _extension_manager_lock:
+        if extension_manager is None:
+            from services.extensions.manager import extension_manager as em
+
+            extension_manager = em
+
+        if not extensions_loaded:
+            await asyncio.to_thread(extension_manager.load_all)
+            extensions_loaded = True
 
 
 def set_gaming_mode(enabled: bool) -> None:

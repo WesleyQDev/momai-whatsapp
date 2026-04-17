@@ -2,7 +2,7 @@ import { autoUpdater } from 'electron-updater'
 import { ipcMain } from 'electron'
 import { getMainWindow } from './state'
 import { logger } from './logger'
-import { shutdownPython } from './pythonManager'
+import { shutdownCoreBackend } from './coreManager'
 import { app } from 'electron'
 
 function isMSIXBuild(): boolean {
@@ -89,8 +89,8 @@ export function setupUpdater(): void {
   ipcMain.handle('quit-and-install-update', async () => {
     try {
       logger.info('[Updater] Starting quit-and-install process...')
-      // Graceful shutdown of python backend before installing
-      await shutdownPython()
+      // Graceful shutdown of local backend before installing
+      await shutdownCoreBackend()
       // Wait a moment for file descriptions to release
       setTimeout(() => {
         autoUpdater.quitAndInstall()

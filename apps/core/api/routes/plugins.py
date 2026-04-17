@@ -9,6 +9,7 @@ router = APIRouter()
 @router.get("/plugins/list", response_model=list[PluginInfo])
 async def list_plugins():
     """Returns the list of available plugins/skills and their tools."""
+    await app_state.ensure_extension_manager_loaded()
     app_state.extension_manager.load_all()
     skills = app_state.extension_manager.get_all_skills()
 
@@ -32,6 +33,7 @@ async def list_plugins():
 @router.post("/plugins/execute")
 async def execute_plugin(req: PluginExecuteRequest):
     """Executes a specific tool from a plugin."""
+    await app_state.ensure_extension_manager_loaded()
     skill = app_state.extension_manager.get_skill(req.skill_id)
     if not skill:
         raise HTTPException(status_code=404, detail=f"Plugin {req.skill_id} not found")

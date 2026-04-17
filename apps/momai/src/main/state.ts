@@ -17,6 +17,7 @@ export interface BootstrapError {
 }
 
 export interface AppState {
+  nodeCoreProcess: ReturnType<typeof import('child_process').spawn> | null
   pythonProcess: ReturnType<typeof import('child_process').spawn> | null
   tray: Tray | null
   mainWindow: BrowserWindow | null
@@ -29,6 +30,7 @@ export interface AppState {
 }
 
 export const state: AppState = {
+  nodeCoreProcess: null,
   pythonProcess: null,
   tray: null,
   mainWindow: null,
@@ -58,6 +60,10 @@ export function setOverlayWindow(win: BrowserWindow | null): void {
 
 export function setPythonProcess(proc: AppState['pythonProcess']): void {
   state.pythonProcess = proc
+}
+
+export function setNodeCoreProcess(proc: AppState['nodeCoreProcess']): void {
+  state.nodeCoreProcess = proc
 }
 
 export function setTray(t: Tray | null): void {

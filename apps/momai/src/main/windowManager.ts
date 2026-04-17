@@ -20,7 +20,7 @@ import {
   setIsQuitting
 } from './state'
 import { logger } from './logger'
-import { shutdownPython, startPythonBackend } from './pythonManager'
+import { restartCoreBackend } from './coreManager'
 import { API_BASE_URL } from './constants'
 
 async function controlWakeWord(enabled: boolean): Promise<void> {
@@ -134,16 +134,9 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('restart-backend', async () => {
-    logger.info('[WindowManager] Reiniciando backend Python via IPC...')
-    try {
-      await shutdownPython()
-      setIsQuitting(false)
-      await startPythonBackend()
-      return { success: true }
-    } catch (error: any) {
-      logger.error('[WindowManager] Falha ao reiniciar backend:', error)
-      return { success: false, error: error.message }
-    }
+    logger.info('[WindowManager] Reiniciando backend Node via IPC...')
+    setIsQuitting(false)
+    return restartCoreBackend()
   })
 
   ipcMain.on('window-reset-size', () => {
@@ -302,12 +295,11 @@ function createMainWindow(): BrowserWindow {
           '[WindowManager] CTRL+R detectado em modo DEV - reiniciando backend e frontend...'
         )
         try {
-          await shutdownPython()
-          // Reset do estado para permitir reinicialização
-          setIsQuitting(false)
-          logger.info('[WindowManager] Backend Python encerrado, iniciando novamente...')
-          await startPythonBackend()
-          logger.info('[WindowManager] Backend Python reiniciado, recarregando frontend...')
+          const result = await restartCoreBackend()
+          if (!result.success) {
+            throw new Error(result.error || 'Falha ao reiniciar backend')
+          }
+          logger.info('[WindowManager] Backend reiniciado, recarregando frontend...')
           mainWindow.webContents.reload()
         } catch (error) {
           logger.error('[WindowManager] Erro ao reiniciar backend:', error)

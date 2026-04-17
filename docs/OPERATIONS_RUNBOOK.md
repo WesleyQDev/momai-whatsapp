@@ -21,14 +21,17 @@ Documentar operacao de desenvolvimento, diagnostico e manutencao.
 
 ## Diagnostico inicial
 
-1. Validar se Core esta escutando em `127.0.0.1:8000`.
+1. Validar se Core Node esta escutando em `127.0.0.1:8000`.
 2. Validar logs do Electron main e erro de bootstrap.
-3. Validar disponibilidade de runtime Python/uv no ambiente.
-4. Validar estado de inicializacao exibido na UI.
+3. Validar estado de inicializacao exibido na UI (`/init-status` + eventos IPC).
+4. Validar disponibilidade de `llama-server` (quando `auto_start_llm=true`).
+5. Em uso de voz, validar start do sidecar Python sob demanda.
 
 ## Incidentes comuns
 
-- Core nao inicia por dependencia local ausente.
+- Core Node nao inicia por script/processo indisponivel.
+- `llama-server` nao sobe (binario/modelo ausente ou permissao de spawn).
+- Sidecar Python falha ao iniciar recursos de voz.
 - Divergencia de contrato entre UI e API.
 - Falha em recursos de voz por permissoes/dispositivo.
 
@@ -37,4 +40,3 @@ Documentar operacao de desenvolvimento, diagnostico e manutencao.
 - Antes de merge: lint, typecheck e testes relevantes.
 - Em mudancas arquiteturais: atualizar docs C4 + ADR.
 - Em mudancas de operacao: atualizar este runbook.
-

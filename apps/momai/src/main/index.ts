@@ -3,7 +3,8 @@ import { app, globalShortcut, BrowserWindow, ipcMain, shell } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { state, setIsQuitting } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
-import { startPythonBackend, shutdownPython, saveOnboardingCompleted } from './pythonManager'
+import { saveOnboardingCompleted } from './pythonManager'
+import { startCoreBackend, shutdownCoreBackend } from './coreManager'
 import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
 import {
@@ -124,7 +125,9 @@ app.whenReady().then(() => {
   setupUpdater()
 
   createWindow()
-  startPythonBackend()
+  startCoreBackend().catch((error) => {
+    logger.error('[Electron] Failed to start core backend:', error)
+  })
 
   globalShortcut.register('Alt+Space', toggleWindow)
 
@@ -141,7 +144,7 @@ app.on('will-quit', async (event) => {
   logger.info('[Electron] will-quit event triggered. Iniciando shutdown...')
   globalShortcut.unregisterAll()
 
-  await shutdownPython()
+  await shutdownCoreBackend()
 
   logger.info('[Electron] Shutdown completo.')
   app.quit()
