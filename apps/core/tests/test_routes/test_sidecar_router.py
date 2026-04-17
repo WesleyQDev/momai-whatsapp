@@ -20,3 +20,26 @@ def test_sidecar_routes_contract():
 
     missing = expected - routes
     assert not missing, f"Missing sidecar routes: {sorted(missing)}"
+
+
+def test_legacy_routes_are_not_exposed():
+    routes = {
+        route.path
+        for route in api_router.routes
+    }
+
+    forbidden_prefixes = (
+        "/status",
+        "/settings",
+        "/reminders",
+        "/extensions",
+        "/mode",
+        "/setup",
+        "/chat/history",
+        "/chat/stream",
+        "/chat/title",
+        "/chat/sessions",
+    )
+
+    leaked = sorted(path for path in routes if path.startswith(forbidden_prefixes))
+    assert not leaked, f"Legacy routes still exposed in sidecar: {leaked}"

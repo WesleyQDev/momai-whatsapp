@@ -40,6 +40,11 @@ Descrever comportamentos em runtime: inicializacao, chat, voz e falhas.
 2. Sidecar garante carga lazy do registry de extensoes.
 3. Execucao de tools ocorre via `/plugins/execute`.
 
+## Escopo atual do sidecar
+
+- O sidecar nao expoe mais rotas legadas de chat/config/reminders.
+- Contrato publico do sidecar: `/voice/*`, `/chat/speak`, `/chat/stop-voice`, `/plugins/*`.
+
 ## Estados e erro
 
 - Estado de bootstrap: iniciando, pronto, erro recuperavel, erro bloqueante.

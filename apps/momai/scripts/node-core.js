@@ -679,8 +679,55 @@ async function proxyToPython(req, res, pathname) {
     })
     res.end(text)
   } catch (error) {
-    sendJson(res, 503, { detail: error?.message || 'Python sidecar unavailable' })
+    throw error
   }
+}
+
+function sendVoiceSidecarFallback(res, pathname, error) {
+  const detail = error?.message || 'Python sidecar unavailable'
+
+  if (pathname === '/chat/stop-voice') {
+    sendJson(res, 200, {
+      status: 'ok',
+      degraded: true,
+      message: 'Voice sidecar unavailable; stop-voice executed as no-op.',
+      detail
+    })
+    return
+  }
+
+  if (pathname === '/chat/speak') {
+    sendJson(res, 503, {
+      status: 'error',
+      degraded: true,
+      message: 'Voice sidecar unavailable; unable to synthesize speech.',
+      detail
+    })
+    return
+  }
+
+  if (pathname === '/voice/quick-transcribe') {
+    sendJson(res, 503, {
+      success: false,
+      text: '',
+      degraded: true,
+      message: 'Voice sidecar unavailable; transcription unavailable.',
+      detail
+    })
+    return
+  }
+
+  if (pathname === '/voice/wake-word') {
+    sendJson(res, 503, {
+      success: false,
+      degraded: true,
+      message: 'Voice sidecar unavailable; wake-word control unavailable.',
+      detail
+    })
+    return
+  }
+
+  sendJson(res, 503, { detail })
 }
 
 let stopGenerationRequested = false
@@ -900,12 +947,20 @@ async function handleRequest(req, res) {
   const pathname = parsedUrl.pathname
 
   if (pathname.startsWith('/voice/')) {
-    await proxyToPython(req, res, pathname)
+    try {
+      await proxyToPython(req, res, pathname)
+    } catch (error) {
+      sendVoiceSidecarFallback(res, pathname, error)
+    }
     return
   }
 
   if (pathname === '/chat/speak' || pathname === '/chat/stop-voice') {
-    await proxyToPython(req, res, pathname)
+    try {
+      await proxyToPython(req, res, pathname)
+    } catch (error) {
+      sendVoiceSidecarFallback(res, pathname, error)
+    }
     return
   }
 
