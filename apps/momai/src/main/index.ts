@@ -4,7 +4,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { state, setIsQuitting } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
 import { startPythonBackend, shutdownPython, saveOnboardingCompleted } from './pythonManager'
-import { logger, getLogsPath } from './logger'
+import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
 import {
   createFolder,
@@ -61,7 +61,10 @@ process.on('unhandledRejection', (reason) => {
 })
 
 ipcMain.handle('get-logs-path', () => getLogsPath())
-ipcMain.handle('open-logs-folder', () => shell.openPath(getLogsPath()))
+ipcMain.handle('open-logs-folder', () => {
+  const mainLogPath = getMainLogPath()
+  shell.showItemInFolder(mainLogPath)
+})
 ipcMain.handle('get-app-version', () => app.getVersion())
 
 ipcMain.handle('is-first-launch', () => {

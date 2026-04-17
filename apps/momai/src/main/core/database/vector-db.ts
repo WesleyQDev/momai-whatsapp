@@ -20,6 +20,20 @@ export interface ToolData {
   metadata?: string;
 }
 
+type SkillVectorRecord = {
+  vector: number[];
+  id: string;
+  name: string;
+  description: string;
+  text_content: string;
+};
+
+type IntentVectorRecord = {
+  vector: number[];
+  text_content: string;
+  agent: string;
+};
+
 export class VectorDB {
   private static instance: VectorDB;
   private db: lancedb.Connection | null = null;
@@ -97,7 +111,7 @@ export class VectorDB {
   public async addSkills(skillsData: SkillData[]): Promise<void> {
     if (!skillsData.length) return;
 
-    const dataWithVectors = [];
+    const dataWithVectors: SkillVectorRecord[] = [];
     for (const item of skillsData) {
       const textsToIndex = item.intents?.length ? item.intents : [item.description || item.name || 'skill'];
       for (const text of textsToIndex) {
@@ -120,7 +134,7 @@ export class VectorDB {
   public async addIntents(intentsData: IntentData[]): Promise<void> {
     if (!intentsData.length) return;
 
-    const dataWithVectors = [];
+    const dataWithVectors: IntentVectorRecord[] = [];
     for (const item of intentsData) {
       const vector = await this.embedText(item.text);
       dataWithVectors.push({

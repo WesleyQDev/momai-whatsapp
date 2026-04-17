@@ -105,6 +105,7 @@ Write-Host "[MomAI] Hydration complete! UV, Python and VC Redist are ready in ap
 
 # 4. Download dependency wheels for offline installation
 $wheelsDir = Join-Path $binDir "wheels"
+$wheelsReadyMarker = Join-Path $wheelsDir "offline-ready.marker"
 $coreDir = Join-Path (Join-Path $PSScriptRoot "..") "..\core"
 $lockFile = Join-Path $binDir "requirements-win.lock"
 $pyprojectFile = Join-Path $coreDir "pyproject.toml"
@@ -122,6 +123,10 @@ if ($LASTEXITCODE -ne 0) {
     if (Test-Path $wheelsDir) { Remove-WithRetry $wheelsDir | Out-Null }
     New-Item -ItemType Directory -Path $wheelsDir | Out-Null
 
+    if (Test-Path $wheelsReadyMarker) {
+        Remove-Item $wheelsReadyMarker -Force -ErrorAction SilentlyContinue
+    }
+
     Write-Host "[MomAI] Downloading dependency wheels..." -ForegroundColor Cyan
     & $pythonExe -m pip download `
         -d "$wheelsDir" `
@@ -131,6 +136,7 @@ if ($LASTEXITCODE -ne 0) {
         --python-version 3.12 `
         --implementation cp `
         --quiet 2>&1 | ForEach-Object { Write-Host "  $_" }
+    $depsDownloadExitCode = $LASTEXITCODE
 
     # Also download build-system dependencies (setuptools, wheel) for fully offline builds
     Write-Host "[MomAI] Downloading build-system wheels..." -ForegroundColor Cyan
@@ -140,9 +146,13 @@ if ($LASTEXITCODE -ne 0) {
         --only-binary :all: `
         --python-version 3.12 `
         --quiet 2>&1 | ForEach-Object { Write-Host "  $_" }
+    $buildDepsDownloadExitCode = $LASTEXITCODE
 
-    if ($LASTEXITCODE -ne 0) {
+    if ($depsDownloadExitCode -ne 0 -or $buildDepsDownloadExitCode -ne 0) {
         Write-Warning "[MomAI] Some wheels failed to download. Runtime will fallback to internet."
+        if (Test-Path $wheelsReadyMarker) {
+            Remove-Item $wheelsReadyMarker -Force -ErrorAction SilentlyContinue
+        }
     } else {
         # Build FortScript wheel from monorepo and add to wheels cache
         $fortscriptDir = Join-Path (Join-Path $PSScriptRoot "..") "..\fortscript"
@@ -161,7 +171,9 @@ if ($LASTEXITCODE -ne 0) {
             (Get-ChildItem $wheelsDir -Recurse -File -ErrorAction SilentlyContinue |
              Measure-Object -Property Length -Sum).Sum / 1MB, 1
         )
+        New-Item -ItemType File -Path $wheelsReadyMarker -Force | Out-Null
         Write-Host "[MomAI] Downloaded $wheelCount wheels ($totalSize MB)" -ForegroundColor Green
+        Write-Host "[MomAI] Offline wheel cache marked as ready." -ForegroundColor Green
     }
 }
 

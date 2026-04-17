@@ -3,9 +3,9 @@ import {
   AIMessage,
   SystemMessage,
 } from "@langchain/core/messages";
+import { randomUUID } from "node:crypto";
 import { StateGraph, Annotation } from "@langchain/langgraph";
 import { vectorDB } from "../../database/vector-db";
-import { v4 as uuidv4 } from "uuid";
 
 // Define the state schema
 const AgentState = Annotation.Root({
@@ -66,7 +66,7 @@ export function createMomaiGraph(llm: any) {
         content: "",
         tool_calls: [
           {
-            id: `shortcut_${uuidv4().slice(0, 8)}`,
+            id: `shortcut_${randomUUID().slice(0, 8)}`,
             name: "activate_skill",
             args: {
               skill_id: discovered[0].id,

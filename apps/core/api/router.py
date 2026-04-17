@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from api.routes import chat, voice, status, plugins
+from api.routes import chat, voice, status, plugins, ws, reminders, settings, setup
 
 api_router = APIRouter()
 
@@ -11,6 +11,11 @@ def include_routes():
     api_router.include_router(status.router)
     # The new plugin runner endpoint
     api_router.include_router(plugins.router)
+    # Essential routes for GUI and core functionality
+    api_router.include_router(ws.router)
+    api_router.include_router(reminders.router)
+    api_router.include_router(settings.router)
+    api_router.include_router(setup.router)
 
 
 include_routes()

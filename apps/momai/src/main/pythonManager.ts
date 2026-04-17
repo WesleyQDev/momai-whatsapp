@@ -482,7 +482,7 @@ async function createVenvWithPython(pythonExePath: string, venvPath: string): Pr
   })
 }
 
-async function checkVenvHealth(pythonExe: string): Promise<boolean> {
+async function checkVenvHealth(pythonExe: string, corePath: string): Promise<boolean> {
   if (!existsSync(pythonExe)) return false
 
   // 1) Interpreter sanity check
@@ -507,12 +507,41 @@ async function checkVenvHealth(pythonExe: string): Promise<boolean> {
   }
 
   // 2) Required deps check (first run can legitimately miss these before uv pip install)
+  const depsProbeScript = [
+    'import os, re, sys, tomllib',
+    'import importlib.metadata as md',
+    'required_default = ["python-dotenv", "fastapi", "uvicorn", "langgraph", "langgraph-checkpoint-sqlite", "lancedb"]',
+    'dist_names = []',
+    'try:',
+    '    pyproject = os.path.join(sys.argv[1], "pyproject.toml")',
+    '    with open(pyproject, "rb") as f:',
+    '        data = tomllib.load(f)',
+    '    deps = data.get("project", {}).get("dependencies", []) or []',
+    '    for dep in deps:',
+    '        if not isinstance(dep, str):',
+    '            continue',
+    '        name = dep.split(";", 1)[0].strip()',
+    '        name = name.split("[", 1)[0].strip()',
+    '        name = re.split(r"[<>=!~ ]", name, 1)[0].strip()',
+    '        if name:',
+    '            dist_names.append(name)',
+    'except Exception:',
+    '    dist_names = []',
+    'critical = [d for d in required_default if not dist_names or d in dist_names]',
+    'if not critical:',
+    '    critical = required_default',
+    'missing = []',
+    'for dist in critical:',
+    '    try:',
+    '        md.version(dist)',
+    '    except Exception:',
+    '        missing.append(dist)',
+    'print(",".join(missing))'
+  ].join('\n')
+
   const depsCheck = spawnSync(
     pythonExe,
-    [
-      '-c',
-      'import importlib.util as u; mods=("dotenv","fastapi","uvicorn"); missing=[m for m in mods if u.find_spec(m) is None]; print(",".join(missing))'
-    ],
+    ['-c', depsProbeScript, corePath],
     {
       timeout: 5000,
       encoding: 'utf8',
@@ -737,7 +766,7 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
 
   // PARALLEL: Create venv AND prepare sync in parallel
   const writableCorePath = await getWritableCorePath(corePath)
-  let isHealthy = await checkVenvHealth(pythonExe)
+  let isHealthy = await checkVenvHealth(pythonExe, corePath)
   const needsVenv = !existsSync(pythonExe) || !isHealthy
 
   if (needsVenv) {
@@ -1043,7 +1072,7 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
   // PARALLEL: Sync dependencies while continuing
   const syncLock = getSyncLock(corePath)
   // Re-check health after potential venv recreation
-  if (needsVenv) isHealthy = await checkVenvHealth(pythonExe)
+  if (needsVenv) isHealthy = await checkVenvHealth(pythonExe, corePath)
 
   if (!syncLock || syncLock.needsSync || !isHealthy) {
     if (!isHealthy && existsSync(pythonExe)) {
@@ -1058,6 +1087,8 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
       ? join(app.getAppPath(), 'bin', 'wheels')
       : join(process.resourcesPath, 'wheels')
     const hasLocalWheels = existsSync(wheelsDir)
+    const offlineReadyMarker = join(wheelsDir, 'offline-ready.marker')
+    const canInstallFullyOffline = hasLocalWheels && existsSync(offlineReadyMarker)
 
     if (hasLocalWheels) {
       logger.info(`[Bootstrap] Using local wheel cache: ${wheelsDir}`)
@@ -1073,14 +1104,13 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
       const installArgs = ['pip', 'install', '--no-progress', '--cache-dir', UV_CACHE_PATH]
       if (hasLocalWheels) {
         installArgs.push('--find-links', wheelsDir)
-        if (!isDev) {
-          const files = readdirSync(wheelsDir)
-          const hasBuildDeps =
-            files.some((f) => f.startsWith('setuptools-')) &&
-            files.some((f) => f.startsWith('wheel-'))
-          if (hasBuildDeps) {
-            installArgs.push('--no-index')
-          }
+        if (!isDev && canInstallFullyOffline) {
+          installArgs.push('--no-index')
+          logger.info('[Bootstrap] Offline wheel cache is complete. Using --no-index.')
+        } else if (!isDev && hasLocalWheels) {
+          logger.warn(
+            '[Bootstrap] Offline wheel cache is incomplete. Allowing index fallback for missing packages.'
+          )
         }
       }
       if (isDev) {

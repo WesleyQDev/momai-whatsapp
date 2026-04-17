@@ -32,11 +32,6 @@ export default function OverlayView() {
     window.electron.ipcRenderer.send('close-overlay')
   }
 
-  const handleOption = (val: string) => {
-    // @ts-ignore
-    window.electron.ipcRenderer.send('overlay-action', val)
-  }
-
   if (!data) return <div className="w-screen h-screen bg-transparent"></div>
 
   return (
@@ -52,9 +47,6 @@ export default function OverlayView() {
         <GraphInterface
           view="side"
           content={data.content}
-          options={data.options}
-          uiSchema={data.uiSchema}
-          onOptionSelect={handleOption}
           onClose={handleClose}
         />
       </div>

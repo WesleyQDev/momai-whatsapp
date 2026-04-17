@@ -19,8 +19,8 @@
     "build": "npm run prebuild && npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win nsis -p never",
-    "build:appx": "npm run build && electron-builder --win appx -p never",
+    "build:win": "npm run build && node -e \"const { execSync } = require('child_process'); const env = { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false', CSC_LINK: '', CSC_KEY_PASSWORD: '', WIN_CSC_LINK: '', WIN_CSC_KEY_PASSWORD: '' }; execSync('electron-builder --win nsis -p never --config.win.signAndEditExecutable=false --config.forceCodeSigning=false', { stdio: 'inherit', env });\"",
+    "build:appx": "npm run build && node -e \"const { execSync } = require('child_process'); const env = { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false', CSC_LINK: '', CSC_KEY_PASSWORD: '', WIN_CSC_LINK: '', WIN_CSC_KEY_PASSWORD: '' }; execSync('electron-builder --win appx -p never --config.win.signAndEditExecutable=false --config.forceCodeSigning=false', { stdio: 'inherit', env });\"",
     "build:mac": "electron-vite build && electron-builder --mac -p never",
     "build:linux": "npm run build && electron-builder --linux -p never"
   },
