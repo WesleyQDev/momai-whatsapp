@@ -34,7 +34,7 @@ Detalhar componentes criticos em Desktop e Core.
 
 - `src/main/index.ts`: lifecycle, IPC global e bootstrap.
 - `src/main/coreManager.ts`: start/stop do Core Node local.
-- `src/main/pythonManager.ts`: start sob demanda do sidecar Python.
+- `src/main/pythonManager.ts`: sidecar Python pre-start no boot (background) e reutilizacao sob demanda.
 - `src/main/windowManager.ts`: janelas, overlay, eventos de UI.
 - `src/preload/index.ts`: surface segura `window.api`.
 - `src/renderer/src/App.tsx`: orquestracao de views e onboarding.

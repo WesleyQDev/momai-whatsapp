@@ -1675,31 +1675,38 @@ function sendVoiceSidecarFallback(res, pathname, error) {
 async function syncWakeWordState(reason = 'unknown') {
   const tier = store.settings.ai_tier || 'pro'
   const shouldEnable = tier === 'ultra' && Boolean(store.settings.wake_word_enabled)
+  const maxAttempts = 8
+  let lastError = null
 
-  try {
-    const pythonBase = await ensurePython()
-    const response = await fetch(`${pythonBase}/voice/wake-word`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: shouldEnable })
-    })
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const pythonBase = await ensurePython()
+      const response = await fetch(`${pythonBase}/voice/wake-word`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: shouldEnable })
+      })
 
-    if (!response.ok) {
+      if (response.ok) {
+        console.info(
+          `[NodeCore][Voice] Wake-word synced (${reason}): ${shouldEnable ? 'enabled' : 'disabled'}${attempt > 1 ? ` (retry ${attempt}/${maxAttempts})` : ''}`
+        )
+        return
+      }
+
       const detail = await response.text().catch(() => '')
-      console.warn(
-        `[NodeCore][Voice] Wake-word sync failed (${reason}): HTTP ${response.status} ${detail.slice(0, 200)}`
-      )
-      return
+      lastError = `HTTP ${response.status} ${detail.slice(0, 200)}`
+    } catch (error) {
+      lastError = error?.message || String(error)
     }
 
-    console.info(
-      `[NodeCore][Voice] Wake-word synced (${reason}): ${shouldEnable ? 'enabled' : 'disabled'}`
-    )
-  } catch (error) {
-    console.warn(
-      `[NodeCore][Voice] Wake-word sync failed (${reason}): ${error?.message || error}`
-    )
+    if (attempt < maxAttempts) {
+      const waitMs = 250 * attempt
+      await new Promise((resolve) => setTimeout(resolve, waitMs))
+    }
   }
+
+  console.warn(`[NodeCore][Voice] Wake-word sync failed (${reason}) after retries: ${lastError || 'unknown error'}`)
 }
 
 async function triggerAutoTts(text) {
@@ -2031,6 +2038,67 @@ async function streamLlamaChat(req, res, payload) {
   }
 }
 
+async function runVoiceCommand(payload = {}) {
+  const content = String(payload.content || '').trim()
+  if (!content) return
+  const threadId = String(payload.thread_id || 'default')
+  const speakResponse = payload.speak_response !== false
+
+  broadcast({ type: 'user', content })
+  broadcast({ type: 'assistant', data: { status: 'Pensando...' } })
+
+  let closed = false
+  const reqMock = {
+    on: (event, cb) => {
+      if (event === 'close') {
+        reqMock._onClose = cb
+      }
+    },
+    _onClose: null
+  }
+
+  let sseBuffer = ''
+  const resMock = {
+    writeHead: () => {},
+    write: (chunk) => {
+      sseBuffer += String(chunk || '')
+      let sepIdx = sseBuffer.indexOf('\n\n')
+      while (sepIdx !== -1) {
+        const block = sseBuffer.slice(0, sepIdx)
+        sseBuffer = sseBuffer.slice(sepIdx + 2)
+        const lines = block.split('\n')
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed.startsWith('data:')) continue
+          const payloadStr = trimmed.replace(/^data:\s*/, '').trim()
+          if (!payloadStr) continue
+          try {
+            const data = JSON.parse(payloadStr)
+            broadcast({ type: 'assistant', data })
+          } catch {
+            // ignore invalid chunk
+          }
+        }
+        sepIdx = sseBuffer.indexOf('\n\n')
+      }
+      return true
+    },
+    end: () => {
+      closed = true
+    }
+  }
+
+  await streamLlamaChat(reqMock, resMock, {
+    content,
+    thread_id: threadId,
+    speak_response: speakResponse
+  })
+
+  if (!closed && typeof reqMock._onClose === 'function') {
+    reqMock._onClose()
+  }
+}
+
 async function maybeRestartLlamaOnTierChange(prevTier, nextTier, prevBackend, nextBackend) {
   if (prevTier === nextTier && prevBackend === nextBackend) return
   if (nextTier !== 'ultra') {
@@ -2272,6 +2340,13 @@ async function handleRequest(req, res) {
   if (pathname === '/chat/stream' && req.method === 'POST') {
     const payload = await readJsonBody(req).catch(() => ({}))
     await streamLlamaChat(req, res, payload)
+    return
+  }
+
+  if (pathname === '/chat/voice-command' && req.method === 'POST') {
+    const payload = await readJsonBody(req).catch(() => ({}))
+    await runVoiceCommand(payload)
+    sendJson(res, 200, { status: 'ok' })
     return
   }
 

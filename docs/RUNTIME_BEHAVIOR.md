@@ -33,7 +33,7 @@ Descrever comportamentos em runtime: inicializacao, chat, voz e falhas.
 ## Fluxo de voz
 
 1. Recurso de voz e solicitado via API (`/voice/*`, `/chat/speak` ou `/chat/stop-voice`).
-2. Core Node solicita start do Python sidecar sob demanda.
+2. Core Node garante sidecar Python pre-iniciado no boot (background), com fallback sob demanda quando necessario.
 3. Core Node proxia chamadas de voz/ML para o sidecar.
 4. Entrada/saida de voz segue para transcricao e TTS conforme configuracao.
 

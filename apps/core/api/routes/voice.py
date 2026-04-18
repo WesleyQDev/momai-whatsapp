@@ -24,8 +24,8 @@ async def ensure_wake_word_detector():
     if app_state.ww:
         return app_state.ww
 
-    await app_state.initialize_ai_stack()
-    if not app_state.WakeWordDetector:
+    detector_cls = app_state.get_wake_word_detector_class()
+    if not detector_cls:
         raise RuntimeError("Wake word detector unavailable")
 
     def _on_status(status: str):
@@ -49,7 +49,7 @@ async def ensure_wake_word_detector():
                 app_state.main_loop,
             )
 
-    app_state.ww = app_state.WakeWordDetector(
+    app_state.ww = detector_cls(
         keyword="luna",
         variants=["luna", "computador"],
         callback=_on_command,

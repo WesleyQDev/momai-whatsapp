@@ -22,7 +22,7 @@ Detalhar containers principais da solucao e suas responsabilidades.
 - Integracao com `llama.cpp` (`llama-server`) para inferencia local
 
 - Python Sidecar Container (`apps/core`)
-- Servicos especializados sob demanda (voz: wake word, transcricao, TTS)
+- Servicos especializados de voz (wake word, transcricao, TTS), iniciados em background no boot e reutilizados sob demanda
 - API interna de voz/ML proxied pelo Core Node (porta auxiliar)
 
 - Docs Container (`apps/internal-docs`)
@@ -34,7 +34,7 @@ Detalhar containers principais da solucao e suas responsabilidades.
 2. Main sobe o Core Node (`coreManager`) e publica progresso de init para UI.
 3. Desktop consome API do Core Node em `127.0.0.1:8000`.
 4. Core Node inicia `llama-server` para chat local e persiste estado local.
-5. Core Node sobe Python sidecar apenas quando recursos de voz/ML sao requisitados.
+5. Core Node pre-inicia Python sidecar em background no boot e reutiliza para recursos de voz/ML.
 
 ## Decisoes de desenho vigentes
 

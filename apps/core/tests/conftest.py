@@ -6,9 +6,8 @@ import pytest
 
 @pytest.fixture
 def mock_app_state():
-    with patch("app_state.ai_stack_loaded", True):
-        with patch("app_state.initialize_ai_stack", MagicMock()):
-            yield
+    with patch("app_state.ensure_tts_runtime", MagicMock(return_value=None)):
+        yield
 
 
 @pytest.fixture

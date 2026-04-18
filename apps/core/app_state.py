@@ -17,7 +17,6 @@ ww = None
 system_ready = asyncio.Event()
 
 is_gaming_mode = False
-ai_stack_loaded = False
 ai_busy = False
 startup_error: str | None = None
 last_interaction_time = time.time()
@@ -28,11 +27,6 @@ last_init_event: dict[str, Any] = {
     "progress": 0,
 }
 
-orchestrator = None
-generate = None
-initialize_llm = None
-WakeWordDetector = None
-ReminderManager = None
 tts = None
 extension_manager = None
 extensions_loaded = False
@@ -57,7 +51,6 @@ def set_call_mode(enabled: bool) -> None:
     logger.info("[Main] Call mode: %s", enabled)
 
 
-_ai_stack_lock = asyncio.Lock()
 _extension_manager_lock = asyncio.Lock()
 
 
@@ -105,63 +98,14 @@ def ensure_tts_runtime(prewarm: bool = False):
 
     return tts
 
-async def initialize_ai_stack() -> None:
-    """Lazy load heavy AI modules."""
-    global \
-        orchestrator, \
-        generate, \
-        initialize_llm, \
-        WakeWordDetector, \
-        ReminderManager, \
-        tts, \
-        extension_manager, \
-        ai_stack_loaded
-
-    if ai_stack_loaded:
-        return
-
-    async with _ai_stack_lock:
-        if ai_stack_loaded:
-            return
-            
-        logger.info("[Main] Loading AI stack...")
-        # Give a small gap for heartbeats/sockets
-        await asyncio.sleep(0.1)
-
+def get_wake_word_detector_class():
+    """Returns WakeWordDetector class without loading legacy AI stack."""
     try:
-        import ai.orchestrator as orch
-    except Exception as e:
-        logger.exception("[Main] Failed to import ai.orchestrator: %s", e)
-        startup_error_msg = f"AI module import failed: {e}"
-        globals()["startup_error"] = startup_error_msg
-        await send_init_event("error", startup_error_msg, 0)
-        raise
-
-    orchestrator = orch
-    from ai.orchestrator import generate as gen_func, initialize_llm as init_llm
-
-    generate = gen_func
-    initialize_llm = init_llm
-
-    try:
-        from services.voice.detector import WakeWordDetector as WWD
+        from services.voice.detector import WakeWordDetector as detector_cls
+        return detector_cls
     except Exception as e:
         logger.warning("[Main] WakeWordDetector import skipped: %s", e)
-        WWD = None
-
-    WakeWordDetector = WWD
-    from services.reminders.manager import ReminderManager as RM
-
-    ReminderManager = RM
-
-    ensure_tts_runtime(prewarm=False)
-
-    from services.extensions.manager import extension_manager as em
-
-    extension_manager = em
-
-    ai_stack_loaded = True
-    logger.info("[Main] AI stack loaded.")
+        return None
 
 
 async def ensure_extension_manager_loaded() -> None:
@@ -266,25 +210,22 @@ async def send_init_event(stage: str, message: str, progress: int | None = None)
 
 
 async def process_voice_command(text: str, speak_response: bool = True) -> None:
-    """Processes wake-word voice command through Node core chat stream."""
+    """Processes wake-word voice command through Node core voice-command route."""
     # If the text is empty, the user just said the keyword.
     # We provide a prompt to show we are listening.
     if not text or len(text.strip()) < 2:
         text = "Oi"  # This will trigger a greeting/ready response from the AI
 
     logger.info("[Voice] Processing: %s", text)
-    logger.debug("[Voice] Thread: %s, Active sockets: %d", last_thread_id, len(active_websockets))
-
-    await broadcast_to_sockets({"type": "user", "content": text})
+    logger.debug("[Voice] Thread: %s", last_thread_id)
 
     node_host = os.getenv("MOMAI_NODE_CORE_HOST", "127.0.0.1")
     node_port = int(os.getenv("MOMAI_NODE_CORE_PORT", "8000"))
-    node_url = f"http://{node_host}:{node_port}/chat/stream"
+    node_url = f"http://{node_host}:{node_port}/chat/voice-command"
     try:
         import httpx
 
-        logger.debug("[Voice] Calling node stream: %s", node_url)
-        await broadcast_to_sockets({"type": "assistant", "data": {"status": "Pensando..."}})
+        logger.debug("[Voice] Calling node voice-command: %s", node_url)
 
         payload = {
             "content": text,
@@ -292,31 +233,17 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
             "speak_response": bool(speak_response),
         }
 
-        timeout = httpx.Timeout(connect=5.0, read=120.0, write=15.0, pool=5.0)
+        timeout = httpx.Timeout(connect=5.0, read=30.0, write=15.0, pool=5.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
-            async with client.stream("POST", node_url, json=payload) as response:
-                if response.status_code >= 400:
-                    detail = await response.aread()
-                    raise RuntimeError(
-                        f"Node stream failed: HTTP {response.status_code} {detail[:240]!r}"
-                    )
-
-                async for line in response.aiter_lines():
-                    if not line or not line.startswith("data: "):
-                        continue
-                    json_str = line.replace("data: ", "", 1).strip()
-                    if not json_str:
-                        continue
-                    try:
-                        data = json.loads(json_str)
-                    except json.JSONDecodeError as e:
-                        logger.debug("[Voice] Failed to decode stream chunk: %s", e)
-                        continue
-                    await broadcast_to_sockets({"type": "assistant", "data": data})
-        logger.debug("[Voice] Node stream completed")
+            response = await client.post(node_url, json=payload)
+            if response.status_code >= 400:
+                detail = response.text
+                raise RuntimeError(
+                    f"Node voice-command failed: HTTP {response.status_code} {detail[:240]!r}"
+                )
+        logger.debug("[Voice] Node voice-command completed")
     except Exception as exc:
         logger.exception("Error processing voice: %s", exc)
-        await broadcast_to_sockets({"type": "assistant", "data": {"error": str(exc)}})
 
 
 async def broadcast_resource_usage() -> None:
