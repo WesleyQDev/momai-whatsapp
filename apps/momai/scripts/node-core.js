@@ -36,33 +36,42 @@ if (!fs.existsSync(DATA_DIR)) {
 const DEFAULT_TIERS = {
   lite: {
     file: 'Qwen3.5-0.8B-Q4_K_M.gguf',
+    enable_vision: false,
     ctx_size: 8192,
-    gpu_layers: 99,
-    temperature: 1,
-    top_p: 1,
-    top_k: 20,
-    presence_penalty: 2,
-    repetition_penalty: 1
-  },
-  pro: {
-    file: 'Qwen3.5-2B-Q4_K_M.gguf',
-    ctx_size: 8192,
-    gpu_layers: 99,
-    temperature: 1,
-    top_p: 1,
-    top_k: 20,
-    presence_penalty: 2,
-    repetition_penalty: 1
-  },
-  ultra: {
-    file: 'Qwen3.5-4B-Q4_K_M.gguf',
-    ctx_size: 8192,
+    request_ctx_size: 4096,
     gpu_layers: 99,
     temperature: 0.7,
     top_p: 0.8,
     top_k: 20,
-    presence_penalty: 1.5,
-    repetition_penalty: 1
+    presence_penalty: 0.6,
+    repetition_penalty: 1.05,
+    max_tokens: 192
+  },
+  pro: {
+    file: 'Qwen3.5-2B-Q4_K_M.gguf',
+    enable_vision: false,
+    ctx_size: 8192,
+    request_ctx_size: 6144,
+    gpu_layers: 99,
+    temperature: 0.7,
+    top_p: 0.8,
+    top_k: 20,
+    presence_penalty: 0.6,
+    repetition_penalty: 1.05,
+    max_tokens: 320
+  },
+  ultra: {
+    file: 'Qwen3.5-4B-Q4_K_M.gguf',
+    enable_vision: false,
+    ctx_size: 8192,
+    request_ctx_size: 8192,
+    gpu_layers: 99,
+    temperature: 0.7,
+    top_p: 0.8,
+    top_k: 20,
+    presence_penalty: 0.6,
+    repetition_penalty: 1.05,
+    max_tokens: 512
   }
 }
 
@@ -78,6 +87,23 @@ function loadTierConfig() {
 }
 
 const tiersConfig = loadTierConfig()
+
+const store = loadStore()
+
+function applyPerformanceProfile() {
+  let changed = false
+
+  if (store.settings.local_backend === 'auto') {
+    store.settings.local_backend = 'vulkan'
+    changed = true
+  }
+
+  if (changed) {
+    saveStore()
+  }
+}
+
+applyPerformanceProfile()
 
 function defaultStore() {
   const now = new Date().toISOString()
@@ -137,8 +163,6 @@ function loadStore() {
     return defaultStore()
   }
 }
-
-const store = loadStore()
 
 function saveStore() {
   try {
@@ -312,9 +336,18 @@ function resolveModelPath(tierConfig) {
 
   if (!fs.existsSync(MODELS_DIR)) return null
 
+  // Ignore non-chat artifacts when falling back.
+  const isChatCandidate = (name) => {
+    const lower = name.toLowerCase()
+    if (!lower.endsWith('.gguf')) return false
+    if (lower.includes('mmproj')) return false
+    if (lower.includes('embedding')) return false
+    return true
+  }
+
   const ggufs = fs
     .readdirSync(MODELS_DIR)
-    .filter((name) => name.toLowerCase().endsWith('.gguf') && !name.toLowerCase().includes('mmproj'))
+    .filter((name) => isChatCandidate(name))
     .sort((a, b) => a.localeCompare(b))
 
   if (!ggufs.length) return null
@@ -337,6 +370,8 @@ const llamaState = {
   lastError: null,
   backend: null,
   modelPath: null,
+  configuredModelFile: null,
+  usingFallbackModel: false,
   contextTotalTokens: 8192,
   currentTier: null
 }
@@ -419,14 +454,28 @@ async function ensureLlamaReady(forceRestart = false) {
     setInitStatus('error', 'Local model file missing', 100, msg)
     return false
   }
+  const configuredModelFile = typeof tierConfig.file === 'string' ? tierConfig.file : null
+  const actualModelFile = path.basename(modelPath)
+  const usingFallbackModel =
+    Boolean(configuredModelFile) &&
+    configuredModelFile.toLowerCase() !== actualModelFile.toLowerCase()
 
-  const mmprojPath = resolveMmprojPath()
+  if (usingFallbackModel && typeof process.send === 'function') {
+    process.send({
+      type: 'node-core-log',
+      message: `[llama] Tier ${tierName.toUpperCase()} requested "${configuredModelFile}" but loaded fallback "${actualModelFile}".`
+    })
+  }
+
+  const visionEnabled = tierConfig.enable_vision === true
+  const mmprojPath = visionEnabled ? resolveMmprojPath() : null
   const exeName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'
   const exePath = path.join(CORE_PATH, 'bin', backend, exeName)
   const exeDir = path.dirname(exePath)
 
-  const parallelSlots = 4
-  const ctxBase = Math.max(2048, Math.min(Number(tierConfig.ctx_size || 8192), 8192))
+  const parallelSlots = 2
+  const requestCtx = Number(tierConfig.request_ctx_size || tierConfig.ctx_size || 8192)
+  const ctxBase = Math.max(2048, Math.min(requestCtx, 8192))
   const totalCtx = ctxBase * parallelSlots
 
   const args = [
@@ -442,6 +491,8 @@ async function ensureLlamaReady(forceRestart = false) {
     String(Number.isFinite(tierConfig.gpu_layers) ? tierConfig.gpu_layers : 99),
     '--flash-attn',
     'auto',
+    '--reasoning',
+    'off',
     '--cache-prompt',
     '-b',
     '2048',
@@ -468,6 +519,8 @@ async function ensureLlamaReady(forceRestart = false) {
   llamaState.contextTotalTokens = ctxBase
   llamaState.backend = backend
   llamaState.modelPath = modelPath
+  llamaState.configuredModelFile = configuredModelFile
+  llamaState.usingFallbackModel = usingFallbackModel
   llamaState.currentTier = tierName
 
   setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 80, null)
@@ -807,7 +860,7 @@ async function streamLlamaChat(req, res, payload) {
   writeSse(res, { status: 'thinking' })
 
   const history = getThreadMessages(threadId)
-    .slice(-12)
+    .slice(-8)
     .map((msg) => ({
       role: msg.role === 'assistant' ? 'assistant' : 'user',
       content: String(msg.content || '')
@@ -853,6 +906,7 @@ async function streamLlamaChat(req, res, payload) {
         stream: true,
         temperature: Number.isFinite(tier.temperature) ? tier.temperature : 0.7,
         top_p: Number.isFinite(tier.top_p) ? tier.top_p : 1,
+        max_tokens: Number.isFinite(tier.max_tokens) ? tier.max_tokens : 320,
         messages: [...systemMessages, ...history]
       })
     })
@@ -932,6 +986,10 @@ function getSetupInfo() {
   }
 }
 
+function isValidTier(tier) {
+  return tier === 'lite' || tier === 'pro' || tier === 'ultra'
+}
+
 async function handleRequest(req, res) {
   if (!req.url) {
     sendJson(res, 400, { detail: 'Missing URL' })
@@ -974,6 +1032,13 @@ async function handleRequest(req, res) {
       setup: getSetupInfo(),
       ai_tier: store.settings.ai_tier || 'pro',
       auto_start_llm: autoStart,
+      llama_runtime: {
+        current_tier: llamaState.currentTier,
+        configured_model_file: llamaState.configuredModelFile,
+        loaded_model_path: llamaState.modelPath,
+        loaded_model_file: llamaState.modelPath ? path.basename(llamaState.modelPath) : null,
+        using_fallback_model: llamaState.usingFallbackModel
+      },
       tiers_config: tiersConfig
     })
     return
@@ -984,10 +1049,60 @@ async function handleRequest(req, res) {
     return
   }
 
+  if (pathname === '/setup/status' && req.method === 'GET') {
+    const setup = getSetupInfo()
+    sendJson(res, 200, {
+      status: 'ok',
+      engine_installed: setup.local_installed,
+      installed_version: setup.installed_version,
+      latest_version: setup.latest_version,
+      ai_tier: store.settings.ai_tier || 'pro',
+      tiers_config: tiersConfig
+    })
+    return
+  }
+
+  if (pathname === '/setup/apply-tier' && req.method === 'POST') {
+    const requestedTier = String(parsedUrl.searchParams.get('tier') || '').toLowerCase()
+    if (!isValidTier(requestedTier)) {
+      sendJson(res, 400, { status: 'error', message: 'Invalid tier. Use lite, pro or ultra.' })
+      return
+    }
+
+    const prevTier = store.settings.ai_tier || 'pro'
+    const prevBackend = store.settings.local_backend || 'auto'
+
+    store.mode = 'local'
+    store.settings.ai_tier = requestedTier
+
+    if (requestedTier === 'lite') {
+      store.settings.tts_enabled = false
+      store.settings.wake_word_enabled = false
+    } else if (requestedTier !== 'ultra') {
+      store.settings.wake_word_enabled = false
+    }
+
+    saveStore()
+    await maybeRestartLlamaOnTierChange(
+      prevTier,
+      requestedTier,
+      prevBackend,
+      store.settings.local_backend || 'auto'
+    )
+
+    sendJson(res, 200, { status: 'ok', ai_tier: store.settings.ai_tier })
+    return
+  }
+
   if (pathname === '/mode' && req.method === 'POST') {
     const payload = await readJsonBody(req).catch(() => ({}))
     const prevTier = store.settings.ai_tier || 'pro'
     const mode = payload.mode || prevTier
+
+    if (!isValidTier(mode)) {
+      sendJson(res, 400, { status: 'error', message: 'Invalid tier. Use lite, pro or ultra.' })
+      return
+    }
 
     store.mode = 'local'
     store.settings.ai_tier = mode
@@ -1042,6 +1157,11 @@ async function handleRequest(req, res) {
     const payload = await readJsonBody(req).catch(() => ({}))
     const prevTier = store.settings.ai_tier || 'pro'
     const prevBackend = store.settings.local_backend || 'auto'
+
+    if (payload.ai_tier && !isValidTier(payload.ai_tier)) {
+      sendJson(res, 400, { status: 'error', message: 'Invalid ai_tier. Use lite, pro or ultra.' })
+      return
+    }
 
     store.settings = { ...store.settings, ...payload }
 

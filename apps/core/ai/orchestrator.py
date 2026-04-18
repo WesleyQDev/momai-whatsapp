@@ -203,6 +203,7 @@ def load_tier_config():
         "lite": {
             "repo": "unsloth/LFM2.5-VL-1.6B-GGUF",
             "file": "LFM2.5-VL-1.6B-Q4_K_M.gguf",
+            "enable_vision": False,
             "temperature": 0.1,
             "top_p": 0.8,
             "top_k": 20,
@@ -212,6 +213,7 @@ def load_tier_config():
         "pro": {
             "repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF",
             "file": "LFM2.5-1.2B-Instruct-Q4_K_M.gguf",
+            "enable_vision": False,
             "temperature": 0.1,
             "top_p": 0.8,
             "top_k": 20,
@@ -221,6 +223,7 @@ def load_tier_config():
         "ultra": {
             "repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
             "file": "Qwen3-4B-Instruct-2507-UD-Q4_K_XL.gguf",
+            "enable_vision": False,
             "temperature": 0.1,
             "top_p": 0.8,
             "top_k": 20,
@@ -329,6 +332,7 @@ def _initialize_llm_task(
             top_k=config.get("top_k", 20),
             presence_penalty=config.get("presence_penalty", 0.0),
             repetition_penalty=config.get("repetition_penalty", 1.1),
+            enable_vision=config.get("enable_vision", False),
         )
 
         if new_llm:

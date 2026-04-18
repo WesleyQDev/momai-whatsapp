@@ -21,7 +21,7 @@ Descrever comportamentos em runtime: inicializacao, chat, voz e falhas.
 ## Fluxo de chat streaming
 
 1. Renderer envia requisicao para `/chat/stream`.
-2. Core Node garante disponibilidade do `llama-server` para o tier ativo (`lite/pro/ultra`).
+2. Core Node garante disponibilidade do `llama-server` para o tier ativo (`lite/pro/ultra`), com execucao texto-only por padrao.
 3. Core Node envia prompts e historico para `/v1/chat/completions` (streaming).
 4. Tokens retornam em SSE para UI em tempo real.
 5. Estado de conversa e metadados sao persistidos localmente.

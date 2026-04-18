@@ -169,7 +169,7 @@ def stop_server():
         server_process = None
 
 
-def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: int = None, on_progress=None, temperature: float = 0.1, top_p: float = 0.8, top_k: int = 20, presence_penalty: float = 0.0, repetition_penalty: float = 1.1) -> ChatOpenAI | None:
+def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: int = None, on_progress=None, temperature: float = 0.1, top_p: float = 0.8, top_k: int = 20, presence_penalty: float = 0.0, repetition_penalty: float = 1.1, enable_vision: bool = False) -> ChatOpenAI | None:
     """
     Downloads and starts the llama-server with the specified model.
 
@@ -197,7 +197,7 @@ def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: in
     stop_server()
 
     try:
-        result = _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperature, top_p, top_k, presence_penalty, repetition_penalty)
+        result = _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperature, top_p, top_k, presence_penalty, repetition_penalty, enable_vision=enable_vision)
         if result is not None:
             return result
 
@@ -205,7 +205,7 @@ def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: in
         paths = get_paths()
         if paths["backend"] != "cpu":
             report(f"Backend {paths['backend']} failed. Falling back to CPU...")
-            result = _try_start_server(repo_id, filename, ctx_size, 0, report, temperature, top_p, top_k, presence_penalty, repetition_penalty, forced_backend="cpu")
+            result = _try_start_server(repo_id, filename, ctx_size, 0, report, temperature, top_p, top_k, presence_penalty, repetition_penalty, forced_backend="cpu", enable_vision=enable_vision)
             if result is not None:
                 return result
 
@@ -217,7 +217,7 @@ def load_model(repo_id: str, filename: str, ctx_size: int = None, gpu_layers: in
         return None
 
 
-def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperature, top_p, top_k, presence_penalty, repetition_penalty, forced_backend=None) -> ChatOpenAI | None:
+def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperature, top_p, top_k, presence_penalty, repetition_penalty, forced_backend=None, enable_vision=False) -> ChatOpenAI | None:
     global server_process
 
     stop_server()
@@ -372,13 +372,24 @@ def _try_start_server(repo_id, filename, ctx_size, gpu_layers, report, temperatu
         # VERY IMPORTANT: Export the actual context size so the MomAI Tokenizer knows!
         os.environ["MOMAI_CTX_SIZE"] = str(actual_ctx_size)
 
-        # Automatically detect any mmproj file in the models directory for Vision support
+        # Vision is disabled by default to preserve memory and keep text generation stable.
+        # It can be enabled per-tier (enable_vision=True) or by env MOMAI_ENABLE_VISION=1.
         mmproj_file = None
-        for file in paths["models"].iterdir():
-            if file.is_file() and "mmproj" in file.name.lower():
-                mmproj_file = str(file.resolve())
-                report(f"Detected Vision Projector (mmproj): {file.name}")
-                break
+        env_enable_vision = os.getenv("MOMAI_ENABLE_VISION", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        vision_enabled = bool(enable_vision) or env_enable_vision
+        if vision_enabled:
+            for file in paths["models"].iterdir():
+                if file.is_file() and "mmproj" in file.name.lower():
+                    mmproj_file = str(file.resolve())
+                    report(f"Detected Vision Projector (mmproj): {file.name}")
+                    break
+        else:
+            report("Vision disabled for current tier. Skipping mmproj.")
 
         cmd = [
             abs_exe_path,
