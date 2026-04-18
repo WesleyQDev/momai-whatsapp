@@ -114,6 +114,10 @@ class WakeWordControl(BaseModel):
     enabled: bool
 
 
+class CallModeControl(BaseModel):
+    enabled: bool
+
+
 @router.post("/wake-word")
 async def control_wake_word(control: WakeWordControl):
     """
@@ -151,4 +155,48 @@ async def control_wake_word(control: WakeWordControl):
 
     except Exception as e:
         logger.error(f"[VoiceAPI] Wake word control error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/call-mode")
+async def control_call_mode(control: CallModeControl):
+    """
+    Sync call-mode state from Node core to Python sidecar.
+    In call-mode we keep detector running and bypass wake-word keyword matching.
+    """
+    try:
+        import app_state
+
+        app_state.set_call_mode(control.enabled)
+
+        if control.enabled and not app_state.ww:
+            await ensure_wake_word_detector()
+
+        if app_state.ww:
+            if control.enabled:
+                app_state.ww.wake_word_active = True
+                try:
+                    app_state.ww.flush_buffers()
+                except Exception:
+                    pass
+                if not app_state.ww.running:
+                    app_state.ww.start()
+            else:
+                # Keep running only if explicit wake-word setting is enabled.
+                from database.models import SessionLocal, Settings
+
+                db = SessionLocal()
+                try:
+                    settings = db.query(Settings).first()
+                finally:
+                    db.close()
+
+                keep_wake_word = bool(settings and settings.wake_word_enabled and settings.ai_tier == "ultra")
+                if not keep_wake_word:
+                    app_state.ww.wake_word_active = False
+                    app_state.ww.stop()
+
+        return {"success": True, "call_mode": app_state.is_call_mode()}
+    except Exception as e:
+        logger.error(f"[VoiceAPI] Call mode control error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

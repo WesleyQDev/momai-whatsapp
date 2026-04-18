@@ -246,7 +246,7 @@
   "settings.brain.downloadLabel": "Download:",
   "settings.brain.downloadAuto": "Auto ({build})",
   "settings.brain.installNow": "Install Now",
-  "settings.brain.installInfo": "The local engine is required to process AI privately on your computer. The download is about 30MB.",
+  "settings.brain.installInfo": "The local engine installs CPU + GPU (Vulkan) and automatically selects based on your hardware.",
   "settings.brain.downloading": "Downloading local engine...",
   "settings.brain.ready": "Engine Ready",
   "settings.brain.updateTo": "Update to {version}",

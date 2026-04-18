@@ -16,6 +16,25 @@ function replaceAll(template, vars) {
   return out
 }
 
+function buildRuntimeClockContext() {
+  const now = new Date()
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local'
+  const offsetMinutes = -now.getTimezoneOffset()
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  const abs = Math.abs(offsetMinutes)
+  const hh = String(Math.floor(abs / 60)).padStart(2, '0')
+  const mm = String(abs % 60).padStart(2, '0')
+  const offset = `${sign}${hh}:${mm}`
+
+  return [
+    '# RUNTIME CLOCK',
+    `Local datetime: ${now.toString()}`,
+    `ISO datetime: ${now.toISOString()}`,
+    `Timezone: ${timezone} (UTC${offset})`,
+    'When the user asks current date/time, ALWAYS use this runtime clock context.'
+  ].join('\n')
+}
+
 function createPromptRegistry({ promptsDir }) {
   const promptsFile = path.join(promptsDir, 'prompts.json')
   const runtime = {
@@ -83,6 +102,7 @@ function createPromptRegistry({ promptsDir }) {
         ? Number(tierCfg.max_sentences)
         : Number(prompts.default_max_sentences || 6),
       tier_instructions: sanitize(String(tierCfg.tier_instructions || '')),
+      runtime_clock: sanitize(buildRuntimeClockContext()),
       memory_block: input.memoryContext ? `MEMORY CONTEXT:\n${sanitize(input.memoryContext)}` : '',
       tool_block: input.toolInstruction ? `TOOL RESULT:\n${sanitize(input.toolInstruction)}` : ''
     }
@@ -93,7 +113,9 @@ function createPromptRegistry({ promptsDir }) {
     try {
       const template = String(tierCfg.system_template || prompts.system_template || '')
       runtime.lastError = null
-      return replaceAll(template, vars)
+      const rendered = replaceAll(template, vars)
+      if (rendered.includes('RUNTIME CLOCK')) return rendered
+      return `${rendered}\n\n${vars.runtime_clock}`
     } catch (error) {
       runtime.fallbackUsed = true
       runtime.lastError = error?.message || 'prompt parse failed'
@@ -101,6 +123,7 @@ function createPromptRegistry({ promptsDir }) {
         `Persona: ${vars.assistant_persona || 'N/A'}`,
         `Response style: ${vars.response_style || 'balanced'}`,
         `Target max sentences: ${vars.max_sentences || 6}`,
+        vars.runtime_clock,
         vars.memory_block,
         vars.tool_block
       ]

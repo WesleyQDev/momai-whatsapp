@@ -1,9 +1,7 @@
 import asyncio
-import json
 import logging
 import os
 import time
-from datetime import datetime
 from typing import Any
 
 from fastapi import WebSocket
@@ -28,8 +26,6 @@ last_init_event: dict[str, Any] = {
 }
 
 tts = None
-extension_manager = None
-extensions_loaded = False
 
 active_graph = {"view": None, "bypass_wake_word": False}
 
@@ -49,9 +45,6 @@ def set_call_mode(enabled: bool) -> None:
     global call_mode
     call_mode = enabled
     logger.info("[Main] Call mode: %s", enabled)
-
-
-_extension_manager_lock = asyncio.Lock()
 
 
 def _bind_tts_callbacks(tts_module) -> None:
@@ -106,24 +99,6 @@ def get_wake_word_detector_class():
     except Exception as e:
         logger.warning("[Main] WakeWordDetector import skipped: %s", e)
         return None
-
-
-async def ensure_extension_manager_loaded() -> None:
-    """Lazily initialize and load extension registry for sidecar plugin routes."""
-    global extension_manager, extensions_loaded
-
-    if extension_manager is not None and extensions_loaded:
-        return
-
-    async with _extension_manager_lock:
-        if extension_manager is None:
-            from services.extensions.manager import extension_manager as em
-
-            extension_manager = em
-
-        if not extensions_loaded:
-            await asyncio.to_thread(extension_manager.load_all)
-            extensions_loaded = True
 
 
 def set_gaming_mode(enabled: bool) -> None:
@@ -246,31 +221,3 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
         logger.exception("Error processing voice: %s", exc)
 
 
-async def broadcast_resource_usage() -> None:
-    """Background task to broadcast system resource usage."""
-    while True:
-        if active_websockets:
-            try:
-                import tools.system_actions as sys_tools
-
-                stats = sys_tools.get_momai_resources()
-                await broadcast_to_sockets({"type": "resource_usage", "data": stats})
-            except Exception as exc:
-                logger.debug("Error getting resource usage: %s", exc)
-        await asyncio.sleep(5)
-
-
-def notify_economy_change(status: str) -> None:
-    """Callback para o ResourceManager notificar a UI via WebSocket."""
-    if main_loop:
-        main_loop.call_soon_threadsafe(
-            lambda: asyncio.create_task(
-                broadcast_to_sockets(
-                    {
-                        "type": "fortscript_event",
-                        "status": status,
-                        "timestamp": datetime.now().isoformat(),
-                    }
-                )
-            )
-        )

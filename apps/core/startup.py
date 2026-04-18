@@ -56,10 +56,6 @@ async def init_sidecar_task() -> None:
         await app_state.send_init_event("api", "Starting Python sidecar...", 40)
         await app_state.send_init_event("api", "Database connected & migrated", 70)
 
-        # Warm extension discovery in background for faster first /plugins request.
-        await app_state.send_init_event("plugins", "Loading plugin registry...", 85)
-        await app_state.ensure_extension_manager_loaded()
-
         # Warm voice runtime in background so first automatic TTS is faster.
         await app_state.send_init_event("voice", "Warming up TTS engine...", 92)
         asyncio.create_task(prewarm_tts_if_needed())

@@ -246,7 +246,7 @@
   "settings.brain.downloadLabel": "Download:",
   "settings.brain.downloadAuto": "Auto ({build})",
   "settings.brain.installNow": "Instalar Agora",
-  "settings.brain.installInfo": "O motor local é necessário para processar IA de forma privada no seu computador. O download tem aprox. 30MB.",
+  "settings.brain.installInfo": "O motor local instala CPU + GPU (Vulkan) e escolhe automaticamente pelo hardware.",
   "settings.brain.downloading": "Baixando Motor Local...",
   "settings.brain.ready": "Motor Pronto",
   "settings.brain.updateTo": "Atualizar para {version}",

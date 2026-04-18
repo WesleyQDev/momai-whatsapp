@@ -1,51 +1,36 @@
 # MomAI Core
 
-Backend Python para a aplicação MomAI - assistente virtual de código aberto, local-first e focada em privacidade.
+Sidecar Python da MomAI, dedicado exclusivamente a voz (STT/TTS).
 
 ## Arquitetura
 
-A MomAI Core utiliza uma arquitetura baseada em **LangGraph** para orquestração de agentes, com as seguintes camadas:
+A MomAI Core funciona como um servico FastAPI enxuto para voz:
 
-- **API Layer (FastAPI):** Endpoints REST para chat, lembretes, configurações, extensões e modo gaming
-- **Agent Layer:** Agentes especializados (Search, System, Interface, Scheduler)
-- **AI Layer:** Integrações com LLMs locais (llama.cpp) e cloud (Groq, Gemini)
-- **Voice Layer:** Wake Word (Vosk) e TTS streaming (Kokoro)
-- **Data Layer:** SQLite + LanceDB para persistência e busca vetorial
+- **API Layer (FastAPI):** Endpoints de voz e bridge de TTS.
+- **Voice Layer:** Wake word, transcricao rapida (Whisper) e sintese de voz (Kokoro).
+- **Data Layer:** SQLite para configuracoes de voz.
 
 ## Funcionalidades
 
-- **Chat com Streaming:** Respostas em tempo real com TTS
-- **Roteamento Semântico:** Identificação de intenções via LanceDB
-- **Tool RAG:** Carregamento dinâmico de ferramentas
-- **Wake Word:** Ativação por voz ("Sistema")
-- **Lembretes Proativos:** Agendamento persistente
-- **Modo Gaming:** Integração com FortScript para pausar IA durante jogos
+- **Quick STT:** Captura de audio e transcricao curta para input de voz.
+- **Wake Word:** Controle e deteccao de palavra-chave.
+- **TTS:** Sintese local com streaming/fallback para o frontend.
 
 ## Estrutura
 
-```
+```text
 apps/core/
-├── ai/              # Orquestrador e modelos de IA
-├── agents/          # Agentes especializados
-├── api/             # Endpoints FastAPI
-├── database/        # SQLite e LanceDB
-├── domain/          # Entidades de domínio
-├── services/        # Serviços de voz, memória, lembretes
-├── tools/           # Ferramentas do sistema
-└── utils/           # Utilitários
+|- api/             # Endpoints FastAPI
+|- database/        # SQLite
+`- services/voice/  # STT/TTS e wake word
 ```
 
-## Configuração
+## Configuracao
 
-Crie um arquivo `.env` com as variáveis necessárias:
+Crie um arquivo `.env` com as variaveis necessarias:
 
 ```bash
-# API Keys (opcionais - pode usar modelos locais)
-GROQ_API_KEY=your_groq_key
-GOOGLE_GENAI_API_KEY=your_google_key
-OPENAI_API_KEY=your_openai_key
-
-# Configurações do servidor
+# Configuracoes do servidor
 HOST=127.0.0.1
 PORT=8000
 MOMAI_DEBUG=false
@@ -59,11 +44,10 @@ cd apps/core
 uv run python main.py
 
 # ou via pnpm (monorepo)
-pnpm run dev
+pnpm run dev:core
 ```
 
 ## Requisitos
 
 - Python 3.12+
-- FFmpeg (para áudio)
-- Modelos GGUF (Qwen3)
+- Dependencias de audio do sistema operacional (microfone/saida)

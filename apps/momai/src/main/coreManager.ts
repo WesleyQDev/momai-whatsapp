@@ -39,6 +39,14 @@ function getCorePath(): string {
   return join(process.resourcesPath, 'core')
 }
 
+function getLlamaBinPath(): string {
+  const devLlamaPath = resolve(app.getAppPath(), 'bin', 'llama')
+  if (existsSync(devLlamaPath)) {
+    return devLlamaPath
+  }
+  return join(process.resourcesPath, 'bin', 'llama')
+}
+
 function getNodeCoreDataDir(): string {
   const dataDir = join(app.getPath('userData'), 'data')
   if (!existsSync(dataDir)) {
@@ -130,6 +138,7 @@ function spawnNodeCore(): ReturnType<typeof spawn> {
     MOMAI_NODE_CORE_PORT: String(API_PORT),
     MOMAI_NODE_CORE_DATA_DIR: getNodeCoreDataDir(),
     MOMAI_CORE_PATH: getCorePath(),
+    MOMAI_LLAMA_BIN_PATH: getLlamaBinPath(),
     MOMAI_PYTHON_SIDECAR_HOST: PYTHON_SIDECAR_HOST,
     MOMAI_PYTHON_SIDECAR_PORT: String(PYTHON_SIDECAR_PORT)
   }

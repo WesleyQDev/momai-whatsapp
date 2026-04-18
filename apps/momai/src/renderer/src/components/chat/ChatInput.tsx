@@ -411,7 +411,14 @@ export default function ChatInput({
                   }
                 >
                   {isQuickRecording ? (
-                    <span className="text-[10px] font-bold">...</span>
+                    <div className="relative flex items-center justify-center">
+                      <MicrophoneIcon className="w-4 h-4" />
+                      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 flex items-end gap-[1px]">
+                        <span className="stt-eq-bar h-1 w-[2px] rounded-full bg-white/90" />
+                        <span className="stt-eq-bar stt-eq-bar--2 h-1.5 w-[2px] rounded-full bg-white" />
+                        <span className="stt-eq-bar stt-eq-bar--3 h-[7px] w-[2px] rounded-full bg-white/90" />
+                      </div>
+                    </div>
                   ) : (
                     <MicrophoneIcon className="w-4 h-4" />
                   )}

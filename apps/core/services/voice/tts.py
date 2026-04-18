@@ -195,6 +195,11 @@ class TTSManager:
             self.has_tts = True
             self.ready_event.set()
             logger.debug("✅ [TTS] Kokoro-ONNX ready!")
+
+            # If any text arrived while initialization was running,
+            # start the worker immediately so first utterance is not delayed.
+            if not self.text_queue.empty():
+                self.start()
         except Exception as e:
             self._error = str(e)
             self.has_tts = False
@@ -419,8 +424,9 @@ class TTSManager:
         with self.start_lock:
             if not self.ready_event.is_set():
                 logger.debug("[TTS] Waiting for initialization...")
-                # Reduce timeout to 0.1s to avoid freezing the LLM stream if TTS is slow
-                if not self.ready_event.wait(timeout=3.0):
+                # Keep this very short; if still loading we return immediately
+                # and _initialize_kokoro() will auto-start the worker when ready.
+                if not self.ready_event.wait(timeout=0.15):
                     logger.debug(
                         "[TTS] Still initializing, will wait for first phrase."
                     )

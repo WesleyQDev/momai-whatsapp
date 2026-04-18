@@ -510,7 +510,7 @@ async function checkVenvHealth(pythonExe: string, corePath: string): Promise<boo
   const depsProbeScript = [
     'import os, re, sys, tomllib',
     'import importlib.metadata as md',
-    'required_default = ["python-dotenv", "fastapi", "uvicorn", "langgraph", "langgraph-checkpoint-sqlite", "lancedb"]',
+    'required_default = ["python-dotenv", "fastapi", "uvicorn", "sqlalchemy", "faster-whisper", "kokoro-onnx"]',
     'dist_names = []',
     'try:',
     '    pyproject = os.path.join(sys.argv[1], "pyproject.toml")',
@@ -1301,6 +1301,7 @@ function buildEnv(venvPath: string, dataDir: string, uvExe: string) {
 }
 
 let restartAttempts = 0
+let pythonStartPromise: Promise<void> | null = null
 
 export interface PythonBackendStartOptions {
   host?: string
@@ -1310,7 +1311,17 @@ export interface PythonBackendStartOptions {
 }
 
 export async function startPythonBackend(options: PythonBackendStartOptions = {}): Promise<void> {
-  try {
+  if (isPythonRunning()) {
+    return
+  }
+
+  if (pythonStartPromise) {
+    await pythonStartPromise
+    return
+  }
+
+  pythonStartPromise = (async () => {
+    try {
     const checkVenvPath = join(userDataPath, 'python_env')
     const pythonExeCheck =
       process.platform === 'win32'
@@ -1538,17 +1549,22 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
         sendErrorToRenderer(error)
       }
     })
-  } catch (err: any) {
-    logger.error('[Electron] Falha ao iniciar backend:', err)
-    const error: BootstrapError = {
-      type: 'unknown',
-      message: 'Unexpected error during startup',
-      details: err.message || String(err)
+    } catch (err: any) {
+      logger.error('[Electron] Falha ao iniciar backend:', err)
+      const error: BootstrapError = {
+        type: 'unknown',
+        message: 'Unexpected error during startup',
+        details: err.message || String(err)
+      }
+      if (options.reportBootstrapErrors ?? true) {
+        sendErrorToRenderer(error)
+      }
+    } finally {
+      pythonStartPromise = null
     }
-    if (options.reportBootstrapErrors ?? true) {
-      sendErrorToRenderer(error)
-    }
-  }
+  })()
+
+  await pythonStartPromise
 }
 
 async function killPythonBackend(): Promise<void> {

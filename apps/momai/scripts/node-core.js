@@ -13,6 +13,8 @@ const PORT = Number(process.env.MOMAI_NODE_CORE_PORT || 8000)
 const DATA_DIR = process.env.MOMAI_NODE_CORE_DATA_DIR || path.join(process.cwd(), 'data')
 const STORE_FILE = path.join(DATA_DIR, 'node-core-store.json')
 const CORE_PATH = process.env.MOMAI_CORE_PATH || path.resolve(__dirname, '..', '..', 'core')
+const LLAMA_BIN_PATH =
+  process.env.MOMAI_LLAMA_BIN_PATH || path.resolve(__dirname, '..', 'bin', 'llama')
 const TIERS_CONFIG_PATH = path.join(CORE_PATH, 'ai_tiers.json')
 const MODELS_DIR = path.join(CORE_PATH, 'models')
 
@@ -116,8 +118,8 @@ const store = loadStore()
 function applyPerformanceProfile() {
   let changed = false
 
-  if (store.settings.local_backend === 'auto') {
-    store.settings.local_backend = 'vulkan'
+  if (!['auto', 'vulkan', 'cpu'].includes(store.settings.local_backend)) {
+    store.settings.local_backend = 'auto'
     changed = true
   }
 
@@ -559,7 +561,7 @@ async function ensureEmbeddingReady() {
   }
 
   const exeName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'
-  const exePath = path.join(CORE_PATH, 'bin', backend, exeName)
+  const exePath = llamaBackendExePath(backend)
   const exeDir = path.dirname(exePath)
   if (!fs.existsSync(exePath)) {
     semanticState.degraded = true
@@ -1196,20 +1198,52 @@ async function runSemanticMemoryRetrieval(query, limit = 6) {
   }
 }
 
-function pickBackend(preferred) {
+function llamaBackendExePath(backend) {
   const exeName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'
-  const available = ['vulkan', 'cuda', 'cpu'].filter((backend) =>
-    fs.existsSync(path.join(CORE_PATH, 'bin', backend, exeName))
-  )
+  return path.join(LLAMA_BIN_PATH, backend, exeName)
+}
 
-  if (preferred && preferred !== 'auto' && available.includes(preferred)) return preferred
-  if (preferred && preferred !== 'auto' && !available.includes(preferred) && available.length) {
-    return available[0]
+function hasBackendBinary(backend) {
+  return fs.existsSync(llamaBackendExePath(backend))
+}
+
+function listAvailableBackends() {
+  return ['vulkan', 'cpu'].filter((backend) => hasBackendBinary(backend))
+}
+
+function normalizeBackendMode(value) {
+  return value === 'cpu' || value === 'vulkan' || value === 'auto' ? value : 'auto'
+}
+
+function pickBackend(preferred) {
+  const normalized = normalizeBackendMode(preferred)
+  const available = listAvailableBackends()
+  if (normalized === 'cpu' || normalized === 'vulkan') {
+    return available.includes(normalized) ? normalized : null
   }
   if (available.includes('vulkan')) return 'vulkan'
-  if (available.includes('cuda')) return 'cuda'
   if (available.includes('cpu')) return 'cpu'
   return null
+}
+
+function pickBackendAttempts(preferred) {
+  const normalized = normalizeBackendMode(preferred)
+  const available = listAvailableBackends()
+  if (normalized === 'cpu') return available.includes('cpu') ? ['cpu'] : []
+  if (normalized === 'vulkan') return available.includes('vulkan') ? ['vulkan'] : []
+  const attempts = []
+  if (available.includes('vulkan')) attempts.push('vulkan')
+  if (available.includes('cpu')) attempts.push('cpu')
+  return attempts
+}
+
+function backendReason(mode, backend, context = {}) {
+  if (mode === 'cpu') return 'manual_cpu'
+  if (mode === 'vulkan') return 'manual_vulkan'
+  if (backend === 'vulkan') return 'gpu_probe_ok'
+  if (backend === 'cpu' && context.vulkanAttempted) return 'gpu_probe_failed'
+  if (backend === 'cpu') return 'cpu_only_available'
+  return 'backend_unavailable'
 }
 
 function resolveModelPath(tierConfig) {
@@ -1251,6 +1285,8 @@ const llamaState = {
   startingPromise: null,
   lastError: null,
   backend: null,
+  backendReason: null,
+  backendMode: 'auto',
   modelPath: null,
   configuredModelFile: null,
   usingFallbackModel: false,
@@ -1317,14 +1353,17 @@ async function ensureLlamaReady(forceRestart = false) {
   if (llamaState.ready) return true
   if (llamaState.startingPromise) return llamaState.startingPromise
 
-  const preferred = store.settings.local_backend || 'auto'
-  const backend = pickBackend(preferred)
+  const preferred = normalizeBackendMode(store.settings.local_backend || 'auto')
+  const backendAttempts = pickBackendAttempts(preferred)
   const tierName = store.settings.ai_tier || 'pro'
   const tierConfig = tiersConfig[tierName] || tiersConfig.pro || DEFAULT_TIERS.pro
 
-  if (!backend) {
-    const msg = 'llama-server binary not found (bin/<backend>/llama-server)'
+  if (!backendAttempts.length) {
+    const msg = 'llama-server binary not found (bin/llama/<backend>/llama-server)'
     llamaState.lastError = msg
+    llamaState.backend = null
+    llamaState.backendReason = 'backend_unavailable'
+    llamaState.backendMode = preferred
     setInitStatus('error', 'Local model engine missing', 100, msg)
     return false
   }
@@ -1351,151 +1390,164 @@ async function ensureLlamaReady(forceRestart = false) {
 
   const visionEnabled = tierConfig.enable_vision === true
   const mmprojPath = visionEnabled ? resolveMmprojPath() : null
-  const exeName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'
-  const exePath = path.join(CORE_PATH, 'bin', backend, exeName)
-  const exeDir = path.dirname(exePath)
-
   const parallelSlots = 2
   const requestCtx = Number(tierConfig.request_ctx_size || tierConfig.ctx_size || 8192)
   const ctxBase = Math.max(2048, Math.min(requestCtx, 8192))
   const totalCtx = ctxBase * parallelSlots
 
-  const args = [
-    '-m',
-    modelPath,
-    '--port',
-    String(LLAMA_PORT),
-    '-c',
-    String(totalCtx),
-    '--parallel',
-    String(parallelSlots),
-    '-ngl',
-    String(Number.isFinite(tierConfig.gpu_layers) ? tierConfig.gpu_layers : 99),
-    '--flash-attn',
-    'auto',
-    '--reasoning',
-    'off',
-    '--cache-prompt',
-    '-b',
-    '2048',
-    '-ub',
-    '512',
-    '--top-p',
-    String(Number.isFinite(tierConfig.top_p) ? tierConfig.top_p : 1),
-    '--top-k',
-    String(Number.isFinite(tierConfig.top_k) ? tierConfig.top_k : 20),
-    '--presence-penalty',
-    String(Number.isFinite(tierConfig.presence_penalty) ? tierConfig.presence_penalty : 0),
-    '--repeat-penalty',
-    String(Number.isFinite(tierConfig.repetition_penalty) ? tierConfig.repetition_penalty : 1)
-  ]
+  const startAttempt = (backend, isFallbackAttempt) =>
+    new Promise((resolve) => {
+      const exePath = llamaBackendExePath(backend)
+      const exeDir = path.dirname(exePath)
+      const args = [
+        '-m',
+        modelPath,
+        '--port',
+        String(LLAMA_PORT),
+        '-c',
+        String(totalCtx),
+        '--parallel',
+        String(parallelSlots),
+        '-ngl',
+        String(Number.isFinite(tierConfig.gpu_layers) ? tierConfig.gpu_layers : 99),
+        '--flash-attn',
+        'auto',
+        '--reasoning',
+        'off',
+        '--cache-prompt',
+        '-b',
+        '2048',
+        '-ub',
+        '512',
+        '--top-p',
+        String(Number.isFinite(tierConfig.top_p) ? tierConfig.top_p : 1),
+        '--top-k',
+        String(Number.isFinite(tierConfig.top_k) ? tierConfig.top_k : 20),
+        '--presence-penalty',
+        String(Number.isFinite(tierConfig.presence_penalty) ? tierConfig.presence_penalty : 0),
+        '--repeat-penalty',
+        String(Number.isFinite(tierConfig.repetition_penalty) ? tierConfig.repetition_penalty : 1)
+      ]
 
-  if (backend === 'cpu') args.push('--no-mmap')
-  else args.push('--mmap')
+      if (backend === 'cpu') args.push('--no-mmap')
+      else args.push('--mmap')
 
-  if (mmprojPath) args.push('--mmproj', mmprojPath)
+      if (mmprojPath) args.push('--mmproj', mmprojPath)
 
-  llamaState.starting = true
-  llamaState.ready = false
-  llamaState.lastError = null
-  llamaState.contextTotalTokens = ctxBase
-  llamaState.backend = backend
-  llamaState.modelPath = modelPath
-  llamaState.configuredModelFile = configuredModelFile
-  llamaState.usingFallbackModel = usingFallbackModel
-  llamaState.currentTier = tierName
-
-  setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 80, null)
-
-  llamaState.startingPromise = new Promise((resolve) => {
-    let child = null
-    try {
-      child = spawn(exePath, args, {
-        cwd: exeDir,
-        env: {
-          ...process.env,
-          PATH: `${exeDir}${path.delimiter}${process.env.PATH || ''}`
-        },
-        shell: false,
-        stdio: ['ignore', 'pipe', 'pipe']
-      })
-    } catch (error) {
-      llamaState.lastError = error?.message || 'Failed to spawn llama-server'
-      llamaState.starting = false
-      llamaState.startingPromise = null
-      setInitStatus('error', 'Failed to initialize local model', 100, llamaState.lastError)
-      resolve(false)
-      return
-    }
-
-    llamaState.process = child
-
-    child.stdout?.on('data', (data) => {
-      const line = String(data).trim()
-      if (line && typeof process.send === 'function') {
-        process.send({ type: 'node-core-log', message: `[llama] ${line}` })
-      }
-    })
-
-    child.stderr?.on('data', (data) => {
-      const line = String(data).trim()
-      if (line && typeof process.send === 'function') {
-        process.send({ type: 'node-core-log', message: `[llama] ${line}` })
-      }
-    })
-
-    child.on('exit', (code, signal) => {
-      const endedWhileStarting = llamaState.starting
+      llamaState.starting = true
       llamaState.ready = false
-      llamaState.starting = false
-      llamaState.startingPromise = null
-      llamaState.process = null
+      llamaState.lastError = null
+      llamaState.contextTotalTokens = ctxBase
+      llamaState.backend = backend
+      llamaState.backendMode = preferred
+      llamaState.backendReason = backendReason(preferred, backend, { vulkanAttempted: isFallbackAttempt })
+      llamaState.modelPath = modelPath
+      llamaState.configuredModelFile = configuredModelFile
+      llamaState.usingFallbackModel = usingFallbackModel
+      llamaState.currentTier = tierName
 
-      if (endedWhileStarting) {
-        const msg = `llama-server exited during startup (code=${code}, signal=${signal})`
-        llamaState.lastError = msg
-        setInitStatus('error', 'Failed to initialize local model', 100, msg)
+      setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 80, null)
+
+      let child = null
+      try {
+        child = spawn(exePath, args, {
+          cwd: exeDir,
+          env: {
+            ...process.env,
+            PATH: `${exeDir}${path.delimiter}${process.env.PATH || ''}`
+          },
+          shell: false,
+          stdio: ['ignore', 'pipe', 'pipe']
+        })
+      } catch (error) {
+        const errMsg = error?.message || 'Failed to spawn llama-server'
+        resolve({ ok: false, reason: errMsg })
+        return
       }
-    })
 
-    const startedAt = Date.now()
-    const timeoutMs = 70000
+      llamaState.process = child
+      let exitedDuringStartup = false
 
-    ;(async () => {
-      while (Date.now() - startedAt < timeoutMs) {
-        if (!llamaState.process || llamaState.process.exitCode !== null) {
-          resolve(false)
-          return
+      child.stdout?.on('data', (data) => {
+        const line = String(data).trim()
+        if (line && typeof process.send === 'function') {
+          process.send({ type: 'node-core-log', message: `[llama] ${line}` })
         }
+      })
 
-        try {
-          const ok = await checkLlamaHealth()
-          if (ok) {
-            llamaState.ready = true
-            llamaState.starting = false
-            llamaState.startingPromise = null
-            setInitStatus('ready', 'System ready.', 100, null)
-            resolve(true)
+      child.stderr?.on('data', (data) => {
+        const line = String(data).trim()
+        if (line && typeof process.send === 'function') {
+          process.send({ type: 'node-core-log', message: `[llama] ${line}` })
+        }
+      })
+
+      child.on('exit', () => {
+        const endedWhileStarting = llamaState.starting
+        llamaState.ready = false
+        llamaState.starting = false
+        llamaState.process = null
+        if (endedWhileStarting) exitedDuringStartup = true
+      })
+
+      const startedAt = Date.now()
+      const timeoutMs = 25000
+      ;(async () => {
+        while (Date.now() - startedAt < timeoutMs) {
+          if (exitedDuringStartup || !llamaState.process || llamaState.process.exitCode !== null) {
+            resolve({ ok: false, reason: 'llama-server exited during startup' })
             return
           }
-        } catch {}
-
-        await new Promise((r) => setTimeout(r, 300))
-      }
-
-      llamaState.lastError = 'llama-server healthcheck timeout'
-      await stopLlamaServer()
-      setInitStatus('error', 'Local model startup timeout', 100, llamaState.lastError)
-      resolve(false)
-    })().catch(async (error) => {
-      llamaState.lastError = error?.message || 'Unexpected llama startup failure'
-      await stopLlamaServer()
-      setInitStatus('error', 'Local model startup failed', 100, llamaState.lastError)
-      resolve(false)
+          try {
+            const ok = await checkLlamaHealth()
+            if (ok) {
+              llamaState.ready = true
+              llamaState.starting = false
+              setInitStatus('ready', 'System ready.', 100, null)
+              resolve({ ok: true, reason: null })
+              return
+            }
+          } catch {}
+          await new Promise((r) => setTimeout(r, 300))
+        }
+        await stopLlamaServer()
+        resolve({ ok: false, reason: 'llama-server healthcheck timeout' })
+      })().catch(async (error) => {
+        await stopLlamaServer()
+        resolve({ ok: false, reason: error?.message || 'Unexpected llama startup failure' })
+      })
     })
-  })
 
-  return llamaState.startingPromise
+  llamaState.startingPromise = (async () => {
+    for (let i = 0; i < backendAttempts.length; i += 1) {
+      const backend = backendAttempts[i]
+      const result = await startAttempt(backend, i > 0)
+      if (result.ok) return true
+      llamaState.lastError = result.reason
+      if (preferred !== 'auto') {
+        setInitStatus('error', 'Failed to initialize local model', 100, result.reason)
+        return false
+      }
+      if (i === 0 && backend === 'vulkan' && backendAttempts[i + 1] === 'cpu') {
+        if (typeof process.send === 'function') {
+          process.send({
+            type: 'node-core-log',
+            message: `[llama] Vulkan probe failed (${result.reason}). Falling back to CPU.`
+          })
+        }
+      }
+    }
+
+    setInitStatus('error', 'Failed to initialize local model', 100, llamaState.lastError)
+    return false
+  })()
+
+  try {
+    return await llamaState.startingPromise
+  } finally {
+    llamaState.startingPromise = null
+    if (!llamaState.ready) llamaState.starting = false
+  }
 }
 
 function splitTokens(text) {
@@ -1674,7 +1726,8 @@ function sendVoiceSidecarFallback(res, pathname, error) {
 
 async function syncWakeWordState(reason = 'unknown') {
   const tier = store.settings.ai_tier || 'pro'
-  const shouldEnable = tier === 'ultra' && Boolean(store.settings.wake_word_enabled)
+  const shouldEnable =
+    tier === 'ultra' && (Boolean(store.settings.wake_word_enabled) || Boolean(store.call_mode))
   const maxAttempts = 8
   let lastError = null
 
@@ -1707,6 +1760,42 @@ async function syncWakeWordState(reason = 'unknown') {
   }
 
   console.warn(`[NodeCore][Voice] Wake-word sync failed (${reason}) after retries: ${lastError || 'unknown error'}`)
+}
+
+async function syncPythonCallModeState(reason = 'unknown') {
+  const enabled = Boolean(store.call_mode)
+  const maxAttempts = 8
+  let lastError = null
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const pythonBase = await ensurePython()
+      const response = await fetch(`${pythonBase}/voice/call-mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+      })
+
+      if (response.ok) {
+        console.info(
+          `[NodeCore][Voice] Call-mode synced (${reason}): ${enabled ? 'enabled' : 'disabled'}${attempt > 1 ? ` (retry ${attempt}/${maxAttempts})` : ''}`
+        )
+        return
+      }
+
+      const detail = await response.text().catch(() => '')
+      lastError = `HTTP ${response.status} ${detail.slice(0, 200)}`
+    } catch (error) {
+      lastError = error?.message || String(error)
+    }
+
+    if (attempt < maxAttempts) {
+      const waitMs = 250 * attempt
+      await new Promise((resolve) => setTimeout(resolve, waitMs))
+    }
+  }
+
+  console.warn(`[NodeCore][Voice] Call-mode sync failed (${reason}) after retries: ${lastError || 'unknown error'}`)
 }
 
 async function triggerAutoTts(text) {
@@ -1949,6 +2038,38 @@ async function streamLlamaChat(req, res, payload) {
   })
 
   let assembled = ''
+  let ttsCursor = 0
+  let ttsChain = Promise.resolve()
+  const prebufferChars = Math.max(40, Number(store.settings.prebuffer_chars || 90))
+
+  const enqueueAutoTts = (chunk) => {
+    const cleaned = String(chunk || '').trim()
+    if (cleaned.length < 2) return
+    ttsChain = ttsChain.then(() => triggerAutoTts(cleaned)).catch(() => {})
+  }
+
+  const flushTtsChunks = (final = false) => {
+    if (!speakResponse || stopGenerationRequested || closed) return
+    const pending = assembled.slice(ttsCursor)
+    if (!pending) return
+    if (!final && pending.length < prebufferChars) return
+
+    let cut = -1
+    for (let i = pending.length - 1; i >= 0; i -= 1) {
+      const ch = pending[i]
+      if (ch === '.' || ch === '!' || ch === '?' || ch === '\n' || ch === ';' || ch === ':') {
+        cut = i + 1
+        break
+      }
+    }
+
+    if (!final && cut <= 0) return
+    if (final && cut <= 0) cut = pending.length
+
+    const chunk = pending.slice(0, cut).trim()
+    ttsCursor += cut
+    enqueueAutoTts(chunk)
+  }
 
   try {
     writeSse(res, { status: 'responding' })
@@ -2001,6 +2122,7 @@ async function streamLlamaChat(req, res, payload) {
         if (parsed.type === 'token') {
           assembled += parsed.token
           writeSse(res, { token: parsed.token })
+          flushTtsChunks(false)
         }
       }
     }
@@ -2009,9 +2131,7 @@ async function streamLlamaChat(req, res, payload) {
       sources: memorySources.length ? memorySources : undefined,
       graph_data: activeSkill || toolSteps.length ? { active_skill: activeSkill, tool_steps: toolSteps } : null
     })
-    if (speakResponse && !stopGenerationRequested && !closed) {
-      void triggerAutoTts(assembled.trim())
-    }
+    flushTtsChunks(true)
     writeSse(res, { done: true })
     res.end()
   } catch (error) {
@@ -2028,9 +2148,7 @@ async function streamLlamaChat(req, res, payload) {
       sources: memorySources.length ? memorySources : undefined,
       graph_data: activeSkill || toolSteps.length ? { active_skill: activeSkill, tool_steps: toolSteps } : null
     })
-    if (speakResponse && !stopGenerationRequested && !closed) {
-      void triggerAutoTts((assembled.trim() || fallbackMsg || '').trim())
-    }
+    flushTtsChunks(true)
     writeSse(res, { done: true })
     res.end()
   } finally {
@@ -2114,9 +2232,7 @@ async function maybeRestartLlamaOnTierChange(prevTier, nextTier, prevBackend, ne
 }
 
 function getSetupInfo() {
-  const exeName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'
-  const backend = pickBackend(store.settings.local_backend || 'auto')
-  const localInstalled = !!backend && fs.existsSync(path.join(CORE_PATH, 'bin', backend, exeName))
+  const localInstalled = hasBackendBinary('vulkan') || hasBackendBinary('cpu')
   return {
     local_installed: localInstalled,
     installed_version: process.env.npm_package_version || '1.0.0',
@@ -2172,6 +2288,9 @@ async function handleRequest(req, res) {
       auto_start_llm: autoStart,
       llama_runtime: {
         current_tier: llamaState.currentTier,
+        backend_active: llamaState.backend,
+        backend_reason: llamaState.backendReason,
+        backend_mode: llamaState.backendMode || normalizeBackendMode(store.settings.local_backend || 'auto'),
         configured_model_file: llamaState.configuredModelFile,
         loaded_model_path: llamaState.modelPath,
         loaded_model_file: llamaState.modelPath ? path.basename(llamaState.modelPath) : null,
@@ -2197,6 +2316,11 @@ async function handleRequest(req, res) {
       installed_version: setup.installed_version,
       latest_version: setup.latest_version,
       ai_tier: store.settings.ai_tier || 'pro',
+      llama_runtime: {
+        backend_active: llamaState.backend,
+        backend_reason: llamaState.backendReason,
+        backend_mode: llamaState.backendMode || normalizeBackendMode(store.settings.local_backend || 'auto')
+      },
       semantic_runtime: buildSemanticRuntimeStatus(),
       prompt_runtime: promptRegistry.getRuntimeStatus(),
       tiers_config: tiersConfig
@@ -2212,7 +2336,7 @@ async function handleRequest(req, res) {
     }
 
     const prevTier = store.settings.ai_tier || 'pro'
-    const prevBackend = store.settings.local_backend || 'auto'
+    const prevBackend = normalizeBackendMode(store.settings.local_backend || 'auto')
 
     store.mode = 'local'
     store.settings.ai_tier = requestedTier
@@ -2229,7 +2353,7 @@ async function handleRequest(req, res) {
       prevTier,
       requestedTier,
       prevBackend,
-      store.settings.local_backend || 'auto'
+      normalizeBackendMode(store.settings.local_backend || 'auto')
     )
     void syncWakeWordState('setup_apply_tier')
 
@@ -2259,7 +2383,12 @@ async function handleRequest(req, res) {
 
     broadcast({ type: 'model_changed', data: { new_mode: 'local' } })
 
-    await maybeRestartLlamaOnTierChange(prevTier, mode, store.settings.local_backend, store.settings.local_backend)
+    await maybeRestartLlamaOnTierChange(
+      prevTier,
+      mode,
+      normalizeBackendMode(store.settings.local_backend || 'auto'),
+      normalizeBackendMode(store.settings.local_backend || 'auto')
+    )
     void syncWakeWordState('mode_change')
 
     sendJson(res, 200, { status: 'ok', mode: 'local' })
@@ -2289,6 +2418,8 @@ async function handleRequest(req, res) {
 
     store.call_mode = enabled
     saveStore()
+    void syncPythonCallModeState('call_mode_change')
+    void syncWakeWordState('call_mode_change')
     sendJson(res, 200, { status: 'ok', call_mode: store.call_mode })
     return
   }
@@ -2314,6 +2445,7 @@ async function handleRequest(req, res) {
     }
 
     store.settings = { ...store.settings, ...payload }
+    store.settings.local_backend = normalizeBackendMode(store.settings.local_backend || 'auto')
 
     if (store.settings.ai_tier === 'lite') {
       store.settings.tts_enabled = false
@@ -2329,7 +2461,7 @@ async function handleRequest(req, res) {
       prevTier,
       store.settings.ai_tier || 'pro',
       prevBackend,
-      store.settings.local_backend || 'auto'
+      normalizeBackendMode(store.settings.local_backend || 'auto')
     )
     void syncWakeWordState('settings_patch')
 

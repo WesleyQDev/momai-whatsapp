@@ -56,6 +56,7 @@ const CallModeContent = ({
   status?: 'idle' | 'listening' | 'processing'
 }) => {
   const { t } = useI18n()
+  const isSttReady = status === 'idle' || status === 'listening'
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8 bg-transparent">
@@ -70,10 +71,14 @@ const CallModeContent = ({
         />
 
         {/* Animated Rings */}
-        {status === 'listening' && (
+        {isSttReady && (
           <>
-            <div className="absolute inset-[-4px] border-2 border-accent/30 rounded-full animate-[ping_2s_infinite]" />
-            <div className="absolute inset-[-12px] border border-accent/10 rounded-full animate-[ping_3s_infinite]" />
+            <div
+              className={`absolute inset-[-4px] border-2 rounded-full animate-[ping_2s_infinite] ${status === 'listening' ? 'border-accent/30' : 'border-accent/20'}`}
+            />
+            <div
+              className={`absolute inset-[-12px] border rounded-full animate-[ping_3s_infinite] ${status === 'listening' ? 'border-accent/10' : 'border-accent/5'}`}
+            />
           </>
         )}
 
@@ -88,21 +93,36 @@ const CallModeContent = ({
           {status === 'processing' ? (
             <div className="w-10 h-10 border-4 border-white/10 border-t-white rounded-full animate-spin" />
           ) : (
-            <svg
-              width="36"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-white"
-            >
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-              <line x1="12" y1="19" x2="12" y2="22" />
-            </svg>
+            <div className="relative flex items-center justify-center">
+              <svg
+                width="36"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-white"
+              >
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="22" />
+              </svg>
+              {isSttReady && (
+                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-end gap-1">
+                  <span
+                    className={`stt-eq-bar h-2 w-1 rounded-full ${status === 'listening' ? 'bg-white/90' : 'bg-white/55'}`}
+                  />
+                  <span
+                    className={`stt-eq-bar stt-eq-bar--2 h-3 w-1 rounded-full ${status === 'listening' ? 'bg-white' : 'bg-white/65'}`}
+                  />
+                  <span
+                    className={`stt-eq-bar stt-eq-bar--3 h-2.5 w-1 rounded-full ${status === 'listening' ? 'bg-white/90' : 'bg-white/55'}`}
+                  />
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

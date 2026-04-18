@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --bg-main: 10 10 10;
+    --bg-main: 24 24 24;
     --bg-card: 18 18 18;
     --bg-sidebar: 10 10 10;
     --bg-input: 25 25 25;
@@ -255,4 +255,29 @@
 
 .animate-fade-in {
   animation: fade-in 0.5s ease-out forwards;
+}
+
+@keyframes stt-eq {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.stt-eq-bar {
+  transform-origin: center bottom;
+  animation: stt-eq 0.75s ease-in-out infinite;
+}
+
+.stt-eq-bar--2 {
+  animation-delay: 0.12s;
+}
+
+.stt-eq-bar--3 {
+  animation-delay: 0.24s;
 }

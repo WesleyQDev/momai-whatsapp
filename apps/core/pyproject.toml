@@ -6,27 +6,17 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.128.0",
-    "apscheduler>=3.11.2",
     "huggingface-hub>=1.3.2",
-    "langchain-community>=0.4.1",
-    "ddgs>=9.10.0",
+    "httpx>=0.28.0",
+    "numpy>=2.3.3",
+    "sqlalchemy>=2.0.44",
     "psutil>=7.2.1",
     "sounddevice>=0.5.4",
-    "requests>=2.32.5",
-    "rich>=14.2.0",
-    "pluggy>=1.6.0",
     "ctranslate2>=4.4.0,<4.8.0",
     "kokoro-onnx>=0.5.0",
     "faster-whisper>=1.2.1,<1.3.0",
-    "pyyaml>=6.0.2",
     "python-dotenv>=1.0.1",
     "onnxruntime>=1.20.0,<1.25.0",
-    "fortscript>=0.4.0",
-    "playwright>=1.58.0",
-    "beautifulsoup4>=4.14.3",
-    "pyautogui>=0.9.54",
-    "uiautomation>=2.0.29",
-    "pillow>=12.1.1",
 ]
 
 [project.optional-dependencies]
@@ -34,7 +24,6 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
     "pytest-mock>=3.14.0",
-    "httpx>=0.28.0",
 ]
 
 [build-system]
@@ -46,7 +35,7 @@ include-package-data = false
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["api*", "agents*", "database*", "domain*", "services*", "tools*", "utils*"]
+include = ["api*", "database*", "services*", "utils*"]
 exclude = ["data*", "notes*", "models*", "momai_db*"]
 
 [tool.pytest.ini_options]

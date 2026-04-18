@@ -1,0 +1,8 @@
+{
+  "version": "b8838",
+  "backend": "vulkan",
+  "build_type": "Vulkan (AMD/Intel)",
+  "gpu": "AMD Radeon RX 6600",
+  "cpu": "AMD Ryzen 5 5600G with Radeon Graphics",
+  "install_date": "2026-04-18T17:21:41.1982899-03:00"
+}

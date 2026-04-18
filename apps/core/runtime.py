@@ -69,9 +69,7 @@ def install_uvicorn_access_filter() -> None:
 
     logging.getLogger("uvicorn.error").addFilter(UvicornErrorFilter())
 
-    # Silence third-party schedulers and HTTP clients
-    logging.getLogger("apscheduler.scheduler").setLevel(logging.WARNING)
-    logging.getLogger("apscheduler.executors.default").setLevel(logging.WARNING)
+    # Silence third-party HTTP client logs
     logging.getLogger("httpx").setLevel(logging.WARNING)
 
 

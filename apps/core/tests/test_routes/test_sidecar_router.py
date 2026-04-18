@@ -1,4 +1,7 @@
-from api.router import api_router
+from api.router import api_router, include_routes
+
+
+include_routes()
 
 
 def test_sidecar_routes_contract():
@@ -12,10 +15,9 @@ def test_sidecar_routes_contract():
     expected = {
         ("/voice/quick-transcribe", "POST"),
         ("/voice/wake-word", "POST"),
+        ("/voice/call-mode", "POST"),
         ("/chat/speak", "POST"),
         ("/chat/stop-voice", "POST"),
-        ("/plugins/list", "GET"),
-        ("/plugins/execute", "POST"),
     }
 
     missing = expected - routes

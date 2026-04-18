@@ -1,6 +1,4 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-
 from pydantic import BaseModel
 
 
@@ -86,15 +84,3 @@ class ExtensionActionRequest(BaseModel):
     payload: dict | None = None
 
 
-class PluginExecuteRequest(BaseModel):
-    skill_id: str
-    tool_name: str
-    args: Dict[str, Any]
-
-
-class PluginInfo(BaseModel):
-    id: str
-    name: str
-    description: str
-    intents: Optional[List[str]] = None
-    tools: List[str] = []

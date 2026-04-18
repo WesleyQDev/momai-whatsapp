@@ -398,6 +398,11 @@ export function useChatActions({
 
   const toggleCallMode = useCallback(async () => {
     const newState = !isCallMode
+    if (newState) {
+      await Promise.allSettled([stopGenerationApi(), stopVoiceApi()])
+      setIsLoading(false)
+      setSpeakingIndex(null)
+    }
     setIsCallMode(newState)
     setCallHistory([])
     if (!newState) {
@@ -408,7 +413,7 @@ export function useChatActions({
     } catch (err) {
       console.error('Erro ao alterar modo chamada:', err)
     }
-  }, [isCallMode, setIsCallMode, setCallHistory, stopVoice])
+  }, [isCallMode, setIsCallMode, setCallHistory, stopVoice, setIsLoading, setSpeakingIndex])
 
   const handleGraphOption = useCallback(
     (option: string) => {
