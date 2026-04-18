@@ -10,6 +10,7 @@ import {
   Notification
 } from 'electron'
 import { join } from 'path'
+import { existsSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
 import {
   state,
@@ -36,7 +37,22 @@ async function controlWakeWord(enabled: boolean): Promise<void> {
   }
 }
 
-const ICON_PATH = join(__dirname, '../../resources/icon.png')
+function resolveIconPath(): string {
+  const candidatePaths = [
+    join(__dirname, '../../resources/icon.png'),
+    join(app.getAppPath(), 'resources/icon.png'),
+    join(process.resourcesPath, 'icon.png'),
+    join(process.resourcesPath, 'resources/icon.png')
+  ]
+
+  for (const iconPath of candidatePaths) {
+    if (existsSync(iconPath)) return iconPath
+  }
+
+  return join(__dirname, '../../resources/icon.png')
+}
+
+const ICON_PATH = resolveIconPath()
 
 let isWindowMinimizing = false
 

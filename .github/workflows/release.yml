@@ -158,14 +158,27 @@ jobs:
 
           chmod +x "$PYTHON_EXE"
           mkdir -p "$WHEELS_DIR"
-          "$PYTHON_EXE" -m pip download \
-            -d "$WHEELS_DIR" \
-            -r "$LOCK_FILE" \
-            --only-binary :all: \
-            --platform manylinux2014_x86_64 \
-            --python-version 3.12 \
-            --implementation cp \
-            --quiet
+          PLATFORMS=("manylinux2014_x86_64" "manylinux_2_28_x86_64")
+          DOWNLOAD_OK=0
+          for PLATFORM in "${PLATFORMS[@]}"; do
+            echo "Trying wheel download for $PLATFORM..."
+            if "$PYTHON_EXE" -m pip download \
+              -d "$WHEELS_DIR" \
+              -r "$LOCK_FILE" \
+              --only-binary :all: \
+              --platform "$PLATFORM" \
+              --python-version 3.12 \
+              --implementation cp \
+              --quiet; then
+              DOWNLOAD_OK=1
+              echo "Wheel download succeeded for $PLATFORM"
+              break
+            fi
+          done
+
+          if [ "$DOWNLOAD_OK" -ne 1 ]; then
+            echo "WARNING: Could not pre-download all Linux wheels. Build will continue with online fallback."
+          fi
 
       - name: Build Linux
         run: pnpm --filter momai build:linux

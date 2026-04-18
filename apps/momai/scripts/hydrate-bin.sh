@@ -70,31 +70,45 @@ else
     mkdir -p "$WHEELS_DIR"
 
     if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
-        PIP_PLATFORM="manylinux2014_aarch64"
+        PIP_PLATFORMS=("manylinux2014_aarch64" "manylinux_2_28_aarch64")
     else
-        PIP_PLATFORM="manylinux2014_x86_64"
+        PIP_PLATFORMS=("manylinux2014_x86_64" "manylinux_2_28_x86_64")
     fi
 
-    echo "[MomAI] Downloading dependency wheels for $PIP_PLATFORM..."
-    "$PYTHON_EXE" -m pip download \
-        -d "$WHEELS_DIR" \
-        -r "$LOCK_FILE" \
-        --only-binary :all: \
-        --platform "$PIP_PLATFORM" \
-        --python-version 3.12 \
-        --implementation cp \
-        --quiet
+    depsDownloadExitCode=1
+    for PIP_PLATFORM in "${PIP_PLATFORMS[@]}"; do
+        echo "[MomAI] Downloading dependency wheels for $PIP_PLATFORM..."
+        set +e
+        "$PYTHON_EXE" -m pip download \
+            -d "$WHEELS_DIR" \
+            -r "$LOCK_FILE" \
+            --only-binary :all: \
+            --platform "$PIP_PLATFORM" \
+            --python-version 3.12 \
+            --implementation cp \
+            --quiet
+        depsDownloadExitCode=$?
+        set -e
+        if [ $depsDownloadExitCode -eq 0 ]; then
+            echo "[MomAI] Dependency wheels downloaded successfully for $PIP_PLATFORM."
+            break
+        fi
+        echo "[MomAI] WARNING: Wheel download failed for $PIP_PLATFORM. Trying fallback platform..."
+    done
 
     # Also download build-system dependencies for fully offline builds
     echo "[MomAI] Downloading build-system wheels..."
+    set +e
     "$PYTHON_EXE" -m pip download \
         -d "$WHEELS_DIR" \
         "setuptools>=69" "wheel" \
         --only-binary :all: \
         --python-version 3.12 \
         --quiet
+    buildDepsDownloadExitCode=$?
+    set -e
 
-    if [ $? -ne 0 ]; then
+    if [ $depsDownloadExitCode -ne 0 ] || [ $buildDepsDownloadExitCode -ne 0 ]; then
         echo "[MomAI] WARNING: Some wheels failed to download. Runtime will fallback to internet."
     else
         # Build FortScript wheel from monorepo and add to wheels cache
