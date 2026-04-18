@@ -22,7 +22,7 @@ Mapear entidades de dados, persistencia e politicas de retencao no contexto loca
 
 - Arquivo local (`node-core-store.json`): sessoes, mensagens, settings e reminders no Core Node.
 - SQLite: dados estruturados e historicos mantidos por componentes legados/sidecar.
-- LanceDB: indice vetorial para busca semantica e roteamento.
+- LanceDB: indice vetorial local para busca semantica de notas e descoberta de skills/tools (pipeline Ultra no Node Core).
 - Arquivos locais: configuracoes, modelos GGUF e artefatos operacionais.
 
 ## Regras de retencao (baseline)

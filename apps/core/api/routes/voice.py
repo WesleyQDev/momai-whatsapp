@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import logging
@@ -14,6 +15,49 @@ class TranscriptionResponse(BaseModel):
 
 # Singleton do transcriber (inicializado lazy)
 _transcriber = None
+
+
+async def ensure_wake_word_detector():
+    """Lazy-initialize wake word detector and callbacks on first use."""
+    import app_state
+
+    if app_state.ww:
+        return app_state.ww
+
+    await app_state.initialize_ai_stack()
+    if not app_state.WakeWordDetector:
+        raise RuntimeError("Wake word detector unavailable")
+
+    def _on_status(status: str):
+        if app_state.main_loop:
+            asyncio.run_coroutine_threadsafe(
+                app_state.broadcast_to_sockets({"type": "voice_status", "status": status}),
+                app_state.main_loop,
+            )
+
+    def _on_partial(text: str):
+        if app_state.main_loop:
+            asyncio.run_coroutine_threadsafe(
+                app_state.broadcast_to_sockets({"type": "voice_partial", "text": text}),
+                app_state.main_loop,
+            )
+
+    def _on_command(text: str):
+        if app_state.main_loop:
+            asyncio.run_coroutine_threadsafe(
+                app_state.process_voice_command(text, speak_response=True),
+                app_state.main_loop,
+            )
+
+    app_state.ww = app_state.WakeWordDetector(
+        keyword="luna",
+        variants=["luna", "computador"],
+        callback=_on_command,
+        status_callback=_on_status,
+        partial_callback=_on_partial,
+        bypass_condition=app_state.is_call_mode,
+    )
+    return app_state.ww
 
 
 def get_transcriber():
@@ -79,9 +123,6 @@ async def control_wake_word(control: WakeWordControl):
     try:
         import app_state
 
-        if not app_state.ww:
-            return {"success": False, "message": "Wake word detector not initialized"}
-
         # Prevent enabling if Lite tier
         from database.models import SessionLocal, Settings
         db = SessionLocal()
@@ -90,6 +131,12 @@ async def control_wake_word(control: WakeWordControl):
         
         if control.enabled and settings and settings.ai_tier != "ultra":
             return {"success": False, "message": "Wake word only available in Ultra tier"}
+
+        if control.enabled and not app_state.ww:
+            await ensure_wake_word_detector()
+
+        if not app_state.ww:
+            return {"success": False, "message": "Wake word detector not initialized"}
 
         if control.enabled:
             app_state.ww.wake_word_active = True

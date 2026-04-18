@@ -18,6 +18,11 @@ export function useChatState() {
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
   const [isCallMode, setIsCallMode] = useState(false)
   const [voiceStatus, setVoiceStatus] = useState<'idle' | 'listening' | 'processing'>('idle')
+  const [voiceEngineLoading, setVoiceEngineLoading] = useState<{
+    loading: boolean
+    pendingAutoTts: boolean
+    message: string
+  } | null>(null)
   const [callHistory, setCallHistory] = useState<
     { id: string; role: 'user' | 'assistant'; content: string }[]
   >([])
@@ -72,6 +77,8 @@ export function useChatState() {
     setIsCallMode,
     voiceStatus,
     setVoiceStatus,
+    voiceEngineLoading,
+    setVoiceEngineLoading,
     callHistory,
     setCallHistory,
     graphState,

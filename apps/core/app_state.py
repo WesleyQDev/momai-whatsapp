@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import time
 from datetime import datetime
 from typing import Any
@@ -59,6 +60,51 @@ def set_call_mode(enabled: bool) -> None:
 _ai_stack_lock = asyncio.Lock()
 _extension_manager_lock = asyncio.Lock()
 
+
+def _bind_tts_callbacks(tts_module) -> None:
+    """Attach TTS lifecycle callbacks to websocket events."""
+    if not tts_module:
+        return
+
+    def on_tts_start():
+        if main_loop:
+            asyncio.run_coroutine_threadsafe(
+                broadcast_to_sockets({"type": "tts_start"}), main_loop
+            )
+
+    def on_tts_stop():
+        if main_loop:
+            asyncio.run_coroutine_threadsafe(
+                broadcast_to_sockets({"type": "tts_stop"}), main_loop
+            )
+
+    tts_module.tts.on_speech_start = on_tts_start
+    tts_module.tts.on_speech_stop = on_tts_stop
+
+
+def ensure_tts_runtime(prewarm: bool = False):
+    """Ensure TTS module is imported and callbacks are wired."""
+    global tts
+
+    if tts is None:
+        try:
+            import services.voice.tts as t
+        except Exception as e:
+            logger.warning("[Main] TTS import skipped: %s", e)
+            return None
+        tts = t
+        _bind_tts_callbacks(tts)
+        logger.info("[Main] TTS runtime loaded")
+
+    if prewarm:
+        try:
+            tts.tts.initialize()
+            logger.info("[Main] TTS prewarm requested")
+        except Exception as e:
+            logger.warning("[Main] TTS prewarm failed: %s", e)
+
+    return tts
+
 async def initialize_ai_stack() -> None:
     """Lazy load heavy AI modules."""
     global \
@@ -108,30 +154,7 @@ async def initialize_ai_stack() -> None:
 
     ReminderManager = RM
 
-    try:
-        import services.voice.tts as t
-    except Exception as e:
-        logger.warning("[Main] TTS import skipped: %s", e)
-        t = None
-
-    tts = t
-
-    if t:
-        # Connect TTS callbacks to socket broadcast
-        def on_tts_start():
-            if main_loop:
-                asyncio.run_coroutine_threadsafe(
-                    broadcast_to_sockets({"type": "tts_start"}), main_loop
-                )
-
-        def on_tts_stop():
-            if main_loop:
-                asyncio.run_coroutine_threadsafe(
-                    broadcast_to_sockets({"type": "tts_stop"}), main_loop
-                )
-
-        t.tts.on_speech_start = on_tts_start
-        t.tts.on_speech_stop = on_tts_stop
+    ensure_tts_runtime(prewarm=False)
 
     from services.extensions.manager import extension_manager as em
 
@@ -243,7 +266,7 @@ async def send_init_event(stage: str, message: str, progress: int | None = None)
 
 
 async def process_voice_command(text: str, speak_response: bool = True) -> None:
-    """Processes a recognized voice command through the AI engine."""
+    """Processes wake-word voice command through Node core chat stream."""
     # If the text is empty, the user just said the keyword.
     # We provide a prompt to show we are listening.
     if not text or len(text.strip()) < 2:
@@ -254,24 +277,43 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
 
     await broadcast_to_sockets({"type": "user", "content": text})
 
-    from api.schemas import ChatMessage
-
-    msg = ChatMessage(content=text, thread_id=last_thread_id)
+    node_host = os.getenv("MOMAI_NODE_CORE_HOST", "127.0.0.1")
+    node_port = int(os.getenv("MOMAI_NODE_CORE_PORT", "8000"))
+    node_url = f"http://{node_host}:{node_port}/chat/stream"
     try:
-        logger.debug("[Voice] Calling generate...")
+        import httpx
+
+        logger.debug("[Voice] Calling node stream: %s", node_url)
         await broadcast_to_sockets({"type": "assistant", "data": {"status": "Pensando..."}})
-        
-        async for chunk in generate(msg, speak_response=speak_response):
-            if chunk.startswith("data: "):
-                json_str = chunk.replace("data: ", "").strip()
-                if not json_str:
-                    continue
-                try:
-                    data = json.loads(json_str)
+
+        payload = {
+            "content": text,
+            "thread_id": last_thread_id,
+            "speak_response": bool(speak_response),
+        }
+
+        timeout = httpx.Timeout(connect=5.0, read=120.0, write=15.0, pool=5.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            async with client.stream("POST", node_url, json=payload) as response:
+                if response.status_code >= 400:
+                    detail = await response.aread()
+                    raise RuntimeError(
+                        f"Node stream failed: HTTP {response.status_code} {detail[:240]!r}"
+                    )
+
+                async for line in response.aiter_lines():
+                    if not line or not line.startswith("data: "):
+                        continue
+                    json_str = line.replace("data: ", "", 1).strip()
+                    if not json_str:
+                        continue
+                    try:
+                        data = json.loads(json_str)
+                    except json.JSONDecodeError as e:
+                        logger.debug("[Voice] Failed to decode stream chunk: %s", e)
+                        continue
                     await broadcast_to_sockets({"type": "assistant", "data": data})
-                except json.JSONDecodeError as e:
-                    logger.debug("[Voice] Failed to decode stream chunk: %s", e)
-        logger.debug("[Voice] Generate completed")
+        logger.debug("[Voice] Node stream completed")
     except Exception as exc:
         logger.exception("Error processing voice: %s", exc)
         await broadcast_to_sockets({"type": "assistant", "data": {"error": str(exc)}})

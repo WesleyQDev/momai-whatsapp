@@ -12,6 +12,10 @@ Detalhar componentes criticos em Desktop e Core.
 ## Core Node (`apps/momai`)
 
 - `scripts/node-core.js`: backend local primario (HTTP + WS) e orquestracao runtime.
+- Runtime semantico local no `node-core` (Ultra-first):
+  - servidor de embeddings (`llama-server --embedding`) sob demanda;
+  - indice vetorial local (LanceDB) para notas/skills/tools;
+  - execucao automatica de skills criticas (`scheduler`, `memory`, `search`) no hot path do chat Ultra.
 - `src/main/coreManager.ts`: lifecycle do backend Node e retry/backoff de processo.
 - Integracao com `llama.cpp` (`apps/core/bin/*/llama-server`) para inferencia local.
 - Persistencia local de runtime (sessoes, settings, reminders e metadados de chat).

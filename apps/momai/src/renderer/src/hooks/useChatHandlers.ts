@@ -15,6 +15,13 @@ interface UseChatHandlersProps {
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   setSpeakingIndex: React.Dispatch<React.SetStateAction<number | null>>
   setVoiceStatus: React.Dispatch<React.SetStateAction<'idle' | 'listening' | 'processing'>>
+  setVoiceEngineLoading: React.Dispatch<
+    React.SetStateAction<{
+      loading: boolean
+      pendingAutoTts: boolean
+      message: string
+    } | null>
+  >
   setCallHistory: React.Dispatch<React.SetStateAction<{ id: string; role: 'user' | 'assistant'; content: string }[]>>
   setGraphState: React.Dispatch<React.SetStateAction<any>>
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>
@@ -33,6 +40,7 @@ export function useChatHandlers({
   setMessages,
   setSpeakingIndex,
   setVoiceStatus,
+  setVoiceEngineLoading,
   setCallHistory,
   setGraphState,
   setIsLoading,
@@ -65,6 +73,21 @@ export function useChatHandlers({
       setSpeakingIndex(null)
     } else if (msg.type === 'voice_status') {
       setVoiceStatus(msg.status)
+    } else if (msg.type === 'voice_engine_loading') {
+      const data = msg.data || {}
+      setVoiceEngineLoading({
+        loading: Boolean(data.loading),
+        pendingAutoTts: Boolean(data.pending_auto_tts),
+        message:
+          String(data.message || '').trim() ||
+          'Motor de voz carregando... vou reproduzir automaticamente quando estiver pronto.'
+      })
+
+      if (!data.loading) {
+        setTimeout(() => {
+          setVoiceEngineLoading(null)
+        }, 3500)
+      }
     } else if (msg.type === 'tool_start') {
       const toolId = msg.data?.id || `${msg.data?.name || 'tool'}-${Date.now()}`
       setMessages((prev) => {
@@ -496,6 +519,7 @@ export function useChatHandlers({
     setMessages,
     setSpeakingIndex,
     setVoiceStatus,
+    setVoiceEngineLoading,
     setCallHistory,
     setGraphState,
     setIsLoading,

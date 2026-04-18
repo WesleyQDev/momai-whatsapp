@@ -5,6 +5,8 @@ const fs = require('node:fs')
 const os = require('node:os')
 const crypto = require('node:crypto')
 const { spawn } = require('node:child_process')
+const { createSkillRegistry } = require('./skills/registry')
+const { createPromptRegistry } = require('./prompt-registry')
 
 const HOST = process.env.MOMAI_NODE_CORE_HOST || '127.0.0.1'
 const PORT = Number(process.env.MOMAI_NODE_CORE_PORT || 8000)
@@ -21,6 +23,19 @@ const PYTHON_BASE_URL = `http://${PYTHON_HOST}:${PYTHON_PORT}`
 const LLAMA_HOST = '127.0.0.1'
 const LLAMA_PORT = Number(process.env.MOMAI_LLAMA_PORT || 8080)
 const LLAMA_BASE_URL = `http://${LLAMA_HOST}:${LLAMA_PORT}`
+const EMBEDDING_PORT = Number(process.env.MOMAI_EMBEDDING_PORT || 8081)
+const EMBEDDING_BASE_URL = `http://${LLAMA_HOST}:${EMBEDDING_PORT}`
+
+const NOTES_DIR = path.join(DATA_DIR, 'notes')
+const NOTES_INDEX_FILE = path.join(NOTES_DIR, '.index.json')
+const SEMANTIC_DIR = path.join(DATA_DIR, 'semantic')
+const SEMANTIC_DB_DIR = path.join(SEMANTIC_DIR, 'lancedb')
+const PROMPTS_DIR = path.resolve(__dirname, '..', 'prompts')
+
+const MAX_EMBEDDING_CACHE_SIZE = 512
+const EMBEDDING_CACHE_TTL_MS = 10 * 60 * 1000
+const EMBEDDING_TIMEOUT_MS = 450
+const SEMANTIC_SYNC_INTERVAL_MS = 30 * 1000
 
 let WebSocketServer = null
 try {
@@ -32,6 +47,14 @@ try {
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true })
 }
+
+const skillRegistry = createSkillRegistry({
+  dataDir: DATA_DIR,
+  builtinSkillsDir: path.join(__dirname, 'skills', 'core')
+})
+const promptRegistry = createPromptRegistry({
+  promptsDir: PROMPTS_DIR
+})
 
 const DEFAULT_TIERS = {
   lite: {
@@ -107,11 +130,11 @@ applyPerformanceProfile()
 
 function defaultStore() {
   const now = new Date().toISOString()
+  const promptDefaults = promptRegistry.getDefaults()
   return {
     settings: {
       user_name: 'Senhor',
-      assistant_persona:
-        'You are MomAI, a professional and efficient local AI assistant created by Wesley Developer Studios.',
+      assistant_persona: promptDefaults.assistant_persona,
       ai_provider: 'local',
       ai_model: 'Qwen 3.5',
       local_backend: 'auto',
@@ -312,6 +335,865 @@ function advanceReminder(reminder) {
   else reminder.is_active = false
 
   reminder.scheduled_time = current.toISOString()
+}
+
+function ensureDir(dirPath) {
+  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true })
+}
+
+function sha1(text) {
+  return crypto.createHash('sha1').update(String(text || ''), 'utf8').digest('hex')
+}
+
+function percentile(values, p) {
+  if (!Array.isArray(values) || !values.length) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const idx = Math.max(0, Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1))
+  return Math.round(sorted[idx] * 100) / 100
+}
+
+function rollingPush(list, value, max = 120) {
+  if (!Number.isFinite(value)) return
+  list.push(value)
+  if (list.length > max) list.splice(0, list.length - max)
+}
+
+function buildSemanticRuntimeStatus() {
+  const totalQueries = semanticState.queryCount
+  const fallbackRate = totalQueries > 0 ? semanticState.fallbackCount / totalQueries : 0
+  return {
+    enabled: semanticState.enabled,
+    ready: semanticState.ready,
+    degraded: semanticState.degraded,
+    last_fallback_reason: semanticState.lastFallbackReason,
+    fallback_rate: Math.round(fallbackRate * 1000) / 1000,
+    embedding_p50_ms: percentile(semanticState.latency.embeddingMs, 50),
+    embedding_p95_ms: percentile(semanticState.latency.embeddingMs, 95),
+    retrieval_p50_ms: percentile(semanticState.latency.retrievalMs, 50),
+    retrieval_p95_ms: percentile(semanticState.latency.retrievalMs, 95),
+    tool_exec_p50_ms: percentile(semanticState.latency.toolExecMs, 50),
+    tool_exec_p95_ms: percentile(semanticState.latency.toolExecMs, 95)
+  }
+}
+
+async function loadLanceModule() {
+  if (semanticState.lanceModule) return semanticState.lanceModule
+  semanticState.lanceModule = await import('@lancedb/lancedb')
+  return semanticState.lanceModule
+}
+
+function pickEmbeddingModelPath() {
+  if (!fs.existsSync(MODELS_DIR)) return null
+  const candidates = fs
+    .readdirSync(MODELS_DIR)
+    .filter((name) => name.toLowerCase().includes('embedding') && name.toLowerCase().endsWith('.gguf'))
+    .sort((a, b) => a.localeCompare(b))
+  if (!candidates.length) return null
+  return path.join(MODELS_DIR, candidates[0])
+}
+
+const semanticState = {
+  enabled: false,
+  ready: false,
+  degraded: false,
+  lastFallbackReason: null,
+  fallbackCount: 0,
+  queryCount: 0,
+  lastNotesSyncAt: 0,
+  lastSkillSyncAt: 0,
+  notesSnapshotHash: null,
+  lanceModule: null,
+  db: null,
+  tableNotes: null,
+  tableSkills: null,
+  tableTools: null,
+  embedding: {
+    process: null,
+    starting: false,
+    startingPromise: null,
+    ready: false,
+    backend: null,
+    modelPath: null,
+    lastError: null,
+    cache: new Map()
+  },
+  latency: {
+    embeddingMs: [],
+    retrievalMs: [],
+    toolExecMs: []
+  }
+}
+
+function isSkillEnabledByStore(skill) {
+  if (!skill || skill.kind === 'builtin') return true
+  const entry = store.extensions.find((e) => e.id === skill.id)
+  if (!entry) return true
+  return entry.enabled !== false
+}
+
+function getEnabledSkills() {
+  return skillRegistry.getAll().filter((s) => s.enabled && isSkillEnabledByStore(s))
+}
+
+function getEnabledSkillManifests() {
+  return getEnabledSkills().map((s) => s.manifest)
+}
+
+function buildExtensionsPayload() {
+  return skillRegistry.getAll().map((skill) => ({
+    id: skill.manifest.id,
+    name: skill.manifest.name,
+    description: skill.manifest.description,
+    category: skill.kind,
+    enabled: skill.enabled && isSkillEnabledByStore(skill),
+    intents: skill.manifest.intents || [],
+    tools: (skill.manifest.tools || []).map((t) => t.name),
+    features: {
+      sidebar: true,
+      agent_name: skill.manifest.id
+    }
+  }))
+}
+
+function getToolCatalogRows() {
+  const out = []
+  for (const skill of getEnabledSkillManifests()) {
+    for (const tool of skill.tools) {
+      out.push({
+        id: `${skill.id}:${tool.name}`,
+        skill_id: skill.id,
+        name: tool.name,
+        description: tool.description,
+        text: `${tool.name}. ${tool.description}. Skill: ${skill.name}.`
+      })
+    }
+  }
+  return out
+}
+
+function getSkillCatalogRows() {
+  return getEnabledSkillManifests().map((skill) => ({
+    id: skill.id,
+    name: skill.name,
+    description: skill.description,
+    text: `${skill.name}. ${skill.description}. Intents: ${skill.intents.join(', ')}.`
+  }))
+}
+
+function cleanupEmbeddingCache() {
+  const now = Date.now()
+  for (const [key, item] of semanticState.embedding.cache.entries()) {
+    if (!item || now - item.ts > EMBEDDING_CACHE_TTL_MS) {
+      semanticState.embedding.cache.delete(key)
+    }
+  }
+  if (semanticState.embedding.cache.size <= MAX_EMBEDDING_CACHE_SIZE) return
+  const entries = [...semanticState.embedding.cache.entries()].sort((a, b) => a[1].ts - b[1].ts)
+  const toDelete = entries.slice(0, entries.length - MAX_EMBEDDING_CACHE_SIZE)
+  for (const [key] of toDelete) semanticState.embedding.cache.delete(key)
+}
+
+function withTimeout(promise, timeoutMs, timeoutReason) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(timeoutReason)), timeoutMs)
+    promise
+      .then((value) => {
+        clearTimeout(timer)
+        resolve(value)
+      })
+      .catch((err) => {
+        clearTimeout(timer)
+        reject(err)
+      })
+  })
+}
+
+async function checkEmbeddingHealth() {
+  const resp = await fetch(`${EMBEDDING_BASE_URL}/health`, { method: 'GET' })
+  return resp.ok
+}
+
+async function stopEmbeddingServer() {
+  const proc = semanticState.embedding.process
+  semanticState.embedding.ready = false
+  semanticState.embedding.starting = false
+  semanticState.embedding.startingPromise = null
+  if (!proc || proc.killed || proc.exitCode !== null) {
+    semanticState.embedding.process = null
+    return
+  }
+
+  await new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      try {
+        proc.kill('SIGKILL')
+      } catch {}
+    }, 2000)
+    proc.once('exit', () => {
+      clearTimeout(timer)
+      resolve()
+    })
+    try {
+      proc.kill('SIGTERM')
+    } catch {
+      clearTimeout(timer)
+      resolve()
+    }
+  })
+  semanticState.embedding.process = null
+}
+
+async function ensureEmbeddingReady() {
+  if ((store.settings.ai_tier || 'pro') !== 'ultra') return false
+  if (semanticState.embedding.ready) return true
+  if (semanticState.embedding.startingPromise) return semanticState.embedding.startingPromise
+
+  const backend = pickBackend(store.settings.local_backend || 'auto')
+  const modelPath = pickEmbeddingModelPath()
+  if (!backend || !modelPath) {
+    semanticState.degraded = true
+    semanticState.lastFallbackReason = !modelPath
+      ? 'embedding model not found'
+      : 'embedding backend unavailable'
+    return false
+  }
+
+  const exeName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'
+  const exePath = path.join(CORE_PATH, 'bin', backend, exeName)
+  const exeDir = path.dirname(exePath)
+  if (!fs.existsSync(exePath)) {
+    semanticState.degraded = true
+    semanticState.lastFallbackReason = `embedding binary missing: ${exePath}`
+    return false
+  }
+
+  semanticState.embedding.starting = true
+  semanticState.embedding.startingPromise = new Promise((resolve) => {
+    let child = null
+    try {
+      child = spawn(
+        exePath,
+        [
+          '-m',
+          modelPath,
+          '--port',
+          String(EMBEDDING_PORT),
+          '--embedding',
+          '--ctx-size',
+          '512',
+          '--parallel',
+          '1',
+          '--threads',
+          '4',
+          '-ngl',
+          '20',
+          '--mmap'
+        ],
+        {
+          cwd: exeDir,
+          env: {
+            ...process.env,
+            PATH: `${exeDir}${path.delimiter}${process.env.PATH || ''}`
+          },
+          shell: false,
+          stdio: ['ignore', 'pipe', 'pipe']
+        }
+      )
+    } catch (error) {
+      semanticState.embedding.lastError = error?.message || 'failed to spawn embedding server'
+      semanticState.embedding.starting = false
+      semanticState.embedding.startingPromise = null
+      semanticState.degraded = true
+      semanticState.lastFallbackReason = semanticState.embedding.lastError
+      resolve(false)
+      return
+    }
+
+    semanticState.embedding.process = child
+    semanticState.embedding.backend = backend
+    semanticState.embedding.modelPath = modelPath
+
+    child.on('exit', (code, signal) => {
+      const wasStarting = semanticState.embedding.starting
+      semanticState.embedding.ready = false
+      semanticState.embedding.starting = false
+      semanticState.embedding.startingPromise = null
+      semanticState.embedding.process = null
+      if (wasStarting) {
+        semanticState.degraded = true
+        semanticState.lastFallbackReason = `embedding exited during startup (${code}/${signal})`
+      }
+    })
+
+    const startedAt = Date.now()
+    const timeoutMs = 20000
+    ;(async () => {
+      while (Date.now() - startedAt < timeoutMs) {
+        if (!semanticState.embedding.process || semanticState.embedding.process.exitCode !== null) {
+          resolve(false)
+          return
+        }
+        try {
+          const ok = await checkEmbeddingHealth()
+          if (ok) {
+            semanticState.embedding.ready = true
+            semanticState.embedding.starting = false
+            semanticState.embedding.startingPromise = null
+            semanticState.enabled = true
+            semanticState.ready = true
+            semanticState.degraded = false
+            semanticState.lastFallbackReason = null
+            resolve(true)
+            return
+          }
+        } catch {}
+        await new Promise((r) => setTimeout(r, 250))
+      }
+      semanticState.degraded = true
+      semanticState.lastFallbackReason = 'embedding startup timeout'
+      await stopEmbeddingServer()
+      resolve(false)
+    })().catch(async (error) => {
+      semanticState.degraded = true
+      semanticState.lastFallbackReason = error?.message || 'embedding startup failure'
+      await stopEmbeddingServer()
+      resolve(false)
+    })
+  })
+
+  return semanticState.embedding.startingPromise
+}
+
+function parseEmbeddingResponse(data) {
+  let vector = null
+  if (data && Array.isArray(data.data) && data.data[0] && Array.isArray(data.data[0].embedding)) {
+    vector = data.data[0].embedding
+  } else if (data && Array.isArray(data.embedding)) {
+    vector = data.embedding
+  } else if (Array.isArray(data) && data[0] && Array.isArray(data[0].embedding)) {
+    vector = data[0].embedding
+  } else if (Array.isArray(data) && Array.isArray(data[0])) {
+    vector = data[0]
+  }
+
+  while (Array.isArray(vector) && vector.length && Array.isArray(vector[0])) {
+    vector = vector[0]
+  }
+  return vector
+}
+
+async function embedText(text) {
+  const normalized = String(text || '').trim().toLowerCase()
+  if (!normalized) return null
+  cleanupEmbeddingCache()
+  const cacheKey = sha1(normalized)
+  const cached = semanticState.embedding.cache.get(cacheKey)
+  if (cached && Date.now() - cached.ts <= EMBEDDING_CACHE_TTL_MS) {
+    return cached.vector
+  }
+
+  const ready = await ensureEmbeddingReady()
+  if (!ready) {
+    semanticState.fallbackCount += 1
+    semanticState.lastFallbackReason = semanticState.lastFallbackReason || 'embedding not ready'
+    return null
+  }
+
+  const startedAt = Date.now()
+  try {
+    const resp = await withTimeout(
+      fetch(`${EMBEDDING_BASE_URL}/embedding`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: normalized })
+      }),
+      EMBEDDING_TIMEOUT_MS,
+      'embedding timeout'
+    )
+    if (!resp.ok) throw new Error(`embedding HTTP ${resp.status}`)
+    const data = await resp.json()
+    const vector = parseEmbeddingResponse(data)
+    if (!Array.isArray(vector) || vector.length < 8) throw new Error('invalid embedding vector')
+
+    const elapsed = Date.now() - startedAt
+    rollingPush(semanticState.latency.embeddingMs, elapsed)
+    semanticState.embedding.cache.set(cacheKey, { vector, ts: Date.now() })
+    return vector
+  } catch (error) {
+    semanticState.fallbackCount += 1
+    semanticState.degraded = true
+    semanticState.lastFallbackReason = error?.message || 'embedding request failed'
+    return null
+  }
+}
+
+function splitNoteChunks(text, chunkSize = 800, overlap = 120) {
+  const src = String(text || '').replace(/\r/g, '')
+  if (!src.trim()) return []
+  const chunks = []
+  let i = 0
+  while (i < src.length) {
+    const end = Math.min(src.length, i + chunkSize)
+    const piece = src.slice(i, end).trim()
+    if (piece) chunks.push(piece)
+    if (end >= src.length) break
+    i = Math.max(i + 1, end - overlap)
+  }
+  return chunks
+}
+
+function readSafeJson(filePath, fallback) {
+  try {
+    if (!fs.existsSync(filePath)) return fallback
+    const raw = fs.readFileSync(filePath, 'utf8')
+    return JSON.parse(raw)
+  } catch {
+    return fallback
+  }
+}
+
+function listNoteRecords() {
+  const index = readSafeJson(NOTES_INDEX_FILE, [])
+  if (!Array.isArray(index)) return []
+  return index
+    .filter((item) => item && typeof item.id === 'string' && typeof item.path === 'string')
+    .map((item) => {
+      const absPath = path.join(DATA_DIR, item.path)
+      return {
+        id: item.id,
+        title: String(item.title || 'Nota'),
+        path: String(item.path),
+        absPath
+      }
+    })
+}
+
+function lexicalScore(source, query) {
+  const src = String(source || '').toLowerCase()
+  const q = String(query || '').toLowerCase().trim()
+  if (!src || !q) return 0
+  let idx = 0
+  let count = 0
+  while (idx >= 0) {
+    idx = src.indexOf(q, idx)
+    if (idx >= 0) {
+      count += 1
+      idx += Math.max(1, q.length)
+    }
+  }
+  return count
+}
+
+async function ensureVectorDb() {
+  if (semanticState.db) return semanticState.db
+  ensureDir(SEMANTIC_DB_DIR)
+  try {
+    const lance = await loadLanceModule()
+    semanticState.db = await lance.connect(SEMANTIC_DB_DIR)
+    return semanticState.db
+  } catch (error) {
+    semanticState.degraded = true
+    semanticState.lastFallbackReason = error?.message || 'lancedb connection failure'
+    return null
+  }
+}
+
+async function createOrOverwriteTable(tableName, rows) {
+  const db = await ensureVectorDb()
+  if (!db) return null
+  try {
+    const table = await db.createTable(tableName, rows.length ? rows : [{ id: '__empty__', text: '__empty__', vector: [0.0, 0.0, 0.0, 0.0] }], { mode: 'overwrite' })
+    if (!rows.length) {
+      await table.delete("id = '__empty__'")
+    }
+    return table
+  } catch (error) {
+    semanticState.degraded = true
+    semanticState.lastFallbackReason = error?.message || `lancedb create table failure: ${tableName}`
+    return null
+  }
+}
+
+async function syncSkillAndToolIndexes(force = false) {
+  if ((store.settings.ai_tier || 'pro') !== 'ultra') return
+  const now = Date.now()
+  if (!force && now - semanticState.lastSkillSyncAt < SEMANTIC_SYNC_INTERVAL_MS) return
+
+  skillRegistry.loadExtensions()
+  const skills = getSkillCatalogRows()
+  const tools = getToolCatalogRows()
+  const allTexts = [...skills.map((s) => s.text), ...tools.map((t) => t.text)]
+  const vectors = []
+  for (const text of allTexts) {
+    const vec = await embedText(text)
+    if (!Array.isArray(vec)) return
+    vectors.push(vec)
+  }
+
+  const skillRows = skills.map((item, idx) => ({ ...item, vector: vectors[idx] }))
+  const toolRows = tools.map((item, idx) => ({ ...item, vector: vectors[skills.length + idx] }))
+
+  const tSkills = await createOrOverwriteTable('skills', skillRows)
+  const tTools = await createOrOverwriteTable('tools', toolRows)
+  if (tSkills) semanticState.tableSkills = tSkills
+  if (tTools) semanticState.tableTools = tTools
+  semanticState.lastSkillSyncAt = now
+}
+
+async function syncNoteIndex(force = false) {
+  if ((store.settings.ai_tier || 'pro') !== 'ultra') return
+  const now = Date.now()
+  if (!force && now - semanticState.lastNotesSyncAt < SEMANTIC_SYNC_INTERVAL_MS) return
+
+  ensureDir(NOTES_DIR)
+  const records = listNoteRecords()
+  const digest = sha1(JSON.stringify(records.map((r) => [r.id, r.path])))
+  if (!force && semanticState.notesSnapshotHash === digest && semanticState.tableNotes) {
+    semanticState.lastNotesSyncAt = now
+    return
+  }
+
+  const rows = []
+  for (const note of records) {
+    let content = ''
+    try {
+      content = fs.readFileSync(note.absPath, 'utf8')
+    } catch {
+      continue
+    }
+    const chunks = splitNoteChunks(content)
+    for (let i = 0; i < chunks.length; i += 1) {
+      const chunkText = chunks[i]
+      const vec = await embedText(chunkText)
+      if (!Array.isArray(vec)) continue
+      rows.push({
+        id: `${note.id}:${i}`,
+        note_id: note.id,
+        title: note.title,
+        path: note.path,
+        chunk_index: i,
+        text: chunkText,
+        hash: sha1(chunkText),
+        vector: vec
+      })
+    }
+  }
+
+  const table = await createOrOverwriteTable('notes', rows)
+  if (table) {
+    semanticState.tableNotes = table
+    semanticState.notesSnapshotHash = digest
+    semanticState.lastNotesSyncAt = now
+  }
+}
+
+async function runVectorNoteSearch(query, limit = 6) {
+  if (!semanticState.tableNotes) return []
+  const qVec = await embedText(query)
+  if (!Array.isArray(qVec)) return []
+  try {
+    const rows = await semanticState.tableNotes.search(qVec).limit(limit).toArray()
+    return rows.map((row) => ({
+      note_id: row.note_id,
+      chunk_id: row.id,
+      title: row.title,
+      path: row.path,
+      text: row.text,
+      score: Number.isFinite(row._distance) ? Math.max(0, 1 - row._distance) : 0,
+      vector_score: Number.isFinite(row._distance) ? Math.max(0, 1 - row._distance) : 0,
+      keyword_score: 0
+    }))
+  } catch (error) {
+    semanticState.fallbackCount += 1
+    semanticState.degraded = true
+    semanticState.lastFallbackReason = error?.message || 'vector note search failed'
+    return []
+  }
+}
+
+function runLexicalNoteSearch(query, limit = 6) {
+  const term = String(query || '').trim()
+  if (!term) return []
+  const out = []
+  for (const note of listNoteRecords()) {
+    let content = ''
+    try {
+      content = fs.readFileSync(note.absPath, 'utf8')
+    } catch {
+      continue
+    }
+    const titleScore = lexicalScore(note.title, term)
+    const bodyScore = lexicalScore(content, term)
+    const score = titleScore * 3 + bodyScore
+    if (score <= 0) continue
+    const snippet = content.replace(/\s+/g, ' ').trim().slice(0, 280)
+    out.push({
+      note_id: note.id,
+      chunk_id: `${note.id}:lexical`,
+      title: note.title,
+      path: note.path,
+      text: snippet,
+      score,
+      keyword_score: score,
+      vector_score: 0
+    })
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, Math.max(1, limit))
+}
+
+function mergeMemoryHits(vectorHits, lexicalHits, limit = 6) {
+  const merged = new Map()
+
+  for (const hit of vectorHits || []) {
+    const key = hit.note_id
+    const prev = merged.get(key)
+    const score = (hit.vector_score || 0) * 0.7
+    if (!prev || score > prev._score) {
+      merged.set(key, { ...hit, _score: score, retrieval_type: 'vector' })
+    }
+  }
+
+  for (const hit of lexicalHits || []) {
+    const key = hit.note_id
+    const prev = merged.get(key)
+    const score = (hit.keyword_score || 0) * 0.3
+    if (!prev) {
+      merged.set(key, { ...hit, _score: score, retrieval_type: 'lexical' })
+      continue
+    }
+    prev._score += score
+    if (prev.retrieval_type === 'vector') prev.retrieval_type = 'hybrid'
+    prev.keyword_score = Math.max(prev.keyword_score || 0, hit.keyword_score || 0)
+  }
+
+  return [...merged.values()]
+    .sort((a, b) => (b._score || 0) - (a._score || 0))
+    .slice(0, Math.max(1, limit))
+    .map(({ _score, ...rest }) => rest)
+}
+
+function buildMemoryContextAndSources(hits) {
+  if (!Array.isArray(hits) || !hits.length) return { memoryContext: null, memorySources: [] }
+  const sections = []
+  const memorySources = []
+  for (const hit of hits.slice(0, 4)) {
+    const txt = String(hit.text || '').trim()
+    if (!txt) continue
+    sections.push(`--- [TITULO DA NOTA: ${String(hit.title || 'Nota').toUpperCase()}] ---\n${txt}\n`)
+    memorySources.push({
+      url: `momai://note/${hit.note_id}`,
+      title: `Nota: ${hit.title || 'Sem título'}`,
+      snippet: txt.slice(0, 220),
+      retrieval_type: hit.retrieval_type || 'lexical'
+    })
+  }
+  return {
+    memoryContext: sections.length ? promptRegistry.formatMemoryContext(sections.join('\n')) : null,
+    memorySources
+  }
+}
+
+async function searchWeb(query, limit = 4) {
+  const q = encodeURIComponent(String(query || '').trim())
+  if (!q) return []
+  try {
+    const response = await fetch(`https://duckduckgo.com/html/?q=${q}`, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'MomAI-NodeCore/1.0'
+      }
+    })
+    if (!response.ok) return []
+    const html = await response.text()
+    const results = []
+    const regex = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
+    let match
+    while ((match = regex.exec(html)) && results.length < limit) {
+      const rawUrl = String(match[1] || '')
+      const title = String(match[2] || '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+      if (!title || !rawUrl) continue
+      results.push({ title, url: rawUrl })
+    }
+    return results
+  } catch {
+    return []
+  }
+}
+
+function parseRelativeReminder(content) {
+  const text = String(content || '').toLowerCase()
+  const m = text.match(/\bem\s+(\d+)\s*(minuto|minutos|hora|horas|dia|dias)\b/)
+  if (!m) return null
+  const qty = Number(m[1] || 0)
+  if (!Number.isFinite(qty) || qty <= 0) return null
+  const unit = m[2]
+  const at = new Date()
+  if (unit.startsWith('minuto')) at.setMinutes(at.getMinutes() + qty)
+  else if (unit.startsWith('hora')) at.setHours(at.getHours() + qty)
+  else at.setDate(at.getDate() + qty)
+  return at.toISOString()
+}
+
+function ensureNotesIndexExists() {
+  ensureDir(NOTES_DIR)
+  if (!fs.existsSync(NOTES_INDEX_FILE)) {
+    fs.writeFileSync(NOTES_INDEX_FILE, JSON.stringify([], null, 2), 'utf8')
+  }
+}
+
+function saveMemoryNoteFromContent(content) {
+  ensureNotesIndexExists()
+  const titleLine = String(content || '').trim().split('\n')[0] || 'Nota'
+  const title = titleLine.replace(/^#+\s*/, '').slice(0, 80) || 'Nota'
+  const id = crypto.randomUUID()
+  const relPath = `notes/${id}.md`
+  const absPath = path.join(DATA_DIR, relPath)
+  fs.writeFileSync(absPath, String(content || '').trim() || 'Nota vazia.', 'utf8')
+
+  const index = readSafeJson(NOTES_INDEX_FILE, [])
+  index.push({
+    id,
+    title,
+    path: relPath,
+    source: 'local',
+    created_at: isoNow(),
+    updated_at: isoNow(),
+    preview: String(content || '').replace(/\s+/g, ' ').trim().slice(0, 220)
+  })
+  fs.writeFileSync(NOTES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8')
+  return { id, title, path: relPath }
+}
+
+async function executeSkillAutomatically(userContent, discoveredSkill) {
+  const skillObj = skillRegistry.getById(discoveredSkill.id)
+  if (!skillObj || !isSkillEnabledByStore(skillObj)) return null
+  const startedAt = Date.now()
+  const stepBase = {
+    skill_id: discoveredSkill.id,
+    skill_name: discoveredSkill.name,
+    started_at: isoNow()
+  }
+  const runtimeContext = {
+    listActiveReminders(limit = 8) {
+      return store.reminders
+        .filter((r) => r.is_active)
+        .sort((a, b) => parseTime(a.scheduled_time) - parseTime(b.scheduled_time))
+        .slice(0, limit)
+    },
+    createReminderFromText(text) {
+      const scheduled = parseRelativeReminder(text) || new Date(Date.now() + 60 * 60 * 1000).toISOString()
+      const title = String(text || '').length > 80 ? `${String(text).slice(0, 80)}...` : String(text || 'Lembrete')
+      const reminder = normalizeReminder({
+        id: store.next_reminder_id++,
+        title: title || 'Lembrete',
+        content: String(text || ''),
+        scheduled_time: scheduled,
+        is_active: true
+      })
+      store.reminders.push(reminder)
+      saveStore()
+      broadcast({ type: 'reminders_updated' })
+      return reminder
+    },
+    saveMemoryNote(text) {
+      const note = saveMemoryNoteFromContent(text)
+      semanticState.lastNotesSyncAt = 0
+      return note
+    },
+    async searchMemory(text, limit = 4) {
+      const result = await runSemanticMemoryRetrieval(text, limit)
+      return result.hits || []
+    },
+    searchWeb
+  }
+
+  try {
+    const result = await skillRegistry.execute(discoveredSkill.id, userContent, runtimeContext)
+    const elapsed = Date.now() - startedAt
+    rollingPush(semanticState.latency.toolExecMs, elapsed)
+    if (!result) return null
+    return {
+      activeSkill: discoveredSkill.id,
+      toolSteps: [{ ...stepBase, tool: result.tool || 'execute', status: 'success', duration_ms: elapsed }],
+      toolInstruction: result.instruction || null,
+      webSources: Array.isArray(result.webSources) ? result.webSources : undefined
+    }
+  } catch (error) {
+    const elapsed = Date.now() - startedAt
+    rollingPush(semanticState.latency.toolExecMs, elapsed)
+    return {
+      activeSkill: discoveredSkill.id,
+      toolSteps: [{ ...stepBase, tool: 'unknown', status: 'error', duration_ms: elapsed, error: error?.message || 'tool execution failed' }],
+      toolInstruction: null
+    }
+  }
+}
+
+async function discoverSkillForQuery(query) {
+  const text = String(query || '').trim()
+  if (!text) return null
+  let discovered = skillRegistry.discover(text)
+  if (discovered) {
+    const discoveredSkill = skillRegistry.getById(discovered.id)
+    if (!discoveredSkill || !isSkillEnabledByStore(discoveredSkill)) discovered = null
+  }
+
+  if (semanticState.tableSkills) {
+    const qVec = await embedText(text)
+    if (Array.isArray(qVec)) {
+      try {
+        const rows = await semanticState.tableSkills.search(qVec).limit(3).toArray()
+        if (rows.length) {
+          const top = rows[0]
+          const vectorConfidence = Math.max(0, 1 - Number(top._distance || 1))
+          const candidate = skillRegistry.getById(top.id)
+          if (candidate && isSkillEnabledByStore(candidate) && vectorConfidence > 0.35) {
+            const vectorDiscovery = {
+              id: candidate.id,
+              name: candidate.manifest.name,
+              confidence: Math.min(1, vectorConfidence),
+              source: 'vector'
+            }
+            if (!discovered || Number(vectorDiscovery.confidence || 0) >= Number(discovered.confidence || 0)) {
+              discovered = vectorDiscovery
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+
+  return discovered
+}
+
+async function runSemanticMemoryRetrieval(query, limit = 6) {
+  const startedAt = Date.now()
+  semanticState.queryCount += 1
+
+  const shouldEnable = (store.settings.ai_tier || 'pro') === 'ultra'
+  semanticState.enabled = shouldEnable
+  if (!shouldEnable) {
+    return { hits: [], memoryContext: null, memorySources: [] }
+  }
+
+  await syncSkillAndToolIndexes(false)
+  await syncNoteIndex(false)
+
+  const [vectorHits, lexicalHits] = await Promise.all([
+    runVectorNoteSearch(query, limit),
+    Promise.resolve(runLexicalNoteSearch(query, limit))
+  ])
+  const mergedHits = mergeMemoryHits(vectorHits, lexicalHits, limit)
+  const { memoryContext, memorySources } = buildMemoryContextAndSources(mergedHits)
+  rollingPush(semanticState.latency.retrievalMs, Date.now() - startedAt)
+  return {
+    hits: mergedHits,
+    memoryContext,
+    memorySources
+  }
 }
 
 function pickBackend(preferred) {
@@ -620,24 +1502,31 @@ function splitTokens(text) {
   return text.match(/\S+\s*/g) || [text]
 }
 
+function sanitizePromptText(text) {
+  return String(text || '')
+    .replace(/\{\{/g, '(')
+    .replace(/\}\}/g, ')')
+    .replace(/[{}]/g, '')
+}
+
 function generateFallbackReply(content, memoryContext, reason) {
   const trimmed = String(content || '').trim()
-  if (!trimmed) return 'Pode me mandar uma pergunta para eu te ajudar.'
+  if (!trimmed) return promptRegistry.buildFallbackReply({ key: 'empty' })
 
   if (/^(oi|ol[aá]|bom dia|boa tarde|boa noite|hello|hi)\b/i.test(trimmed)) {
-    return 'Oi! Estou online no novo core Node. Como posso ajudar agora?'
+    return promptRegistry.buildFallbackReply({ key: 'greeting' })
   }
 
   const summary = trimmed.length > 320 ? `${trimmed.slice(0, 320)}...` : trimmed
   const hasMemory = typeof memoryContext === 'string' && memoryContext.trim().length > 0
 
   if (reason) {
-    return `Modelo local indisponível no momento (${reason}). Resposta de fallback para: "${summary}".`
+    return promptRegistry.buildFallbackReply({ key: 'reason', summary, reason })
   }
   if (hasMemory) {
-    return `Entendi seu pedido: "${summary}". Considerei também o contexto das suas notas locais para responder.`
+    return promptRegistry.buildFallbackReply({ key: 'with_memory', summary })
   }
-  return `Entendi seu pedido: "${summary}". Vou seguir com isso.`
+  return promptRegistry.buildFallbackReply({ key: 'default', summary })
 }
 
 let wss = null
@@ -783,6 +1672,123 @@ function sendVoiceSidecarFallback(res, pathname, error) {
   sendJson(res, 503, { detail })
 }
 
+async function syncWakeWordState(reason = 'unknown') {
+  const tier = store.settings.ai_tier || 'pro'
+  const shouldEnable = tier === 'ultra' && Boolean(store.settings.wake_word_enabled)
+
+  try {
+    const pythonBase = await ensurePython()
+    const response = await fetch(`${pythonBase}/voice/wake-word`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: shouldEnable })
+    })
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '')
+      console.warn(
+        `[NodeCore][Voice] Wake-word sync failed (${reason}): HTTP ${response.status} ${detail.slice(0, 200)}`
+      )
+      return
+    }
+
+    console.info(
+      `[NodeCore][Voice] Wake-word synced (${reason}): ${shouldEnable ? 'enabled' : 'disabled'}`
+    )
+  } catch (error) {
+    console.warn(
+      `[NodeCore][Voice] Wake-word sync failed (${reason}): ${error?.message || error}`
+    )
+  }
+}
+
+async function triggerAutoTts(text) {
+  const aiTier = store.settings.ai_tier || 'pro'
+  const ttsEnabled = Boolean(store.settings.tts_enabled)
+  const cleaned = String(text || '').trim()
+
+  if (aiTier === 'lite') {
+    console.info('[NodeCore][Voice] Auto TTS skipped: ai_tier=lite')
+    return
+  }
+  if (!ttsEnabled) {
+    console.info('[NodeCore][Voice] Auto TTS skipped: settings.tts_enabled=false')
+    return
+  }
+  if (cleaned.length < 2) {
+    console.info('[NodeCore][Voice] Auto TTS skipped: empty/short text')
+    return
+  }
+
+  const maxAttempts = 10
+  let lastError = null
+  let announcedLoading = false
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const pythonBase = await ensurePython()
+      const response = await fetch(`${pythonBase}/chat/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: cleaned })
+      })
+
+      if (response.ok) {
+        if (announcedLoading) {
+          broadcast({
+            type: 'voice_engine_loading',
+            data: {
+              loading: false,
+              pending_auto_tts: false,
+              message: 'Motor de voz pronto. Reproduzindo resposta.'
+            }
+          })
+        }
+        if (attempt > 1) {
+          console.info(`[NodeCore][Voice] Auto TTS requested (retry ${attempt}/${maxAttempts})`)
+        } else {
+          console.info('[NodeCore][Voice] Auto TTS requested')
+        }
+        return
+      }
+
+      const detail = await response.text().catch(() => '')
+      lastError = `HTTP ${response.status} ${detail.slice(0, 200)}`
+    } catch (error) {
+      lastError = error?.message || String(error)
+    }
+
+    if (!announcedLoading) {
+      announcedLoading = true
+      broadcast({
+        type: 'voice_engine_loading',
+        data: {
+          loading: true,
+          pending_auto_tts: true,
+          message: 'Motor de voz (Python/TTS) carregando. Vou reproduzir automaticamente quando estiver pronto.'
+        }
+      })
+    }
+
+    if (attempt < maxAttempts) {
+      const waitMs = 300 * attempt
+      await new Promise((resolve) => setTimeout(resolve, waitMs))
+    }
+  }
+
+  if (announcedLoading) {
+    broadcast({
+      type: 'voice_engine_loading',
+      data: {
+        loading: false,
+        pending_auto_tts: false,
+        message: 'Não foi possível iniciar a voz automática agora.'
+      }
+    })
+  }
+  console.warn(`[NodeCore][Voice] Auto TTS failed after retries: ${lastError || 'unknown error'}`)
+}
+
 let stopGenerationRequested = false
 const activeChatControllers = new Set()
 
@@ -837,8 +1843,14 @@ function parseLlamaDataLine(line) {
 async function streamLlamaChat(req, res, payload) {
   const content = String(payload.content || '')
   const threadId = String(payload.thread_id || 'default')
-  const memoryContext = payload.memory_context
-  const memorySources = Array.isArray(payload.memory_sources) ? payload.memory_sources : undefined
+  const speakResponse = payload.speak_response !== false
+  const tierName = store.settings.ai_tier || 'pro'
+  const isUltra = tierName === 'ultra'
+  let memoryContext = typeof payload.memory_context === 'string' ? payload.memory_context : null
+  let memorySources = Array.isArray(payload.memory_sources) ? [...payload.memory_sources] : []
+  let toolSteps = []
+  let activeSkill = null
+  let toolInstruction = null
 
   const ready = await ensureLlamaReady(false)
   if (!ready) {
@@ -848,38 +1860,75 @@ async function streamLlamaChat(req, res, payload) {
       content,
       threadId,
       memoryContext,
-      memorySources,
+      memorySources.length ? memorySources : undefined,
       llamaState.lastError || 'llama unavailable'
     )
     return
   }
 
-  appendMessage(threadId, 'user', content, { sources: memorySources })
+  if (isUltra) {
+    const semantic = await runSemanticMemoryRetrieval(content, 6)
+    if (semantic.memoryContext) {
+      memoryContext = memoryContext ? `${memoryContext}\n\n${semantic.memoryContext}` : semantic.memoryContext
+    }
+
+    if (Array.isArray(semantic.memorySources) && semantic.memorySources.length) {
+      const byUrl = new Map()
+      for (const source of [...memorySources, ...semantic.memorySources]) {
+        if (!source || !source.url) continue
+        byUrl.set(source.url, source)
+      }
+      memorySources = [...byUrl.values()].slice(0, 10)
+    }
+
+    const discoveredSkill = await discoverSkillForQuery(content)
+    if (discoveredSkill && discoveredSkill.confidence >= 0.55) {
+      const toolResult = await executeSkillAutomatically(content, discoveredSkill)
+      if (toolResult) {
+        activeSkill = toolResult.activeSkill || discoveredSkill.id
+        toolSteps = Array.isArray(toolResult.toolSteps) ? toolResult.toolSteps : []
+        toolInstruction = toolResult.toolInstruction || null
+        if (Array.isArray(toolResult.webSources) && toolResult.webSources.length) {
+          memorySources = [...memorySources, ...toolResult.webSources].slice(0, 12)
+        }
+      }
+    }
+  }
+
+  appendMessage(threadId, 'user', content, {
+    sources: memorySources.length ? memorySources : undefined,
+    graph_data: activeSkill || toolSteps.length ? { active_skill: activeSkill, tool_steps: toolSteps } : null
+  })
 
   sendSseHeaders(res)
   writeSse(res, { status: 'thinking' })
+  if (memorySources.length) {
+    writeSse(res, { sources: memorySources })
+    writeSse(res, { memory_sources: memorySources })
+  }
+  if (activeSkill) writeSse(res, { active_skill: activeSkill })
+  if (toolSteps.length) writeSse(res, { tool_steps: toolSteps })
 
   const history = getThreadMessages(threadId)
     .slice(-8)
     .map((msg) => ({
       role: msg.role === 'assistant' ? 'assistant' : 'user',
-      content: String(msg.content || '')
+      content: sanitizePromptText(String(msg.content || ''))
     }))
 
-  const systemMessages = [
-    {
-      role: 'system',
-      content:
-        store.settings.assistant_persona ||
-        'You are MomAI, a direct and useful local assistant. Respond in the user language.'
-    }
-  ]
-
-  if (typeof memoryContext === 'string' && memoryContext.trim()) {
-    systemMessages.push({ role: 'system', content: memoryContext })
+  const responseStyle = tierName === 'ultra' ? 'concise' : 'balanced'
+  const promptText = promptRegistry.buildSystemPrompt({
+    tier: tierName,
+    persona: store.settings.assistant_persona || promptRegistry.getDefaults().assistant_persona,
+    memoryContext,
+    toolInstruction,
+    responseStyle
+  })
+  const systemMessage = {
+    role: 'system',
+    content: sanitizePromptText(promptText)
   }
 
-  const tierName = store.settings.ai_tier || 'pro'
   const tier = tiersConfig[tierName] || tiersConfig.pro || DEFAULT_TIERS.pro
 
   const controller = new AbortController()
@@ -907,7 +1956,7 @@ async function streamLlamaChat(req, res, payload) {
         temperature: Number.isFinite(tier.temperature) ? tier.temperature : 0.7,
         top_p: Number.isFinite(tier.top_p) ? tier.top_p : 1,
         max_tokens: Number.isFinite(tier.max_tokens) ? tier.max_tokens : 320,
-        messages: [...systemMessages, ...history]
+        messages: [systemMessage, ...history]
       })
     })
 
@@ -949,7 +1998,13 @@ async function streamLlamaChat(req, res, payload) {
       }
     }
 
-    appendMessage(threadId, 'assistant', assembled.trim() || 'Interrompido.')
+    appendMessage(threadId, 'assistant', assembled.trim() || 'Interrompido.', {
+      sources: memorySources.length ? memorySources : undefined,
+      graph_data: activeSkill || toolSteps.length ? { active_skill: activeSkill, tool_steps: toolSteps } : null
+    })
+    if (speakResponse && !stopGenerationRequested && !closed) {
+      void triggerAutoTts(assembled.trim())
+    }
     writeSse(res, { done: true })
     res.end()
   } catch (error) {
@@ -962,7 +2017,13 @@ async function streamLlamaChat(req, res, payload) {
       }
     }
 
-    appendMessage(threadId, 'assistant', assembled.trim() || fallbackMsg)
+    appendMessage(threadId, 'assistant', assembled.trim() || fallbackMsg, {
+      sources: memorySources.length ? memorySources : undefined,
+      graph_data: activeSkill || toolSteps.length ? { active_skill: activeSkill, tool_steps: toolSteps } : null
+    })
+    if (speakResponse && !stopGenerationRequested && !closed) {
+      void triggerAutoTts((assembled.trim() || fallbackMsg || '').trim())
+    }
     writeSse(res, { done: true })
     res.end()
   } finally {
@@ -972,7 +2033,16 @@ async function streamLlamaChat(req, res, payload) {
 
 async function maybeRestartLlamaOnTierChange(prevTier, nextTier, prevBackend, nextBackend) {
   if (prevTier === nextTier && prevBackend === nextBackend) return
+  if (nextTier !== 'ultra') {
+    await stopEmbeddingServer()
+    semanticState.enabled = false
+    semanticState.ready = false
+  }
   await ensureLlamaReady(true)
+  if (nextTier === 'ultra') {
+    await ensureEmbeddingReady()
+    await syncSkillAndToolIndexes(false)
+  }
 }
 
 function getSetupInfo() {
@@ -1039,6 +2109,8 @@ async function handleRequest(req, res) {
         loaded_model_file: llamaState.modelPath ? path.basename(llamaState.modelPath) : null,
         using_fallback_model: llamaState.usingFallbackModel
       },
+      semantic_runtime: buildSemanticRuntimeStatus(),
+      prompt_runtime: promptRegistry.getRuntimeStatus(),
       tiers_config: tiersConfig
     })
     return
@@ -1057,6 +2129,8 @@ async function handleRequest(req, res) {
       installed_version: setup.installed_version,
       latest_version: setup.latest_version,
       ai_tier: store.settings.ai_tier || 'pro',
+      semantic_runtime: buildSemanticRuntimeStatus(),
+      prompt_runtime: promptRegistry.getRuntimeStatus(),
       tiers_config: tiersConfig
     })
     return
@@ -1089,6 +2163,7 @@ async function handleRequest(req, res) {
       prevBackend,
       store.settings.local_backend || 'auto'
     )
+    void syncWakeWordState('setup_apply_tier')
 
     sendJson(res, 200, { status: 'ok', ai_tier: store.settings.ai_tier })
     return
@@ -1106,11 +2181,18 @@ async function handleRequest(req, res) {
 
     store.mode = 'local'
     store.settings.ai_tier = mode
+    if (mode === 'lite') {
+      store.settings.tts_enabled = false
+      store.settings.wake_word_enabled = false
+    } else if (mode !== 'ultra') {
+      store.settings.wake_word_enabled = false
+    }
     saveStore()
 
     broadcast({ type: 'model_changed', data: { new_mode: 'local' } })
 
     await maybeRestartLlamaOnTierChange(prevTier, mode, store.settings.local_backend, store.settings.local_backend)
+    void syncWakeWordState('mode_change')
 
     sendJson(res, 200, { status: 'ok', mode: 'local' })
     return
@@ -1181,6 +2263,7 @@ async function handleRequest(req, res) {
       prevBackend,
       store.settings.local_backend || 'auto'
     )
+    void syncWakeWordState('settings_patch')
 
     sendJson(res, 200, store.settings)
     return
@@ -1189,6 +2272,29 @@ async function handleRequest(req, res) {
   if (pathname === '/chat/stream' && req.method === 'POST') {
     const payload = await readJsonBody(req).catch(() => ({}))
     await streamLlamaChat(req, res, payload)
+    return
+  }
+
+  if (pathname === '/semantic/reindex' && req.method === 'POST') {
+    const payload = await readJsonBody(req).catch(() => ({}))
+    const force = payload?.force !== false
+    if ((store.settings.ai_tier || 'pro') !== 'ultra') {
+      sendJson(res, 200, {
+        status: 'ok',
+        skipped: true,
+        reason: 'semantic indexing available only in ultra tier',
+        semantic_runtime: buildSemanticRuntimeStatus()
+      })
+      return
+    }
+    await syncSkillAndToolIndexes(force)
+    await syncNoteIndex(force)
+    sendJson(res, 200, {
+      status: 'ok',
+      semantic_runtime: buildSemanticRuntimeStatus(),
+      notes_indexed_at: semanticState.lastNotesSyncAt || null,
+      skills_indexed_at: semanticState.lastSkillSyncAt || null
+    })
     return
   }
 
@@ -1254,18 +2360,48 @@ async function handleRequest(req, res) {
   }
 
   if (pathname === '/extensions' && req.method === 'GET') {
-    sendJson(res, 200, store.extensions)
+    skillRegistry.refresh()
+    sendJson(res, 200, buildExtensionsPayload())
     return
   }
 
   if (pathname === '/extensions/registry' && req.method === 'GET') {
-    sendJson(res, 200, [])
+    skillRegistry.refresh()
+    sendJson(res, 200, buildExtensionsPayload())
     return
   }
 
   if (pathname === '/extensions/install' && req.method === 'POST') {
     const payload = await readJsonBody(req).catch(() => ({}))
-    const id = String(payload.id || crypto.randomUUID())
+    const requested = String(payload.id || crypto.randomUUID()).toLowerCase()
+    const id = requested.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '') || crypto.randomUUID()
+    const extDir = path.join(skillRegistry.extensionsDir, id)
+    ensureDir(extDir)
+    const skillMdPath = path.join(extDir, 'SKILL.md')
+    if (!fs.existsSync(skillMdPath)) {
+      const description = String(payload.description || 'Extension skill for MomAI.')
+      fs.writeFileSync(
+        skillMdPath,
+        [
+          '---',
+          `name: ${id}`,
+          `description: ${description}`,
+          'compatibility: MomAI Node Core',
+          '---',
+          '',
+          '# Extension Skill',
+          '',
+          'Descreva aqui quando usar esta skill e como executar o fluxo.',
+          '',
+          '## Quando usar',
+          '-',
+          '',
+          '## Como executar',
+          '1.'
+        ].join('\n'),
+        'utf8'
+      )
+    }
     if (!store.extensions.find((ext) => ext.id === id)) {
       store.extensions.push({
         id,
@@ -1276,6 +2412,7 @@ async function handleRequest(req, res) {
       })
       saveStore()
     }
+    skillRegistry.loadExtensions()
     sendJson(res, 200, { ok: true })
     return
   }
@@ -1284,7 +2421,9 @@ async function handleRequest(req, res) {
     const payload = await readJsonBody(req).catch(() => ({}))
     const found = store.extensions.find((item) => item.id === payload.id)
     if (found) found.enabled = Boolean(payload.enabled)
+    // SKILL.md is source-of-truth; toggle currently affects runtime registry state via local store.
     saveStore()
+    skillRegistry.loadExtensions()
     sendJson(res, 200, { ok: true })
     return
   }
@@ -1292,7 +2431,10 @@ async function handleRequest(req, res) {
   if (pathname === '/extensions/uninstall' && req.method === 'POST') {
     const payload = await readJsonBody(req).catch(() => ({}))
     store.extensions = store.extensions.filter((item) => item.id !== payload.id)
+    const extDir = path.join(skillRegistry.extensionsDir, String(payload.id || ''))
+    if (fs.existsSync(extDir)) fs.rmSync(extDir, { recursive: true, force: true })
     saveStore()
+    skillRegistry.loadExtensions()
     sendJson(res, 200, { ok: true })
     return
   }
@@ -1307,7 +2449,7 @@ async function handleRequest(req, res) {
     sendJson(res, 200, {
       cpu_usage: 0,
       ram_usage: Math.round((mem.rss / os.totalmem()) * 100),
-      active_processes: llamaState.process ? 2 : 1,
+      active_processes: (llamaState.process ? 2 : 1) + (semanticState.embedding.process ? 1 : 0),
       vram_usage: 0
     })
     return
@@ -1437,6 +2579,14 @@ if (WebSocketServer) {
 
 setInterval(sendResourceUsage, 2500)
 setInterval(() => {
+  cleanupEmbeddingCache()
+  const tier = store.settings.ai_tier || 'pro'
+  if (tier !== 'ultra') return
+  syncSkillAndToolIndexes(false).catch(() => {})
+  syncNoteIndex(false).catch(() => {})
+}, 30000)
+
+setInterval(() => {
   const now = Date.now()
   let touched = false
 
@@ -1475,6 +2625,17 @@ server.listen(PORT, HOST, () => {
       console.error('[NodeCore] auto-start llama failed:', error)
     })
   }
+  void syncWakeWordState('startup')
+  if ((store.settings.ai_tier || 'pro') === 'ultra') {
+    ensureEmbeddingReady()
+      .then((ok) => {
+        if (ok) {
+          syncSkillAndToolIndexes(true).catch(() => {})
+          syncNoteIndex(true).catch(() => {})
+        }
+      })
+      .catch(() => {})
+  }
 })
 
 async function shutdownAll() {
@@ -1482,6 +2643,7 @@ async function shutdownAll() {
     for (const controller of activeChatControllers) {
       controller.abort()
     }
+    await stopEmbeddingServer()
     await stopLlamaServer()
   } finally {
     server.close(() => process.exit(0))

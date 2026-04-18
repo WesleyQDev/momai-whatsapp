@@ -191,6 +191,20 @@ export async function startCoreBackend(): Promise<void> {
     const child = spawnNodeCore()
     setNodeCoreProcess(child)
     emitInitProgress('Initializing services...', 60)
+
+    // Start Python sidecar proactively at app startup (non-blocking),
+    // so voice/TTS is warm before the first user message.
+    void ensurePythonSidecar()
+      .then((result) => {
+        if (result.ok) {
+          logger.info('[CoreManager] Python sidecar prestarted successfully.')
+        } else {
+          logger.warn('[CoreManager] Python sidecar prestart failed:', result.error)
+        }
+      })
+      .catch((error: any) => {
+        logger.warn('[CoreManager] Python sidecar prestart exception:', error?.message || error)
+      })
   } catch (error: any) {
     logger.error('[CoreManager] Could not spawn node core:', error)
     const mainWindow = getMainWindow()

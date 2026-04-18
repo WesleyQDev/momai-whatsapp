@@ -43,6 +43,7 @@ const ChatView = (props: any) => {
       speakingIndex={props.chat.speakingIndex}
       isCallMode={props.chat.isCallMode}
       voiceStatus={props.chat.voiceStatus}
+      voiceEngineLoading={props.chat.voiceEngineLoading}
       onToggleCallMode={props.chat.toggleCallMode}
       callHistory={props.chat.callHistory}
       initProgress={props.initProgress}

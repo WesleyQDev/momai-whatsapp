@@ -221,15 +221,55 @@ def safe_speak(text: str):
 
 async def speak_and_notify(text: str) -> None:
     if not text:
+        logger.debug("[Voice] Auto TTS skipped: empty text")
         return
-    
-    # Check if TTS is enabled before attempting to speak or notify
+
     import app_state
-    if app_state.tts and app_state.tts.tts.enabled:
+    from database.models import SessionLocal, Settings
+
+    db = SessionLocal()
+    try:
+        settings = db.query(Settings).first()
+    finally:
+        db.close()
+
+    ai_tier = (settings.ai_tier if settings else None) or "pro"
+    if ai_tier == "lite":
+        logger.info("[Voice] Auto TTS blocked: ai_tier=lite")
+        return
+
+    if settings and settings.tts_enabled is False:
+        logger.info("[Voice] Auto TTS blocked: settings.tts_enabled=false")
+        return
+
+    # Ensure voice stack is available for automatic TTS paths.
+    try:
+        if not app_state.tts:
+            logger.debug("[Voice] Auto TTS: loading TTS runtime")
+            app_state.ensure_tts_runtime(prewarm=True)
+    except Exception as e:
+        logger.warning(f"[Voice] Auto TTS blocked: TTS runtime init failed ({e})")
+
+    if not app_state.tts:
+        logger.warning("[Voice] Auto TTS blocked: app_state.tts unavailable")
+        return
+
+    # Keep TTS manager initialized so auto-speak behaves like manual /chat/speak.
+    try:
+        if settings and settings.tts_voice:
+            app_state.tts.tts.set_voice(settings.tts_voice)
+        app_state.tts.tts.initialize()
+    except Exception as e:
+        logger.warning(f"[Voice] Auto TTS blocked: TTS initialize failed ({e})")
+        return
+
+    if app_state.tts.tts.enabled:
         logger.debug(f"[Voice] Speaking: {text[:50]}...")
         safe_speak(text)
-        # We don't need to broadcast tts_start here anymore because 
+        # We don't need to broadcast tts_start here anymore because
         # app_state.py already handles it reactively via on_speech_start
+    else:
+        logger.info("[Voice] Auto TTS blocked: runtime tts.enabled=false")
 
 async def _broadcast_tts_event(event_type: str) -> None:
     import app_state

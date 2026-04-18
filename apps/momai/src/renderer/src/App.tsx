@@ -235,6 +235,29 @@ function App(): React.JSX.Element {
           }}
         />
       )}
+
+      {chat.voiceEngineLoading && (
+        <div className="fixed bottom-4 right-4 z-[600] max-w-[380px] pointer-events-none">
+          <div
+            className={`rounded-xl border px-4 py-3 text-[11px] font-semibold tracking-wide shadow-2xl backdrop-blur-xl transition-all duration-300 ${
+              chat.voiceEngineLoading.loading
+                ? 'bg-amber-500/15 border-amber-400/40 text-amber-100'
+                : 'bg-emerald-500/15 border-emerald-400/40 text-emerald-100'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-block w-2 h-2 rounded-full ${
+                  chat.voiceEngineLoading.loading
+                    ? 'bg-amber-300 animate-pulse'
+                    : 'bg-emerald-300'
+                }`}
+              />
+              <span>{chat.voiceEngineLoading.message}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

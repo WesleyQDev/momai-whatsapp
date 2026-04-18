@@ -21,6 +21,7 @@ interface ContainerChatProps {
   speakingIndex?: number | null
   isCallMode?: boolean
   voiceStatus?: 'idle' | 'listening' | 'processing'
+  voiceEngineLoading?: { loading: boolean; pendingAutoTts: boolean; message: string } | null
   onToggleCallMode?: () => void
   callHistory?: { id: string; role: 'user' | 'assistant'; content: string }[]
   initProgress?: number
@@ -198,6 +199,7 @@ export default function ContainerChat({
   speakingIndex,
   isCallMode = false,
   voiceStatus = 'idle',
+  voiceEngineLoading = null,
   onToggleCallMode,
   callHistory = [],
   initProgress = 0,
@@ -454,6 +456,7 @@ export default function ContainerChat({
                 voiceStatus={voiceStatus}
               />
             </div>
+
           </div>
         </>
       )}

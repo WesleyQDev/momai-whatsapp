@@ -22,10 +22,13 @@ Descrever comportamentos em runtime: inicializacao, chat, voz e falhas.
 
 1. Renderer envia requisicao para `/chat/stream`.
 2. Core Node garante disponibilidade do `llama-server` para o tier ativo (`lite/pro/ultra`), com execucao texto-only por padrao.
-3. Core Node envia prompts e historico para `/v1/chat/completions` (streaming).
-4. Tokens retornam em SSE para UI em tempo real.
-5. Estado de conversa e metadados sao persistidos localmente.
-6. Em falha de inferencia local, Core Node aplica fallback sem derrubar o app.
+3. Em `ultra`, o Core Node tenta pipeline semantico local (embeddings + indice vetorial) para:
+   - recuperar memoria de notas (hibrido vetorial + lexical);
+   - descobrir skill/tool (scheduler, memory, search) e executar automaticamente quando confianca alta.
+4. Core Node envia prompts, historico e contexto semantico para `/v1/chat/completions` (streaming).
+5. Tokens e metadados (`sources`, `memory_sources`, `active_skill`, `tool_steps`) retornam em SSE.
+6. Estado de conversa e metadados sao persistidos localmente.
+7. Em falha de embeddings/vetor/tools/inferencia, Core Node degrada para fallback sem travar a UI.
 
 ## Fluxo de voz
 
@@ -49,5 +52,6 @@ Descrever comportamentos em runtime: inicializacao, chat, voz e falhas.
 
 - Estado de bootstrap: iniciando, pronto, erro recuperavel, erro bloqueante.
 - Falhas de `llama-server` nao devem crashar a UI; chat deve degradar com fallback controlado.
+- Falhas do runtime semantico em `ultra` (embeddings/vetor/tools) devem acionar fallback lexical e manter streaming.
 - Falhas de sidecar Python devem afetar apenas recursos de voz/ML.
 - Falhas de provider cloud nao devem quebrar fluxo local basico quando houver fallback.
