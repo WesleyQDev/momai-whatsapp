@@ -7,6 +7,8 @@
 
 !ifndef BUILD_UNINSTALLER
 Var MomAIClearData
+Var MomAIInstalledVersion
+Var MomAIInstalledDetected
 
 !macro customHeader
   BrandingText "MomAI Installer"
@@ -14,26 +16,69 @@ Var MomAIClearData
 
 !macro customInit
   StrCpy $MomAIClearData "0"
+  StrCpy $MomAIInstalledVersion ""
+  StrCpy $MomAIInstalledDetected "0"
 
   ${If} ${Silent}
     Goto skip_init
   ${EndIf}
 
-  ; Check if it's an update (already installed with different version)
-  ; appId: com.wesleyqdev.momai (from electron-builder.yml)
+  ; Detect existing NSIS installation robustly (electron-builder can write *_is1 keys)
+  ; Prefer exact version when available to differentiate update vs same-version reinstall.
   ReadRegStr $R0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai" "DisplayVersion"
-  ReadRegStr $R1 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai" "DisplayVersion"
-  
-  StrCpy $R2 ""
   ${If} $R0 != ""
-    StrCpy $R2 $R0
-  ${ElseIf} $R1 != ""
-    StrCpy $R2 $R1
+    StrCpy $MomAIInstalledVersion $R0
+    StrCpy $MomAIInstalledDetected "1"
   ${EndIf}
 
-  ${If} $R2 != ""
-    ${If} $R2 != "${VERSION}"
-      ; It's an update, skip prompt and update direct
+  ${If} $MomAIInstalledDetected != "1"
+    ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai" "DisplayVersion"
+    ${If} $R0 != ""
+      StrCpy $MomAIInstalledVersion $R0
+      StrCpy $MomAIInstalledDetected "1"
+    ${EndIf}
+  ${EndIf}
+
+  ${If} $MomAIInstalledDetected != "1"
+    ReadRegStr $R0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai_is1" "DisplayVersion"
+    ${If} $R0 != ""
+      StrCpy $MomAIInstalledVersion $R0
+      StrCpy $MomAIInstalledDetected "1"
+    ${EndIf}
+  ${EndIf}
+
+  ${If} $MomAIInstalledDetected != "1"
+    ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai_is1" "DisplayVersion"
+    ${If} $R0 != ""
+      StrCpy $MomAIInstalledVersion $R0
+      StrCpy $MomAIInstalledDetected "1"
+    ${EndIf}
+  ${EndIf}
+
+  ${If} $MomAIInstalledDetected != "1"
+    ReadRegStr $R0 HKLM "Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai" "DisplayVersion"
+    ${If} $R0 != ""
+      StrCpy $MomAIInstalledVersion $R0
+      StrCpy $MomAIInstalledDetected "1"
+    ${EndIf}
+  ${EndIf}
+
+  ${If} $MomAIInstalledDetected != "1"
+    ReadRegStr $R0 HKLM "Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai_is1" "DisplayVersion"
+    ${If} $R0 != ""
+      StrCpy $MomAIInstalledVersion $R0
+      StrCpy $MomAIInstalledDetected "1"
+    ${EndIf}
+  ${EndIf}
+
+  ; If any installation was detected and version is different, this is an update.
+  ${If} $MomAIInstalledDetected == "1"
+    ${If} $MomAIInstalledVersion != ""
+      ${If} $MomAIInstalledVersion != "${VERSION}"
+        Goto skip_init
+      ${EndIf}
+    ${Else}
+      ; Installation detected but version unknown: prefer safe path and skip destructive prompt.
       Goto skip_init
     ${EndIf}
   ${EndIf}

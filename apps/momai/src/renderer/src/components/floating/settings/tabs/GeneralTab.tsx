@@ -28,12 +28,27 @@ export const GeneralTab = ({
 }: GeneralTabProps) => {
   const [autoStartWindows, setAutoStartWindows] = useState(false)
   const [showIaTooltip, setShowIaTooltip] = useState(false)
+  const [isDevMode, setIsDevMode] = useState(() => localStorage.getItem('momai_dev_mode') === 'true')
 
   useEffect(() => {
     window.api
       ?.getAutoStart?.()
       .then(setAutoStartWindows)
       .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const syncDevMode = (event: Event) => {
+      const detail = (event as CustomEvent<boolean>).detail
+      if (typeof detail === 'boolean') {
+        setIsDevMode(detail)
+        return
+      }
+      setIsDevMode(localStorage.getItem('momai_dev_mode') === 'true')
+    }
+
+    window.addEventListener('momai_dev_mode_sync', syncDevMode as EventListener)
+    return () => window.removeEventListener('momai_dev_mode_sync', syncDevMode as EventListener)
   }, [])
 
   const handleAutoStartWindows = async (enabled: boolean) => {
@@ -399,9 +414,10 @@ export const GeneralTab = ({
         {/* Manutencao Sutil */}
         <div className="pt-2 flex justify-end items-center gap-6">
           <button
+            type="button"
             onClick={handleDevMode}
             className={`text-[9px] font-bold uppercase tracking-widest transition-colors flex items-center gap-1.5 ${
-              localStorage.getItem('momai_dev_mode') === 'true'
+              isDevMode
                 ? 'text-accent'
                 : 'text-text-muted/30 hover:text-accent/50'
             }`}
@@ -421,6 +437,7 @@ export const GeneralTab = ({
           </button>
 
           <button
+            type="button"
             onClick={resetOnboarding}
             className="text-[9px] font-bold text-text-muted/30 uppercase tracking-widest hover:text-red-500/50 transition-colors flex items-center gap-1.5"
           >

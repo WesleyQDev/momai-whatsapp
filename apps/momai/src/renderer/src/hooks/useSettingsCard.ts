@@ -254,8 +254,6 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     const current = localStorage.getItem('momai_dev_mode') === 'true'
     localStorage.setItem('momai_dev_mode', String(!current))
     window.dispatchEvent(new CustomEvent('momai_dev_mode_sync', { detail: !current }))
-    setIsLoading(true)
-    setTimeout(() => setIsLoading(false), 10)
   }
 
   const resetOnboarding = async () => {
