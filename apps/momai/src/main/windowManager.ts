@@ -90,7 +90,6 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.on('window-close', () => {
-    setIsQuitting(true)
     app.quit()
   })
 
