@@ -3237,18 +3237,53 @@ setInterval(() => {
   }
 }, 1000)
 
+server.on('error', (error) => {
+  const message =
+    error && error.code === 'EADDRINUSE'
+      ? `Port ${PORT} is already in use (${HOST}:${PORT})`
+      : error?.message || 'Unexpected node-core server error'
+
+  console.error(`[NodeCore] ${message}`)
+  if (typeof process.send === 'function') {
+    process.send({ type: 'node-core-error', error: message })
+  }
+  process.exit(1)
+})
+
 server.listen(PORT, HOST, () => {
   const msg = `Node core listening on http://${HOST}:${PORT}`
   console.log(msg)
+
+  setInitStatus('loading', 'Starting local services...', 60, null)
+
+  const autoStartLlm = store.settings.auto_start_llm !== false
+  const announceReady = async () => {
+    if (autoStartLlm) {
+      const tierName = store.settings.ai_tier || 'pro'
+      setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 75, null)
+      try {
+        await ensureLlamaReady(false, false)
+      } catch (error) {
+        console.error('[NodeCore] auto-start llama failed:', error)
+      }
+    } else {
+      setInitStatus('ready', 'System ready.', 100, null)
+    }
+
+    if (typeof process.send === 'function') {
+      process.send({
+        type: 'node-core-ready',
+        brainReady: autoStartLlm ? llamaState.ready : true,
+        isLoading: llamaState.starting || modelDownloadState.in_progress
+      })
+    }
+  }
+
   if (typeof process.send === 'function') {
     process.send({ type: 'node-core-log', message: msg })
-    process.send({ type: 'node-core-ready' })
   }
-  if (store.settings.auto_start_llm !== false) {
-    ensureLlamaReady(false, false).catch((error) => {
-      console.error('[NodeCore] auto-start llama failed:', error)
-    })
-  }
+  void announceReady()
+
   void syncWakeWordState('startup')
   if ((store.settings.ai_tier || 'pro') === 'ultra') {
     ensureEmbeddingReady()

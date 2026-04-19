@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { existsSync, mkdirSync } from 'fs'
 import { join, resolve } from 'path'
 import { spawn } from 'child_process'
+import { createConnection } from 'net'
 import { API_HOST, API_PORT } from './constants'
 import { getMainWindow, setNodeCoreProcess, setIsQuitting, state } from './state'
 import { logger } from './logger'
@@ -26,6 +27,43 @@ let coreReadyReject: ((error: Error) => void) | null = null
 let coreReadyPromise: Promise<void> | null = null
 let restartAttempts = 0
 let isStoppingCore = false
+
+function isPortReachable(port: number, host: string, timeoutMs = 400): Promise<boolean> {
+  return new Promise((resolve) => {
+    const sock = createConnection(port, host)
+    sock.setTimeout(timeoutMs)
+
+    const finish = (result: boolean) => {
+      sock.removeAllListeners()
+      sock.destroy()
+      resolve(result)
+    }
+
+    sock.on('connect', () => finish(true))
+    sock.on('error', () => finish(false))
+    sock.on('timeout', () => finish(false))
+  })
+}
+
+async function isMomaiNodeCoreReachable(host: string, port: number): Promise<boolean> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 1200)
+
+  try {
+    const response = await fetch(`http://${host}:${port}/status`, {
+      method: 'GET',
+      signal: controller.signal
+    })
+
+    if (!response.ok) return false
+    const data = await response.json().catch(() => null)
+    return Boolean(data && data.status === 'ok' && typeof data.mode === 'string')
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timeout)
+  }
+}
 
 function getNodeCoreScriptPath(): string {
   return join(app.getAppPath(), 'scripts', 'node-core.js')
@@ -105,8 +143,18 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
     if (!msg || typeof msg !== 'object') return
 
     if (msg.type === 'node-core-ready') {
-      logger.info('[CoreManager] Node core reported ready.')
-      emitInitProgress('System ready.', 100)
+      const brainReady = msg.brainReady !== false
+      const isLoading = msg.isLoading === true
+      logger.info(
+        `[CoreManager] Node core reported ready (brainReady=${brainReady}, isLoading=${isLoading}).`
+      )
+
+      if (brainReady && !isLoading) {
+        emitInitProgress('System ready.', 100)
+      } else {
+        emitInitProgress('Node core online. Loading local model...', 65)
+      }
+
       const mainWindow = getMainWindow()
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('backend-online')
@@ -203,6 +251,38 @@ export async function startCoreBackend(): Promise<void> {
 
   emitInitProgress('Starting local Node core...', 10)
   isStoppingCore = false
+
+  // If something is already serving this port, reuse MomAI core or fail fast with a clear message.
+  if (await isPortReachable(API_PORT, API_HOST, 350)) {
+    if (await isMomaiNodeCoreReachable(API_HOST, API_PORT)) {
+      logger.info(
+        `[CoreManager] Reusing existing Node core on ${API_HOST}:${API_PORT}.`
+      )
+      emitInitProgress('Node core online. Loading local model...', 65)
+      const mainWindow = getMainWindow()
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('backend-online')
+      }
+
+      void ensurePythonSidecar()
+      return
+    }
+
+    const conflictMessage =
+      `Port ${API_PORT} is already in use by another process on ${API_HOST}. ` +
+      'Close the conflicting process and restart MomAI.'
+
+    logger.error(`[CoreManager] ${conflictMessage}`)
+    const mainWindow = getMainWindow()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('bootstrap-error', {
+        type: 'startup_failed',
+        message: 'Node core failed to start',
+        details: conflictMessage
+      })
+    }
+    throw new Error(conflictMessage)
+  }
 
   coreReadyPromise = new Promise<void>((resolve, reject) => {
     coreReadyResolve = resolve

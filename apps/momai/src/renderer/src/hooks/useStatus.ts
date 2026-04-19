@@ -70,19 +70,15 @@ export function useStatus() {
       setIsOnline(data.status === 'ok')
       setBackendOnline(true)
 
-      // Considera o boot concluído quando o backend principal está operacional.
-      // O carregamento do LLM pode continuar em segundo plano sem travar a UI em 99%.
-      if (data.status === 'ok' && backendOnline && initProgress >= 95) {
-        setIsBooting(false)
-        setInitProgress(100)
-      }
-
-      // Compat: mantém o caminho antigo para cenários onde o modelo já sinaliza pronto
+      // Only finish boot when the model is fully ready.
       if (data.status === 'ok' && data.brain_ready && !data.is_loading) {
         setIsBooting(false)
         setInitProgress(100)
-      } else if (data.is_loading) {
-        setInitProgress((prev) => Math.max(prev, 50))
+      } else {
+        setIsBooting(true)
+        if (data.is_loading || !data.brain_ready) {
+          setInitProgress((prev) => Math.max(prev, 50))
+        }
       }
 
       setRetryCount(0)
@@ -98,7 +94,7 @@ export function useStatus() {
       setIsOnline(false)
       setRetryCount((prev) => prev + 1)
     }
-  }, [isBooting, backendOnline, initProgress]) // keep bootstrap completion responsive
+  }, [isBooting])
 
   useEffect(() => {
     const handleInitProgress = (e: any) => {

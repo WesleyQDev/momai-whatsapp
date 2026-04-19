@@ -78,6 +78,7 @@ export default function ChatInput({
   })
   const [aiTier, setAiTier] = useState<string | null>(null)
   const [isQuickRecording, setIsQuickRecording] = useState(false)
+  const isBrainUnavailable = statusInfo ? !statusInfo.brain_ready || statusInfo.is_loading : false
 
   const { suggestion, addToHistory, getSuggestion, clearSuggestion, acceptSuggestion } =
     useAutocomplete()
@@ -169,7 +170,7 @@ export default function ChatInput({
   }, [isDropdownOpen])
 
   const handleSend = useCallback(() => {
-    if (!localText.trim() || isLoading || isModeChanging) return
+    if (!localText.trim() || isLoading || isModeChanging || isBrainUnavailable) return
     addToHistory(localText)
     clearSuggestion()
     onSend(localText)
@@ -178,6 +179,7 @@ export default function ChatInput({
     localText,
     isLoading,
     isModeChanging,
+    isBrainUnavailable,
     addToHistory,
     clearSuggestion,
     onSend
@@ -385,6 +387,7 @@ export default function ChatInput({
                   disabled={
                     isLoading ||
                     isModeChanging ||
+                    isBrainUnavailable ||
                     isQuickRecording ||
                     aiTier !== 'ultra'
                   }
@@ -433,7 +436,8 @@ export default function ChatInput({
                   onClick={handleSend}
                   disabled={
                     isLoading ||
-                    isModeChanging
+                    isModeChanging ||
+                    isBrainUnavailable
                   }
                   title="Enviar mensagem"
                 >

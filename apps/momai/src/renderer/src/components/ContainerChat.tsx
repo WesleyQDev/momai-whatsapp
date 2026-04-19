@@ -316,7 +316,7 @@ export default function ContainerChat({
   const displayProgress = isSystemDone ? 100 : Math.min(initProgress, 99)
   const loadingProgress = isModeChanging ? Math.min(displayProgress, 99) : displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
-  const showLoading = !shouldSkipIntro && (isModeChanging || !animationFinished || !isSystemDone)
+  const showLoading = isModeChanging || !isSystemDone || (!shouldSkipIntro && !animationFinished)
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage =
@@ -467,7 +467,7 @@ export default function ContainerChat({
                 text={text}
                 onSend={onSendMessage}
                 isLoading={isLoading}
-                isModeChanging={isModeChanging}
+                isModeChanging={isModeChanging || !isBrainReady || isBrainLoading}
                 statusInfo={statusInfo}
                 onStopGeneration={stopCurrentGeneration}
                 onStopVoice={stopCurrentVoice}

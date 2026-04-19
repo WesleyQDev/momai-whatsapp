@@ -51,7 +51,7 @@ export const AssistantStatus = ({ currentTier, isThinking }: AssistantStatusProp
           />
           <span className="relative text-[11px] font-bold text-text-muted/60 whitespace-nowrap">
             {(() => {
-              if (isThinking) {
+              if (currentTier === 'ultra' && isThinking) {
                 return (
                   <div className="flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-[0_0_8px_rgba(var(--accent),0.6)]" />
