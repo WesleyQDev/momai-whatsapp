@@ -188,7 +188,9 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       let score = 0
 
       for (const intent of intents) {
-        const intentNorm = String(intent || '').toLowerCase().trim()
+        const intentNorm = String(intent || '')
+          .toLowerCase()
+          .trim()
         if (!intentNorm) continue
         if (lower.includes(intentNorm)) score += 3
       }
@@ -234,6 +236,74 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     }))
   }
 
+  function toOpenAITools(skillIds) {
+    const skills = skillIds ? getEnabled().filter((s) => skillIds.includes(s.id)) : getEnabled()
+    return skills.map((skill) => {
+      const tools = skill.manifest.tools || []
+      if (tools.length === 0) {
+        return {
+          type: 'function',
+          function: {
+            name: skill.id,
+            description: skill.manifest.description,
+            parameters: {
+              type: 'object',
+              properties: {
+                content: {
+                  type: 'string',
+                  description: 'The user message content to process with this skill.'
+                }
+              },
+              required: ['content']
+            }
+          }
+        }
+      }
+      if (tools.length === 1) {
+        const tool = tools[0]
+        return {
+          type: 'function',
+          function: {
+            name: tool.name,
+            description: `${skill.manifest.description}\n\nSkill: ${skill.manifest.name}`,
+            parameters: {
+              type: 'object',
+              properties: {
+                content: {
+                  type: 'string',
+                  description: `Input for ${tool.name}: ${tool.description}`
+                }
+              },
+              required: ['content']
+            }
+          }
+        }
+      }
+      return {
+        type: 'function',
+        function: {
+          name: skill.id,
+          description: `${skill.manifest.description}\n\nAvailable tools: ${tools.map((t) => `${t.name} - ${t.description}`).join('; ')}`,
+          parameters: {
+            type: 'object',
+            properties: {
+              tool: {
+                type: 'string',
+                enum: tools.map((t) => t.name),
+                description: 'Which tool to use within this skill.'
+              },
+              content: {
+                type: 'string',
+                description: 'The user message content to process.'
+              }
+            },
+            required: ['content']
+          }
+        }
+      }
+    })
+  }
+
   refresh()
 
   return {
@@ -246,6 +316,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     discover,
     execute,
     toListPayload,
+    toOpenAITools,
     extensionsDir
   }
 }

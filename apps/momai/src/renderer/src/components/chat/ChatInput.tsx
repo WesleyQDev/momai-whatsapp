@@ -154,6 +154,36 @@ export default function ChatInput({
     loadSettings()
   }, [statusInfo, settingsLoaded])
 
+  // Reload voice settings when tier changes
+  useEffect(() => {
+    if (!settingsLoaded) return
+
+    const reloadVoiceSettings = async () => {
+      try {
+        const data = await fetchSettings()
+        setVoiceSettings({
+          wake_word_enabled: !!data.wake_word_enabled,
+          tts_enabled: !!data.tts_enabled
+        })
+        if (data.ai_tier) setAiTier(data.ai_tier)
+      } catch (error) {
+        console.error('Erro ao recarregar configuracoes de voz:', error)
+      }
+    }
+
+    const handleTierChange = () => {
+      reloadVoiceSettings()
+    }
+
+    window.addEventListener('momai_tier_change_start', handleTierChange)
+    window.addEventListener('momai_settings_sync', handleTierChange)
+
+    return () => {
+      window.removeEventListener('momai_tier_change_start', handleTierChange)
+      window.removeEventListener('momai_settings_sync', handleTierChange)
+    }
+  }, [settingsLoaded])
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement

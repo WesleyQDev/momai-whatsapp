@@ -64,7 +64,7 @@ function createPromptRegistry({ promptsDir }) {
       default_max_sentences: 6,
       memory_context_header: '{{sections}}',
       system_template:
-        'Persona: {{assistant_persona}}\\nStyle: {{response_style}}\\nMax sentences: {{max_sentences}}\\n{{memory_block}}\\n{{tool_block}}',
+        'Persona: {{assistant_persona}}\nStyle: {{response_style}}\nMax sentences: {{max_sentences}}\n{{memory_block}}',
       tiers: {
         lite: { response_style: 'balanced', max_sentences: 6, tier_instructions: '' },
         pro: { response_style: 'balanced', max_sentences: 6, tier_instructions: '' },
@@ -103,19 +103,21 @@ function createPromptRegistry({ promptsDir }) {
   function buildSystemPrompt(input) {
     const prompts = loadPrompts()
     const tier = ['lite', 'pro', 'ultra'].includes(input.tier) ? input.tier : 'pro'
-    const tierCfg = (prompts.tiers && prompts.tiers[tier]) || prompts.tiers.pro || prompts.tiers.lite || {}
+    const tierCfg =
+      (prompts.tiers && prompts.tiers[tier]) || prompts.tiers.pro || prompts.tiers.lite || {}
 
     const vars = {
       assistant_persona: sanitize(input.persona || prompts.default_persona || ''),
-      response_style: sanitize(input.responseStyle || tierCfg.response_style || prompts.default_style || 'balanced'),
+      response_style: sanitize(
+        input.responseStyle || tierCfg.response_style || prompts.default_style || 'balanced'
+      ),
       max_sentences: Number.isFinite(Number(tierCfg.max_sentences))
         ? Number(tierCfg.max_sentences)
         : Number(prompts.default_max_sentences || 6),
       tier_instructions: sanitize(String(tierCfg.tier_instructions || '')),
       response_language_block: sanitize(formatResponseLanguageInstruction(input.responseLanguage)),
       runtime_clock: sanitize(buildRuntimeClockContext()),
-      memory_block: input.memoryContext ? `MEMORY CONTEXT:\n${sanitize(input.memoryContext)}` : '',
-      tool_block: input.toolInstruction ? `TOOL RESULT:\n${sanitize(input.toolInstruction)}` : ''
+      memory_block: input.memoryContext ? `MEMORY CONTEXT:\n${sanitize(input.memoryContext)}` : ''
     }
 
     runtime.lastTier = tier
@@ -140,8 +142,7 @@ function createPromptRegistry({ promptsDir }) {
         `Target max sentences: ${vars.max_sentences || 6}`,
         vars.response_language_block,
         vars.runtime_clock,
-        vars.memory_block,
-        vars.tool_block
+        vars.memory_block
       ]
         .filter(Boolean)
         .join('\\n\\n')

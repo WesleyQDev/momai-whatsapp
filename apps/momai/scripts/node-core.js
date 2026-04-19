@@ -20,10 +20,14 @@ const LLAMA_BIN_CANDIDATES = [
   process.env.MOMAI_LLAMA_BIN_PATH,
   path.resolve(__dirname, '..', 'bin', 'llama'),
   process.resourcesPath ? path.join(process.resourcesPath, 'bin', 'llama') : null,
-  process.resourcesPath ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', 'llama') : null
+  process.resourcesPath
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', 'llama')
+    : null
 ].filter(Boolean)
 const TIERS_CONFIG_PATH = path.join(CORE_PATH, 'ai_tiers.json')
-const MODEL_DOWNLOAD_TIMEOUT_MS = Number(process.env.MOMAI_MODEL_DOWNLOAD_TIMEOUT_MS || 15 * 60 * 1000)
+const MODEL_DOWNLOAD_TIMEOUT_MS = Number(
+  process.env.MOMAI_MODEL_DOWNLOAD_TIMEOUT_MS || 15 * 60 * 1000
+)
 
 const PYTHON_HOST = process.env.MOMAI_PYTHON_SIDECAR_HOST || '127.0.0.1'
 const PYTHON_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
@@ -406,7 +410,10 @@ function ensureDir(dirPath) {
 }
 
 function sha1(text) {
-  return crypto.createHash('sha1').update(String(text || ''), 'utf8').digest('hex')
+  return crypto
+    .createHash('sha1')
+    .update(String(text || ''), 'utf8')
+    .digest('hex')
 }
 
 function percentile(values, p) {
@@ -450,7 +457,9 @@ function pickEmbeddingModelPath() {
   if (!fs.existsSync(MODELS_DIR)) return null
   const candidates = fs
     .readdirSync(MODELS_DIR)
-    .filter((name) => name.toLowerCase().includes('embedding') && name.toLowerCase().endsWith('.gguf'))
+    .filter(
+      (name) => name.toLowerCase().includes('embedding') && name.toLowerCase().endsWith('.gguf')
+    )
     .sort((a, b) => a.localeCompare(b))
   if (!candidates.length) return null
   return path.join(MODELS_DIR, candidates[0])
@@ -756,7 +765,9 @@ function parseEmbeddingResponse(data) {
 }
 
 async function embedText(text) {
-  const normalized = String(text || '').trim().toLowerCase()
+  const normalized = String(text || '')
+    .trim()
+    .toLowerCase()
   if (!normalized) return null
   cleanupEmbeddingCache()
   const cacheKey = sha1(normalized)
@@ -843,7 +854,9 @@ function listNoteRecords() {
 
 function lexicalScore(source, query) {
   const src = String(source || '').toLowerCase()
-  const q = String(query || '').toLowerCase().trim()
+  const q = String(query || '')
+    .toLowerCase()
+    .trim()
   if (!src || !q) return 0
   let idx = 0
   let count = 0
@@ -875,14 +888,19 @@ async function createOrOverwriteTable(tableName, rows) {
   const db = await ensureVectorDb()
   if (!db) return null
   try {
-    const table = await db.createTable(tableName, rows.length ? rows : [{ id: '__empty__', text: '__empty__', vector: [0.0, 0.0, 0.0, 0.0] }], { mode: 'overwrite' })
+    const table = await db.createTable(
+      tableName,
+      rows.length ? rows : [{ id: '__empty__', text: '__empty__', vector: [0.0, 0.0, 0.0, 0.0] }],
+      { mode: 'overwrite' }
+    )
     if (!rows.length) {
       await table.delete("id = '__empty__'")
     }
     return table
   } catch (error) {
     semanticState.degraded = true
-    semanticState.lastFallbackReason = error?.message || `lancedb create table failure: ${tableName}`
+    semanticState.lastFallbackReason =
+      error?.message || `lancedb create table failure: ${tableName}`
     return null
   }
 }
@@ -1052,7 +1070,9 @@ function buildMemoryContextAndSources(hits) {
   for (const hit of hits.slice(0, 4)) {
     const txt = String(hit.text || '').trim()
     if (!txt) continue
-    sections.push(`--- [TITULO DA NOTA: ${String(hit.title || 'Nota').toUpperCase()}] ---\n${txt}\n`)
+    sections.push(
+      `--- [TITULO DA NOTA: ${String(hit.title || 'Nota').toUpperCase()}] ---\n${txt}\n`
+    )
     memorySources.push({
       url: `momai://note/${hit.note_id}`,
       title: `Nota: ${hit.title || 'Sem título'}`,
@@ -1119,7 +1139,10 @@ function ensureNotesIndexExists() {
 
 function saveMemoryNoteFromContent(content) {
   ensureNotesIndexExists()
-  const titleLine = String(content || '').trim().split('\n')[0] || 'Nota'
+  const titleLine =
+    String(content || '')
+      .trim()
+      .split('\n')[0] || 'Nota'
   const title = titleLine.replace(/^#+\s*/, '').slice(0, 80) || 'Nota'
   const id = crypto.randomUUID()
   const relPath = `notes/${id}.md`
@@ -1134,113 +1157,46 @@ function saveMemoryNoteFromContent(content) {
     source: 'local',
     created_at: isoNow(),
     updated_at: isoNow(),
-    preview: String(content || '').replace(/\s+/g, ' ').trim().slice(0, 220)
+    preview: String(content || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 220)
   })
   fs.writeFileSync(NOTES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8')
   return { id, title, path: relPath }
 }
 
-async function executeSkillAutomatically(userContent, discoveredSkill) {
-  const skillObj = skillRegistry.getById(discoveredSkill.id)
-  if (!skillObj || !isSkillEnabledByStore(skillObj)) return null
-  const startedAt = Date.now()
-  const stepBase = {
-    skill_id: discoveredSkill.id,
-    skill_name: discoveredSkill.name,
-    started_at: isoNow()
-  }
-  const runtimeContext = {
-    listActiveReminders(limit = 8) {
-      return store.reminders
-        .filter((r) => r.is_active)
-        .sort((a, b) => parseTime(a.scheduled_time) - parseTime(b.scheduled_time))
-        .slice(0, limit)
-    },
-    createReminderFromText(text) {
-      const scheduled = parseRelativeReminder(text) || new Date(Date.now() + 60 * 60 * 1000).toISOString()
-      const title = String(text || '').length > 80 ? `${String(text).slice(0, 80)}...` : String(text || 'Lembrete')
-      const reminder = normalizeReminder({
-        id: store.next_reminder_id++,
-        title: title || 'Lembrete',
-        content: String(text || ''),
-        scheduled_time: scheduled,
-        is_active: true
-      })
-      store.reminders.push(reminder)
-      saveStore()
-      broadcast({ type: 'reminders_updated' })
-      return reminder
-    },
-    saveMemoryNote(text) {
-      const note = saveMemoryNoteFromContent(text)
-      semanticState.lastNotesSyncAt = 0
-      return note
-    },
-    async searchMemory(text, limit = 4) {
-      const result = await runSemanticMemoryRetrieval(text, limit)
-      return result.hits || []
-    },
-    searchWeb
-  }
-
-  try {
-    const result = await skillRegistry.execute(discoveredSkill.id, userContent, runtimeContext)
-    const elapsed = Date.now() - startedAt
-    rollingPush(semanticState.latency.toolExecMs, elapsed)
-    if (!result) return null
-    return {
-      activeSkill: discoveredSkill.id,
-      toolSteps: [{ ...stepBase, tool: result.tool || 'execute', status: 'success', duration_ms: elapsed }],
-      toolInstruction: result.instruction || null,
-      directResponse: typeof result.directResponse === 'string' ? result.directResponse : null,
-      webSources: Array.isArray(result.webSources) ? result.webSources : undefined
-    }
-  } catch (error) {
-    const elapsed = Date.now() - startedAt
-    rollingPush(semanticState.latency.toolExecMs, elapsed)
-    return {
-      activeSkill: discoveredSkill.id,
-      toolSteps: [{ ...stepBase, tool: 'unknown', status: 'error', duration_ms: elapsed, error: error?.message || 'tool execution failed' }],
-      toolInstruction: null
-    }
-  }
-}
-
-async function discoverSkillForQuery(query) {
+async function getTop5SkillsSemantic(query) {
   const text = String(query || '').trim()
-  if (!text) return null
-  let discovered = skillRegistry.discover(text)
-  if (discovered) {
-    const discoveredSkill = skillRegistry.getById(discovered.id)
-    if (!discoveredSkill || !isSkillEnabledByStore(discoveredSkill)) discovered = null
+  if (!text) return []
+
+  const enabledSkills = getEnabledSkills()
+  if (enabledSkills.length === 0) return []
+
+  if (enabledSkills.length <= 5) {
+    return enabledSkills.map((s) => s.id)
   }
 
   if (semanticState.tableSkills) {
-    const qVec = await embedText(text)
-    if (Array.isArray(qVec)) {
-      try {
-        const rows = await semanticState.tableSkills.search(qVec).limit(3).toArray()
+    try {
+      const qVec = await embedText(text)
+      if (Array.isArray(qVec)) {
+        const rows = await semanticState.tableSkills.search(qVec).limit(5).toArray()
         if (rows.length) {
-          const top = rows[0]
-          const vectorConfidence = Math.max(0, 1 - Number(top._distance || 1))
-          const candidate = skillRegistry.getById(top.id)
-          if (candidate && isSkillEnabledByStore(candidate) && vectorConfidence > 0.35) {
-            const vectorDiscovery = {
-              id: candidate.id,
-              name: candidate.manifest.name,
-              confidence: Math.min(1, vectorConfidence),
-              source: 'vector'
-            }
-            if (!discovered || Number(vectorDiscovery.confidence || 0) >= Number(discovered.confidence || 0)) {
-              discovered = vectorDiscovery
+          const ids = []
+          for (const row of rows) {
+            const candidate = skillRegistry.getById(row.id)
+            if (candidate && isSkillEnabledByStore(candidate)) {
+              ids.push(candidate.id)
             }
           }
+          if (ids.length > 0) return ids
         }
-      } catch {}
-    }
+      }
+    } catch {}
   }
 
-  return discovered
+  return enabledSkills.slice(0, 5).map((s) => s.id)
 }
 
 async function runSemanticMemoryRetrieval(query, limit = 6) {
@@ -1277,7 +1233,11 @@ function llamaBackendExePath(backend) {
     const candidate = path.join(basePath, backend, exeName)
     if (fs.existsSync(candidate)) return candidate
   }
-  return path.join(LLAMA_BIN_CANDIDATES[0] || path.resolve(__dirname, '..', 'bin', 'llama'), backend, exeName)
+  return path.join(
+    LLAMA_BIN_CANDIDATES[0] || path.resolve(__dirname, '..', 'bin', 'llama'),
+    backend,
+    exeName
+  )
 }
 
 function llamaBackendNativeExeName() {
@@ -1307,7 +1267,11 @@ function resolveBackendBinaryInfo(backend) {
   }
 
   return {
-    path: path.join(LLAMA_BIN_CANDIDATES[0] || path.resolve(__dirname, '..', 'bin', 'llama'), backend, nativeName),
+    path: path.join(
+      LLAMA_BIN_CANDIDATES[0] || path.resolve(__dirname, '..', 'bin', 'llama'),
+      backend,
+      nativeName
+    ),
     compatible: false
   }
 }
@@ -1546,7 +1510,9 @@ async function ensureTierModelAvailable(tierName, tierConfig) {
     try {
       await downloadToFile(url, targetPath, ({ received, total }) => {
         const now = Date.now()
-        const percent = total ? Math.max(1, Math.min(99, Math.round((received / total) * 100))) : null
+        const percent = total
+          ? Math.max(1, Math.min(99, Math.round((received / total) * 100)))
+          : null
         setModelDownloadState({
           downloaded_bytes: received,
           total_bytes: total,
@@ -1790,7 +1756,9 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
         llamaState.contextTotalTokens = ctxBase
         llamaState.backend = backend
         llamaState.backendMode = preferred
-        llamaState.backendReason = backendReason(preferred, backend, { vulkanAttempted: isFallbackAttempt })
+        llamaState.backendReason = backendReason(preferred, backend, {
+          vulkanAttempted: isFallbackAttempt
+        })
         llamaState.modelPath = modelPath
         llamaState.configuredModelFile = configuredModelFile
         llamaState.usingFallbackModel = usingFallbackModel
@@ -1850,7 +1818,11 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
         const timeoutMs = 25000
         ;(async () => {
           while (Date.now() - startedAt < timeoutMs) {
-            if (exitedDuringStartup || !llamaState.process || llamaState.process.exitCode !== null) {
+            if (
+              exitedDuringStartup ||
+              !llamaState.process ||
+              llamaState.process.exitCode !== null
+            ) {
               resolve({ ok: false, reason: 'llama-server exited during startup' })
               return
             }
@@ -1922,23 +1894,61 @@ function sanitizePromptText(text) {
 
 const LATIN_LANGUAGE_HINTS = {
   'pt-BR': [
-    'oi', 'ola', 'olá', 'você', 'voce', 'pra', 'não', 'nao', 'como', 'obrigado', 'obrigada', 'tudo bem', 'quero'
+    'oi',
+    'ola',
+    'olá',
+    'você',
+    'voce',
+    'pra',
+    'não',
+    'nao',
+    'como',
+    'obrigado',
+    'obrigada',
+    'tudo bem',
+    'quero'
   ],
   en: [
-    'hello', 'hi', 'please', 'thanks', 'thank you', 'can you', 'could you', 'what', 'why', 'how', 'the', 'and'
+    'hello',
+    'hi',
+    'please',
+    'thanks',
+    'thank you',
+    'can you',
+    'could you',
+    'what',
+    'why',
+    'how',
+    'the',
+    'and'
   ],
   es: [
-    'hola', 'gracias', 'por favor', 'puedes', 'puede', 'como', 'cómo', 'necesito', 'quiero', 'que', 'qué'
+    'hola',
+    'gracias',
+    'por favor',
+    'puedes',
+    'puede',
+    'como',
+    'cómo',
+    'necesito',
+    'quiero',
+    'que',
+    'qué'
   ],
   fr: [
-    'bonjour', 'merci', 's\'il vous plait', 's\'il te plait', 'comment', 'pourquoi', 'je', 'vous', 'avec', 'aide'
+    'bonjour',
+    'merci',
+    "s'il vous plait",
+    "s'il te plait",
+    'comment',
+    'pourquoi',
+    'je',
+    'vous',
+    'avec',
+    'aide'
   ],
-  de: [
-    'hallo', 'danke', 'bitte', 'ich', 'du', 'sie', 'wie', 'warum', 'kannst', 'hilfe'
-  ],
-  it: [
-    'ciao', 'grazie', 'per favore', 'come', 'perché', 'puoi', 'voglio', 'aiuto'
-  ]
+  de: ['hallo', 'danke', 'bitte', 'ich', 'du', 'sie', 'wie', 'warum', 'kannst', 'hilfe'],
+  it: ['ciao', 'grazie', 'per favore', 'come', 'perché', 'puoi', 'voglio', 'aiuto']
 }
 
 function normalizeLanguageTag(tag) {
@@ -2028,16 +2038,20 @@ function buildLocalizedFallbackReply({ key, summary, reason, language }) {
   if (lang === 'en') {
     if (key === 'empty') return 'Send me a question and I will help you.'
     if (key === 'greeting') return 'Hi! I am online. How can I help you now?'
-    if (key === 'reason') return `Local model unavailable right now (${safeReason}). Fallback reply for: "${safeSummary}".`
-    if (key === 'with_memory') return `Got it: "${safeSummary}". I also considered your local notes context.`
+    if (key === 'reason')
+      return `Local model unavailable right now (${safeReason}). Fallback reply for: "${safeSummary}".`
+    if (key === 'with_memory')
+      return `Got it: "${safeSummary}". I also considered your local notes context.`
     return `Got it: "${safeSummary}". I will proceed with that.`
   }
 
   if (lang === 'es') {
     if (key === 'empty') return 'Enviame una pregunta y te ayudare.'
     if (key === 'greeting') return 'Hola! Estoy en linea. Como puedo ayudarte ahora?'
-    if (key === 'reason') return `Modelo local no disponible en este momento (${safeReason}). Respuesta de respaldo para: "${safeSummary}".`
-    if (key === 'with_memory') return `Entendi tu pedido: "${safeSummary}". Tambien considere el contexto de tus notas locales.`
+    if (key === 'reason')
+      return `Modelo local no disponible en este momento (${safeReason}). Respuesta de respaldo para: "${safeSummary}".`
+    if (key === 'with_memory')
+      return `Entendi tu pedido: "${safeSummary}". Tambien considere el contexto de tus notas locales.`
     return `Entendi tu pedido: "${safeSummary}". Voy a continuar con eso.`
   }
 
@@ -2058,7 +2072,12 @@ function generateFallbackReply(content, memoryContext, reason, responseLanguage)
   const hasMemory = typeof memoryContext === 'string' && memoryContext.trim().length > 0
 
   if (reason) {
-    return buildLocalizedFallbackReply({ key: 'reason', summary, reason, language: responseLanguage })
+    return buildLocalizedFallbackReply({
+      key: 'reason',
+      summary,
+      reason,
+      language: responseLanguage
+    })
   }
   if (hasMemory) {
     return buildLocalizedFallbackReply({ key: 'with_memory', summary, language: responseLanguage })
@@ -2244,7 +2263,9 @@ async function syncWakeWordState(reason = 'unknown') {
     }
   }
 
-  console.warn(`[NodeCore][Voice] Wake-word sync failed (${reason}) after retries: ${lastError || 'unknown error'}`)
+  console.warn(
+    `[NodeCore][Voice] Wake-word sync failed (${reason}) after retries: ${lastError || 'unknown error'}`
+  )
 }
 
 async function syncPythonCallModeState(reason = 'unknown') {
@@ -2280,7 +2301,9 @@ async function syncPythonCallModeState(reason = 'unknown') {
     }
   }
 
-  console.warn(`[NodeCore][Voice] Call-mode sync failed (${reason}) after retries: ${lastError || 'unknown error'}`)
+  console.warn(
+    `[NodeCore][Voice] Call-mode sync failed (${reason}) after retries: ${lastError || 'unknown error'}`
+  )
 }
 
 async function triggerAutoTts(text) {
@@ -2346,7 +2369,8 @@ async function triggerAutoTts(text) {
         data: {
           loading: true,
           pending_auto_tts: true,
-          message: 'Motor de voz (Python/TTS) carregando. Vou reproduzir automaticamente quando estiver pronto.'
+          message:
+            'Motor de voz (Python/TTS) carregando. Vou reproduzir automaticamente quando estiver pronto.'
         }
       })
     }
@@ -2420,11 +2444,27 @@ function parseLlamaDataLine(line) {
     if (json.error?.message) return { type: 'error', error: json.error.message }
 
     const choice = json.choices?.[0]
+    const finishReason = choice?.finish_reason
+
     const delta = choice?.delta?.content
     const full = choice?.message?.content
     const token = typeof delta === 'string' ? delta : typeof full === 'string' ? full : ''
-    if (!token) return { type: 'skip' }
-    return { type: 'token', token }
+
+    const toolCalls = choice?.delta?.tool_calls
+    if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+      return { type: 'tool_calls', tool_calls: toolCalls, finish_reason: finishReason }
+    }
+
+    if (finishReason === 'tool_calls' && choice?.message?.tool_calls) {
+      return {
+        type: 'tool_calls',
+        tool_calls: choice.message.tool_calls,
+        finish_reason: finishReason
+      }
+    }
+
+    if (!token) return { type: 'skip', finish_reason: finishReason }
+    return { type: 'token', token, finish_reason: finishReason }
   } catch {
     return { type: 'skip' }
   }
@@ -2441,8 +2481,6 @@ async function streamLlamaChat(req, res, payload) {
   let memorySources = Array.isArray(payload.memory_sources) ? [...payload.memory_sources] : []
   let toolSteps = []
   let activeSkill = null
-  let toolInstruction = null
-  let directToolResponse = null
 
   const ready = await ensureLlamaReady(false)
   if (!ready) {
@@ -2462,7 +2500,9 @@ async function streamLlamaChat(req, res, payload) {
   if (isUltra) {
     const semantic = await runSemanticMemoryRetrieval(content, 6)
     if (semantic.memoryContext) {
-      memoryContext = memoryContext ? `${memoryContext}\n\n${semantic.memoryContext}` : semantic.memoryContext
+      memoryContext = memoryContext
+        ? `${memoryContext}\n\n${semantic.memoryContext}`
+        : semantic.memoryContext
     }
 
     if (Array.isArray(semantic.memorySources) && semantic.memorySources.length) {
@@ -2473,25 +2513,11 @@ async function streamLlamaChat(req, res, payload) {
       }
       memorySources = [...byUrl.values()].slice(0, 10)
     }
-
-    const discoveredSkill = await discoverSkillForQuery(content)
-    if (discoveredSkill && discoveredSkill.confidence >= 0.55) {
-      const toolResult = await executeSkillAutomatically(content, discoveredSkill)
-      if (toolResult) {
-        activeSkill = toolResult.activeSkill || discoveredSkill.id
-        toolSteps = Array.isArray(toolResult.toolSteps) ? toolResult.toolSteps : []
-        toolInstruction = toolResult.toolInstruction || null
-        directToolResponse = typeof toolResult.directResponse === 'string' ? toolResult.directResponse : null
-        if (Array.isArray(toolResult.webSources) && toolResult.webSources.length) {
-          memorySources = [...memorySources, ...toolResult.webSources].slice(0, 12)
-        }
-      }
-    }
   }
 
   appendMessage(threadId, 'user', content, {
     sources: memorySources.length ? memorySources : undefined,
-    graph_data: activeSkill || toolSteps.length ? { active_skill: activeSkill, tool_steps: toolSteps } : null
+    graph_data: null
   })
 
   sendSseHeaders(res)
@@ -2499,31 +2525,6 @@ async function streamLlamaChat(req, res, payload) {
   if (memorySources.length) {
     writeSse(res, { sources: memorySources })
     writeSse(res, { memory_sources: memorySources })
-  }
-  if (activeSkill) writeSse(res, { active_skill: activeSkill })
-  if (toolSteps.length) writeSse(res, { tool_steps: toolSteps })
-
-  if (directToolResponse && directToolResponse.trim()) {
-    writeSse(res, { status: 'responding' })
-    const finalText = directToolResponse.trim()
-    for (const token of splitTokens(finalText)) {
-      writeSse(res, { token })
-    }
-
-    appendMessage(threadId, 'assistant', finalText, {
-      sources: memorySources.length ? memorySources : undefined,
-      graph_data: activeSkill || toolSteps.length ? { active_skill: activeSkill, tool_steps: toolSteps } : null
-    })
-
-    if (speakResponse) {
-      try {
-        await triggerAutoTts(finalText)
-      } catch {}
-    }
-
-    writeSse(res, { done: true })
-    res.end()
-    return
   }
 
   const history = getThreadMessages(threadId)
@@ -2538,7 +2539,7 @@ async function streamLlamaChat(req, res, payload) {
     tier: tierName,
     persona: store.settings.assistant_persona || promptRegistry.getDefaults().assistant_persona,
     memoryContext,
-    toolInstruction,
+    toolInstruction: null,
     responseStyle,
     responseLanguage
   })
@@ -2593,65 +2594,244 @@ async function streamLlamaChat(req, res, payload) {
     enqueueAutoTts(chunk)
   }
 
-  try {
-    writeSse(res, { status: 'responding' })
+  const messages = [systemMessage, ...history]
+  let maxToolRounds = 3
+  let round = 0
 
-    const llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
+  try {
+    while (round < maxToolRounds) {
+      round++
+
+      let toolsPayload = []
+      if (isUltra) {
+        const top5SkillIds = await getTop5SkillsSemantic(content)
+        toolsPayload = skillRegistry.toOpenAITools(top5SkillIds)
+      }
+
+      const requestBody = {
         model: 'gpt-4o',
         stream: true,
         temperature: Number.isFinite(tier.temperature) ? tier.temperature : 0.7,
         top_p: Number.isFinite(tier.top_p) ? tier.top_p : 1,
         max_tokens: Number.isFinite(tier.max_tokens) ? tier.max_tokens : 320,
-        messages: [systemMessage, ...history]
-      })
-    })
-
-    if (!llamaResp.ok || !llamaResp.body) {
-      const txt = await llamaResp.text().catch(() => '')
-      throw new Error(`llama HTTP ${llamaResp.status}: ${txt.slice(0, 240)}`)
-    }
-
-    const reader = llamaResp.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-      if (stopGenerationRequested || closed) {
-        controller.abort()
-        break
+        messages
+      }
+      if (toolsPayload.length > 0) {
+        requestBody.tools = toolsPayload
       }
 
-      const { done, value } = await reader.read()
-      if (done) break
+      writeSse(res, { status: 'responding' })
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
+      const llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify(requestBody)
+      })
 
-      for (const rawLine of lines) {
-        const line = rawLine.trim()
-        if (!line.startsWith('data:')) continue
-        const parsed = parseLlamaDataLine(line)
-        if (parsed.type === 'done') break
-        if (parsed.type === 'error') {
-          writeSse(res, { error: parsed.error })
+      if (!llamaResp.ok || !llamaResp.body) {
+        const txt = await llamaResp.text().catch(() => '')
+        throw new Error(`llama HTTP ${llamaResp.status}: ${txt.slice(0, 240)}`)
+      }
+
+      const reader = llamaResp.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let roundText = ''
+      let toolCallsAccum = []
+
+      while (true) {
+        if (stopGenerationRequested || closed) {
+          controller.abort()
+          break
+        }
+
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const rawLine of lines) {
+          const line = rawLine.trim()
+          if (!line.startsWith('data:')) continue
+          const parsed = parseLlamaDataLine(line)
+          if (parsed.type === 'done') break
+          if (parsed.type === 'error') {
+            writeSse(res, { error: parsed.error })
+            continue
+          }
+          if (parsed.type === 'tool_calls') {
+            for (const tc of parsed.tool_calls) {
+              const idx = tc.index ?? 0
+              if (!toolCallsAccum[idx]) {
+                toolCallsAccum[idx] = {
+                  id: '',
+                  type: 'function',
+                  function: { name: '', arguments: '' }
+                }
+              }
+              if (tc.id) toolCallsAccum[idx].id = tc.id
+              if (tc.type) toolCallsAccum[idx].type = tc.type
+              if (tc.function?.name) toolCallsAccum[idx].function.name += tc.function.name
+              if (tc.function?.arguments)
+                toolCallsAccum[idx].function.arguments += tc.function.arguments
+            }
+            continue
+          }
+          if (parsed.type === 'token') {
+            roundText += parsed.token
+            assembled += parsed.token
+            writeSse(res, { token: parsed.token })
+            flushTtsChunks(false)
+          }
+        }
+      }
+
+      if (toolCallsAccum.length > 0 && toolCallsAccum[0]?.function?.name) {
+        const executedTools = []
+        for (const tc of toolCallsAccum) {
+          if (!tc?.function?.name) continue
+
+          const toolName = tc.function.name
+          const rawArgs = tc.function.arguments || '{}'
+          let args
+          try {
+            args = JSON.parse(rawArgs)
+          } catch {
+            args = { content: rawArgs }
+          }
+
+          let skillId = toolName
+          let skillObj = skillRegistry.getById(skillId)
+
+          if (!skillObj) {
+            for (const skill of getEnabledSkills()) {
+              const match = (skill.manifest.tools || []).find((t) => t.name === toolName)
+              if (match) {
+                skillId = skill.id
+                skillObj = skill
+                break
+              }
+            }
+          }
+
+          if (skillObj && isSkillEnabledByStore(skillObj)) {
+            const runtimeContext = {
+              listActiveReminders(limit = 8) {
+                return store.reminders
+                  .filter((r) => r.is_active)
+                  .sort((a, b) => parseTime(a.scheduled_time) - parseTime(b.scheduled_time))
+                  .slice(0, limit)
+              },
+              createReminderFromText(text) {
+                const scheduled =
+                  parseRelativeReminder(text) || new Date(Date.now() + 60 * 60 * 1000).toISOString()
+                const title =
+                  String(text || '').length > 80
+                    ? `${String(text).slice(0, 80)}...`
+                    : String(text || 'Lembrete')
+                const reminder = normalizeReminder({
+                  id: store.next_reminder_id++,
+                  title: title || 'Lembrete',
+                  content: String(text || ''),
+                  scheduled_time: scheduled,
+                  is_active: true
+                })
+                store.reminders.push(reminder)
+                saveStore()
+                broadcast({ type: 'reminders_updated' })
+                return reminder
+              },
+              saveMemoryNote(text) {
+                const note = saveMemoryNoteFromContent(text)
+                semanticState.lastNotesSyncAt = 0
+                return note
+              },
+              async searchMemory(text, limit = 4) {
+                const result = await runSemanticMemoryRetrieval(text, limit)
+                return result.hits || []
+              },
+              searchWeb
+            }
+
+            try {
+              const result = await skillRegistry.execute(
+                skillId,
+                args.content || content,
+                runtimeContext
+              )
+              const toolResultText = result?.instruction || JSON.stringify(result || {})
+              if (result?.directResponse) {
+                assembled += `\n${result.directResponse}`
+                for (const token of splitTokens(result.directResponse)) {
+                  writeSse(res, { token })
+                }
+              }
+
+              const toolStep = {
+                skill_id: skillId,
+                skill_name: skillObj.manifest.name,
+                tool: toolName,
+                status: result ? 'success' : 'error',
+                started_at: isoNow()
+              }
+              toolSteps.push(toolStep)
+              activeSkill = skillId
+              writeSse(res, { active_skill: activeSkill })
+              writeSse(res, { tool_steps: toolSteps })
+
+              if (Array.isArray(result?.webSources) && result.webSources.length) {
+                memorySources = [...memorySources, ...result.webSources].slice(0, 12)
+              }
+
+              messages.push({
+                role: 'assistant',
+                tool_calls: [
+                  {
+                    id: tc.id || `call_${toolName}`,
+                    type: 'function',
+                    function: { name: toolName, arguments: rawArgs }
+                  }
+                ]
+              })
+              messages.push({
+                role: 'tool',
+                tool_call_id: tc.id || `call_${toolName}`,
+                content: toolResultText
+              })
+              executedTools.push({ name: toolName, result: toolResultText })
+            } catch (execError) {
+              messages.push({
+                role: 'tool',
+                tool_call_id: tc.id || `call_${toolName}`,
+                content: `Error: ${execError?.message || 'tool execution failed'}`
+              })
+            }
+          } else {
+            messages.push({
+              role: 'tool',
+              tool_call_id: tc.id || `call_${toolName}`,
+              content: `Error: unknown tool "${toolName}"`
+            })
+          }
+        }
+
+        if (executedTools.length > 0) {
           continue
         }
-        if (parsed.type === 'token') {
-          assembled += parsed.token
-          writeSse(res, { token: parsed.token })
-          flushTtsChunks(false)
-        }
       }
+
+      break
     }
 
     appendMessage(threadId, 'assistant', assembled.trim() || 'Interrompido.', {
       sources: memorySources.length ? memorySources : undefined,
-      graph_data: activeSkill || toolSteps.length ? { active_skill: activeSkill, tool_steps: toolSteps } : null
+      graph_data:
+        activeSkill || toolSteps.length
+          ? { active_skill: activeSkill, tool_steps: toolSteps }
+          : null
     })
     flushTtsChunks(true)
     writeSse(res, { done: true })
@@ -2673,7 +2853,10 @@ async function streamLlamaChat(req, res, payload) {
 
     appendMessage(threadId, 'assistant', assembled.trim() || fallbackMsg, {
       sources: memorySources.length ? memorySources : undefined,
-      graph_data: activeSkill || toolSteps.length ? { active_skill: activeSkill, tool_steps: toolSteps } : null
+      graph_data:
+        activeSkill || toolSteps.length
+          ? { active_skill: activeSkill, tool_steps: toolSteps }
+          : null
     })
     flushTtsChunks(true)
     writeSse(res, { done: true })
@@ -2772,10 +2955,9 @@ function getSetupInfo() {
   const localInstalled = hasBackendBinary('vulkan') || hasBackendBinary('cpu')
   const cpuName = os.cpus?.()?.[0]?.model || 'Unknown CPU'
   const recommendedBuild = installedBackends.includes('vulkan') ? 'vulkan' : 'cpu'
-  const detectedHardware =
-    installedBackends.includes('vulkan')
-      ? 'GPU com suporte a Vulkan detectada'
-      : 'GPU dedicada não detectada (modo CPU)'
+  const detectedHardware = installedBackends.includes('vulkan')
+    ? 'GPU com suporte a Vulkan detectada'
+    : 'GPU dedicada não detectada (modo CPU)'
   const preferred = normalizeBackendMode(store.settings.local_backend || 'auto')
   const currentLocalBackend = llamaState.backend || pickBackend(preferred) || 'cpu'
   return {
@@ -2841,7 +3023,8 @@ async function handleRequest(req, res) {
         current_tier: llamaState.currentTier,
         backend_active: llamaState.backend,
         backend_reason: llamaState.backendReason,
-        backend_mode: llamaState.backendMode || normalizeBackendMode(store.settings.local_backend || 'auto'),
+        backend_mode:
+          llamaState.backendMode || normalizeBackendMode(store.settings.local_backend || 'auto'),
         configured_model_file: llamaState.configuredModelFile,
         loaded_model_path: llamaState.modelPath,
         loaded_model_file: llamaState.modelPath ? path.basename(llamaState.modelPath) : null,
@@ -2911,7 +3094,8 @@ async function handleRequest(req, res) {
       llama_runtime: {
         backend_active: llamaState.backend,
         backend_reason: llamaState.backendReason,
-        backend_mode: llamaState.backendMode || normalizeBackendMode(store.settings.local_backend || 'auto')
+        backend_mode:
+          llamaState.backendMode || normalizeBackendMode(store.settings.local_backend || 'auto')
       },
       model_download: modelDownloadState,
       semantic_runtime: buildSemanticRuntimeStatus(),
@@ -2938,8 +3122,10 @@ async function handleRequest(req, res) {
       store.settings.tts_enabled = false
       store.settings.wake_word_enabled = false
     } else if (requestedTier === 'pro') {
+      store.settings.tts_enabled = true
       store.settings.wake_word_enabled = false
     } else if (requestedTier === 'ultra') {
+      store.settings.tts_enabled = true
       store.settings.wake_word_enabled = true
     }
 
@@ -2979,8 +3165,10 @@ async function handleRequest(req, res) {
       store.settings.tts_enabled = false
       store.settings.wake_word_enabled = false
     } else if (mode === 'pro') {
+      store.settings.tts_enabled = true
       store.settings.wake_word_enabled = false
     } else if (mode === 'ultra') {
+      store.settings.tts_enabled = true
       store.settings.wake_word_enabled = true
     }
     saveStore()
@@ -3041,6 +3229,18 @@ async function handleRequest(req, res) {
   }
 
   if (pathname === '/settings' && req.method === 'GET') {
+    // Enforce tier-based defaults on every read
+    const tier = store.settings.ai_tier || 'pro'
+    if (tier === 'lite') {
+      store.settings.tts_enabled = false
+      store.settings.wake_word_enabled = false
+    } else if (tier === 'pro') {
+      store.settings.tts_enabled = true
+      store.settings.wake_word_enabled = false
+    } else if (tier === 'ultra') {
+      store.settings.tts_enabled = true
+      store.settings.wake_word_enabled = true
+    }
     sendJson(res, 200, store.settings)
     return
   }
@@ -3062,8 +3262,10 @@ async function handleRequest(req, res) {
       store.settings.tts_enabled = false
       store.settings.wake_word_enabled = false
     } else if (store.settings.ai_tier === 'pro') {
+      store.settings.tts_enabled = true
       store.settings.wake_word_enabled = false
-    } else if (payload.ai_tier === 'ultra' && payload.wake_word_enabled === undefined) {
+    } else if (store.settings.ai_tier === 'ultra') {
+      store.settings.tts_enabled = true
       store.settings.wake_word_enabled = true
     }
 
@@ -3266,7 +3468,11 @@ async function handleRequest(req, res) {
     return
   }
 
-  if (pathname.startsWith('/extensions/') && pathname.endsWith('/action') && req.method === 'POST') {
+  if (
+    pathname.startsWith('/extensions/') &&
+    pathname.endsWith('/action') &&
+    req.method === 'POST'
+  ) {
     sendJson(res, 200, { ok: true, result: null })
     return
   }
