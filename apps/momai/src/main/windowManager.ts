@@ -260,7 +260,7 @@ function createMainWindow(): BrowserWindow {
       if (response.ok) {
         const settings = await response.json()
         // Re-enable detector if wake word is enabled OR call mode is active
-        if (settings.wake_word_enabled) {
+        if (settings.wake_word_enabled && settings.ai_tier === 'ultra') {
           controlWakeWord(true)
         } else {
           // Check if call mode is active — detector must stay running for it

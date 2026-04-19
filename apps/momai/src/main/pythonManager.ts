@@ -182,12 +182,6 @@ function waitForPort(port: number, host: string, timeout = 60000): Promise<void>
         return
       }
 
-      // Stop waiting if the process died
-      if (!isPythonRunning()) {
-        reject(new Error('Python process exited while waiting for port'))
-        return
-      }
-
       const sock = createConnection(port, host)
       sock.setTimeout(200) // Fast timeout for connection attempt
 
@@ -210,6 +204,23 @@ function waitForPort(port: number, host: string, timeout = 60000): Promise<void>
       })
     }
     check()
+  })
+}
+
+function isPortReachable(port: number, host: string, timeoutMs = 400): Promise<boolean> {
+  return new Promise((resolve) => {
+    const sock = createConnection(port, host)
+    sock.setTimeout(timeoutMs)
+
+    const finish = (result: boolean) => {
+      sock.removeAllListeners()
+      sock.destroy()
+      resolve(result)
+    }
+
+    sock.on('connect', () => finish(true))
+    sock.on('error', () => finish(false))
+    sock.on('timeout', () => finish(false))
   })
 }
 
@@ -1311,7 +1322,13 @@ export interface PythonBackendStartOptions {
 }
 
 export async function startPythonBackend(options: PythonBackendStartOptions = {}): Promise<void> {
-  if (isPythonRunning()) {
+  const desiredHost = options.host || API_HOST
+  const desiredPort = options.port ?? API_PORT
+  if (isPythonRunning()) return
+  if (await isPortReachable(desiredPort, desiredHost, 300)) {
+    logger.info(
+      `[Electron] Python backend already reachable on ${desiredHost}:${desiredPort}, skipping spawn.`
+    )
     return
   }
 
@@ -1351,8 +1368,8 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
 
     const { uvExe } = result
     const env = buildEnv(venvPath, dataDir, uvExe)
-    const host = options.host || API_HOST
-    const port = options.port ?? API_PORT
+    const host = desiredHost
+    const port = desiredPort
     const announceOnline = options.announceOnline ?? true
     const reportBootstrapErrors = options.reportBootstrapErrors ?? true
     const isPrimaryBackend = announceOnline || reportBootstrapErrors
@@ -1484,6 +1501,16 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
       logger.info(`[Python] Processo encerrado com código ${code} (Duração: ${runDuration}ms)`)
       setPythonProcess(null)
 
+      void (async () => {
+      const backendStillAlive = await isPortReachable(port, host, 500)
+      if (backendStillAlive) {
+        logger.warn(
+          `[Python] Processo pai encerrou, mas backend segue ativo em ${host}:${port}. Ignorando restart.`
+        )
+        restartAttempts = 0
+        return
+      }
+
       if (!state.isQuitting && code !== 0) {
         // Auto-retry once if it crashed during the initial setup/boot phase
         // If it got past the port check (online), restartAttempts would be 0
@@ -1535,6 +1562,9 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
           sendErrorToRenderer(error)
         }
       }
+      })().catch((err) => {
+        logger.error('[Python] Erro ao processar encerramento do backend:', err)
+      })
     })
 
     pythonProcess.on('error', (err) => {

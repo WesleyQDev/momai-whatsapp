@@ -5,6 +5,11 @@ import { logger } from './logger'
 import { shutdownCoreBackend } from './coreManager'
 import { app } from 'electron'
 
+function isNonFatalUpdateError(error: unknown): boolean {
+  const text = String(error || '')
+  return text.includes('latest-linux.yml') && text.includes('404')
+}
+
 function isMSIXBuild(): boolean {
   return (
     process.platform === 'win32' &&
@@ -38,6 +43,10 @@ export function setupUpdater(): void {
   })
 
   autoUpdater.on('error', (err) => {
+    if (isNonFatalUpdateError(err)) {
+      logger.warn(`[Updater] Non-fatal update metadata error: ${err}`)
+      return
+    }
     logger.error(`[Updater] Error in auto-updater. ${err}`)
     const mainWindow = getMainWindow()
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -103,6 +112,10 @@ export function setupUpdater(): void {
   // Check on startup if packaged (skip for MSIX - updates via Microsoft Store)
   if (app.isPackaged && !isMSIXBuild()) {
     autoUpdater.checkForUpdates().catch((err) => {
+      if (isNonFatalUpdateError(err)) {
+        logger.warn(`[Updater] Initial update check skipped due to missing metadata: ${err}`)
+        return
+      }
       logger.error(`[Updater] Initial check-for-updates failed: ${err}`)
     })
   } else if (!app.isPackaged) {

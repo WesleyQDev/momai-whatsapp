@@ -20,10 +20,10 @@
     "validate:llama:package": "node scripts/validate-llama-package.js",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir && npm run validate:llama:package",
-    "build:win": "npm run build && node -e \"const { execSync } = require('child_process'); const env = { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false', CSC_LINK: '', CSC_KEY_PASSWORD: '', WIN_CSC_LINK: '', WIN_CSC_KEY_PASSWORD: '' }; execSync('electron-builder --win nsis -p never --config.win.signAndEditExecutable=false --config.forceCodeSigning=false', { stdio: 'inherit', env });\" && npm run validate:llama:package",
+    "build:win": "npm run build && node -e \"const { execSync } = require('child_process'); const env = { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false', CSC_LINK: '', CSC_KEY_PASSWORD: '', WIN_CSC_LINK: '', WIN_CSC_KEY_PASSWORD: '' }; execSync('electron-builder --win nsis -p never --config.win.signAndEditExecutable=false --config.forceCodeSigning=false', { stdio: 'inherit', env });\" && node scripts/validate-llama-package.js dist/win-unpacked/resources --platform=win32",
     "build:appx": "npm run build && node -e \"const { execSync } = require('child_process'); const env = { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false', CSC_LINK: '', CSC_KEY_PASSWORD: '', WIN_CSC_LINK: '', WIN_CSC_KEY_PASSWORD: '' }; execSync('electron-builder --win appx -p never --config.win.signAndEditExecutable=false --config.forceCodeSigning=false', { stdio: 'inherit', env });\"",
     "build:mac": "electron-vite build && electron-builder --mac -p never",
-    "build:linux": "npm run build && electron-builder --linux -p never",
+    "build:linux": "npm run build && electron-builder --linux -p never && node scripts/validate-llama-package.js dist/linux-unpacked/resources --platform=linux",
     "build:linux:wsl": "powershell -ExecutionPolicy Bypass -File scripts/build-linux-wsl.ps1"
   },
   "dependencies": {

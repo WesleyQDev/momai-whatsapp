@@ -236,7 +236,7 @@ export default function ChatInput({
     if (!settingsLoaded || isSavingSettings) return
 
     // Restriction Logic
-    if (key === 'wake_word_enabled' && aiTier === 'lite') return
+    if (key === 'wake_word_enabled' && aiTier !== 'ultra') return
     if (key === 'tts_enabled' && aiTier === 'lite') return
 
     const previous = voiceSettings[key]
@@ -312,15 +312,15 @@ export default function ChatInput({
                     <button
                       type="button"
                       onClick={() => toggleSetting('wake_word_enabled')}
-                      disabled={!settingsLoaded || isSavingSettings || aiTier === 'lite'}
+                      disabled={!settingsLoaded || isSavingSettings || aiTier !== 'ultra'}
                       className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-all ${
-                        voiceSettings.wake_word_enabled && aiTier !== 'lite'
+                        voiceSettings.wake_word_enabled && aiTier === 'ultra'
                           ? 'bg-accent/5 text-accent'
                           : ''
-                      } ${aiTier === 'lite' ? 'cursor-default opacity-80' : ''}`}
+                      } ${aiTier !== 'ultra' ? 'cursor-default opacity-80' : ''}`}
                     >
                       <MicrophoneIcon
-                        className={`w-4 h-4 ${voiceSettings.wake_word_enabled && aiTier !== 'lite' ? 'text-accent' : 'text-text-muted opacity-50'}`}
+                        className={`w-4 h-4 ${voiceSettings.wake_word_enabled && aiTier === 'ultra' ? 'text-accent' : 'text-text-muted opacity-50'}`}
                       />
                       <div className="flex flex-col items-start flex-1">
                         <span className="text-[11px] font-bold">
@@ -329,12 +329,12 @@ export default function ChatInput({
                         <span
                           className={`text-[9px] font-medium leading-tight ${aiTier === 'ultra' ? 'text-text-muted opacity-70' : aiTier === 'lite' ? 'text-emerald-500' : 'text-red-500'}`}
                         >
-                          {aiTier !== 'lite'
+                          {aiTier === 'ultra'
                             ? t('chatInput.reconhecimentoDesc')
-                            : 'Recurso disponível a partir do Pro'}
+                            : 'Recurso disponível apenas no Ultra'}
                         </span>
                       </div>
-                      {aiTier !== 'lite' && (
+                      {aiTier === 'ultra' && (
                         <div
                           className={`w-1.5 h-1.5 rounded-full ${voiceSettings.wake_word_enabled ? 'bg-accent' : 'bg-white/10'}`}
                         />

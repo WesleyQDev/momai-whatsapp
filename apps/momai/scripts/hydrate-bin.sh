@@ -50,7 +50,83 @@ echo "[MomAI] Python installed: $("$BIN_DIR/python/bin/python3" --version)"
 # NOTE: VC++ Redistributable is Windows-only, skipping for Linux/macOS
 echo "[MomAI] Hydration complete! UV and Python are ready in apps/momai/bin"
 
-# 3. Download dependency wheels for offline installation
+# 3. Download llama.cpp runtime binaries for Linux (CPU + Vulkan)
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo "[MomAI] Preparing llama.cpp Linux binaries..."
+
+    LLAMA_VERSION="${MOMAI_LLAMA_VERSION:-}"
+    if [[ -z "$LLAMA_VERSION" ]]; then
+        LLAMA_VERSION=$(curl -fsSL "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)
+    fi
+    if [[ -z "$LLAMA_VERSION" ]]; then
+        echo "[MomAI] ERROR: Could not determine llama.cpp release tag."
+        exit 1
+    fi
+
+    if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
+        CPU_ASSET="llama-${LLAMA_VERSION}-bin-ubuntu-arm64.tar.gz"
+        VULKAN_ASSET="llama-${LLAMA_VERSION}-bin-ubuntu-vulkan-arm64.tar.gz"
+    else
+        CPU_ASSET="llama-${LLAMA_VERSION}-bin-ubuntu-x64.tar.gz"
+        VULKAN_ASSET="llama-${LLAMA_VERSION}-bin-ubuntu-vulkan-x64.tar.gz"
+    fi
+
+    LLAMA_BASE_URL="https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_VERSION}"
+    LLAMA_DIR="$BIN_DIR/llama"
+    CPU_DIR="$LLAMA_DIR/cpu"
+    VULKAN_DIR="$LLAMA_DIR/vulkan"
+
+    rm -rf "$CPU_DIR" "$VULKAN_DIR"
+    mkdir -p "$CPU_DIR" "$VULKAN_DIR"
+
+    CPU_TAR="$BIN_DIR/${CPU_ASSET}"
+    VULKAN_TAR="$BIN_DIR/${VULKAN_ASSET}"
+
+    extract_llama_tar() {
+        local tar_path="$1"
+        local target_dir="$2"
+        local tmp_extract="$BIN_DIR/.llama-extract-$(date +%s%N)"
+
+        mkdir -p "$tmp_extract"
+        tar -xzf "$tar_path" -C "$tmp_extract"
+
+        local server_path
+        server_path=$(find "$tmp_extract" -type f -name "llama-server" | head -n1 || true)
+        if [[ -z "$server_path" ]]; then
+            rm -rf "$tmp_extract"
+            return 1
+        fi
+
+        local source_dir
+        source_dir=$(dirname "$server_path")
+
+        rm -rf "$target_dir"
+        mkdir -p "$target_dir"
+        cp -a "$source_dir"/. "$target_dir"/
+        rm -rf "$tmp_extract"
+        return 0
+    }
+
+    echo "[MomAI] Downloading llama CPU build: $CPU_ASSET"
+    curl -fL "${LLAMA_BASE_URL}/${CPU_ASSET}" -o "$CPU_TAR"
+    extract_llama_tar "$CPU_TAR" "$CPU_DIR" || { echo "[MomAI] ERROR: Could not extract CPU llama-server."; exit 1; }
+    rm -f "$CPU_TAR"
+
+    echo "[MomAI] Downloading llama Vulkan build: $VULKAN_ASSET"
+    curl -fL "${LLAMA_BASE_URL}/${VULKAN_ASSET}" -o "$VULKAN_TAR"
+    extract_llama_tar "$VULKAN_TAR" "$VULKAN_DIR" || { echo "[MomAI] ERROR: Could not extract Vulkan llama-server."; exit 1; }
+    rm -f "$VULKAN_TAR"
+
+    if [[ ! -f "$CPU_DIR/llama-server" || ! -f "$VULKAN_DIR/llama-server" ]]; then
+        echo "[MomAI] ERROR: llama-server not found after extraction."
+        exit 1
+    fi
+
+    chmod +x "$CPU_DIR/llama-server" "$VULKAN_DIR/llama-server" || true
+    echo "[MomAI] llama.cpp Linux binaries ready (tag: $LLAMA_VERSION)"
+fi
+
+# 4. Download dependency wheels for offline installation
 WHEELS_DIR="$BIN_DIR/wheels"
 CORE_DIR="$SCRIPTPATH/../../core"
 LOCK_FILE="$BIN_DIR/requirements-linux.lock"

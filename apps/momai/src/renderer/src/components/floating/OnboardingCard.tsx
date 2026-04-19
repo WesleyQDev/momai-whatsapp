@@ -127,7 +127,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         onboarding_completed: true,
         locale: selectedLang === 'p' ? 'pt-BR' : 'en-US',
         ai_tier: selectedTier,
-        wake_word_enabled: selectedTier !== 'lite'
+        wake_word_enabled: selectedTier === 'ultra'
       }
       // Signal main process first (works offline - saves to local file)
       window.api?.markFirstLaunchFinished?.(payload)

@@ -14,6 +14,7 @@ const PORT = Number(process.env.MOMAI_NODE_CORE_PORT || 8000)
 const DATA_DIR = process.env.MOMAI_NODE_CORE_DATA_DIR || path.join(process.cwd(), 'data')
 const STORE_FILE = path.join(DATA_DIR, 'node-core-store.json')
 const CORE_PATH = process.env.MOMAI_CORE_PATH || path.resolve(__dirname, '..', '..', 'core')
+const MODELS_DIR = resolveModelsDir()
 const LLAMA_BIN_CANDIDATES = [
   process.env.MOMAI_LLAMA_BIN_PATH,
   path.resolve(__dirname, '..', 'bin', 'llama'),
@@ -21,7 +22,6 @@ const LLAMA_BIN_CANDIDATES = [
   process.resourcesPath ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', 'llama') : null
 ].filter(Boolean)
 const TIERS_CONFIG_PATH = path.join(CORE_PATH, 'ai_tiers.json')
-const MODELS_DIR = path.join(CORE_PATH, 'models')
 const MODEL_DOWNLOAD_TIMEOUT_MS = Number(process.env.MOMAI_MODEL_DOWNLOAD_TIMEOUT_MS || 15 * 60 * 1000)
 
 const PYTHON_HOST = process.env.MOMAI_PYTHON_SIDECAR_HOST || '127.0.0.1'
@@ -44,6 +44,18 @@ const MAX_EMBEDDING_CACHE_SIZE = 512
 const EMBEDDING_CACHE_TTL_MS = 10 * 60 * 1000
 const EMBEDDING_TIMEOUT_MS = 450
 const SEMANTIC_SYNC_INTERVAL_MS = 30 * 1000
+
+function resolveModelsDir() {
+  const envPath = String(process.env.MOMAI_MODELS_DIR || '').trim()
+  if (envPath) return envPath
+  if (process.resourcesPath) {
+    const packagedCorePath = path.join(process.resourcesPath, 'core')
+    if (CORE_PATH === packagedCorePath || CORE_PATH.startsWith(packagedCorePath + path.sep)) {
+      return path.join(DATA_DIR, 'models')
+    }
+  }
+  return path.join(CORE_PATH, 'models')
+}
 
 let WebSocketServer = null
 try {
@@ -164,7 +176,7 @@ function defaultStore() {
       auto_start_llm: true,
       tts_voice: 'pf_dora',
       tts_enabled: true,
-      wake_word_enabled: true,
+      wake_word_enabled: false,
       wake_word_sensitivity: 5,
       locale: 'pt-BR',
       min_interface_chars: 240,
@@ -1986,7 +1998,7 @@ function sendVoiceSidecarFallback(res, pathname, error) {
 async function syncWakeWordState(reason = 'unknown') {
   const tier = store.settings.ai_tier || 'pro'
   const shouldEnable =
-    tier !== 'lite' && (Boolean(store.settings.wake_word_enabled) || Boolean(store.call_mode))
+    tier === 'ultra' && (Boolean(store.settings.wake_word_enabled) || Boolean(store.call_mode))
   const maxAttempts = 8
   let lastError = null
 
@@ -2500,11 +2512,26 @@ async function maybeRestartLlamaOnTierChange(prevTier, nextTier, prevBackend, ne
 }
 
 function getSetupInfo() {
+  const installedBackends = ['vulkan', 'cpu'].filter((backend) => hasBackendBinary(backend))
   const localInstalled = hasBackendBinary('vulkan') || hasBackendBinary('cpu')
+  const cpuName = os.cpus?.()?.[0]?.model || 'Unknown CPU'
+  const recommendedBuild = installedBackends.includes('vulkan') ? 'vulkan' : 'cpu'
+  const detectedHardware =
+    installedBackends.includes('vulkan')
+      ? 'GPU com suporte a Vulkan detectada'
+      : 'GPU dedicada não detectada (modo CPU)'
+  const preferred = normalizeBackendMode(store.settings.local_backend || 'auto')
+  const currentLocalBackend = llamaState.backend || pickBackend(preferred) || 'cpu'
   return {
     local_installed: localInstalled,
     installed_version: process.env.npm_package_version || '1.0.0',
-    latest_version: process.env.npm_package_version || '1.0.0'
+    latest_version: process.env.npm_package_version || '1.0.0',
+    cpu_name: cpuName,
+    detected_hardware: detectedHardware,
+    recommended_build: recommendedBuild,
+    installed_backends: installedBackends,
+    current_local_backend: currentLocalBackend,
+    os_name: `${os.platform()} ${os.release()}`
   }
 }
 
@@ -2584,6 +2611,12 @@ async function handleRequest(req, res) {
       engine_installed: setup.local_installed,
       installed_version: setup.installed_version,
       latest_version: setup.latest_version,
+      cpu_name: setup.cpu_name,
+      detected_hardware: setup.detected_hardware,
+      recommended_build: setup.recommended_build,
+      installed_backends: setup.installed_backends,
+      current_local_backend: setup.current_local_backend,
+      os_name: setup.os_name,
       ai_tier: store.settings.ai_tier || 'pro',
       llama_runtime: {
         backend_active: llamaState.backend,
@@ -2615,6 +2648,8 @@ async function handleRequest(req, res) {
       store.settings.tts_enabled = false
       store.settings.wake_word_enabled = false
     } else if (requestedTier === 'pro') {
+      store.settings.wake_word_enabled = false
+    } else if (requestedTier === 'ultra') {
       store.settings.wake_word_enabled = true
     }
 
@@ -2654,6 +2689,8 @@ async function handleRequest(req, res) {
       store.settings.tts_enabled = false
       store.settings.wake_word_enabled = false
     } else if (mode === 'pro') {
+      store.settings.wake_word_enabled = false
+    } else if (mode === 'ultra') {
       store.settings.wake_word_enabled = true
     }
     saveStore()
@@ -2734,7 +2771,9 @@ async function handleRequest(req, res) {
     if (store.settings.ai_tier === 'lite') {
       store.settings.tts_enabled = false
       store.settings.wake_word_enabled = false
-    } else if (payload.ai_tier === 'pro' && payload.wake_word_enabled === undefined) {
+    } else if (store.settings.ai_tier === 'pro') {
+      store.settings.wake_word_enabled = false
+    } else if (payload.ai_tier === 'ultra' && payload.wake_word_enabled === undefined) {
       store.settings.wake_word_enabled = true
     }
 

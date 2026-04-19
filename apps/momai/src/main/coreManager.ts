@@ -59,6 +59,14 @@ function getNodeCoreDataDir(): string {
   return dataDir
 }
 
+function getNodeCoreModelsDir(): string {
+  const modelsDir = join(getNodeCoreDataDir(), 'models')
+  if (!existsSync(modelsDir)) {
+    mkdirSync(modelsDir, { recursive: true })
+  }
+  return modelsDir
+}
+
 function emitInitProgress(message: string, progress: number): void {
   const mainWindow = getMainWindow()
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -141,6 +149,7 @@ function spawnNodeCore(): ReturnType<typeof spawn> {
     MOMAI_NODE_CORE_HOST: API_HOST,
     MOMAI_NODE_CORE_PORT: String(API_PORT),
     MOMAI_NODE_CORE_DATA_DIR: getNodeCoreDataDir(),
+    MOMAI_MODELS_DIR: getNodeCoreModelsDir(),
     MOMAI_CORE_PATH: getCorePath(),
     MOMAI_LLAMA_BIN_PATH: getLlamaBinPath(),
     MOMAI_PYTHON_SIDECAR_HOST: PYTHON_SIDECAR_HOST,
