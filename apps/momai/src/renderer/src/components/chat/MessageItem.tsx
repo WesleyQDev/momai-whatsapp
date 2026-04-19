@@ -62,7 +62,151 @@ const CodeBlock = ({ children, className }: any) => {
   )
 }
 
+type WeatherRow = {
+  day: string
+  condition: string
+  min: string
+  max: string
+  emoji: string
+}
+
+type WeatherTableModel = {
+  title: string
+  rows: WeatherRow[]
+}
+
+const normalizeWeatherHeader = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+
+const parseMarkdownRow = (line: string): string[] => {
+  const trimmed = line.trim()
+  if (!trimmed.startsWith('|')) return []
+  return trimmed
+    .slice(1, trimmed.endsWith('|') ? -1 : undefined)
+    .split('|')
+    .map((cell) => cell.trim())
+}
+
+const emojiForCondition = (condition: string): string => {
+  const text = String(condition || '').toLowerCase()
+  if (text.includes('tempest')) return '⛈️'
+  if (text.includes('chuva')) return '🌧️'
+  if (text.includes('garoa') || text.includes('pancada')) return '🌦️'
+  if (text.includes('neve')) return '🌨️'
+  if (text.includes('neblina') || text.includes('nevoa')) return '🌫️'
+  if (text.includes('nublado')) return '☁️'
+  if (text.includes('parcial')) return '⛅'
+  if (text.includes('sol') || text.includes('ceu limpo')) return '☀️'
+  return '🌡️'
+}
+
+const parseWeatherMarkdown = (content: string): WeatherTableModel | null => {
+  const lines = String(content || '').split(/\r?\n/)
+  const titleLine = lines.find((line) => /^###\s+previs[aã]o do tempo:/i.test(line.trim()))
+  if (!titleLine) return null
+
+  const tableLines = lines.filter((line) => line.trim().startsWith('|'))
+  if (tableLines.length < 3) return null
+
+  const header = parseMarkdownRow(tableLines[0])
+  const normalizedHeader = header.map(normalizeWeatherHeader)
+  const findHeaderIndex = (name: string) => normalizedHeader.findIndex((cell) => cell === name)
+
+  const dayIdx = findHeaderIndex('dia')
+  const conditionIdx = findHeaderIndex('condicao')
+  const minIdx = normalizedHeader.findIndex((cell) => cell === 'min' || cell === 'minima')
+  const maxIdx = normalizedHeader.findIndex((cell) => cell === 'max' || cell === 'maxima')
+  const emojiIdx = findHeaderIndex('emoji')
+
+  if ([dayIdx, conditionIdx, minIdx, maxIdx, emojiIdx].some((idx) => idx < 0)) return null
+
+  const rows = tableLines
+    .slice(2)
+    .map(parseMarkdownRow)
+    .filter((cells) => cells.length >= header.length)
+    .map((cells) => {
+      const condition = cells[conditionIdx] || 'N/D'
+      const incomingEmoji = cells[emojiIdx] || ''
+      return {
+        day: cells[dayIdx] || 'N/D',
+        condition,
+        min: cells[minIdx] || 'N/D',
+        max: cells[maxIdx] || 'N/D',
+        emoji: incomingEmoji || emojiForCondition(condition)
+      }
+    })
+
+  if (!rows.length) return null
+
+  return {
+    title: titleLine.replace(/^###\s*/, '').trim(),
+    rows: rows.slice(0, 4)
+  }
+}
+
+const conditionBadgeClass = (condition: string): string => {
+  const text = String(condition || '').toLowerCase()
+  if (text.includes('tempest')) return 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:border-violet-400/30'
+  if (text.includes('chuva')) return 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-500/20 dark:text-sky-200 dark:border-sky-400/30'
+  if (text.includes('garoa') || text.includes('pancada')) return 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-200 dark:border-cyan-400/30'
+  if (text.includes('neve')) return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-500/20 dark:text-blue-200 dark:border-blue-400/30'
+  if (text.includes('neblina') || text.includes('nevoa')) return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-500/20 dark:text-slate-200 dark:border-slate-400/30'
+  if (text.includes('nublado')) return 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-500/20 dark:text-zinc-200 dark:border-zinc-400/30'
+  if (text.includes('parcial')) return 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:border-amber-400/30'
+  if (text.includes('sol') || text.includes('ceu limpo')) return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-100 dark:border-yellow-400/30'
+  return 'bg-neutral-100 text-neutral-700 border-neutral-200 dark:bg-neutral-500/20 dark:text-neutral-200 dark:border-neutral-400/30'
+}
+
+const WeatherForecastTable = ({ model }: { model: WeatherTableModel }) => {
+  return (
+    <div className="my-3 rounded-xl border border-border/20 bg-white/70 dark:bg-white/[0.02] backdrop-blur-sm overflow-hidden">
+      <div className="px-4 py-3 border-b border-border/15 bg-gradient-to-r from-sky-50 to-cyan-50 dark:from-sky-500/10 dark:to-cyan-500/5">
+        <h4 className="m-0 text-[13px] font-semibold text-zinc-800 dark:text-zinc-100">{model.title}</h4>
+      </div>
+
+      <div className="overflow-x-auto scrollbar-thin">
+        <table className="min-w-full border-collapse font-sans">
+          <thead className="bg-zinc-50 dark:bg-white/5 border-b border-border/20">
+            <tr>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Dia</th>
+              <th className="px-4 py-3 text-left text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Condicao</th>
+              <th className="px-4 py-3 text-right text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Min</th>
+              <th className="px-4 py-3 text-right text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Max</th>
+              <th className="px-4 py-3 text-center text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Emoji</th>
+            </tr>
+          </thead>
+          <tbody>
+            {model.rows.map((row, idx) => (
+              <tr key={`${row.day}-${idx}`} className="hover:bg-zinc-50/60 dark:hover:bg-white/[0.03] transition-colors">
+                <td className="px-4 py-3 text-[14px] font-medium text-zinc-700 dark:text-zinc-200 border-b border-border/10">{row.day}</td>
+                <td className="px-4 py-3 text-[14px] text-zinc-700 dark:text-zinc-300 border-b border-border/10">
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-medium border ${conditionBadgeClass(row.condition)}`}>
+                    {row.condition}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-[14px] text-right text-zinc-700 dark:text-zinc-300 border-b border-border/10">{row.min}</td>
+                <td className="px-4 py-3 text-[14px] text-right text-zinc-700 dark:text-zinc-300 border-b border-border/10">{row.max}</td>
+                <td className="px-4 py-3 text-[18px] text-center border-b border-border/10">{row.emoji}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 const Markdown = ({ children, components = {} }: { children: string; components?: any }) => {
+  const weatherModel = useMemo(() => parseWeatherMarkdown(children), [children])
+
+  if (weatherModel) {
+    return <WeatherForecastTable model={weatherModel} />
+  }
+
   return (
     <div 
       className={`prose prose-zinc dark:prose-invert max-w-none 

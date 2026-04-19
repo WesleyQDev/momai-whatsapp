@@ -1192,6 +1192,7 @@ async function executeSkillAutomatically(userContent, discoveredSkill) {
       activeSkill: discoveredSkill.id,
       toolSteps: [{ ...stepBase, tool: result.tool || 'execute', status: 'success', duration_ms: elapsed }],
       toolInstruction: result.instruction || null,
+      directResponse: typeof result.directResponse === 'string' ? result.directResponse : null,
       webSources: Array.isArray(result.webSources) ? result.webSources : undefined
     }
   } catch (error) {
@@ -2441,6 +2442,7 @@ async function streamLlamaChat(req, res, payload) {
   let toolSteps = []
   let activeSkill = null
   let toolInstruction = null
+  let directToolResponse = null
 
   const ready = await ensureLlamaReady(false)
   if (!ready) {
@@ -2479,6 +2481,7 @@ async function streamLlamaChat(req, res, payload) {
         activeSkill = toolResult.activeSkill || discoveredSkill.id
         toolSteps = Array.isArray(toolResult.toolSteps) ? toolResult.toolSteps : []
         toolInstruction = toolResult.toolInstruction || null
+        directToolResponse = typeof toolResult.directResponse === 'string' ? toolResult.directResponse : null
         if (Array.isArray(toolResult.webSources) && toolResult.webSources.length) {
           memorySources = [...memorySources, ...toolResult.webSources].slice(0, 12)
         }
@@ -2499,6 +2502,29 @@ async function streamLlamaChat(req, res, payload) {
   }
   if (activeSkill) writeSse(res, { active_skill: activeSkill })
   if (toolSteps.length) writeSse(res, { tool_steps: toolSteps })
+
+  if (directToolResponse && directToolResponse.trim()) {
+    writeSse(res, { status: 'responding' })
+    const finalText = directToolResponse.trim()
+    for (const token of splitTokens(finalText)) {
+      writeSse(res, { token })
+    }
+
+    appendMessage(threadId, 'assistant', finalText, {
+      sources: memorySources.length ? memorySources : undefined,
+      graph_data: activeSkill || toolSteps.length ? { active_skill: activeSkill, tool_steps: toolSteps } : null
+    })
+
+    if (speakResponse) {
+      try {
+        await triggerAutoTts(finalText)
+      } catch {}
+    }
+
+    writeSse(res, { done: true })
+    res.end()
+    return
+  }
 
   const history = getThreadMessages(threadId)
     .slice(-8)

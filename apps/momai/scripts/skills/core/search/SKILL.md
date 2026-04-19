@@ -9,8 +9,15 @@ intents:
   - search
   - internet
   - web
+  - clima
+  - tempo
   - tempo em
-  - Temperatura em
+  - temperatura
+  - temperatura em
+  - previsão do tempo
+  - previsao do tempo
+  - weather
+  - forecast
   - Preço
   - Price
   - Dolar
