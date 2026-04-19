@@ -7,6 +7,15 @@ cd "$SCRIPTPATH"
 BIN_DIR="../bin"
 FORCE_HYDRATE="${MOMAI_FORCE_HYDRATE:-0}"
 
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    PLATFORM_KEY="darwin"
+else
+    PLATFORM_KEY="linux"
+fi
+
+PYTHON_DIR="$BIN_DIR/python/$PLATFORM_KEY"
+WHEELS_DIR="$BIN_DIR/wheels/$PLATFORM_KEY"
+
 mkdir -p "$BIN_DIR"
 
 hash_file() {
@@ -47,8 +56,8 @@ fi
 fi
 
 # 2. Download Portable Python 3.12
-if [[ "$FORCE_HYDRATE" != "1" && -x "$BIN_DIR/python/bin/python3" ]]; then
-    echo "[MomAI] Reusing cached Python: $($BIN_DIR/python/bin/python3 --version)"
+if [[ "$FORCE_HYDRATE" != "1" && -x "$PYTHON_DIR/bin/python3" ]]; then
+    echo "[MomAI] Reusing cached Python: $($PYTHON_DIR/bin/python3 --version)"
 else
     echo "[MomAI] Downloading Portable Python 3.12..."
 
@@ -60,12 +69,12 @@ fi
 
     PY_TAR="$BIN_DIR/python.tar.gz"
     curl -L "$PY_URL" -o "$PY_TAR"
-    rm -rf "$BIN_DIR/python"
-    mkdir -p "$BIN_DIR/python"
-    tar -xzf "$PY_TAR" -C "$BIN_DIR/python" --strip-components=1
+    rm -rf "$PYTHON_DIR"
+    mkdir -p "$PYTHON_DIR"
+    tar -xzf "$PY_TAR" -C "$PYTHON_DIR" --strip-components=1
     rm "$PY_TAR"
 
-    echo "[MomAI] Python installed: $($BIN_DIR/python/bin/python3 --version)"
+    echo "[MomAI] Python installed: $($PYTHON_DIR/bin/python3 --version)"
 fi
 
 # NOTE: VC++ Redistributable is Windows-only, skipping for Linux/macOS
@@ -102,7 +111,6 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         echo "[MomAI] Reusing cached llama.cpp Linux binaries (tag target: $LLAMA_VERSION)"
     else
 
-        rm -rf "$CPU_DIR" "$VULKAN_DIR"
         mkdir -p "$CPU_DIR" "$VULKAN_DIR"
 
         CPU_TAR="$BIN_DIR/${CPU_ASSET}"
@@ -126,8 +134,9 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         local source_dir
         source_dir=$(dirname "$server_path")
 
-        rm -rf "$target_dir"
         mkdir -p "$target_dir"
+        # Remove only Linux-native binaries/libraries to preserve Windows artifacts.
+        find "$target_dir" -type f \( -name 'llama-server' -o -name '*.so' -o -name '*.a' \) -delete 2>/dev/null || true
         cp -a "$source_dir"/. "$target_dir"/
         rm -rf "$tmp_extract"
         return 0
@@ -154,11 +163,10 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 fi
 
 # 4. Download dependency wheels for offline installation
-WHEELS_DIR="$BIN_DIR/wheels"
 CORE_DIR="$SCRIPTPATH/../../core"
 LOCK_FILE="$BIN_DIR/requirements-linux.lock"
 UV_EXE="$BIN_DIR/uv"
-PYTHON_EXE="$BIN_DIR/python/bin/python3"
+PYTHON_EXE="$PYTHON_DIR/bin/python3"
 WHEEL_HASH_FILE="$BIN_DIR/.wheels-pyproject.sha256"
 
 CURRENT_CORE_HASH=""

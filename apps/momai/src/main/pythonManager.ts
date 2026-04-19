@@ -99,15 +99,30 @@ const SYNC_LOCK_FILE = join(userDataPath, '.sync.lock')
 const UV_CACHE_PATH = join(userDataPath, 'uv_cache')
 const UV_PYTHON_INSTALL_PATH = join(userDataPath, 'uv_python')
 
+function getPlatformResourceKey(): 'win32' | 'linux' | 'darwin' {
+  if (process.platform === 'win32') return 'win32'
+  if (process.platform === 'darwin') return 'darwin'
+  return 'linux'
+}
+
 function findBundledPythonDir(): string | null {
   const isDev = is.dev && process.env['ELECTRON_RENDERER_URL']
-  const bundledPath = isDev
+  const pythonRoot = isDev
     ? join(app.getAppPath(), 'bin', 'python')
     : join(process.resourcesPath, 'bin', 'python')
   const pythonBin = process.platform === 'win32' ? 'python.exe' : 'python3'
-  if (existsSync(join(bundledPath, pythonBin))) {
-    logger.info(`[Bootstrap] Found bundled Python at: ${bundledPath}`)
-    return bundledPath
+
+  // Prefer platform-scoped layout to avoid cross-platform artifact clobbering.
+  const platformScoped = join(pythonRoot, getPlatformResourceKey())
+  if (existsSync(join(platformScoped, pythonBin))) {
+    logger.info(`[Bootstrap] Found bundled Python at: ${platformScoped}`)
+    return platformScoped
+  }
+
+  // Backward compatibility with legacy flat layout (bin/python/*).
+  if (existsSync(join(pythonRoot, pythonBin))) {
+    logger.info(`[Bootstrap] Found bundled Python at: ${pythonRoot}`)
+    return pythonRoot
   }
   return null
 }
@@ -1094,9 +1109,11 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
     logger.info('[Bootstrap] Sincronizando dependências do core...')
 
     // Resolve local wheel cache for offline installation
-    const wheelsDir = isDev
+    const wheelsRoot = isDev
       ? join(app.getAppPath(), 'bin', 'wheels')
       : join(process.resourcesPath, 'wheels')
+    const platformWheelsDir = join(wheelsRoot, getPlatformResourceKey())
+    const wheelsDir = existsSync(platformWheelsDir) ? platformWheelsDir : wheelsRoot
     const hasLocalWheels = existsSync(wheelsDir)
     const offlineReadyMarker = join(wheelsDir, 'offline-ready.marker')
     const canInstallFullyOffline = hasLocalWheels && existsSync(offlineReadyMarker)

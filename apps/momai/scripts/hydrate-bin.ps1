@@ -44,7 +44,7 @@ if (Test-Path $uvExe) {
 }
 
 # 2. Download Portable Python (skip if already present)
-$targetPython = Join-Path $binDir "python"
+$targetPython = Join-Path (Join-Path $binDir "python") "win32"
 $pythonExe = Join-Path $targetPython "python.exe"
 if (Test-Path $pythonExe) {
     Write-Host "[MomAI] Python already present, skipping download." -ForegroundColor Green
@@ -70,7 +70,7 @@ if (Test-Path $pythonExe) {
     tar -xzf "$pyTar" -C "$pyExtractDir"
     Remove-Item $pyTar -ErrorAction SilentlyContinue
 
-    # Move the actual python folder to bin/python
+    # Move the actual python folder to bin/python/win32
     $extractedPath = Join-Path $pyExtractDir "python"
 
     if (Test-Path $extractedPath) {
@@ -134,8 +134,10 @@ if (-not $forceHydrate -and (Test-Path $cpuExe) -and (Test-Path $vulkanExe)) {
             }
 
             $sourceDir = $server.Directory.FullName
-            if (Test-Path $TargetDir) { Remove-WithRetry $TargetDir | Out-Null }
-            New-Item -ItemType Directory -Path $TargetDir | Out-Null
+            if (-not (Test-Path $TargetDir)) { New-Item -ItemType Directory -Path $TargetDir | Out-Null }
+            # Clean only Windows-native artifacts to preserve Linux files in shared folders.
+            Get-ChildItem -Path $TargetDir -Recurse -File -Include "*.exe", "*.dll", "*.pdb", "*.lib" -ErrorAction SilentlyContinue |
+                Remove-Item -Force -ErrorAction SilentlyContinue
             Copy-Item -Path (Join-Path $sourceDir "*") -Destination $TargetDir -Recurse -Force
         } finally {
             if (Test-Path $tmpExtract) { Remove-WithRetry $tmpExtract | Out-Null }
@@ -186,7 +188,7 @@ if (-not $forceHydrate -and (Test-Path $cpuExe) -and (Test-Path $vulkanExe)) {
 }
 
 # 5. Download dependency wheels for offline installation
-$wheelsDir = Join-Path $binDir "wheels"
+$wheelsDir = Join-Path (Join-Path $binDir "wheels") "win32"
 $wheelsReadyMarker = Join-Path $wheelsDir "offline-ready.marker"
 $coreDir = Join-Path (Join-Path $PSScriptRoot "..") "..\core"
 $lockFile = Join-Path $binDir "requirements-win.lock"

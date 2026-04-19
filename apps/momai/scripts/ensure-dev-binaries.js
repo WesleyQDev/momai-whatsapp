@@ -18,16 +18,6 @@ function exists(p) {
   }
 }
 
-function hasLinuxArtifacts(dir) {
-  if (!exists(dir)) return false
-  try {
-    const entries = fs.readdirSync(dir)
-    return entries.some((name) => name.endsWith('.so') || name === 'llama-server')
-  } catch {
-    return false
-  }
-}
-
 function runHydrate() {
   const cmd = isWin
     ? 'powershell -ExecutionPolicy Bypass -File scripts/hydrate-bin.ps1'
@@ -45,9 +35,7 @@ const cpuExe = path.join(cpuDir, 'llama-server.exe')
 const vulkanExe = path.join(vulkanDir, 'llama-server.exe')
 
 const hasExpected = exists(cpuExe) && exists(vulkanExe)
-const mixedPlatform = hasLinuxArtifacts(cpuDir) || hasLinuxArtifacts(vulkanDir)
-
-if (hasExpected && !mixedPlatform) {
+if (hasExpected) {
   console.log('[MomAI] Dev binary check: OK (Windows llama CPU+Vulkan present).')
   process.exit(0)
 }
