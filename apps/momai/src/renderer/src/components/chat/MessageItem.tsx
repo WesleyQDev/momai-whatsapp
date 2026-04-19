@@ -144,7 +144,7 @@ const parseWeatherMarkdown = (content: string): WeatherTableModel | null => {
 
   return {
     title: titleLine.replace(/^###\s*/, '').trim(),
-    rows: rows.slice(0, 4)
+    rows: rows.slice(0, 7)
   }
 }
 
@@ -162,39 +162,68 @@ const conditionBadgeClass = (condition: string): string => {
 }
 
 const WeatherForecastTable = ({ model }: { model: WeatherTableModel }) => {
+  const today = model.rows[0]
+  const rest = model.rows.slice(1)
+
+  const extractTemp = (val: string) => {
+    const match = val.match(/[\d]+/)
+    return match ? match[0] : val.replace(/[^\d]/g, '')
+  }
+
   return (
-    <div className="my-3 rounded-xl border border-border/20 bg-white/70 dark:bg-white/[0.02] backdrop-blur-sm overflow-hidden">
-      <div className="px-4 py-3 border-b border-border/15 bg-gradient-to-r from-sky-50 to-cyan-50 dark:from-sky-500/10 dark:to-cyan-500/5">
-        <h4 className="m-0 text-[13px] font-semibold text-zinc-800 dark:text-zinc-100">{model.title}</h4>
+    <div className="my-3 rounded-2xl border border-border/20 bg-zinc-900 dark:bg-zinc-900/90 text-white overflow-hidden shadow-xl">
+      {/* Header - Location */}
+      <div className="px-5 pt-4 pb-2">
+        <h4 className="m-0 text-[14px] font-semibold text-white/90">{model.title}</h4>
       </div>
 
-      <div className="overflow-x-auto scrollbar-thin">
-        <table className="min-w-full border-collapse font-sans">
-          <thead className="bg-zinc-50 dark:bg-white/5 border-b border-border/20">
-            <tr>
-              <th className="px-4 py-3 text-left text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Dia</th>
-              <th className="px-4 py-3 text-left text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Condicao</th>
-              <th className="px-4 py-3 text-right text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Min</th>
-              <th className="px-4 py-3 text-right text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Max</th>
-              <th className="px-4 py-3 text-center text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Emoji</th>
-            </tr>
-          </thead>
-          <tbody>
-            {model.rows.map((row, idx) => (
-              <tr key={`${row.day}-${idx}`} className="hover:bg-zinc-50/60 dark:hover:bg-white/[0.03] transition-colors">
-                <td className="px-4 py-3 text-[14px] font-medium text-zinc-700 dark:text-zinc-200 border-b border-border/10">{row.day}</td>
-                <td className="px-4 py-3 text-[14px] text-zinc-700 dark:text-zinc-300 border-b border-border/10">
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[12px] font-medium border ${conditionBadgeClass(row.condition)}`}>
-                    {row.condition}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-[14px] text-right text-zinc-700 dark:text-zinc-300 border-b border-border/10">{row.min}</td>
-                <td className="px-4 py-3 text-[14px] text-right text-zinc-700 dark:text-zinc-300 border-b border-border/10">{row.max}</td>
-                <td className="px-4 py-3 text-[18px] text-center border-b border-border/10">{row.emoji}</td>
-              </tr>
+      {/* Today's main display */}
+      {today && (
+        <div className="px-5 pb-3">
+          <div className="flex items-center gap-4">
+            <span className="text-[48px] leading-none">{today.emoji}</span>
+            <div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-[48px] font-light leading-none tracking-tight">{extractTemp(today.max)}</span>
+                <span className="text-[20px] text-white/50 font-light">°C</span>
+              </div>
+              <div className="text-[16px] text-white/80 font-medium mt-0.5">{today.condition}</div>
+              <div className="flex items-center gap-3 mt-1.5 text-[12px] text-white/50">
+                <span>Máx: {today.max}</span>
+                <span>Mín: {today.min}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Divider */}
+      <div className="mx-5 border-t border-white/10" />
+
+      {/* Forecast row - horizontally scrollable */}
+      {rest.length > 0 && (
+        <div className="overflow-x-auto scrollbar-thin">
+          <div className="flex items-stretch min-w-max">
+            {rest.map((row, idx) => (
+              <div
+                key={`${row.day}-${idx}`}
+                className="flex flex-col items-center gap-2 px-5 py-4 min-w-[80px] border-r border-white/5 last:border-r-0"
+              >
+                <span className="text-[12px] font-medium text-white/60 whitespace-nowrap">{row.day}</span>
+                <span className="text-[28px] leading-none">{row.emoji}</span>
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-[13px] font-semibold text-white/90">{extractTemp(row.max)}°</span>
+                  <span className="text-[11px] text-white/40">{extractTemp(row.min)}°</span>
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="px-5 py-2.5 border-t border-white/5">
+        <span className="text-[10px] text-white/30">MomAI Weather</span>
       </div>
     </div>
   )

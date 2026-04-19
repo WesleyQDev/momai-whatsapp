@@ -97,7 +97,7 @@ async function resolveWeatherForecast(location) {
     '&daily=weathercode,temperature_2m_max,temperature_2m_min',
     '&hourly=weathercode',
     '&timezone=auto',
-    '&forecast_days=4'
+    '&forecast_days=7'
   ].join('')
 
   const forecastResp = await fetch(forecastUrl, {
@@ -108,7 +108,7 @@ async function resolveWeatherForecast(location) {
   const forecastData = await forecastResp.json().catch(() => null)
   const daily = forecastData?.daily
   const hourly = forecastData?.hourly
-  const days = Array.isArray(daily?.time) ? daily.time.slice(0, 4) : []
+  const days = Array.isArray(daily?.time) ? daily.time.slice(0, 7) : []
   if (!days.length) return null
 
   const rows = days.map((dayIso, idx) => {
@@ -153,7 +153,7 @@ module.exports = {
     const text = String(content || '').trim()
     const weatherIntent = isWeatherIntent(text)
     const weatherLocation = extractWeatherLocation(text) || 'sua cidade'
-    const weatherQuery = `previsao do tempo em ${weatherLocation} para hoje e proximos 3 dias temperatura minima maxima condicoes`
+    const weatherQuery = `previsao do tempo em ${weatherLocation} para hoje e proximos 6 dias temperatura minima maxima condicoes`
 
     const results = await context.searchWeb(weatherIntent ? weatherQuery : text, weatherIntent ? 8 : 4)
     const lines = results.length
