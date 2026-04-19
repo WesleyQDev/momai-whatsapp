@@ -1373,6 +1373,7 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
     const announceOnline = options.announceOnline ?? true
     const reportBootstrapErrors = options.reportBootstrapErrors ?? true
     const isPrimaryBackend = announceOnline || reportBootstrapErrors
+    let reachedOnline = false
     env.HOST = host
     env.PORT = String(port)
     env.MOMAI_CORE_PATH = corePath
@@ -1432,6 +1433,7 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
     waitForPort(port, host, portTimeout)
       .then(() => {
         logger.info(`[Electron] Backend HTTP server is online on ${host}:${port}`)
+        reachedOnline = true
 
         // Backend considered "stable" enough to reset retry counter after it's online
         restartAttempts = 0
@@ -1496,9 +1498,11 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
       }
     })
 
-    pythonProcess.on('close', (code) => {
+    pythonProcess.on('close', (code, signal) => {
       const runDuration = Date.now() - (state.pythonStartTime || 0)
-      logger.info(`[Python] Processo encerrado com código ${code} (Duração: ${runDuration}ms)`)
+      logger.info(
+        `[Python] Processo encerrado com código ${code} e sinal ${signal ?? 'none'} (Duração: ${runDuration}ms)`
+      )
       setPythonProcess(null)
 
       void (async () => {
@@ -1511,13 +1515,17 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
         return
       }
 
-      if (!state.isQuitting && code !== 0) {
+      const exitedBeforeOnline = !reachedOnline
+      const hasNonZeroCode = typeof code === 'number' && code !== 0
+      const hasUnexpectedSignal = typeof signal === 'string' && signal !== 'SIGTERM'
+      const isAbnormalExit = hasNonZeroCode || hasUnexpectedSignal
+
+      if (!state.isQuitting && isAbnormalExit && exitedBeforeOnline) {
         // Auto-retry once if it crashed during the initial setup/boot phase
-        // If it got past the port check (online), restartAttempts would be 0
         if (restartAttempts < 1) {
           restartAttempts++
           logger.warn(
-            `[Python] Crash detectado durante boot (Código: ${code}). Tentando reiniciar (Tentativa ${restartAttempts})...`
+            `[Python] Crash detectado durante boot (Código: ${code}, Sinal: ${signal ?? 'none'}). Tentando reiniciar (Tentativa ${restartAttempts})...`
           )
 
           // Notify renderer about retry
@@ -1561,6 +1569,10 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
         if (reportBootstrapErrors) {
           sendErrorToRenderer(error)
         }
+      } else if (!state.isQuitting && isAbnormalExit && !exitedBeforeOnline) {
+        logger.warn(
+          `[Python] Backend encerrou após ficar online (Código: ${code}, Sinal: ${signal ?? 'none'}). Ignorando retry de boot para evitar loop de loading.`
+        )
       }
       })().catch((err) => {
         logger.error('[Python] Erro ao processar encerramento do backend:', err)
