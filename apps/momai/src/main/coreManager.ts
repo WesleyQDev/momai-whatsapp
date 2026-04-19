@@ -40,6 +40,10 @@ function getCorePath(): string {
 }
 
 function getLlamaBinPath(): string {
+  if (app.isPackaged) {
+    return join(process.resourcesPath, 'bin', 'llama')
+  }
+
   const devLlamaPath = resolve(app.getAppPath(), 'bin', 'llama')
   if (existsSync(devLlamaPath)) {
     return devLlamaPath

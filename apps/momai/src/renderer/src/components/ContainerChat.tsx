@@ -237,7 +237,7 @@ export default function ContainerChat({
   const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
   const isBrainReady = statusInfo?.brain_ready ?? false
   const isBrainLoading = statusInfo?.is_loading ?? false
-  const isSystemDone = initProgress >= 100 && isBrainReady && !isBrainLoading
+  const isSystemDone = initProgress >= 100 && !isBooting
 
   const [animationFinished, setAnimationFinished] = useState(() => {
     return isSystemDone
@@ -314,12 +314,13 @@ export default function ContainerChat({
   }, [threadId])
 
   const displayProgress = isSystemDone ? 100 : Math.min(initProgress, 99)
+  const loadingProgress = isModeChanging ? Math.min(displayProgress, 99) : displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
-  const showLoading = !shouldSkipIntro && (!animationFinished || !isSystemDone)
+  const showLoading = !shouldSkipIntro && (isModeChanging || !animationFinished || !isSystemDone)
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage =
-    initProgress >= 100 && (!isBrainReady || isBrainLoading)
+    initProgress >= 100 && isBrainLoading
       ? !initMessage || initMessage === 'Sistema pronto.'
         ? defaultWaitingMessage
         : initMessage
@@ -332,7 +333,7 @@ export default function ContainerChat({
     <div className="bg-transparent w-full h-full flex flex-col overflow-hidden relative">
       {showLoading ? (
         <LoadingAnimation
-          progress={displayProgress}
+          progress={loadingProgress}
           message={displayMessage}
           onComplete={() => setAnimationFinished(true)}
           isFirstLaunch={isFirstLaunch}

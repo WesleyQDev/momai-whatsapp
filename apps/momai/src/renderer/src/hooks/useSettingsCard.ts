@@ -58,7 +58,7 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     api_keys: { groq: '', gemini: '' },
     tts_voice: '',
     tts_enabled: true,
-    wake_word_enabled: false,
+    wake_word_enabled: true,
     wake_word_sensitivity: 5,
     locale: 'pt-BR',
     daily_briefing_enabled: false,

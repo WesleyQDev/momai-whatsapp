@@ -20,6 +20,12 @@ const MESSAGE_TRANSLATIONS: Record<string, string> = {
 }
 
 function translateMessage(message: string): string {
+  if (message.startsWith('Downloading model (')) {
+    return message.replace('Downloading model', 'Baixando modelo')
+  }
+  if (message.startsWith('Model downloaded (')) {
+    return message.replace('Model downloaded', 'Modelo baixado')
+  }
   return MESSAGE_TRANSLATIONS[message] || message
 }
 
@@ -42,7 +48,7 @@ export function useStatus() {
 
   const isBrainReady = statusInfo?.brain_ready ?? false
   const isBrainLoading = statusInfo?.is_loading ?? false
-  const isReady = initProgress >= 100 && !isBooting && !isBrainLoading
+  const isReady = initProgress >= 100 && !isBooting
 
   // Polling de fallback para progresso de init
   const checkInitProgress = useCallback(async () => {
@@ -64,7 +70,14 @@ export function useStatus() {
       setIsOnline(data.status === 'ok')
       setBackendOnline(true)
 
-      // Evita encerrar boot antes do modelo estar realmente pronto
+      // Considera o boot concluído quando o backend principal está operacional.
+      // O carregamento do LLM pode continuar em segundo plano sem travar a UI em 99%.
+      if (data.status === 'ok' && backendOnline && initProgress >= 95) {
+        setIsBooting(false)
+        setInitProgress(100)
+      }
+
+      // Compat: mantém o caminho antigo para cenários onde o modelo já sinaliza pronto
       if (data.status === 'ok' && data.brain_ready && !data.is_loading) {
         setIsBooting(false)
         setInitProgress(100)
@@ -85,7 +98,7 @@ export function useStatus() {
       setIsOnline(false)
       setRetryCount((prev) => prev + 1)
     }
-  }, [isBooting]) // Removed retryCount from deps to avoid infinite loop
+  }, [isBooting, backendOnline, initProgress]) // keep bootstrap completion responsive
 
   useEffect(() => {
     const handleInitProgress = (e: any) => {

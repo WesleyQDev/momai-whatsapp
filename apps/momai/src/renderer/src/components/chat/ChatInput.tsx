@@ -133,9 +133,6 @@ export default function ChatInput({
     }
   }, [])
 
-  const isBrainReady = statusInfo?.brain_ready ?? false
-  const isBrainLoading = statusInfo?.is_loading ?? false
-
   useEffect(() => {
     const loadSettings = async () => {
       if (settingsLoaded || (statusInfo && statusInfo.status !== 'ok')) return
@@ -172,7 +169,7 @@ export default function ChatInput({
   }, [isDropdownOpen])
 
   const handleSend = useCallback(() => {
-    if (!localText.trim() || isLoading || isModeChanging || !isBrainReady || isBrainLoading) return
+    if (!localText.trim() || isLoading || isModeChanging) return
     addToHistory(localText)
     clearSuggestion()
     onSend(localText)
@@ -181,8 +178,6 @@ export default function ChatInput({
     localText,
     isLoading,
     isModeChanging,
-    isBrainReady,
-    isBrainLoading,
     addToHistory,
     clearSuggestion,
     onSend
@@ -241,7 +236,7 @@ export default function ChatInput({
     if (!settingsLoaded || isSavingSettings) return
 
     // Restriction Logic
-    if (key === 'wake_word_enabled' && aiTier !== 'ultra') return
+    if (key === 'wake_word_enabled' && aiTier === 'lite') return
     if (key === 'tts_enabled' && aiTier === 'lite') return
 
     const previous = voiceSettings[key]
@@ -317,15 +312,15 @@ export default function ChatInput({
                     <button
                       type="button"
                       onClick={() => toggleSetting('wake_word_enabled')}
-                      disabled={!settingsLoaded || isSavingSettings || aiTier !== 'ultra'}
+                      disabled={!settingsLoaded || isSavingSettings || aiTier === 'lite'}
                       className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-all ${
-                        voiceSettings.wake_word_enabled && aiTier === 'ultra'
+                        voiceSettings.wake_word_enabled && aiTier !== 'lite'
                           ? 'bg-accent/5 text-accent'
                           : ''
-                      } ${aiTier !== 'ultra' ? 'cursor-default opacity-80' : ''}`}
+                      } ${aiTier === 'lite' ? 'cursor-default opacity-80' : ''}`}
                     >
                       <MicrophoneIcon
-                        className={`w-4 h-4 ${voiceSettings.wake_word_enabled && aiTier === 'ultra' ? 'text-accent' : 'text-text-muted opacity-50'}`}
+                        className={`w-4 h-4 ${voiceSettings.wake_word_enabled && aiTier !== 'lite' ? 'text-accent' : 'text-text-muted opacity-50'}`}
                       />
                       <div className="flex flex-col items-start flex-1">
                         <span className="text-[11px] font-bold">
@@ -334,12 +329,12 @@ export default function ChatInput({
                         <span
                           className={`text-[9px] font-medium leading-tight ${aiTier === 'ultra' ? 'text-text-muted opacity-70' : aiTier === 'lite' ? 'text-emerald-500' : 'text-red-500'}`}
                         >
-                          {aiTier === 'ultra'
+                          {aiTier !== 'lite'
                             ? t('chatInput.reconhecimentoDesc')
-                            : 'Recurso disponível no Ultra'}
+                            : 'Recurso disponível a partir do Pro'}
                         </span>
                       </div>
-                      {aiTier === 'ultra' && (
+                      {aiTier !== 'lite' && (
                         <div
                           className={`w-1.5 h-1.5 rounded-full ${voiceSettings.wake_word_enabled ? 'bg-accent' : 'bg-white/10'}`}
                         />
@@ -390,8 +385,6 @@ export default function ChatInput({
                   disabled={
                     isLoading ||
                     isModeChanging ||
-                    !isBrainReady ||
-                    isBrainLoading ||
                     isQuickRecording ||
                     aiTier !== 'ultra'
                   }
@@ -440,9 +433,7 @@ export default function ChatInput({
                   onClick={handleSend}
                   disabled={
                     isLoading ||
-                    isModeChanging ||
-                    !isBrainReady ||
-                    isBrainLoading
+                    isModeChanging
                   }
                   title="Enviar mensagem"
                 >

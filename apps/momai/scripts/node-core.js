@@ -4,6 +4,7 @@ const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
 const crypto = require('node:crypto')
+const https = require('node:https')
 const { spawn } = require('node:child_process')
 const { createSkillRegistry } = require('./skills/registry')
 const { createPromptRegistry } = require('./prompt-registry')
@@ -13,10 +14,15 @@ const PORT = Number(process.env.MOMAI_NODE_CORE_PORT || 8000)
 const DATA_DIR = process.env.MOMAI_NODE_CORE_DATA_DIR || path.join(process.cwd(), 'data')
 const STORE_FILE = path.join(DATA_DIR, 'node-core-store.json')
 const CORE_PATH = process.env.MOMAI_CORE_PATH || path.resolve(__dirname, '..', '..', 'core')
-const LLAMA_BIN_PATH =
-  process.env.MOMAI_LLAMA_BIN_PATH || path.resolve(__dirname, '..', 'bin', 'llama')
+const LLAMA_BIN_CANDIDATES = [
+  process.env.MOMAI_LLAMA_BIN_PATH,
+  path.resolve(__dirname, '..', 'bin', 'llama'),
+  process.resourcesPath ? path.join(process.resourcesPath, 'bin', 'llama') : null,
+  process.resourcesPath ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', 'llama') : null
+].filter(Boolean)
 const TIERS_CONFIG_PATH = path.join(CORE_PATH, 'ai_tiers.json')
 const MODELS_DIR = path.join(CORE_PATH, 'models')
+const MODEL_DOWNLOAD_TIMEOUT_MS = Number(process.env.MOMAI_MODEL_DOWNLOAD_TIMEOUT_MS || 15 * 60 * 1000)
 
 const PYTHON_HOST = process.env.MOMAI_PYTHON_SIDECAR_HOST || '127.0.0.1'
 const PYTHON_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
@@ -61,6 +67,7 @@ const promptRegistry = createPromptRegistry({
 const DEFAULT_TIERS = {
   lite: {
     file: 'Qwen3.5-0.8B-Q4_K_M.gguf',
+    repo: 'Qwen/Qwen3.5-0.8B-GGUF',
     enable_vision: false,
     ctx_size: 8192,
     request_ctx_size: 4096,
@@ -74,6 +81,7 @@ const DEFAULT_TIERS = {
   },
   pro: {
     file: 'Qwen3.5-2B-Q4_K_M.gguf',
+    repo: 'Qwen/Qwen3.5-2B-GGUF',
     enable_vision: false,
     ctx_size: 8192,
     request_ctx_size: 6144,
@@ -87,6 +95,7 @@ const DEFAULT_TIERS = {
   },
   ultra: {
     file: 'Qwen3.5-4B-Q4_K_M.gguf',
+    repo: 'Qwen/Qwen3.5-4B-GGUF',
     enable_vision: false,
     ctx_size: 8192,
     request_ctx_size: 8192,
@@ -104,7 +113,19 @@ function loadTierConfig() {
   if (!fs.existsSync(TIERS_CONFIG_PATH)) return DEFAULT_TIERS
   try {
     const parsed = JSON.parse(fs.readFileSync(TIERS_CONFIG_PATH, 'utf8'))
-    return { ...DEFAULT_TIERS, ...parsed }
+    const merged = { ...DEFAULT_TIERS }
+    for (const tierName of Object.keys(parsed || {})) {
+      const tierValue = parsed[tierName]
+      if (tierValue && typeof tierValue === 'object' && !Array.isArray(tierValue)) {
+        merged[tierName] = {
+          ...(DEFAULT_TIERS[tierName] || {}),
+          ...tierValue
+        }
+      } else {
+        merged[tierName] = tierValue
+      }
+    }
+    return merged
   } catch (error) {
     console.error('[NodeCore] Failed to parse ai_tiers.json:', error)
     return DEFAULT_TIERS
@@ -143,7 +164,7 @@ function defaultStore() {
       auto_start_llm: true,
       tts_voice: 'pf_dora',
       tts_enabled: true,
-      wake_word_enabled: false,
+      wake_word_enabled: true,
       wake_word_sensitivity: 5,
       locale: 'pt-BR',
       min_interface_chars: 240,
@@ -560,7 +581,6 @@ async function ensureEmbeddingReady() {
     return false
   }
 
-  const exeName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'
   const exePath = llamaBackendExePath(backend)
   const exeDir = path.dirname(exePath)
   if (!fs.existsSync(exePath)) {
@@ -625,6 +645,16 @@ async function ensureEmbeddingReady() {
         semanticState.degraded = true
         semanticState.lastFallbackReason = `embedding exited during startup (${code}/${signal})`
       }
+    })
+
+    child.on('error', (error) => {
+      semanticState.embedding.lastError = error?.message || 'embedding spawn error'
+      semanticState.embedding.ready = false
+      semanticState.embedding.starting = false
+      semanticState.embedding.startingPromise = null
+      semanticState.embedding.process = null
+      semanticState.degraded = true
+      semanticState.lastFallbackReason = semanticState.embedding.lastError
     })
 
     const startedAt = Date.now()
@@ -1200,7 +1230,12 @@ async function runSemanticMemoryRetrieval(query, limit = 6) {
 
 function llamaBackendExePath(backend) {
   const exeName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'
-  return path.join(LLAMA_BIN_PATH, backend, exeName)
+  for (const basePath of LLAMA_BIN_CANDIDATES) {
+    if (basePath.includes('app.asar') && !basePath.includes('app.asar.unpacked')) continue
+    const candidate = path.join(basePath, backend, exeName)
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return path.join(LLAMA_BIN_CANDIDATES[0] || path.resolve(__dirname, '..', 'bin', 'llama'), backend, exeName)
 }
 
 function hasBackendBinary(backend) {
@@ -1278,6 +1313,208 @@ function resolveMmprojPath() {
   return mmproj ? path.join(MODELS_DIR, mmproj) : null
 }
 
+const modelDownloadState = {
+  in_progress: false,
+  tier: null,
+  file: null,
+  downloaded_bytes: 0,
+  total_bytes: null,
+  progress: 0,
+  status: 'idle',
+  message: null,
+  error: null,
+  updated_at: isoNow()
+}
+
+let modelDownloadPromise = null
+
+function setModelDownloadState(partial) {
+  Object.assign(modelDownloadState, partial, { updated_at: isoNow() })
+}
+
+function resolveTierModelUrl(tierName, tierConfig) {
+  const modelFile = String(tierConfig?.file || '').trim()
+  if (!modelFile) return null
+
+  const explicitUrl = String(tierConfig?.download_url || '').trim()
+  if (explicitUrl) return explicitUrl
+
+  const explicitBase = String(tierConfig?.download_base_url || '').trim()
+  if (explicitBase) {
+    const sep = explicitBase.includes('?') ? '&' : '?'
+    return `${explicitBase.replace(/\/+$/, '')}/${encodeURIComponent(modelFile)}${sep}download=1`
+  }
+
+  const repo = String(tierConfig?.repo || '').trim()
+  if (!repo) return null
+  return `https://huggingface.co/${repo}/resolve/main/${encodeURIComponent(modelFile)}?download=1`
+}
+
+function downloadToFile(url, targetPath, onProgress) {
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now()
+    const request = https.get(url, (response) => {
+      const status = Number(response.statusCode || 0)
+      if ([301, 302, 303, 307, 308].includes(status)) {
+        const location = response.headers.location
+        response.resume()
+        if (!location) {
+          reject(new Error(`Redirect without location for ${url}`))
+          return
+        }
+        resolve(downloadToFile(location, targetPath, onProgress))
+        return
+      }
+
+      if (status < 200 || status >= 300) {
+        response.resume()
+        reject(new Error(`Model download failed with HTTP ${status}`))
+        return
+      }
+
+      const totalBytesRaw = Number(response.headers['content-length'] || 0)
+      const totalBytes = Number.isFinite(totalBytesRaw) && totalBytesRaw > 0 ? totalBytesRaw : null
+      let received = 0
+      const tmpPath = `${targetPath}.partial`
+      const output = fs.createWriteStream(tmpPath)
+
+      const fail = (error) => {
+        try {
+          output.close()
+        } catch {}
+        try {
+          if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath)
+        } catch {}
+        reject(error)
+      }
+
+      output.on('error', fail)
+      response.on('error', fail)
+      response.on('data', (chunk) => {
+        received += chunk.length
+        onProgress({ received, total: totalBytes, elapsedMs: Date.now() - startedAt })
+      })
+      response.pipe(output)
+      output.on('finish', () => {
+        output.close(() => {
+          try {
+            if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath)
+            fs.renameSync(tmpPath, targetPath)
+            resolve(true)
+          } catch (error) {
+            fail(error)
+          }
+        })
+      })
+    })
+
+    request.setTimeout(MODEL_DOWNLOAD_TIMEOUT_MS, () => {
+      request.destroy(new Error(`Model download timeout after ${MODEL_DOWNLOAD_TIMEOUT_MS}ms`))
+    })
+    request.on('error', reject)
+  })
+}
+
+async function ensureTierModelAvailable(tierName, tierConfig) {
+  const configuredFile = String(tierConfig?.file || '').trim()
+  if (!configuredFile) {
+    return { ok: false, reason: `Tier "${tierName}" has no configured model file.` }
+  }
+
+  ensureDir(MODELS_DIR)
+  const targetPath = path.join(MODELS_DIR, configuredFile)
+  if (fs.existsSync(targetPath)) {
+    return { ok: true, path: targetPath, downloaded: false }
+  }
+
+  if (modelDownloadPromise) {
+    return modelDownloadPromise
+  }
+
+  modelDownloadPromise = (async () => {
+    const url = resolveTierModelUrl(tierName, tierConfig)
+    if (!url) {
+      return {
+        ok: false,
+        reason: `No download URL for tier "${tierName}". Configure "repo" or "download_url" in tier config.`
+      }
+    }
+
+    setModelDownloadState({
+      in_progress: true,
+      tier: tierName,
+      file: configuredFile,
+      downloaded_bytes: 0,
+      total_bytes: null,
+      progress: 1,
+      status: 'downloading',
+      message: `Downloading model (${tierName.toUpperCase()})...`,
+      error: null
+    })
+    setInitStatus('loading', `Downloading model (${tierName.toUpperCase()})... 0%`, 35, null)
+
+    if (typeof process.send === 'function') {
+      process.send({
+        type: 'node-core-log',
+        message: `[model] Downloading ${configuredFile} from ${url}`
+      })
+    }
+
+    let lastProgressUpdate = 0
+    try {
+      await downloadToFile(url, targetPath, ({ received, total }) => {
+        const now = Date.now()
+        const percent = total ? Math.max(1, Math.min(99, Math.round((received / total) * 100))) : null
+        setModelDownloadState({
+          downloaded_bytes: received,
+          total_bytes: total,
+          progress: percent || modelDownloadState.progress,
+          message: percent
+            ? `Downloading model (${tierName.toUpperCase()})... ${percent}%`
+            : `Downloading model (${tierName.toUpperCase()})...`
+        })
+        if (now - lastProgressUpdate >= 300) {
+          const initProgress = percent ? 35 + Math.min(44, Math.round(percent * 0.44)) : 40
+          setInitStatus(
+            'loading',
+            percent
+              ? `Downloading model (${tierName.toUpperCase()})... ${percent}%`
+              : `Downloading model (${tierName.toUpperCase()})...`,
+            initProgress,
+            null
+          )
+          lastProgressUpdate = now
+        }
+      })
+
+      setModelDownloadState({
+        in_progress: false,
+        status: 'ready',
+        progress: 100,
+        message: `Model ready (${tierName.toUpperCase()})`,
+        error: null
+      })
+      setInitStatus('loading', `Model downloaded (${tierName.toUpperCase()}).`, 80, null)
+      return { ok: true, path: targetPath, downloaded: true }
+    } catch (error) {
+      const message = error?.message || 'Model download failed'
+      setModelDownloadState({
+        in_progress: false,
+        status: 'error',
+        error: message,
+        message: 'Model download failed'
+      })
+      return { ok: false, reason: message }
+    }
+  })()
+
+  try {
+    return await modelDownloadPromise
+  } finally {
+    modelDownloadPromise = null
+  }
+}
+
 const llamaState = {
   process: null,
   ready: false,
@@ -1347,7 +1584,7 @@ function stopLlamaServer() {
   })
 }
 
-async function ensureLlamaReady(forceRestart = false) {
+async function ensureLlamaReady(forceRestart = false, allowModelDownload = true) {
   if (forceRestart) await stopLlamaServer()
 
   if (llamaState.ready) return true
@@ -1366,6 +1603,23 @@ async function ensureLlamaReady(forceRestart = false) {
     llamaState.backendMode = preferred
     setInitStatus('error', 'Local model engine missing', 100, msg)
     return false
+  }
+
+  const existingModelPath = resolveModelPath(tierConfig)
+  if (!existingModelPath) {
+    if (!allowModelDownload) {
+      const msg = `Model for tier ${tierName.toUpperCase()} not present yet.`
+      llamaState.lastError = msg
+      setInitStatus('loading', `Waiting model download (${tierName.toUpperCase()})...`, 100, null)
+      return false
+    }
+    const modelReady = await ensureTierModelAvailable(tierName, tierConfig)
+    if (!modelReady.ok) {
+      const msg = modelReady.reason || `Failed to prepare model for tier ${tierName}`
+      llamaState.lastError = msg
+      setInitStatus('error', 'Local model download failed', 100, msg)
+      return false
+    }
   }
 
   const modelPath = resolveModelPath(tierConfig)
@@ -1488,6 +1742,11 @@ async function ensureLlamaReady(forceRestart = false) {
         llamaState.starting = false
         llamaState.process = null
         if (endedWhileStarting) exitedDuringStartup = true
+      })
+
+      child.on('error', (error) => {
+        exitedDuringStartup = true
+        llamaState.lastError = error?.message || 'llama-server spawn error'
       })
 
       const startedAt = Date.now()
@@ -1727,7 +1986,7 @@ function sendVoiceSidecarFallback(res, pathname, error) {
 async function syncWakeWordState(reason = 'unknown') {
   const tier = store.settings.ai_tier || 'pro'
   const shouldEnable =
-    tier === 'ultra' && (Boolean(store.settings.wake_word_enabled) || Boolean(store.call_mode))
+    tier !== 'lite' && (Boolean(store.settings.wake_word_enabled) || Boolean(store.call_mode))
   const maxAttempts = 8
   let lastError = null
 
@@ -2218,17 +2477,26 @@ async function runVoiceCommand(payload = {}) {
 }
 
 async function maybeRestartLlamaOnTierChange(prevTier, nextTier, prevBackend, nextBackend) {
-  if (prevTier === nextTier && prevBackend === nextBackend) return
+  if (prevTier === nextTier && prevBackend === nextBackend) {
+    const tierConfig = tiersConfig[nextTier] || tiersConfig.pro || DEFAULT_TIERS.pro
+    const modelReady = await ensureTierModelAvailable(nextTier, tierConfig)
+    if (!modelReady.ok) {
+      llamaState.lastError = modelReady.reason || `Failed to prepare model for tier ${nextTier}`
+      return false
+    }
+    return true
+  }
   if (nextTier !== 'ultra') {
     await stopEmbeddingServer()
     semanticState.enabled = false
     semanticState.ready = false
   }
-  await ensureLlamaReady(true)
+  const llamaReady = await ensureLlamaReady(true)
   if (nextTier === 'ultra') {
     await ensureEmbeddingReady()
     await syncSkillAndToolIndexes(false)
   }
+  return llamaReady
 }
 
 function getSetupInfo() {
@@ -2282,7 +2550,7 @@ async function handleRequest(req, res) {
       status: 'ok',
       mode: store.mode,
       brain_ready: autoStart ? llamaState.ready : true,
-      is_loading: llamaState.starting,
+      is_loading: llamaState.starting || modelDownloadState.in_progress,
       setup: getSetupInfo(),
       ai_tier: store.settings.ai_tier || 'pro',
       auto_start_llm: autoStart,
@@ -2296,6 +2564,7 @@ async function handleRequest(req, res) {
         loaded_model_file: llamaState.modelPath ? path.basename(llamaState.modelPath) : null,
         using_fallback_model: llamaState.usingFallbackModel
       },
+      model_download: modelDownloadState,
       semantic_runtime: buildSemanticRuntimeStatus(),
       prompt_runtime: promptRegistry.getRuntimeStatus(),
       tiers_config: tiersConfig
@@ -2321,6 +2590,7 @@ async function handleRequest(req, res) {
         backend_reason: llamaState.backendReason,
         backend_mode: llamaState.backendMode || normalizeBackendMode(store.settings.local_backend || 'auto')
       },
+      model_download: modelDownloadState,
       semantic_runtime: buildSemanticRuntimeStatus(),
       prompt_runtime: promptRegistry.getRuntimeStatus(),
       tiers_config: tiersConfig
@@ -2344,17 +2614,24 @@ async function handleRequest(req, res) {
     if (requestedTier === 'lite') {
       store.settings.tts_enabled = false
       store.settings.wake_word_enabled = false
-    } else if (requestedTier !== 'ultra') {
-      store.settings.wake_word_enabled = false
+    } else if (requestedTier === 'pro') {
+      store.settings.wake_word_enabled = true
     }
 
     saveStore()
-    await maybeRestartLlamaOnTierChange(
+    const ready = await maybeRestartLlamaOnTierChange(
       prevTier,
       requestedTier,
       prevBackend,
       normalizeBackendMode(store.settings.local_backend || 'auto')
     )
+    if (!ready) {
+      sendJson(res, 503, {
+        status: 'error',
+        message: llamaState.lastError || 'Failed to initialize selected model'
+      })
+      return
+    }
     void syncWakeWordState('setup_apply_tier')
 
     sendJson(res, 200, { status: 'ok', ai_tier: store.settings.ai_tier })
@@ -2376,19 +2653,26 @@ async function handleRequest(req, res) {
     if (mode === 'lite') {
       store.settings.tts_enabled = false
       store.settings.wake_word_enabled = false
-    } else if (mode !== 'ultra') {
-      store.settings.wake_word_enabled = false
+    } else if (mode === 'pro') {
+      store.settings.wake_word_enabled = true
     }
     saveStore()
 
     broadcast({ type: 'model_changed', data: { new_mode: 'local' } })
 
-    await maybeRestartLlamaOnTierChange(
+    const ready = await maybeRestartLlamaOnTierChange(
       prevTier,
       mode,
       normalizeBackendMode(store.settings.local_backend || 'auto'),
       normalizeBackendMode(store.settings.local_backend || 'auto')
     )
+    if (!ready) {
+      sendJson(res, 503, {
+        status: 'error',
+        message: llamaState.lastError || 'Failed to initialize selected model'
+      })
+      return
+    }
     void syncWakeWordState('mode_change')
 
     sendJson(res, 200, { status: 'ok', mode: 'local' })
@@ -2450,19 +2734,26 @@ async function handleRequest(req, res) {
     if (store.settings.ai_tier === 'lite') {
       store.settings.tts_enabled = false
       store.settings.wake_word_enabled = false
-    } else if (store.settings.ai_tier !== 'ultra') {
-      store.settings.wake_word_enabled = false
+    } else if (payload.ai_tier === 'pro' && payload.wake_word_enabled === undefined) {
+      store.settings.wake_word_enabled = true
     }
 
     if (payload.ai_tier) store.mode = 'local'
     saveStore()
 
-    await maybeRestartLlamaOnTierChange(
+    const ready = await maybeRestartLlamaOnTierChange(
       prevTier,
       store.settings.ai_tier || 'pro',
       prevBackend,
       normalizeBackendMode(store.settings.local_backend || 'auto')
     )
+    if (!ready) {
+      sendJson(res, 503, {
+        status: 'error',
+        message: llamaState.lastError || 'Failed to initialize selected model'
+      })
+      return
+    }
     void syncWakeWordState('settings_patch')
 
     sendJson(res, 200, store.settings)
@@ -2828,7 +3119,7 @@ server.listen(PORT, HOST, () => {
     process.send({ type: 'node-core-ready' })
   }
   if (store.settings.auto_start_llm !== false) {
-    ensureLlamaReady(false).catch((error) => {
+    ensureLlamaReady(false, false).catch((error) => {
       console.error('[NodeCore] auto-start llama failed:', error)
     })
   }

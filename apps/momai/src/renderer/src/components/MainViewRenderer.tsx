@@ -47,9 +47,9 @@ const ChatView = (props: any) => {
       onToggleCallMode={props.chat.toggleCallMode}
       callHistory={props.chat.callHistory}
       initProgress={props.initProgress}
-      initMessage={props.initMessage}
-      isBooting={props.isBooting}
-      threadId={props.chat.threadId}
+        initMessage={props.initMessage}
+        isBooting={props.isBooting}
+        threadId={props.chat.threadId}
       setThreadId={props.chat.setThreadId}
       setHistoryOpen={props.setHistoryOpen}
       onSpeakMessage={props.chat.speakMessage}

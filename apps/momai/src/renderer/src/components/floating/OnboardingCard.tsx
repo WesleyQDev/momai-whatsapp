@@ -126,7 +126,8 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         tts_voice: selectedVoice,
         onboarding_completed: true,
         locale: selectedLang === 'p' ? 'pt-BR' : 'en-US',
-        ai_tier: selectedTier
+        ai_tier: selectedTier,
+        wake_word_enabled: selectedTier !== 'lite'
       }
       // Signal main process first (works offline - saves to local file)
       window.api?.markFirstLaunchFinished?.(payload)
