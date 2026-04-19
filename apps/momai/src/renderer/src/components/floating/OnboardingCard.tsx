@@ -8,6 +8,26 @@ interface OnboardingCardProps {
   onFinish: (savedSettings?: Record<string, any>) => void
 }
 
+const ONBOARDING_SAVE_TIMEOUT_MS = 4500
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error(`Onboarding save timeout after ${timeoutMs}ms`))
+    }, timeoutMs)
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timer)
+        resolve(value)
+      })
+      .catch((error) => {
+        window.clearTimeout(timer)
+        reject(error)
+      })
+  })
+}
+
 type Theme = 'dark' | 'light'
 
 interface Voice {
@@ -130,10 +150,15 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         wake_word_enabled: selectedTier === 'ultra'
       }
       // Signal main process first (works offline - saves to local file)
-      window.api?.markFirstLaunchFinished?.(payload)
+      try {
+        window.api?.markFirstLaunchFinished?.(payload)
+      } catch (error) {
+        console.warn('[Onboarding] Failed to mark first launch as finished:', error)
+      }
+
       // Try to sync with backend directly
       try {
-        await api.patch('/settings', payload)
+        await withTimeout(api.patch('/settings', payload), ONBOARDING_SAVE_TIMEOUT_MS)
         window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: payload }))
         onFinish()
       } catch (apiError) {
@@ -142,6 +167,14 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       }
     } catch (error) {
       console.error('Erro ao salvar onboarding:', error)
+      onFinish({
+        user_name: name,
+        tts_voice: selectedVoice,
+        onboarding_completed: true,
+        locale: selectedLang === 'p' ? 'pt-BR' : 'en-US',
+        ai_tier: selectedTier,
+        wake_word_enabled: selectedTier === 'ultra'
+      })
     } finally {
       setIsSaving(false)
     }

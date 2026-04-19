@@ -231,7 +231,6 @@ function App(): React.JSX.Element {
             setShowOnboarding(false)
             if (savedSettings) setPendingOnboardingSettings(savedSettings)
             navigate('/')
-            window.electron.ipcRenderer.send('app-ready')
           }}
         />
       )}

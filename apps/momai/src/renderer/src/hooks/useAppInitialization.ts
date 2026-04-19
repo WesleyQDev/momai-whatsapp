@@ -106,6 +106,10 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
 
         if (data && data.onboarding_completed === false && !onboardingAttempted) {
           setShowOnboarding(true)
+        } else if (data && data.onboarding_completed === true) {
+          setShowOnboarding(false)
+          setOnboardingAttempted(true)
+          setIsFirstLaunch(false)
         }
         setSettingsLoaded(true)
 
@@ -137,6 +141,10 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
             setShowOnboarding(true)
             setOnboardingAttempted(false)
           }, 100)
+        } else if (e.detail.onboarding_completed === true) {
+          setShowOnboarding(false)
+          setOnboardingAttempted(true)
+          setIsFirstLaunch(false)
         }
       }
     }

@@ -1250,12 +1250,52 @@ function llamaBackendExePath(backend) {
   return path.join(LLAMA_BIN_CANDIDATES[0] || path.resolve(__dirname, '..', 'bin', 'llama'), backend, exeName)
 }
 
+function llamaBackendNativeExeName() {
+  return process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'
+}
+
+function llamaBackendAltExeName() {
+  return process.platform === 'win32' ? 'llama-server' : 'llama-server.exe'
+}
+
+function resolveBackendBinaryInfo(backend) {
+  const nativeName = llamaBackendNativeExeName()
+  const altName = llamaBackendAltExeName()
+
+  for (const basePath of LLAMA_BIN_CANDIDATES) {
+    if (basePath.includes('app.asar') && !basePath.includes('app.asar.unpacked')) continue
+
+    const nativePath = path.join(basePath, backend, nativeName)
+    if (fs.existsSync(nativePath)) {
+      return { path: nativePath, compatible: true }
+    }
+
+    const altPath = path.join(basePath, backend, altName)
+    if (fs.existsSync(altPath)) {
+      return { path: altPath, compatible: false }
+    }
+  }
+
+  return {
+    path: path.join(LLAMA_BIN_CANDIDATES[0] || path.resolve(__dirname, '..', 'bin', 'llama'), backend, nativeName),
+    compatible: false
+  }
+}
+
 function hasBackendBinary(backend) {
-  return fs.existsSync(llamaBackendExePath(backend))
+  const info = resolveBackendBinaryInfo(backend)
+  return info.compatible && fs.existsSync(info.path)
 }
 
 function listAvailableBackends() {
   return ['vulkan', 'cpu'].filter((backend) => hasBackendBinary(backend))
+}
+
+function listIncompatibleBackends() {
+  return ['vulkan', 'cpu'].filter((backend) => {
+    const info = resolveBackendBinaryInfo(backend)
+    return !info.compatible && fs.existsSync(info.path)
+  })
 }
 
 function normalizeBackendMode(value) {
@@ -1608,7 +1648,18 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
   const tierConfig = tiersConfig[tierName] || tiersConfig.pro || DEFAULT_TIERS.pro
 
   if (!backendAttempts.length) {
-    const msg = 'llama-server binary not found (bin/llama/<backend>/llama-server)'
+    const incompatibleBackends = listIncompatibleBackends()
+    let msg = 'llama-server binary not found (bin/llama/<backend>/llama-server)'
+
+    if (incompatibleBackends.length) {
+      const backendList = incompatibleBackends.join(', ')
+      if (process.platform === 'win32') {
+        msg = `Only non-Windows llama binaries found for backend(s): ${backendList}. Run \"pnpm --filter momai prebuild\" to hydrate native binaries.`
+      } else {
+        msg = `Only Windows llama binaries found for backend(s): ${backendList}. Run \"pnpm --filter momai prebuild\" on this Linux/macOS machine to hydrate native binaries.`
+      }
+    }
+
     llamaState.lastError = msg
     llamaState.backend = null
     llamaState.backendReason = 'backend_unavailable'
