@@ -46,6 +46,7 @@ SRC_APP="$appLinux"
 BUILD_ROOT="`$HOME/.momai-linux-build"
 DST_REPO="`$BUILD_ROOT/repo"
 DST_APP="`$DST_REPO/apps/momai"
+LOCK_HASH_FILE="`$BUILD_ROOT/.pnpm-lock.sha256"
 
 echo "[MomAI] Repo origem (montado): `$SRC_REPO"
 echo "[MomAI] App origem  (montado): `$SRC_APP"
@@ -107,9 +108,23 @@ find "`$DST_REPO/apps" -type f -name "*.sh" -print0 | while IFS= read -r -d '' f
 done
 
 if [ "$skipInstallFlag" != "1" ]; then
-  echo "[MomAI] Instalando dependências no WSL (pnpm install --frozen-lockfile)..."
   cd "`$DST_REPO"
-  pnpm install --frozen-lockfile
+  CURRENT_LOCK_HASH=""
+  if command -v sha256sum >/dev/null 2>&1; then
+    CURRENT_LOCK_HASH=`$(sha256sum pnpm-lock.yaml | awk '{print `$1}')
+  elif command -v shasum >/dev/null 2>&1; then
+    CURRENT_LOCK_HASH=`$(shasum -a 256 pnpm-lock.yaml | awk '{print `$1}')
+  fi
+
+  if [ -d "`$DST_REPO/node_modules" ] && [ -f "`$LOCK_HASH_FILE" ] && [ -n "`$CURRENT_LOCK_HASH" ] && [ "`$(cat "`$LOCK_HASH_FILE")" = "`$CURRENT_LOCK_HASH" ]; then
+    echo "[MomAI] Dependências já em cache (lockfile inalterado), pulando pnpm install."
+  else
+    echo "[MomAI] Instalando dependências no WSL (pnpm install --frozen-lockfile)..."
+    pnpm install --frozen-lockfile
+    if [ -n "`$CURRENT_LOCK_HASH" ]; then
+      printf '%s' "`$CURRENT_LOCK_HASH" > "`$LOCK_HASH_FILE"
+    fi
+  fi
 else
   echo "[MomAI] Pulando instalação de dependências (--SkipInstall)."
 fi

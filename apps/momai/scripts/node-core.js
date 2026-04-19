@@ -1,4 +1,5 @@
 const http = require('node:http')
+const net = require('node:net')
 const { URL } = require('node:url')
 const path = require('node:path')
 const fs = require('node:fs')
@@ -30,9 +31,37 @@ const PYTHON_BASE_URL = `http://${PYTHON_HOST}:${PYTHON_PORT}`
 
 const LLAMA_HOST = '127.0.0.1'
 const LLAMA_PORT = Number(process.env.MOMAI_LLAMA_PORT || 8080)
-const LLAMA_BASE_URL = `http://${LLAMA_HOST}:${LLAMA_PORT}`
 const EMBEDDING_PORT = Number(process.env.MOMAI_EMBEDDING_PORT || 8081)
 const EMBEDDING_BASE_URL = `http://${LLAMA_HOST}:${EMBEDDING_PORT}`
+
+function getLlamaBaseUrl() {
+  const port = Number(llamaState?.port || LLAMA_PORT)
+  return `http://${LLAMA_HOST}:${port}`
+}
+
+function checkPortAvailable(port, host = LLAMA_HOST) {
+  return new Promise((resolve) => {
+    const server = net.createServer()
+    server.unref()
+    server.once('error', () => {
+      resolve(false)
+    })
+    server.listen({ port, host }, () => {
+      server.close(() => resolve(true))
+    })
+  })
+}
+
+async function pickAvailablePort(preferredPort, maxAttempts = 20) {
+  const base = Number(preferredPort || LLAMA_PORT)
+  for (let i = 0; i < maxAttempts; i += 1) {
+    const candidate = base + i
+    // eslint-disable-next-line no-await-in-loop
+    const available = await checkPortAvailable(candidate)
+    if (available) return candidate
+  }
+  return base
+}
 
 const NOTES_DIR = path.join(DATA_DIR, 'notes')
 const NOTES_INDEX_FILE = path.join(NOTES_DIR, '.index.json')
@@ -1580,7 +1609,8 @@ const llamaState = {
   configuredModelFile: null,
   usingFallbackModel: false,
   contextTotalTokens: 8192,
-  currentTier: null
+  currentTier: null,
+  port: LLAMA_PORT
 }
 
 function setInitStatus(stage, message, progress, error = null) {
@@ -1596,7 +1626,7 @@ function setInitStatus(stage, message, progress, error = null) {
 }
 
 async function checkLlamaHealth() {
-  const resp = await fetch(`${LLAMA_BASE_URL}/health`, { method: 'GET' })
+  const resp = await fetch(`${getLlamaBaseUrl()}/health`, { method: 'GET' })
   return resp.ok
 }
 
@@ -1716,127 +1746,133 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
     new Promise((resolve) => {
       const exePath = llamaBackendExePath(backend)
       const exeDir = path.dirname(exePath)
-      const args = [
-        '-m',
-        modelPath,
-        '--port',
-        String(LLAMA_PORT),
-        '-c',
-        String(totalCtx),
-        '--parallel',
-        String(parallelSlots),
-        '-ngl',
-        String(Number.isFinite(tierConfig.gpu_layers) ? tierConfig.gpu_layers : 99),
-        '--flash-attn',
-        'auto',
-        '--reasoning',
-        'off',
-        '--cache-prompt',
-        '-b',
-        '2048',
-        '-ub',
-        '512',
-        '--top-p',
-        String(Number.isFinite(tierConfig.top_p) ? tierConfig.top_p : 1),
-        '--top-k',
-        String(Number.isFinite(tierConfig.top_k) ? tierConfig.top_k : 20),
-        '--presence-penalty',
-        String(Number.isFinite(tierConfig.presence_penalty) ? tierConfig.presence_penalty : 0),
-        '--repeat-penalty',
-        String(Number.isFinite(tierConfig.repetition_penalty) ? tierConfig.repetition_penalty : 1)
-      ]
-
-      if (backend === 'cpu') args.push('--no-mmap')
-      else args.push('--mmap')
-
-      if (mmprojPath) args.push('--mmproj', mmprojPath)
-
-      llamaState.starting = true
-      llamaState.ready = false
-      llamaState.lastError = null
-      llamaState.contextTotalTokens = ctxBase
-      llamaState.backend = backend
-      llamaState.backendMode = preferred
-      llamaState.backendReason = backendReason(preferred, backend, { vulkanAttempted: isFallbackAttempt })
-      llamaState.modelPath = modelPath
-      llamaState.configuredModelFile = configuredModelFile
-      llamaState.usingFallbackModel = usingFallbackModel
-      llamaState.currentTier = tierName
-
-      setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 80, null)
-
-      let child = null
-      try {
-        child = spawn(exePath, args, {
-          cwd: exeDir,
-          env: {
-            ...process.env,
-            PATH: `${exeDir}${path.delimiter}${process.env.PATH || ''}`
-          },
-          shell: false,
-          stdio: ['ignore', 'pipe', 'pipe']
-        })
-      } catch (error) {
-        const errMsg = error?.message || 'Failed to spawn llama-server'
-        resolve({ ok: false, reason: errMsg })
-        return
-      }
-
-      llamaState.process = child
-      let exitedDuringStartup = false
-
-      child.stdout?.on('data', (data) => {
-        const line = String(data).trim()
-        if (line && typeof process.send === 'function') {
-          process.send({ type: 'node-core-log', message: `[llama] ${line}` })
-        }
-      })
-
-      child.stderr?.on('data', (data) => {
-        const line = String(data).trim()
-        if (line && typeof process.send === 'function') {
-          process.send({ type: 'node-core-log', message: `[llama] ${line}` })
-        }
-      })
-
-      child.on('exit', () => {
-        const endedWhileStarting = llamaState.starting
-        llamaState.ready = false
-        llamaState.starting = false
-        llamaState.process = null
-        if (endedWhileStarting) exitedDuringStartup = true
-      })
-
-      child.on('error', (error) => {
-        exitedDuringStartup = true
-        llamaState.lastError = error?.message || 'llama-server spawn error'
-      })
-
-      const startedAt = Date.now()
-      const timeoutMs = 25000
       ;(async () => {
-        while (Date.now() - startedAt < timeoutMs) {
-          if (exitedDuringStartup || !llamaState.process || llamaState.process.exitCode !== null) {
-            resolve({ ok: false, reason: 'llama-server exited during startup' })
-            return
+        const selectedPort = await pickAvailablePort(llamaState.port || LLAMA_PORT)
+        const args = [
+          '-m',
+          modelPath,
+          '--port',
+          String(selectedPort),
+          '-c',
+          String(totalCtx),
+          '--parallel',
+          String(parallelSlots),
+          '-ngl',
+          String(Number.isFinite(tierConfig.gpu_layers) ? tierConfig.gpu_layers : 99),
+          '--flash-attn',
+          'auto',
+          '--reasoning',
+          'off',
+          '--cache-prompt',
+          '-b',
+          '2048',
+          '-ub',
+          '512',
+          '--top-p',
+          String(Number.isFinite(tierConfig.top_p) ? tierConfig.top_p : 1),
+          '--top-k',
+          String(Number.isFinite(tierConfig.top_k) ? tierConfig.top_k : 20),
+          '--presence-penalty',
+          String(Number.isFinite(tierConfig.presence_penalty) ? tierConfig.presence_penalty : 0),
+          '--repeat-penalty',
+          String(Number.isFinite(tierConfig.repetition_penalty) ? tierConfig.repetition_penalty : 1)
+        ]
+
+        if (backend === 'cpu') args.push('--no-mmap')
+        else args.push('--mmap')
+
+        if (mmprojPath) args.push('--mmproj', mmprojPath)
+
+        llamaState.starting = true
+        llamaState.ready = false
+        llamaState.lastError = null
+        llamaState.contextTotalTokens = ctxBase
+        llamaState.backend = backend
+        llamaState.backendMode = preferred
+        llamaState.backendReason = backendReason(preferred, backend, { vulkanAttempted: isFallbackAttempt })
+        llamaState.modelPath = modelPath
+        llamaState.configuredModelFile = configuredModelFile
+        llamaState.usingFallbackModel = usingFallbackModel
+        llamaState.currentTier = tierName
+        llamaState.port = selectedPort
+
+        setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 80, null)
+
+        let child = null
+        try {
+          child = spawn(exePath, args, {
+            cwd: exeDir,
+            env: {
+              ...process.env,
+              PATH: `${exeDir}${path.delimiter}${process.env.PATH || ''}`
+            },
+            shell: false,
+            stdio: ['ignore', 'pipe', 'pipe']
+          })
+        } catch (error) {
+          const errMsg = error?.message || 'Failed to spawn llama-server'
+          resolve({ ok: false, reason: errMsg })
+          return
+        }
+
+        llamaState.process = child
+        let exitedDuringStartup = false
+
+        child.stdout?.on('data', (data) => {
+          const line = String(data).trim()
+          if (line && typeof process.send === 'function') {
+            process.send({ type: 'node-core-log', message: `[llama] ${line}` })
           }
-          try {
-            const ok = await checkLlamaHealth()
-            if (ok) {
-              llamaState.ready = true
-              llamaState.starting = false
-              setInitStatus('ready', 'System ready.', 100, null)
-              resolve({ ok: true, reason: null })
+        })
+
+        child.stderr?.on('data', (data) => {
+          const line = String(data).trim()
+          if (line && typeof process.send === 'function') {
+            process.send({ type: 'node-core-log', message: `[llama] ${line}` })
+          }
+        })
+
+        child.on('exit', () => {
+          const endedWhileStarting = llamaState.starting
+          llamaState.ready = false
+          llamaState.starting = false
+          llamaState.process = null
+          if (endedWhileStarting) exitedDuringStartup = true
+        })
+
+        child.on('error', (error) => {
+          exitedDuringStartup = true
+          llamaState.lastError = error?.message || 'llama-server spawn error'
+        })
+
+        const startedAt = Date.now()
+        const timeoutMs = 25000
+        ;(async () => {
+          while (Date.now() - startedAt < timeoutMs) {
+            if (exitedDuringStartup || !llamaState.process || llamaState.process.exitCode !== null) {
+              resolve({ ok: false, reason: 'llama-server exited during startup' })
               return
             }
-          } catch {}
-          await new Promise((r) => setTimeout(r, 300))
-        }
-        await stopLlamaServer()
-        resolve({ ok: false, reason: 'llama-server healthcheck timeout' })
-      })().catch(async (error) => {
-        await stopLlamaServer()
-        resolve({ ok: false, reason: error?.message || 'Unexpected llama startup failure' })
+            try {
+              const ok = await checkLlamaHealth()
+              if (ok) {
+                llamaState.ready = true
+                llamaState.starting = false
+                setInitStatus('ready', 'System ready.', 100, null)
+                resolve({ ok: true, reason: null })
+                return
+              }
+            } catch {}
+            await new Promise((r) => setTimeout(r, 300))
+          }
+          await stopLlamaServer()
+          resolve({ ok: false, reason: 'llama-server healthcheck timeout' })
+        })().catch(async (error) => {
+          await stopLlamaServer()
+          resolve({ ok: false, reason: error?.message || 'Unexpected llama startup failure' })
+        })
+      })().catch((error) => {
+        resolve({ ok: false, reason: error?.message || 'Failed to select llama port' })
       })
     })
 
@@ -2396,7 +2432,7 @@ async function streamLlamaChat(req, res, payload) {
   try {
     writeSse(res, { status: 'responding' })
 
-    const llamaResp = await fetch(`${LLAMA_BASE_URL}/v1/chat/completions`, {
+    const llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
