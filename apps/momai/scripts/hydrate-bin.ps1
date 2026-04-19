@@ -103,7 +103,89 @@ if (Test-Path $vcExe) {
 
 Write-Host "[MomAI] Hydration complete! UV, Python and VC Redist are ready in apps/momai/bin" -ForegroundColor Green
 
-# 4. Download dependency wheels for offline installation
+# 4. Download llama.cpp runtime binaries for Windows (CPU + Vulkan)
+$llamaDir = Join-Path $binDir "llama"
+$cpuDir = Join-Path $llamaDir "cpu"
+$vulkanDir = Join-Path $llamaDir "vulkan"
+$cpuExe = Join-Path $cpuDir "llama-server.exe"
+$vulkanExe = Join-Path $vulkanDir "llama-server.exe"
+$forceHydrate = [string]::Equals($env:MOMAI_FORCE_HYDRATE, "1")
+
+if (-not $forceHydrate -and (Test-Path $cpuExe) -and (Test-Path $vulkanExe)) {
+    Write-Host "[MomAI] Reusing cached llama.cpp Windows binaries." -ForegroundColor Green
+} else {
+    Write-Host "[MomAI] Preparing llama.cpp Windows binaries..." -ForegroundColor Cyan
+
+    function Expand-LlamaZip {
+        param(
+            [string]$ZipPath,
+            [string]$TargetDir
+        )
+
+        $tmpExtract = Join-Path $binDir (".llama-extract-" + [guid]::NewGuid().ToString("N"))
+        New-Item -ItemType Directory -Path $tmpExtract | Out-Null
+
+        try {
+            Expand-Archive -Path $ZipPath -DestinationPath $tmpExtract -Force
+
+            $server = Get-ChildItem -Path $tmpExtract -Filter "llama-server.exe" -Recurse -File | Select-Object -First 1
+            if (-not $server) {
+                throw "llama-server.exe not found inside $ZipPath"
+            }
+
+            $sourceDir = $server.Directory.FullName
+            if (Test-Path $TargetDir) { Remove-WithRetry $TargetDir | Out-Null }
+            New-Item -ItemType Directory -Path $TargetDir | Out-Null
+            Copy-Item -Path (Join-Path $sourceDir "*") -Destination $TargetDir -Recurse -Force
+        } finally {
+            if (Test-Path $tmpExtract) { Remove-WithRetry $tmpExtract | Out-Null }
+        }
+    }
+
+    $llamaVersion = $env:MOMAI_LLAMA_VERSION
+    if ([string]::IsNullOrWhiteSpace($llamaVersion)) {
+        try {
+            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
+            $llamaVersion = [string]$release.tag_name
+        } catch {
+            throw "[MomAI] Could not determine latest llama.cpp tag: $($_.Exception.Message)"
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($llamaVersion)) {
+        throw "[MomAI] Could not resolve llama.cpp version tag."
+    }
+
+    $cpuAsset = "llama-$llamaVersion-bin-win-cpu-x64.zip"
+    $vulkanAsset = "llama-$llamaVersion-bin-win-vulkan-x64.zip"
+    $llamaBaseUrl = "https://github.com/ggml-org/llama.cpp/releases/download/$llamaVersion"
+
+    $cpuZip = Join-Path $binDir $cpuAsset
+    $vulkanZip = Join-Path $binDir $vulkanAsset
+
+    try {
+        Write-Host "[MomAI] Downloading llama CPU build: $cpuAsset" -ForegroundColor Cyan
+        curl.exe -fL "$llamaBaseUrl/$cpuAsset" -o "$cpuZip"
+        if ($LASTEXITCODE -ne 0) { throw "Curl failed downloading $cpuAsset (exit $LASTEXITCODE)" }
+        Expand-LlamaZip -ZipPath $cpuZip -TargetDir $cpuDir
+
+        Write-Host "[MomAI] Downloading llama Vulkan build: $vulkanAsset" -ForegroundColor Cyan
+        curl.exe -fL "$llamaBaseUrl/$vulkanAsset" -o "$vulkanZip"
+        if ($LASTEXITCODE -ne 0) { throw "Curl failed downloading $vulkanAsset (exit $LASTEXITCODE)" }
+        Expand-LlamaZip -ZipPath $vulkanZip -TargetDir $vulkanDir
+    } finally {
+        if (Test-Path $cpuZip) { Remove-Item $cpuZip -Force -ErrorAction SilentlyContinue }
+        if (Test-Path $vulkanZip) { Remove-Item $vulkanZip -Force -ErrorAction SilentlyContinue }
+    }
+
+    if (-not (Test-Path $cpuExe) -or -not (Test-Path $vulkanExe)) {
+        throw "[MomAI] llama-server.exe missing after extraction."
+    }
+
+    Write-Host "[MomAI] llama.cpp Windows binaries ready (tag: $llamaVersion)" -ForegroundColor Green
+}
+
+# 5. Download dependency wheels for offline installation
 $wheelsDir = Join-Path $binDir "wheels"
 $wheelsReadyMarker = Join-Path $wheelsDir "offline-ready.marker"
 $coreDir = Join-Path (Join-Path $PSScriptRoot "..") "..\core"

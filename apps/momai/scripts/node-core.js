@@ -3465,7 +3465,8 @@ server.listen(PORT, HOST, () => {
       const tierName = store.settings.ai_tier || 'pro'
       setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 75, null)
       try {
-        await ensureLlamaReady(false, false)
+        // On startup, allow model download so auto-start can reach ready state.
+        await ensureLlamaReady(false, true)
       } catch (error) {
         console.error('[NodeCore] auto-start llama failed:', error)
       }
