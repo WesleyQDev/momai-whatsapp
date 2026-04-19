@@ -5,12 +5,24 @@ export function useAudioFallback() {
     let audioCtx: AudioContext | null = null
     let nextStartTime = 0
 
+    const resumeContext = async () => {
+      if (audioCtx && audioCtx.state === 'suspended') {
+        try {
+          await audioCtx.resume()
+        } catch {
+          // Resume may fail if context was closed
+        }
+      }
+    }
+
     const handleAudioChunk = (_: any, base64Data: string) => {
       try {
         if (!audioCtx) {
           audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
           nextStartTime = audioCtx.currentTime
         }
+
+        resumeContext()
 
         // Decode base64 to Float32Array
         const binary = atob(base64Data)

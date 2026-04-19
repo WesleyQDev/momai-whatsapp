@@ -329,8 +329,7 @@ async function getWritableCorePath(originalCorePath: string): Promise<string> {
   // MSIX: the main process can write via VFS virtualization, but spawned
   // subprocesses (uv, setuptools) do NOT inherit the MSIX package identity
   // and will get PermissionError when accessing WindowsApps paths.
-  const isMsixPath =
-    process.platform === 'win32' && /WindowsApps/i.test(originalCorePath)
+  const isMsixPath = process.platform === 'win32' && /WindowsApps/i.test(originalCorePath)
 
   if (!isMsixPath && checkWritePermission(originalCorePath)) {
     return originalCorePath
@@ -565,21 +564,17 @@ async function checkVenvHealth(pythonExe: string, corePath: string): Promise<boo
     'print(",".join(missing))'
   ].join('\n')
 
-  const depsCheck = spawnSync(
-    pythonExe,
-    ['-c', depsProbeScript, corePath],
-    {
-      timeout: 5000,
-      encoding: 'utf8',
-      shell: false,
-      env: {
-        ...process.env,
-        PYTHONHOME: undefined,
-        PYTHONPATH: undefined,
-        VIRTUAL_ENV: undefined
-      }
+  const depsCheck = spawnSync(pythonExe, ['-c', depsProbeScript, corePath], {
+    timeout: 5000,
+    encoding: 'utf8',
+    shell: false,
+    env: {
+      ...process.env,
+      PYTHONHOME: undefined,
+      PYTHONPATH: undefined,
+      VIRTUAL_ENV: undefined
     }
-  )
+  })
 
   if (depsCheck.status !== 0) {
     const stderr = (depsCheck.stderr || '').toString().trim()
@@ -1297,6 +1292,7 @@ function buildEnv(venvPath: string, dataDir: string, uvExe: string) {
     MOMAI_UV_BIN: uvExe,
     PYTHONIOENCODING: 'utf-8',
     PYTHONUTF8: '1',
+    PYTHONUNBUFFERED: '1',
     PYTHONOPTIMIZE: '1',
     PYTHONDONTWRITEBYTECODE: '0',
     FORCE_COLOR: '1',
@@ -1356,258 +1352,260 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
 
   pythonStartPromise = (async () => {
     try {
-    const checkVenvPath = join(userDataPath, 'python_env')
-    const pythonExeCheck =
-      process.platform === 'win32'
-        ? join(checkVenvPath, 'Scripts', 'python.exe')
-        : join(checkVenvPath, 'bin', 'python')
+      const checkVenvPath = join(userDataPath, 'python_env')
+      const pythonExeCheck =
+        process.platform === 'win32'
+          ? join(checkVenvPath, 'Scripts', 'python.exe')
+          : join(checkVenvPath, 'bin', 'python')
 
-    const onboardingCompleted = isOnboardingCompleted()
-    state.isFirstLaunch = !existsSync(pythonExeCheck) || !onboardingCompleted
+      const onboardingCompleted = isOnboardingCompleted()
+      state.isFirstLaunch = !existsSync(pythonExeCheck) || !onboardingCompleted
 
-    await ensureVCRedist()
+      await ensureVCRedist()
 
-    const result = await bootstrapPython()
+      const result = await bootstrapPython()
 
-    if ('type' in result) {
-      sendErrorToRenderer(result)
-      return
-    }
-
-    const { pythonExe, corePath, venvPath } = result
-    const dataDir = join(userDataPath, 'data')
-    if (!existsSync(dataDir)) {
-      mkdirSync(dataDir, { recursive: true })
-    }
-
-    logger.info(`[Electron] Iniciando backend Python em: ${corePath}`)
-    logger.info(`[Electron] Python executable: ${pythonExe}`)
-
-    const { uvExe } = result
-    const env = buildEnv(venvPath, dataDir, uvExe)
-    const host = desiredHost
-    const port = desiredPort
-    const announceOnline = options.announceOnline ?? true
-    const reportBootstrapErrors = options.reportBootstrapErrors ?? true
-    const isPrimaryBackend = announceOnline || reportBootstrapErrors
-    let reachedOnline = false
-    env.HOST = host
-    env.PORT = String(port)
-    env.MOMAI_CORE_PATH = corePath
-
-    let stderrBuffer = ''
-
-    setPythonStartTime(Date.now())
-    const pythonProcess = spawn(pythonExe, ['main.py'], {
-      cwd: corePath,
-      shell: false,
-      stdio: 'pipe',
-      env
-    })
-
-    setPythonProcess(pythonProcess)
-    pythonProcess.stdout?.on('data', (data) => {
-      const rawStr = data.toString()
-      
-      // Directly output to terminal preserving ANSI, \r, and TUI codes!
-      if (is.dev) {
-        process.stdout.write(rawStr)
-      } else {
-        // Fallback for production log files
-        const cleanLine = rawStr.trim()
-        if (cleanLine) logger.info(`[Python] ${cleanLine}`)
-      }
-
-      // Process for app events safely
-      const lines = rawStr.split(/\r?\n/)
-      for (const line of lines) {
-        const tLine = line.trim()
-        if (!tLine) continue
-
-        // Intercept audio chunks for frontend playback fallback
-        if (tLine.startsWith('[AUDIO_CHUNK]')) {
-          const audioB64 = tLine.replace('[AUDIO_CHUNK]', '').trim()
-          const mainWindow = getMainWindow()
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('play-audio-chunk', audioB64)
-          }
-          continue
-        }
-
-        // Parse init progress
-        const initMatch = tLine.match(INIT_PROGRESS_REGEX)
-        if (initMatch) {
-          const progress = parseInt(initMatch[1], 10)
-          const message = initMatch[2]
-          sendInitProgress(message, progress)
-        }
-      }
-    })
-
-    // Wait for the server to be up before notifying renderer to start HTTP requests
-    const portTimeout = state.isFirstLaunch ? 120000 : 90000
-
-    waitForPort(port, host, portTimeout)
-      .then(() => {
-        logger.info(`[Electron] Backend HTTP server is online on ${host}:${port}`)
-        reachedOnline = true
-
-        // Backend considered "stable" enough to reset retry counter after it's online
-        restartAttempts = 0
-
-        const window = getMainWindow()
-        if (announceOnline && window && !window.isDestroyed()) {
-          window.webContents.send('backend-online')
-        }
-      })
-      .catch((err) => {
-        logger.error(`[Electron] Failed to detect backend port: ${err.message}`)
-
-        // Send error to renderer when port detection fails
-        const window = getMainWindow()
-        if (reportBootstrapErrors && window && !window.isDestroyed()) {
-          window.webContents.send('bootstrap-error', {
-            type: 'startup_failed',
-            message: 'Backend failed to start',
-            details: `Could not connect to port ${port}. ${err.message}`
-          } as BootstrapError)
-        }
-      })
-
-    pythonProcess.stderr?.setEncoding('utf8')
-    pythonProcess.stderr?.on('data', (data: string) => {
-      // Limita o buffer para evitar estouro de memória (mantém os últimos 100kb de erros)
-      stderrBuffer = (stderrBuffer + data).slice(-100000)
-      const lines = data
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0)
-      for (const line of lines) {
-        const lower = line.toLowerCase()
-        // Classify by Python standard log format: "timestamp - logger - LEVEL - message"
-        const isInfo =
-          lower.startsWith('info:') ||
-          lower.includes(' - info - ') ||
-          lower.includes(' info ') ||
-          lower.startsWith('successfully') ||
-          lower.includes('using loop:') ||
-          lower.includes('awaiting initialization') ||
-          lower.includes("couldn't access the hub") ||
-          lower.includes('connection closed') ||
-          lower.includes('connection made') ||
-          lower.includes('started server process')
-
-        const isWarning =
-          lower.includes('warning') ||
-          lower.includes(' - warning - ')
-
-        const isDebug =
-          lower.includes(' - debug - ') ||
-          lower.startsWith('debug:')
-
-        if (isInfo || isDebug) {
-          logger.info(`[Python] ${line}`)
-        } else if (isWarning) {
-          logger.warn(`[Python] ${line}`)
-        } else {
-          logger.error(`[Python] ${line}`)
-        }
-      }
-    })
-
-    pythonProcess.on('close', (code, signal) => {
-      const runDuration = Date.now() - (state.pythonStartTime || 0)
-      logger.info(
-        `[Python] Processo encerrado com código ${code} e sinal ${signal ?? 'none'} (Duração: ${runDuration}ms)`
-      )
-      setPythonProcess(null)
-
-      void (async () => {
-      const backendStillAlive = await isPortReachable(port, host, 500)
-      if (backendStillAlive) {
-        logger.warn(
-          `[Python] Processo pai encerrou, mas backend segue ativo em ${host}:${port}. Ignorando restart.`
-        )
-        restartAttempts = 0
+      if ('type' in result) {
+        sendErrorToRenderer(result)
         return
       }
 
-      const exitedBeforeOnline = !reachedOnline
-      const hasNonZeroCode = typeof code === 'number' && code !== 0
-      const hasUnexpectedSignal = typeof signal === 'string' && signal !== 'SIGTERM'
-      const isAbnormalExit = hasNonZeroCode || hasUnexpectedSignal
+      const { pythonExe, corePath, venvPath } = result
+      const dataDir = join(userDataPath, 'data')
+      if (!existsSync(dataDir)) {
+        mkdirSync(dataDir, { recursive: true })
+      }
 
-      if (!state.isQuitting && isAbnormalExit && exitedBeforeOnline) {
-        // Auto-retry once if it crashed during the initial setup/boot phase
-        if (restartAttempts < 1) {
-          restartAttempts++
-          logger.warn(
-            `[Python] Crash detectado durante boot (Código: ${code}, Sinal: ${signal ?? 'none'}). Tentando reiniciar (Tentativa ${restartAttempts})...`
-          )
+      logger.info(`[Electron] Iniciando backend Python em: ${corePath}`)
+      logger.info(`[Electron] Python executable: ${pythonExe}`)
 
-          // Notify renderer about retry
-          const window = getMainWindow()
-          if (isPrimaryBackend && window && !window.isDestroyed()) {
-            window.webContents.send('backend-retry')
+      const { uvExe } = result
+      const env = buildEnv(venvPath, dataDir, uvExe)
+      const host = desiredHost
+      const port = desiredPort
+      const announceOnline = options.announceOnline ?? true
+      const reportBootstrapErrors = options.reportBootstrapErrors ?? true
+      const isPrimaryBackend = announceOnline || reportBootstrapErrors
+      let reachedOnline = false
+      env.HOST = host
+      env.PORT = String(port)
+      env.MOMAI_CORE_PATH = corePath
+
+      let stderrBuffer = ''
+      let stdoutLineBuffer = ''
+
+      setPythonStartTime(Date.now())
+      const pythonProcess = spawn(pythonExe, ['main.py'], {
+        cwd: corePath,
+        shell: false,
+        stdio: 'pipe',
+        env
+      })
+
+      setPythonProcess(pythonProcess)
+      pythonProcess.stdout?.on('data', (data) => {
+        const rawStr = data.toString()
+
+        // Directly output to terminal preserving ANSI, \r, and TUI codes!
+        if (is.dev) {
+          process.stdout.write(rawStr)
+        } else {
+          // Fallback for production log files
+          const cleanLine = rawStr.trim()
+          if (cleanLine) logger.info(`[Python] ${cleanLine}`)
+        }
+
+        // Line-buffered processing: accumulate partial lines across data events
+        // so that [AUDIO_CHUNK] base64 payloads are never split mid-line.
+        stdoutLineBuffer += rawStr
+        const parts = stdoutLineBuffer.split(/\r?\n/)
+        // Keep the last (potentially incomplete) element in the buffer
+        stdoutLineBuffer = parts.pop() || ''
+
+        for (const line of parts) {
+          const tLine = line.trim()
+          if (!tLine) continue
+
+          // Intercept audio chunks for frontend playback fallback
+          if (tLine.startsWith('[AUDIO_CHUNK]')) {
+            const audioB64 = tLine.replace('[AUDIO_CHUNK]', '').trim()
+            const mainWindow = getMainWindow()
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('play-audio-chunk', audioB64)
+            }
+            continue
           }
 
-          setTimeout(() => startPythonBackend(options), 2000)
-          return
+          // Parse init progress
+          const initMatch = tLine.match(INIT_PROGRESS_REGEX)
+          if (initMatch) {
+            const progress = parseInt(initMatch[1], 10)
+            const message = initMatch[2]
+            sendInitProgress(message, progress)
+          }
         }
+      })
 
-        logger.warn('[Python] Processo morreu de forma inesperada. Limpando llama-server...')
-        killAllLlamaServers()
+      // Wait for the server to be up before notifying renderer to start HTTP requests
+      const portTimeout = state.isFirstLaunch ? 120000 : 90000
 
-        let errorType: BootstrapErrorType = 'startup_failed'
-        let errorMessage = `Python backend crashed with code ${code}`
-        let errorDetails = 'Check logs for more details'
+      waitForPort(port, host, portTimeout)
+        .then(() => {
+          logger.info(`[Electron] Backend HTTP server is online on ${host}:${port}`)
+          reachedOnline = true
 
-        if (
-          stderrBuffer.includes('Microsoft Visual C++ Redistributable') ||
-          stderrBuffer.includes('c10.dll') ||
-          stderrBuffer.includes('Uma rotina de inicialização') ||
-          stderrBuffer.includes('DLL initialization routine failed') ||
-          stderrBuffer.includes('Importing the numpy C-extensions failed')
-        ) {
-          errorType = 'missing_vc_redist'
-          errorMessage = 'Microsoft Visual C++ Redistributable is missing'
-          errorDetails =
-            'This application requires the Visual C++ Redistributable to run AI models. Please install it from: https://aka.ms/vs/17/release/vc_redist.x64.exe'
+          // Backend considered "stable" enough to reset retry counter after it's online
+          restartAttempts = 0
+
+          const window = getMainWindow()
+          if (announceOnline && window && !window.isDestroyed()) {
+            window.webContents.send('backend-online')
+          }
+        })
+        .catch((err) => {
+          logger.error(`[Electron] Failed to detect backend port: ${err.message}`)
+
+          // Send error to renderer when port detection fails
+          const window = getMainWindow()
+          if (reportBootstrapErrors && window && !window.isDestroyed()) {
+            window.webContents.send('bootstrap-error', {
+              type: 'startup_failed',
+              message: 'Backend failed to start',
+              details: `Could not connect to port ${port}. ${err.message}`
+            } as BootstrapError)
+          }
+        })
+
+      pythonProcess.stderr?.setEncoding('utf8')
+      pythonProcess.stderr?.on('data', (data: string) => {
+        // Limita o buffer para evitar estouro de memória (mantém os últimos 100kb de erros)
+        stderrBuffer = (stderrBuffer + data).slice(-100000)
+        const lines = data
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0)
+        for (const line of lines) {
+          const lower = line.toLowerCase()
+          // Classify by Python standard log format: "timestamp - logger - LEVEL - message"
+          const isInfo =
+            lower.startsWith('info:') ||
+            lower.includes(' - info - ') ||
+            lower.includes(' info ') ||
+            lower.startsWith('successfully') ||
+            lower.includes('using loop:') ||
+            lower.includes('awaiting initialization') ||
+            lower.includes("couldn't access the hub") ||
+            lower.includes('connection closed') ||
+            lower.includes('connection made') ||
+            lower.includes('started server process')
+
+          const isWarning = lower.includes('warning') || lower.includes(' - warning - ')
+
+          const isDebug = lower.includes(' - debug - ') || lower.startsWith('debug:')
+
+          if (isInfo || isDebug) {
+            logger.info(`[Python] ${line}`)
+          } else if (isWarning) {
+            logger.warn(`[Python] ${line}`)
+          } else {
+            logger.error(`[Python] ${line}`)
+          }
         }
+      })
 
+      pythonProcess.on('close', (code, signal) => {
+        const runDuration = Date.now() - (state.pythonStartTime || 0)
+        logger.info(
+          `[Python] Processo encerrado com código ${code} e sinal ${signal ?? 'none'} (Duração: ${runDuration}ms)`
+        )
+        setPythonProcess(null)
+
+        void (async () => {
+          const backendStillAlive = await isPortReachable(port, host, 500)
+          if (backendStillAlive) {
+            logger.warn(
+              `[Python] Processo pai encerrou, mas backend segue ativo em ${host}:${port}. Ignorando restart.`
+            )
+            restartAttempts = 0
+            return
+          }
+
+          const exitedBeforeOnline = !reachedOnline
+          const hasNonZeroCode = typeof code === 'number' && code !== 0
+          const hasUnexpectedSignal = typeof signal === 'string' && signal !== 'SIGTERM'
+          const isAbnormalExit = hasNonZeroCode || hasUnexpectedSignal
+
+          if (!state.isQuitting && isAbnormalExit && exitedBeforeOnline) {
+            // Auto-retry once if it crashed during the initial setup/boot phase
+            if (restartAttempts < 1) {
+              restartAttempts++
+              logger.warn(
+                `[Python] Crash detectado durante boot (Código: ${code}, Sinal: ${signal ?? 'none'}). Tentando reiniciar (Tentativa ${restartAttempts})...`
+              )
+
+              // Notify renderer about retry
+              const window = getMainWindow()
+              if (isPrimaryBackend && window && !window.isDestroyed()) {
+                window.webContents.send('backend-retry')
+              }
+
+              setTimeout(() => startPythonBackend(options), 2000)
+              return
+            }
+
+            logger.warn('[Python] Processo morreu de forma inesperada. Limpando llama-server...')
+            killAllLlamaServers()
+
+            let errorType: BootstrapErrorType = 'startup_failed'
+            let errorMessage = `Python backend crashed with code ${code}`
+            let errorDetails = 'Check logs for more details'
+
+            if (
+              stderrBuffer.includes('Microsoft Visual C++ Redistributable') ||
+              stderrBuffer.includes('c10.dll') ||
+              stderrBuffer.includes('Uma rotina de inicialização') ||
+              stderrBuffer.includes('DLL initialization routine failed') ||
+              stderrBuffer.includes('Importing the numpy C-extensions failed')
+            ) {
+              errorType = 'missing_vc_redist'
+              errorMessage = 'Microsoft Visual C++ Redistributable is missing'
+              errorDetails =
+                'This application requires the Visual C++ Redistributable to run AI models. Please install it from: https://aka.ms/vs/17/release/vc_redist.x64.exe'
+            }
+
+            const error: BootstrapError = {
+              type: errorType,
+              message: errorMessage,
+              details: errorDetails
+            }
+
+            // Reset counter before sending error so manual retries from UI can work
+            restartAttempts = 0
+            if (reportBootstrapErrors) {
+              sendErrorToRenderer(error)
+            }
+          } else if (!state.isQuitting && isAbnormalExit && !exitedBeforeOnline) {
+            logger.warn(
+              `[Python] Backend encerrou após ficar online (Código: ${code}, Sinal: ${signal ?? 'none'}). Ignorando retry de boot para evitar loop de loading.`
+            )
+          }
+        })().catch((err) => {
+          logger.error('[Python] Erro ao processar encerramento do backend:', err)
+        })
+      })
+
+      pythonProcess.on('error', (err) => {
+        logger.error('[Python] Erro no processo:', err)
+        setPythonProcess(null)
         const error: BootstrapError = {
-          type: errorType,
-          message: errorMessage,
-          details: errorDetails
+          type: 'startup_failed',
+          message: 'Failed to start Python backend',
+          details: err.message
         }
-
-        // Reset counter before sending error so manual retries from UI can work
-        restartAttempts = 0
         if (reportBootstrapErrors) {
           sendErrorToRenderer(error)
         }
-      } else if (!state.isQuitting && isAbnormalExit && !exitedBeforeOnline) {
-        logger.warn(
-          `[Python] Backend encerrou após ficar online (Código: ${code}, Sinal: ${signal ?? 'none'}). Ignorando retry de boot para evitar loop de loading.`
-        )
-      }
-      })().catch((err) => {
-        logger.error('[Python] Erro ao processar encerramento do backend:', err)
       })
-    })
-
-    pythonProcess.on('error', (err) => {
-      logger.error('[Python] Erro no processo:', err)
-      setPythonProcess(null)
-      const error: BootstrapError = {
-        type: 'startup_failed',
-        message: 'Failed to start Python backend',
-        details: err.message
-      }
-      if (reportBootstrapErrors) {
-        sendErrorToRenderer(error)
-      }
-    })
     } catch (err: any) {
       logger.error('[Electron] Falha ao iniciar backend:', err)
       const error: BootstrapError = {
