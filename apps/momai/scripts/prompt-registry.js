@@ -35,6 +35,16 @@ function buildRuntimeClockContext() {
   ].join('\n')
 }
 
+function formatResponseLanguageInstruction(languageTag) {
+  const tag = String(languageTag || '').trim() || 'pt-BR'
+  return [
+    '# RESPONSE LANGUAGE POLICY',
+    `Respond in the same language as the user's latest message (${tag}).`,
+    'If the user switches language in a later message, switch your response language immediately.',
+    'Do not explain this policy unless asked.'
+  ].join('\n')
+}
+
 function createPromptRegistry({ promptsDir }) {
   const promptsFile = path.join(promptsDir, 'prompts.json')
   const runtime = {
@@ -102,6 +112,7 @@ function createPromptRegistry({ promptsDir }) {
         ? Number(tierCfg.max_sentences)
         : Number(prompts.default_max_sentences || 6),
       tier_instructions: sanitize(String(tierCfg.tier_instructions || '')),
+      response_language_block: sanitize(formatResponseLanguageInstruction(input.responseLanguage)),
       runtime_clock: sanitize(buildRuntimeClockContext()),
       memory_block: input.memoryContext ? `MEMORY CONTEXT:\n${sanitize(input.memoryContext)}` : '',
       tool_block: input.toolInstruction ? `TOOL RESULT:\n${sanitize(input.toolInstruction)}` : ''
@@ -114,8 +125,12 @@ function createPromptRegistry({ promptsDir }) {
       const template = String(tierCfg.system_template || prompts.system_template || '')
       runtime.lastError = null
       const rendered = replaceAll(template, vars)
-      if (rendered.includes('RUNTIME CLOCK')) return rendered
-      return `${rendered}\n\n${vars.runtime_clock}`
+      const withLanguagePolicy = rendered.includes('RESPONSE LANGUAGE POLICY')
+        ? rendered
+        : `${rendered}\n\n${vars.response_language_block}`
+
+      if (withLanguagePolicy.includes('RUNTIME CLOCK')) return withLanguagePolicy
+      return `${withLanguagePolicy}\n\n${vars.runtime_clock}`
     } catch (error) {
       runtime.fallbackUsed = true
       runtime.lastError = error?.message || 'prompt parse failed'
@@ -123,6 +138,7 @@ function createPromptRegistry({ promptsDir }) {
         `Persona: ${vars.assistant_persona || 'N/A'}`,
         `Response style: ${vars.response_style || 'balanced'}`,
         `Target max sentences: ${vars.max_sentences || 6}`,
+        vars.response_language_block,
         vars.runtime_clock,
         vars.memory_block,
         vars.tool_block

@@ -16,6 +16,7 @@ import {
 const PYTHON_SIDECAR_HOST = API_HOST
 const PYTHON_SIDECAR_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
 const CORE_BOOT_TIMEOUT_MS = 60000
+const REUSE_NODE_CORE = process.env.MOMAI_REUSE_NODE_CORE === '1'
 
 type EnsurePythonRequest = {
   type: 'ensure-python'
@@ -63,6 +64,77 @@ async function isMomaiNodeCoreReachable(host: string, port: number): Promise<boo
   } finally {
     clearTimeout(timeout)
   }
+}
+
+async function ensureNodeCoreLlamaWarmup(host: string, port: number): Promise<void> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 45000)
+
+  try {
+    const response = await fetch(`http://${host}:${port}/llama/ensure`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal
+    })
+
+    if (!response.ok) {
+      logger.warn(
+        `[CoreManager] llama warmup endpoint returned HTTP ${response.status} on reused core.`
+      )
+      return
+    }
+
+    const data = await response.json().catch(() => null)
+    if (data?.ready) {
+      logger.info('[CoreManager] Reused node core llama runtime is ready.')
+      return
+    }
+
+    if (data?.is_loading) {
+      logger.info('[CoreManager] Reused node core is loading llama runtime.')
+      return
+    }
+
+    logger.warn(
+      `[CoreManager] Reused node core llama warmup pending: ${data?.error || data?.reason || 'unknown reason'}`
+    )
+  } catch (error: any) {
+    logger.warn(
+      `[CoreManager] Failed to trigger llama warmup on reused core: ${error?.message || error}`
+    )
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function requestNodeCoreShutdown(host: string, port: number): Promise<boolean> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 4000)
+
+  try {
+    const response = await fetch(`http://${host}:${port}/internal/shutdown`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal
+    })
+    return response.ok
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function waitForPortToClose(host: string, port: number, timeoutMs = 8000): Promise<boolean> {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    // eslint-disable-next-line no-await-in-loop
+    const open = await isPortReachable(port, host, 250)
+    if (!open) return true
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  return false
 }
 
 function getNodeCoreScriptPath(): string {
@@ -252,36 +324,56 @@ export async function startCoreBackend(): Promise<void> {
   emitInitProgress('Starting local Node core...', 10)
   isStoppingCore = false
 
-  // If something is already serving this port, reuse MomAI core or fail fast with a clear message.
+  // If something is already serving this port, default to fresh-starting node-core.
   if (await isPortReachable(API_PORT, API_HOST, 350)) {
     if (await isMomaiNodeCoreReachable(API_HOST, API_PORT)) {
-      logger.info(
-        `[CoreManager] Reusing existing Node core on ${API_HOST}:${API_PORT}.`
-      )
-      emitInitProgress('Node core online. Loading local model...', 65)
-      const mainWindow = getMainWindow()
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('backend-online')
+      if (REUSE_NODE_CORE) {
+        logger.info(
+          `[CoreManager] Reusing existing Node core on ${API_HOST}:${API_PORT}.`
+        )
+        emitInitProgress('Node core online. Loading local model...', 65)
+        const mainWindow = getMainWindow()
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('backend-online')
+        }
+
+        void ensureNodeCoreLlamaWarmup(API_HOST, API_PORT)
+        void ensurePythonSidecar()
+        return
       }
 
-      void ensurePythonSidecar()
-      return
-    }
+      logger.info(
+        `[CoreManager] Existing Node core found on ${API_HOST}:${API_PORT}; requesting shutdown for fresh start.`
+      )
+      emitInitProgress('Stopping previous local core...', 20)
+      await requestNodeCoreShutdown(API_HOST, API_PORT)
 
-    const conflictMessage =
-      `Port ${API_PORT} is already in use by another process on ${API_HOST}. ` +
-      'Close the conflicting process and restart MomAI.'
+      const closed = await waitForPortToClose(API_HOST, API_PORT, 8000)
+      if (!closed) {
+        const message =
+          `Failed to stop existing Node core on ${API_HOST}:${API_PORT}. ` +
+          'Set MOMAI_REUSE_NODE_CORE=1 to reuse, or close the old process manually.'
+        logger.error(`[CoreManager] ${message}`)
+        throw new Error(message)
+      }
 
-    logger.error(`[CoreManager] ${conflictMessage}`)
-    const mainWindow = getMainWindow()
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('bootstrap-error', {
-        type: 'startup_failed',
-        message: 'Node core failed to start',
-        details: conflictMessage
-      })
+      logger.info('[CoreManager] Previous Node core stopped. Starting a fresh instance.')
+    } else {
+      const conflictMessage =
+        `Port ${API_PORT} is already in use by another process on ${API_HOST}. ` +
+        'Close the conflicting process and restart MomAI.'
+
+      logger.error(`[CoreManager] ${conflictMessage}`)
+      const mainWindow = getMainWindow()
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('bootstrap-error', {
+          type: 'startup_failed',
+          message: 'Node core failed to start',
+          details: conflictMessage
+        })
+      }
+      throw new Error(conflictMessage)
     }
-    throw new Error(conflictMessage)
   }
 
   coreReadyPromise = new Promise<void>((resolve, reject) => {
