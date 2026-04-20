@@ -346,37 +346,25 @@ class TTSManager:
                 try:
                     async def _generate_and_play():
                         nonlocal audio_sr
+                        # Optimized speed for a more natural/gentle pace
+                        # 0.95 is often perceived as more 'delicate' than 1.0
+                        generation_speed = 0.95 
+                        
                         stream = self.kokoro.create_stream(
-                            text, voice=self.voice, speed=1.0, lang=lang
+                            text, voice=self.voice, speed=generation_speed, lang=lang
                         )
                         
                         playback_started = False
-                        q = queue.Queue(maxsize=20)
-
-                        def callback(outdata, frames, time, status):
-                            if status:
-                                logger.warning(f"[TTS] Stream Status: {status}")
-                            try:
-                                data = q.get_nowait()
-                                if len(data) < frames:
-                                    outdata[:len(data), 0] = data
-                                    outdata[len(data):, 0] = 0
-                                    raise sd.CallbackStop
-                                else:
-                                    outdata[:, 0] = data[:frames]
-                            except queue.Empty:
-                                outdata.fill(0)
-                                # We don't stop yet, wait for more data or timeout
-
-                        # Using a simpler approach: sd.OutputStream is tricky to manage 
-                        # with varying chunk sizes from Kokoro.
-                        # Instead, let's just use sd.play() on chunks sequentially but fast.
-                        
                         async for samples, sr in stream:
                             with self.state_lock:
-                                if self.session_id != sid or self.stop_event.is_set():
-                                    return
+                                # Check if we should still be playing this session
+                                is_stale = self.session_id != sid or self.stop_event.is_set()
                                     
+                            if is_stale:
+                                # We continue the loop to 'drain' the generator and avoid pending tasks
+                                # but we don't process or play the audio.
+                                continue
+                                
                             if samples is None or len(samples) == 0:
                                 continue
                                 
@@ -387,14 +375,24 @@ class TTSManager:
                             play_sr = device_sr if device_sr else int(audio_sr)
                             play_data = _resample(audio_data, int(audio_sr), play_sr)
 
+                            # Apply a very subtle fade-out to avoid "immediate" endings
+                            fade_len = int(play_sr * 0.15) # 150ms fade
+                            if len(play_data) > fade_len:
+                                fade_curve = np.linspace(1.0, 0.0, fade_len)
+                                play_data[-fade_len:] *= fade_curve
+                            
+                            # Add 100ms of pure silence at the very end
+                            silence_len = int(play_sr * 0.1)
+                            play_data = np.concatenate([play_data, np.zeros(silence_len, dtype=np.float32)])
+
                             # Play this chunk immediately
                             if HAS_SOUNDDEVICE:
                                 if not playback_started:
-                                    logger.info(f"[TTS Stream] Starting playback for first chunk ({len(play_data)} samples)")
+                                    logger.info(f"[TTS Stream] Starting playback for first chunk")
                                     playback_started = True
                                 
                                 sd.play(play_data, samplerate=play_sr)
-                                sd.wait() # Wait for this chunk to finish before playing next
+                                sd.wait() 
                             
                     loop.run_until_complete(_generate_and_play())
                 except Exception as e:

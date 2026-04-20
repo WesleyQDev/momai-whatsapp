@@ -115,7 +115,7 @@ class WakeWordDetector:
         self.call_silence_chunks = 4        # Balanced end-of-speech (was 3/5)
         self.call_min_speech_chunks = 3     # Better noise filtering (was 2/4)
         self.call_interrupt_threshold = 0.04 # Harder to interrupt by noise (was 0.025)
-        self.post_tts_cooldown = 0.8        # Slightly longer wait after TTS (was 0.6)
+        self.post_tts_cooldown = 1.0        # More breathing room after smooth TTS (was 0.8)
         self._tts_stop_time = 0.0
 
         # --- State machine ---
