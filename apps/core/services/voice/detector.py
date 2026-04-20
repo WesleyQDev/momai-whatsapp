@@ -3,6 +3,7 @@ import threading
 import logging
 import time
 import re
+from difflib import SequenceMatcher
 
 # Heavy imports are deferred to __init__ for faster startup
 sd = None
@@ -103,11 +104,19 @@ class WakeWordDetector:
         self.processing_queue = queue.Queue(maxsize=2)
         self.sample_rate = 16000
 
-        # --- Speech detection parameters ---
-        self.speech_energy_threshold = 0.015
-        self.silence_chunks_required = 4
-        self.min_speech_chunks = 3
+        # --- Speech detection parameters (wake word mode) ---
+        self.speech_energy_threshold = 0.008
+        self.silence_chunks_required = 3
+        self.min_speech_chunks = 2
         self.max_recording_duration = 15.0
+
+        # --- Call mode parameters (higher thresholds to avoid false triggers) ---
+        self.call_energy_threshold = 0.02
+        self.call_silence_chunks = 5
+        self.call_min_speech_chunks = 4
+        self.call_interrupt_threshold = 0.035
+        self.post_tts_cooldown = 1.5
+        self._tts_stop_time = 0.0
 
         # --- State machine ---
         self.state = self.STATE_IDLE
@@ -224,27 +233,42 @@ class WakeWordDetector:
                         # app_state or tts not ready
                         pass
 
-                    # In call mode: interrupt TTS when user speaks
-                    # In normal mode: ignore audio when TTS is speaking
-                    if tts_speaking:
-                        try:
-                            in_call_mode = app_state.is_call_mode()
-                        except Exception:
-                            in_call_mode = False
+                    # Determine current mode
+                    try:
+                        in_call_mode = app_state.is_call_mode()
+                    except Exception:
+                        in_call_mode = False
 
+                    # Select thresholds based on mode
+                    energy_thresh = self.call_energy_threshold if in_call_mode else self.speech_energy_threshold
+                    silence_req = self.call_silence_chunks if in_call_mode else self.silence_chunks_required
+                    min_speech = self.call_min_speech_chunks if in_call_mode else self.min_speech_chunks
+
+                    # Post-TTS cooldown: ignore audio shortly after TTS stops
+                    # to prevent self-recognition from speaker echo
+                    if in_call_mode and not tts_speaking:
+                        if self._tts_stop_time > 0 and (time.time() - self._tts_stop_time) < self.post_tts_cooldown:
+                            if self.state == self.STATE_LISTENING:
+                                self._reset_state()
+                            continue
+
+                    # Track when TTS stops for cooldown
+                    if in_call_mode:
+                        if tts_speaking:
+                            self._tts_stop_time = 0.0
+                        elif self._tts_stop_time == 0.0:
+                            self._tts_stop_time = time.time()
+
+                    # In call mode: interrupt TTS when user speaks
+                    # In normal mode: listen for wake word even when TTS is speaking
+                    if tts_speaking:
                         if in_call_mode:
-                            # Call mode: check if user is speaking to interrupt
                             energy = self._get_chunk_energy(chunk)
-                            if (
-                                energy > self.speech_energy_threshold * 1.5
-                            ):  # Higher threshold for interruption
-                                # User is speaking! Stop TTS immediately
+                            if energy > self.call_interrupt_threshold:
                                 try:
                                     tts.stop_all()
                                 except Exception:
-                                    # TTS stop failed
                                     pass
-                                # Start listening to user
                                 self._set_state(self.STATE_LISTENING)
                                 self.speech_buffer = [chunk]
                                 self.speech_chunk_count = 1
@@ -252,7 +276,6 @@ class WakeWordDetector:
                                 self.recorded_samples = len(chunk)
                                 continue
                             else:
-                                # Just noise, ignore
                                 continue
                         else:
                             # Normal mode: listen for wake word "Luna" even when TTS is speaking
@@ -274,26 +297,18 @@ class WakeWordDetector:
                                 self.recorded_samples += len(chunk)
                                 self.silence_counter += 1
 
-                                recording_duration = (
-                                    self.recorded_samples / self.sample_rate
-                                )
-
-                                if self.silence_counter >= self.silence_chunks_required:
-                                    if (
-                                        self.speech_chunk_count
-                                        >= self.min_speech_chunks
-                                    ):
+                                if self.silence_counter >= silence_req:
+                                    if self.speech_chunk_count >= min_speech:
                                         self._set_state(self.STATE_PROCESSING)
                                         self._enqueue_recording()
                                         self._reset_state(silent=True)
                             continue
 
                     energy = self._get_chunk_energy(chunk)
-                    is_speech = energy > self.speech_energy_threshold
+                    is_speech = energy > energy_thresh
 
                     if self.state == self.STATE_IDLE:
                         if is_speech:
-                            # Speech started! Transition to LISTENING
                             self._set_state(self.STATE_LISTENING)
                             self.speech_buffer = [chunk]
                             self.speech_chunk_count = 1
@@ -310,10 +325,11 @@ class WakeWordDetector:
                             self.silence_counter = 0
 
                             # Real-time/Partial transcription:
-                            # Every ~1 second (4 chunks of 250ms), try a partial transcription
+                            # Every ~500ms (2 chunks of 250ms), try a partial transcription
+                            # More aggressive partials improve wake word response time
                             if (
-                                len(self.speech_buffer) % 4 == 0
-                                and len(self.speech_buffer) >= 4
+                                len(self.speech_buffer) % 2 == 0
+                                and len(self.speech_buffer) >= 2
                             ):
                                 self._enqueue_partial_recording()
                         else:
@@ -329,8 +345,8 @@ class WakeWordDetector:
                             self._set_state(self.STATE_PROCESSING)
 
                         # Check if enough silence has passed to consider speech ended
-                        elif self.silence_counter >= self.silence_chunks_required:
-                            if self.speech_chunk_count >= self.min_speech_chunks:
+                        elif self.silence_counter >= silence_req:
+                            if self.speech_chunk_count >= min_speech:
                                 logger.debug(
                                     f"[WakeWord] Speech ended. "
                                     f"Duration: {recording_duration:.1f}s, "
@@ -441,17 +457,17 @@ class WakeWordDetector:
             segments, info = self.model.transcribe(
                 audio,
                 language="pt",
-                beam_size=1 if is_partial else 3,  # Best balance between speed and quality
+                beam_size=1 if is_partial else 3,
                 best_of=5 if not is_partial else 1,
-                initial_prompt="Luna. Computador.", # Focus only on wake words to maintain multilingual support
+                initial_prompt="Luna, Luna, Luna.",
                 vad_filter=True,
                 vad_parameters=dict(
-                    min_silence_duration_ms=400,
-                    speech_pad_ms=400,  # Increased padding to prevent cutting off the first/last letters (fixes 'Bonjia' instead of 'Bom dia')
-                    threshold=0.4,
+                    min_silence_duration_ms=300,
+                    speech_pad_ms=400,
+                    threshold=0.35,
                 ),
                 no_speech_threshold=0.4,
-                log_prob_threshold=-0.8,
+                log_prob_threshold=-1.0,
                 condition_on_previous_text=False,
                 suppress_blank=True,
             )
@@ -508,6 +524,17 @@ class WakeWordDetector:
             if is_partial:
                 if self.partial_callback:
                     self.partial_callback(raw_text)
+                # Early-exit: if partial already contains wake word, trigger immediately
+                if self._check_wake_word_fuzzy(text):
+                    logger.info(f"[WakeWord] Early wake word detection in partial: '{raw_text}'")
+                    self._handle_transcription(text, raw_text)
+                    self.last_text = text
+                    self.last_text_time = time.time()
+                    # Flush remaining speech buffer to avoid re-triggering
+                    self.speech_buffer = []
+                    self.speech_chunk_count = 0
+                    self.silence_counter = 0
+                    self.recorded_samples = 0
                 return
 
             if not is_repeat:
@@ -576,18 +603,68 @@ class WakeWordDetector:
             # Stop tts check failed
             pass
 
+    def _check_wake_word_fuzzy(self, text: str) -> bool:
+        """Quick check if text contains a wake word (exact or fuzzy)."""
+        for kw in self.variants:
+            if re.search(rf"\b{re.escape(kw)}\b", text):
+                return True
+        # Fuzzy matching for common Whisper mistranscriptions
+        words = text.split()
+        for word in words:
+            if len(word) < 2 or len(word) > 8:
+                continue
+            for kw in self.variants:
+                ratio = SequenceMatcher(None, word, kw).ratio()
+                if ratio >= 0.70:
+                    return True
+        return False
+
     def _handle_transcription(self, text, raw_text):
         """Processes a complete transcription to find the keyword or handle bypass."""
         now = time.time()
 
-        # Keyword detection with variants
+        # Keyword detection with variants + fuzzy phonetic matching
         detected_variation = None
+        match = None
+
+        # 1. Exact match first (fastest)
         for kw in self.variants:
             keyword_pattern = rf"\b{re.escape(kw)}\b"
-            match = re.search(keyword_pattern, text)
-            if match:
-                detected_variation = match.group(0)
+            m = re.search(keyword_pattern, text)
+            if m:
+                detected_variation = m.group(0)
+                match = m
                 break
+
+        # 2. Fuzzy matching for common Whisper mistranscriptions of "Luna"
+        if not detected_variation:
+            fuzzy_variants = [
+                "lua", "luma", "lina", "luana", "nuna",
+                "lunna", "una", "runa", "luна", "lena",
+                "luta", "lunda", "luна", "luno", "lula",
+            ]
+            words = text.split()
+            for i, word in enumerate(words):
+                if word in fuzzy_variants:
+                    detected_variation = word
+                    start = text.index(word)
+                    match = re.search(re.escape(word), text)
+                    logger.info(f"[WakeWord] Fuzzy match: '{word}' recognized as wake word")
+                    break
+                # Also try SequenceMatcher for words very close to "luna"
+                if len(word) >= 2 and len(word) <= 8:
+                    for kw in self.variants:
+                        ratio = SequenceMatcher(None, word, kw).ratio()
+                        if ratio >= 0.70:
+                            detected_variation = word
+                            match = re.search(re.escape(word), text)
+                            logger.info(
+                                f"[WakeWord] Fuzzy similarity match: '{word}' ~ '{kw}' "
+                                f"(ratio={ratio:.2f})"
+                            )
+                            break
+                    if detected_variation:
+                        break
 
         if detected_variation:
             if not self.wake_word_active:
@@ -627,7 +704,22 @@ class WakeWordDetector:
 
         # 2. Bypass Mode (Only if keyword NOT detected)
         if self.bypass_condition and self.bypass_condition():
-            if len(text) < 3 or (now - self.last_trigger_time) < self.trigger_cooldown:
+            # Stricter filtering in call mode to avoid false triggers
+            if len(text) < 5 or (now - self.last_trigger_time) < self.trigger_cooldown:
+                if len(text) < 5:
+                    logger.debug(f"[WakeWord] Call mode: ignoring too-short text: '{text}'")
+                return
+
+            # Reject text that is ONLY a known hallucination pattern
+            call_hallucinations = [
+                "obrigado", "legendado", "legenda", "legendas",
+                "inscreva", "inscrever", "subscribe", "obrigada",
+                "tchau", "ate", "continue assistindo", "thank you",
+                "thanks for watching", "hum", "hmm", "ah", "oh",
+                "sim", "nao", "e", "a", "o", "ok",
+            ]
+            if text.strip() in call_hallucinations:
+                logger.debug(f"[WakeWord] Call mode: filtered hallucination: '{text}'")
                 return
 
             logger.info(
@@ -636,7 +728,6 @@ class WakeWordDetector:
             self._stop_tts()
             self.last_trigger_time = now
             if self.callback:
-                # No success sound in continuous conversation to avoid being intrusive
                 self.callback(raw_text)
             return
 

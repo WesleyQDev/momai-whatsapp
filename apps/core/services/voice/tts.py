@@ -5,6 +5,7 @@ import logging
 import queue
 import asyncio
 import io
+import re
 import sys
 import os
 import platform
@@ -559,9 +560,31 @@ class TTSManager:
         """Checks if the system is currently speaking or has items in queue."""
         return self._is_playing or not self.text_queue.empty()
 
+    @staticmethod
+    def _strip_markdown(text: str) -> str:
+        """Remove markdown formatting so TTS reads clean text."""
+        s = text
+        s = re.sub(r"```[\s\S]*?```", "", s)
+        s = re.sub(r"`([^`]+)`", r"\1", s)
+        s = re.sub(r"^#{1,6}\s+", "", s, flags=re.MULTILINE)
+        s = re.sub(r"\*\*\*(.+?)\*\*\*", r"\1", s)
+        s = re.sub(r"\*\*(.+?)\*\*", r"\1", s)
+        s = re.sub(r"__(.+?)__", r"\1", s)
+        s = re.sub(r"\*(.+?)\*", r"\1", s)
+        s = re.sub(r"_(.+?)_", r"\1", s)
+        s = re.sub(r"~~(.+?)~~", r"\1", s)
+        s = re.sub(r"!?\[([^\]]*)\]\([^)]+\)", r"\1", s)
+        s = re.sub(r"^\s*[-*+]\s+", "", s, flags=re.MULTILINE)
+        s = re.sub(r"^\s*\d+\.\s+", "", s, flags=re.MULTILINE)
+        s = re.sub(r"^>+\s?", "", s, flags=re.MULTILINE)
+        s = re.sub(r"---+|\*\*\*+|___+", "", s)
+        s = re.sub(r"\|", " ", s)
+        s = re.sub(r"\n{3,}", "\n\n", s)
+        return s.strip()
+
     def speak(self, text: str):
         """Enqueues a phrase to be spoken."""
-        cleaned = text.strip()
+        cleaned = self._strip_markdown(text.strip())
         if not self.enabled or not cleaned or len(cleaned) < 3:
             return
 
