@@ -426,8 +426,8 @@ export default function ContainerChat({
       )
   }, [threadId])
 
-  const displayProgress = isSystemDone ? 100 : Math.min(visualProgress || initProgress || 0, 99)
-  const loadingProgress = isModeChanging ? Math.min(displayProgress, 99) : displayProgress
+  const displayProgress = isSystemDone ? 100 : Math.min(visualProgress || initProgress || 0, 99.9)
+  const loadingProgress = isModeChanging ? Math.min(displayProgress, 99.9) : displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
   const showLoading = isModeChanging || !isSystemDone || (!shouldSkipIntro && !animationFinished)
 
@@ -510,7 +510,7 @@ export default function ContainerChat({
           </div>
 
           {/* Inline Loading / Init Progress indicator when loading locally */}
-          {isBrainLoading && initProgress < 100 && (
+          {isBrainLoading && (initProgress < 100 || (initProgress >= 100 && !isBrainReady)) && (
             <div className="px-4 py-1 mx-4 mt-2 bg-black/40 border border-accent/20 rounded-lg flex items-center justify-between animate-fade-in backdrop-blur-md z-20 shadow-lg">
               <span className="text-[10px] font-bold text-accent tracking-wider uppercase animate-pulse">
                 {t('home.bootingAi')}... {Math.round(initProgress)}%

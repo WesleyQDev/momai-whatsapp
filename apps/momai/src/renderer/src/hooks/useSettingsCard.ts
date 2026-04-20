@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { api } from '../services/api'
+import { api, stopVoice, stopGeneration } from '../services/api'
 import { useI18n } from '../i18n'
 
 export type Tab = 'general' | 'brain' | 'updates' | 'economy' | 'voice'
@@ -191,6 +191,8 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     window.dispatchEvent(new CustomEvent('momai_tier_change_start'))
     
     try {
+      stopVoice().catch(() => {})
+      stopGeneration().catch(() => {})
       window.dispatchEvent(new CustomEvent('momai_new_session'))
       localStorage.setItem('momai_ai_tier', tier)
       await api.post('/setup/apply-tier', null, { params: { tier } })

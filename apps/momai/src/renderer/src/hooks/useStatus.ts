@@ -291,7 +291,7 @@ export function useStatus() {
           const slowStep = 0.05
           // Ensure visual progress is at least as much as real progress (to handle jumps)
           const base = Math.max(prev, initProgress)
-          return Math.min(99, base + slowStep)
+          return Math.min(99.9, base + slowStep)
         }
 
         if (prev >= 100) return 100
