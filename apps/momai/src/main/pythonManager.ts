@@ -152,6 +152,8 @@ interface BootstrapResult {
   corePath: string
   uvExe: string
   venvPath: string
+  status?: string
+  isNew?: boolean
 }
 
 interface SyncResult {
@@ -732,6 +734,8 @@ async function bootstrapPython(targetTier?: AITier): Promise<BootstrapResult | B
     return {
       status: 'ok',
       pythonExe: '',
+      corePath: '',
+      uvExe: '',
       venvPath: '',
       isNew: false
     }
@@ -743,6 +747,8 @@ async function bootstrapPython(targetTier?: AITier): Promise<BootstrapResult | B
     return {
       status: 'ok',
       pythonExe: '',
+      corePath: '',
+      uvExe: '',
       venvPath: '',
       isNew: false
     }
@@ -1440,6 +1446,11 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
 
       if ('type' in result) {
         sendErrorToRenderer(result)
+        return
+      }
+
+      if (!result.pythonExe) {
+        logger.info('[Bootstrap] Backend startup bypassed: No Python executable defined.')
         return
       }
 
