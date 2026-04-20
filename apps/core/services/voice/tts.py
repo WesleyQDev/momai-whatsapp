@@ -24,6 +24,16 @@ logger = logging.getLogger("momai.tts")
 ONNX_PROVIDER = "CPUExecutionProvider"
 IS_LINUX = platform.system().lower() == "linux"
 
+VIRTUAL_DEVICE_KEYWORDS = [
+    "elgato", "virtual", "voicemeeter", "cable", "vb-audio",
+    "steelseries sonar", "nahimic", "sonic studio",
+]
+
+PHYSICAL_DEVICE_KEYWORDS = [
+    "realtek", "speakers", "headphone", "alto-falante",
+    "high definition audio", "usb audio",
+]
+
 
 def _ensure_tts_imports():
     """Lazy-load heavy TTS dependencies."""
@@ -87,6 +97,74 @@ VOICE_PREFIX_MAP = {
 
 DEFAULT_VOICE = "pf_dora"
 DEFAULT_LANG = "p"
+
+
+def _find_output_device() -> tuple[Optional[int], int]:
+    """Find a suitable physical audio output device.
+
+    Returns (device_index, native_samplerate).  device_index may be ``None``
+    when no better device than the system default can be found.
+    """
+    _ensure_tts_imports()
+    if not HAS_SOUNDDEVICE:
+        return None, 24000
+
+    try:
+        devices = sd.query_devices()
+    except Exception:
+        return None, 24000
+
+    default_idx = sd.default.device[1]
+    default_dev = sd.query_devices(default_idx) if default_idx is not None else None
+
+    # Check if default device is virtual
+    default_name = (default_dev["name"] if default_dev else "").lower()
+    is_default_virtual = any(kw in default_name for kw in VIRTUAL_DEVICE_KEYWORDS)
+
+    if not is_default_virtual:
+        sr = int(default_dev["default_samplerate"]) if default_dev else 24000
+        logger.info(f"[TTS] Using default output device: [{default_idx}] {default_dev['name']} @ {sr}Hz")
+        return None, sr
+
+    logger.warning(
+        f"[TTS] Default output device is virtual: [{default_idx}] {default_name}. "
+        "Searching for a physical device..."
+    )
+
+    # Try to find a physical device
+    best: Optional[tuple[int, dict]] = None
+    for i, d in enumerate(devices):
+        if d.get("max_output_channels", 0) == 0:
+            continue
+        name_lower = d["name"].lower()
+        if any(kw in name_lower for kw in VIRTUAL_DEVICE_KEYWORDS):
+            continue
+        if any(kw in name_lower for kw in PHYSICAL_DEVICE_KEYWORDS):
+            best = (i, d)
+            break
+        if best is None:
+            best = (i, d)
+
+    if best:
+        idx, dev = best
+        sr = int(dev["default_samplerate"])
+        logger.info(f"[TTS] Selected physical output device: [{idx}] {dev['name']} @ {sr}Hz")
+        return idx, sr
+
+    sr = int(default_dev["default_samplerate"]) if default_dev else 24000
+    logger.warning("[TTS] No physical device found, falling back to default.")
+    return None, sr
+
+
+def _resample(audio: Any, src_sr: int, dst_sr: int) -> Any:
+    """Resample float32 audio from src_sr to dst_sr using linear interpolation."""
+    if src_sr == dst_sr:
+        return audio
+    _ensure_tts_imports()
+    ratio = dst_sr / src_sr
+    n_out = int(len(audio) * ratio)
+    indices = np.linspace(0, len(audio) - 1, n_out)
+    return np.interp(indices, np.arange(len(audio)), audio).astype(np.float32)
 
 
 class TTSManager:
@@ -209,232 +287,139 @@ class TTSManager:
             logger.error(f"❌ [TTS] Error loading Kokoro-ONNX: {e}")
 
     def _speech_worker(self):
-        """Pipeline TTS worker: generates and plays audio concurrently.
+        """Simple TTS worker: generates audio then plays with sd.play().
 
-        Architecture:
-          - A persistent asyncio event loop runs two concurrent tasks.
-          - Generator task: pulls text from the queue, runs Kokoro create_stream(),
-            and pushes audio chunks into an asyncio.Queue (the "audio pipe").
-          - Player task: pulls audio chunks from the pipe and writes them to
-            sounddevice (via run_in_executor so it doesn't block generation).
-
-        This means while phrase N is still playing, phrase N+1 is already being
-        synthesized by the ONNX model, eliminating the silence gap between phrases.
+        Uses sd.play() instead of OutputStream for maximum compatibility.
+        Processes one phrase at a time from the text queue.
         """
-        stream = None
         self.ready_event.wait()
 
         if self._error or not self.has_tts:
             logger.warning(f"[TTS] Worker stopping: system unavailable ({self._error})")
             return
 
-        # Create a single persistent event loop for the entire worker lifetime
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
-        try:
-            current_stream_sr = 24000
-
-            if HAS_SOUNDDEVICE:
-                try:
-                    # Check for devices first
-                    devices = sd.query_devices()
-                    if not devices:
-                        raise RuntimeError("No audio output devices found")
-
-                    stream_kwargs = {
-                        "samplerate": 24000,
-                        "channels": 1,
-                        "dtype": "float32",
-                        "blocksize": 1024,
-                        "latency": "low",
-                    }
-                    
-                    logger.info(f"[TTS Worker] Opening sounddevice stream: {stream_kwargs}")
-                    self.active_stream = sd.OutputStream(**stream_kwargs)
-                    self.active_stream.start()
-                    stream = self.active_stream
-                except Exception as e:
-                    logger.error(
-                        f"[TTS] Failed to open sounddevice stream: {e}. Falling back to frontend playback."
-                    )
-                    stream = None
-            else:
+        _ensure_tts_imports()
+        device_sr = 24000
+        if HAS_SOUNDDEVICE:
+            try:
+                default_idx = sd.default.device[1]
+                default_dev = sd.query_devices(default_idx)
+                device_sr = int(default_dev["default_samplerate"])
                 logger.info(
-                    "[TTS] Sounddevice not available. Using frontend playback fallback."
+                    f"[TTS Worker] Using default output: [{default_idx}] "
+                    f"{default_dev['name']} @ {device_sr}Hz"
                 )
-                stream = None
+            except Exception as e:
+                logger.warning(f"[TTS Worker] Could not query default device: {e}")
 
-            # Pipeline queue: generator → player.
-            audio_pipe: asyncio.Queue = asyncio.Queue(maxsize=30)
+        logger.info(
+            f"[TTS Worker] Started (sr={device_sr}, sounddevice={HAS_SOUNDDEVICE})"
+        )
 
-            # ------------------------------------------------------------------
-            # Generator coroutine
-            # ------------------------------------------------------------------
-            async def generator():
-                """Pulls text from text_queue, synthesises audio via Kokoro,
-                and pushes chunks into the audio_pipe."""
-                while not self.stop_event.is_set():
-                    try:
-                        text = await loop.run_in_executor(
-                            None,
-                            lambda: self.text_queue.get(timeout=0.3),
-                        )
-                    except queue.Empty:
-                        continue
+        try:
+            while not self.stop_event.is_set():
+                try:
+                    text = self.text_queue.get(timeout=0.3)
+                except queue.Empty:
+                    continue
 
-                    if text is None:
-                        await audio_pipe.put(None)
-                        break
+                if text is None:
+                    break
 
-                    with self.state_lock:
-                        sid = self.session_id
+                with self.state_lock:
+                    sid = self.session_id
 
-                    logger.info(f"[TTS Gen] Start: '{text[:30]}...' (Session {sid})")
-                    await audio_pipe.put(("speech_start", None, sid))
+                logger.info(f"[TTS Gen] Start: '{text[:40]}...' (Session {sid})")
 
-                    lang = LANG_CODE_MAP.get(self.lang_code, "en-us")
-                    has_audio = False
+                self._is_playing = True
+                if self.on_speech_start:
+                    self.on_speech_start()
 
-                    try:
-                        audio_stream = self.kokoro.create_stream(
+                lang = LANG_CODE_MAP.get(self.lang_code, "en-us")
+                all_chunks: list = []
+                audio_sr = 24000
+
+                try:
+                    async def _generate():
+                        nonlocal audio_sr
+                        stream = self.kokoro.create_stream(
                             text, voice=self.voice, speed=1.0, lang=lang
                         )
-                        
-                        chunk_count = 0
-                        async for samples, sr in audio_stream:
-                            if samples is None or len(samples) == 0:
-                                continue
-                                
+                        async for samples, sr in stream:
                             with self.state_lock:
                                 if self.session_id != sid or self.stop_event.is_set():
-                                    break
-                            
-                            has_audio = True
-                            chunk_count += 1
-                            audio_f32 = np.asarray(samples, dtype=np.float32)
-                            await audio_pipe.put(("audio", audio_f32, sid, sr))
-                        
-                        logger.info(f"[TTS Gen] Finished: {chunk_count} chunks generated")
-                    except Exception as e:
-                        logger.error(f"[TTS Gen Error] {e}")
+                                    return
+                            if samples is None or len(samples) == 0:
+                                continue
+                            audio_sr = sr
+                            all_chunks.append(np.asarray(samples, dtype=np.float32))
 
-                    if not has_audio:
+                    loop.run_until_complete(_generate())
+                except Exception as e:
+                    logger.error(f"[TTS Gen Error] {e}")
+
+                with self.state_lock:
+                    stale = self.session_id != sid or self.stop_event.is_set()
+
+                if stale or not all_chunks:
+                    if not all_chunks:
                         logger.warning(f"[TTS] No audio generated for: '{text[:50]}'")
-
-                    await audio_pipe.put(("speech_end", None, sid))
-
+                    self._is_playing = False
+                    if self.on_speech_stop:
+                        self.on_speech_stop()
                     try:
                         self.text_queue.task_done()
                     except ValueError:
                         pass
+                    continue
 
-                if self.stop_event.is_set():
+                combined = np.concatenate(all_chunks)
+                logger.info(
+                    f"[TTS Gen] Done: {len(all_chunks)} chunks, "
+                    f"{len(combined)} samples ({len(combined)/audio_sr:.2f}s)"
+                )
+
+                if HAS_SOUNDDEVICE:
                     try:
-                        audio_pipe.put_nowait(None)
-                    except asyncio.QueueFull:
-                        pass
+                        play_sr = device_sr if device_sr else int(audio_sr)
+                        play_data = _resample(combined, int(audio_sr), play_sr)
 
-            # ------------------------------------------------------------------
-            # Player coroutine
-            # ------------------------------------------------------------------
-            async def player():
-                """Pulls audio chunks from the pipe and plays them."""
-                while not self.stop_event.is_set():
-                    try:
-                        item = await asyncio.wait_for(audio_pipe.get(), timeout=0.5)
-                    except asyncio.TimeoutError:
-                        continue
+                        logger.info(
+                            f"[TTS Play] sd.play() sr={play_sr}, "
+                            f"samples={len(play_data)}"
+                        )
+                        sd.play(play_data, samplerate=play_sr)
+                        sd.wait()
+                        logger.info("[TTS Play] Playback complete")
+                    except Exception as e:
+                        logger.error(f"[TTS Play] Error: {e}")
+                else:
+                    import base64
+                    audio_b64 = base64.b64encode(combined.tobytes()).decode("utf-8")
+                    sys.stdout.write(f"[AUDIO_CHUNK] {audio_b64}\n")
+                    sys.stdout.flush()
 
-                    if item is None:
-                        break
+                self._is_playing = False
+                if self.on_speech_stop:
+                    self.on_speech_stop()
 
-                    if isinstance(item, tuple) and len(item) == 4:
-                        msg_type, data, sid, _sr = item
-                    else:
-                        msg_type, data, sid = item
-                        _sr = None
-
-                    with self.state_lock:
-                        stale = self.session_id != sid or self.stop_event.is_set()
-
-                    if stale:
-                        if msg_type == "speech_end":
-                            self._is_playing = False
-                        continue
-
-                    if msg_type == "speech_start":
-                        self._is_playing = True
-                        if self.on_speech_start:
-                            self.on_speech_start()
-                        continue
-
-                    if msg_type == "speech_end":
-                        self._is_playing = False
-                        if self.on_speech_stop:
-                            self.on_speech_stop()
-                        continue
-
-                    # Playing audio
-                    if stream:
-                        if _sr and int(_sr) != int(current_stream_sr):
-                            try:
-                                stream.stop()
-                                stream.close()
-                            except Exception:
-                                pass
-
-                            stream_kwargs = {
-                                "samplerate": int(_sr),
-                                "channels": 1,
-                                "dtype": "float32",
-                                "blocksize": 1024,
-                                "latency": "low",
-                            }
-                            self.active_stream = sd.OutputStream(**stream_kwargs)
-                            self.active_stream.start()
-                            stream = self.active_stream
-                            current_stream_sr = int(_sr)
-
-                        try:
-                            # Split into sub-chunks if very large, but usually kokoro chunks are fine
-                            await loop.run_in_executor(None, stream.write, data)
-                        except Exception as e:
-                            logger.error(f"[TTS Stream] Write error: {e}")
-                            break
-                    else:
-                        import base64
-                        audio_b64 = base64.b64encode(data.tobytes()).decode("utf-8")
-                        sys.stdout.write(f"[AUDIO_CHUNK] {audio_b64}\n")
-                        sys.stdout.flush()
-
-
-            # ------------------------------------------------------------------
-            # Run both tasks concurrently
-            # ------------------------------------------------------------------
-            async def pipeline():
-                gen_task = asyncio.ensure_future(generator())
-                play_task = asyncio.ensure_future(player())
-                await gen_task
-                await play_task
-
-            loop.run_until_complete(pipeline())
+                try:
+                    self.text_queue.task_done()
+                except ValueError:
+                    pass
 
         except Exception as e:
             if not self.stop_event.is_set():
-                logger.error(f"[TTS Worker] Pipeline error: {e}")
+                logger.error(f"[TTS Worker] Error: {e}")
         finally:
-            if stream:
-                try:
-                    stream.stop()
-                    stream.close()
-                except Exception:
-                    pass
-            self.active_stream = None
             try:
                 loop.close()
             except Exception:
                 pass
+            self.active_stream = None
             logger.debug("[TTS Worker] Thread finished.")
 
     def wait_until_ready(self, timeout: float = 30.0):
@@ -505,9 +490,10 @@ class TTSManager:
         with self.start_lock:
             self.stop_event.set()
 
-            if self.active_stream:
+            _ensure_tts_imports()
+            if HAS_SOUNDDEVICE:
                 try:
-                    self.active_stream.abort_stream()
+                    sd.stop()
                 except Exception:
                     pass
 
