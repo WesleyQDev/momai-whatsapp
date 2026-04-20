@@ -66,9 +66,12 @@ const WelcomeScreen = ({ onComplete, isFirstLaunch, version }: WelcomeScreenProp
               Sua assistente está <span className="text-accent">acordando</span>...
             </h1>
 
-            <p className="text-xs font-bold text-accent/80 uppercase tracking-tight animate-pulse">
-              Inicializando ambiente • 1 a 3 minutos
-            </p>
+            <div className="bg-white/5 backdrop-blur-sm px-6 py-3 rounded-2xl border border-white/10 mt-2">
+              <p className="text-sm font-medium text-text-muted leading-relaxed max-w-sm">
+                A primeira inicialização é um pouco mais lenta, <br />
+                <span className="text-accent font-bold">mas logo estarei voando!</span>
+              </p>
+            </div>
           </div>
         ) : (
           <>

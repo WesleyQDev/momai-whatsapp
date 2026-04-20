@@ -31,6 +31,8 @@ win:
         - '!**/__pycache__'
     - from: 'bin'
       to: 'bin'
+      filter:
+        - '!**/share/terminfo/**'
     - from: 'bin/wheels'
       to: 'wheels'
     - from: 'build/diagnostic.bat'
@@ -90,6 +92,8 @@ linux:
         - '!**/__pycache__'
     - from: 'bin'
       to: 'bin'
+      filter:
+        - '!**/share/terminfo/**'
     - from: 'bin/wheels'
       to: 'wheels'
     - from: 'build/diagnostic.sh'

@@ -85,6 +85,13 @@ if (Test-Path $pythonExe) {
     Remove-Item -Recurse -Force $pyExtractDir -ErrorAction SilentlyContinue
 }
 
+# Fix for Windows Build Errors: Delete the redundant 'terminfo' database which causes EACCES/permission errors.
+$terminfoPath = Join-Path $targetPython "share/terminfo"
+if (Test-Path $terminfoPath) {
+    Write-Host "[MomAI] Cleaning up terminfo database to prevent build errors..." -ForegroundColor Cyan
+    Remove-Item -Recurse -Force $terminfoPath -ErrorAction SilentlyContinue
+}
+
 # 3. Download Visual C++ Redistributable (skip if already present)
 $vcExe = Join-Path $binDir "vc_redist.x64.exe"
 if (Test-Path $vcExe) {
