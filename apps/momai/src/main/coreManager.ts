@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { existsSync, mkdirSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { spawn } from 'child_process'
 import { createConnection } from 'net'
@@ -17,6 +17,19 @@ const PYTHON_SIDECAR_HOST = API_HOST
 const PYTHON_SIDECAR_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
 const CORE_BOOT_TIMEOUT_MS = 60000
 const REUSE_NODE_CORE = process.env.MOMAI_REUSE_NODE_CORE === '1'
+
+function getCurrentTier(): string {
+  const storePath = join(app.getPath('userData'), 'data', 'node-core-store.json')
+  try {
+    if (existsSync(storePath)) {
+      const data = JSON.parse(readFileSync(storePath, 'utf-8'))
+      return data.settings?.ai_tier || 'pro'
+    }
+  } catch (e) {
+    logger.warn('[CoreManager] Error reading tier from store:', e)
+  }
+  return 'pro'
+}
 
 type EnsurePythonRequest = {
   type: 'ensure-python'
@@ -184,8 +197,13 @@ function emitInitProgress(message: string, progress: number): void {
   }
 }
 
-async function ensurePythonSidecar(): Promise<{ ok: boolean; error?: string; baseUrl?: string }> {
+export async function ensurePythonSidecar(): Promise<{ ok: boolean; error?: string; baseUrl?: string }> {
   try {
+    const tier = getCurrentTier()
+    if (tier === 'lite') {
+      return { ok: false, error: 'Python sidecar is disabled in Lite mode' }
+    }
+
     if (!isPythonRunning()) {
       const options: PythonBackendStartOptions = {
         host: PYTHON_SIDECAR_HOST,
@@ -388,17 +406,21 @@ export async function startCoreBackend(): Promise<void> {
 
     // Start Python sidecar proactively at app startup (non-blocking),
     // so voice/TTS is warm before the first user message.
-    void ensurePythonSidecar()
-      .then((result) => {
-        if (result.ok) {
-          logger.info('[CoreManager] Python sidecar prestarted successfully.')
-        } else {
-          logger.warn('[CoreManager] Python sidecar prestart failed:', result.error)
-        }
-      })
-      .catch((error: any) => {
-        logger.warn('[CoreManager] Python sidecar prestart exception:', error?.message || error)
-      })
+    // Skip if Lite mode or if onboarding is not finished yet (tier unknown).
+    const tier = getCurrentTier()
+    if (tier !== 'lite' && !state.isFirstLaunch) {
+      void ensurePythonSidecar()
+        .then((result) => {
+          if (result.ok) {
+            logger.info('[CoreManager] Python sidecar prestarted successfully.')
+          } else {
+            logger.warn('[CoreManager] Python sidecar prestart failed:', result.error)
+          }
+        })
+        .catch((error: any) => {
+          logger.warn('[CoreManager] Python sidecar prestart exception:', error?.message || error)
+        })
+    }
   } catch (error: any) {
     logger.error('[CoreManager] Could not spawn node core:', error)
     const mainWindow = getMainWindow()

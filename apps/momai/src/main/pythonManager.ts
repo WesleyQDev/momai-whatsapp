@@ -99,6 +99,21 @@ const SYNC_LOCK_FILE = join(userDataPath, '.sync.lock')
 const UV_CACHE_PATH = join(userDataPath, 'uv_cache')
 const UV_PYTHON_INSTALL_PATH = join(userDataPath, 'uv_python')
 
+export type AITier = 'lite' | 'pro' | 'ultra'
+
+function getCurrentTier(): AITier {
+  const storePath = join(userDataPath, 'data', 'node-core-store.json')
+  try {
+    if (existsSync(storePath)) {
+      const data = JSON.parse(readFileSync(storePath, 'utf-8'))
+      return data.settings?.ai_tier || 'pro'
+    }
+  } catch (e) {
+    logger.warn('[PythonManager] Error reading tier from store:', e)
+  }
+  return 'pro'
+}
+
 function getPlatformResourceKey(): 'win32' | 'linux' | 'darwin' {
   if (process.platform === 'win32') return 'win32'
   if (process.platform === 'darwin') return 'darwin'
@@ -707,7 +722,20 @@ async function ensureVCRedist(): Promise<void> {
   }
 }
 
-async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
+async function bootstrapPython(targetTier?: AITier): Promise<BootstrapResult | BootstrapError> {
+  const tier = targetTier || getCurrentTier()
+  logger.info(`[Bootstrap] Iniciando bootstrap para o tier: ${tier.toUpperCase()}`)
+
+  if (tier === 'lite') {
+    logger.info('[Bootstrap] Modo Lite detectado. Pulando instalação do Python.')
+    return {
+      status: 'ok',
+      pythonExe: '',
+      venvPath: '',
+      isNew: false
+    }
+  }
+
   const isDev = is.dev && process.env['ELECTRON_RENDERER_URL']
 
   const corePath = isDev
@@ -1144,6 +1172,23 @@ async function bootstrapPython(): Promise<BootstrapResult | BootstrapError> {
         }
       } else {
         installArgs.push(writableCorePath)
+      }
+
+      // Tier-based package selection
+      if (tier === 'pro') {
+        logger.info('[Bootstrap] Modo Pro: Instalando apenas dependências de Voz (TTS).')
+        installArgs.splice(installArgs.indexOf(writableCorePath), 1) // Remove core install
+        installArgs.push(
+          'fastapi[standard]',
+          'huggingface-hub',
+          'httpx',
+          'numpy',
+          'psutil',
+          'sounddevice',
+          'kokoro-onnx',
+          'python-dotenv',
+          'onnxruntime'
+        )
       }
 
       const pipPythonDir = findBundledPythonDir() || findManagedPythonDir()

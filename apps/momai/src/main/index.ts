@@ -4,7 +4,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { state, setIsQuitting } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
 import { saveOnboardingCompleted } from './pythonManager'
-import { startCoreBackend, shutdownCoreBackend } from './coreManager'
+import { startCoreBackend, shutdownCoreBackend, ensurePythonSidecar } from './coreManager'
 import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
 import {
@@ -82,6 +82,11 @@ ipcMain.on('mark-first-launch-finished', () => {
   logger.info('[Electron] Onboarding finished, marking first launch as false')
   state.isFirstLaunch = false
   saveOnboardingCompleted(true)
+
+  // After onboarding, check if we need to start the Python sidecar (Pro/Ultra)
+  void ensurePythonSidecar().catch((err) => {
+    logger.warn('[Bootstrap] Failed to start Python sidecar after onboarding:', err)
+  })
 })
 
 ipcMain.on('report-bootstrap-error', (_, error: string) => {

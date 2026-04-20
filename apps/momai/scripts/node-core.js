@@ -2142,6 +2142,11 @@ if (typeof process.send === 'function') {
 async function ensurePython() {
   if (typeof process.send !== 'function') return PYTHON_BASE_URL
 
+  const tier = store.settings.ai_tier || 'pro'
+  if (tier === 'lite') {
+    throw new Error('Python sidecar is disabled in Lite mode.')
+  }
+
   ensurePythonMsgId += 1
   const requestId = `ensure-python-${ensurePythonMsgId}-${Date.now()}`
   const promise = new Promise((resolve, reject) => {
@@ -2232,6 +2237,17 @@ async function syncWakeWordState(reason = 'unknown') {
   const tier = store.settings.ai_tier || 'pro'
   const shouldEnable =
     tier === 'ultra' && (Boolean(store.settings.wake_word_enabled) || Boolean(store.call_mode))
+
+  if (tier !== 'ultra') {
+    if (typeof process.send === 'function' && shouldEnable) {
+      process.send({
+        type: 'node-core-log',
+        message: `[node-core] Wake-word ignored: only supported in Ultra mode (current: ${tier})`
+      })
+    }
+    return
+  }
+
   const maxAttempts = 8
   let lastError = null
 
@@ -2269,7 +2285,13 @@ async function syncWakeWordState(reason = 'unknown') {
 }
 
 async function syncPythonCallModeState(reason = 'unknown') {
-  const enabled = Boolean(store.call_mode)
+  const tier = store.settings.ai_tier || 'pro'
+  const enabled = tier === 'ultra' && Boolean(store.call_mode)
+
+  if (tier !== 'ultra') {
+    return
+  }
+
   const maxAttempts = 8
   let lastError = null
 
