@@ -18,19 +18,19 @@ const PYTHON_SIDECAR_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001
 const CORE_BOOT_TIMEOUT_MS = 300000
 const REUSE_NODE_CORE = process.env.MOMAI_REUSE_NODE_CORE === '1'
 
-function getCurrentTier(): string {
+function getCurrentTier(): string | null {
   const storePath = join(app.getPath('userData'), 'data', 'node-core-store.json')
   try {
     if (existsSync(storePath)) {
       const data = JSON.parse(readFileSync(storePath, 'utf-8'))
       const tier = data.settings?.ai_tier
       if (tier === 'lite' || tier === 'pro' || tier === 'ultra') return tier
-      return 'pro'
+      return null
     }
   } catch (e) {
     logger.warn('[CoreManager] Error reading tier from store:', e)
   }
-  return 'pro'
+  return null
 }
 
 type EnsurePythonRequest = {
@@ -410,7 +410,7 @@ export async function startCoreBackend(): Promise<void> {
     // so voice/TTS is warm before the first user message.
     // Skip if Lite mode or if onboarding is not finished yet (tier unknown).
     const tier = getCurrentTier()
-    if (tier !== 'lite') {
+    if (tier && tier !== 'lite') {
       void ensurePythonSidecar()
         .then((result) => {
           if (result.ok) {

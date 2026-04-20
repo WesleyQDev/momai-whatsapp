@@ -101,19 +101,19 @@ const UV_PYTHON_INSTALL_PATH = join(userDataPath, 'uv_python')
 
 export type AITier = 'lite' | 'pro' | 'ultra'
 
-function getCurrentTier(): AITier {
+function getCurrentTier(): AITier | null {
   const storePath = join(userDataPath, 'data', 'node-core-store.json')
   try {
     if (existsSync(storePath)) {
       const data = JSON.parse(readFileSync(storePath, 'utf-8'))
       const tier = data.settings?.ai_tier
       if (tier === 'lite' || tier === 'pro' || tier === 'ultra') return tier
-      return 'pro' // Default safe for existing users
+      return null
     }
   } catch (e) {
     logger.warn('[PythonManager] Error reading tier from store:', e)
   }
-  return 'pro'
+  return null
 }
 
 function getPlatformResourceKey(): 'win32' | 'linux' | 'darwin' {
@@ -727,6 +727,15 @@ async function ensureVCRedist(): Promise<void> {
 
 async function bootstrapPython(targetTier?: AITier): Promise<BootstrapResult | BootstrapError> {
   const tier = targetTier || getCurrentTier()
+  if (!tier) {
+    logger.info('[Bootstrap] Nenhum tier selecionado ainda. Aguardando onboarding...')
+    return {
+      status: 'ok',
+      pythonExe: '',
+      venvPath: '',
+      isNew: false
+    }
+  }
   logger.info(`[Bootstrap] Iniciando bootstrap para o tier: ${tier.toUpperCase()}`)
 
   if (tier === 'lite') {
