@@ -7,6 +7,7 @@ import asyncio
 import io
 import sys
 import os
+import platform
 from typing import Optional, Any
 
 # Heavy imports deferred for faster startup
@@ -21,6 +22,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 logger = logging.getLogger("momai.tts")
 
 ONNX_PROVIDER = "CPUExecutionProvider"
+IS_LINUX = platform.system().lower() == "linux"
 
 
 def _ensure_tts_imports():
@@ -231,12 +233,24 @@ class TTSManager:
         asyncio.set_event_loop(loop)
 
         try:
+            current_stream_sr = 24000
+
             if HAS_SOUNDDEVICE:
                 try:
+                    # Linux tends to stutter with very small chunks. A modest
+                    # fixed blocksize and higher latency trade tiny delay for
+                    # noticeably smoother playback.
+                    stream_kwargs = {
+                        "samplerate": 24000,
+                        "channels": 1,
+                        "dtype": "float32",
+                    }
+                    if IS_LINUX:
+                        stream_kwargs["blocksize"] = 2048
+                        stream_kwargs["latency"] = "high"
+
                     self.active_stream = sd.OutputStream(
-                        samplerate=24000,
-                        channels=1,
-                        dtype="float32",
+                        **stream_kwargs,
                     )
                     self.active_stream.start()
                     stream = self.active_stream
@@ -299,9 +313,8 @@ class TTSManager:
                                 if self.session_id != sid or self.stop_event.is_set():
                                     break
                             has_audio = True
-                            await audio_pipe.put(
-                                ("audio", samples.astype(np.float32), sid)
-                            )
+                            audio_f32 = np.asarray(samples, dtype=np.float32)
+                            await audio_pipe.put(("audio", audio_f32, sid, sr))
                     except Exception as e:
                         logger.error(f"[TTS Gen Error] {e}")
 
@@ -337,7 +350,11 @@ class TTSManager:
                     if item is None:
                         break
 
-                    msg_type, data, sid = item
+                    if isinstance(item, tuple) and len(item) == 4:
+                        msg_type, data, sid, _sr = item
+                    else:
+                        msg_type, data, sid = item
+                        _sr = None
 
                     # Check if this item belongs to the current session
                     with self.state_lock:
@@ -362,7 +379,29 @@ class TTSManager:
 
                     # msg_type == "audio"
                     if stream:
-                        SUB_CHUNK = 480  # ~20 ms at 24 kHz (reduced for lower latency)
+                        if _sr and int(_sr) != int(current_stream_sr):
+                            try:
+                                stream.stop()
+                                stream.close()
+                            except Exception:
+                                pass
+
+                            stream_kwargs = {
+                                "samplerate": int(_sr),
+                                "channels": 1,
+                                "dtype": "float32",
+                            }
+                            if IS_LINUX:
+                                stream_kwargs["blocksize"] = 2048
+                                stream_kwargs["latency"] = "high"
+
+                            self.active_stream = sd.OutputStream(**stream_kwargs)
+                            self.active_stream.start()
+                            stream = self.active_stream
+                            current_stream_sr = int(_sr)
+
+                        # Fewer, larger writes reduce scheduling jitter on Linux.
+                        SUB_CHUNK = 2048 if IS_LINUX else 960
                         offset = 0
                         while offset < len(data):
                             with self.state_lock:
