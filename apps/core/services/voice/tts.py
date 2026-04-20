@@ -237,21 +237,21 @@ class TTSManager:
 
             if HAS_SOUNDDEVICE:
                 try:
-                    # Linux tends to stutter with very small chunks. A modest
-                    # fixed blocksize and higher latency trade tiny delay for
-                    # noticeably smoother playback.
+                    # Check for devices first
+                    devices = sd.query_devices()
+                    if not devices:
+                        raise RuntimeError("No audio output devices found")
+
                     stream_kwargs = {
                         "samplerate": 24000,
                         "channels": 1,
                         "dtype": "float32",
+                        "blocksize": 1024,
+                        "latency": "low",
                     }
-                    if IS_LINUX:
-                        stream_kwargs["blocksize"] = 2048
-                        stream_kwargs["latency"] = "high"
-
-                    self.active_stream = sd.OutputStream(
-                        **stream_kwargs,
-                    )
+                    
+                    logger.info(f"[TTS Worker] Opening sounddevice stream: {stream_kwargs}")
+                    self.active_stream = sd.OutputStream(**stream_kwargs)
                     self.active_stream.start()
                     stream = self.active_stream
                 except Exception as e:
@@ -265,8 +265,7 @@ class TTSManager:
                 )
                 stream = None
 
-            # Pipeline queue: generator → player.  maxsize provides backpressure
-            # so the generator doesn't run too far ahead of playback.
+            # Pipeline queue: generator → player.
             audio_pipe: asyncio.Queue = asyncio.Queue(maxsize=30)
 
             # ------------------------------------------------------------------
@@ -276,7 +275,6 @@ class TTSManager:
                 """Pulls text from text_queue, synthesises audio via Kokoro,
                 and pushes chunks into the audio_pipe."""
                 while not self.stop_event.is_set():
-                    # Read from the synchronous queue without blocking the loop
                     try:
                         text = await loop.run_in_executor(
                             None,
@@ -286,17 +284,13 @@ class TTSManager:
                         continue
 
                     if text is None:
-                        await audio_pipe.put(None)  # poison pill
+                        await audio_pipe.put(None)
                         break
 
                     with self.state_lock:
                         sid = self.session_id
 
-                    logger.debug(
-                        f"[TTS Gen] Processing: {text[:40]}... (Session {sid})"
-                    )
-
-                    # Signal: a new phrase is starting
+                    logger.info(f"[TTS Gen] Start: '{text[:30]}...' (Session {sid})")
                     await audio_pipe.put(("speech_start", None, sid))
 
                     lang = LANG_CODE_MAP.get(self.lang_code, "en-us")
@@ -306,22 +300,28 @@ class TTSManager:
                         audio_stream = self.kokoro.create_stream(
                             text, voice=self.voice, speed=1.0, lang=lang
                         )
+                        
+                        chunk_count = 0
                         async for samples, sr in audio_stream:
                             if samples is None or len(samples) == 0:
                                 continue
+                                
                             with self.state_lock:
                                 if self.session_id != sid or self.stop_event.is_set():
                                     break
+                            
                             has_audio = True
+                            chunk_count += 1
                             audio_f32 = np.asarray(samples, dtype=np.float32)
                             await audio_pipe.put(("audio", audio_f32, sid, sr))
+                        
+                        logger.info(f"[TTS Gen] Finished: {chunk_count} chunks generated")
                     except Exception as e:
                         logger.error(f"[TTS Gen Error] {e}")
 
                     if not has_audio:
                         logger.warning(f"[TTS] No audio generated for: '{text[:50]}'")
 
-                    # Signal: phrase finished generating
                     await audio_pipe.put(("speech_end", None, sid))
 
                     try:
@@ -329,7 +329,6 @@ class TTSManager:
                     except ValueError:
                         pass
 
-                # If stop_event was set, still send poison pill so player exits
                 if self.stop_event.is_set():
                     try:
                         audio_pipe.put_nowait(None)
@@ -356,7 +355,6 @@ class TTSManager:
                         msg_type, data, sid = item
                         _sr = None
 
-                    # Check if this item belongs to the current session
                     with self.state_lock:
                         stale = self.session_id != sid or self.stop_event.is_set()
 
@@ -377,7 +375,7 @@ class TTSManager:
                             self.on_speech_stop()
                         continue
 
-                    # msg_type == "audio"
+                    # Playing audio
                     if stream:
                         if _sr and int(_sr) != int(current_stream_sr):
                             try:
@@ -390,39 +388,26 @@ class TTSManager:
                                 "samplerate": int(_sr),
                                 "channels": 1,
                                 "dtype": "float32",
+                                "blocksize": 1024,
+                                "latency": "low",
                             }
-                            if IS_LINUX:
-                                stream_kwargs["blocksize"] = 2048
-                                stream_kwargs["latency"] = "high"
-
                             self.active_stream = sd.OutputStream(**stream_kwargs)
                             self.active_stream.start()
                             stream = self.active_stream
                             current_stream_sr = int(_sr)
 
-                        # Fewer, larger writes reduce scheduling jitter on Linux.
-                        SUB_CHUNK = 2048 if IS_LINUX else 960
-                        offset = 0
-                        while offset < len(data):
-                            with self.state_lock:
-                                if self.session_id != sid or self.stop_event.is_set():
-                                    break
-                            end = min(offset + SUB_CHUNK, len(data))
-                            try:
-                                # run_in_executor keeps the loop free for generation
-                                await loop.run_in_executor(
-                                    None, stream.write, data[offset:end]
-                                )
-                            except Exception as e:
-                                logger.error(f"[TTS Stream] Write error: {e}")
-                                break
-                            offset = end
+                        try:
+                            # Split into sub-chunks if very large, but usually kokoro chunks are fine
+                            await loop.run_in_executor(None, stream.write, data)
+                        except Exception as e:
+                            logger.error(f"[TTS Stream] Write error: {e}")
+                            break
                     else:
                         import base64
-
                         audio_b64 = base64.b64encode(data.tobytes()).decode("utf-8")
                         sys.stdout.write(f"[AUDIO_CHUNK] {audio_b64}\n")
                         sys.stdout.flush()
+
 
             # ------------------------------------------------------------------
             # Run both tasks concurrently
@@ -471,10 +456,15 @@ class TTSManager:
                     )
                     return
 
-            if self.worker_thread is not None and self.worker_thread.is_alive():
-                return
-
             if self.worker_thread is not None:
+                if self.worker_thread.is_alive():
+                    # If it's stopping, wait briefly for it to exit
+                    if self.stop_event.is_set():
+                        self.worker_thread.join(timeout=0.5)
+                    
+                    if self.worker_thread.is_alive():
+                        return
+
                 logger.debug(
                     f"[TTS] Cleaning up dead thread: {self.worker_thread.name}"
                 )
