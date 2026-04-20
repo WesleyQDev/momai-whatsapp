@@ -10,7 +10,7 @@ interface ContainerChatProps {
   isLoading: boolean
   text: string
   onSendMessage: (text?: string) => void
-  onClearHistory?: () => void 
+  onClearHistory?: () => void
   messagesEndRef: RefObject<HTMLDivElement | null>
   isModeChanging?: boolean
   onReopenGraph: (data: any) => void
@@ -115,23 +115,23 @@ const CallModeContent = ({
           const normX = x / width
           // Gaussian envelope to keep waves in the center
           const envelope = Math.pow(Math.sin(normX * Math.PI), 1.5)
-          
+
           // Get the relevant frequency band for this X position
           // Using 16 bands spread across the width
           const bandIdx = Math.floor(normX * 15)
           const nextBandIdx = Math.min(15, bandIdx + 1)
           const bandLerp = (normX * 15) % 1
-          
+
           // Interpolate between bands for smooth "mountains"
-          const bandValue = smoothedBandsRef.current[bandIdx] * (1 - bandLerp) + 
-                            smoothedBandsRef.current[nextBandIdx] * bandLerp
-          
+          const bandValue = smoothedBandsRef.current[bandIdx] * (1 - bandLerp) +
+            smoothedBandsRef.current[nextBandIdx] * bandLerp
+
           // Create the "Mountain" effect
           // Amplitude is driven by the frequency band at that specific point
           const peakHeight = bandValue * (height / 2) * scale
           const baseNoise = Math.sin(normX * 5 + phaseRef.current + phaseShift) * (height / 15)
-          
-          const y = (height / 2) + 
+
+          const y = (height / 2) +
             (peakHeight + baseNoise) * envelope +
             Math.sin(normX * 12 + phaseRef.current * 1.5) * (height / 40) * envelope +
             offset
@@ -144,7 +144,7 @@ const CallModeContent = ({
 
       // Gradients (Pink -> Purple -> Cyan)
       const gradient = ctx.createLinearGradient(0, 0, width, 0)
-      gradient.addColorStop(0, '#ec4899') 
+      gradient.addColorStop(0, '#ec4899')
       gradient.addColorStop(0.5, '#a855f7')
       gradient.addColorStop(1, '#06b6d4')
 
@@ -168,7 +168,7 @@ const CallModeContent = ({
   // 1. Word-by-word stream logic
   const lastAssistant = history.filter((h) => h.role === 'assistant').pop()
   const lastUser = history.filter((h) => h.role === 'user').pop()
-  
+
   const [displayedWords, setDisplayedWords] = useState<string[]>([])
   const [wordIndex, setWordIndex] = useState(0)
   const lastMsgRef = useRef<string | null>(null)
@@ -193,7 +193,7 @@ const CallModeContent = ({
       setWordIndex(0)
       lastMsgRef.current = msgId
     }
-    
+
     // Smooth timer to add words one by one
     const timer = setInterval(() => {
       setWordIndex(prev => {
@@ -228,7 +228,7 @@ const CallModeContent = ({
       <div className="w-full max-w-[700px] relative z-20 min-h-[80px] flex items-end justify-center pb-6">
         {(() => {
           if (!lastUser) return (
-             <div className="flex flex-col items-center justify-center gap-2">
+            <div className="flex flex-col items-center justify-center gap-2">
               <span className="text-[10px] font-black tracking-[0.8em] text-accent/80 uppercase drop-shadow-[0_0_8px_rgba(139,92,246,0.3)]">
                 Escutando
               </span>
@@ -253,10 +253,10 @@ const CallModeContent = ({
 
       {/* 2. CENTER: THE WAVE (The heart of the UI) */}
       <div className="w-full relative h-[250px] flex items-center justify-center">
-         <canvas 
-          ref={canvasRef} 
-          width={1000} 
-          height={250} 
+        <canvas
+          ref={canvasRef}
+          width={1000}
+          height={250}
           className="w-full h-full max-w-[950px] drop-shadow-[0_0_40px_rgba(168,85,247,0.3)]"
         />
         {/* Subtle scanline aesthetic */}
@@ -266,7 +266,7 @@ const CallModeContent = ({
       {/* 3. BOTTOM: Assistant Display (Cinematic Subtitles) */}
       <div className="w-full max-w-[700px] relative z-20 h-[140px] flex flex-col items-center">
         {/* The Fade Mask - creates the "vanishing upwards" effect */}
-        <div 
+        <div
           ref={scrollRef}
           className="w-full h-full overflow-y-auto no-scrollbar scroll-smooth px-12 pb-4"
           style={{
@@ -278,13 +278,12 @@ const CallModeContent = ({
             {displayedWords.map((word, idx) => {
               const isLatest = idx === displayedWords.length - 1
               const shouldHighlight = isLatest && isSpeaking
-              
+
               return (
-                <span 
+                <span
                   key={`${idx}-${word}`}
-                  className={`text-xl font-semibold tracking-tight transition-all duration-1000 ease-out fill-mode-both animate-in fade-in slide-in-from-bottom-2 ${
-                    shouldHighlight ? 'text-white scale-105 drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]' : 'text-white/40 blur-[0.2px]'
-                  }`}
+                  className={`text-xl font-semibold tracking-tight transition-all duration-1000 ease-out fill-mode-both animate-in fade-in slide-in-from-bottom-2 ${shouldHighlight ? 'text-white scale-105 drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]' : 'text-white/40 blur-[0.2px]'
+                    }`}
                 >
                   {word}
                 </span>
@@ -305,9 +304,9 @@ const CallModeContent = ({
           className="group flex flex-col items-center gap-3 transition-all duration-300 active:scale-95"
         >
           <div className="w-12 h-12 rounded-full bg-red-500/5 border border-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 group-hover:border-red-500/40 transition-all duration-500">
-             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-red-500/80 group-hover:text-red-500 transform rotate-135">
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-             </svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-red-500/80 group-hover:text-red-500 transform rotate-135">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+            </svg>
           </div>
           <span className="text-[8px] font-black tracking-[0.5em] uppercase text-red-500/40 group-hover:text-red-500 transition-colors">Encerrar</span>
         </button>
@@ -454,7 +453,7 @@ export default function ContainerChat({
         />
       ) : isCallMode ? (
         <CallModeUI
-          onEndCall={onToggleCallMode || (() => {})}
+          onEndCall={onToggleCallMode || (() => { })}
           history={callHistory}
           status={voiceStatus}
           isSpeaking={speakingIndex !== null && speakingIndex !== undefined}
