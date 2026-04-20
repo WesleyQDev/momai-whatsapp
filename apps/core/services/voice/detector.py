@@ -221,7 +221,22 @@ class WakeWordDetector:
                         chunk = self.audio_queue.get(timeout=0.5)
                     except queue.Empty:
                         continue
-
+                    
+                        # Split 250ms chunk into 5 sub-chunks (50ms each) for better FFT resolution
+                        sub_chunks = np.array_split(chunk, 5)
+                        all_bands = []
+                        for sc in sub_chunks:
+                            # Simple FFT to get frequency spectrum
+                            fft_res = np.abs(np.fft.rfft(sc))
+                            # Downsample to 16 bands for the UI
+                            bands = np.array_split(fft_res, 16)
+                            all_bands.append([float(np.mean(b)) for b in bands])
+                        
+                        if app_state.main_loop:
+                            asyncio.run_coroutine_threadsafe(
+                                app_state.broadcast_to_sockets({"type": "voice_bands", "bands": all_bands}),
+                                app_state.main_loop
+                            )
                     if not self.running:
                         break
 

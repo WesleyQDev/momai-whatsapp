@@ -71,6 +71,10 @@ export function useChatHandlers({
       setSpeakingIndex(idx >= 0 ? idx : null)
     } else if (msg.type === 'tts_stop') {
       setSpeakingIndex(null)
+    } else if (msg.type === 'voice_bands') {
+      window.dispatchEvent(new CustomEvent('momai_voice_bands', { detail: msg.bands }))
+    } else if (msg.type === 'voice_volume') {
+      window.dispatchEvent(new CustomEvent('momai_voice_volume', { detail: msg.volumes }))
     } else if (msg.type === 'voice_status') {
       setVoiceStatus(msg.status)
     } else if (msg.type === 'voice_engine_loading') {
