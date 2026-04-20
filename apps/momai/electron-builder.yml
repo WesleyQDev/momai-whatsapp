@@ -9,6 +9,8 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!bin/**'
+  - '!out/bin/**'
 asarUnpack:
   - resources/**
 win:
@@ -33,6 +35,10 @@ win:
       to: 'bin'
       filter:
         - '!**/share/terminfo/**'
+        - '!**/python/share/**'
+        - '!**/python/bin/**'
+        - '!**/python/Lib/test/**'
+        - '!**/python/Lib/site-packages/tests/**'
     - from: 'bin/wheels'
       to: 'wheels'
     - from: 'build/diagnostic.bat'

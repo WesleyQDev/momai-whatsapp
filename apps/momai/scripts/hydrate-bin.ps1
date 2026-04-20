@@ -74,6 +74,9 @@ if (Test-Path $pythonExe) {
     $extractedPath = Join-Path $pyExtractDir "python"
 
     if (Test-Path $extractedPath) {
+        $parentDir = Split-Path $targetPython -Parent
+        if (-not (Test-Path $parentDir)) { New-Item -ItemType Directory -Path $parentDir | Out-Null }
+
         if (Test-Path $targetPython) { Remove-WithRetry $targetPython }
         Move-Item -Path $extractedPath -Destination $targetPython -Force
         Write-Host "[MomAI] Python ready in $targetPython" -ForegroundColor Green
@@ -86,10 +89,16 @@ if (Test-Path $pythonExe) {
 }
 
 # Fix for Windows Build Errors: Delete the redundant 'terminfo' database which causes EACCES/permission errors.
-$terminfoPath = Join-Path $targetPython "share/terminfo"
-if (Test-Path $terminfoPath) {
-    Write-Host "[MomAI] Cleaning up terminfo database to prevent build errors..." -ForegroundColor Cyan
-    Remove-Item -Recurse -Force $terminfoPath -ErrorAction SilentlyContinue
+# We check both the parent and target directories to handle different extraction layouts.
+$terminfoPaths = @(
+    Join-Path $targetPython "share/terminfo",
+    Join-Path (Join-Path $binDir "python") "share/terminfo"
+)
+foreach ($path in $terminfoPaths) {
+    if (Test-Path $path) {
+        Write-Host "[MomAI] Cleaning up terminfo database at $path to prevent build errors..." -ForegroundColor Cyan
+        Remove-Item -Recurse -Force $path -ErrorAction SilentlyContinue
+    }
 }
 
 # 3. Download Visual C++ Redistributable (skip if already present)
