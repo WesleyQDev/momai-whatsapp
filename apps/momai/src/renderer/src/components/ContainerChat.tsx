@@ -10,7 +10,7 @@ interface ContainerChatProps {
   isLoading: boolean
   text: string
   onSendMessage: (text?: string) => void
-  onClearHistory?: () => void
+  onClearHistory?: () => void 
   messagesEndRef: RefObject<HTMLDivElement | null>
   isModeChanging?: boolean
   onReopenGraph: (data: any) => void
