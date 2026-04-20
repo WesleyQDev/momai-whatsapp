@@ -45,6 +45,7 @@ export function useStatus() {
   const [isStalled, setIsStalled] = useState(false)
   const [isRetrying, setIsRetrying] = useState(false)
   const [lastProgressTime, setLastProgressTime] = useState<number>(Date.now())
+  const [visualProgress, setVisualProgress] = useState<number>(2)
 
   const isBrainReady = statusInfo?.brain_ready ?? false
   const isBrainLoading = statusInfo?.is_loading ?? false
@@ -277,6 +278,31 @@ export function useStatus() {
     return () => clearInterval(interval)
   }, [isBooting, initProgress, lastProgressTime, isStalled, isRetrying, backendOnline])
 
+  // Visual progress simulation
+  useEffect(() => {
+    if (!isBooting && initProgress >= 100) {
+      setVisualProgress(100)
+      return undefined
+    }
+
+    const interval = setInterval(() => {
+      setVisualProgress((prev) => {
+        if (initProgress < 100) {
+          const slowStep = 0.05
+          // Ensure visual progress is at least as much as real progress (to handle jumps)
+          const base = Math.max(prev, initProgress)
+          return Math.min(99, base + slowStep)
+        }
+
+        if (prev >= 100) return 100
+        const finishStep = 4
+        return Math.min(100, prev + finishStep)
+      })
+    }, 100)
+
+    return () => clearInterval(interval)
+  }, [isBooting, initProgress])
+
   return {
     statusInfo,
     localMode,
@@ -285,6 +311,7 @@ export function useStatus() {
     hasUpdate,
     initMessage,
     initProgress,
+    visualProgress,
     isReady,
     isBooting,
     isStalled,

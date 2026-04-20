@@ -25,6 +25,7 @@ interface ContainerChatProps {
   onToggleCallMode?: () => void
   callHistory?: { id: string; role: 'user' | 'assistant'; content: string }[]
   initProgress?: number
+  visualProgress?: number
   initMessage?: string
   isBooting?: boolean
   threadId: string
@@ -223,6 +224,7 @@ export default function ContainerChat({
   onToggleCallMode,
   callHistory = [],
   initProgress = 0,
+  visualProgress = 0,
   initMessage,
   isBooting = false,
   threadId,
@@ -313,7 +315,7 @@ export default function ContainerChat({
       )
   }, [threadId])
 
-  const displayProgress = isSystemDone ? 100 : Math.min(initProgress, 99)
+  const displayProgress = isSystemDone ? 100 : Math.min(visualProgress || initProgress || 0, 99)
   const loadingProgress = isModeChanging ? Math.min(displayProgress, 99) : displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
   const showLoading = isModeChanging || !isSystemDone || (!shouldSkipIntro && !animationFinished)

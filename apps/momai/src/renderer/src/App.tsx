@@ -36,6 +36,7 @@ function App(): React.JSX.Element {
     hasUpdate,
     initMessage,
     initProgress,
+    visualProgress,
     isBooting,
     isOnline,
     isReady,
@@ -154,6 +155,7 @@ function App(): React.JSX.Element {
                   chat={chat}
                   statusInfo={statusInfo}
                   initProgress={initProgress}
+                  visualProgress={visualProgress}
                   initMessage={initMessage}
                   isBooting={isBooting}
                   isUpdating={isUpdating}

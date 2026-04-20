@@ -14,6 +14,7 @@ interface MainViewRendererProps {
   chat: any // Chat instance from App
   statusInfo: StatusData | null
   initProgress?: number
+  visualProgress?: number
   initMessage?: string
   isBooting?: boolean
   setHistoryOpen?: (open: boolean) => void
@@ -43,6 +44,7 @@ const ChatView = (props: any) => {
       onToggleCallMode={props.chat.toggleCallMode}
       callHistory={props.chat.callHistory}
       initProgress={props.initProgress}
+      visualProgress={props.visualProgress}
         initMessage={props.initMessage}
         isBooting={props.isBooting}
         threadId={props.chat.threadId}
@@ -72,6 +74,7 @@ export default function MainViewRenderer({
   chat,
   statusInfo,
   initProgress,
+  visualProgress,
   initMessage,
   isBooting,
   setHistoryOpen,
@@ -102,6 +105,7 @@ export default function MainViewRenderer({
         chat={chat}
         statusInfo={statusInfo}
         initProgress={initProgress}
+        visualProgress={visualProgress}
         initMessage={initMessage}
         isBooting={isBooting}
         setHistoryOpen={setHistoryOpen}

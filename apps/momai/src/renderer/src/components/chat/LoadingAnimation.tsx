@@ -15,29 +15,10 @@ export default function LoadingAnimation({
   isFirstLaunch
 }: LoadingAnimationProps) {
   const { t } = useI18n()
-  const [visualProgress, setVisualProgress] = useState(2)
   const [isFadingOut, setIsFadingOut] = useState(false)
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setVisualProgress((prev) => {
-        // Stay slow and steady until backend confirms completion.
-        if (progress < 100) {
-          const slowStep = 0.05
-          return Math.min(99, prev + slowStep)
-        }
-
-        if (prev >= 100) return 100
-
-        const finishStep = 4
-        return Math.min(100, prev + finishStep)
-      })
-    }, 100)
-    return () => clearInterval(interval)
-  }, [progress])
-
-  useEffect(() => {
-    if (visualProgress >= 100) {
+    if (progress >= 100) {
       const timer = setTimeout(() => {
         setIsFadingOut(true)
         if (onComplete) {
@@ -47,7 +28,7 @@ export default function LoadingAnimation({
       return () => clearTimeout(timer)
     }
     return undefined
-  }, [visualProgress, onComplete])
+  }, [progress, onComplete])
 
   return (
     <div
@@ -61,7 +42,7 @@ export default function LoadingAnimation({
             ? 'A primeira inicialização pode levar de 1 a 3 minutos'
             : 'Bem-vinda à MomAI'}
         </h1>
-        {Math.round(visualProgress) >= 99 && progress < 100 && (
+        {Math.round(progress) >= 99 && progress < 100 && (
           <p
             className="mt-3 text-[11px] font-medium text-accent/80 tracking-wide animate-pulse"
             style={{ animation: 'fadeIn 0.6s ease-in' }}
@@ -85,7 +66,7 @@ export default function LoadingAnimation({
           </div>
           <div className="flex flex-col items-end">
             <span className="text-[18px] font-black text-text font-mono leading-none mb-1">
-              {Math.round(visualProgress)}%
+              {Math.round(progress)}%
             </span>
           </div>
         </div>
@@ -93,7 +74,7 @@ export default function LoadingAnimation({
         <div className="relative h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/10 shadow-inner">
           <div
             className="absolute top-0 left-0 h-full bg-accent shadow-[0_0_20px_rgba(139,92,246,0.6)] transition-all duration-300 ease-out rounded-full"
-            style={{ width: `${visualProgress}%` }}
+            style={{ width: `${progress}%` }}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
           </div>
@@ -105,7 +86,7 @@ export default function LoadingAnimation({
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-accent/5 rounded-full blur-[120px] transition-all duration-1000"
           style={{
             opacity: isFadingOut ? 0 : 1,
-            transform: `translate(-50%, -50%) scale(${0.8 + visualProgress / 200})`
+            transform: `translate(-50%, -50%) scale(${0.8 + progress / 200})`
           }}
         />
       </div>
