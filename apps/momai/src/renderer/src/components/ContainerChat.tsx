@@ -40,148 +40,145 @@ interface ContainerChatProps {
 const CallModeUI = ({
   onEndCall,
   history = [],
-  status = 'idle'
+  status = 'idle',
+  isSpeaking = false
 }: {
   onEndCall: () => void
   history?: { id: string; role: 'user' | 'assistant'; content: string }[]
   status?: 'idle' | 'listening' | 'processing'
-}) => <CallModeContent onEndCall={onEndCall} history={history} status={status} />
+  isSpeaking?: boolean
+}) => <CallModeContent onEndCall={onEndCall} history={history} status={status} isSpeaking={isSpeaking} />
 
 const CallModeContent = ({
   onEndCall,
   history = [],
-  status = 'idle'
+  status = 'idle',
+  isSpeaking = false
 }: {
   onEndCall: () => void
   history?: { id: string; role: 'user' | 'assistant'; content: string }[]
   status?: 'idle' | 'listening' | 'processing'
+  isSpeaking?: boolean
 }) => {
   const { t } = useI18n()
-  const isSttReady = status === 'idle' || status === 'listening'
+  const [waveHeights, setWaveHeights] = useState<number[]>(() => Array(64).fill(0.3))
+
+  useEffect(() => {
+    if (isSpeaking) {
+      const interval = setInterval(() => {
+        setWaveHeights(prev => prev.map((_, i) => {
+          const center = 32
+          const dist = Math.abs(i - center) / center
+          const envelope = Math.max(0.2, 1 - dist * 0.6)
+          return (0.3 + Math.random() * 0.7) * envelope
+        }))
+      }, 60)
+      return () => clearInterval(interval)
+    } else if (status === 'listening') {
+      const interval = setInterval(() => {
+        setWaveHeights(prev => prev.map(() => 0.15 + Math.random() * 0.5))
+      }, 100)
+      return () => clearInterval(interval)
+    } else if (status === 'processing') {
+      const interval = setInterval(() => {
+        setWaveHeights(prev => prev.map(() => 0.1 + Math.random() * 0.3))
+      }, 120)
+      return () => clearInterval(interval)
+    } else {
+      const interval = setInterval(() => {
+        setWaveHeights(prev => prev.map((_, i) => {
+          const wave = Math.sin(Date.now() / 800 + i * 0.25) * 0.12 + 0.12
+          return Math.max(0.04, Math.min(0.25, wave))
+        }))
+      }, 40)
+      return () => clearInterval(interval)
+    }
+  }, [status, isSpeaking])
+
+  const lastAssistant = history.filter((h) => h.role === 'assistant').pop()
+  const lastUser = history.filter((h) => h.role === 'user').pop()
+
+  const isActive = isSpeaking || status === 'listening' || status === 'processing'
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8 bg-transparent relative overflow-hidden">
       {/* Background Ambience */}
       <div className="absolute inset-0 pointer-events-none">
         <div 
-          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[600px] aspect-square rounded-full blur-[120px] transition-all duration-1000 ${
-            status === 'listening' ? 'bg-accent/15 scale-125' : 
-            status === 'processing' ? 'bg-amber-500/10 scale-110' : 'bg-accent/5 scale-100'
+          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[800px] aspect-square rounded-full blur-[150px] transition-all duration-1000 ${
+            isSpeaking ? 'bg-accent/15 scale-115' :
+            status === 'listening' ? 'bg-accent/10 scale-110' : 
+            status === 'processing' ? 'bg-accent/8 scale-105' : 'bg-accent/5 scale-100'
           }`}
         />
       </div>
 
-      {/* Visual Center Piece - The Dynamic Orb */}
-      <div className="relative w-48 h-48 mb-12 flex items-center justify-center translate-y-[-20px]">
-        {/* Outer Halo */}
-        <div
-          className={`absolute inset-0 bg-accent/20 rounded-full blur-2xl transition-all duration-700 ${
-            status !== 'idle' ? 'opacity-100 scale-125' : 'opacity-10 scale-90'
-          }`}
-        />
-        
-        {/* Liquid Rings */}
-        <div className={`absolute inset-0 border-2 rounded-full transition-all duration-700 ${status === 'listening' ? 'border-accent/40 scale-110' : 'border-white/5 scale-100'}`} />
-        <div className={`absolute inset-4 border rounded-full transition-all duration-1000 ${status === 'listening' ? 'border-accent/30 scale-105' : 'border-white/5 scale-100'}`} />
-        
-        {/* Pulse Waves */}
-        {status === 'listening' && (
-          <>
-            <div className="absolute inset-0 border border-accent/40 rounded-full animate-[ping_3s_linear_infinite]" />
-            <div className="absolute inset-0 border border-accent/20 rounded-full animate-[ping_4.5s_linear_infinite]" />
-          </>
-        )}
+      {/* Audio Waveform Visualization */}
+      <div className="relative w-full max-w-[600px] h-32 mb-12 flex items-center justify-center">
+        <div className="flex items-center gap-[2px] w-full px-8">
+          {waveHeights.map((height, i) => (
+            <div
+              key={i}
+              className="flex-1 rounded-full transition-all duration-75 ease-out"
+              style={{
+                height: `${Math.max(3, height * 128)}px`,
+                background: isSpeaking
+                  ? 'linear-gradient(to top, rgba(139, 92, 246, 0.7), rgba(168, 85, 247, 1))'
+                  : status === 'processing' 
+                    ? 'linear-gradient(to top, rgba(139, 92, 246, 0.5), rgba(139, 92, 246, 0.9))'
+                    : status === 'listening'
+                      ? 'linear-gradient(to top, rgba(139, 92, 246, 0.6), rgba(168, 85, 247, 1))'
+                      : 'linear-gradient(to top, rgba(139, 92, 246, 0.3), rgba(139, 92, 246, 0.6))',
+                opacity: isActive ? 1 : 0.6,
+                boxShadow: isSpeaking && height > 0.5 ? '0 0 8px rgba(139, 92, 246, 0.4)' : 'none',
+              }}
+            />
+          ))}
+        </div>
+      </div>
 
-        {/* Core Persona Orb */}
-        <div
-          className={`relative w-28 h-28 rounded-full flex items-center justify-center transition-all duration-500 z-10 backdrop-blur-3xl shadow-[0_0_50px_rgba(0,0,0,0.3)] border-t border-white/20 ${
-            status === 'processing'
-              ? 'bg-amber-500/30 border-amber-500/50 shadow-amber-500/20'
-              : status === 'listening'
-                ? 'bg-accent/40 border-accent/60 shadow-accent/40 scale-105'
-                : 'bg-white/10 border-white/10'
-          }`}
-        >
-          {/* Internal Glow */}
-          <div className={`absolute inset-2 rounded-full blur-md mix-blend-screen transition-all duration-500 ${
-            status === 'listening' ? 'bg-accent/40 animate-pulse' : 
-            status === 'processing' ? 'bg-amber-400/30 animate-pulse' : 'bg-transparent'
-          }`} />
-
-          {status === 'processing' ? (
-            <div className="relative w-14 h-14">
-              <div className="absolute inset-0 border-4 border-white/5 border-t-amber-400 rounded-full animate-spin" />
-              <div className="absolute inset-2 border-2 border-white/5 border-b-amber-300 rounded-full animate-[spin_1.5s_linear_infinite_reverse]" />
-            </div>
-          ) : (
-            <div className="relative group">
-              <svg
-                width="34"
-                height="34"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className={`transition-all duration-500 ${status === 'listening' ? 'text-white scale-110 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : 'text-white/40'}`}
-              >
-                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                <line x1="12" y1="19" x2="12" y2="22" />
-              </svg>
-              
-              {/* Voice Equality Bars */}
-              {isSttReady && (
-                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-end gap-[3px] h-6">
-                  {[...Array(5)].map((_, i) => (
-                    <div
-                      key={i}
-                      className={`w-1 rounded-full bg-accent transition-all duration-300 ${
-                        status === 'listening' ? 'opacity-100 animate-[stt-bounce_1s_ease-in-out_infinite]' : 'opacity-20 h-1'
-                      }`}
-                      style={{
-                        animationDelay: `${i * 0.15}s`,
-                        height: status === 'listening' ? `${30 + Math.random() * 70}%` : '4px'
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+      {/* Audio Waveform Visualization */}
+      <div className="relative w-full max-w-[600px] h-32 mb-12 flex items-center justify-center">
+        <div className="flex items-center gap-[2px] w-full px-8">
+          {waveHeights.map((height, i) => (
+            <div
+              key={i}
+              className="flex-1 rounded-full transition-all duration-100 ease-out"
+              style={{
+                height: `${height * 100}%`,
+                minHeight: '2px',
+                background: status === 'processing'
+                  ? 'linear-gradient(to top, rgba(139, 92, 246, 0.4), rgba(139, 92, 246, 0.8))'
+                  : status === 'listening'
+                    ? 'linear-gradient(to top, rgba(139, 92, 246, 0.6), rgba(168, 85, 247, 1))'
+                    : 'linear-gradient(to top, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.4))',
+                opacity: status === 'idle' ? 0.5 : 1,
+              }}
+            />
+          ))}
         </div>
       </div>
 
       {/* Status Label */}
-      <div className="text-center mb-8 h-12 flex flex-col justify-center animate-fade-in">
-        <h2 className={`text-sm font-bold tracking-[0.3em] uppercase transition-all duration-500 ${
-          status === 'listening' ? 'text-accent drop-shadow-accent-glow' : 
-          status === 'processing' ? 'text-amber-400' : 'text-white/20'
-        }`}>
+      <div className="text-center mb-6 h-8 flex items-center justify-center">
+        <h2 className={`text-xs font-medium tracking-[0.2em] uppercase transition-all duration-500 ${status === 'listening' ? 'text-accent/80' :
+          status === 'processing' ? 'text-accent/60' : 'text-white/20'
+          }`}>
           {status === 'listening'
             ? t('home.call.listening')
             : status === 'processing'
               ? t('home.call.processing')
               : t('home.call.waiting')}
         </h2>
-        <div className={`mt-2 flex justify-center gap-1 transition-opacity duration-500 ${status === 'listening' ? 'opacity-100' : 'opacity-0'}`}>
-          <div className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0s' }} />
-          <div className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0.1s' }} />
-          <div className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0.2s' }} />
-        </div>
       </div>
 
-      {/* Dynamic Conversation Bubble */}
-      <div className="w-full max-w-[540px] px-6 py-8 rounded-[40px] bg-white/[0.03] border border-white/5 backdrop-blur-2xl relative mb-12 shadow-2xl">
-        <div className="flex flex-col gap-6">
+      {/* Conversation Display */}
+      <div className="w-full max-w-[500px] px-6 py-6 rounded-2xl bg-white/[0.02] border border-white/[0.05] backdrop-blur-xl relative mb-8">
+        <div className="flex flex-col gap-4">
           {(() => {
-            const lastUser = history.filter((h) => h.role === 'user').pop()
-            const lastAssistant = history.filter((h) => h.role === 'assistant').pop()
-
             if (!lastUser && !lastAssistant) {
               return (
-                <p className="text-center text-xs text-white/20 font-medium italic">
+                <p className="text-center text-xs text-white/15 font-medium italic">
                   {t('home.suggestion.0')}
                 </p>
               )
@@ -190,18 +187,16 @@ const CallModeContent = ({
             return (
               <>
                 {lastUser && (
-                  <div className="flex flex-col items-center animate-in slide-in-from-bottom-2 fade-in duration-700">
-                    <span className="text-[10px] font-black tracking-widest text-white/30 uppercase mb-2">Você</span>
-                    <p className="text-center text-sm text-white/80 font-medium leading-relaxed italic">
+                  <div className="flex flex-col items-center animate-in slide-in-from-bottom-2 fade-in duration-500">
+                    <p className="text-center text-sm text-white/60 font-medium leading-relaxed">
                       "{lastUser.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()}"
                     </p>
                   </div>
                 )}
 
                 {lastAssistant && (
-                  <div className="flex flex-col items-center animate-in slide-in-from-top-2 fade-in duration-700">
-                    <span className="text-[10px] font-black tracking-widest text-accent uppercase mb-2">Luna</span>
-                    <p className="text-center text-base text-white font-semibold leading-relaxed">
+                  <div className="flex flex-col items-center animate-in slide-in-from-top-2 fade-in duration-500">
+                    <p className="text-center text-sm text-white/90 leading-relaxed">
                       {lastAssistant.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()}
                     </p>
                   </div>
@@ -212,22 +207,26 @@ const CallModeContent = ({
         </div>
       </div>
 
-      {/* Control Actions */}
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          onClick={onEndCall}
-          className="group relative flex items-center gap-4 px-10 py-5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/50 text-red-500 rounded-full transition-all duration-500 active:scale-95 shadow-2xl"
+      {/* Minimal End Call Button */}
+      <button
+        type="button"
+        onClick={onEndCall}
+        className="group flex items-center justify-center w-12 h-12 rounded-full bg-white/[0.05] hover:bg-red-500/20 border border-white/[0.08] hover:border-red-500/30 text-white/30 hover:text-red-400 transition-all duration-300 active:scale-95"
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="transform rotate-135"
         >
-          <div className="relative w-3 h-3 flex items-center justify-center">
-            <div className="absolute inset-0 bg-red-500 rounded-full group-hover:animate-ping opacity-60" />
-            <div className="relative w-2 height-2 bg-red-500 rounded-full" />
-          </div>
-          <span className="font-black text-xs uppercase tracking-[0.2em]">
-            {t('home.call.disconnect')}
-          </span>
-        </button>
-      </div>
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+        </svg>
+      </button>
     </div>
   )
 }
@@ -373,6 +372,7 @@ export default function ContainerChat({
           onEndCall={onToggleCallMode || (() => {})}
           history={callHistory}
           status={voiceStatus}
+          isSpeaking={speakingIndex !== null && speakingIndex !== undefined}
         />
       ) : (
         <>
