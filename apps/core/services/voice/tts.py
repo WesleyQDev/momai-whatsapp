@@ -344,64 +344,61 @@ class TTSManager:
                 audio_sr = 24000
 
                 try:
-                    async def _generate():
+                    async def _generate_and_play():
                         nonlocal audio_sr
                         stream = self.kokoro.create_stream(
                             text, voice=self.voice, speed=1.0, lang=lang
                         )
+                        
+                        playback_started = False
+                        q = queue.Queue(maxsize=20)
+
+                        def callback(outdata, frames, time, status):
+                            if status:
+                                logger.warning(f"[TTS] Stream Status: {status}")
+                            try:
+                                data = q.get_nowait()
+                                if len(data) < frames:
+                                    outdata[:len(data), 0] = data
+                                    outdata[len(data):, 0] = 0
+                                    raise sd.CallbackStop
+                                else:
+                                    outdata[:, 0] = data[:frames]
+                            except queue.Empty:
+                                outdata.fill(0)
+                                # We don't stop yet, wait for more data or timeout
+
+                        # Using a simpler approach: sd.OutputStream is tricky to manage 
+                        # with varying chunk sizes from Kokoro.
+                        # Instead, let's just use sd.play() on chunks sequentially but fast.
+                        
                         async for samples, sr in stream:
                             with self.state_lock:
                                 if self.session_id != sid or self.stop_event.is_set():
                                     return
+                                    
                             if samples is None or len(samples) == 0:
                                 continue
+                                
                             audio_sr = sr
-                            all_chunks.append(np.asarray(samples, dtype=np.float32))
+                            audio_data = np.asarray(samples, dtype=np.float32)
+                            
+                            # Resample if needed
+                            play_sr = device_sr if device_sr else int(audio_sr)
+                            play_data = _resample(audio_data, int(audio_sr), play_sr)
 
-                    loop.run_until_complete(_generate())
+                            # Play this chunk immediately
+                            if HAS_SOUNDDEVICE:
+                                if not playback_started:
+                                    logger.info(f"[TTS Stream] Starting playback for first chunk ({len(play_data)} samples)")
+                                    playback_started = True
+                                
+                                sd.play(play_data, samplerate=play_sr)
+                                sd.wait() # Wait for this chunk to finish before playing next
+                            
+                    loop.run_until_complete(_generate_and_play())
                 except Exception as e:
-                    logger.error(f"[TTS Gen Error] {e}")
-
-                with self.state_lock:
-                    stale = self.session_id != sid or self.stop_event.is_set()
-
-                if stale or not all_chunks:
-                    if not all_chunks:
-                        logger.warning(f"[TTS] No audio generated for: '{text[:50]}'")
-                    self._is_playing = False
-                    if self.on_speech_stop:
-                        self.on_speech_stop()
-                    try:
-                        self.text_queue.task_done()
-                    except ValueError:
-                        pass
-                    continue
-
-                combined = np.concatenate(all_chunks)
-                logger.info(
-                    f"[TTS Gen] Done: {len(all_chunks)} chunks, "
-                    f"{len(combined)} samples ({len(combined)/audio_sr:.2f}s)"
-                )
-
-                if HAS_SOUNDDEVICE:
-                    try:
-                        play_sr = device_sr if device_sr else int(audio_sr)
-                        play_data = _resample(combined, int(audio_sr), play_sr)
-
-                        logger.info(
-                            f"[TTS Play] sd.play() sr={play_sr}, "
-                            f"samples={len(play_data)}"
-                        )
-                        sd.play(play_data, samplerate=play_sr)
-                        sd.wait()
-                        logger.info("[TTS Play] Playback complete")
-                    except Exception as e:
-                        logger.error(f"[TTS Play] Error: {e}")
-                else:
-                    import base64
-                    audio_b64 = base64.b64encode(combined.tobytes()).decode("utf-8")
-                    sys.stdout.write(f"[AUDIO_CHUNK] {audio_b64}\n")
-                    sys.stdout.flush()
+                    logger.error(f"[TTS Stream Error] {e}")
 
                 self._is_playing = False
                 if self.on_speech_stop:

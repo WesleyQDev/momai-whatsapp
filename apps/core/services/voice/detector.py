@@ -111,11 +111,11 @@ class WakeWordDetector:
         self.max_recording_duration = 15.0
 
         # --- Call mode parameters (higher thresholds to avoid false triggers) ---
-        self.call_energy_threshold = 0.02
-        self.call_silence_chunks = 5
-        self.call_min_speech_chunks = 4
-        self.call_interrupt_threshold = 0.035
-        self.post_tts_cooldown = 1.5
+        self.call_energy_threshold = 0.03   # Less sensitive to background (was 0.012/0.02)
+        self.call_silence_chunks = 4        # Balanced end-of-speech (was 3/5)
+        self.call_min_speech_chunks = 3     # Better noise filtering (was 2/4)
+        self.call_interrupt_threshold = 0.04 # Harder to interrupt by noise (was 0.025)
+        self.post_tts_cooldown = 0.8        # Slightly longer wait after TTS (was 0.6)
         self._tts_stop_time = 0.0
 
         # --- State machine ---
@@ -457,14 +457,14 @@ class WakeWordDetector:
             segments, info = self.model.transcribe(
                 audio,
                 language="pt",
-                beam_size=1 if is_partial else 3,
-                best_of=5 if not is_partial else 1,
-                initial_prompt="Luna, Luna, Luna.",
+                beam_size=1 if is_partial else 2,
+                best_of=1,
+                initial_prompt="Luna. MomAI. Assistente virtual. Comandos em português brasileiro.",
                 vad_filter=True,
                 vad_parameters=dict(
-                    min_silence_duration_ms=300,
-                    speech_pad_ms=400,
-                    threshold=0.35,
+                    min_silence_duration_ms=350,  # More robust (was 250)
+                    speech_pad_ms=250,            # Tighter (was 300)
+                    threshold=0.4,                # Less sensitive (was 0.32)
                 ),
                 no_speech_threshold=0.4,
                 log_prob_threshold=-1.0,

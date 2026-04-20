@@ -60,67 +60,92 @@ const CallModeContent = ({
   const isSttReady = status === 'idle' || status === 'listening'
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-8 bg-transparent">
-      {/* Visual Center Piece */}
-      <div className="relative w-24 h-24 mb-8 flex items-center justify-center">
-        {/* Dynamic Glows */}
-        <div
-          className={`absolute inset-0 bg-accent/20 rounded-full blur-2xl transition-all duration-700 ${status !== 'idle' ? 'opacity-100 scale-150' : 'opacity-20 scale-100'}`}
+    <div className="flex-1 flex flex-col items-center justify-center p-8 bg-transparent relative overflow-hidden">
+      {/* Background Ambience */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div 
+          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[600px] aspect-square rounded-full blur-[120px] transition-all duration-1000 ${
+            status === 'listening' ? 'bg-accent/15 scale-125' : 
+            status === 'processing' ? 'bg-amber-500/10 scale-110' : 'bg-accent/5 scale-100'
+          }`}
         />
-        <div
-          className={`absolute inset-2 bg-accent/10 rounded-full blur-xl transition-all duration-1000 ${status === 'listening' ? 'opacity-100 scale-110' : 'opacity-0 scale-90'}`}
-        />
+      </div>
 
-        {/* Animated Rings */}
-        {isSttReady && (
+      {/* Visual Center Piece - The Dynamic Orb */}
+      <div className="relative w-48 h-48 mb-12 flex items-center justify-center translate-y-[-20px]">
+        {/* Outer Halo */}
+        <div
+          className={`absolute inset-0 bg-accent/20 rounded-full blur-2xl transition-all duration-700 ${
+            status !== 'idle' ? 'opacity-100 scale-125' : 'opacity-10 scale-90'
+          }`}
+        />
+        
+        {/* Liquid Rings */}
+        <div className={`absolute inset-0 border-2 rounded-full transition-all duration-700 ${status === 'listening' ? 'border-accent/40 scale-110' : 'border-white/5 scale-100'}`} />
+        <div className={`absolute inset-4 border rounded-full transition-all duration-1000 ${status === 'listening' ? 'border-accent/30 scale-105' : 'border-white/5 scale-100'}`} />
+        
+        {/* Pulse Waves */}
+        {status === 'listening' && (
           <>
-            <div
-              className={`absolute inset-[-4px] border-2 rounded-full animate-[ping_2s_infinite] ${status === 'listening' ? 'border-accent/30' : 'border-accent/20'}`}
-            />
-            <div
-              className={`absolute inset-[-12px] border rounded-full animate-[ping_3s_infinite] ${status === 'listening' ? 'border-accent/10' : 'border-accent/5'}`}
-            />
+            <div className="absolute inset-0 border border-accent/40 rounded-full animate-[ping_3s_linear_infinite]" />
+            <div className="absolute inset-0 border border-accent/20 rounded-full animate-[ping_4.5s_linear_infinite]" />
           </>
         )}
 
-        {/* Core Icon Container */}
+        {/* Core Persona Orb */}
         <div
-          className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-500 z-10 backdrop-blur-md shadow-2xl ${
+          className={`relative w-28 h-28 rounded-full flex items-center justify-center transition-all duration-500 z-10 backdrop-blur-3xl shadow-[0_0_50px_rgba(0,0,0,0.3)] border-t border-white/20 ${
             status === 'processing'
-              ? 'bg-accent/30 border-2 border-accent animate-pulse shadow-accent/40'
-              : 'bg-accent/20 border-2 border-accent/40 shadow-accent/10'
+              ? 'bg-amber-500/30 border-amber-500/50 shadow-amber-500/20'
+              : status === 'listening'
+                ? 'bg-accent/40 border-accent/60 shadow-accent/40 scale-105'
+                : 'bg-white/10 border-white/10'
           }`}
         >
+          {/* Internal Glow */}
+          <div className={`absolute inset-2 rounded-full blur-md mix-blend-screen transition-all duration-500 ${
+            status === 'listening' ? 'bg-accent/40 animate-pulse' : 
+            status === 'processing' ? 'bg-amber-400/30 animate-pulse' : 'bg-transparent'
+          }`} />
+
           {status === 'processing' ? (
-            <div className="w-10 h-10 border-4 border-white/10 border-t-white rounded-full animate-spin" />
+            <div className="relative w-14 h-14">
+              <div className="absolute inset-0 border-4 border-white/5 border-t-amber-400 rounded-full animate-spin" />
+              <div className="absolute inset-2 border-2 border-white/5 border-b-amber-300 rounded-full animate-[spin_1.5s_linear_infinite_reverse]" />
+            </div>
           ) : (
-            <div className="relative flex items-center justify-center">
+            <div className="relative group">
               <svg
-                width="36"
-                height="32"
+                width="34"
+                height="34"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2.5"
+                strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="text-white"
+                className={`transition-all duration-500 ${status === 'listening' ? 'text-white scale-110 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' : 'text-white/40'}`}
               >
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
                 <line x1="12" y1="19" x2="12" y2="22" />
               </svg>
+              
+              {/* Voice Equality Bars */}
               {isSttReady && (
-                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-end gap-1">
-                  <span
-                    className={`stt-eq-bar h-2 w-1 rounded-full ${status === 'listening' ? 'bg-white/90' : 'bg-white/55'}`}
-                  />
-                  <span
-                    className={`stt-eq-bar stt-eq-bar--2 h-3 w-1 rounded-full ${status === 'listening' ? 'bg-white' : 'bg-white/65'}`}
-                  />
-                  <span
-                    className={`stt-eq-bar stt-eq-bar--3 h-2.5 w-1 rounded-full ${status === 'listening' ? 'bg-white/90' : 'bg-white/55'}`}
-                  />
+                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-end gap-[3px] h-6">
+                  {[...Array(5)].map((_, i) => (
+                    <div
+                      key={i}
+                      className={`w-1 rounded-full bg-accent transition-all duration-300 ${
+                        status === 'listening' ? 'opacity-100 animate-[stt-bounce_1s_ease-in-out_infinite]' : 'opacity-20 h-1'
+                      }`}
+                      style={{
+                        animationDelay: `${i * 0.15}s`,
+                        height: status === 'listening' ? `${30 + Math.random() * 70}%` : '4px'
+                      }}
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -128,78 +153,81 @@ const CallModeContent = ({
         </div>
       </div>
 
-      {/* Status Message */}
-      <div className="h-6 mb-8 text-center flex flex-col justify-center">
-        <span
-          className={`text-[11px] font-black uppercase tracking-[0.5em] transition-all duration-500 ${
-            status === 'listening' ? 'text-accent animate-pulse' : 'text-text-muted/40'
-          }`}
-        >
+      {/* Status Label */}
+      <div className="text-center mb-8 h-12 flex flex-col justify-center animate-fade-in">
+        <h2 className={`text-sm font-bold tracking-[0.3em] uppercase transition-all duration-500 ${
+          status === 'listening' ? 'text-accent drop-shadow-accent-glow' : 
+          status === 'processing' ? 'text-amber-400' : 'text-white/20'
+        }`}>
           {status === 'listening'
             ? t('home.call.listening')
             : status === 'processing'
               ? t('home.call.processing')
               : t('home.call.waiting')}
-        </span>
+        </h2>
+        <div className={`mt-2 flex justify-center gap-1 transition-opacity duration-500 ${status === 'listening' ? 'opacity-100' : 'opacity-0'}`}>
+          <div className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0s' }} />
+          <div className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0.1s' }} />
+          <div className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0.2s' }} />
+        </div>
       </div>
 
-      {/* Main Content Area - Mostra usuário e IA separados */}
-      <div
-        className="w-full max-w-[500px] mb-8 overflow-hidden relative flex flex-col items-center justify-center gap-1"
-        style={{
-          height: '80px'
-        }}
-      >
-        {(() => {
-          const lastUser = history.filter((h) => h.role === 'user').pop()
-          const lastAssistant = history.filter((h) => h.role === 'assistant').pop()
+      {/* Dynamic Conversation Bubble */}
+      <div className="w-full max-w-[540px] px-6 py-8 rounded-[40px] bg-white/[0.03] border border-white/5 backdrop-blur-2xl relative mb-12 shadow-2xl">
+        <div className="flex flex-col gap-6">
+          {(() => {
+            const lastUser = history.filter((h) => h.role === 'user').pop()
+            const lastAssistant = history.filter((h) => h.role === 'assistant').pop()
 
-          return (
-            <>
-              {/* Mensagem do Usuário */}
-              {lastUser && (
-                <p
-                  className="text-center text-[10px] text-white/60 font-medium px-4 w-full"
-                  style={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {lastUser.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()}
+            if (!lastUser && !lastAssistant) {
+              return (
+                <p className="text-center text-xs text-white/20 font-medium italic">
+                  {t('home.suggestion.0')}
                 </p>
-              )}
+              )
+            }
 
-              {/* Mensagem da IA - máx 2 linhas com ... */}
-              {lastAssistant && (
-                <p
-                  className="text-center text-xs text-text font-medium px-4 w-full"
-                  style={{
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden'
-                  }}
-                >
-                  {lastAssistant.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()}
-                </p>
-              )}
-            </>
-          )
-        })()}
+            return (
+              <>
+                {lastUser && (
+                  <div className="flex flex-col items-center animate-in slide-in-from-bottom-2 fade-in duration-700">
+                    <span className="text-[10px] font-black tracking-widest text-white/30 uppercase mb-2">Você</span>
+                    <p className="text-center text-sm text-white/80 font-medium leading-relaxed italic">
+                      "{lastUser.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()}"
+                    </p>
+                  </div>
+                )}
+
+                {lastAssistant && (
+                  <div className="flex flex-col items-center animate-in slide-in-from-top-2 fade-in duration-700">
+                    <span className="text-[10px] font-black tracking-widest text-accent uppercase mb-2">Luna</span>
+                    <p className="text-center text-base text-white font-semibold leading-relaxed">
+                      {lastAssistant.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()}
+                    </p>
+                  </div>
+                )}
+              </>
+            )
+          })()}
+        </div>
       </div>
 
-      {/* Footer Action */}
-      <button
-        type="button"
-        onClick={onEndCall}
-        className="group relative flex items-center gap-4 px-10 py-4 bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-500/40 text-text hover:text-red-500 rounded-3xl transition-all duration-500 active:scale-95 shadow-2xl backdrop-blur-xl"
-      >
-        <div className="w-2.5 h-2.5 bg-red-500 rounded-full group-hover:animate-ping" />
-        <span className="font-extrabold text-xs uppercase tracking-widest">
-          {t('home.call.disconnect')}
-        </span>
-      </button>
+      {/* Control Actions */}
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={onEndCall}
+          className="group relative flex items-center gap-4 px-10 py-5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/50 text-red-500 rounded-full transition-all duration-500 active:scale-95 shadow-2xl"
+        >
+          <div className="relative w-3 h-3 flex items-center justify-center">
+            <div className="absolute inset-0 bg-red-500 rounded-full group-hover:animate-ping opacity-60" />
+            <div className="relative w-2 height-2 bg-red-500 rounded-full" />
+          </div>
+          <span className="font-black text-xs uppercase tracking-[0.2em]">
+            {t('home.call.disconnect')}
+          </span>
+        </button>
+      </div>
     </div>
   )
 }
