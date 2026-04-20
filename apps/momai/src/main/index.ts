@@ -3,7 +3,7 @@ import { app, globalShortcut, BrowserWindow, ipcMain, shell } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { state, setIsQuitting } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
-import { saveOnboardingCompleted } from './pythonManager'
+import { saveOnboardingCompleted, isOnboardingCompleted } from './pythonManager'
 import { startCoreBackend, shutdownCoreBackend, ensurePythonSidecar } from './coreManager'
 import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
@@ -22,6 +22,9 @@ import {
   updateNote
 } from './notesService'
 
+// Initialize first launch state correctly at startup
+state.isFirstLaunch = !isOnboardingCompleted()
+
 ipcMain.handle('get-auto-start', () => {
   return app.getLoginItemSettings().openAtLogin
 })
@@ -39,7 +42,7 @@ if (process.platform === 'linux') {
   app.disableHardwareAcceleration()
 }
 
-logger.info(`[Electron] Starting MomAI... ${app.getVersion()}`)
+logger.info(`[Electron] Starting MomAI... ${app.getVersion()} (First launch: ${state.isFirstLaunch})`)
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
 

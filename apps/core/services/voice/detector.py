@@ -22,25 +22,36 @@ import services.voice.tts as tts
 def _ensure_heavy_imports():
     """Lazy-load heavy dependencies (ctranslate2, numpy, sounddevice, faster_whisper)."""
     global sd, np, ctranslate2, WhisperModel, HAS_SOUNDDEVICE
-    if np is not None:
-        return  # Already imported
+    
+    if np is None:
+        try:
+            import numpy as _np
+            np = _np
+        except ImportError:
+            pass
 
-    import numpy as _np
-    np = _np
+    if ctranslate2 is None:
+        try:
+            import ctranslate2 as _ct
+            ctranslate2 = _ct
+        except ImportError:
+            pass
 
-    import ctranslate2 as _ct
-    ctranslate2 = _ct
+    if WhisperModel is None:
+        try:
+            from faster_whisper import WhisperModel as _WM
+            WhisperModel = _WM
+        except ImportError:
+            pass
 
-    from faster_whisper import WhisperModel as _WM
-    WhisperModel = _WM
-
-    try:
-        import sounddevice as _sd
-        sd = _sd
-        HAS_SOUNDDEVICE = True
-    except OSError:
-        HAS_SOUNDDEVICE = False
-        sd = None
+    if sd is None:
+        try:
+            import sounddevice as _sd
+            sd = _sd
+            HAS_SOUNDDEVICE = True
+        except (OSError, ImportError):
+            HAS_SOUNDDEVICE = False
+            sd = None
 
 
 class WakeWordDetector:
@@ -115,13 +126,22 @@ class WakeWordDetector:
         # Gate keyword detection (call mode bypass always works)
         self.wake_word_active = True
     
-    def _load_model(self):
+    def _load_model(self, retries=0):
         """Lazy load heavy dependencies and model."""
         if self.model:
-            return
-            
+            return True
+
         _ensure_heavy_imports()
-        
+
+        if ctranslate2 is None or WhisperModel is None:
+            if retries < 3:
+                logger.info(f"[WakeWord] Dependencies not ready, retrying in 5s... (attempt {retries+1}/3)")
+                time.sleep(5)
+                return self._load_model(retries + 1)
+            
+            logger.warning("[WakeWord] Dependencies (ctranslate2/faster-whisper) not ready. Skipping model load.")
+            return False
+
         # Faster-Whisper Configuration
         try:
             device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
@@ -132,11 +152,17 @@ class WakeWordDetector:
                 f"[WakeWord] Initializing Faster-Whisper (base) on {device} ({compute_type})..."
             )
             self.model = WhisperModel("base", device=device, compute_type=compute_type)
+            return True
         except Exception as e:
             logger.warning(
                 f"[WakeWord] Could not load 'base' Whisper ({e}). Falling back to 'tiny' on CPU."
             )
-            self.model = WhisperModel("tiny", device="cpu", compute_type="int8")
+            if WhisperModel:
+                self.model = WhisperModel("tiny", device="cpu", compute_type="int8")
+                return True
+            else:
+                logger.error("[WakeWord] Cannot even load tiny model (WhisperModel is None)")
+                return False
 
 
     def _set_state(self, new_state):
@@ -618,7 +644,9 @@ class WakeWordDetector:
         """Start the detector in a background thread."""
         with self.lock:
             if not self.running:
-                self._load_model()
+                if not self._load_model():
+                    logger.warning("[WakeWord] Detector will not start yet (model not ready).")
+                    return
                 if not HAS_SOUNDDEVICE:
                     logger.warning(
                         "[WakeWord] Sounddevice not available. Detector will not start."

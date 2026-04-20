@@ -216,7 +216,7 @@ function defaultStore() {
       prebuffer_chars: 0,
       onboarding_completed: false,
       tutorial_completed: false,
-      ai_tier: 'pro',
+      ai_tier: null,
       skip_intro: false
     },
     mode: 'local',
@@ -3690,7 +3690,13 @@ server.listen(PORT, HOST, () => {
   const autoStartLlm = store.settings.auto_start_llm !== false
   const announceReady = async () => {
     if (autoStartLlm) {
-      const tierName = store.settings.ai_tier || 'pro'
+      const tierName = store.settings.ai_tier
+      if (!tierName) {
+        console.info('[NodeCore] Skipping auto-start LLM: AI Tier not selected yet (onboarding).')
+        setInitStatus('ready', 'Aguardando seleção do modo...', 100, null)
+        return
+      }
+
       setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 75, null)
       try {
         // On startup, allow model download so auto-start can reach ready state.

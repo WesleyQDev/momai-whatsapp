@@ -106,7 +106,9 @@ function getCurrentTier(): AITier {
   try {
     if (existsSync(storePath)) {
       const data = JSON.parse(readFileSync(storePath, 'utf-8'))
-      return data.settings?.ai_tier || 'pro'
+      const tier = data.settings?.ai_tier
+      if (tier === 'lite' || tier === 'pro' || tier === 'ultra') return tier
+      return 'pro' // Default safe for existing users
     }
   } catch (e) {
     logger.warn('[PythonManager] Error reading tier from store:', e)
@@ -158,7 +160,7 @@ interface SyncResult {
   lastChecked?: number
 }
 
-function isOnboardingCompleted(): boolean {
+export function isOnboardingCompleted(): boolean {
   try {
     if (existsSync(ONBOARDING_FILE)) {
       const data = JSON.parse(readFileSync(ONBOARDING_FILE, 'utf8'))
@@ -549,8 +551,9 @@ async function checkVenvHealth(pythonExe: string, corePath: string): Promise<boo
   // 2) Required deps check (first run can legitimately miss these before uv pip install)
   const depsProbeScript = [
     'import os, re, sys, tomllib',
-    'import importlib.metadata as md',
-    'required_default = ["python-dotenv", "fastapi", "uvicorn", "sqlalchemy", "faster-whisper", "kokoro-onnx"]',
+    'md = __import__("importlib.metadata", fromlist=["version"])',
+    `required_default = ["python-dotenv", "fastapi", "uvicorn", "sqlalchemy", "${getCurrentTier() === 'ultra' ? 'faster-whisper' : ''}", "kokoro-onnx"]`,
+    'required_default = [d for d in required_default if d]',
     'dist_names = []',
     'try:',
     '    pyproject = os.path.join(sys.argv[1], "pyproject.toml")',
@@ -1175,9 +1178,20 @@ async function bootstrapPython(targetTier?: AITier): Promise<BootstrapResult | B
       }
 
       // Tier-based package selection
-      if (tier === 'pro') {
-        logger.info('[Bootstrap] Modo Pro: Instalando apenas dependências de Voz (TTS).')
-        installArgs.splice(installArgs.indexOf(writableCorePath), 1) // Remove core install
+      // Ultra uses the same base as Pro (Phase 1), then adds STT packages in Phase 2
+      if (tier === 'pro' || tier === 'ultra') {
+        const isUltra = tier === 'ultra'
+        logger.info(
+          `[Bootstrap] Modo ${tier.toUpperCase()}: Instalando dependências de Voz (TTS${isUltra ? ' + STT' : ''}).`
+        )
+        // Remove core package install and use individual packages instead
+        const coreIdx = installArgs.indexOf(writableCorePath)
+        if (coreIdx !== -1) installArgs.splice(coreIdx, 1)
+        // Also remove editable install if present
+        const editIdx = installArgs.indexOf('-e')
+        if (editIdx !== -1 && installArgs[editIdx + 1] === writableCorePath) {
+          installArgs.splice(editIdx, 2)
+        }
         installArgs.push(
           'fastapi[standard]',
           'huggingface-hub',
@@ -1186,9 +1200,14 @@ async function bootstrapPython(targetTier?: AITier): Promise<BootstrapResult | B
           'psutil',
           'sounddevice',
           'kokoro-onnx',
+          'sqlalchemy',
           'python-dotenv',
           'onnxruntime'
         )
+
+        if (isUltra) {
+          installArgs.push('faster-whisper', 'ctranslate2')
+        }
       }
 
       const pipPythonDir = findBundledPythonDir() || findManagedPythonDir()
