@@ -576,8 +576,14 @@ class TTSManager:
 
     @staticmethod
     def _strip_markdown(text: str) -> str:
-        """Remove markdown formatting so TTS reads clean text."""
+        """Remove markdown formatting and emojis so TTS reads clean text."""
         s = text
+        # Remove emojis
+        # This pattern matches most emojis in the Unicode range
+        # Note: We keep punctuation and alphanumeric (including accented)
+        s = re.sub(r'[\U00010000-\U0010ffff]', '', s)
+        
+        # Remove markdown
         s = re.sub(r"```[\s\S]*?```", "", s)
         s = re.sub(r"`([^`]+)`", r"\1", s)
         s = re.sub(r"^#{1,6}\s+", "", s, flags=re.MULTILINE)

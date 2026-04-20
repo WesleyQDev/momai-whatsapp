@@ -1,7 +1,7 @@
 import { RefObject, JSX, useState, useEffect, useMemo, useRef } from 'react'
 import { MessageList, ChatInput, LoadingAnimation } from './chat'
 import { Message, StatusData, SettingsData, fetchSettings, listMemoryNotes } from '../services/api'
-import { cleanMomaiActions } from '../utils/text'
+import { cleanMomaiActions, stripMarkdown } from '../utils/text'
 import { WelcomeHeader, WelcomeActions } from './chat/WelcomeTips'
 import { useI18n } from '../i18n'
 
@@ -182,7 +182,7 @@ const CallModeContent = ({
       return
     }
 
-    const content = lastAssistant.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()
+    const content = stripMarkdown(lastAssistant.content)
     const words = content.split(/\s+/)
 
     // Detect if this is a NEW message (not just a streaming update)
@@ -244,7 +244,7 @@ const CallModeContent = ({
             <div className="flex flex-col items-center animate-in fade-in duration-700">
               <span className="text-[8px] font-black tracking-[0.4em] text-white/20 uppercase mb-2">Entrada de Voz</span>
               <p className="text-center text-sm text-white/80 font-medium italic leading-relaxed px-12 opacity-60">
-                "{lastUser.content.replace(/__MOMAI_ACTIONS__[\s\S]*$/, '').trim()}"
+                "{stripMarkdown(lastUser.content)}"
               </p>
             </div>
           )
