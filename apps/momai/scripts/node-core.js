@@ -350,7 +350,8 @@ function appendMessage(threadId, role, content, extras = {}) {
     sources: extras.sources ? JSON.stringify(extras.sources) : null,
     snippets: extras.snippets ? JSON.stringify(extras.snippets) : null,
     cards: extras.cards ? JSON.stringify(extras.cards) : null,
-    graph_data: extras.graph_data || null
+    graph_data: extras.graph_data || null,
+    structured_response: extras.structured_response ? JSON.stringify(extras.structured_response) : null
   }
   messages.push(item)
   saveStore()
@@ -2609,6 +2610,7 @@ async function streamLlamaChat(req, res, payload) {
   })
 
   let assembled = ''
+  let bufferedStructuredResponse = null
   let ttsCursor = 0
   let ttsChain = Promise.resolve()
   const prebufferChars = Math.max(40, Number(store.settings.prebuffer_chars || 90))
@@ -2811,7 +2813,9 @@ async function streamLlamaChat(req, res, payload) {
                 runtimeContext
               )
               const toolResultText = result?.instruction || JSON.stringify(result || {})
-              if (result?.directResponse) {
+              if (result?.structuredResponse) {
+                bufferedStructuredResponse = result.structuredResponse
+              } else if (result?.directResponse) {
                 assembled += `\n${result.directResponse}`
                 for (const token of splitTokens(result.directResponse)) {
                   writeSse(res, { token })
@@ -2879,9 +2883,13 @@ async function streamLlamaChat(req, res, payload) {
       graph_data:
         activeSkill || toolSteps.length
           ? { active_skill: activeSkill, tool_steps: toolSteps }
-          : null
+          : null,
+      structured_response: bufferedStructuredResponse || undefined
     })
     flushTtsChunks(true)
+    if (bufferedStructuredResponse) {
+      writeSse(res, { structured_response: bufferedStructuredResponse })
+    }
     writeSse(res, { done: true })
     res.end()
   } catch (error) {

@@ -3,22 +3,26 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Message } from '../../services/api'
 import { cleanMomaiActions } from '../../utils/text'
-
-// Helper to clean markdown and technical tags from snippets/titles for a cleaner UI
-const cleanUIMetadata = (text: string) => {
-  if (!text) return ''
-  return text
-    .replace(/[#*`_~>\[\]\(\)]/g, '') // Remove markdown symbols
-    .replace(/Nota:/i, '')            // Remove redundant 'Nota:'
-    .replace(/\s+/g, ' ')            // Normalize spaces
-    .trim()
-}
 import icon from '../../assets/icon.png'
 import { DocumentTextIcon, ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { ExtrasRenderer } from './ExtrasRenderer'
 import MessageContextMenu from './MessageContextMenu'
 import { useI18n } from '../../i18n'
 import { DynamicRenderer } from '../DynamicRenderer'
+import { registerRenderer } from './SkillResponseRegistry'
+import WeatherCard from './WeatherCard'
+import StructuredResponseRenderer from './StructuredResponseRenderer'
+
+registerRenderer('weather', WeatherCard)
+
+const cleanUIMetadata = (text: string) => {
+  if (!text) return ''
+  return text
+    .replace(/[#*`_~>[\]()]/g, '')
+    .replace(/Nota:/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 export const humanizeToolName = (name: string) => {
   const lower = (name || '').toLowerCase()
@@ -28,7 +32,7 @@ export const humanizeToolName = (name: string) => {
   if (lower.includes('os') || lower.includes('shell')) return 'Sistema OS'
   if (lower.includes('browser') || lower.includes('navigate')) return 'Navegador'
   if (lower.includes('youtube')) return 'YouTube'
-  
+
   // Try to capitalize the first letter if we fallback
   const fallback = name || 'Ferramenta'
   return fallback.charAt(0).toUpperCase() + fallback.slice(1)
@@ -37,7 +41,7 @@ export const humanizeToolName = (name: string) => {
 const CodeBlock = ({ children, className }: any) => {
   const [copied, setCopied] = useState(false)
   const code = String(children?.props?.children || children || '').replace(/\n$/, '')
-  
+
   const onCopy = () => {
     if (!code) return
     navigator.clipboard.writeText(code)
@@ -52,202 +56,21 @@ const CodeBlock = ({ children, className }: any) => {
           onClick={onCopy}
           className="p-2 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 text-white/70 hover:text-white transition-all backdrop-blur-sm"
         >
-          {copied ? <CheckIcon className="w-4 h-4 text-green-400" /> : <ClipboardIcon className="w-4 h-4" />}
+          {copied ? (
+            <CheckIcon className="w-4 h-4 text-green-400" />
+          ) : (
+            <ClipboardIcon className="w-4 h-4" />
+          )}
         </button>
       </div>
-      <pre className={className}>
-        {children}
-      </pre>
-    </div>
-  )
-}
-
-type WeatherRow = {
-  day: string
-  condition: string
-  min: string
-  max: string
-  emoji: string
-}
-
-type WeatherTableModel = {
-  title: string
-  rows: WeatherRow[]
-}
-
-const normalizeWeatherHeader = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-
-const parseMarkdownRow = (line: string): string[] => {
-  const trimmed = line.trim()
-  if (!trimmed.startsWith('|')) return []
-  return trimmed
-    .slice(1, trimmed.endsWith('|') ? -1 : undefined)
-    .split('|')
-    .map((cell) => cell.trim())
-}
-
-const emojiForCondition = (condition: string): string => {
-  const text = String(condition || '').toLowerCase()
-  if (text.includes('tempest')) return '⛈️'
-  if (text.includes('chuva')) return '🌧️'
-  if (text.includes('garoa') || text.includes('pancada')) return '🌦️'
-  if (text.includes('neve')) return '🌨️'
-  if (text.includes('neblina') || text.includes('nevoa')) return '🌫️'
-  if (text.includes('nublado')) return '☁️'
-  if (text.includes('parcial')) return '⛅'
-  if (text.includes('sol') || text.includes('ceu limpo')) return '☀️'
-  return '🌡️'
-}
-
-const findHeaderIndex = (normalizedCells: string[], patterns: string[]) => {
-  for (const pattern of patterns) {
-    const idx = normalizedCells.findIndex((cell) => cell.includes(pattern))
-    if (idx >= 0) return idx
-  }
-  return -1
-}
-
-const parseWeatherMarkdown = (content: string): WeatherTableModel | null => {
-  const lines = String(content || '').split(/\r?\n/)
-  const titleLine = lines.find((line) => /^#{1,3}\s+previs[aã]o do tempo/i.test(line.trim()))
-
-  const tableLines = lines.filter((line) => line.trim().startsWith('|'))
-  if (tableLines.length < 3) return null
-
-  const header = parseMarkdownRow(tableLines[0])
-  const normalizedHeader = header.map(normalizeWeatherHeader)
-
-  const dayIdx = findHeaderIndex(normalizedHeader, ['dia', 'date', 'day'])
-  const conditionIdx = findHeaderIndex(normalizedHeader, ['condicao', 'condi', 'condition', 'clima', 'status', 'desc'])
-  const minIdx = findHeaderIndex(normalizedHeader, ['min', 'minima', 'lowest', 'baixa'])
-  const maxIdx = findHeaderIndex(normalizedHeader, ['max', 'maxima', 'highest', 'alta'])
-  let emojiIdx = findHeaderIndex(normalizedHeader, ['emoji', 'icon', 'icone', 'icone'])
-
-  if (emojiIdx < 0 && header.length >= 5) {
-    emojiIdx = header.length - 1
-  }
-
-  if ([dayIdx, conditionIdx, minIdx, maxIdx].some((idx) => idx < 0)) return null
-
-  const rows = tableLines
-    .slice(2)
-    .map(parseMarkdownRow)
-    .filter((cells) => cells.length >= Math.max(4, Math.max(dayIdx, conditionIdx, minIdx, maxIdx, emojiIdx) + 1))
-    .map((cells) => {
-      const condition = cells[conditionIdx] || 'N/D'
-      const incomingEmoji = emojiIdx >= 0 && emojiIdx < cells.length ? cells[emojiIdx] || '' : ''
-      return {
-        day: cells[dayIdx] || 'N/D',
-        condition,
-        min: cells[minIdx] || 'N/D',
-        max: cells[maxIdx] || 'N/D',
-        emoji: incomingEmoji || emojiForCondition(condition)
-      }
-    })
-
-  if (!rows.length) return null
-
-  return {
-    title: titleLine ? titleLine.replace(/^#{1,3}\s*/, '').trim() : 'Previsao do tempo',
-    rows: rows.slice(0, 7)
-  }
-}
-
-const conditionBadgeClass = (condition: string): string => {
-  const text = String(condition || '').toLowerCase()
-  if (text.includes('tempest')) return 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-500/20 dark:text-violet-200 dark:border-violet-400/30'
-  if (text.includes('chuva')) return 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-500/20 dark:text-sky-200 dark:border-sky-400/30'
-  if (text.includes('garoa') || text.includes('pancada')) return 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-500/20 dark:text-cyan-200 dark:border-cyan-400/30'
-  if (text.includes('neve')) return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-500/20 dark:text-blue-200 dark:border-blue-400/30'
-  if (text.includes('neblina') || text.includes('nevoa')) return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-500/20 dark:text-slate-200 dark:border-slate-400/30'
-  if (text.includes('nublado')) return 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-500/20 dark:text-zinc-200 dark:border-zinc-400/30'
-  if (text.includes('parcial')) return 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-500/20 dark:text-amber-200 dark:border-amber-400/30'
-  if (text.includes('sol') || text.includes('ceu limpo')) return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-100 dark:border-yellow-400/30'
-  return 'bg-neutral-100 text-neutral-700 border-neutral-200 dark:bg-neutral-500/20 dark:text-neutral-200 dark:border-neutral-400/30'
-}
-
-const WeatherForecastTable = ({ model }: { model: WeatherTableModel }) => {
-  const today = model.rows[0]
-  const rest = model.rows.slice(1)
-
-  const extractTemp = (val: string) => {
-    const match = val.match(/[\d]+/)
-    return match ? match[0] : val.replace(/[^\d]/g, '')
-  }
-
-  return (
-    <div className="my-3 rounded-2xl border border-border/20 bg-zinc-900 dark:bg-zinc-900/90 text-white overflow-hidden shadow-xl">
-      {/* Header - Location */}
-      <div className="px-5 pt-4 pb-2">
-        <h4 className="m-0 text-[14px] font-semibold text-white/90">{model.title}</h4>
-      </div>
-
-      {/* Today's main display */}
-      {today && (
-        <div className="px-5 pb-3">
-          <div className="flex items-center gap-4">
-            <span className="text-[48px] leading-none">{today.emoji}</span>
-            <div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-[48px] font-light leading-none tracking-tight">{extractTemp(today.max)}</span>
-                <span className="text-[20px] text-white/50 font-light">°C</span>
-              </div>
-              <div className="text-[16px] text-white/80 font-medium mt-0.5">{today.condition}</div>
-              <div className="flex items-center gap-3 mt-1.5 text-[12px] text-white/50">
-                <span>Máx: {today.max}</span>
-                <span>Mín: {today.min}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Divider */}
-      <div className="mx-5 border-t border-white/10" />
-
-      {/* Forecast row - horizontally scrollable */}
-      {rest.length > 0 && (
-        <div className="overflow-x-auto scrollbar-thin">
-          <div className="flex items-stretch min-w-max">
-            {rest.map((row, idx) => (
-              <div
-                key={`${row.day}-${idx}`}
-                className="flex flex-col items-center gap-2 px-5 py-4 min-w-[80px] border-r border-white/5 last:border-r-0"
-              >
-                <span className="text-[12px] font-medium text-white/60 whitespace-nowrap">{row.day}</span>
-                <span className="text-[28px] leading-none">{row.emoji}</span>
-                <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-[13px] font-semibold text-white/90">{extractTemp(row.max)}°</span>
-                  <span className="text-[11px] text-white/40">{extractTemp(row.min)}°</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="px-5 py-2.5 border-t border-white/5">
-        <span className="text-[10px] text-white/30">MomAI Weather</span>
-      </div>
+      <pre className={className}>{children}</pre>
     </div>
   )
 }
 
 const Markdown = ({ children, components = {} }: { children: string; components?: any }) => {
-  const weatherModel = useMemo(() => parseWeatherMarkdown(children), [children])
-
-  if (weatherModel) {
-    return <WeatherForecastTable model={weatherModel} />
-  }
-
   return (
-    <div 
+    <div
       className={`prose prose-zinc dark:prose-invert max-w-none 
                  prose-p:leading-[1.6] prose-p:text-[15px] prose-p:text-zinc-800 dark:prose-p:text-zinc-300 prose-p:!m-0 prose-p:!mb-1
                  prose-pre:p-0 prose-pre:bg-transparent prose-pre:m-0
@@ -264,50 +87,56 @@ const Markdown = ({ children, components = {} }: { children: string; components?
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-      components={{
-        pre: ({ node, ...props }) => <CodeBlock {...props} />,
-        code: ({ node, inline, className, children, ...props }: any) => {
-          if (inline) {
+        components={{
+          pre: ({ node, ...props }) => <CodeBlock {...props} />,
+          code: ({ node, inline, className, children, ...props }: any) => {
+            if (inline) {
+              return (
+                <code
+                  className="bg-zinc-100 dark:bg-white/10 text-red-500 dark:text-red-400 px-1.5 py-0.5 rounded-[4px] font-mono text-[13px] tracking-tight mx-0.5"
+                  {...props}
+                >
+                  {children}
+                </code>
+              )
+            }
             return (
-              <code 
-                className="bg-zinc-100 dark:bg-white/10 text-red-500 dark:text-red-400 px-1.5 py-0.5 rounded-[4px] font-mono text-[13px] tracking-tight mx-0.5" 
-                {...props}
-              >
+              <code className={className} {...props}>
                 {children}
               </code>
             )
-          }
-          return <code className={className} {...props}>{children}</code>
-        },
-        table: ({ node, ...props }) => (
-          <div className="overflow-x-auto my-4 scrollbar-thin rounded-lg border border-border/20">
-            <table
-              className="min-w-full border-collapse overflow-hidden font-sans"
+          },
+          table: ({ node, ...props }) => (
+            <div className="overflow-x-auto my-4 scrollbar-thin rounded-lg border border-border/20">
+              <table className="min-w-full border-collapse overflow-hidden font-sans" {...props} />
+            </div>
+          ),
+          thead: ({ node, ...props }) => (
+            <thead className="bg-zinc-50 dark:bg-white/5 border-b border-border/20" {...props} />
+          ),
+          th: ({ node, ...props }) => (
+            <th
+              className="px-4 py-3 text-left text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider"
               {...props}
             />
-          </div>
-        ),
-        thead: ({ node, ...props }) => <thead className="bg-zinc-50 dark:bg-white/5 border-b border-border/20" {...props} />,
-        th: ({ node, ...props }) => (
-          <th
-            className="px-4 py-3 text-left text-[11px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider"
-            {...props}
-          />
-        ),
-        td: ({ node, ...props }) => (
-          <td
-            className="px-4 py-3 text-[14px] text-zinc-700 dark:text-zinc-300 border-b border-border/10 last:border-0"
-            {...props}
-          />
-        ),
-        tr: ({ node, ...props }) => (
-          <tr className="hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors" {...props} />
-        ),
-        ...components
-      }}
-    >
-      {children}
-    </ReactMarkdown>
+          ),
+          td: ({ node, ...props }) => (
+            <td
+              className="px-4 py-3 text-[14px] text-zinc-700 dark:text-zinc-300 border-b border-border/10 last:border-0"
+              {...props}
+            />
+          ),
+          tr: ({ node, ...props }) => (
+            <tr
+              className="hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors"
+              {...props}
+            />
+          ),
+          ...components
+        }}
+      >
+        {children}
+      </ReactMarkdown>
     </div>
   )
 }
@@ -358,15 +187,16 @@ const MessageItem = memo(function MessageItem({
     if (!message.toolSteps) return
 
     const activeSegments: Record<number, boolean> = {}
-    
+
     // Check each segment individually
     const segments = new Set(message.toolSteps.map((s: any) => s.segment || 0))
-    
+
     segments.forEach((segmentIdx: number) => {
       const segmentSteps = message.toolSteps!.filter((s: any) => (s.segment || 0) === segmentIdx)
       const hasRunningStep = segmentSteps.some((s: any) => s.status === 'running')
-      const isWaitingForFirstText = isLoading && (!message.content || message.content.length === 0) && segmentIdx === 0
-      
+      const isWaitingForFirstText =
+        isLoading && (!message.content || message.content.length === 0) && segmentIdx === 0
+
       activeSegments[segmentIdx] = hasRunningStep || isWaitingForFirstText
     })
 
@@ -374,9 +204,9 @@ const MessageItem = memo(function MessageItem({
 
     // Schedule clearing active state for segments that just finished
     const timer = setTimeout(() => {
-      setToolsActive(prev => {
+      setToolsActive((prev) => {
         const next = { ...prev }
-        Object.keys(next).forEach(k => {
+        Object.keys(next).forEach((k) => {
           if (!activeSegments[Number(k)]) {
             next[Number(k)] = false
           }
@@ -384,7 +214,7 @@ const MessageItem = memo(function MessageItem({
         return next
       })
     }, 3000)
-    
+
     return () => clearTimeout(timer)
   }, [message.toolSteps, isLoading, message.content])
 
@@ -432,7 +262,7 @@ const MessageItem = memo(function MessageItem({
         }
         document.body.removeChild(textArea)
       }
-      
+
       setIsCopied(true)
       setTimeout(() => setIsCopied(false), 2000)
     } catch (err) {
@@ -499,9 +329,12 @@ const MessageItem = memo(function MessageItem({
           ? toolTraceText
           : message.content
   const optionsMap = message.graphData?.optionsMap || message.graphData?.options_map || {}
-  const toolSteps = Array.isArray(message.toolSteps) && message.toolSteps.length > 0 
-    ? message.toolSteps 
-    : (Array.isArray(toolTrace?.steps) ? toolTrace.steps : [])
+  const toolSteps =
+    Array.isArray(message.toolSteps) && message.toolSteps.length > 0
+      ? message.toolSteps
+      : Array.isArray(toolTrace?.steps)
+        ? toolTrace.steps
+        : []
   const filteredActivities = (message.activities || []).filter(
     (a) => !a.toLowerCase().includes('running capability')
   )
@@ -512,13 +345,16 @@ const MessageItem = memo(function MessageItem({
 
   const unifiedSteps = useMemo(() => {
     const rawSteps: any[] = []
-    
+
     // First, map Memory from activities
-    const memoryActivities = displayActivities.filter(a => a.toLowerCase().includes('memória:'))
+    const memoryActivities = displayActivities.filter((a) => a.toLowerCase().includes('memória:'))
     memoryActivities.forEach((act, originalIdx) => {
       rawSteps.push({
         isMemory: true,
-        name: act.replace(/memória:/i, '').replace(/\.\.\.$/, '').trim(),
+        name: act
+          .replace(/memória:/i, '')
+          .replace(/\.\.\.$/, '')
+          .trim(),
         originalIdx,
         status: 'done',
         segment: 0
@@ -529,7 +365,7 @@ const MessageItem = memo(function MessageItem({
     toolSteps.forEach((step, originalIdx) => {
       let isSkill = false
       let displayName = String(step.name || 'tool')
-      
+
       if (displayName === 'activate_skill') {
         isSkill = true
         try {
@@ -563,7 +399,12 @@ const MessageItem = memo(function MessageItem({
       }
       const last = grouped[grouped.length - 1]
       // Condition to group
-      if (!item.isMemory && !last.isMemory && item.name === last.name && item.segment === last.segment) {
+      if (
+        !item.isMemory &&
+        !last.isMemory &&
+        item.name === last.name &&
+        item.segment === last.segment
+      ) {
         last.count += 1
         last.usages.push(item.step)
         // update status to running if any is running
@@ -572,7 +413,7 @@ const MessageItem = memo(function MessageItem({
         grouped.push({ ...item, count: 1, usages: item.isMemory ? [] : [item.step] })
       }
     }
-    
+
     return grouped
   }, [displayActivities, toolSteps])
 
@@ -592,24 +433,24 @@ const MessageItem = memo(function MessageItem({
     while ((match = thinkRegex.exec(text)) !== null) {
       thoughts.push(match[1].trim())
     }
-    
+
     cleanText = text.replace(thinkRegex, '').trim()
     return { thoughts, cleanText }
   }
 
   const textParts = hasMarker ? displayContentStr.split(ACTION_MARKER) : [displayContentStr]
-  
+
   // Process each part for thinking tags
-  const processedParts = textParts.map(part => processThinkTags(part))
-  
+  const processedParts = textParts.map((part) => processThinkTags(part))
+
   const introData = processedParts[0]
   const introText = introData?.cleanText
   const introThoughts = introData?.thoughts || []
-  
+
   const finalResponseData = hasMarker ? processedParts[1] : null
   const finalResponseText = finalResponseData?.cleanText || ''
   const finalResponseThoughts = finalResponseData?.thoughts || []
-  
+
   const allThoughts = [...introThoughts, ...finalResponseThoughts]
 
   const isFinalizing = (message.activities || []).some((a) =>
@@ -639,8 +480,6 @@ const MessageItem = memo(function MessageItem({
       setRevealedSources(message.sources.length)
     }
   }, [message.sources, isLoading])
-
-
 
   // Track start time for running steps
   useEffect(() => {
@@ -710,7 +549,6 @@ const MessageItem = memo(function MessageItem({
     }
     return ''
   }
-
 
   return (
     <div
@@ -811,16 +649,18 @@ const MessageItem = memo(function MessageItem({
             const isLastPart = segmentIdx === processedParts.length - 1
             const hasSegmentData = segmentSteps.length > 0
             const showLoadingStatus = isLastPart && isLoading && !toolsFinished
-            const hasGlobalExtras = isLastPart && (message.snippets?.length || message.cards?.length)
+            const hasGlobalExtras =
+              isLastPart && (message.snippets?.length || message.cards?.length)
             const hasSources = isLastPart && message.sources && message.sources.length > 0
-            const showActionsContainer = message.role === 'assistant' && (hasSegmentData || showLoadingStatus || hasSources || hasGlobalExtras)
+            const showActionsContainer =
+              message.role === 'assistant' &&
+              (hasSegmentData || showLoadingStatus || hasSources || hasGlobalExtras)
 
             return (
               <React.Fragment key={`segment-${segmentIdx}`}>
                 {/* 1. Bloco de Ações para este segmento (Agora em cima) */}
                 {showActionsContainer && (
                   <div className="flex flex-col gap-0.5 mb-1">
-                    
                     {/* Render Extras (Snippets/Cards) - Only on the first segment or if it's the only one */}
                     {hasGlobalExtras && (
                       <div className="mt-2 text-zinc-800 dark:text-zinc-200">
@@ -833,18 +673,29 @@ const MessageItem = memo(function MessageItem({
                     )}
 
                     {/* Status de Execução Genérico */}
-                    {showLoadingStatus && !hasSegmentData && (
+                    {showLoadingStatus &&
+                      !hasSegmentData &&
                       (() => {
-                        const searchActivity = displayActivities.find((a) => a.toLowerCase().includes('buscando'))
-                        const toolActivity = displayActivities.find((a) => a.toLowerCase().includes('chamando'))
-                        const label = searchActivity ? 'Buscando...' : toolActivity ? toolActivity.replace(/manager: chamando ferramenta/i, '').trim() + '...' : displayActivities.length > 0 ? 'Executando...' : 'Pensando...'
+                        const searchActivity = displayActivities.find((a) =>
+                          a.toLowerCase().includes('buscando')
+                        )
+                        const toolActivity = displayActivities.find((a) =>
+                          a.toLowerCase().includes('chamando')
+                        )
+                        const label = searchActivity
+                          ? 'Buscando...'
+                          : toolActivity
+                            ? toolActivity.replace(/manager: chamando ferramenta/i, '').trim() +
+                              '...'
+                            : displayActivities.length > 0
+                              ? 'Executando...'
+                              : 'Pensando...'
                         return (
                           <div className="flex items-center gap-1.5 mt-1 min-h-[16px]">
                             <span className="text-[13px] text-zinc-400 animate-pulse">{label}</span>
                           </div>
                         )
-                      })()
-                    )}
+                      })()}
 
                     {/* Lista de Ações (Tools e Memória em blocos separados) */}
                     {hasSegmentData && (
@@ -852,7 +703,7 @@ const MessageItem = memo(function MessageItem({
                         {(() => {
                           const memSteps = segmentSteps.filter((s: any) => s.isMemory)
                           const tSteps = segmentSteps.filter((s: any) => !s.isMemory)
-                          
+
                           return (
                             <>
                               {/* BLOCO DE MEMÓRIA */}
@@ -860,7 +711,12 @@ const MessageItem = memo(function MessageItem({
                                 <div className="flex flex-col">
                                   <button
                                     type="button"
-                                    onClick={() => setMemoryBlockExpanded(prev => ({ ...prev, [segmentIdx]: !prev[segmentIdx] }))}
+                                    onClick={() =>
+                                      setMemoryBlockExpanded((prev) => ({
+                                        ...prev,
+                                        [segmentIdx]: !prev[segmentIdx]
+                                      }))
+                                    }
                                     className="flex items-center gap-2 text-[15px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors self-start mb-0.5"
                                   >
                                     <span>Analisando o sistema de notas</span>
@@ -877,12 +733,17 @@ const MessageItem = memo(function MessageItem({
                                     </svg>
                                   </button>
 
-                                  <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out origin-top ${memoryBlockExpanded[segmentIdx] ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                                  <div
+                                    className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out origin-top ${memoryBlockExpanded[segmentIdx] ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+                                  >
                                     <div className="overflow-hidden">
                                       <div className="flex flex-col ml-1 relative">
                                         <div className="absolute left-[7px] top-4 bottom-6 w-[2px] bg-zinc-200 dark:bg-white/10 rounded-full"></div>
                                         {memSteps.map((group, idx) => (
-                                          <div key={`mem-${segmentIdx}-${idx}`} className="flex items-start gap-4 mb-5 relative group z-10 animate-in fade-in duration-300">
+                                          <div
+                                            key={`mem-${segmentIdx}-${idx}`}
+                                            className="flex items-start gap-4 mb-5 relative group z-10 animate-in fade-in duration-300"
+                                          >
                                             <div className="mt-0.5 w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 bg-card border border-purple-300 dark:border-purple-500/50 text-purple-500 z-10">
                                               <DocumentTextIcon className="w-2.5 h-2.5" />
                                             </div>
@@ -904,13 +765,22 @@ const MessageItem = memo(function MessageItem({
                                 {tSteps.length > 0 && (
                                   <button
                                     type="button"
-                                    onClick={() => setToolsBlockExpanded(prev => ({ ...prev, [segmentIdx]: !prev[segmentIdx] }))}
+                                    onClick={() =>
+                                      setToolsBlockExpanded((prev) => ({
+                                        ...prev,
+                                        [segmentIdx]: !prev[segmentIdx]
+                                      }))
+                                    }
                                     className="flex items-center gap-2 text-[15px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors self-start mb-0.5"
                                   >
                                     <span>
                                       {(() => {
-                                        const isRunning = tSteps.some((s: any) => s.status === 'running')
-                                        const skillName = message.activeSkill ? ` usando ${humanizeToolName(message.activeSkill)}` : ''
+                                        const isRunning = tSteps.some(
+                                          (s: any) => s.status === 'running'
+                                        )
+                                        const skillName = message.activeSkill
+                                          ? ` usando ${humanizeToolName(message.activeSkill)}`
+                                          : ''
                                         const count = tSteps.length
                                         const verb = isRunning ? 'Executando' : 'Executou'
                                         return `${verb} ${count} comando${count > 1 ? 's' : ''}${skillName}${isRunning ? '...' : ''}`
@@ -930,63 +800,127 @@ const MessageItem = memo(function MessageItem({
                                   </button>
                                 )}
 
-                                <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out origin-top ${toolsBlockExpanded[segmentIdx] || tSteps.some((s: any) => s.status === 'running') ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                                <div
+                                  className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out origin-top ${toolsBlockExpanded[segmentIdx] || tSteps.some((s: any) => s.status === 'running') ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+                                >
                                   <div className="overflow-hidden">
                                     <div className="flex flex-col ml-1 relative">
                                       <div className="absolute left-[7px] top-4 bottom-4 w-[2px] bg-zinc-200 dark:bg-white/10 rounded-full"></div>
-                                      
+
                                       {tSteps.map((group, idx) => (
-                                        <div key={`step-${segmentIdx}-${idx}`} className="flex items-start gap-4 mb-5 relative group z-10 animate-in fade-in duration-300">
-                                          <div className={`mt-0.5 w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 bg-card border ${group.status === 'running' ? 'border-blue-400 text-blue-500' : 'border-zinc-300 dark:border-white/20 text-zinc-500 dark:text-zinc-400'} z-10`}>
+                                        <div
+                                          key={`step-${segmentIdx}-${idx}`}
+                                          className="flex items-start gap-4 mb-5 relative group z-10 animate-in fade-in duration-300"
+                                        >
+                                          <div
+                                            className={`mt-0.5 w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 bg-card border ${group.status === 'running' ? 'border-blue-400 text-blue-500' : 'border-zinc-300 dark:border-white/20 text-zinc-500 dark:text-zinc-400'} z-10`}
+                                          >
                                             {group.status === 'running' ? (
-                                              <svg className="w-2.5 h-2.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                              <svg
+                                                className="w-2.5 h-2.5 animate-spin"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="3"
+                                              >
                                                 <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" />
                                               </svg>
                                             ) : (
-                                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                              <svg
+                                                width="10"
+                                                height="10"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2.5"
+                                              >
                                                 <polyline points="4 17 10 11 4 5"></polyline>
                                                 <line x1="12" y1="19" x2="20" y2="19"></line>
                                               </svg>
                                             )}
                                           </div>
                                           <div className="flex flex-col min-w-0 pt-[1px] w-full">
-                                            <span className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">{group.name}</span>
+                                            <span className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">
+                                              {group.name}
+                                            </span>
                                           </div>
                                         </div>
                                       ))}
 
                                       {/* Fontes integradas (Móvido para DENTRO da lista principal para visual vertical) */}
-                                      {isLastPart && message.sources && message.sources.length > 0 && (
-                                        <div className="flex items-start gap-4 mb-5 relative z-10 animate-in fade-in duration-300">
-                                          <div className="mt-0.5 w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 bg-card border border-zinc-300 dark:border-white/20 text-zinc-500 dark:text-zinc-400 z-10">
-                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                                              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                                            </svg>
+                                      {isLastPart &&
+                                        message.sources &&
+                                        message.sources.length > 0 && (
+                                          <div className="flex items-start gap-4 mb-5 relative z-10 animate-in fade-in duration-300">
+                                            <div className="mt-0.5 w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 bg-card border border-zinc-300 dark:border-white/20 text-zinc-500 dark:text-zinc-400 z-10">
+                                              <svg
+                                                width="10"
+                                                height="10"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2.5"
+                                              >
+                                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                              </svg>
+                                            </div>
+                                            <div className="flex flex-col min-w-0 pt-[1px]">
+                                              <button
+                                                type="button"
+                                                onClick={() => setOpenSources(!openSources)}
+                                                className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300 hover:text-accent flex items-center gap-1.5"
+                                              >
+                                                Fontes ({message.sources.length})
+                                                <svg
+                                                  width="8"
+                                                  height="8"
+                                                  viewBox="0 0 24 24"
+                                                  fill="none"
+                                                  stroke="currentColor"
+                                                  strokeWidth="3"
+                                                  className={`transition-transform duration-200 ${openSources ? 'rotate-180' : ''}`}
+                                                >
+                                                  <polyline points="6 9 12 15 18 9" />
+                                                </svg>
+                                              </button>
+                                              {openSources && (
+                                                <div className="mt-1 flex flex-col gap-1">
+                                                  {message.sources.map((s, idx) => (
+                                                    <a
+                                                      key={idx}
+                                                      href={s.url}
+                                                      target="_blank"
+                                                      rel="noreferrer"
+                                                      className="text-[12px] text-blue-500 hover:underline"
+                                                    >
+                                                      {cleanUIMetadata(s.title || s.url)}
+                                                    </a>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
                                           </div>
-                                          <div className="flex flex-col min-w-0 pt-[1px]">
-                                            <button type="button" onClick={() => setOpenSources(!openSources)} className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300 hover:text-accent flex items-center gap-1.5">
-                                               Fontes ({message.sources.length})
-                                               <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className={`transition-transform duration-200 ${openSources ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9" /></svg>
-                                            </button>
-                                            {openSources && (
-                                              <div className="mt-1 flex flex-col gap-1">
-                                                {message.sources.map((s, idx) => (
-                                                  <a key={idx} href={s.url} target="_blank" rel="noreferrer" className="text-[12px] text-blue-500 hover:underline">{cleanUIMetadata(s.title || s.url)}</a>
-                                                ))}
-                                              </div>
-                                            )}
-                                          </div>
-                                        </div>
-                                      )}
+                                        )}
 
                                       {/* Finalizador */}
                                       {tSteps.every((s: any) => s.status !== 'running') && (
                                         <div className="flex items-center gap-4 mt-1 relative z-10">
                                           <div className="w-[16px] h-[16px] rounded-full flex items-center justify-center flex-shrink-0 border-[1.5px] border-zinc-400 text-zinc-500 ml-[0.5px]">
-                                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                                            <svg
+                                              width="8"
+                                              height="8"
+                                              viewBox="0 0 24 24"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              strokeWidth="3"
+                                            >
+                                              <polyline points="20 6 9 17 4 12" />
+                                            </svg>
                                           </div>
-                                          <span className="text-[13px] font-bold text-zinc-700 dark:text-zinc-300">Concluído</span>
+                                          <span className="text-[13px] font-bold text-zinc-700 dark:text-zinc-300">
+                                            Concluído
+                                          </span>
                                         </div>
                                       )}
                                     </div>
@@ -998,6 +932,13 @@ const MessageItem = memo(function MessageItem({
                         })()}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* 1.5. Structured Response (from skill) */}
+                {isLastPart && message.structuredResponse && (
+                  <div className="transition-all duration-500 animate-in fade-in py-0.5">
+                    <StructuredResponseRenderer response={message.structuredResponse} />
                   </div>
                 )}
 
@@ -1016,12 +957,12 @@ const MessageItem = memo(function MessageItem({
             <div className="flex flex-col gap-3 mt-3">
               {message.graphData?.uiSchema && (
                 <div className="w-full mt-1 bg-white/[0.02] border border-white/5 p-4 rounded-xl animate-fade-in shadow-sm relative overflow-hidden">
-                  <DynamicRenderer 
-                    schema={message.graphData.uiSchema} 
+                  <DynamicRenderer
+                    schema={message.graphData.uiSchema}
                     onAction={(actionId, value) => {
                       const payload = JSON.stringify({ action: actionId, value })
                       onGraphOption(payload)
-                    }} 
+                    }}
                   />
                 </div>
               )}
@@ -1051,34 +992,36 @@ const MessageItem = memo(function MessageItem({
                   })}
                 </div>
               )}
-              {message.graphData && message.graphData.view === 'side' && message.graphData.content && (
-                <button
-                  onClick={() => onReopenGraph(message.graphData)}
-                  className="flex items-center gap-3 w-full p-3 bg-accent/5 border border-border/20 rounded-xl hover:bg-accent/10 hover:border-accent/30 transition-all group text-left cursor-pointer shadow-sm animate-fade-in mt-1"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-accent/20 flex items-center justify-center text-accent group-hover:scale-105 transition-transform flex-shrink-0">
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                    >
-                      <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
-                      <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
-                    </svg>
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-semibold text-white/90 group-hover:text-white transition-colors truncate">
-                      Interface Auxiliar Gerada
-                    </span>
-                    <span className="text-xs text-text-muted truncate">
-                      Clique para visualizar os dados de conteúdo
-                    </span>
-                  </div>
-                </button>
-              )}
+              {message.graphData &&
+                message.graphData.view === 'side' &&
+                message.graphData.content && (
+                  <button
+                    onClick={() => onReopenGraph(message.graphData)}
+                    className="flex items-center gap-3 w-full p-3 bg-accent/5 border border-border/20 rounded-xl hover:bg-accent/10 hover:border-accent/30 transition-all group text-left cursor-pointer shadow-sm animate-fade-in mt-1"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-accent/20 flex items-center justify-center text-accent group-hover:scale-105 transition-transform flex-shrink-0">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                      >
+                        <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                        <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+                      </svg>
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-semibold text-white/90 group-hover:text-white transition-colors truncate">
+                        Interface Auxiliar Gerada
+                      </span>
+                      <span className="text-xs text-text-muted truncate">
+                        Clique para visualizar os dados de conteúdo
+                      </span>
+                    </div>
+                  </button>
+                )}
 
               <div className="flex flex-col items-start gap-2">
                 <div className="flex items-center gap-2">
@@ -1091,7 +1034,11 @@ const MessageItem = memo(function MessageItem({
                         title="Copiar"
                         aria-label="Copiar resposta"
                       >
-                        {isCopied ? <CheckIcon className="w-[14px] h-[14px] text-green-500" /> : <ClipboardIcon className="w-[14px] h-[14px]" />}
+                        {isCopied ? (
+                          <CheckIcon className="w-[14px] h-[14px] text-green-500" />
+                        ) : (
+                          <ClipboardIcon className="w-[14px] h-[14px]" />
+                        )}
                       </button>
 
                       {onRetry && (
@@ -1102,7 +1049,16 @@ const MessageItem = memo(function MessageItem({
                           title="Regerar resposta"
                           aria-label="Regerar resposta"
                         >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
                             <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
                             <path d="M21 3v5h-5" />
                           </svg>
@@ -1117,7 +1073,16 @@ const MessageItem = memo(function MessageItem({
                           title="Ouvir resposta"
                           aria-label="Ouvir resposta"
                         >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
                             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
                             <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
                             <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
@@ -1134,7 +1099,16 @@ const MessageItem = memo(function MessageItem({
                         title={t('chat.report.title')}
                         aria-label={t('chat.report.title')}
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
                           <line x1="4" y1="22" x2="4" y2="15" />
                         </svg>

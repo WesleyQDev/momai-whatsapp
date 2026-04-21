@@ -300,6 +300,17 @@ export function useChatActions({
               return updated
             })
           },
+          onStructuredResponse: (response) => {
+            if (currentThreadRef.current !== messageThreadId) return
+            setMessages((prev) => {
+              const updated = [...prev]
+              const lastIdx = updated.length - 1
+              if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                updated[lastIdx] = { ...updated[lastIdx], structuredResponse: response }
+              }
+              return updated
+            })
+          },
           onDone: () => {
             if (currentThreadRef.current !== messageThreadId) return
             setIsLoading(false)

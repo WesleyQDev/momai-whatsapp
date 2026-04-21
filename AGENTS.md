@@ -125,3 +125,100 @@ pnpm format           # Prettier write
 3. **Release process**: Uses GitHub Actions (`.github/workflows/release.yml`)
 
 ---
+
+## Structured Skill Responses
+
+Skills can return rich, structured UI components instead of plain markdown text. This is the preferred approach for complex data like weather, charts, tables, etc.
+
+### How It Works
+
+```
+Skill runtime.js
+    |
+    v
+return { structuredResponse: { type: 'weather', data: {...} } }
+    |
+    v
+node-core.js streams { structured_response: {...} } via SSE
+    |
+    v
+Frontend receives via onStructuredResponse callback
+    |
+    v
+StructuredResponseRenderer dispatches to registered component
+    |
+    v
+WeatherCard (or other renderer) displays the UI
+```
+
+### Backend: Returning Structured Responses
+
+In a skill's `runtime.js`, return `structuredResponse` instead of `directResponse`:
+
+```javascript
+module.exports = {
+  tools: [{ name: 'my_tool', description: 'Does something' }],
+
+  async execute({ content, context }) {
+    // ... your logic ...
+
+    return {
+      tool: 'my_tool',
+      structuredResponse: {
+        type: 'my_type',        // Must match a registered frontend renderer
+        data: {                 // Any JSON-serializable data
+          location: 'Sao Paulo',
+          items: [...]
+        }
+      },
+      instruction: JSON.stringify(result),  // For LLM context
+      webSources: [...]
+    }
+  }
+}
+```
+
+### Frontend: Creating a New Renderer
+
+**Step 1**: Create the component in `src/renderer/src/components/chat/`:
+
+```tsx
+// MyCard.tsx
+import React from 'react'
+
+const MyCard = ({ data }) => {
+  return (
+    <div className="my-3 rounded-2xl border border-border/20 bg-zinc-900 text-white p-5">
+      <h4>{data.title}</h4>
+      {/* Your UI here */}
+    </div>
+  )
+}
+
+export default MyCard
+```
+
+**Step 2**: Register it in `MessageItem.tsx`:
+
+```tsx
+import { registerRenderer } from './SkillResponseRegistry'
+import MyCard from './MyCard'
+
+registerRenderer('my_type', MyCard)
+```
+
+The type string (`'my_type'`) must match the `type` field returned by the skill's `structuredResponse`.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `src/renderer/src/components/chat/SkillResponseRegistry.ts` | Registry for type → component mapping |
+| `src/renderer/src/components/chat/StructuredResponseRenderer.tsx` | Dispatches to the correct renderer |
+| `src/renderer/src/components/chat/WeatherCard.tsx` | Example: weather forecast card |
+| `scripts/skills/core/search/runtime.js` | Example: returns `{ type: 'weather', data: {...} }` |
+| `scripts/node-core.js` (line ~2814) | SSE streaming of `structured_response` |
+| `src/renderer/src/services/api.ts` | SSE parsing + `StructuredResponse` interface |
+| `src/renderer/src/hooks/useChatHandlers.ts` | State update for `structuredResponse` |
+
+---

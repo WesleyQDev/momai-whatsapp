@@ -9,15 +9,10 @@ intents:
   - search
   - internet
   - web
-  - clima
-  - tempo
-  - tempo em
-  - temperatura
-  - temperatura em
-  - previsão do tempo
-  - previsao do tempo
-  - weather
-  - forecast
+  - noticias
+  - news
+  - ultimas noticias
+  - o que esta acontecendo
   - Preço
   - Price
   - Dolar
@@ -33,6 +28,7 @@ Executa busca web e retorna resultados com fontes.
 ## Quando usar
 - Usuario pedir noticias recentes.
 - Usuario pedir busca aberta na internet.
+- Usuario quiser saber o que esta acontecendo no mundo.
 
 ## Comportamento
 - Execute `web_search` e sintetize com base nas fontes retornadas.

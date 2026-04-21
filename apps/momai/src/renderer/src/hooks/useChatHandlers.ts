@@ -514,6 +514,17 @@ export function useChatHandlers({
         })
       }
 
+      if (data.structured_response) {
+        setMessages((prev) => {
+          const updated = [...prev]
+          const lastIdx = findLastAssistantIndex(updated)
+          if (lastIdx >= 0) {
+            updated[lastIdx] = { ...updated[lastIdx], structuredResponse: data.structured_response }
+          }
+          return updated
+        })
+      }
+
       if (data.done) {
         setIsLoading(false)
       }

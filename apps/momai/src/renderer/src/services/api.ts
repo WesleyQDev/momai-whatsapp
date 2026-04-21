@@ -6,6 +6,11 @@ export const api = axios.create({
   baseURL: API_URL
 })
 
+export interface StructuredResponse {
+  type: string
+  data: Record<string, any>
+}
+
 export interface Message {
   id?: string
   role: 'user' | 'assistant'
@@ -25,6 +30,7 @@ export interface Message {
   cards?: Card[]
   toolSteps?: any[]
   activeSkill?: string
+  structuredResponse?: StructuredResponse
 }
 
 export interface StatusData {
@@ -51,6 +57,7 @@ export interface ChatStreamCallbacks {
   onCards?: (cards: Card[]) => void
   onToolSteps?: (steps: any[]) => void
   onActiveSkill?: (skillName: string) => void
+  onStructuredResponse?: (response: StructuredResponse) => void
 }
 
 export interface ChatMessageOptions {
@@ -144,6 +151,10 @@ export async function sendChatMessage(
           callbacks.onActiveSkill(data.active_skill)
         }
 
+        if (data.structured_response && callbacks.onStructuredResponse) {
+          callbacks.onStructuredResponse(data.structured_response)
+        }
+
         if (data.error) {
           callbacks.onError(data.error)
         }
@@ -221,7 +232,8 @@ export async function fetchChatHistory(threadId: string = 'default'): Promise<Me
     sources: msg.sources ? JSON.parse(msg.sources) : undefined,
     snippets: msg.snippets ? JSON.parse(msg.snippets) : undefined,
     cards: msg.cards ? JSON.parse(msg.cards) : undefined,
-    toolSteps: (msg.graph_data && msg.graph_data.tool_steps) ? msg.graph_data.tool_steps : undefined
+    toolSteps: (msg.graph_data && msg.graph_data.tool_steps) ? msg.graph_data.tool_steps : undefined,
+    structuredResponse: msg.structured_response ? JSON.parse(msg.structured_response) : undefined
   }))
 }
 
