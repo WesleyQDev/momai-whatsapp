@@ -39,23 +39,35 @@ interface ContainerChatProps {
 
 const CallModeUI = ({
   onEndCall,
+  onStopVoice,
   history = [],
   status = 'idle',
   isSpeaking = false
 }: {
   onEndCall: () => void
+  onStopVoice?: () => void
   history?: { id: string; role: 'user' | 'assistant'; content: string }[]
   status?: 'idle' | 'listening' | 'processing'
   isSpeaking?: boolean
-}) => <CallModeContent onEndCall={onEndCall} history={history} status={status} isSpeaking={isSpeaking} />
+}) => (
+  <CallModeContent
+    onEndCall={onEndCall}
+    onStopVoice={onStopVoice}
+    history={history}
+    status={status}
+    isSpeaking={isSpeaking}
+  />
+)
 
 const CallModeContent = ({
   onEndCall,
+  onStopVoice,
   history = [],
   status = 'idle',
   isSpeaking = false
 }: {
   onEndCall: () => void
+  onStopVoice?: () => void
   history?: { id: string; role: 'user' | 'assistant'; content: string }[]
   status?: 'idle' | 'listening' | 'processing'
   isSpeaking?: boolean
@@ -298,6 +310,21 @@ const CallModeContent = ({
 
       {/* 4. FOOTER: Actions */}
       <div className="flex items-center gap-8 relative z-20">
+        {isSpeaking && onStopVoice && (
+          <button
+            type="button"
+            onClick={onStopVoice}
+            className="group flex flex-col items-center gap-3 transition-all duration-300 active:scale-95"
+          >
+            <div className="w-12 h-12 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center group-hover:bg-accent/20 group-hover:border-accent/40 transition-all duration-500 shadow-accent-glow">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-accent group-hover:scale-110 transition-transform">
+                <rect x="6" y="6" width="12" height="12" rx="1.5" />
+              </svg>
+            </div>
+            <span className="text-[8px] font-black tracking-[0.5em] uppercase text-accent/60 group-hover:text-accent transition-colors">Parar</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onEndCall}
