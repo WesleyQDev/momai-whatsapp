@@ -443,6 +443,14 @@ export async function quickTranscribe(): Promise<QuickTranscriptionResponse> {
   return response.json()
 }
 
+export async function stopQuickTranscribe(): Promise<void> {
+  const response = await fetch(`${API_URL}/voice/stop-quick-transcribe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  })
+  if (!response.ok) throw new Error('Erro ao parar gravação')
+}
+
 // --- EXTERNAL MEMORY ---
 
 export interface NoteSummary {

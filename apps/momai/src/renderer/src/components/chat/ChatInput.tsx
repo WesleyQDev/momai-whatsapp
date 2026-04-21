@@ -3,7 +3,8 @@ import {
   StatusData,
   fetchSettings,
   updateSettingsPartial,
-  quickTranscribe
+  quickTranscribe,
+  stopQuickTranscribe
 } from '../../services/api'
 import { useI18n } from '../../i18n'
 import {
@@ -78,6 +79,7 @@ export default function ChatInput({
   })
   const [aiTier, setAiTier] = useState<string | null>(null)
   const [isQuickRecording, setIsQuickRecording] = useState(false)
+  const recordingRef = useRef(false)
   const isBrainUnavailable = statusInfo ? !statusInfo.brain_ready || statusInfo.is_loading : false
 
   const { suggestion, addToHistory, getSuggestion, clearSuggestion, acceptSuggestion } =
@@ -263,8 +265,18 @@ export default function ChatInput({
   )
 
   const handleMicClick = async () => {
-    if (isQuickRecording) return
+    if (recordingRef.current) {
+      recordingRef.current = false
+      setIsQuickRecording(false)
+      try {
+        await stopQuickTranscribe()
+      } catch (error) {
+        console.error('Erro ao parar gravação:', error)
+      }
+      return
+    }
 
+    recordingRef.current = true
     setIsQuickRecording(true)
     try {
       const result = await quickTranscribe()
@@ -275,7 +287,10 @@ export default function ChatInput({
     } catch (error) {
       console.error('Erro na transcrição rápida:', error)
     } finally {
-      setIsQuickRecording(false)
+      if (recordingRef.current) {
+        setIsQuickRecording(false)
+        recordingRef.current = false
+      }
     }
   }
 
@@ -433,7 +448,6 @@ export default function ChatInput({
                     isLoading ||
                     isModeChanging ||
                     isBrainUnavailable ||
-                    isQuickRecording ||
                     aiTier !== 'ultra'
                   }
                   className={`flex items-center justify-center rounded-full w-8 h-8 transition-all duration-200 ${

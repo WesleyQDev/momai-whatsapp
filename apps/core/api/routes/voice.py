@@ -87,11 +87,12 @@ def get_transcriber():
 
         _transcriber = QuickTranscriber(model)
 
+
     return _transcriber
 
 
 @router.post("/quick-transcribe", response_model=TranscriptionResponse)
-async def quick_transcribe():
+def quick_transcribe():
     """
     Grava áudio até detectar silêncio (~1s) e retorna a transcrição.
     Usado para input de voz rápido no chat.
@@ -107,6 +108,20 @@ async def quick_transcribe():
 
     except Exception as e:
         logger.error(f"[VoiceAPI] Quick transcribe error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/stop-quick-transcribe")
+def stop_quick_transcribe():
+    """
+    Interrompe manualmente a gravação do quick_transcribe.
+    """
+    try:
+        transcriber = get_transcriber()
+        transcriber.stop_recording()
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"[VoiceAPI] Stop quick transcribe error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

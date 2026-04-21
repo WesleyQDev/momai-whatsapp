@@ -32,6 +32,17 @@ class QuickTranscriber:
         self.min_speech_chunks = 1  # Mínimo 125ms de fala
         self.max_recording_duration = 30.0  # Máximo 30 segundos (safety)
         self.blocksize = 2000  # 125ms chunks (mais responsivo)
+        self.stop_requested = False
+        self.is_recording_active = False
+        self.stop_event = None
+
+    def stop_recording(self):
+        """Sinaliza para parar a gravação atual."""
+        if self.is_recording_active:
+            logger.info("[QuickTranscriber] Stop requested manually")
+            self.stop_requested = True
+            if self.stop_event:
+                self.stop_event.set()
 
     def _get_chunk_energy(self, chunk: np.ndarray) -> float:
         """Calcula a energia RMS de um chunk de áudio."""
@@ -39,19 +50,23 @@ class QuickTranscriber:
 
     def record_until_silence(self) -> Optional[np.ndarray]:
         """
-        Grava áudio até detectar silêncio por ~1 segundo.
+        Grava áudio até detectar silêncio por ~1 segundo ou até ser interrompido manualmente.
         Retorna o áudio gravado ou None se não houve fala suficiente.
         """
         if not HAS_SOUNDDEVICE:
             logger.warning("[QuickTranscriber] Sounddevice not available.")
             return None
+
+        self.stop_requested = False
+        self.is_recording_active = True
+        self.stop_event = threading.Event()
+
         audio_buffer = []
         silence_counter = 0
         speech_chunk_count = 0
         recorded_samples = 0
         max_samples = int(self.max_recording_duration * self.sample_rate)
-        is_recording = True
-        stop_event = threading.Event()
+        is_looping = True
         audio_queue = queue.Queue()
 
         def audio_callback(indata, frames, time_info, status):
@@ -76,7 +91,7 @@ class QuickTranscriber:
                         pass
 
                 # Verifica se deve parar
-                if stop_event.is_set():
+                if self.stop_event.is_set():
                     raise sd.CallbackStop
 
             except Exception as e:
@@ -93,9 +108,18 @@ class QuickTranscriber:
                 logger.info("[QuickTranscriber] Recording started...")
                 start_time = time.time()
 
-                while is_recording:
+                while is_looping:
+                    # Check for manual stop or stop event from callback/external
+                    if self.stop_requested or self.stop_event.is_set():
+                        logger.info("[QuickTranscriber] Interrupted by user request or event")
+                        is_looping = False
+                        self.stop_event.set()
+                        break
+
                     try:
                         # Tenta obter chunk da fila com timeout
+                        # Se self.stop_event for setado em outra thread, o self.stop_requested check acima pegará na próxima iteração
+                        # ou o áudio parará no callback.
                         chunk = audio_queue.get(timeout=0.1)
                         audio_buffer.append(chunk)
                         recorded_samples += len(chunk)
@@ -118,31 +142,36 @@ class QuickTranscriber:
                             logger.info(
                                 f"[QuickTranscriber] Silence detected, stopping..."
                             )
-                            is_recording = False
-                            stop_event.set()
+                            is_looping = False
+                            self.stop_event.set()
 
                         # Safety: para se atingir duração máxima
                         if recorded_samples >= max_samples:
                             logger.info("[QuickTranscriber] Max duration reached")
-                            is_recording = False
-                            stop_event.set()
+                            is_looping = False
+                            self.stop_event.set()
 
                     except queue.Empty:
                         # Verifica timeout global
                         if time.time() - start_time > self.max_recording_duration + 2:
                             logger.info("[QuickTranscriber] Global timeout")
-                            is_recording = False
-                            stop_event.set()
+                            is_looping = False
+                            self.stop_event.set()
                         continue
 
         except Exception as e:
             logger.error(f"[QuickTranscriber] Recording error: {e}")
             return None
         finally:
-            stop_event.set()
+            self.is_recording_active = False
+            if self.stop_event:
+                self.stop_event.set()
+            self.stop_event = None
+
 
         # Processa o resultado
-        if not audio_buffer or speech_chunk_count < self.min_speech_chunks:
+        # Se foi parado manualmente, transcrevemos o que temos mesmo que seja pouco
+        if not audio_buffer or (not self.stop_requested and speech_chunk_count < self.min_speech_chunks):
             logger.info("[QuickTranscriber] Not enough speech detected")
             return None
 
@@ -185,3 +214,4 @@ class QuickTranscriber:
         if audio is None:
             return ""
         return self.transcribe(audio)
+
