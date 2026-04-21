@@ -19,8 +19,8 @@ export function useChat() {
     setThreadId,
     isHistoryLoaded,
     setIsHistoryLoaded,
-    speakingIndex,
-    setSpeakingIndex,
+    speakingMessageId,
+    setSpeakingMessageId,
     isCallMode,
     setIsCallMode,
     voiceStatus,
@@ -39,16 +39,14 @@ export function useChat() {
     toolTraceRef
   } = chatState
 
-  // 1. Actions Hook (Needs to be defined before handlers if handlers use them, or vice-versa)
-  // To avoid circularity, we pass a dummy handleGraphOption first if needed, 
-  // but here we can just define actions first as it doesn't depend on handlers yet.
+  // 1. Actions Hook
   const actions = useChatActions({
     threadId,
     currentThreadRef,
     messagesRef,
     setMessages,
     setIsLoading,
-    setSpeakingIndex,
+    setSpeakingMessageId,
     setCallHistory,
     toolTraceRef,
     setGraphState,
@@ -62,7 +60,7 @@ export function useChat() {
   const { handleWsMessage } = useChatHandlers({
     messagesRef,
     setMessages,
-    setSpeakingIndex,
+    setSpeakingMessageId,
     setVoiceStatus,
     setVoiceEngineLoading,
     setCallHistory,
@@ -148,7 +146,7 @@ export function useChat() {
     clearHistory: actions.handleClear,
     stopCurrentGeneration: actions.stopGeneration,
     stopCurrentVoice: actions.stopVoice,
-    speakingIndex,
+    speakingMessageId,
     speakMessage: actions.speakMessage,
     removeMessage: actions.removeMessage,
     regenerateMessage: actions.regenerateMessage,

@@ -13,7 +13,7 @@ import {
 interface UseChatHandlersProps {
   messagesRef: React.MutableRefObject<Message[]>
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
-  setSpeakingIndex: React.Dispatch<React.SetStateAction<number | null>>
+  setSpeakingMessageId: React.Dispatch<React.SetStateAction<string | null>>
   setVoiceStatus: React.Dispatch<React.SetStateAction<'idle' | 'listening' | 'processing'>>
   setVoiceEngineLoading: React.Dispatch<
     React.SetStateAction<{
@@ -38,7 +38,7 @@ interface UseChatHandlersProps {
 export function useChatHandlers({
   messagesRef,
   setMessages,
-  setSpeakingIndex,
+  setSpeakingMessageId,
   setVoiceStatus,
   setVoiceEngineLoading,
   setCallHistory,
@@ -67,10 +67,18 @@ export function useChatHandlers({
     } else if (msg.type === 'set_theme') {
       window.dispatchEvent(new CustomEvent('momai_set_theme', { detail: msg.data }))
     } else if (msg.type === 'tts_start') {
-      const idx = findLastAssistantIndex(messagesRef.current)
-      setSpeakingIndex(idx >= 0 ? idx : null)
+      // Use activeMsgId if available, otherwise find the last assistant message ID
+      const activeId = toolTraceRef.current.activeMsgId
+      if (activeId) {
+        setSpeakingMessageId(activeId)
+      } else {
+        const idx = findLastAssistantIndex(messagesRef.current)
+        if (idx >= 0 && messagesRef.current[idx]?.id) {
+          setSpeakingMessageId(messagesRef.current[idx].id)
+        }
+      }
     } else if (msg.type === 'tts_stop') {
-      setSpeakingIndex(null)
+      setSpeakingMessageId(null)
     } else if (msg.type === 'voice_bands') {
       window.dispatchEvent(new CustomEvent('momai_voice_bands', { detail: msg.bands }))
     } else if (msg.type === 'voice_volume') {
@@ -390,11 +398,12 @@ export function useChatHandlers({
         }
       }
 
-      setMessages((prev) => [...prev, { role: 'user', content: msg.content }])
       const assistantMsgId = createAssistantMessageId()
       toolTraceRef.current.activeMsgId = assistantMsgId
+
       setMessages((prev) => [
         ...prev,
+        { role: 'user', content: msg.content },
         { id: assistantMsgId, role: 'assistant', content: '...' }
       ])
       setIsLoading(true)
@@ -532,7 +541,7 @@ export function useChatHandlers({
   }, [
     messagesRef,
     setMessages,
-    setSpeakingIndex,
+    setSpeakingMessageId,
     setVoiceStatus,
     setVoiceEngineLoading,
     setCallHistory,

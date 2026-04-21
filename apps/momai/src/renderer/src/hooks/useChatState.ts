@@ -15,7 +15,7 @@ export function useChatState() {
   const [isLoading, setIsLoading] = useState(false)
   const [threadId, setThreadId] = useState(() => `sessao_${Date.now()}`)
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false)
-  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null)
   const [isCallMode, setIsCallMode] = useState(false)
   const [voiceStatus, setVoiceStatus] = useState<'idle' | 'listening' | 'processing'>('idle')
   const [voiceEngineLoading, setVoiceEngineLoading] = useState<{
@@ -71,8 +71,8 @@ export function useChatState() {
     setThreadId,
     isHistoryLoaded,
     setIsHistoryLoaded,
-    speakingIndex,
-    setSpeakingIndex,
+    speakingMessageId,
+    setSpeakingMessageId,
     isCallMode,
     setIsCallMode,
     voiceStatus,

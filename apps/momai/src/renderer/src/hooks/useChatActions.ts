@@ -21,7 +21,7 @@ interface UseChatActionsProps {
   messagesRef: React.MutableRefObject<Message[]>
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>
-  setSpeakingIndex: React.Dispatch<React.SetStateAction<number | null>>
+  setSpeakingMessageId: React.Dispatch<React.SetStateAction<string | null>>
   setCallHistory: React.Dispatch<React.SetStateAction<any[]>>
   toolTraceRef: React.MutableRefObject<any>
   setGraphState: React.Dispatch<React.SetStateAction<any>>
@@ -37,7 +37,7 @@ export function useChatActions({
   messagesRef,
   setMessages,
   setIsLoading,
-  setSpeakingIndex,
+  setSpeakingMessageId,
   setCallHistory,
   toolTraceRef,
   setGraphState,
@@ -106,9 +106,9 @@ export function useChatActions({
     } catch (err) {
       console.error('Erro ao parar voz:', err)
     } finally {
-      setSpeakingIndex(null)
+      setSpeakingMessageId(null)
     }
-  }, [setSpeakingIndex])
+  }, [setSpeakingMessageId])
 
   const sendMessage = useCallback(
     async (content: string, isSilent: boolean = false, skipUserMessage: boolean = false) => {
@@ -116,7 +116,7 @@ export function useChatActions({
 
       // Stop any ongoing TTS and clear speaking state when sending a new message
       await stopVoiceApi().catch(() => {})
-      setSpeakingIndex(null)
+      setSpeakingMessageId(null)
 
       if (!isSilent && !skipUserMessage) {
         const userMessage: Message = { role: 'user', content }
@@ -353,7 +353,7 @@ export function useChatActions({
 
   const handleClear = useCallback(async () => {
     setMessages([])
-    setSpeakingIndex(null)
+    setSpeakingMessageId(null)
     setCallHistory([])
     toolTraceRef.current = { activeMsgId: null, byToolId: {} }
     window.dispatchEvent(new CustomEvent('momai_clear_history'))
@@ -362,7 +362,7 @@ export function useChatActions({
     } catch (err) {
       console.error('Erro ao limpar histórico:', err)
     }
-  }, [threadId, setMessages, setSpeakingIndex, setCallHistory, toolTraceRef])
+  }, [threadId, setMessages, setSpeakingMessageId, setCallHistory, toolTraceRef])
 
   const removeMessage = useCallback(
     async (index: number) => {
@@ -387,7 +387,7 @@ export function useChatActions({
 
       // Stop any ongoing TTS and clear speaking state before regenerating
       await stopVoiceApi().catch(() => {})
-      setSpeakingIndex(null)
+      setSpeakingMessageId(null)
 
       let userPrompt = ''
       for (let i = index - 1; i >= 0; i--) {
@@ -402,10 +402,13 @@ export function useChatActions({
       await removeMessage(index)
       await sendMessage(userPrompt, false, true)
     },
-    [messagesRef, removeMessage, sendMessage, setSpeakingIndex]
+    [messagesRef, removeMessage, sendMessage, setSpeakingMessageId]
   )
 
   const speakMessage = useCallback(async (content: string, index: number) => {
+    const msg = messagesRef.current[index]
+    if (!msg || !msg.id) return
+
     const cleanText = cleanMomaiActions(content)
     if (!cleanText || cleanText === '...') return
     try {
@@ -413,20 +416,20 @@ export function useChatActions({
       await stopVoiceApi().catch(() => {})
       // Small delay to ensure backend TTS worker has fully stopped
       await new Promise(resolve => setTimeout(resolve, 150))
-      setSpeakingIndex(index)
+      setSpeakingMessageId(msg.id)
       await speakTextApi(cleanText)
     } catch (err) {
       console.error('Erro ao sintetizar voz:', err)
-      setSpeakingIndex(null)
+      setSpeakingMessageId(null)
     }
-  }, [setSpeakingIndex])
+  }, [setSpeakingMessageId, messagesRef])
 
   const toggleCallMode = useCallback(async () => {
     const newState = !isCallMode
     if (newState) {
       await Promise.allSettled([stopGenerationApi(), stopVoiceApi()])
       setIsLoading(false)
-      setSpeakingIndex(null)
+      setSpeakingMessageId(null)
     }
     setIsCallMode(newState)
     setCallHistory([])
@@ -438,7 +441,7 @@ export function useChatActions({
     } catch (err) {
       console.error('Erro ao alterar modo chamada:', err)
     }
-  }, [isCallMode, setIsCallMode, setCallHistory, stopVoice, setIsLoading, setSpeakingIndex])
+  }, [isCallMode, setIsCallMode, setCallHistory, stopVoice, setIsLoading, setSpeakingMessageId])
 
   const handleGraphOption = useCallback(
     (option: string) => {

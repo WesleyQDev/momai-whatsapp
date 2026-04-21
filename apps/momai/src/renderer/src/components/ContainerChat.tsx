@@ -18,7 +18,7 @@ interface ContainerChatProps {
   statusInfo: StatusData | null
   stopCurrentGeneration?: () => void
   stopCurrentVoice?: () => void
-  speakingIndex?: number | null
+  speakingMessageId?: string | null
   isCallMode?: boolean
   voiceStatus?: 'idle' | 'listening' | 'processing'
   voiceEngineLoading?: { loading: boolean; pendingAutoTts: boolean; message: string } | null
@@ -343,7 +343,7 @@ export default function ContainerChat({
   statusInfo,
   stopCurrentGeneration,
   stopCurrentVoice,
-  speakingIndex,
+  speakingMessageId,
   isCallMode = false,
   voiceStatus = 'idle',
   voiceEngineLoading = null,
@@ -472,7 +472,7 @@ export default function ContainerChat({
           onStopVoice={stopCurrentVoice}
           history={callHistory}
           status={voiceStatus}
-          isSpeaking={speakingIndex !== null && speakingIndex !== undefined}
+          isSpeaking={speakingMessageId !== null && speakingMessageId !== undefined}
         />
       ) : (
         <>
@@ -561,7 +561,7 @@ export default function ContainerChat({
                     onSpeakMessage={onSpeakMessage}
                     onRemoveMessage={onRemoveMessage}
                     onRegenerateMessage={onRegenerateMessage}
-                    speakingIndex={speakingIndex}
+                    speakingMessageId={speakingMessageId}
                     statusInfo={statusInfo}
                   />
                 )}
@@ -603,7 +603,7 @@ export default function ContainerChat({
                 onStopVoice={stopCurrentVoice}
                 isCallMode={isCallMode}
                 onToggleCallMode={onToggleCallMode}
-                speakingIndex={speakingIndex}
+                speakingMessageId={speakingMessageId}
                 voiceStatus={voiceStatus}
               />
             </div>

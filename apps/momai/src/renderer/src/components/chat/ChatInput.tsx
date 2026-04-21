@@ -24,7 +24,7 @@ interface ChatInputProps {
   onStopVoice?: () => void
   isCallMode?: boolean
   onToggleCallMode?: () => void
-  speakingIndex?: number | null
+  speakingMessageId?: string | null
   voiceStatus?: 'idle' | 'listening' | 'processing'
 }
 
@@ -62,7 +62,7 @@ export default function ChatInput({
   onStopVoice,
   isCallMode = false,
   onToggleCallMode,
-  speakingIndex = null,
+  speakingMessageId = null,
   voiceStatus = 'idle'
 }: ChatInputProps) {
   const { t } = useI18n()
@@ -456,6 +456,15 @@ export default function ChatInput({
                   type="button"
                   className="bg-accent text-white rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg shadow-accent/20"
                   onClick={onStopGeneration}
+                >
+                  <StopIcon className="w-4 h-4" />
+                </button>
+              ) : speakingMessageId !== null ? (
+                <button
+                  type="button"
+                  className="bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg shadow-red-500/20"
+                  onClick={onStopVoice}
+                  title="Parar voz"
                 >
                   <StopIcon className="w-4 h-4" />
                 </button>

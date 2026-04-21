@@ -15,7 +15,7 @@ interface MessageListProps {
   onSpeakMessage?: (content: string, index: number) => void
   onRemoveMessage?: (index: number) => void
   onRegenerateMessage?: (index: number) => void
-  speakingIndex?: number | null
+  speakingMessageId?: string | null
   statusInfo: StatusData | null
 }
 
@@ -31,7 +31,7 @@ const MessageList = memo(function MessageList({
   onSpeakMessage,
   onRemoveMessage,
   onRegenerateMessage,
-  speakingIndex = null,
+  speakingMessageId = null,
   statusInfo
 }: MessageListProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -77,7 +77,7 @@ const MessageList = memo(function MessageList({
             isLoading={isLoading && i === messages.length - 1 && msg.role === 'assistant'}
             onReopenGraph={onReopenGraph}
             onGraphOption={onGraphOption}
-            isSpeaking={speakingIndex === i}
+            isSpeaking={speakingMessageId === msg.id}
             onStopVoice={onStopVoice}
             onStopGeneration={onStopGeneration}
             onSpeak={() => onSpeakMessage?.(msg.content, i)}

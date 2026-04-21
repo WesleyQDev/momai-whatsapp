@@ -37,7 +37,7 @@ const ChatView = (props: any) => {
       statusInfo={props.statusInfo}
       stopCurrentGeneration={props.chat.stopCurrentGeneration}
       stopCurrentVoice={props.chat.stopCurrentVoice}
-      speakingIndex={props.chat.speakingIndex}
+      speakingMessageId={props.chat.speakingMessageId}
       isCallMode={props.chat.isCallMode}
       voiceStatus={props.chat.voiceStatus}
       voiceEngineLoading={props.chat.voiceEngineLoading}
