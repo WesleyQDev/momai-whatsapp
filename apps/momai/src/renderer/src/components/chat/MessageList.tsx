@@ -1,7 +1,6 @@
 import { RefObject, JSX, memo, useRef, useEffect, useCallback } from 'react'
 import MessageItem from './MessageItem'
 import { Message, StatusData } from '../../services/api'
-import WelcomeTips from './WelcomeTips'
 
 interface MessageListProps {
   messages: Message[]
@@ -17,6 +16,7 @@ interface MessageListProps {
   onRegenerateMessage?: (index: number) => void
   speakingMessageId?: string | null
   statusInfo: StatusData | null
+  ttsEnabled?: boolean
 }
 
 const MessageList = memo(function MessageList({
@@ -32,7 +32,8 @@ const MessageList = memo(function MessageList({
   onRemoveMessage,
   onRegenerateMessage,
   speakingMessageId = null,
-  statusInfo
+  statusInfo,
+  ttsEnabled = false
 }: MessageListProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const isAtBottomRef = useRef(true)
@@ -41,7 +42,6 @@ const MessageList = memo(function MessageList({
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current
-    // More precise threshold of 50px
     const atBottom = scrollHeight - scrollTop <= clientHeight + 50
     isAtBottomRef.current = atBottom
   }, [])
@@ -50,7 +50,6 @@ const MessageList = memo(function MessageList({
     const isNewMessage = messages.length > lastMessagesLength.current
     lastMessagesLength.current = messages.length
 
-    // Scroll if it's a new message OR if we are already at the bottom (follow stream)
     if (isNewMessage || isAtBottomRef.current) {
       messagesEndRef.current?.scrollIntoView({ 
         behavior: isNewMessage ? 'smooth' : 'auto' 
@@ -66,27 +65,40 @@ const MessageList = memo(function MessageList({
       onScroll={handleScroll}
       className="flex-1 flex flex-col gap-5 p-4 overflow-y-auto overflow-x-hidden relative scroll-smooth"
     >
-      {messages.map((msg, i) => {
-        // Prevent system tool action triggers from being visibly rendered as chat balloons
-        if (msg.role === 'user' && msg.content.startsWith('__TOOL__:')) return null
-        
-        return (
-          <MessageItem
-            key={i}
-            message={msg}
-            isLoading={isLoading && i === messages.length - 1 && msg.role === 'assistant'}
-            onReopenGraph={onReopenGraph}
-            onGraphOption={onGraphOption}
-            isSpeaking={speakingMessageId === msg.id}
-            onStopVoice={onStopVoice}
-            onStopGeneration={onStopGeneration}
-            onSpeak={() => onSpeakMessage?.(msg.content, i)}
-            onDelete={() => onRemoveMessage?.(i)}
-            onRetry={msg.role === 'assistant' ? () => onRegenerateMessage?.(i) : () => onSendMessage(msg.content)}
-            aiTier={statusInfo?.ai_tier || 'pro'}
-          />
-        )
-      })}
+      {(() => {
+        let lastAssistantIdx = -1
+        for (let i = messages.length - 1; i >= 0; i--) {
+          if (messages[i].role === 'assistant') {
+            lastAssistantIdx = i
+            break
+          }
+        }
+
+        return messages.map((msg, i) => {
+          if (msg.role === 'user' && msg.content.startsWith('__TOOL__:')) return null
+          
+          const isLastAssistant = i === lastAssistantIdx
+          const isSelfSpeaking = speakingMessageId === msg.id || (isLastAssistant && speakingMessageId !== null)
+
+          return (
+            <MessageItem
+              key={msg.id || i}
+              message={msg}
+              isLoading={isLoading && isLastAssistant}
+              onReopenGraph={onReopenGraph}
+              onGraphOption={onGraphOption}
+              isSpeaking={isSelfSpeaking}
+              ttsEnabled={ttsEnabled}
+              onStopVoice={onStopVoice}
+              onStopGeneration={onStopGeneration}
+              onSpeak={() => onSpeakMessage?.(msg.content, i)}
+              onDelete={() => onRemoveMessage?.(i)}
+              onRetry={msg.role === 'assistant' ? () => onRegenerateMessage?.(i) : () => onSendMessage(msg.content)}
+              aiTier={statusInfo?.ai_tier || 'pro'}
+            />
+          )
+        })
+      })()}
 
       <div ref={messagesEndRef} />
     </main>

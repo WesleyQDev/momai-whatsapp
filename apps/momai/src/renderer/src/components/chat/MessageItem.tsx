@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { Message } from '../../services/api'
 import { cleanMomaiActions } from '../../utils/text'
 import icon from '../../assets/icon.png'
-import { DocumentTextIcon, ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline'
+import { DocumentTextIcon, ClipboardIcon, CheckIcon, SpeakerWaveIcon, SpeakerXMarkIcon } from '@heroicons/react/24/outline'
 import { ExtrasRenderer } from './ExtrasRenderer'
 import MessageContextMenu from './MessageContextMenu'
 import { useI18n } from '../../i18n'
@@ -155,6 +155,7 @@ interface MessageItemProps {
   onDelete?: () => void
   onRetry?: () => void
   aiTier?: string | null
+  ttsEnabled?: boolean
 }
 
 const MessageItem = memo(function MessageItem({
@@ -168,7 +169,8 @@ const MessageItem = memo(function MessageItem({
   onSpeak,
   onDelete,
   onRetry,
-  aiTier = 'pro'
+  aiTier = 'pro',
+  ttsEnabled = false
 }: MessageItemProps): JSX.Element {
   const { t } = useI18n()
   const [openToolIndex, setOpenToolIndex] = useState<Record<number, number | null>>({})
@@ -1027,7 +1029,7 @@ const MessageItem = memo(function MessageItem({
 
               <div className="flex flex-col items-start gap-2">
                 <div className="flex items-center gap-2">
-                  {(hasActualContent || isSpeaking) && (
+                  {hasActualContent && (
                     <>
                       <button
                         type="button"
@@ -1067,52 +1069,32 @@ const MessageItem = memo(function MessageItem({
                         </button>
                       )}
 
-                      {onSpeak && aiTier !== 'lite' && !isSpeaking && (
-                        <button
-                          type="button"
-                          onClick={onSpeak}
-                          className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors opacity-50 hover:opacity-100"
-                          title="Ouvir resposta"
-                          aria-label="Ouvir resposta"
-                        >
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                          </svg>
-                        </button>
-                      )}
-
-                      {isSpeaking && onStopVoice && !hideStopButton && aiTier !== 'lite' && (
-                        <button
-                          type="button"
-                          onClick={handleStopVoiceClick}
-                          className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-white/10 text-red-500 dark:text-red-400 hover:text-red-600 transition-colors opacity-80 hover:opacity-100"
-                          title="Parar voz"
-                          aria-label="Parar voz"
-                        >
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                          >
-                            <rect x="6" y="5" width="4" height="14" rx="1" />
-                            <rect x="14" y="5" width="4" height="14" rx="1" />
-                          </svg>
-                        </button>
-                      )}
 
                       <div className="w-[1px] h-3 bg-zinc-200 dark:bg-white/10 mx-0.5"></div>
+
+                      <div className="flex items-center">
+                        {(isSpeaking || (isLoading && ttsEnabled)) ? (
+                          <button
+                            type="button"
+                            onClick={handleStopVoiceClick}
+                            className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-white/10 text-accent hover:text-accent/80 transition-colors animate-pulse"
+                            title={t('chat.voice.stop')}
+                            aria-label={t('chat.voice.stop')}
+                          >
+                            <SpeakerXMarkIcon className="w-[14px] h-[14px]" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={onSpeak}
+                            className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-accent transition-colors opacity-50 hover:opacity-100"
+                            title={t('chat.voice.listen')}
+                            aria-label={t('chat.voice.listen')}
+                          >
+                            <SpeakerWaveIcon className="w-[14px] h-[14px]" />
+                          </button>
+                        )}
+                      </div>
 
                       <button
                         type="button"

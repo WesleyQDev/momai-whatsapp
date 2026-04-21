@@ -67,14 +67,14 @@ export function useChatHandlers({
     } else if (msg.type === 'set_theme') {
       window.dispatchEvent(new CustomEvent('momai_set_theme', { detail: msg.data }))
     } else if (msg.type === 'tts_start') {
-      // Use activeMsgId if available, otherwise find the last assistant message ID
       const activeId = toolTraceRef.current.activeMsgId
       if (activeId) {
         setSpeakingMessageId(activeId)
       } else {
-        const idx = findLastAssistantIndex(messagesRef.current)
-        if (idx >= 0 && messagesRef.current[idx]?.id) {
-          setSpeakingMessageId(messagesRef.current[idx].id)
+        const messages = messagesRef.current
+        const idx = findLastAssistantIndex(messages)
+        if (idx >= 0 && messages[idx]?.id) {
+          setSpeakingMessageId(messages[idx].id)
         }
       }
     } else if (msg.type === 'tts_stop') {
@@ -228,9 +228,6 @@ export function useChatHandlers({
             content: buildToolTraceContent(nextTrace, textPart)
           }
 
-          if (!hasRunning) {
-            toolTraceRef.current.activeMsgId = null
-          }
           if (toolId) {
             delete toolTraceRef.current.byToolId[toolId]
           }

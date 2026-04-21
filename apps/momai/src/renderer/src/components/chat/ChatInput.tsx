@@ -459,15 +459,6 @@ export default function ChatInput({
                 >
                   <StopIcon className="w-4 h-4" />
                 </button>
-              ) : speakingMessageId !== null ? (
-                <button
-                  type="button"
-                  className="bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-lg shadow-red-500/20"
-                  onClick={onStopVoice}
-                  title="Parar voz"
-                >
-                  <StopIcon className="w-4 h-4" />
-                </button>
               ) : localText.trim() ? (
                 <button
                   type="button"
