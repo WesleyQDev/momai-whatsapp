@@ -11,6 +11,7 @@ import {
   shutdownPython,
   startPythonBackend,
   killPythonBackend,
+  killProcessOnPort,
   type PythonBackendStartOptions
 } from './pythonManager'
 
@@ -207,6 +208,9 @@ export async function ensurePythonSidecar(): Promise<{ ok: boolean; error?: stri
       if (isPythonRunning()) {
         logger.info('[CoreManager] Mode is Lite: shutting down Python sidecar to save resources.')
         await killPythonBackend()
+      } else {
+        // Even if not "running" according to state, check port for orphans/zombies
+        await killProcessOnPort(PYTHON_SIDECAR_PORT)
       }
       return { ok: false, error: 'Python sidecar is disabled in Lite mode' }
     }

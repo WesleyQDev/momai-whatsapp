@@ -1742,6 +1742,38 @@ export async function killPythonBackend(): Promise<void> {
     logger.error('[Electron] Erro durante shutdown de Python:', err)
   } finally {
     setPythonProcess(null)
+    // Extra safety: make sure the port is actually free
+    await killProcessOnPort(Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001))
+  }
+}
+
+/**
+ * Forcefully kills any process listening on a specific TCP port.
+ * Essential for clearing orphaned/zombie sidecars.
+ */
+export async function killProcessOnPort(port: number): Promise<void> {
+  try {
+    if (process.platform === 'win32') {
+      const { stdout } = spawnSync('cmd', ['/c', `netstat -ano | findstr :${port}`], {
+        encoding: 'utf8'
+      })
+      if (!stdout) return
+
+      const lines = stdout.split('\n').map((l) => l.trim()).filter((l) => l.includes('LISTENING'))
+      for (const line of lines) {
+        const parts = line.split(/\s+/)
+        const pid = parts[parts.length - 1]
+        if (pid && !isNaN(Number(pid)) && Number(pid) > 0) {
+          logger.info(`[Electron] Found orphan on port ${port} (PID ${pid}). Killing...`)
+          spawnSync('taskkill', ['/pid', pid, '/f', '/t'], { shell: true })
+        }
+      }
+    } else {
+      // Linux/macOS
+      spawnSync('sh', ['-c', `lsof -t -i:${port} | xargs kill -9`], { stdio: 'ignore' })
+    }
+  } catch (err) {
+    logger.warn(`[Electron] Failed to kill process on port ${port}:`, err)
   }
 }
 

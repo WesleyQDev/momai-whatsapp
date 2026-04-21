@@ -40,6 +40,12 @@ export interface LocalDetails {
   os_name?: string
 }
 
+const TIER_DEFAULTS: Record<string, { tts_enabled: boolean; wake_word_enabled: boolean }> = {
+  lite: { tts_enabled: false, wake_word_enabled: false },
+  pro: { tts_enabled: true, wake_word_enabled: false },
+  ultra: { tts_enabled: true, wake_word_enabled: true }
+}
+
 export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void) => {
   const { t, setLocale } = useI18n()
   const [activeTab, setActiveTab] = useState<Tab>(initialTab)
@@ -188,21 +194,39 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     window.api.resetWindowSize?.()
     onClose()
     localStorage.setItem('momai_mode_changing', 'true')
+
+    // Compute the enforced feature set for the target tier
+    const enforced = TIER_DEFAULTS[tier] || TIER_DEFAULTS.pro
+    const syncedSettings = {
+      ...settings,
+      ai_tier: tier,
+      tts_enabled: enforced.tts_enabled,
+      wake_word_enabled: enforced.wake_word_enabled
+    }
+
+    // Immediately update local state and sync to all frontend components
+    // so tier-specific features are disabled BEFORE the backend restarts
+    setSettings(syncedSettings as Settings)
+    localStorage.setItem('momai_ai_tier', tier)
     window.dispatchEvent(new CustomEvent('momai_tier_change_start'))
-    
+    window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: syncedSettings }))
+
     try {
       stopVoice().catch(() => {})
       stopGeneration().catch(() => {})
       window.dispatchEvent(new CustomEvent('momai_new_session'))
-      localStorage.setItem('momai_ai_tier', tier)
       await api.post('/setup/apply-tier', null, { params: { tier } })
-      
+
       // @ts-ignore
       await window.api.restartBackend()
-      
+
       // @ts-ignore
       window.api.resetWindowSize?.()
-      
+
+      // Re-dispatch enforced settings after backend restart so components
+      // that re-mounted during the restart pick up the correct tier features
+      window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: syncedSettings }))
+
       window.location.href = window.location.pathname + '#/'
     } catch (error) {
       console.error('Error changing tier:', error)
@@ -216,7 +240,7 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
       if (res.data.locale) {
         setLocale(res.data.locale)
       }
-       
+
       const statusRes = await api.get('/status')
       setTiersConfig(statusRes.data.tiers_config)
     } catch (error) {
@@ -261,15 +285,15 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   const resetOnboarding = async () => {
     // @ts-ignore
     window.api.resetWindowSize?.()
-    
+
     // We update the field and wait for the save to complete before closing
     // This ensures the momai_settings_sync event is dispatched while component is still potentially active
     // and that the API call isn't interrupted by unmounting.
     await updateField('onboarding_completed', false, true)
-    
+
     // @ts-ignore
     window.electron.ipcRenderer.send('reset-onboarding')
-    
+
     onClose()
   }
 

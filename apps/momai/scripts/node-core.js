@@ -2330,6 +2330,18 @@ async function syncWakeWordState(reason = 'unknown') {
     tier === 'ultra' && (Boolean(store.settings.wake_word_enabled) || Boolean(store.call_mode))
 
   if (tier === 'lite') {
+    // Still attempt to disable wake word on sidecar if it's running
+    try {
+      const pythonBase = await ensurePython()
+      await fetch(`${pythonBase}/voice/wake-word`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: false })
+      })
+      console.info(`[NodeCore][Voice] Wake-word force-disabled for lite tier (${reason})`)
+    } catch {
+      // Python sidecar may not be available in lite — that's fine
+    }
     return
   }
 
@@ -3374,17 +3386,13 @@ async function handleRequest(req, res) {
   }
 
   if (pathname === '/settings' && req.method === 'GET') {
-    // Enforce tier-based defaults on every read
+    // Enforce tier floor constraints: prevent returning invalid feature states
     const tier = store.settings.ai_tier || 'pro'
     if (tier === 'lite') {
       store.settings.tts_enabled = false
       store.settings.wake_word_enabled = false
     } else if (tier === 'pro') {
-      store.settings.tts_enabled = true
       store.settings.wake_word_enabled = false
-    } else if (tier === 'ultra') {
-      store.settings.tts_enabled = true
-      store.settings.wake_word_enabled = true
     }
     sendJson(res, 200, store.settings)
     return
@@ -3404,15 +3412,28 @@ async function handleRequest(req, res) {
       store.settings = { ...store.settings, ...payload }
       store.settings.local_backend = normalizeBackendMode(store.settings.local_backend || 'auto')
 
-      if (store.settings.ai_tier === 'lite') {
-        store.settings.tts_enabled = false
-        store.settings.wake_word_enabled = false
-      } else if (store.settings.ai_tier === 'pro') {
-        store.settings.tts_enabled = true
-        store.settings.wake_word_enabled = false
-      } else if (store.settings.ai_tier === 'ultra') {
-        store.settings.tts_enabled = true
-        store.settings.wake_word_enabled = true
+      // Only force tier defaults when the tier itself is changing
+      // Otherwise, just enforce tier floor constraints to prevent invalid states
+      if (payload.ai_tier) {
+        if (store.settings.ai_tier === 'lite') {
+          store.settings.tts_enabled = false
+          store.settings.wake_word_enabled = false
+        } else if (store.settings.ai_tier === 'pro') {
+          store.settings.tts_enabled = true
+          store.settings.wake_word_enabled = false
+        } else if (store.settings.ai_tier === 'ultra') {
+          store.settings.tts_enabled = true
+          store.settings.wake_word_enabled = true
+        }
+      } else {
+        // Enforce tier floor: prevent enabling features not available for the current tier
+        const currentTier = store.settings.ai_tier || 'pro'
+        if (currentTier === 'lite') {
+          store.settings.tts_enabled = false
+          store.settings.wake_word_enabled = false
+        } else if (currentTier === 'pro') {
+          store.settings.wake_word_enabled = false
+        }
       }
 
       if (payload.ai_tier) store.mode = 'local'
