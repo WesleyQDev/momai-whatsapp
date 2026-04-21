@@ -11,9 +11,11 @@ import { useI18n } from '../../i18n'
 import { DynamicRenderer } from '../DynamicRenderer'
 import { registerRenderer } from './SkillResponseRegistry'
 import WeatherCard from './WeatherCard'
+import RemindersCard from './RemindersCard'
 import StructuredResponseRenderer from './StructuredResponseRenderer'
 
 registerRenderer('weather', WeatherCard)
+registerRenderer('reminders', RemindersCard)
 
 const cleanUIMetadata = (text: string) => {
   if (!text) return ''

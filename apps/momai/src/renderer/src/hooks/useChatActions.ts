@@ -91,6 +91,8 @@ export function useChatActions({
   const stopGeneration = useCallback(async () => {
     try {
       await stopGenerationApi()
+      // Also stop TTS when stopping generation
+      await stopVoiceApi().catch(() => {})
     } catch (err) {
       console.error('Erro ao parar geração:', err)
     } finally {
@@ -111,6 +113,10 @@ export function useChatActions({
   const sendMessage = useCallback(
     async (content: string, isSilent: boolean = false, skipUserMessage: boolean = false) => {
       if (!content.trim()) return
+
+      // Stop any ongoing TTS and clear speaking state when sending a new message
+      await stopVoiceApi().catch(() => {})
+      setSpeakingIndex(null)
 
       if (!isSilent && !skipUserMessage) {
         const userMessage: Message = { role: 'user', content }
@@ -379,6 +385,10 @@ export function useChatActions({
       const assistantMsg = msgs[index]
       if (!assistantMsg || assistantMsg.role !== 'assistant') return
 
+      // Stop any ongoing TTS and clear speaking state before regenerating
+      await stopVoiceApi().catch(() => {})
+      setSpeakingIndex(null)
+
       let userPrompt = ''
       for (let i = index - 1; i >= 0; i--) {
         if (msgs[i].role === 'user') {
@@ -392,13 +402,17 @@ export function useChatActions({
       await removeMessage(index)
       await sendMessage(userPrompt, false, true)
     },
-    [messagesRef, removeMessage, sendMessage]
+    [messagesRef, removeMessage, sendMessage, setSpeakingIndex]
   )
 
   const speakMessage = useCallback(async (content: string, index: number) => {
     const cleanText = cleanMomaiActions(content)
-    if (!cleanText) return
+    if (!cleanText || cleanText === '...') return
     try {
+      // Stop any ongoing TTS before starting a new one
+      await stopVoiceApi().catch(() => {})
+      // Small delay to ensure backend TTS worker has fully stopped
+      await new Promise(resolve => setTimeout(resolve, 150))
       setSpeakingIndex(index)
       await speakTextApi(cleanText)
     } catch (err) {

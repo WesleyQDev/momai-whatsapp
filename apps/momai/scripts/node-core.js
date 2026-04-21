@@ -1139,16 +1139,87 @@ async function searchWeb(query, limit = 4) {
 
 function parseRelativeReminder(content) {
   const text = String(content || '').toLowerCase()
-  const m = text.match(/\bem\s+(\d+)\s*(minuto|minutos|hora|horas|dia|dias)\b/)
-  if (!m) return null
-  const qty = Number(m[1] || 0)
-  if (!Number.isFinite(qty) || qty <= 0) return null
-  const unit = m[2]
-  const at = new Date()
-  if (unit.startsWith('minuto')) at.setMinutes(at.getMinutes() + qty)
-  else if (unit.startsWith('hora')) at.setHours(at.getHours() + qty)
-  else at.setDate(at.getDate() + qty)
-  return at.toISOString()
+  let at = new Date()
+
+  const relativePatterns = [
+    { regex: /\bhoje\b/i, adjust: () => {} },
+    { regex: /\bamanha\b|\bamanhã\b/i, adjust: () => at.setDate(at.getDate() + 1) },
+    { regex: /\bem\s+(\d+)\s*(minuto|minutos)\b/i, adjust: () => {} },
+    { regex: /\bem\s+(\d+)\s*(hora|horas)\b/i, adjust: () => {} },
+    { regex: /\bem\s+(\d+)\s*(dia|dias)\b/i, adjust: () => {} },
+    { regex: /\bdaqui\s+a?\s+(\d+)\s*(minuto|minutos|hora|horas|dia|dias)\b/i, adjust: () => {} }
+  ]
+
+  for (const p of relativePatterns) {
+    const m = text.match(p.regex)
+    if (m && m[1] && /em\s+(\d+)/.test(p.regex.source)) {
+      const qty = Number(m[1])
+      if (Number.isFinite(qty) && qty > 0) {
+        if (/minuto/i.test(p.regex.source)) at.setMinutes(at.getMinutes() + qty)
+        else if (/hora/i.test(p.regex.source)) at.setHours(at.getHours() + qty)
+        else at.setDate(at.getDate() + qty)
+        return validDateCheck(at)
+      }
+    } else {
+      p.adjust.call(at)
+      return validDateCheck(at)
+    }
+  }
+
+  const timePatterns = [
+    { regex: /\b[a\u00e1]s?\s+(\d{1,2})h\b/i, parse: (h) => { at.setHours(Number(h), 0, 0, 0) } },
+    { regex: /\b[a\u00e1]s?\s+(\d{1,2}):(\d{2})\b/i, parse: (h, m) => { at.setHours(Number(h), Number(m), 0, 0) } },
+    { regex: /\b(\d{1,2})h\b/i, parse: (h) => { at.setHours(Number(h), 0, 0, 0) } },
+    { regex: /\b(\d{1,2}):(\d{2})\b/i, parse: (h, m) => { at.setHours(Number(h), Number(m), 0, 0) } }
+  ]
+
+  const dayRef = /\bamanha\b|\bamanh\u00e3\b/i.test(text) ? 1 : /\bhoje\b/i.test(text) ? 0 : 0
+
+  for (const p of timePatterns) {
+    const m = text.match(p.regex)
+    if (m && m[1]) {
+      if (dayRef > 0) at.setDate(at.getDate() + dayRef)
+      if (m[2]) p.parse(at, m[1], m[2])
+      else p.parse(at, m[1])
+      return validDateCheck(at)
+    }
+  }
+
+  return validDateCheck(at)
+}
+
+function validDateCheck(date) {
+  const d = new Date(date)
+  if (!Number.isFinite(d.getTime()) || d.getTime() < Date.now() + 60000) {
+    d.setTime(Date.now() + 60 * 60 * 1000)
+  }
+  return d.toISOString()
+}
+
+function extractReminderTitle(text) {
+  const raw = String(text || '').trim()
+  if (!raw) return 'Lembrete'
+
+  let cleaned = raw
+    .replace(/^me\s+lembre\s+(de\s+)?/i, '')
+    .replace(/^lembre(?:-me)?\s+(?:de\s+)?/i, '')
+    .replace(/^agenda[rr]?\s+(?:para\s+)?/i, '')
+    .replace(/^preciso\s+lembrar\s+(?:de\s+)?/i, '')
+    .replace(/\bhoje\b|\bamanha\b|\bamanhã\b|\bás?\s+\d+|às?\s+\d+/gi, '')
+    .replace(/\bdaqui\s+a?\s+\d+\s*(minuto|hora|dia)s?\b/gi, '')
+    .replace(/\bem\s+\d+\s*(minuto|hora|dia)s?\b/gi, '')
+    .replace(/\bno\s+(dia|horário|horas)\b/gi, '')
+    .replace(/\bpara\s+(hoje|amanhã)\b/gi, '')
+    .replace(/\bás?\s+\d{1,2}(h|:)\d{0,2}\b/gi, '')
+    .replace(/\b\d{1,2}(h|:)\d{2}\b/gi, '')
+    .replace(/\d{2}[\/\-]\d{2}[\/\-]\d{2,4}/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!cleaned) return 'Lembrete'
+  if (cleaned.length > 60) cleaned = cleaned.slice(0, 60) + '...'
+
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
 }
 
 function ensureNotesIndexExists() {
@@ -2603,6 +2674,17 @@ async function streamLlamaChat(req, res, payload) {
   activeChatControllers.add(controller)
   stopGenerationRequested = false
 
+  // Stop any ongoing TTS when starting a new message
+  try {
+    const pythonBase = await ensurePython()
+    await fetch(`${pythonBase}/chat/stop-voice`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+  } catch (error) {
+    // TTS might not be available, ignore
+  }
+
   let closed = false
   req.on('close', () => {
     closed = true
@@ -2776,17 +2858,27 @@ async function streamLlamaChat(req, res, payload) {
                   .slice(0, limit)
               },
               createReminderFromText(text) {
-                const scheduled =
-                  parseRelativeReminder(text) || new Date(Date.now() + 60 * 60 * 1000).toISOString()
-                const title =
-                  String(text || '').length > 80
-                    ? `${String(text).slice(0, 80)}...`
-                    : String(text || 'Lembrete')
+                const rawText = String(text || '').trim()
+                const scheduled = parseRelativeReminder(rawText) || new Date(Date.now() + 60 * 60 * 1000).toISOString()
+                const title = extractReminderTitle(rawText)
                 const reminder = normalizeReminder({
                   id: store.next_reminder_id++,
                   title: title || 'Lembrete',
-                  content: String(text || ''),
+                  content: rawText,
                   scheduled_time: scheduled,
+                  is_active: true
+                })
+                store.reminders.push(reminder)
+                saveStore()
+                broadcast({ type: 'reminders_updated' })
+                return reminder
+              },
+              createReminder({ title, scheduled_time, content }) {
+                const reminder = normalizeReminder({
+                  id: store.next_reminder_id++,
+                  title: title || 'Lembrete',
+                  content: content || title || '',
+                  scheduled_time: scheduled_time,
                   is_active: true
                 })
                 store.reminders.push(reminder)
@@ -2810,7 +2902,9 @@ async function streamLlamaChat(req, res, payload) {
               const result = await skillRegistry.execute(
                 skillId,
                 args.content || content,
-                runtimeContext
+                runtimeContext,
+                args,
+                toolName
               )
               const toolResultText = result?.instruction || JSON.stringify(result || {})
               if (result?.structuredResponse) {
@@ -3303,48 +3397,53 @@ async function handleRequest(req, res) {
   }
 
   if (pathname === '/settings' && req.method === 'PATCH') {
-    const payload = await readJsonBody(req).catch(() => ({}))
-    const prevTier = store.settings.ai_tier || 'pro'
-    const prevBackend = store.settings.local_backend || 'auto'
+    try {
+      const payload = await readJsonBody(req).catch(() => ({}))
+      const prevTier = store.settings.ai_tier || 'pro'
+      const prevBackend = store.settings.local_backend || 'auto'
 
-    if (payload.ai_tier && !isValidTier(payload.ai_tier)) {
-      sendJson(res, 400, { status: 'error', message: 'Invalid ai_tier. Use lite, pro or ultra.' })
-      return
+      if (payload.ai_tier && !isValidTier(payload.ai_tier)) {
+        sendJson(res, 400, { status: 'error', message: 'Invalid ai_tier. Use lite, pro or ultra.' })
+        return
+      }
+
+      store.settings = { ...store.settings, ...payload }
+      store.settings.local_backend = normalizeBackendMode(store.settings.local_backend || 'auto')
+
+      if (store.settings.ai_tier === 'lite') {
+        store.settings.tts_enabled = false
+        store.settings.wake_word_enabled = false
+      } else if (store.settings.ai_tier === 'pro') {
+        store.settings.tts_enabled = true
+        store.settings.wake_word_enabled = false
+      } else if (store.settings.ai_tier === 'ultra') {
+        store.settings.tts_enabled = true
+        store.settings.wake_word_enabled = true
+      }
+
+      if (payload.ai_tier) store.mode = 'local'
+      saveStore()
+
+      const ready = await maybeRestartLlamaOnTierChange(
+        prevTier,
+        store.settings.ai_tier || 'pro',
+        prevBackend,
+        normalizeBackendMode(store.settings.local_backend || 'auto')
+      )
+      if (!ready) {
+        sendJson(res, 503, {
+          status: 'error',
+          message: llamaState.lastError || 'Failed to initialize selected model'
+        })
+        return
+      }
+      void syncWakeWordState('settings_patch')
+
+      sendJson(res, 200, store.settings)
+    } catch (error) {
+      console.error('[NodeCore] Error in PATCH /settings:', error)
+      sendJson(res, 500, { status: 'error', message: 'Internal server error' })
     }
-
-    store.settings = { ...store.settings, ...payload }
-    store.settings.local_backend = normalizeBackendMode(store.settings.local_backend || 'auto')
-
-    if (store.settings.ai_tier === 'lite') {
-      store.settings.tts_enabled = false
-      store.settings.wake_word_enabled = false
-    } else if (store.settings.ai_tier === 'pro') {
-      store.settings.tts_enabled = true
-      store.settings.wake_word_enabled = false
-    } else if (store.settings.ai_tier === 'ultra') {
-      store.settings.tts_enabled = true
-      store.settings.wake_word_enabled = true
-    }
-
-    if (payload.ai_tier) store.mode = 'local'
-    saveStore()
-
-    const ready = await maybeRestartLlamaOnTierChange(
-      prevTier,
-      store.settings.ai_tier || 'pro',
-      prevBackend,
-      normalizeBackendMode(store.settings.local_backend || 'auto')
-    )
-    if (!ready) {
-      sendJson(res, 503, {
-        status: 'error',
-        message: llamaState.lastError || 'Failed to initialize selected model'
-      })
-      return
-    }
-    void syncWakeWordState('settings_patch')
-
-    sendJson(res, 200, store.settings)
     return
   }
 
@@ -3389,6 +3488,18 @@ async function handleRequest(req, res) {
     for (const controller of activeChatControllers) {
       controller.abort()
     }
+    
+    // Stop TTS when stopping generation
+    try {
+      const pythonBase = await ensurePython()
+      await fetch(`${pythonBase}/chat/stop-voice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      // TTS might not be available, ignore
+    }
+    
     sendJson(res, 200, { status: 'ok' })
     return
   }
