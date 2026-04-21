@@ -106,7 +106,7 @@ class WakeWordDetector:
         self.sample_rate = 16000
 
         # --- Speech detection parameters (wake word mode) ---
-        self.speech_energy_threshold = 0.008
+        self.speech_energy_threshold = 0.015  # Was 0.008, increased to avoid silence triggers
         self.silence_chunks_required = 5    # Give more breathing room (1.25s instead of 0.75s)
         self.min_speech_chunks = 2
         self.max_recording_duration = 15.0
@@ -478,11 +478,11 @@ class WakeWordDetector:
                 initial_prompt="Luna. MomAI. Assistente virtual. Comandos em português brasileiro.",
                 vad_filter=True,
                 vad_parameters=dict(
-                    min_silence_duration_ms=350,  # More robust (was 250)
-                    speech_pad_ms=250,            # Tighter (was 300)
-                    threshold=0.4,                # Less sensitive (was 0.32)
+                    min_silence_duration_ms=400,  # More robust (was 350)
+                    speech_pad_ms=250,            
+                    threshold=0.5,                # Less sensitive (was 0.4)
                 ),
-                no_speech_threshold=0.4,
+                no_speech_threshold=0.6,          # More aggressive on silence (was 0.4)
                 log_prob_threshold=-1.0,
                 condition_on_previous_text=False,
                 suppress_blank=True,
@@ -517,9 +517,14 @@ class WakeWordDetector:
                 "continue assistindo",
                 "thank you",
                 "thanks for watching",
+                "hmmm",
+                "hum",
+                "ah",
+                "oh",
+                "silêncio",
             ]
             text_lower = text.lower()
-            if any(h in text_lower for h in hallucinations):
+            if any(h == text_lower for h in hallucinations):  # Exact match for short hallucinations
                 logger.debug(f"[WakeWord] Filtered hallucination: '{text}'")
                 return
 
@@ -648,24 +653,26 @@ class WakeWordDetector:
 
         # 2. Fuzzy matching for common Whisper mistranscriptions of "Luna"
         if not detected_variation:
+            blacklist = ["lula", "tuna", "duna", "lua", "una", "luta", "lupa", "tuta", "puna"]
             fuzzy_variants = [
-                "lua", "luma", "lina", "luana", "nuna",
-                "lunna", "una", "runa", "luна", "lena",
-                "luta", "lunda", "luна", "luno", "lula",
+                "luma", "lunna",
             ]
             words = text.split()
             for i, word in enumerate(words):
+                if word in blacklist:
+                    continue
                 if word in fuzzy_variants:
                     detected_variation = word
-                    start = text.index(word)
                     match = re.search(re.escape(word), text)
                     logger.info(f"[WakeWord] Fuzzy match: '{word}' recognized as wake word")
                     break
                 # Also try SequenceMatcher for words very close to "luna"
-                if len(word) >= 2 and len(word) <= 8:
+                # Increased threshold to 0.88 and min length 4 to avoid "lula", "tuna", etc.
+                if len(word) >= 4 and len(word) <= 8:
                     for kw in self.variants:
                         ratio = SequenceMatcher(None, word, kw).ratio()
-                        if ratio >= 0.70:
+                        # Strict matching: 0.88 ensures for 4-letter words it must be a 100% match
+                        if ratio >= 0.88:
                             detected_variation = word
                             match = re.search(re.escape(word), text)
                             logger.info(
