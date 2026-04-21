@@ -104,33 +104,43 @@ const emojiForCondition = (condition: string): string => {
   return '🌡️'
 }
 
+const findHeaderIndex = (normalizedCells: string[], patterns: string[]) => {
+  for (const pattern of patterns) {
+    const idx = normalizedCells.findIndex((cell) => cell.includes(pattern))
+    if (idx >= 0) return idx
+  }
+  return -1
+}
+
 const parseWeatherMarkdown = (content: string): WeatherTableModel | null => {
   const lines = String(content || '').split(/\r?\n/)
-  const titleLine = lines.find((line) => /^###\s+previs[aã]o do tempo:/i.test(line.trim()))
-  if (!titleLine) return null
+  const titleLine = lines.find((line) => /^#{1,3}\s+previs[aã]o do tempo/i.test(line.trim()))
 
   const tableLines = lines.filter((line) => line.trim().startsWith('|'))
   if (tableLines.length < 3) return null
 
   const header = parseMarkdownRow(tableLines[0])
   const normalizedHeader = header.map(normalizeWeatherHeader)
-  const findHeaderIndex = (name: string) => normalizedHeader.findIndex((cell) => cell === name)
 
-  const dayIdx = findHeaderIndex('dia')
-  const conditionIdx = findHeaderIndex('condicao')
-  const minIdx = normalizedHeader.findIndex((cell) => cell === 'min' || cell === 'minima')
-  const maxIdx = normalizedHeader.findIndex((cell) => cell === 'max' || cell === 'maxima')
-  const emojiIdx = findHeaderIndex('emoji')
+  const dayIdx = findHeaderIndex(normalizedHeader, ['dia', 'date', 'day'])
+  const conditionIdx = findHeaderIndex(normalizedHeader, ['condicao', 'condi', 'condition', 'clima', 'status', 'desc'])
+  const minIdx = findHeaderIndex(normalizedHeader, ['min', 'minima', 'lowest', 'baixa'])
+  const maxIdx = findHeaderIndex(normalizedHeader, ['max', 'maxima', 'highest', 'alta'])
+  let emojiIdx = findHeaderIndex(normalizedHeader, ['emoji', 'icon', 'icone', 'icone'])
 
-  if ([dayIdx, conditionIdx, minIdx, maxIdx, emojiIdx].some((idx) => idx < 0)) return null
+  if (emojiIdx < 0 && header.length >= 5) {
+    emojiIdx = header.length - 1
+  }
+
+  if ([dayIdx, conditionIdx, minIdx, maxIdx].some((idx) => idx < 0)) return null
 
   const rows = tableLines
     .slice(2)
     .map(parseMarkdownRow)
-    .filter((cells) => cells.length >= header.length)
+    .filter((cells) => cells.length >= Math.max(4, Math.max(dayIdx, conditionIdx, minIdx, maxIdx, emojiIdx) + 1))
     .map((cells) => {
       const condition = cells[conditionIdx] || 'N/D'
-      const incomingEmoji = cells[emojiIdx] || ''
+      const incomingEmoji = emojiIdx >= 0 && emojiIdx < cells.length ? cells[emojiIdx] || '' : ''
       return {
         day: cells[dayIdx] || 'N/D',
         condition,
@@ -143,7 +153,7 @@ const parseWeatherMarkdown = (content: string): WeatherTableModel | null => {
   if (!rows.length) return null
 
   return {
-    title: titleLine.replace(/^###\s*/, '').trim(),
+    title: titleLine ? titleLine.replace(/^#{1,3}\s*/, '').trim() : 'Previsao do tempo',
     rows: rows.slice(0, 7)
   }
 }

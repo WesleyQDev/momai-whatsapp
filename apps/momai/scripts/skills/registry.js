@@ -103,8 +103,17 @@ function normalizeSkillRecord({ id, kind, parsed, runtime }) {
 }
 
 function loadSkillFromDir({ dir, kind }) {
+  const log = (msg) => {
+    if (typeof process.send === 'function') {
+      process.send({ type: 'node-core-log', message: msg })
+    }
+  }
+
   const skillMdPath = path.join(dir, 'SKILL.md')
-  if (!fs.existsSync(skillMdPath)) return null
+  if (!fs.existsSync(skillMdPath)) {
+    log(`[skills] Skip: No SKILL.md in ${dir}`)
+    return null
+  }
 
   const parsed = parseSkillMarkdown(skillMdPath)
   if (!parsed) return null
@@ -132,15 +141,31 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
 
   function loadBuiltins() {
     state.builtins.clear()
-    if (!fs.existsSync(builtinSkillsDir)) return
+    const log = (msg) => {
+      if (typeof process.send === 'function') {
+        process.send({ type: 'node-core-log', message: msg })
+      }
+    }
 
-    for (const name of fs.readdirSync(builtinSkillsDir)) {
-      const dir = path.join(builtinSkillsDir, name)
-      const stat = fs.statSync(dir, { throwIfNoEntry: false })
-      if (!stat || !stat.isDirectory()) continue
-      const skill = loadSkillFromDir({ dir, kind: 'builtin' })
-      if (!skill) continue
-      state.builtins.set(skill.id, skill)
+    log(`[skills] Loading builtins from: ${builtinSkillsDir}`)
+    if (!fs.existsSync(builtinSkillsDir)) {
+      log(`[skills] ERROR: builtinSkillsDir does not exist!`)
+      return
+    }
+
+    try {
+      const items = fs.readdirSync(builtinSkillsDir)
+      for (const name of items) {
+        const dir = path.join(builtinSkillsDir, name)
+        const stat = fs.statSync(dir, { throwIfNoEntry: false })
+        if (!stat || !stat.isDirectory()) continue
+        const skill = loadSkillFromDir({ dir, kind: 'builtin' })
+        if (!skill) continue
+        state.builtins.set(skill.id, skill)
+      }
+      log(`[skills] Successfully loaded ${state.builtins.size} builtin skills.`)
+    } catch (err) {
+      log(`[skills] FATAL: Failed to read builtinSkillsDir: ${err.message}`)
     }
   }
 

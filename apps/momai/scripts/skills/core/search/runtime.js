@@ -153,52 +153,47 @@ module.exports = {
     const text = String(content || '').trim()
     const weatherIntent = isWeatherIntent(text)
     const weatherLocation = extractWeatherLocation(text) || 'sua cidade'
-    const weatherQuery = `previsao do tempo em ${weatherLocation} para hoje e proximos 6 dias temperatura minima maxima condicoes`
-
-    const results = await context.searchWeb(weatherIntent ? weatherQuery : text, weatherIntent ? 8 : 4)
-    const lines = results.length
-      ? results.map((r) => `- ${r.title} (${r.url})`)
-      : ['- Nenhum resultado web encontrado no momento.']
 
     if (weatherIntent) {
       const structuredForecast = await resolveWeatherForecast(weatherLocation).catch(() => null)
       if (structuredForecast?.rows?.length) {
+        const markdown = buildWeatherMarkdown(structuredForecast.resolvedLocation, structuredForecast.rows)
         return {
           tool: 'web_search',
-          directResponse: buildWeatherMarkdown(structuredForecast.resolvedLocation, structuredForecast.rows),
-          instruction: [
-            'Resultado estruturado de clima pronto para uso.',
-            'Use exatamente a tabela fornecida abaixo como resposta final do assistente.',
-            buildWeatherMarkdown(structuredForecast.resolvedLocation, structuredForecast.rows)
-          ].join('\n\n'),
+          directResponse: markdown,
+          instruction: '',
           webSources: [
             {
               url: structuredForecast.sourceUrl,
               title: `Open-Meteo - ${structuredForecast.resolvedLocation}`,
               snippet: 'Previsao de 4 dias (hoje + 3)',
               retrieval_type: 'web'
-            },
-            ...results.map((r) => ({
-              url: r.url,
-              title: r.title,
-              snippet: 'Previsao do tempo (web)',
-              retrieval_type: 'web'
-            }))
+            }
           ]
         }
       }
+
+      const weatherQuery = `previsao do tempo em ${weatherLocation} para hoje e proximos 6 dias temperatura minima maxima condicoes`
+      const results = await context.searchWeb(weatherQuery, 8)
+      const lines = results.length
+        ? results.map((r) => `- ${r.title} (${r.url})`)
+        : ['- Nenhum resultado web encontrado no momento.']
 
       return {
         tool: 'web_search',
         instruction: [
           'Resultado da ferramenta web_search para clima/temperatura.',
           `Local alvo: ${weatherLocation}.`,
-          'Com base apenas nas fontes abaixo, responda OBRIGATORIAMENTE com uma tabela Markdown de 4 dias (incluindo hoje).',
-          'A tabela deve ter exatamente estas colunas: Dia | Condicao | Min | Max | Emoji.',
-          'Cada linha deve representar um dia (Hoje + 3 proximos dias).',
-          'Use emojis meteorologicos coerentes na coluna Emoji (ex: ☀️, 🌤️, ☁️, 🌧️, ⛈️).',
+          'Com base apenas nas fontes abaixo, responda OBRIGATORIAMENTE com uma tabela Markdown de 7 dias (incluindo hoje).',
+          `Comece a resposta com exatamente: "### Previsao do tempo: ${weatherLocation}"`,
+          'A tabela deve ter EXATAMENTE estas 5 colunas nesta ordem: Dia | Condicao | Min | Max | Emoji',
+          'A linha separadora deve ser: | --- | --- | ---: | ---: | :---: |',
+          'Cada linha deve representar um dia (Hoje + 6 proximos dias). Use formato: "seg (DD/MM)" para o dia.',
+          'Condicao: use termos curtos em portugues (ex: "Ceu limpo", "Parcialmente nublado", "Chuva", "Nublado").',
+          'Min e Max: use formato "XX°C" (ex: "15°C", "27°C").',
+          'Emoji: use UM emoji meteorologico por linha (☀️ ️ ⛅ ☁️ 🌧️ 🌦️ 🌨️ ❄️ ⛈️ ️).',
           'Se faltar algum dado, mantenha a linha do dia e use N/D na celula faltante.',
-          'Nao responda com lista; a resposta final deve conter a tabela e, no maximo, uma frase curta apos a tabela.',
+          'Nao adicione texto antes ou depois da tabela. A resposta deve conter APENAS o titulo e a tabela.',
           lines.join('\n')
         ].join('\n'),
         webSources: results.map((r) => ({
@@ -209,6 +204,11 @@ module.exports = {
         }))
       }
     }
+
+    const results = await context.searchWeb(text, 4)
+    const lines = results.length
+      ? results.map((r) => `- ${r.title} (${r.url})`)
+      : ['- Nenhum resultado web encontrado no momento.']
 
     return {
       tool: 'web_search',

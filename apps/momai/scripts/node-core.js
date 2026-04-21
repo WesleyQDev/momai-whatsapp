@@ -97,14 +97,24 @@ try {
   console.warn('[NodeCore] ws module not available, websocket features disabled.')
 }
 
+function log(message) {
+  if (typeof process.send === 'function') {
+    process.send({ type: 'node-core-log', message })
+  } else {
+    console.log(message)
+  }
+}
+
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true })
 }
 
+const builtinSkillsDir = path.resolve(__dirname, 'skills', 'core')
 const skillRegistry = createSkillRegistry({
   dataDir: DATA_DIR,
-  builtinSkillsDir: path.join(__dirname, 'skills', 'core')
+  builtinSkillsDir
 })
+log(`[core] Skill registry initialized from: ${builtinSkillsDir}`)
 const promptRegistry = createPromptRegistry({
   promptsDir: PROMPTS_DIR
 })
@@ -150,7 +160,9 @@ const DEFAULT_TIERS = {
     top_k: 20,
     presence_penalty: 0.6,
     repetition_penalty: 1.05,
-    max_tokens: 512
+    max_tokens: 512,
+    embedding_file: 'Qwen3-Embedding-0.6B-Q8_0.gguf',
+    embedding_repo: 'Qwen/Qwen3-Embedding-0.6B-GGUF'
   }
 }
 
@@ -522,7 +534,7 @@ function buildExtensionsPayload() {
     intents: skill.manifest.intents || [],
     tools: (skill.manifest.tools || []).map((t) => t.name),
     features: {
-      sidebar: true,
+      sidebar: skill.manifest.sidebar === true,
       agent_name: skill.manifest.id
     }
   }))
@@ -617,130 +629,138 @@ async function stopEmbeddingServer() {
 }
 
 async function ensureEmbeddingReady() {
-  if ((store.settings.ai_tier || 'pro') !== 'ultra') return false
+  const tier = store.settings.ai_tier || 'pro'
+  if (tier !== 'ultra') return false
+
   if (semanticState.embedding.ready) return true
   if (semanticState.embedding.startingPromise) return semanticState.embedding.startingPromise
 
-  const backend = pickBackend(store.settings.local_backend || 'auto')
-  const modelPath = pickEmbeddingModelPath()
-  if (!backend || !modelPath) {
-    semanticState.degraded = true
-    semanticState.lastFallbackReason = !modelPath
-      ? 'embedding model not found'
-      : 'embedding backend unavailable'
-    return false
-  }
+  log(`[embedding] Checking embedding server...`)
 
-  const exePath = llamaBackendExePath(backend)
-  const exeDir = path.dirname(exePath)
-  if (!fs.existsSync(exePath)) {
-    semanticState.degraded = true
-    semanticState.lastFallbackReason = `embedding binary missing: ${exePath}`
-    return false
-  }
+  log(`[embedding] Searching for model in: ${MODELS_DIR}`)
+  let modelPath = pickEmbeddingModelPath()
+  if (!modelPath) {
+    const tierConfig = tiersConfig.ultra || DEFAULT_TIERS.ultra
+    log(`[embedding] Model missing. Attempting auto-download: ${tierConfig.embedding_file}`)
 
-  semanticState.embedding.starting = true
-  semanticState.embedding.startingPromise = new Promise((resolve) => {
-    let child = null
-    try {
-      child = spawn(
-        exePath,
-        [
-          '-m',
-          modelPath,
-          '--port',
-          String(EMBEDDING_PORT),
-          '--embedding',
-          '--ctx-size',
-          '512',
-          '--parallel',
-          '1',
-          '--threads',
-          '4',
-          '-ngl',
-          '20',
-          '--mmap'
-        ],
-        {
-          cwd: exeDir,
-          env: {
-            ...process.env,
-            PATH: `${exeDir}${path.delimiter}${process.env.PATH || ''}`
-          },
-          shell: false,
-          stdio: ['ignore', 'pipe', 'pipe']
-        }
-      )
-    } catch (error) {
-      semanticState.embedding.lastError = error?.message || 'failed to spawn embedding server'
-      semanticState.embedding.starting = false
-      semanticState.embedding.startingPromise = null
-      semanticState.degraded = true
-      semanticState.lastFallbackReason = semanticState.embedding.lastError
-      resolve(false)
-      return
+    const downloadResult = await ensureTierModelAvailable('ultra-embedding', {
+      file: tierConfig.embedding_file,
+      repo: tierConfig.embedding_repo
+    })
+    if (downloadResult.ok) {
+      log(`[embedding] Model downloaded successfully to: ${downloadResult.path}`)
+      modelPath = downloadResult.path
+    } else {
+      log(`[embedding] Download failed: ${downloadResult.reason}`)
+      semanticState.lastFallbackReason = 'embedding model not found'
+      return false
     }
+  }
 
-    semanticState.embedding.process = child
-    semanticState.embedding.backend = backend
-    semanticState.embedding.modelPath = modelPath
-
-    child.on('exit', (code, signal) => {
-      const wasStarting = semanticState.embedding.starting
-      semanticState.embedding.ready = false
-      semanticState.embedding.starting = false
-      semanticState.embedding.startingPromise = null
-      semanticState.embedding.process = null
-      if (wasStarting) {
-        semanticState.degraded = true
-        semanticState.lastFallbackReason = `embedding exited during startup (${code}/${signal})`
-      }
-    })
-
-    child.on('error', (error) => {
-      semanticState.embedding.lastError = error?.message || 'embedding spawn error'
-      semanticState.embedding.ready = false
-      semanticState.embedding.starting = false
-      semanticState.embedding.startingPromise = null
-      semanticState.embedding.process = null
-      semanticState.degraded = true
-      semanticState.lastFallbackReason = semanticState.embedding.lastError
-    })
-
-    const startedAt = Date.now()
-    const timeoutMs = 20000
+  log(`[embedding] Selected model: ${modelPath}`)
+  semanticState.embedding.startingPromise = new Promise((resolve) => {
     ;(async () => {
-      while (Date.now() - startedAt < timeoutMs) {
-        if (!semanticState.embedding.process || semanticState.embedding.process.exitCode !== null) {
-          resolve(false)
-          return
+      try {
+        semanticState.embedding.starting = true
+        const backend = pickBackend(store.settings.local_backend || 'auto') || 'cpu'
+        const exePath = llamaBackendExePath(backend)
+        log(`[embedding] Starting server on port ${EMBEDDING_PORT} (backend: ${backend})`)
+
+        if (!fs.existsSync(exePath)) {
+          throw new Error(`llama-server binary missing for ${backend}`)
         }
-        try {
-          const ok = await checkEmbeddingHealth()
-          if (ok) {
-            semanticState.embedding.ready = true
-            semanticState.embedding.starting = false
-            semanticState.embedding.startingPromise = null
-            semanticState.enabled = true
-            semanticState.ready = true
-            semanticState.degraded = false
-            semanticState.lastFallbackReason = null
-            resolve(true)
-            return
+
+        const proc = spawn(
+          exePath,
+          [
+            '-m', modelPath,
+            '--port', String(EMBEDDING_PORT),
+            '--embedding',
+            '--parallel', '4',
+            '--ctx-size', '2048',
+            '--threads', '4',
+            '-ngl', backend === 'vulkan' ? '99' : '0'
+          ],
+          {
+            cwd: path.dirname(exePath),
+            env: { ...process.env, GGML_VULKAN_DEVICE: '0' },
+            stdio: ['ignore', 'pipe', 'pipe']
           }
-        } catch {}
-        await new Promise((r) => setTimeout(r, 250))
+        )
+
+        semanticState.embedding.process = proc
+        log(`[embedding] Process spawned (PID: ${proc.pid})`)
+
+        proc.stdout.on('data', (d) => {
+          const line = String(d || '').trim()
+          if (line) log(`[embedding][stdout] ${line}`)
+        })
+        proc.stderr.on('data', (d) => {
+          const line = String(d || '').trim()
+          if (line) log(`[embedding][stderr] ${line}`)
+        })
+
+        proc.on('exit', (code, signal) => {
+          const wasStarting = semanticState.embedding.starting
+          log(`[embedding] Process exited (code=${code}, signal=${signal})`)
+          semanticState.embedding.process = null
+          semanticState.embedding.ready = false
+          semanticState.embedding.starting = false
+          semanticState.embedding.startingPromise = null
+          if (wasStarting) {
+            semanticState.degraded = true
+            semanticState.lastFallbackReason = `embedding exited (${code}/${signal})`
+            resolve(false)
+          }
+        })
+
+        proc.on('error', (error) => {
+          log(`[embedding] Process error: ${error?.message}`)
+          semanticState.embedding.lastError = error?.message
+          semanticState.embedding.ready = false
+          semanticState.embedding.starting = false
+          semanticState.embedding.startingPromise = null
+          semanticState.embedding.process = null
+          semanticState.degraded = true
+          semanticState.lastFallbackReason = error?.message
+          resolve(false)
+        })
+
+        const startedAt = Date.now()
+        const timeoutMs = 25000
+        while (Date.now() - startedAt < timeoutMs) {
+          if (!semanticState.embedding.process) return // Already handled by exit/error
+          try {
+            const ok = await checkEmbeddingHealth()
+            if (ok) {
+              log(`[embedding] Server is healthy and ready!`)
+              semanticState.embedding.ready = true
+              semanticState.embedding.starting = false
+              semanticState.embedding.startingPromise = null
+              semanticState.enabled = true
+              semanticState.ready = true
+              semanticState.degraded = false
+              semanticState.lastFallbackReason = null
+              resolve(true)
+              return
+            }
+          } catch {}
+          await new Promise((r) => setTimeout(r, 500))
+        }
+
+        log(`[embedding] Startup timed out after ${timeoutMs}ms`)
+        semanticState.degraded = true
+        semanticState.lastFallbackReason = 'embedding startup timeout'
+        await stopEmbeddingServer()
+        resolve(false)
+      } catch (error) {
+        log(`[embedding] Panic in startup task: ${error?.message}`)
+        semanticState.degraded = true
+        semanticState.lastFallbackReason = error?.message || 'embedding startup failure'
+        await stopEmbeddingServer()
+        resolve(false)
       }
-      semanticState.degraded = true
-      semanticState.lastFallbackReason = 'embedding startup timeout'
-      await stopEmbeddingServer()
-      resolve(false)
-    })().catch(async (error) => {
-      semanticState.degraded = true
-      semanticState.lastFallbackReason = error?.message || 'embedding startup failure'
-      await stopEmbeddingServer()
-      resolve(false)
-    })
+    })()
   })
 
   return semanticState.embedding.startingPromise
@@ -1168,13 +1188,12 @@ function saveMemoryNoteFromContent(content) {
 
 async function getTop5SkillsSemantic(query) {
   const text = String(query || '').trim()
-  if (!text) return []
-
   const enabledSkills = getEnabledSkills()
   if (enabledSkills.length === 0) return []
 
-  if (enabledSkills.length <= 5) {
-    return enabledSkills.map((s) => s.id)
+  // Fallback if semantic search is not ready or no query
+  if (!text || !semanticState.ready || enabledSkills.length <= 5) {
+    return enabledSkills.slice(0, 5).map((s) => s.id)
   }
 
   if (semanticState.tableSkills) {
@@ -2504,8 +2523,15 @@ async function streamLlamaChat(req, res, payload) {
   let toolSteps = []
   let activeSkill = null
 
+  log(`[chat] streamLlamaChat called: tier=${tierName}, content="${content.slice(0, 60)}", thread=${threadId}`)
+  log(`[chat] llamaState BEFORE ensureLlamaReady: ready=${llamaState.ready}, starting=${llamaState.starting}, lastError=${llamaState.lastError}, process=${!!llamaState.process}, port=${llamaState.port}`)
+
   const ready = await ensureLlamaReady(false)
+
+  log(`[chat] ensureLlamaReady returned: ${ready}, llamaState.ready=${llamaState.ready}, lastError=${llamaState.lastError}`)
+
   if (!ready) {
+    log(`[chat] FALLBACK triggered! reason=${llamaState.lastError || 'llama unavailable'}`)
     await streamFallbackResponse(
       req,
       res,
@@ -2893,6 +2919,7 @@ async function runVoiceCommand(payload = {}) {
   if (!content) return
   const threadId = String(payload.thread_id || 'default')
   const speakResponse = payload.speak_response !== false
+  log(`[voice-cmd] runVoiceCommand called: content="${content.slice(0, 80)}", thread=${threadId}`)
 
   broadcast({ type: 'user', content })
   broadcast({ type: 'assistant', data: { status: 'Pensando...' } })
