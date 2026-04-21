@@ -91,7 +91,7 @@ if (Test-Path $pythonExe) {
 # Fix for Windows Build Errors: Delete the redundant 'terminfo' database which causes EACCES/permission errors.
 # We check both the parent and target directories to handle different extraction layouts.
 $terminfoPaths = @(
-    Join-Path $targetPython "share/terminfo",
+    Join-Path $targetPython "share/terminfo"
     Join-Path (Join-Path $binDir "python") "share/terminfo"
 )
 foreach ($path in $terminfoPaths) {

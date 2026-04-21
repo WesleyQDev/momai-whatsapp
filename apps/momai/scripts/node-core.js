@@ -162,7 +162,7 @@ const DEFAULT_TIERS = {
     repetition_penalty: 1.05,
     max_tokens: 512,
     embedding_file: 'Qwen3-Embedding-0.6B-Q8_0.gguf',
-    embedding_repo: 'unsloth/Qwen3-Embedding-0.6B-GGUF'
+    embedding_repo: 'Qwen/Qwen3-Embedding-0.6B-GGUF'
   }
 }
 
@@ -677,6 +677,7 @@ async function ensureEmbeddingReady() {
             '-m', modelPath,
             '--port', String(EMBEDDING_PORT),
             '--embedding',
+            '--pooling', 'last',
             '--parallel', '4',
             '--ctx-size', '2048',
             '--threads', '4',
@@ -1453,7 +1454,7 @@ const modelDownloadState = {
   updated_at: isoNow()
 }
 
-let modelDownloadPromise = null
+const modelDownloadPromises = new Map()
 
 function setModelDownloadState(partial) {
   Object.assign(modelDownloadState, partial, { updated_at: isoNow() })
@@ -1554,11 +1555,11 @@ async function ensureTierModelAvailable(tierName, tierConfig) {
     return { ok: true, path: targetPath, downloaded: false }
   }
 
-  if (modelDownloadPromise) {
-    return modelDownloadPromise
+  if (modelDownloadPromises.has(configuredFile)) {
+    return modelDownloadPromises.get(configuredFile)
   }
 
-  modelDownloadPromise = (async () => {
+  const promise = (async () => {
     const url = resolveTierModelUrl(tierName, tierConfig)
     if (!url) {
       return {
@@ -1637,10 +1638,11 @@ async function ensureTierModelAvailable(tierName, tierConfig) {
     }
   })()
 
+  modelDownloadPromises.set(configuredFile, promise)
   try {
-    return await modelDownloadPromise
+    return await promise
   } finally {
-    modelDownloadPromise = null
+    modelDownloadPromises.delete(configuredFile)
   }
 }
 
@@ -1745,7 +1747,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
     llamaState.backend = null
     llamaState.backendReason = 'backend_unavailable'
     llamaState.backendMode = preferred
-    setInitStatus('error', 'Local model engine missing', 100, msg)
+    setInitStatus('error', 'Local model engine missing', 99, msg)
     return false
   }
 
@@ -1754,14 +1756,14 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
     if (!allowModelDownload) {
       const msg = `Model for tier ${tierName.toUpperCase()} not present yet.`
       llamaState.lastError = msg
-      setInitStatus('loading', `Waiting model download (${tierName.toUpperCase()})...`, 100, null)
+      setInitStatus('loading', `Waiting model download (${tierName.toUpperCase()})...`, 25, null)
       return false
     }
     const modelReady = await ensureTierModelAvailable(tierName, tierConfig)
     if (!modelReady.ok) {
       const msg = modelReady.reason || `Failed to prepare model for tier ${tierName}`
       llamaState.lastError = msg
-      setInitStatus('error', 'Local model download failed', 100, msg)
+      setInitStatus('error', 'Local model download failed', 99, msg)
       return false
     }
   }
@@ -1770,7 +1772,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
   if (!modelPath) {
     const msg = `No GGUF model found in ${MODELS_DIR}`
     llamaState.lastError = msg
-    setInitStatus('error', 'Local model file missing', 100, msg)
+    setInitStatus('error', 'Local model file missing', 99, msg)
     return false
   }
   const configuredModelFile = typeof tierConfig.file === 'string' ? tierConfig.file : null
@@ -1941,7 +1943,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
       if (result.ok) return true
       llamaState.lastError = result.reason
       if (preferred !== 'auto') {
-        setInitStatus('error', 'Failed to initialize local model', 100, result.reason)
+        setInitStatus('error', 'Failed to initialize local model', 99, result.reason)
         return false
       }
       if (i === 0 && backend === 'vulkan' && backendAttempts[i + 1] === 'cpu') {
@@ -1954,7 +1956,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
       }
     }
 
-    setInitStatus('error', 'Failed to initialize local model', 100, llamaState.lastError)
+    setInitStatus('error', 'Failed to initialize local model', 99, llamaState.lastError)
     return false
   })()
 
@@ -3894,7 +3896,7 @@ server.listen(PORT, HOST, () => {
       const tierName = store.settings.ai_tier
       if (!tierName) {
         console.info('[NodeCore] Skipping auto-start LLM: AI Tier not selected yet (onboarding).')
-        setInitStatus('ready', 'Aguardando seleção do modo...', 100, null)
+        setInitStatus('ready', 'Aguardando seleção do modo...', 99, null)
         return
       }
 

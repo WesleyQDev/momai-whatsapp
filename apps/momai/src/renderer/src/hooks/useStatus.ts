@@ -78,7 +78,8 @@ export function useStatus() {
       } else {
         setIsBooting(true)
         if (data.is_loading || !data.brain_ready) {
-          setInitProgress((prev) => Math.max(prev, 50))
+          // No more forced jump to 50%. Let it climb naturally.
+          setInitProgress((prev) => Math.max(prev, 5))
         }
       }
 
@@ -296,21 +297,28 @@ export function useStatus() {
         // we speed up the visual bar to reach 100% and finish the animation.
         if (!isBooting && initProgress >= 100) {
           if (prev >= 100) return 100
-          const finishStep = 2 // Faster finish once backend is ready
+          const finishStep = 1.5 // Smooth finish
           return Math.min(100, prev + finishStep)
         }
 
         // Standard simulation while backend is still working
         if (initProgress < 100 || isBooting) {
-          const slowStep = 0.05
-          // Ensure visual progress is at least as much as real progress (to handle jumps)
-          const base = Math.max(prev, initProgress)
-          return Math.min(99.9, base + slowStep)
+          // Dynamic slow step: the closer to 100, the slower it goes
+          // This creates an "infinite" feel that never quite hits 100% prematurely
+          const remaining = 100 - prev
+          const slowStep = Math.max(0.005, remaining * 0.002) 
+          
+          // We allow real progress to push the bar, but smoothly
+          const targetBase = Math.max(prev, initProgress)
+          const smoothBase = prev + (targetBase - prev) * 0.1
+          
+          // Cap at 99.4 so Math.round is 99
+          return Math.min(99.4, smoothBase + slowStep)
         }
 
         return prev
       })
-    }, 100)
+    }, 80) // Slightly faster interval for smoother sub-pixel feel
 
     return () => clearInterval(interval)
   }, [isBooting, initProgress])

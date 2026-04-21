@@ -15,7 +15,7 @@ files:
 win:
   executableName: MomAI
   artifactName: MomAI-Installer.${ext}
-  icon: build/icon.ico
+  icon: build/icon.png
   extraResources:
     - from: '../core'
       to: 'core'

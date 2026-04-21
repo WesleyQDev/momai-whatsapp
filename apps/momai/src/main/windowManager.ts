@@ -38,8 +38,7 @@ async function controlWakeWord(enabled: boolean): Promise<void> {
 }
 
 function resolveIconPath(): string {
-  const isWin = process.platform === 'win32'
-  const ext = isWin ? 'ico' : 'png'
+  const ext = 'png'
 
   if (is.dev) {
     const devPath = join(__dirname, `../../resources/icon.${ext}`)
