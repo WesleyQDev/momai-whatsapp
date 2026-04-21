@@ -1,3 +1,4 @@
+import asyncio
 import queue
 import threading
 import logging
@@ -106,7 +107,7 @@ class WakeWordDetector:
 
         # --- Speech detection parameters (wake word mode) ---
         self.speech_energy_threshold = 0.008
-        self.silence_chunks_required = 3
+        self.silence_chunks_required = 5    # Give more breathing room (1.25s instead of 0.75s)
         self.min_speech_chunks = 2
         self.max_recording_duration = 15.0
 
@@ -222,21 +223,21 @@ class WakeWordDetector:
                     except queue.Empty:
                         continue
                     
-                        # Split 250ms chunk into 5 sub-chunks (50ms each) for better FFT resolution
-                        sub_chunks = np.array_split(chunk, 5)
-                        all_bands = []
-                        for sc in sub_chunks:
-                            # Simple FFT to get frequency spectrum
-                            fft_res = np.abs(np.fft.rfft(sc))
-                            # Downsample to 16 bands for the UI
-                            bands = np.array_split(fft_res, 16)
-                            all_bands.append([float(np.mean(b)) for b in bands])
-                        
-                        if app_state.main_loop:
-                            asyncio.run_coroutine_threadsafe(
-                                app_state.broadcast_to_sockets({"type": "voice_bands", "bands": all_bands}),
-                                app_state.main_loop
-                            )
+                    # Split 250ms chunk into 5 sub-chunks (50ms each) for better FFT resolution
+                    sub_chunks = np.array_split(chunk, 5)
+                    all_bands = []
+                    for sc in sub_chunks:
+                        # Simple FFT to get frequency spectrum
+                        fft_res = np.abs(np.fft.rfft(sc))
+                        # Downsample to 16 bands for the UI
+                        bands = np.array_split(fft_res, 16)
+                        all_bands.append([float(np.mean(b)) for b in bands])
+                    
+                    if app_state.main_loop:
+                        asyncio.run_coroutine_threadsafe(
+                            app_state.broadcast_to_sockets({"type": "voice_bands", "bands": all_bands}),
+                            app_state.main_loop
+                        )
                     if not self.running:
                         break
 
@@ -539,17 +540,11 @@ class WakeWordDetector:
             if is_partial:
                 if self.partial_callback:
                     self.partial_callback(raw_text)
-                # Early-exit: if partial already contains wake word, trigger immediately
-                if self._check_wake_word_fuzzy(text):
-                    logger.info(f"[WakeWord] Early wake word detection in partial: '{raw_text}'")
-                    self._handle_transcription(text, raw_text)
-                    self.last_text = text
-                    self.last_text_time = time.time()
-                    # Flush remaining speech buffer to avoid re-triggering
-                    self.speech_buffer = []
-                    self.speech_chunk_count = 0
-                    self.silence_counter = 0
-                    self.recorded_samples = 0
+                
+                # To prevent premature triggering ("Luna..." cutting off the user), 
+                # we no longer perform early-exit on partials in the normal wake-word mode.
+                # This ensures we wait for the silence timeout (_silence_chunks_required) 
+                # before processing the final command.
                 return
 
             if not is_repeat:

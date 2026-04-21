@@ -28,7 +28,7 @@ class QuickTranscriber:
 
         # Parâmetros de detecção de voz - mais responsivos
         self.speech_energy_threshold = 0.015
-        self.silence_chunks_required = 3  # ~375ms de silêncio (3 chunks de 125ms)
+        self.silence_chunks_required = 8  # ~1s of silence (8 chunks of 125ms)
         self.min_speech_chunks = 1  # Mínimo 125ms de fala
         self.max_recording_duration = 30.0  # Máximo 30 segundos (safety)
         self.blocksize = 2000  # 125ms chunks (mais responsivo)
