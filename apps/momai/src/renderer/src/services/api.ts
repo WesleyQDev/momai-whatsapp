@@ -45,6 +45,10 @@ export interface StatusData {
   }
   ai_tier: string | null
   tiers_config?: Record<string, any>
+  llama_runtime?: {
+    loaded_model_name: string | null
+    [key: string]: any
+  }
 }
 
 export interface ChatStreamCallbacks {

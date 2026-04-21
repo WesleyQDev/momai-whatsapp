@@ -377,7 +377,7 @@ export default function ContainerChat({
   const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
   const isBrainReady = statusInfo?.brain_ready ?? false
   const isBrainLoading = statusInfo?.is_loading ?? false
-  const isSystemDone = initProgress >= 100 && !isBooting
+  const isSystemDone = initProgress >= 100 && !isBooting && (visualProgress ?? 0) >= 100
 
   const [animationFinished, setAnimationFinished] = useState(() => {
     return isSystemDone
@@ -456,7 +456,9 @@ export default function ContainerChat({
   const displayProgress = isSystemDone ? 100 : Math.min(visualProgress || initProgress || 0, 99.9)
   const loadingProgress = isModeChanging ? Math.min(displayProgress, 99.9) : displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
-  const showLoading = isModeChanging || !isSystemDone || (!shouldSkipIntro && !animationFinished)
+  const hasMessages = messages.length > 0
+  const showLoading =
+    isModeChanging || ((!isSystemDone || (!shouldSkipIntro && !animationFinished)) && !hasMessages)
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage =
@@ -623,6 +625,14 @@ export default function ContainerChat({
 
           </div>
         </>
+      )}
+
+      {statusInfo?.llama_runtime?.loaded_model_name && (
+        <div className="absolute bottom-1.5 right-4 z-50 pointer-events-none select-none">
+          <span className="text-[9px] font-bold text-white/40 bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-md border border-white/5 transition-colors uppercase tracking-[0.1em]">
+            {statusInfo.llama_runtime.loaded_model_name}
+          </span>
+        </div>
       )}
     </div>
   )

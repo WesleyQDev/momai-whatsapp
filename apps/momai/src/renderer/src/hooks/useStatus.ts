@@ -284,23 +284,31 @@ export function useStatus() {
 
   // Visual progress simulation
   useEffect(() => {
-    if (!isBooting && initProgress >= 100) {
-      setVisualProgress(100)
-      return undefined
+    if (isBooting && visualProgress >= 100) {
+      setVisualProgress(2)
     }
+  }, [isBooting])
 
+  useEffect(() => {
     const interval = setInterval(() => {
       setVisualProgress((prev) => {
-        if (initProgress < 100) {
+        // If the backend says we're done (not booting and 100% progress)
+        // we speed up the visual bar to reach 100% and finish the animation.
+        if (!isBooting && initProgress >= 100) {
+          if (prev >= 100) return 100
+          const finishStep = 2 // Faster finish once backend is ready
+          return Math.min(100, prev + finishStep)
+        }
+
+        // Standard simulation while backend is still working
+        if (initProgress < 100 || isBooting) {
           const slowStep = 0.05
           // Ensure visual progress is at least as much as real progress (to handle jumps)
           const base = Math.max(prev, initProgress)
           return Math.min(99.9, base + slowStep)
         }
 
-        if (prev >= 100) return 100
-        const finishStep = 4
-        return Math.min(100, prev + finishStep)
+        return prev
       })
     }, 100)
 

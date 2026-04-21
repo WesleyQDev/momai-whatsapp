@@ -185,6 +185,7 @@ export function createOverlayWindow(data?: any): void {
       resizable: false,
       hasShadow: false,
       skipTaskbar: true,
+      icon: ICON_PATH,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false

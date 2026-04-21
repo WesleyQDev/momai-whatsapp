@@ -122,7 +122,7 @@ const promptRegistry = createPromptRegistry({
 const DEFAULT_TIERS = {
   lite: {
     file: 'Qwen3.5-0.8B-Q4_K_M.gguf',
-    repo: 'Qwen/Qwen3.5-0.8B-GGUF',
+    repo: 'unsloth/Qwen3.5-0.8B-GGUF',
     enable_vision: false,
     ctx_size: 8192,
     request_ctx_size: 4096,
@@ -136,7 +136,7 @@ const DEFAULT_TIERS = {
   },
   pro: {
     file: 'Qwen3.5-2B-Q4_K_M.gguf',
-    repo: 'Qwen/Qwen3.5-2B-GGUF',
+    repo: 'unsloth/Qwen3.5-2B-GGUF',
     enable_vision: false,
     ctx_size: 8192,
     request_ctx_size: 6144,
@@ -150,7 +150,7 @@ const DEFAULT_TIERS = {
   },
   ultra: {
     file: 'Qwen3.5-4B-Q4_K_M.gguf',
-    repo: 'Qwen/Qwen3.5-4B-GGUF',
+    repo: 'unsloth/Qwen3.5-4B-GGUF',
     enable_vision: false,
     ctx_size: 8192,
     request_ctx_size: 8192,
@@ -162,7 +162,7 @@ const DEFAULT_TIERS = {
     repetition_penalty: 1.05,
     max_tokens: 512,
     embedding_file: 'Qwen3-Embedding-0.6B-Q8_0.gguf',
-    embedding_repo: 'Qwen/Qwen3-Embedding-0.6B-GGUF'
+    embedding_repo: 'unsloth/Qwen3-Embedding-0.6B-GGUF'
   }
 }
 
@@ -1419,27 +1419,17 @@ function backendReason(mode, backend, context = {}) {
 }
 
 function resolveModelPath(tierConfig) {
-  const configured = path.join(MODELS_DIR, tierConfig.file || '')
-  if (tierConfig.file && fs.existsSync(configured)) return configured
+  const configuredFile = String(tierConfig?.file || '').trim()
+  if (!configuredFile) return null
 
-  if (!fs.existsSync(MODELS_DIR)) return null
-
-  // Ignore non-chat artifacts when falling back.
-  const isChatCandidate = (name) => {
-    const lower = name.toLowerCase()
-    if (!lower.endsWith('.gguf')) return false
-    if (lower.includes('mmproj')) return false
-    if (lower.includes('embedding')) return false
-    return true
+  const targetPath = path.join(MODELS_DIR, configuredFile)
+  if (fs.existsSync(targetPath)) {
+    return targetPath
   }
 
-  const ggufs = fs
-    .readdirSync(MODELS_DIR)
-    .filter((name) => isChatCandidate(name))
-    .sort((a, b) => a.localeCompare(b))
-
-  if (!ggufs.length) return null
-  return path.join(MODELS_DIR, ggufs[0])
+  // Se o arquivo exato não existir, retornamos null para forçar o download.
+  // Removemos o fallback alfabético anterior que causava o uso do modelo errado.
+  return null
 }
 
 function resolveMmprojPath() {
@@ -1668,6 +1658,7 @@ const llamaState = {
   usingFallbackModel: false,
   contextTotalTokens: 8192,
   currentTier: null,
+  currentModelName: null,
   port: LLAMA_PORT
 }
 
@@ -1734,6 +1725,8 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
   const backendAttempts = pickBackendAttempts(preferred)
   const tierName = store.settings.ai_tier || 'pro'
   const tierConfig = tiersConfig[tierName] || tiersConfig.pro || DEFAULT_TIERS.pro
+
+  log(`[llama] ensuring llama ready. tier: ${tierName}, file: ${tierConfig.file}`)
 
   if (!backendAttempts.length) {
     const incompatibleBackends = listIncompatibleBackends()
@@ -1854,6 +1847,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
         llamaState.configuredModelFile = configuredModelFile
         llamaState.usingFallbackModel = usingFallbackModel
         llamaState.currentTier = tierName
+        llamaState.currentModelName = tierConfig.name || null
         llamaState.port = selectedPort
 
         setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 80, null)
@@ -3230,6 +3224,7 @@ async function handleRequest(req, res) {
         configured_model_file: llamaState.configuredModelFile,
         loaded_model_path: llamaState.modelPath,
         loaded_model_file: llamaState.modelPath ? path.basename(llamaState.modelPath) : null,
+        loaded_model_name: llamaState.currentModelName,
         using_fallback_model: llamaState.usingFallbackModel
       },
       model_download: modelDownloadState,
