@@ -297,7 +297,22 @@ const CallModeContent = ({
       </div>
 
       {/* 4. FOOTER: Actions */}
-      <div className="flex flex-col items-center gap-4 relative z-20">
+      <div className="flex items-center gap-8 relative z-20">
+        {isSpeaking && onStopVoice && (
+          <button
+            type="button"
+            onClick={onStopVoice}
+            className="group flex flex-col items-center gap-3 transition-all duration-300 active:scale-95"
+          >
+            <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-white/10 group-hover:border-white/20 transition-all duration-500">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-white/60 group-hover:text-white/90">
+                <rect x="6" y="5" width="4" height="14" rx="1" />
+                <rect x="14" y="5" width="4" height="14" rx="1" />
+              </svg>
+            </div>
+            <span className="text-[8px] font-black tracking-[0.5em] uppercase text-white/30 group-hover:text-white/60 transition-colors">Parar</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={onEndCall}
@@ -454,6 +469,7 @@ export default function ContainerChat({
       ) : isCallMode ? (
         <CallModeUI
           onEndCall={onToggleCallMode || (() => { })}
+          onStopVoice={stopCurrentVoice}
           history={callHistory}
           status={voiceStatus}
           isSpeaking={speakingIndex !== null && speakingIndex !== undefined}

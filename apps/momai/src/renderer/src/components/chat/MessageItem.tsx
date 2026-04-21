@@ -1117,21 +1117,27 @@ const MessageItem = memo(function MessageItem({
                       </button>
                     </>
                   )}
-
-                  {isSpeaking && onStopVoice && !hideStopButton && aiTier !== 'lite' && (
-                    <button
-                      type="button"
-                      onClick={handleStopVoiceClick}
-                      className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-all animate-pulse"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                        <rect x="6" y="5" width="4" height="14" rx="1" />
-                        <rect x="14" y="5" width="4" height="14" rx="1" />
-                      </svg>
-                      <span className="text-[10px] font-semibold">Parar</span>
-                    </button>
-                  )}
                 </div>
+
+                {isSpeaking && onStopVoice && !hideStopButton && aiTier !== 'lite' && (
+                  <button
+                    type="button"
+                    onClick={handleStopVoiceClick}
+                    className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-white/10 text-red-400 hover:text-red-300 transition-colors opacity-50 hover:opacity-100"
+                    title="Parar voz"
+                    aria-label="Parar voz"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <rect x="6" y="5" width="4" height="14" rx="1" />
+                      <rect x="14" y="5" width="4" height="14" rx="1" />
+                    </svg>
+                  </button>
+                )}
 
                 {hasActualContent && showReportConfirm && (
                   <div className="w-full max-w-[320px] p-3 rounded-xl border border-border/20 bg-card/95 shadow-xl backdrop-blur-sm">
