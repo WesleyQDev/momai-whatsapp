@@ -38,18 +38,24 @@ async function controlWakeWord(enabled: boolean): Promise<void> {
 }
 
 function resolveIconPath(): string {
-  const candidatePaths = [
-    join(__dirname, '../../resources/icon.png'),
-    join(app.getAppPath(), 'resources/icon.png'),
-    join(process.resourcesPath, 'icon.png'),
-    join(process.resourcesPath, 'resources/icon.png')
-  ]
+  const isWin = process.platform === 'win32'
+  const ext = isWin ? 'ico' : 'png'
 
-  for (const iconPath of candidatePaths) {
-    if (existsSync(iconPath)) return iconPath
+  if (is.dev) {
+    const devPath = join(__dirname, `../../resources/icon.${ext}`)
+    return existsSync(devPath) ? devPath : join(__dirname, '../../resources/icon.png')
   }
 
-  return join(__dirname, '../../resources/icon.png')
+  // Em produção, os arquivos de 'resources' estão na raiz do process.resourcesPath
+  // por conta da config 'from: resources, to: .' no electron-builder.yml
+  const prodPath = join(process.resourcesPath, `icon.${ext}`)
+  if (existsSync(prodPath)) return prodPath
+
+  const prodPngPath = join(process.resourcesPath, 'icon.png')
+  if (existsSync(prodPngPath)) return prodPngPath
+
+  // Fallback
+  return join(app.getAppPath(), `resources/icon.${ext}`)
 }
 
 const ICON_PATH = resolveIconPath()

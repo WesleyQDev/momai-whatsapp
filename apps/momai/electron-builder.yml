@@ -11,12 +11,11 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   - '!bin/**'
   - '!out/bin/**'
-asarUnpack:
-  - resources/**
+  - '!resources/**'
 win:
   executableName: MomAI
   artifactName: MomAI-Installer.${ext}
-  icon: build/icon.png
+  icon: build/icon.ico
   extraResources:
     - from: '../core'
       to: 'core'
@@ -41,6 +40,8 @@ win:
         - '!**/python/Lib/site-packages/tests/**'
     - from: 'bin/wheels'
       to: 'wheels'
+    - from: 'resources'
+      to: '.'
     - from: 'build/diagnostic.bat'
       to: 'diagnostic.bat'
 nsis:
@@ -102,6 +103,8 @@ linux:
         - '!**/share/terminfo/**'
     - from: 'bin/wheels'
       to: 'wheels'
+    - from: 'resources'
+      to: '.'
     - from: 'build/diagnostic.sh'
       to: 'diagnostic.sh'
 appImage:
