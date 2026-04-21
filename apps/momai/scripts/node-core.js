@@ -3928,8 +3928,9 @@ server.listen(PORT, HOST, () => {
   }
   void announceReady()
 
-  void syncWakeWordState('startup')
-  if ((store.settings.ai_tier || 'pro') === 'ultra') {
+  const startupTier = store.settings.ai_tier || 'pro'
+  if (startupTier === 'ultra') {
+    void syncWakeWordState('startup')
     ensureEmbeddingReady()
       .then((ok) => {
         if (ok) {

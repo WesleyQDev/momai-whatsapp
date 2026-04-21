@@ -119,6 +119,10 @@ export function useStatus() {
       setIsStalled(false)
       setIsRetrying(false)
 
+      if (data.progress >= 100) {
+        setIsBooting(false)
+      }
+
       // Se recebemos progresso do backend, ele definitivamente está rodando
       if (!backendOnline) {
         setBackendOnline(true)

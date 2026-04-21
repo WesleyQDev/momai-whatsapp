@@ -102,16 +102,26 @@ const UV_PYTHON_INSTALL_PATH = join(userDataPath, 'uv_python')
 export type AITier = 'lite' | 'pro' | 'ultra'
 
 function getCurrentTier(): AITier | null {
-  const storePath = join(userDataPath, 'data', 'node-core-store.json')
-  try {
-    if (existsSync(storePath)) {
-      const data = JSON.parse(readFileSync(storePath, 'utf-8'))
-      const tier = data.settings?.ai_tier
-      if (tier === 'lite' || tier === 'pro' || tier === 'ultra') return tier
-      return null
+  // Check both the standard Electron userData path and the MSIX-resolved path.
+  // node-core.js writes to app.getPath('userData') (via MOMAI_NODE_CORE_DATA_DIR),
+  // which may differ from resolveUserDataPath() on MSIX installs.
+  const candidates = [
+    join(app.getPath('userData'), 'data', 'node-core-store.json'),
+    join(userDataPath, 'data', 'node-core-store.json')
+  ]
+  // Dedupe in case both resolve to the same path
+  const uniquePaths = [...new Set(candidates)]
+
+  for (const storePath of uniquePaths) {
+    try {
+      if (existsSync(storePath)) {
+        const data = JSON.parse(readFileSync(storePath, 'utf-8'))
+        const tier = data.settings?.ai_tier
+        if (tier === 'lite' || tier === 'pro' || tier === 'ultra') return tier
+      }
+    } catch (e) {
+      logger.warn(`[PythonManager] Error reading tier from ${storePath}:`, e)
     }
-  } catch (e) {
-    logger.warn('[PythonManager] Error reading tier from store:', e)
   }
   return null
 }
@@ -1417,6 +1427,18 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
   const desiredHost = options.host || API_HOST
   const desiredPort = options.port ?? API_PORT
   if (isPythonRunning()) return
+
+  // Early exit: tiers that don't use Python avoid the heavy bootstrap cycle
+  const tier = getCurrentTier()
+  if (!tier) {
+    logger.info('[Bootstrap] Backend startup skipped: No tier selected yet.')
+    return
+  }
+  if (tier === 'lite') {
+    logger.info('[Bootstrap] Backend startup skipped: Lite mode does not use Python.')
+    return
+  }
+
   if (await isPortReachable(desiredPort, desiredHost, 300)) {
     logger.info(
       `[Electron] Python backend already reachable on ${desiredHost}:${desiredPort}, skipping spawn.`

@@ -215,6 +215,10 @@ export async function ensurePythonSidecar(): Promise<{ ok: boolean; error?: stri
       return { ok: false, error: 'Python sidecar is disabled in Lite mode' }
     }
 
+    if (!tier) {
+      return { ok: false, error: 'AI tier not selected yet (onboarding pending)' }
+    }
+
     if (!isPythonRunning()) {
       const options: PythonBackendStartOptions = {
         host: PYTHON_SIDECAR_HOST,
@@ -223,6 +227,10 @@ export async function ensurePythonSidecar(): Promise<{ ok: boolean; error?: stri
         reportBootstrapErrors: false
       }
       await startPythonBackend(options)
+    }
+
+    if (!isPythonRunning()) {
+      return { ok: false, error: 'Python sidecar failed to start' }
     }
 
     return {
