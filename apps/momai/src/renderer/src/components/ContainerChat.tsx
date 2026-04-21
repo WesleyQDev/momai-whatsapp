@@ -453,12 +453,12 @@ export default function ContainerChat({
       )
   }, [threadId])
 
-  const displayProgress = isSystemDone ? 100 : Math.min(visualProgress || initProgress || 0, 99.9)
-  const loadingProgress = isModeChanging ? Math.min(displayProgress, 99.9) : displayProgress
+  const displayProgress = isSystemDone ? 100 : Math.min(visualProgress || initProgress || 0, 96.4)
+  const loadingProgress = displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
   const hasMessages = messages.length > 0
   const showLoading =
-    isModeChanging || ((!isSystemDone || (!shouldSkipIntro && !animationFinished)) && !hasMessages)
+    isModeChanging || ((!isSystemDone || (!shouldSkipIntro && !animationFinished)))
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage =

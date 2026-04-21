@@ -151,15 +151,37 @@ export default function SplashScreen({
 
   useEffect(() => {
     if (bootstrapError) return
-    const target = Math.max(initProgress || 0, 5)
 
     const interval = setInterval(() => {
       setVisualProgress((prev) => {
-        const step = (target - prev) * 0.1
-        const next = prev + step + 0.1
-        return Math.min(next, (initProgress || 0) >= 100 ? 100 : 95)
+        // If backend says we're fully ready, race to 100
+        if ((initProgress || 0) >= 100) {
+          if (prev >= 100) return 100
+          const remaining = 100 - prev
+          return Math.min(100, prev + Math.max(0.8, remaining * 0.08))
+        }
+
+        const target = Math.max(initProgress || 0, 5)
+        // Gently pull toward backend progress
+        const pullStep = (target - prev) * 0.03
+
+        // Phase-based auto-step
+        let autoStep: number
+        if (prev < 30) {
+          autoStep = 0.15
+        } else if (prev < 55) {
+          autoStep = 0.2
+        } else if (prev < 75) {
+          autoStep = 0.08
+        } else if (prev < 88) {
+          autoStep = 0.02
+        } else {
+          autoStep = 0.005
+        }
+
+        return Math.min(96.4, prev + pullStep + autoStep)
       })
-    }, 50)
+    }, 80)
 
     return () => clearInterval(interval)
   }, [initProgress, bootstrapError])

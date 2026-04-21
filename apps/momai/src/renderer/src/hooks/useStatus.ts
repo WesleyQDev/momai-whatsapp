@@ -293,32 +293,47 @@ export function useStatus() {
   useEffect(() => {
     const interval = setInterval(() => {
       setVisualProgress((prev) => {
-        // If the backend says we're done (not booting and 100% progress)
-        // we speed up the visual bar to reach 100% and finish the animation.
+        // Phase 1: Backend says we're done – accelerate smoothly to 100%
         if (!isBooting && initProgress >= 100) {
           if (prev >= 100) return 100
-          const finishStep = 1.5 // Smooth finish
+          const remaining = 100 - prev
+          const finishStep = Math.max(0.8, remaining * 0.08)
           return Math.min(100, prev + finishStep)
         }
 
-        // Standard simulation while backend is still working
+        // Phase 2: Still loading – simulate realistic progress
         if (initProgress < 100 || isBooting) {
-          // Dynamic slow step: the closer to 100, the slower it goes
-          // This creates an "infinite" feel that never quite hits 100% prematurely
-          const remaining = 100 - prev
-          const slowStep = Math.max(0.005, remaining * 0.002) 
-          
-          // We allow real progress to push the bar, but smoothly
+          // Allow real backend progress to gently pull the bar forward
           const targetBase = Math.max(prev, initProgress)
-          const smoothBase = prev + (targetBase - prev) * 0.1
-          
-          // Cap at 99.4 so Math.round is 99
-          return Math.min(99.4, smoothBase + slowStep)
+          const smoothTarget = prev + (targetBase - prev) * 0.05
+
+          // Speed depends on where we are in the bar
+          let autoStep: number
+          if (prev < 30) {
+            // 0-30%: Slow and deliberate start
+            autoStep = 0.08
+          } else if (prev < 55) {
+            // 30-55%: Slightly faster, building confidence
+            autoStep = 0.12
+          } else if (prev < 75) {
+            // 55-75%: Moderate pace
+            autoStep = 0.06
+          } else if (prev < 88) {
+            // 75-88%: Noticeably slower – "heavy lifting"
+            autoStep = 0.015
+          } else {
+            // 88-97%: Crawl – gives LLM time to finish loading
+            autoStep = 0.004
+          }
+
+          // Hard cap: never show "99%" or above while still loading
+          // Math.round(96.5) = 97, so cap at 96.4 to display max "96%"
+          return Math.min(96.4, smoothTarget + autoStep)
         }
 
         return prev
       })
-    }, 80) // Slightly faster interval for smoother sub-pixel feel
+    }, 100)
 
     return () => clearInterval(interval)
   }, [isBooting, initProgress])

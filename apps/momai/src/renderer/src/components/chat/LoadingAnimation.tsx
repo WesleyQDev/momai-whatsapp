@@ -42,7 +42,7 @@ export default function LoadingAnimation({
             ? 'A primeira inicialização pode levar de 1 a 3 minutos'
             : 'Bem-vinda à MomAI'}
         </h1>
-        {Math.round(progress) >= 99 && progress < 100 && (
+        {Math.round(progress) >= 90 && progress < 100 && (
           <p
             className="mt-3 text-[11px] font-medium text-accent/80 tracking-wide animate-pulse"
             style={{ animation: 'fadeIn 0.6s ease-in' }}
