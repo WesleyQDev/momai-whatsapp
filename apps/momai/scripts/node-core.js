@@ -2897,12 +2897,57 @@ async function streamLlamaChat(req, res, payload) {
                 semanticState.lastNotesSyncAt = 0
                 return note
               },
-              async searchMemory(text, limit = 4) {
-                const result = await runSemanticMemoryRetrieval(text, limit)
-                return result.hits || []
-              },
-              searchWeb
-            }
+                async searchMemory(text, limit = 4) {
+                  const result = await runSemanticMemoryRetrieval(text, limit)
+                  return result.hits || []
+                },
+                removeReminder(id) {
+                  const initialCount = store.reminders.length
+                  store.reminders = store.reminders.filter((r) => r.id !== Number(id))
+                  const changed = store.reminders.length !== initialCount
+                  if (changed) {
+                    saveStore()
+                    broadcast({ type: 'reminders_updated' })
+                  }
+                  return changed
+                },
+                removeAllReminders() {
+                  const changed = store.reminders.length > 0
+                  if (changed) {
+                    store.reminders = []
+                    saveStore()
+                    broadcast({ type: 'reminders_updated' })
+                  }
+                  return changed
+                },
+                removeRemindersByFilter({ title, date }) {
+                  const initialCount = store.reminders.length
+                  store.reminders = store.reminders.filter((r) => {
+                    let match = true
+                    if (title) {
+                      const t = String(title).toLowerCase()
+                      if (!r.title.toLowerCase().includes(t) && !r.content.toLowerCase().includes(t)) {
+                        match = false
+                      }
+                    }
+                    if (date && match) {
+                      // Simplistic date match (YYYY-MM-DD)
+                      if (!r.scheduled_time.startsWith(date)) {
+                        match = false
+                      }
+                    }
+                    return !match
+                  })
+                  
+                  const changed = store.reminders.length !== initialCount
+                  if (changed) {
+                    saveStore()
+                    broadcast({ type: 'reminders_updated' })
+                  }
+                  return { success: changed, count: initialCount - store.reminders.length }
+                },
+                searchWeb
+              }
 
             try {
               const result = await skillRegistry.execute(

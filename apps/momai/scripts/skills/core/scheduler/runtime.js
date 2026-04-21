@@ -40,7 +40,7 @@ module.exports = {
   tools: [
     {
       name: 'create_reminder',
-      description: 'Cria um lembrete local com argumentos estruturados.',
+      description: 'Cria um lembrete local com argumentos estruturados. IMPORTANTE: Use a "Local datetime" do prompt de sistema para calcular o scheduled_time corretamente (ex: se hoje é Abril e o usuário pede Agosto, use o ano atual).',
       parameters: {
         type: 'object',
         required: ['title', 'scheduled_time'],
@@ -51,7 +51,7 @@ module.exports = {
           },
           scheduled_time: {
             type: 'string',
-            description: 'Data e hora no formato ISO 8601 (YYYY-MM-DDTHH:mm:ss). Ex: "2025-04-21T15:00:00"'
+            description: 'Data e hora no formato ISO 8601 (YYYY-MM-DDTHH:mm:ss). Ex: "2026-08-01T09:00:00"'
           },
           content: {
             type: 'string',
@@ -60,7 +60,33 @@ module.exports = {
         }
       }
     },
-    { name: 'list_reminders', description: 'Lista lembretes ativos e seus horários.' }
+    { name: 'list_reminders', description: 'Lista lembretes ativos e seus horários.' },
+    {
+      name: 'remove_reminder',
+      description: 'Remove um lembrete específico pelo ID numérico.',
+      parameters: {
+        type: 'object',
+        required: ['id'],
+        properties: {
+          id: { type: 'number', description: 'ID exato do lembrete (obtido via list_reminders)' }
+        }
+      }
+    },
+    {
+      name: 'remove_reminders_by_filter',
+      description: 'Remove lembretes que correspondam a um filtro (texto ou data). Use para remover lembretes de "hoje", "de trabalho", "das 13h", etc.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Palavra-chave no título ou conteúdo (ex: "academia", "13:00")' },
+          date: { type: 'string', description: 'Data opcional no formato YYYY-MM-DD' }
+        }
+      }
+    },
+    { 
+      name: 'clear_all_reminders', 
+      description: 'CUIDADO: Apaga ABSOLUTAMENTE TODOS os lembretes da conta. Use APENAS se o usuário pedir explicitamente para "limpar tudo" ou "apagar toda a agenda". Nunca use se houver um filtro de data ou assunto.' 
+    }
   ],
 
   async execute({ content, args, context, toolName }) {
@@ -80,6 +106,36 @@ module.exports = {
         },
         instruction: JSON.stringify({ items, mode: 'list' }),
         webSources: []
+      }
+    }
+
+    if (toolName === 'remove_reminder') {
+      const id = Number(toolArgs.id)
+      const success = context.removeReminder(id)
+      return {
+        tool: 'remove_reminder',
+        instruction: success ? `Lembrete ${id} removido com sucesso.` : `Lembrete ${id} não encontrado.`
+      }
+    }
+
+    if (toolName === 'remove_reminders_by_filter') {
+      const result = context.removeRemindersByFilter({
+        title: toolArgs.title,
+        date: toolArgs.date
+      })
+      return {
+        tool: 'remove_reminders_by_filter',
+        instruction: result.success 
+          ? `${result.count} lembrete(s) removido(s) com sucesso.` 
+          : `Nenhum lembrete encontrado para os filtros aplicados.`
+      }
+    }
+
+    if (toolName === 'clear_all_reminders') {
+      const success = context.removeAllReminders()
+      return {
+        tool: 'clear_all_reminders',
+        instruction: success ? 'TODOS os lembretes foram removidos da agenda.' : 'Nenhum lembrete para remover.'
       }
     }
 

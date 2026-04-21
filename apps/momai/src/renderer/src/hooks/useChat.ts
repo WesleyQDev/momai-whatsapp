@@ -132,6 +132,18 @@ export function useChat() {
     return () => window.removeEventListener('keydown', handleEsc)
   }, [closeGraph])
 
+  // Reset states on new session (e.g. tier change)
+  useEffect(() => {
+    const handleNewSession = () => {
+      setIsLoading(false)
+      setSpeakingMessageId(null)
+      setVoiceStatus('idle')
+      setVoiceEngineLoading(null)
+    }
+    window.addEventListener('momai_new_session', handleNewSession)
+    return () => window.removeEventListener('momai_new_session', handleNewSession)
+  }, [setIsLoading, setSpeakingMessageId, setVoiceStatus])
+
   return {
     text,
     setText,
