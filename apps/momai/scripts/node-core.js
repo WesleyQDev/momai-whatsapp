@@ -2329,13 +2329,7 @@ async function syncWakeWordState(reason = 'unknown') {
   const shouldEnable =
     tier === 'ultra' && (Boolean(store.settings.wake_word_enabled) || Boolean(store.call_mode))
 
-  if (tier !== 'ultra') {
-    if (typeof process.send === 'function' && shouldEnable) {
-      process.send({
-        type: 'node-core-log',
-        message: `[node-core] Wake-word ignored: only supported in Ultra mode (current: ${tier})`
-      })
-    }
+  if (tier === 'lite') {
     return
   }
 
@@ -2379,7 +2373,7 @@ async function syncPythonCallModeState(reason = 'unknown') {
   const tier = store.settings.ai_tier || 'pro'
   const enabled = tier === 'ultra' && Boolean(store.call_mode)
 
-  if (tier !== 'ultra') {
+  if (tier === 'lite') {
     return
   }
 

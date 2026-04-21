@@ -1708,7 +1708,7 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
   await pythonStartPromise
 }
 
-async function killPythonBackend(): Promise<void> {
+export async function killPythonBackend(): Promise<void> {
   if (!state.pythonProcess || !state.pythonProcess.pid) {
     logger.info('[Electron] Python process não está rodando.')
     return

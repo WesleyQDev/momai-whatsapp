@@ -10,6 +10,7 @@ import {
   isPythonRunning,
   shutdownPython,
   startPythonBackend,
+  killPythonBackend,
   type PythonBackendStartOptions
 } from './pythonManager'
 
@@ -203,6 +204,10 @@ export async function ensurePythonSidecar(): Promise<{ ok: boolean; error?: stri
   try {
     const tier = getCurrentTier()
     if (tier === 'lite') {
+      if (isPythonRunning()) {
+        logger.info('[CoreManager] Mode is Lite: shutting down Python sidecar to save resources.')
+        await killPythonBackend()
+      }
       return { ok: false, error: 'Python sidecar is disabled in Lite mode' }
     }
 
@@ -495,6 +500,13 @@ export async function restartCoreBackend(): Promise<{ success: boolean; error?: 
       child.kill('SIGTERM')
       await new Promise((resolve) => setTimeout(resolve, 800))
     }
+
+    // Also restart Python so it reloads with the new tier/environment settings.
+    if (isPythonRunning()) {
+      logger.info('[CoreManager] Restarting Python sidecar due to tier/backend change...')
+      await killPythonBackend()
+    }
+
     isStoppingCore = false
     await startCoreBackend()
     return { success: true }

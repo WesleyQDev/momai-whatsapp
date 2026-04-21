@@ -133,25 +133,29 @@ async def control_wake_word(control: WakeWordControl):
         settings = db.query(Settings).first()
         db.close()
         
-        if control.enabled and settings and settings.ai_tier != "ultra":
-            return {"success": False, "message": "Wake word only available in Ultra tier"}
-
-        if control.enabled and not app_state.ww:
-            await ensure_wake_word_detector()
+        if not control.enabled or (settings and settings.ai_tier != "ultra"):
+            if app_state.ww:
+                logger.info("[VoiceAPI] Stopping and clearing wake word detector due to disable/tier change.")
+                app_state.ww.stop()
+                app_state.ww = None
+            
+            if not control.enabled:
+                return {"success": True, "message": "Wake word disabled"}
+            else:
+                return {"success": False, "message": "Wake word only available in Ultra tier"}
 
         if not app_state.ww:
-            return {"success": False, "message": "Wake word detector not initialized"}
+            await ensure_wake_word_detector()
 
-        if control.enabled:
+        if app_state.ww:
             app_state.ww.wake_word_active = True
             if not app_state.ww.running:
                 app_state.ww.start()
             logger.info("[VoiceAPI] Wake word enabled")
             return {"success": True, "message": "Wake word enabled"}
-        else:
-            app_state.ww.wake_word_active = False
-            logger.info("[VoiceAPI] Wake word disabled")
-            return {"success": True, "message": "Wake word disabled"}
+        
+        return {"success": False, "message": "Failed to initialize detector"}
+
 
     except Exception as e:
         logger.error(f"[VoiceAPI] Wake word control error: {e}")
@@ -195,6 +199,7 @@ async def control_call_mode(control: CallModeControl):
                 if not keep_wake_word:
                     app_state.ww.wake_word_active = False
                     app_state.ww.stop()
+                    app_state.ww = None
 
         return {"success": True, "call_mode": app_state.is_call_mode()}
     except Exception as e:
