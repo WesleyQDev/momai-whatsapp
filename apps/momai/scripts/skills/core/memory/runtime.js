@@ -6,7 +6,9 @@ module.exports = {
 
   async execute({ content, context }) {
     const text = String(content || '').trim()
-    if (/(salve|anote|memorize|guarde|save this|remember this)/i.test(text)) {
+    const isReminder = /(às\s*\d|horas|amanhã|agendar|lembrete|schedule|reminder|pm|am)/i.test(text)
+    
+    if (/(salve|anote|memorize|guarde|save this|remember this)/i.test(text) && !isReminder) {
       const note = context.saveMemoryNote(text)
       return {
         tool: 'save_note_memory',
