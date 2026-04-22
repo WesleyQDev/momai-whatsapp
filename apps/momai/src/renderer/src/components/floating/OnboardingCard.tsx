@@ -282,6 +282,81 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         </span>
       </div>
 
+      {/* Language Selector Top Right */}
+      <div className="absolute top-4 right-6 z-[305] flex items-center gap-3">
+        <button
+          onClick={() => {
+            const nextLang = selectedLang === 'p' ? 'a' : 'p'
+            setSelectedLang(nextLang)
+            const group = VOICE_CATALOG.find((g) => g.code === nextLang)
+            if (group) {
+              setSelectedVoice(group.voices[0].id)
+              setLocale(nextLang === 'p' ? 'pt-BR' : ('en-US' as any))
+            }
+          }}
+          className="no-drag flex items-center gap-3 px-4 py-2 rounded-xl bg-white/[0.03] border border-white/5 hover:border-accent/40 hover:bg-white/[0.08] transition-all duration-300 group shadow-sm active:scale-95"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        >
+          <div className="flex items-center gap-2.5">
+            {/* Brazil Flag */}
+            <div
+              className={`transition-all duration-500 flex items-center ${
+                selectedLang === 'p'
+                  ? 'opacity-100 scale-110 drop-shadow-[0_0_8px_rgba(34,197,94,0.3)]'
+                  : 'opacity-20 grayscale scale-90 blur-[0.5px]'
+              }`}
+            >
+              <svg width="20" height="14" viewBox="0 0 720 504" className="rounded-[2px]">
+                <rect width="720" height="504" fill="#009c3b" />
+                <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
+                <circle cx="360" cy="252" r="126" fill="#002776" />
+                <path
+                  d="M245 285a126 126 0 0 1 230-66 126 126 0 0 0-230 66z"
+                  fill="#fff"
+                />
+              </svg>
+            </div>
+
+            <div className="w-[1px] h-3 bg-white/10" />
+
+            {/* USA Flag */}
+            <div
+              className={`transition-all duration-500 flex items-center ${
+                selectedLang === 'a'
+                  ? 'opacity-100 scale-110 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]'
+                  : 'opacity-20 grayscale scale-90 blur-[0.5px]'
+              }`}
+            >
+              <svg width="20" height="14" viewBox="0 0 741 390" className="rounded-[2px]">
+                <rect width="741" height="390" fill="#bf0a30" />
+                <path
+                  d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741"
+                  stroke="#fff"
+                  strokeWidth="30"
+                />
+                <rect width="296.4" height="210" fill="#002868" />
+                <g fill="#fff">
+                  <circle cx="25" cy="25" r="6" />
+                  <circle cx="75" cy="25" r="6" />
+                  <circle cx="125" cy="25" r="6" />
+                  <circle cx="175" cy="25" r="6" />
+                  <circle cx="225" cy="25" r="6" />
+                  <circle cx="50" cy="65" r="6" />
+                  <circle cx="100" cy="65" r="6" />
+                  <circle cx="150" cy="65" r="6" />
+                  <circle cx="200" cy="65" r="6" />
+                  <circle cx="25" cy="105" r="6" />
+                  <circle cx="75" cy="105" r="6" />
+                  <circle cx="125" cy="105" r="6" />
+                  <circle cx="175" cy="105" r="6" />
+                  <circle cx="225" cy="105" r="6" />
+                </g>
+              </svg>
+            </div>
+          </div>
+        </button>
+      </div>
+
       {/* Left Pane - Branding & Status */}
       <div className="w-[350px] bg-sidebar pt-2 pb-12 px-10 flex flex-col justify-between items-center border-r border-border/10 relative overflow-hidden transition-colors duration-500 shrink-0">
         <div className="relative z-10 flex flex-col items-center text-center w-full">
