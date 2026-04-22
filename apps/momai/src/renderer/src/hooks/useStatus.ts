@@ -295,12 +295,13 @@ export function useStatus() {
   useEffect(() => {
     const interval = setInterval(() => {
       setVisualProgress((prev) => {
-        // Phase 1: Backend says we're done – accelerate to 100%
-        // Completes in ~1.5s regardless of current position
+        // Phase 1: Backend says we're done – ease toward 100%
+        // Deliberately slow so the user feels "it loaded faster than expected"
+        // Takes ~15-20 seconds from a low position to reach 100%
         if (!isBooting && initProgress >= 100) {
           if (prev >= 100) return 100
           const remaining = 100 - prev
-          const finishStep = Math.max(1.0, remaining * 0.15)
+          const finishStep = Math.max(0.3, remaining * 0.04)
           return Math.min(100, prev + finishStep)
         }
 
@@ -309,29 +310,33 @@ export function useStatus() {
         if (initProgress < 100 || isBooting) {
           // Track real backend progress – pull the bar toward actual value
           const targetBase = Math.max(prev, initProgress)
-          const smoothTarget = prev + (targetBase - prev) * 0.08
+          const smoothTarget = prev + (targetBase - prev) * 0.05
 
           // Autonomous crawl speed depends on position in the bar
           // Interval is 200ms so these values are per-tick
+          // These are intentionally very slow to give a "heavy loading" feeling
           let autoStep: number
-          if (prev < 15) {
-            // 0-15%: Quick start so it doesn't look frozen
-            autoStep = 0.04
-          } else if (prev < 35) {
-            // 15-35%: Slow and deliberate
-            autoStep = 0.018
-          } else if (prev < 55) {
-            // 35-55%: Steady pace
+          if (prev < 10) {
+            // 0-10%: Modest start so it doesn't look frozen
+            autoStep = 0.025
+          } else if (prev < 25) {
+            // 10-25%: Slow and deliberate
             autoStep = 0.012
-          } else if (prev < 75) {
-            // 55-75%: Getting slower
-            autoStep = 0.008
-          } else if (prev < 88) {
-            // 75-88%: Heavy lifting, noticeably slow
+          } else if (prev < 45) {
+            // 25-45%: Steady but noticeably slow
+            autoStep = 0.007
+          } else if (prev < 65) {
+            // 45-65%: Getting slower
             autoStep = 0.004
+          } else if (prev < 80) {
+            // 65-80%: Heavy lifting
+            autoStep = 0.002
+          } else if (prev < 90) {
+            // 80-90%: Very slow
+            autoStep = 0.001
           } else {
-            // 88-96%: Crawl – gives LLM time to finish loading
-            autoStep = 0.0015
+            // 90-96%: Crawl – gives LLM time to finish loading
+            autoStep = 0.0005
           }
 
           // Hard cap: never show "99%" or above while still loading
@@ -345,6 +350,10 @@ export function useStatus() {
 
     return () => clearInterval(interval)
   }, [isBooting, initProgress])
+
+  const resetVisualProgress = useCallback(() => {
+    setVisualProgress(2)
+  }, [])
 
   return {
     statusInfo,
@@ -360,6 +369,7 @@ export function useStatus() {
     isStalled,
     isRetrying,
     refreshStatus: checkStatus,
-    changeMode
+    changeMode,
+    resetVisualProgress
   }
 }

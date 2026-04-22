@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import LateralBar from './components/LateralBar'
 import { useChat } from './hooks/useChat'
@@ -39,7 +39,8 @@ function App(): React.JSX.Element {
     isBooting,
     isOnline,
     isReady,
-    isUpdating
+    isUpdating,
+    resetVisualProgress
   } = useStatus()
 
   // App initialization and global state
@@ -81,6 +82,17 @@ function App(): React.JSX.Element {
 
   // Event Listeners registration
   useAppEvents({ openSettings, handleGraphOption })
+
+  // Reset loading animation when the app UI becomes visible while still booting.
+  // This prevents the loading screen from being skipped if the animation completed
+  // while the app was invisible (during welcome/onboarding screens).
+  const isAppVisible = !showWelcome && !showOnboarding && !bootstrapError && firstLaunchChecked
+  useEffect(() => {
+    if (isAppVisible && isBooting) {
+      chat.setAnimationFinished(false)
+      resetVisualProgress()
+    }
+  }, [isAppVisible])
 
   const triggerClearHistory = () => setShowClearConfirm(true)
   const confirmClearHistory = () => {

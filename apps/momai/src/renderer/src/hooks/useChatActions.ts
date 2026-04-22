@@ -114,8 +114,8 @@ export function useChatActions({
     async (content: string, isSilent: boolean = false, skipUserMessage: boolean = false) => {
       if (!content.trim()) return
 
-      // Stop any ongoing TTS and clear speaking state when sending a new message
-      await stopVoiceApi().catch(() => {})
+      // Fire-and-forget: stop any ongoing TTS without blocking the message flow
+      stopVoiceApi().catch(() => {})
       setSpeakingMessageId(null)
 
       if (!isSilent && !skipUserMessage) {
@@ -155,6 +155,9 @@ export function useChatActions({
 
       setIsLoading(true)
       toolTraceRef.current = { activeMsgId: null, byToolId: {} }
+
+      // Start memory search early so it runs in parallel with UI updates
+      const memoryPromise = buildInjectedMemory(content)
       
       const assistantMsgId = createAssistantMessageId()
       toolTraceRef.current.activeMsgId = assistantMsgId
@@ -167,7 +170,7 @@ export function useChatActions({
       const isFirstMessage = messagesRef.current.length <= 1
 
       try {
-        const memoryPayload = await buildInjectedMemory(content)
+        const memoryPayload = await memoryPromise
         await sendChatMessage(content, threadId, {
           onToken: (token) => {
             if (currentThreadRef.current !== messageThreadId) return
