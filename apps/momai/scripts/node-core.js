@@ -1596,7 +1596,7 @@ async function ensureTierModelAvailable(tierName, tierConfig) {
       message: `Downloading model (${tierName.toUpperCase()})...`,
       error: null
     })
-    setInitStatus('loading', `Downloading model (${tierName.toUpperCase()})... 0%`, 35, null)
+    setInitStatus('loading', `Downloading model (${tierName.toUpperCase()})... 0%`, 45, null)
 
     if (typeof process.send === 'function') {
       process.send({
@@ -1621,7 +1621,7 @@ async function ensureTierModelAvailable(tierName, tierConfig) {
             : `Downloading model (${tierName.toUpperCase()})...`
         })
         if (now - lastProgressUpdate >= 300) {
-          const initProgress = percent ? 35 + Math.min(44, Math.round(percent * 0.44)) : 40
+          const initProgress = percent ? 45 + Math.min(45, Math.round(percent * 0.45)) : 50
           setInitStatus(
             'loading',
             percent
@@ -1641,7 +1641,7 @@ async function ensureTierModelAvailable(tierName, tierConfig) {
         message: `Model ready (${tierName.toUpperCase()})`,
         error: null
       })
-      setInitStatus('loading', `Model downloaded (${tierName.toUpperCase()}).`, 80, null)
+      setInitStatus('loading', `Model downloaded (${tierName.toUpperCase()}).`, 92, null)
       return { ok: true, path: targetPath, downloaded: true }
     } catch (error) {
       const message = error?.message || 'Model download failed'
@@ -3990,11 +3990,11 @@ server.on('error', (error) => {
   process.exit(1)
 })
 
-server.listen(PORT, HOST, () => {
+  server.listen(PORT, HOST, () => {
   const msg = `Node core listening on http://${HOST}:${PORT}`
   console.log(msg)
 
-  setInitStatus('loading', 'Starting local services...', 60, null)
+  setInitStatus('loading', 'Starting local services...', 35, null)
 
   const autoStartLlm = store.settings.auto_start_llm !== false
   const announceReady = async () => {
@@ -4002,16 +4002,15 @@ server.listen(PORT, HOST, () => {
       const tierName = store.settings.ai_tier
       if (!tierName) {
         console.info('[NodeCore] Skipping auto-start LLM: AI Tier not selected yet (onboarding).')
-        setInitStatus('ready', 'Aguardando seleção do modo...', 99, null)
-        return
-      }
-
-      setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 75, null)
-      try {
-        // On startup, allow model download so auto-start can reach ready state.
-        await ensureLlamaReady(false, true)
-      } catch (error) {
-        console.error('[NodeCore] auto-start llama failed:', error)
+        setInitStatus('ready', 'Aguardando seleção do modo...', 40, null)
+      } else {
+        setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 75, null)
+        try {
+          // On startup, allow model download so auto-start can reach ready state.
+          await ensureLlamaReady(false, true)
+        } catch (error) {
+          console.error('[NodeCore] auto-start llama failed:', error)
+        }
       }
     } else {
       setInitStatus('ready', 'System ready.', 100, null)

@@ -371,7 +371,7 @@ export async function startCoreBackend(): Promise<void> {
         logger.info(
           `[CoreManager] Reusing existing Node core on ${API_HOST}:${API_PORT}.`
         )
-        emitInitProgress('Node core online. Loading local model...', 65)
+        emitInitProgress('Node core online. Loading local model...', 32)
         const mainWindow = getMainWindow()
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('backend-online')
@@ -385,7 +385,7 @@ export async function startCoreBackend(): Promise<void> {
       logger.info(
         `[CoreManager] Existing Node core found on ${API_HOST}:${API_PORT}; requesting shutdown for fresh start.`
       )
-      emitInitProgress('Stopping previous local core...', 20)
+      emitInitProgress('Stopping previous local core...', 15)
       await requestNodeCoreShutdown(API_HOST, API_PORT)
 
       const closed = await waitForPortToClose(API_HOST, API_PORT, 8000)
@@ -424,7 +424,7 @@ export async function startCoreBackend(): Promise<void> {
   try {
     const child = spawnNodeCore()
     setNodeCoreProcess(child)
-    emitInitProgress('Initializing services...', 60)
+    emitInitProgress('Initializing services...', 30)
 
     // Start Python sidecar proactively at app startup (non-blocking),
     // so voice/TTS is warm before the first user message.

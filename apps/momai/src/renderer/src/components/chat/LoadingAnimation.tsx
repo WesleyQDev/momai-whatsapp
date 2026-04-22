@@ -58,11 +58,9 @@ export default function LoadingAnimation({
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-accent/80 animate-pulse mb-1">
               Inicializando Sistema
             </span>
-            {localStorage.getItem('momai_dev_mode') === 'true' && (
-              <span className="text-[14px] font-bold text-text/80 tracking-tight">
-                {message || 'Preparando ambiente...'}
-              </span>
-            )}
+            <span className="text-[14px] font-bold text-text/80 tracking-tight">
+              {message || 'Preparando ambiente...'}
+            </span>
           </div>
           <div className="flex flex-col items-end">
             <span className="text-[18px] font-black text-text font-mono leading-none mb-1">
