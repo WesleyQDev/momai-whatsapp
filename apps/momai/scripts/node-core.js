@@ -75,7 +75,7 @@ const PROMPTS_DIR = path.resolve(__dirname, '..', 'prompts')
 
 const MAX_EMBEDDING_CACHE_SIZE = 512
 const EMBEDDING_CACHE_TTL_MS = 10 * 60 * 1000
-const EMBEDDING_TIMEOUT_MS = 450
+const EMBEDDING_TIMEOUT_MS = 2500
 const SEMANTIC_SYNC_INTERVAL_MS = 30 * 1000
 
 function resolveModelsDir() {
@@ -505,6 +505,8 @@ const semanticState = {
   lastNotesSyncAt: 0,
   lastSkillSyncAt: 0,
   notesSnapshotHash: null,
+  skillsSnapshotHash: null,
+  toolsSnapshotHash: null,
   lanceModule: null,
   db: null,
   tableNotes: null,
@@ -525,6 +527,25 @@ const semanticState = {
     retrievalMs: [],
     toolExecMs: []
   }
+}
+
+/**
+ * Executes promises with limited concurrency.
+ */
+async function promiseAllStep(limit, items, mapper) {
+  const results = []
+  const executing = new Set()
+  for (const item of items) {
+    const p = Promise.resolve().then(() => mapper(item))
+    results.push(p)
+    executing.add(p)
+    const clean = () => executing.delete(p)
+    p.then(clean, clean)
+    if (executing.size >= limit) {
+      await Promise.race(executing)
+    }
+  }
+  return Promise.all(results)
 }
 
 function isSkillEnabledByStore(skill) {
@@ -680,7 +701,8 @@ async function ensureEmbeddingReady() {
     ;(async () => {
       try {
         semanticState.embedding.starting = true
-        const backend = pickBackend(store.settings.local_backend || 'auto') || 'cpu'
+        // Force CPU for embeddings to save VRAM for the main LLM in ULTRA mode
+        const backend = 'cpu'
         const exePath = llamaBackendExePath(backend)
         log(`[embedding] Starting server on port ${EMBEDDING_PORT} (backend: ${backend})`)
 
@@ -952,12 +974,28 @@ async function syncSkillAndToolIndexes(force = false) {
   skillRegistry.loadExtensions()
   const skills = getSkillCatalogRows()
   const tools = getToolCatalogRows()
-  const allTexts = [...skills.map((s) => s.text), ...tools.map((t) => t.text)]
-  const vectors = []
-  for (const text of allTexts) {
-    const vec = await embedText(text)
-    if (!Array.isArray(vec)) return
-    vectors.push(vec)
+
+  const skillsDigest = sha1(JSON.stringify(skills.map(s => s.id)))
+  const toolsDigest = sha1(JSON.stringify(tools.map(t => t.id)))
+
+  if (!force && 
+      semanticState.skillsSnapshotHash === skillsDigest && 
+      semanticState.toolsSnapshotHash === toolsDigest &&
+      semanticState.tableSkills && 
+      semanticState.tableTools) {
+    semanticState.lastSkillSyncAt = now
+    return
+  }
+
+  log('[semantic] Syncing skills and tools catalog...')
+  const allItems = [...skills, ...tools]
+  
+  // Parallel embedding with concurrency limit of 5
+  const vectors = await promiseAllStep(5, allItems, (item) => embedText(item.text))
+  
+  if (vectors.some(v => v === null)) {
+    log('[semantic] Skill sync partially failed due to embedding errors')
+    return
   }
 
   const skillRows = skills.map((item, idx) => ({ ...item, vector: vectors[idx] }))
@@ -965,8 +1003,16 @@ async function syncSkillAndToolIndexes(force = false) {
 
   const tSkills = await createOrOverwriteTable('skills', skillRows)
   const tTools = await createOrOverwriteTable('tools', toolRows)
-  if (tSkills) semanticState.tableSkills = tSkills
-  if (tTools) semanticState.tableTools = tTools
+  
+  if (tSkills) {
+    semanticState.tableSkills = tSkills
+    semanticState.skillsSnapshotHash = skillsDigest
+  }
+  if (tTools) {
+    semanticState.tableTools = tTools
+    semanticState.toolsSnapshotHash = toolsDigest
+  }
+  
   semanticState.lastSkillSyncAt = now
 }
 
@@ -978,12 +1024,15 @@ async function syncNoteIndex(force = false) {
   ensureDir(NOTES_DIR)
   const records = listNoteRecords()
   const digest = sha1(JSON.stringify(records.map((r) => [r.id, r.path])))
+  
   if (!force && semanticState.notesSnapshotHash === digest && semanticState.tableNotes) {
     semanticState.lastNotesSyncAt = now
     return
   }
 
-  const rows = []
+  log('[semantic] Syncing notes index...')
+  const allChunksToEmbed = []
+  
   for (const note of records) {
     let content = ''
     try {
@@ -992,24 +1041,37 @@ async function syncNoteIndex(force = false) {
       continue
     }
     const chunks = splitNoteChunks(content)
-    for (let i = 0; i < chunks.length; i += 1) {
-      const chunkText = chunks[i]
-      const vec = await embedText(chunkText)
-      if (!Array.isArray(vec)) continue
-      rows.push({
+    chunks.forEach((chunkText, i) => {
+      allChunksToEmbed.push({
         id: `${note.id}:${i}`,
         note_id: note.id,
         title: note.title,
         path: note.path,
         chunk_index: i,
-        text: chunkText,
-        hash: sha1(chunkText),
-        vector: vec
+        text: chunkText
       })
-    }
+    })
   }
 
-  const table = await createOrOverwriteTable('notes', rows)
+  // Parallel embedding with concurrency limit of 5
+  // This prevents the "lock" feeling by processing chunks in small batches
+  const rows = await promiseAllStep(5, allChunksToEmbed, async (item) => {
+    const vec = await embedText(item.text)
+    if (!vec) return null
+    return {
+      ...item,
+      hash: sha1(item.text),
+      vector: vec
+    }
+  })
+
+  const validRows = rows.filter(Boolean)
+  if (validRows.length === 0 && allChunksToEmbed.length > 0) {
+    log('[semantic] Note sync failed: no vectors generated')
+    return
+  }
+
+  const table = await createOrOverwriteTable('notes', validRows)
   if (table) {
     semanticState.tableNotes = table
     semanticState.notesSnapshotHash = digest
@@ -1318,8 +1380,10 @@ async function runSemanticMemoryRetrieval(query, limit = 6) {
     return { hits: [], memoryContext: null, memorySources: [] }
   }
 
-  await syncSkillAndToolIndexes(false)
-  await syncNoteIndex(false)
+  // Sync is now handled in the background by the caller or periodic checks
+  // to avoid blocking the retrieval process on the first message.
+  syncSkillAndToolIndexes(false).catch(() => {})
+  syncNoteIndex(false).catch(() => {})
 
   const [vectorHits, lexicalHits] = await Promise.all([
     runVectorNoteSearch(query, limit),
@@ -2690,6 +2754,11 @@ async function streamLlamaChat(req, res, payload) {
   }
 
   if (isUltra) {
+    // Run semantic retrieval, but don't let index sync block if not absolutely needed
+    // In background, we ensure indexes are reasonably fresh
+    syncSkillAndToolIndexes(false).catch(() => {})
+    syncNoteIndex(false).catch(() => {})
+
     const semantic = await runSemanticMemoryRetrieval(content, 6)
     if (semantic.memoryContext) {
       memoryContext = memoryContext
