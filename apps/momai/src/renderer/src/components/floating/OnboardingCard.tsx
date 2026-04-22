@@ -79,6 +79,25 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   const [initMsg, setInitMsg] = useState<string | null>(null)
 
   useEffect(() => {
+    // Load existing settings if available (e.g. after a tier change restart)
+    const loadExistingSettings = async () => {
+      try {
+        const res = await api.get('/settings')
+        const data = res.data
+        if (data.user_name) setName(data.user_name)
+        if (data.locale) {
+          const langCode = data.locale === 'pt-BR' ? 'p' : 'a'
+          setSelectedLang(langCode)
+          setLocale(data.locale)
+        }
+        if (data.tts_voice) setSelectedVoice(data.tts_voice)
+        if (data.ai_tier) setSelectedTier(data.ai_tier)
+      } catch (err) {
+        console.warn('[Onboarding] Failed to load existing settings:', err)
+      }
+    }
+    loadExistingSettings()
+
     // Prevent resizing during onboarding
     window.api?.setResizable?.(false)
 

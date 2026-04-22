@@ -189,47 +189,31 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     }
   }
 
-  const handleTierChange = async (tier: 'lite' | 'pro' | 'ultra') => {
+  const handleTierChange = async (_tier: 'lite' | 'pro' | 'ultra') => {
     // @ts-ignore
     window.api.resetWindowSize?.()
     onClose()
+    
+    // This flag helps AppInitialization show onboarding immediately after restart
     localStorage.setItem('momai_mode_changing', 'true')
-
-    // Compute the enforced feature set for the target tier
-    const enforced = TIER_DEFAULTS[tier] || TIER_DEFAULTS.pro
-    const syncedSettings = {
-      ...settings,
-      ai_tier: tier,
-      tts_enabled: enforced.tts_enabled,
-      wake_word_enabled: enforced.wake_word_enabled
-    }
-
-    // Immediately update local state and sync to all frontend components
-    // so tier-specific features are disabled BEFORE the backend restarts
-    setSettings(syncedSettings as Settings)
-    localStorage.setItem('momai_ai_tier', tier)
-    window.dispatchEvent(new CustomEvent('momai_tier_change_start'))
-    window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: syncedSettings }))
 
     try {
       stopVoice().catch(() => {})
       stopGeneration().catch(() => {})
-      window.dispatchEvent(new CustomEvent('momai_new_session'))
-      await api.post('/setup/apply-tier', null, { params: { tier } })
+      
+      // ONLY reset onboarding status. DO NOT change the tier here.
+      // The user will choose the tier fresh inside the Onboarding screen.
+      await api.patch('/settings', { onboarding_completed: false })
 
-      // @ts-ignore
-      await window.api.restartBackend()
-
-      // @ts-ignore
-      window.api.resetWindowSize?.()
-
-      // Re-dispatch enforced settings after backend restart so components
-      // that re-mounted during the restart pick up the correct tier features
-      window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: syncedSettings }))
-
-      window.location.href = window.location.pathname + '#/'
+      // Very small delay to ensure UI consistency before restarting
+      setTimeout(() => {
+        // @ts-ignore
+        window.api.restartApp()
+      }, 50)
     } catch (error) {
-      console.error('Error changing tier:', error)
+      console.error('Error triggering onboarding reset:', error)
+      // @ts-ignore
+      window.api.restartApp()
     }
   }
 

@@ -12,6 +12,7 @@ import {
   startPythonBackend,
   killPythonBackend,
   killProcessOnPort,
+  isOnboardingCompleted,
   type PythonBackendStartOptions
 } from './pythonManager'
 
@@ -310,7 +311,9 @@ function spawnNodeCore(): ReturnType<typeof spawn> {
     MOMAI_CORE_PATH: getCorePath(),
     MOMAI_LLAMA_BIN_PATH: getLlamaBinPath(),
     MOMAI_PYTHON_SIDECAR_HOST: PYTHON_SIDECAR_HOST,
-    MOMAI_PYTHON_SIDECAR_PORT: String(PYTHON_SIDECAR_PORT)
+    MOMAI_PYTHON_SIDECAR_PORT: String(PYTHON_SIDECAR_PORT),
+    MOMAI_ONBOARDING_MODE: isOnboardingCompleted() ? '0' : '1',
+    MOMAI_AI_TIER: getCurrentTier() || 'lite'
   }
 
   const child = spawn(process.execPath, [scriptPath], {

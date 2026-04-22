@@ -1,6 +1,6 @@
 import './env'
 import { app, globalShortcut, BrowserWindow, ipcMain, shell } from 'electron'
-import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { state, setIsQuitting } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
 import { saveOnboardingCompleted, isOnboardingCompleted } from './pythonManager'
@@ -79,6 +79,34 @@ ipcMain.on('reset-onboarding', () => {
   logger.info('[Electron] Resetting onboarding status')
   state.isFirstLaunch = true
   saveOnboardingCompleted(false)
+})
+
+ipcMain.on('restart-app', async () => {
+  logger.info('[Electron] Restarting application services (Soft Restart)...')
+  
+  // 1. Physically reset onboarding status
+  saveOnboardingCompleted(false)
+  state.isFirstLaunch = true
+  
+  // 2. Reload the main window IMMEDIATELY for instant UI feedback
+  const win = state.mainWindow
+  if (win && !win.isDestroyed()) {
+    win.webContents.reload()
+  }
+
+  // 3. Handle backend restart in the background
+  // We don't await this so the UI doesn't hang
+  void (async () => {
+    try {
+      // Shutdown current backends (cuts LLMs/Whisper immediately)
+      await shutdownCoreBackend()
+      setIsQuitting(false)
+      // Start fresh backends
+      await startCoreBackend()
+    } catch (err) {
+      logger.error('[Electron] Failed to background-restart backend:', err)
+    }
+  })()
 })
 
 ipcMain.on('mark-first-launch-finished', () => {
