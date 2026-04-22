@@ -1,5 +1,6 @@
 appId: com.wesleyqdev.momai
 productName: MomAI
+afterPack: ./scripts/after-pack.js
 directories:
   buildResources: build
 files:
