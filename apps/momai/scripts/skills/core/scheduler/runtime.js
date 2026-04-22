@@ -56,6 +56,10 @@ module.exports = {
           content: {
             type: 'string',
             description: 'Descricao completa do lembrete com detalhes adicionais'
+          },
+          voice_response: {
+            type: 'boolean',
+            description: 'Se o lembrete deve ser lido em voz alta quando disparar'
           }
         }
       }
@@ -145,7 +149,8 @@ module.exports = {
         const reminder = context.createReminder({
           title: toolArgs.title,
           scheduled_time: toolArgs.scheduled_time,
-          content: toolArgs.content || text
+          content: toolArgs.content || text,
+          voice_response: toolArgs.voice_response ?? true
         })
         const detail = formatReminderDetail(reminder)
 

@@ -109,13 +109,19 @@ export function registerIpcHandlers(): void {
     }
   })
 
-  ipcMain.on('show-notification', (_, { title, body }) => {
+  ipcMain.on('show-notification', (event, { title, body, voice_response }) => {
     if (!Notification.isSupported()) return
-    new Notification({
+    const n = new Notification({
       title,
       body,
       icon: ICON_PATH
-    }).show()
+    })
+
+    n.on('click', () => {
+      event.sender.send('notification-clicked', { title, body, voice_response })
+    })
+
+    n.show()
   })
 
   ipcMain.handle('get-window-state', () => {

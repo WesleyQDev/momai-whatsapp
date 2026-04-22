@@ -353,7 +353,8 @@ export function useChatHandlers({
       if ((window as any).electron) {
         (window as any).electron.ipcRenderer.send('show-notification', {
           title: `\ud83d\udd14 Lembrete: ${msg.data.title}`,
-          body: msg.data.content || ''
+          body: msg.data.content || '',
+          voice_response: msg.data.voice_response
         })
       }
     } else if (msg.type === 'user') {

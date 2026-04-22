@@ -65,6 +65,8 @@
   "reminders.modal.fields.attachNote": "Adicionar anotação",
   "reminders.modal.fields.attachNoteCancel": "Remover anotação",
   "reminders.modal.fields.attachedNoteActive": "Anotação Vinculada",
+  "reminders.modal.fields.voiceReminder": "Ouvir voz do lembrete",
+  "reminders.modal.fields.voicePrompt": "Ouvir voz do prompt",
   "reminders.repeat.none": "Não repetir",
   "reminders.repeat.minutes": "Minutos",
   "reminders.repeat.hours": "Horas",

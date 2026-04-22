@@ -65,6 +65,8 @@
   "reminders.modal.fields.attachNote": "Add linked note",
   "reminders.modal.fields.attachNoteCancel": "Remove note",
   "reminders.modal.fields.attachedNoteActive": "Note Linked",
+  "reminders.modal.fields.voiceReminder": "Hear reminder voice",
+  "reminders.modal.fields.voicePrompt": "Hear prompt voice",
   "reminders.repeat.none": "Do not repeat",
   "reminders.repeat.minutes": "Minutes",
   "reminders.repeat.hours": "Hours",

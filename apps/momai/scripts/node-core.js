@@ -3922,14 +3922,33 @@ setInterval(() => {
     if (!reminder.is_active) continue
     if (parseTime(reminder.scheduled_time) > now) continue
 
+    const triggerData = {
+      id: reminder.id,
+      title: reminder.title,
+      content: reminder.content,
+      action_type: reminder.action_type || 'reminder',
+      voice_response: reminder.voice_response ?? true
+    }
+
     broadcast({
       type: 'reminder_trigger',
-      data: {
-        id: reminder.id,
-        title: reminder.title,
-        content: reminder.content
-      }
+      data: triggerData
     })
+
+    if (reminder.action_type === 'cron') {
+      console.info(`[NodeCore][Reminders] Triggering cron action: ${reminder.title}`)
+      stopVoiceRequested = false
+      stopGenerationRequested = false
+      void runVoiceCommand({
+        content: reminder.content || reminder.title,
+        speak_response: reminder.voice_response !== false
+      })
+    } else if (reminder.voice_response !== false) {
+      console.info(`[NodeCore][Reminders] Triggering voice response: ${reminder.title}`)
+      stopVoiceRequested = false
+      stopGenerationRequested = false
+      void triggerAutoTts(`${reminder.title}. ${reminder.content || ''}`)
+    }
 
     advanceReminder(reminder)
     touched = true
