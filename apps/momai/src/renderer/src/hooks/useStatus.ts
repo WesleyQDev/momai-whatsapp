@@ -113,6 +113,10 @@ export function useStatus() {
     window.addEventListener('momai_init_progress', handleInitProgress)
 
     // Listen for Core IPC progress (faster than WS/HTTP polling)
+    // NOTE: We intentionally do NOT set isBooting=false here.
+    // Only the status poll (checkStatus) should end the boot phase,
+    // because it checks brain_ready + !is_loading — which covers
+    // Ultra mode where the llamaserver model loads AFTER Python init.
     // @ts-ignore
     const removeIpcListener = window.api?.onInitProgress?.((data) => {
       setInitMessage(translateMessage(data.message))
@@ -121,11 +125,6 @@ export function useStatus() {
       setIsStalled(false)
       setIsRetrying(false)
 
-      if (data.progress >= 100) {
-        setIsBooting(false)
-      }
-
-      // Se recebemos progresso do backend, ele definitivamente está rodando
       if (!backendOnline) {
         setBackendOnline(true)
         window.dispatchEvent(new CustomEvent('momai_backend_ready'))
@@ -162,7 +161,8 @@ export function useStatus() {
       // Parse "(X%)" from status string if present
       const match = status.match(/\((\d+)%\)/)
       if (match) {
-        setInitProgress(parseInt(match[1]))
+        const parsed = parseInt(match[1])
+        setInitProgress((prev) => Math.max(prev, parsed))
       }
     }
 
@@ -286,62 +286,45 @@ export function useStatus() {
   }, [isBooting, initProgress, lastProgressTime, isStalled, isRetrying, backendOnline])
 
   // Visual progress simulation
-  useEffect(() => {
-    if (isBooting && visualProgress >= 100) {
-      setVisualProgress(2)
-    }
-  }, [isBooting])
-
+  // Timing targets: 0-30% in ~20s, 30-70% in ~30s, 70-96% in ~60s
+  // Interval is 200ms, so 5 ticks/second.
   useEffect(() => {
     const interval = setInterval(() => {
       setVisualProgress((prev) => {
-        // Phase 1: Backend says we're done – ease toward 100%
-        // Deliberately slow so the user feels "it loaded faster than expected"
-        // Takes ~15-20 seconds from a low position to reach 100%
+        // Phase 1: Backend says we're fully done (brain_ready + !is_loading)
+        // Rush to 100% quickly (~1-2s) so the user isn't waiting unnecessarily
         if (!isBooting && initProgress >= 100) {
           if (prev >= 100) return 100
           const remaining = 100 - prev
-          const finishStep = Math.max(0.3, remaining * 0.04)
+          const finishStep = Math.max(2.5, remaining * 0.18)
           return Math.min(100, prev + finishStep)
         }
 
-        // Phase 2: Still loading – simulate realistic progress
-        // Tuned for a 1-3 minute model download/init cycle
+        // Phase 2: Still loading – simulate realistic fake progress
         if (initProgress < 100 || isBooting) {
-          // Track real backend progress – pull the bar toward actual value
-          const targetBase = Math.max(prev, initProgress)
-          const smoothTarget = prev + (targetBase - prev) * 0.05
+          // If already past the loading cap (e.g. Phase 1 was running), hold position
+          if (prev >= 96.4) return prev
 
-          // Autonomous crawl speed depends on position in the bar
-          // Interval is 200ms so these values are per-tick
-          // These are intentionally very slow to give a "heavy loading" feeling
+          // Pure autonomous crawl — ignores backend initProgress jumps
+          // to prevent the bar from rushing when IPC sends large values
+          // 0-30% in 20s = 30% / 100 ticks = 0.30/tick
+          // 30-70% in 30s = 40% / 150 ticks = 0.267/tick
+          // 70-96% in 60s = 26% / 300 ticks = 0.087/tick
           let autoStep: number
-          if (prev < 10) {
-            // 0-10%: Modest start so it doesn't look frozen
-            autoStep = 0.025
-          } else if (prev < 25) {
-            // 10-25%: Slow and deliberate
-            autoStep = 0.012
-          } else if (prev < 45) {
-            // 25-45%: Steady but noticeably slow
-            autoStep = 0.007
-          } else if (prev < 65) {
-            // 45-65%: Getting slower
-            autoStep = 0.004
-          } else if (prev < 80) {
-            // 65-80%: Heavy lifting
-            autoStep = 0.002
-          } else if (prev < 90) {
-            // 80-90%: Very slow
-            autoStep = 0.001
+          if (prev < 30) {
+            autoStep = 0.30
+          } else if (prev < 70) {
+            autoStep = 0.267
+          } else if (prev < 85) {
+            autoStep = 0.087
+          } else if (prev < 92) {
+            autoStep = 0.05
           } else {
-            // 90-96%: Crawl – gives LLM time to finish loading
-            autoStep = 0.0005
+            autoStep = 0.02
           }
 
-          // Hard cap: never show "99%" or above while still loading
-          // Math.round(96.5) = 97, so cap at 96.4 to display max "96%"
-          return Math.min(96.4, smoothTarget + autoStep)
+          // Cap at 96.4 so display shows max "96%" while loading
+          return Math.min(96.4, prev + autoStep)
         }
 
         return prev

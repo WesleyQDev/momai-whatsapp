@@ -28,7 +28,7 @@ const ChatView = (props: any) => {
     <ContainerChat
       messages={props.chat.messages}
       isLoading={props.chat.isLoading}
-      isModeChanging={props.isBooting || props.isUpdating}
+      isModeChanging={props.isUpdating}
       text={props.chat.text}
       onSendMessage={props.chat.sendMessage}
       onClearHistory={props.chat.clearHistory}
