@@ -72,13 +72,14 @@ export function useStatus() {
       setBackendOnline(true)
 
       // Only finish boot when the model is fully ready.
-      if (data.status === 'ok' && data.brain_ready && !data.is_loading) {
+      // Guard: during a mode change (isUpdating), the OLD backend may still
+      // respond with brain_ready=true. Ignore that stale response.
+      if (data.status === 'ok' && data.brain_ready && !data.is_loading && !isUpdating) {
         setIsBooting(false)
         setInitProgress(100)
-      } else {
+      } else if (isUpdating || data.is_loading || !data.brain_ready) {
         setIsBooting(true)
         if (data.is_loading || !data.brain_ready) {
-          // No more forced jump to 50%. Let it climb naturally.
           setInitProgress((prev) => Math.max(prev, 5))
         }
       }
@@ -96,7 +97,7 @@ export function useStatus() {
       setIsOnline(false)
       setRetryCount((prev) => prev + 1)
     }
-  }, [isBooting])
+  }, [isBooting, isUpdating])
 
   useEffect(() => {
     const handleInitProgress = (e: any) => {
@@ -185,12 +186,13 @@ export function useStatus() {
     setIsUpdating(true)
     setIsBooting(true)
     setInitProgress(5)
+    setVisualProgress(2)
     setInitMessage('Aplicando novo nível de IA...')
     try {
       await updateMode(mode)
       // @ts-ignore
       await window.api.restartBackend()
-      window.location.href = window.location.pathname + '#/'
+      // Removed window.location.href reload to prevent state loss and "flash"
     } catch (error) {
       console.error('Erro ao trocar modo:', error)
     } finally {
@@ -293,37 +295,43 @@ export function useStatus() {
   useEffect(() => {
     const interval = setInterval(() => {
       setVisualProgress((prev) => {
-        // Phase 1: Backend says we're done – accelerate smoothly to 100%
+        // Phase 1: Backend says we're done – accelerate to 100%
+        // Completes in ~1.5s regardless of current position
         if (!isBooting && initProgress >= 100) {
           if (prev >= 100) return 100
           const remaining = 100 - prev
-          const finishStep = Math.max(0.8, remaining * 0.08)
+          const finishStep = Math.max(1.0, remaining * 0.15)
           return Math.min(100, prev + finishStep)
         }
 
         // Phase 2: Still loading – simulate realistic progress
+        // Tuned for a 1-3 minute model download/init cycle
         if (initProgress < 100 || isBooting) {
-          // Allow real backend progress to gently pull the bar forward
+          // Track real backend progress – pull the bar toward actual value
           const targetBase = Math.max(prev, initProgress)
-          const smoothTarget = prev + (targetBase - prev) * 0.05
+          const smoothTarget = prev + (targetBase - prev) * 0.08
 
-          // Speed depends on where we are in the bar
+          // Autonomous crawl speed depends on position in the bar
+          // Interval is 200ms so these values are per-tick
           let autoStep: number
-          if (prev < 30) {
-            // 0-30%: Slow and deliberate start
-            autoStep = 0.08
+          if (prev < 15) {
+            // 0-15%: Quick start so it doesn't look frozen
+            autoStep = 0.04
+          } else if (prev < 35) {
+            // 15-35%: Slow and deliberate
+            autoStep = 0.018
           } else if (prev < 55) {
-            // 30-55%: Slightly faster, building confidence
-            autoStep = 0.12
+            // 35-55%: Steady pace
+            autoStep = 0.012
           } else if (prev < 75) {
-            // 55-75%: Moderate pace
-            autoStep = 0.06
+            // 55-75%: Getting slower
+            autoStep = 0.008
           } else if (prev < 88) {
-            // 75-88%: Noticeably slower – "heavy lifting"
-            autoStep = 0.015
-          } else {
-            // 88-97%: Crawl – gives LLM time to finish loading
+            // 75-88%: Heavy lifting, noticeably slow
             autoStep = 0.004
+          } else {
+            // 88-96%: Crawl – gives LLM time to finish loading
+            autoStep = 0.0015
           }
 
           // Hard cap: never show "99%" or above while still loading
@@ -333,7 +341,7 @@ export function useStatus() {
 
         return prev
       })
-    }, 100)
+    }, 200)
 
     return () => clearInterval(interval)
   }, [isBooting, initProgress])

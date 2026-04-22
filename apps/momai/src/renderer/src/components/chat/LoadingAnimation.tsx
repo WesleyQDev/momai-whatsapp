@@ -22,9 +22,9 @@ export default function LoadingAnimation({
       const timer = setTimeout(() => {
         setIsFadingOut(true)
         if (onComplete) {
-          setTimeout(onComplete, 500)
+          setTimeout(onComplete, 600)
         }
-      }, 200)
+      }, 400)
       return () => clearTimeout(timer)
     }
     return undefined
@@ -73,8 +73,12 @@ export default function LoadingAnimation({
 
         <div className="relative h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/10 shadow-inner">
           <div
-            className="absolute top-0 left-0 h-full bg-accent shadow-[0_0_20px_rgba(139,92,246,0.6)] transition-all duration-300 ease-out rounded-full"
-            style={{ width: `${progress}%` }}
+            className="absolute top-0 left-0 h-full bg-accent shadow-[0_0_20px_rgba(139,92,246,0.6)] rounded-full"
+            style={{
+              width: `${progress}%`,
+              transition: 'width 700ms cubic-bezier(0.4, 0, 0.2, 1)',
+              willChange: 'width'
+            }}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
           </div>

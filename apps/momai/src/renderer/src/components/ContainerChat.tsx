@@ -379,9 +379,7 @@ export default function ContainerChat({
   const isBrainLoading = statusInfo?.is_loading ?? false
   const isSystemDone = initProgress >= 100 && !isBooting && (visualProgress ?? 0) >= 100
 
-  const [animationFinished, setAnimationFinished] = useState(() => {
-    return isSystemDone
-  })
+  const [animationFinished, setAnimationFinished] = useState(false)
 
   const [settings, setSettings] = useState<SettingsData | null>(null)
   const [dynamicSuggestion, setDynamicSuggestion] = useState<string | null>(null)
@@ -457,8 +455,7 @@ export default function ContainerChat({
   const loadingProgress = displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
   const hasMessages = messages.length > 0
-  const showLoading =
-    isModeChanging || ((!isSystemDone || (!shouldSkipIntro && !animationFinished)))
+  const showLoading = !animationFinished || isModeChanging
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage =

@@ -1439,11 +1439,13 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
     return
   }
 
-  if (await isPortReachable(desiredPort, desiredHost, 300)) {
-    logger.info(
-      `[Electron] Python backend already reachable on ${desiredHost}:${desiredPort}, skipping spawn.`
+  if (await isPortReachable(desiredPort, desiredHost, 350)) {
+    logger.warn(
+      `[Electron] Port ${desiredPort} is occupied but no managed Python process is running. Cleaning up...`
     )
-    return
+    await killProcessOnPort(desiredPort)
+    // Small delay to allow the OS to fully release the port
+    await new Promise((resolve) => setTimeout(resolve, 800))
   }
 
   if (pythonStartPromise) {

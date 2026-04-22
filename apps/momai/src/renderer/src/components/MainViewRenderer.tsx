@@ -110,6 +110,7 @@ export default function MainViewRenderer({
         visualProgress={visualProgress}
         initMessage={initMessage}
         isBooting={isBooting}
+        isUpdating={isUpdating}
         setHistoryOpen={setHistoryOpen}
         isFirstLaunch={isFirstLaunch}
       />
