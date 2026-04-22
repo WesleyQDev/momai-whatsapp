@@ -158,8 +158,8 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   const [appVersion, setAppVersion] = useState('1.0.0')
   const [initMsg, setInitMsg] = useState<string | null>(null)
 
+  // 1. Initial Data Loading & App State
   useEffect(() => {
-    // Load existing settings if available (e.g. after a tier change restart)
     const loadExistingSettings = async () => {
       try {
         const res = await api.get('/settings')
@@ -176,6 +176,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         console.warn('[Onboarding] Failed to load existing settings:', err)
       }
     }
+
     loadExistingSettings()
 
     // Prevent resizing during onboarding
@@ -186,6 +187,14 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       .then(setAppVersion)
       .catch(() => {})
 
+    return () => {
+      // Re-enable resizing when leaving onboarding
+      window.api?.setResizable?.(true)
+    }
+  }, [setLocale]) // setLocale is stable from useI18n
+
+  // 2. Progress & System Event Listeners
+  useEffect(() => {
     const handleProgress = (e: any) => {
       const msg = e.detail?.status || e.detail?.message
       if (msg) setInitMsg(msg)
@@ -194,6 +203,14 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
     window.addEventListener('ai_model_change_progress' as any, handleProgress)
     window.addEventListener('momai_setup_progress' as any, handleProgress)
 
+    return () => {
+      window.removeEventListener('ai_model_change_progress' as any, handleProgress)
+      window.removeEventListener('momai_setup_progress' as any, handleProgress)
+    }
+  }, [])
+
+  // 3. Global Shortcuts / Enter to Finish
+  useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // Only trigger on Enter, if name is present, and we are in step 2 (Personality Setup)
       if (e.key === 'Enter' && step === 2 && name.trim() && !isSaving) {
@@ -206,10 +223,6 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
     }
 
     return () => {
-      // Re-enable resizing when leaving onboarding
-      window.api?.setResizable?.(true)
-      window.removeEventListener('ai_model_change_progress' as any, handleProgress)
-      window.removeEventListener('momai_setup_progress' as any, handleProgress)
       window.removeEventListener('keydown', handleGlobalKeyDown)
     }
   }, [step, name, isSaving])
@@ -281,7 +294,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[301] bg-bg flex animate-fade-in overflow-hidden select-none transition-colors duration-500"
+      className="fixed inset-0 z-[301] bg-bg flex animate-fade-in overflow-hidden transition-colors duration-500"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
@@ -542,15 +555,15 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                   <label className="text-[8px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">
                     {t('onboarding.nameLabel')}
                   </label>
-                  <input
-                    type="text"
-                    autoFocus
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="no-drag w-full bg-input border border-border/20 rounded-lg px-3.5 py-3 text-sm font-bold text-text focus:border-accent/40 outline-none transition-all placeholder:opacity-10 shadow-inner"
-                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                    placeholder={t('onboarding.namePlaceholder')}
-                  />
+                    <input
+                      type="text"
+                      autoFocus
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="no-drag w-full bg-input border border-border/20 rounded-lg px-3.5 py-3 text-sm font-bold text-text focus:border-accent/40 outline-none transition-all placeholder:opacity-10 shadow-inner select-text"
+                      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                      placeholder={t('onboarding.namePlaceholder')}
+                    />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
