@@ -2,6 +2,27 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 1.2.0 - 2026-04-22
+Estabilidade do Sistema, Melhorias de Áudio e Refinamento de Interface
+
+## ✨ Novas Funcionalidades
+- **Suporte a Resposta por Voz em Lembretes:** Adicionada opção para ativar respostas por voz (TTS) em lembretes agendados.
+- **Melhorias no Visualizador de Clima:** Renderização aprimorada de tabelas de previsão do tempo com suporte a emojis e layouts mais ricos.
+- **Gerenciamento de Estado de Voz:** Implementação de rotas de API para controle refinado de wake word e serviços de transcrição.
+- **Atualização das Políticas de Privacidade:** Inclusão de termos sobre rastreamento de localização e uso de dados de sensores.
+
+## ⚙️ Melhorias
+- **Estabilização do Boot:** Refinamento da sequência de carregamento e da barra de progresso para evitar oscilações visuais e garantir um feedback preciso do estado do backend.
+- **Otimização do Startup do Backend:** Melhoria na lógica de inicialização do Python e do servidor llama, com tratamento de erros mais robusto e logging detalhado.
+- **Processo de Build Aprimorado:** Adicionado sistema de cache para dependências nos scripts de build e seleção dinâmica de portas para o servidor de inferência.
+- **Compatibilidade Linux:** Melhoria no download de wheels e resolução de caminhos de ícones.
+
+## 🐛 Correções
+- **Renderização de Markdown:** Corrigido problema onde o texto em negrito não era renderizado corretamente em builds de produção no Windows.
+- **Ícones no Windows:** Resolvida a falha que impedia a exibição do ícone personalizado do executável no Windows.
+- **Persistência de Estado do Chat:** Corrigido bug onde a barra de progresso resetava ao navegar entre abas.
+- **Notificações Acumuladas:** Evitada a exibição de múltiplas notificações de lembretes antigos ao reiniciar o aplicativo.
+
 ## 0.7.0 - 2026-02-26
 Refinamento da Interface, Gestão de Lembretes e Melhorias no Instalador de Extensões
 
