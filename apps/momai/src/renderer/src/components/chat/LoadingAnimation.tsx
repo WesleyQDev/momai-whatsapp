@@ -39,8 +39,8 @@ export default function LoadingAnimation({
       <div className="flex flex-col items-center text-center mb-12 animate-fade-in w-full px-4">
         <h1 className="text-[12px] font-black text-text/60 tracking-[0.2em] uppercase max-w-[600px] leading-tight">
           {progress < 100 && isFirstLaunch
-            ? 'A primeira inicialização pode levar de 1 a 3 minutos'
-            : 'Bem-vinda à MomAI'}
+            ? t('loading.firstLaunchNote')
+            : t('loading.welcome')}
         </h1>
         {Math.round(progress) >= 90 && progress < 100 && (
           <p
@@ -56,10 +56,10 @@ export default function LoadingAnimation({
         <div className="flex justify-between items-end mb-3 px-1">
           <div className="flex flex-col">
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-accent/80 animate-pulse mb-1">
-              Inicializando Sistema
+              {t('loading.initializingSystem')}
             </span>
             <span className="text-[14px] font-bold text-text/80 tracking-tight">
-              {message || 'Preparando ambiente...'}
+              {message || t('settings.loadingBody')}
             </span>
           </div>
           <div className="flex flex-col items-end">

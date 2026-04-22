@@ -408,5 +408,8 @@
   "splash.tip.title.9": "Busca em Tempo Real",
   "splash.tip.desc.9": "A assistente consegue pesquisar informações atualizadas na internet usando o DuckDuckGo.",
   "splash.tag": "Dica de Produtividade",
-  "loading.almostReady": "O sistema está quase pronto, falta muito pouco 😊"
+  "loading.almostReady": "O sistema está quase pronto, falta muito pouco 😊",
+  "loading.firstLaunchNote": "A primeira inicialização pode levar de 1 a 3 minutos",
+  "loading.welcome": "Bem-vinda à MomAI",
+  "loading.initializingSystem": "Inicializando Sistema"
 }
