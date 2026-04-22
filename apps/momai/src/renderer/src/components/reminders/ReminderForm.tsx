@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   CalendarIcon,
   ClockIcon,
@@ -53,6 +53,20 @@ export default function ReminderForm({
 }: ReminderFormProps) {
   const { t } = useI18n()
   const [isRepeatMenuOpen, setIsRepeatMenuOpen] = useState(false)
+  const [aiTier, setAiTier] = useState<string | null>(
+    () => localStorage.getItem('momai_ai_tier') || 'pro'
+  )
+
+  useEffect(() => {
+    const handleSync = (e: any) => {
+      if (e.detail?.ai_tier) {
+        setAiTier(e.detail.ai_tier)
+      }
+    }
+    window.addEventListener('momai_settings_sync', handleSync as any)
+    return () => window.removeEventListener('momai_settings_sync', handleSync as any)
+  }, [])
+
   const [formData, setFormData] = useState<ReminderFormData>({
     title: initialData?.title || '',
     content: initialData?.content || '',
@@ -64,7 +78,9 @@ export default function ReminderForm({
     id: initialData?.id,
     note_id: initialData?.note_id,
     action_type: initialData?.action_type || 'reminder',
-    voice_response: initialData?.voice_response !== undefined ? initialData.voice_response : true
+    voice_response: aiTier === 'lite' 
+      ? false 
+      : (initialData?.voice_response !== undefined ? initialData.voice_response : true)
   })
   const [isCreatingNote, setIsCreatingNote] = useState(false)
   const [showNoteSection, setShowNoteSection] = useState(!!initialData?.note_id)
@@ -296,25 +312,27 @@ export default function ReminderForm({
               </button>
            </div>
 
-           <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03] rounded-lg border border-white/5 animate-in slide-in-from-top-1 duration-200">
-             <div className="flex items-center gap-2">
-                <SpeakerWaveIcon className={`w-3.5 h-3.5 ${formData.voice_response ? 'text-accent' : 'text-text-muted/40'}`} />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-text/80">
-                  {formData.action_type === 'cron' 
-                    ? (t('reminders.modal.fields.voicePrompt') || 'Ouvir voz do prompt') 
-                    : (t('reminders.modal.fields.voiceReminder') || 'Ouvir voz do lembrete')}
-                </span>
+           {aiTier !== 'lite' && (
+             <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03] rounded-lg border border-white/5 animate-in slide-in-from-top-1 duration-200">
+               <div className="flex items-center gap-2">
+                  <SpeakerWaveIcon className={`w-3.5 h-3.5 ${formData.voice_response ? 'text-accent' : 'text-text-muted/40'}`} />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text/80">
+                    {formData.action_type === 'cron' 
+                      ? (t('reminders.modal.fields.voicePrompt') || 'Ouvir voz do prompt') 
+                      : (t('reminders.modal.fields.voiceReminder') || 'Ouvir voz do lembrete')}
+                  </span>
+               </div>
+               <button
+                 type="button"
+                 onClick={() => setFormData({ ...formData, voice_response: !formData.voice_response })}
+                 className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${formData.voice_response ? 'bg-accent' : 'bg-white/10'}`}
+               >
+                 <span
+                   className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${formData.voice_response ? 'translate-x-4' : 'translate-x-0'}`}
+                 />
+               </button>
              </div>
-             <button
-               type="button"
-               onClick={() => setFormData({ ...formData, voice_response: !formData.voice_response })}
-               className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${formData.voice_response ? 'bg-accent' : 'bg-white/10'}`}
-             >
-               <span
-                 className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${formData.voice_response ? 'translate-x-4' : 'translate-x-0'}`}
-               />
-             </button>
-           </div>
+           )}
         </div>
       </div>
 
