@@ -6,7 +6,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const crypto = require('node:crypto')
 const https = require('node:https')
-const { spawn } = require('node:child_process')
+const { spawn, execSync } = require('node:child_process')
 const { createSkillRegistry } = require('./skills/registry')
 const { createPromptRegistry } = require('./prompt-registry')
 
@@ -103,6 +103,55 @@ function log(message) {
   } else {
     console.log(message)
   }
+}
+
+const managedLlamaPids = new Set()
+
+function registerManagedLlama(proc) {
+  if (!proc || !proc.pid) return
+  managedLlamaPids.add(proc.pid)
+  const pid = proc.pid
+  proc.on('exit', () => {
+    managedLlamaPids.delete(pid)
+  })
+}
+
+async function killOrphanLlamaServers() {
+  try {
+    const exeName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'
+    if (process.platform === 'win32') {
+      const output = execSync(`tasklist /NH /FO CSV /FI "IMAGENAME eq ${exeName}"`, { encoding: 'utf8' })
+      const lines = output.split('\n').filter((l) => l.trim().startsWith(`"${exeName}"`))
+      for (const line of lines) {
+        const parts = line.split(',')
+        if (parts.length >= 2) {
+          const pid = parseInt(parts[1].replace(/"/g, ''), 10)
+          if (!isNaN(pid) && !managedLlamaPids.has(pid)) {
+            log(`[guard] Killing orphan llama-server PID: ${pid}`)
+            try {
+              execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' })
+            } catch {}
+          }
+        }
+      }
+    } else {
+      try {
+        const output = execSync(`pgrep -x ${exeName}`, { encoding: 'utf8' })
+        const pids = output
+          .split('\n')
+          .map((p) => parseInt(p.trim(), 10))
+          .filter((p) => !isNaN(p))
+        for (const pid of pids) {
+          if (!managedLlamaPids.has(pid)) {
+            log(`[guard] Killing orphan llama-server PID: ${pid}`)
+            try {
+              process.kill(pid, 'SIGKILL')
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+  } catch {}
 }
 
 if (!fs.existsSync(DATA_DIR)) {
@@ -723,6 +772,8 @@ async function ensureEmbeddingReady() {
         throw new Error(`llama-server binary missing for ${backend}`)
       }
 
+      await killOrphanLlamaServers()
+
       const proc = spawn(
         exePath,
         [
@@ -742,6 +793,7 @@ async function ensureEmbeddingReady() {
         }
       )
 
+      registerManagedLlama(proc)
       semanticState.embedding.process = proc
       log(`[embedding] Process spawned (PID: ${proc.pid}, generation: ${myGeneration})`)
 
@@ -1618,6 +1670,7 @@ function downloadToFile(url, targetPath, onProgress) {
       const totalBytesRaw = Number(response.headers['content-length'] || 0)
       const totalBytes = Number.isFinite(totalBytesRaw) && totalBytesRaw > 0 ? totalBytesRaw : null
       let received = 0
+      let lastProgressUpdate = 0
       const tmpPath = `${targetPath}.partial`
       const output = fs.createWriteStream(tmpPath)
 
@@ -1633,11 +1686,26 @@ function downloadToFile(url, targetPath, onProgress) {
 
       output.on('error', fail)
       response.on('error', fail)
-      response.on('data', (chunk) => {
-        received += chunk.length
-        onProgress({ received, total: totalBytes, elapsedMs: Date.now() - startedAt })
+      
+      // Use a custom stream to track progress without firing events for every chunk
+      const { Transform } = require('node:stream')
+      const progressTracker = new Transform({
+        transform(chunk, encoding, callback) {
+          received += chunk.length
+          const now = Date.now()
+          if (now - lastProgressUpdate > 500) {
+            onProgress({ received, total: totalBytes, elapsedMs: now - startedAt })
+            lastProgressUpdate = now
+          }
+          callback(null, chunk)
+        },
+        flush(callback) {
+          onProgress({ received, total: totalBytes, elapsedMs: Date.now() - startedAt })
+          callback()
+        }
       })
-      response.pipe(output)
+
+      response.pipe(progressTracker).pipe(output)
       output.on('finish', () => {
         output.close(() => {
           try {
@@ -1837,10 +1905,10 @@ function stopLlamaServer() {
 async function ensureLlamaReady(forceRestart = false, allowModelDownload = true) {
   if (forceRestart) {
     llamaStartGeneration += 1
-    await stopLlamaServer()
+    llamaState.startingPromise = null
   }
 
-  if (llamaState.ready) return true
+  if (llamaState.ready && !forceRestart) return true
   if (llamaState.startingPromise) return llamaState.startingPromise
 
   const myGeneration = llamaStartGeneration
@@ -1851,6 +1919,9 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
 
   llamaState.startingPromise = (async () => {
     try {
+      if (forceRestart) {
+        await stopLlamaServer()
+      }
       log(`[llama] ensuring llama ready. tier: ${tierName}, file: ${tierConfig.file}, generation: ${myGeneration}`)
 
       if (!backendAttempts.length) {
@@ -1979,6 +2050,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
 
             let child = null
             try {
+              await killOrphanLlamaServers()
               child = spawn(exePath, args, {
                 cwd: exeDir,
                 env: {
@@ -1994,6 +2066,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
               return
             }
 
+            registerManagedLlama(child)
             llamaState.process = child
             let exitedDuringStartup = false
 
@@ -3339,7 +3412,11 @@ async function maybeRestartLlamaOnTierChange(prevTier, nextTier, prevBackend, ne
   if (nextTier === 'ultra') {
     ensureEmbeddingReady()
       .then((ok) => {
-        if (ok) syncSkillAndToolIndexes(false).catch(() => {})
+        if (ok) {
+          setTimeout(() => {
+            syncSkillAndToolIndexes(false).catch(() => {})
+          }, 3000)
+        }
       })
       .catch(() => {})
   }
@@ -4163,8 +4240,11 @@ server.on('error', (error) => {
     ensureEmbeddingReady()
       .then((ok) => {
         if (ok) {
-          syncSkillAndToolIndexes(true).catch(() => {})
-          syncNoteIndex(true).catch(() => {})
+          // Delay heavy indexing slightly to let the system stabilize after loading the model
+          setTimeout(() => {
+            syncSkillAndToolIndexes(true).catch(() => {})
+            syncNoteIndex(true).catch(() => {})
+          }, 3000)
         }
       })
       .catch(() => {})
