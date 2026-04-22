@@ -189,18 +189,19 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
 
     return (
       <button
+        type="button"
         onClick={() => handleSelectTier(id)}
-        className="no-drag group relative bg-white/[0.03] border border-white/5 rounded-2xl p-6 text-left flex flex-row items-center hover:border-accent/40 hover:bg-white/[0.05] transition-all duration-500 overflow-hidden active:scale-[0.97] w-full gap-6 h-[140px]"
+        className="no-drag group relative bg-white/[0.03] border border-white/5 rounded-2xl p-6 text-left flex flex-row items-center hover:border-accent/40 hover:bg-white/[0.05] transition-[border-color,background-color] duration-300 overflow-hidden w-full gap-6 h-[140px]"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
         {/* Subtle background pattern/glow */}
         <div
-          className={`absolute -top-24 -right-24 w-48 h-48 ${styles.iconBg} blur-[80px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none`}
+          className={`absolute -top-24 -right-24 w-48 h-48 ${styles.iconBg} blur-[80px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`}
         />
 
-        <div className="relative z-10 flex flex-row items-center gap-6 w-full pointer-events-none">
+        <div className="relative z-10 flex flex-row items-center gap-6 w-full pointer-events-none transition-transform duration-200 group-active:scale-[0.98]">
           <div
-            className={`w-16 h-16 shrink-0 rounded-xl ${styles.iconBg} flex items-center justify-center ${styles.text} shadow-inner border border-white/5 transition-all duration-500 group-hover:scale-110 group-hover:rotate-3`}
+            className={`w-16 h-16 shrink-0 rounded-xl ${styles.iconBg} flex items-center justify-center ${styles.text} shadow-inner border border-white/5 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 group-active:scale-90`}
           >
             {id === 'lite' && (
               <svg
@@ -255,7 +256,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
           </div>
         </div>
 
-        <div className="absolute right-8 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all duration-500 text-accent/50">
+        <div className="absolute right-8 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all duration-300 text-accent/50 pointer-events-none">
           <svg
             width="24"
             height="24"
@@ -270,6 +271,8 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       </button>
     )
   }
+
+
 
   return (
     <div
@@ -479,10 +482,10 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       </div>
 
       {/* Right Pane - Configuration Form */}
-      <div className="flex-1 bg-card p-8 flex flex-col justify-center overflow-y-auto transition-colors duration-500">
+      <div className="no-drag flex-1 bg-card p-8 flex flex-col justify-center overflow-y-auto transition-colors duration-500" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <div className="w-full max-w-none mx-auto px-6">
           {step === 1 ? (
-            <div className="space-y-10 animate-in fade-in slide-in-from-right-8 duration-500 flex flex-col items-center text-center">
+            <div className="space-y-10 animate-fade-in flex flex-col items-center text-center">
               <div className="space-y-2">
                 <h2 className="text-3xl font-bold text-text tracking-tight">
                   {t('onboarding.tier.title')}
@@ -499,7 +502,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
               </div>
             </div>
           ) : (
-            <div className="w-full max-w-sm mx-auto space-y-8 animate-in fade-in slide-in-from-right-8 duration-500">
+            <div className="w-full max-w-sm mx-auto space-y-8 animate-fade-in">
               <div className="space-y-1">
                 <button
                   onClick={() => setStep(1)}

@@ -10,6 +10,7 @@ import sys
 import os
 import platform
 from typing import Optional, Any
+import app_state
 
 # Heavy imports deferred for faster startup
 sd = None
@@ -578,28 +579,42 @@ class TTSManager:
     def _strip_markdown(text: str) -> str:
         """Remove markdown formatting and emojis so TTS reads clean text."""
         s = text
-        # Remove emojis
-        # This pattern matches most emojis in the Unicode range
-        # Note: We keep punctuation and alphanumeric (including accented)
+        # 1. Remove emojis
         s = re.sub(r'[\U00010000-\U0010ffff]', '', s)
         
-        # Remove markdown
+        # 2. Remove code blocks entirely (including contents)
         s = re.sub(r"```[\s\S]*?```", "", s)
+        
+        # 3. Pair-based markdown (longer first to avoid partial matches)
         s = re.sub(r"`([^`]+)`", r"\1", s)
-        s = re.sub(r"^#{1,6}\s+", "", s, flags=re.MULTILINE)
         s = re.sub(r"\*\*\*(.+?)\*\*\*", r"\1", s)
         s = re.sub(r"\*\*(.+?)\*\*", r"\1", s)
         s = re.sub(r"__(.+?)__", r"\1", s)
         s = re.sub(r"\*(.+?)\*", r"\1", s)
         s = re.sub(r"_(.+?)_", r"\1", s)
         s = re.sub(r"~~(.+?)~~", r"\1", s)
-        s = re.sub(r"!?\[([^\]]*)\]\([^)]+\)", r"\1", s)
+        
+        # 4. Headers, Lists, Blockquotes (Line-based)
+        s = re.sub(r"^#{1,6}\s+", "", s, flags=re.MULTILINE)
         s = re.sub(r"^\s*[-*+]\s+", "", s, flags=re.MULTILINE)
         s = re.sub(r"^\s*\d+\.\s+", "", s, flags=re.MULTILINE)
         s = re.sub(r"^>+\s?", "", s, flags=re.MULTILINE)
+        
+        # 5. Links and Images: [text](url) -> text
+        s = re.sub(r"!?\[([^\]]*)\]\([^)]+\)", r"\1", s)
+        
+        # 6. Separators and Table pipes
         s = re.sub(r"---+|\*\*\*+|___+", "", s)
         s = re.sub(r"\|", " ", s)
+        
+        # 7. CRITICAL FALLBACK: Remove any remaining leftover markdown symbols
+        # catching cases like ** Hello ** or single * decorators that failed pairing.
+        s = re.sub(r"[*_~#]", " ", s)
+        
+        # 8. Clean up whitespace
+        s = re.sub(r" {2,}", " ", s)
         s = re.sub(r"\n{3,}", "\n\n", s)
+        
         return s.strip()
 
     def speak(self, text: str):
