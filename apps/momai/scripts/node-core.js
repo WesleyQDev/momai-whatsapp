@@ -2449,7 +2449,10 @@ async function triggerAutoTts(text) {
       const response = await fetch(`${pythonBase}/chat/speak`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: cleaned })
+        body: JSON.stringify({ 
+          text: cleaned,
+          voice: store.settings.tts_voice
+        })
       })
 
       if (response.ok) {
@@ -3189,16 +3192,31 @@ async function handleRequest(req, res) {
   const parsedUrl = new URL(req.url, `http://${HOST}:${PORT}`)
   const pathname = parsedUrl.pathname
 
-  if (pathname.startsWith('/voice/')) {
+  if (pathname === '/chat/speak') {
     try {
-      await proxyToPython(req, res, pathname)
+      const payload = await readJsonBody(req).catch(() => ({}))
+      const pythonBase = await ensurePython()
+      const response = await fetch(`${pythonBase}/chat/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payload,
+          voice: payload.voice || store.settings.tts_voice
+        })
+      })
+      const text = await response.text()
+      res.writeHead(response.status, {
+        'Content-Type': response.headers.get('content-type') || 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      })
+      res.end(text)
     } catch (error) {
       sendVoiceSidecarFallback(res, pathname, error)
     }
     return
   }
 
-  if (pathname === '/chat/speak' || pathname === '/chat/stop-voice') {
+  if (pathname === '/chat/stop-voice' || pathname.startsWith('/voice/')) {
     try {
       await proxyToPython(req, res, pathname)
     } catch (error) {

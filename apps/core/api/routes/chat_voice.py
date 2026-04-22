@@ -47,8 +47,12 @@ async def speak_text(data: dict):
 
         # Sidecar mode: initialize TTS lazily on first speak request.
         tts.tts.initialize()
-        if settings and settings.tts_voice:
-            tts.tts.set_voice(settings.tts_voice)
+
+        # Prioritize voice from payload, fallback to DB settings
+        voice_to_use = data.get("voice") or (settings.tts_voice if settings else None)
+        if voice_to_use:
+            tts.tts.set_voice(voice_to_use)
+
         tts.speak_sentence(text)
         logger.info("[ChatVoice] /chat/speak accepted")
         return {"status": "ok"}
