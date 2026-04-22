@@ -383,7 +383,7 @@
   "chat.context.retryAssistant": "Regerar Resposta",
   "chat.context.delete": "Excluir",
   "assistantStatus.thinking": "LUNA PENSANDO",
-  "assistantStatus.sayLuna": "DIGA \\\"LUNA\\\"",
+  "assistantStatus.sayLuna": "DIGA 'LUNA'",
   "assistantStatus.liteMode": "MODO LITE",
   "assistantStatus.proMode": "MODO PRO",
   "splash.tip.count": "10",
