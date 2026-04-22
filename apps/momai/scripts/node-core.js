@@ -2466,6 +2466,11 @@ async function syncPythonCallModeState(reason = 'unknown') {
 }
 
 async function triggerAutoTts(text) {
+  if (stopGenerationRequested || stopVoiceRequested) {
+    console.info('[NodeCore][Voice] Auto TTS cancelled: stop flag is true')
+    return
+  }
+
   const aiTier = store.settings.ai_tier || 'pro'
   const ttsEnabled = Boolean(store.settings.tts_enabled)
   const cleaned = String(text || '').trim()
@@ -2557,6 +2562,7 @@ async function triggerAutoTts(text) {
 }
 
 let stopGenerationRequested = false
+let stopVoiceRequested = false
 const activeChatControllers = new Set()
 
 async function streamFallbackResponse(
@@ -2722,6 +2728,7 @@ async function streamLlamaChat(req, res, payload) {
   const controller = new AbortController()
   activeChatControllers.add(controller)
   stopGenerationRequested = false
+  stopVoiceRequested = false
 
   // Stop any ongoing TTS when starting a new message
   try {
@@ -3261,6 +3268,7 @@ async function handleRequest(req, res) {
   }
 
   if (pathname === '/chat/stop-voice' || pathname.startsWith('/voice/')) {
+    stopVoiceRequested = true
     try {
       await proxyToPython(req, res, pathname)
     } catch (error) {

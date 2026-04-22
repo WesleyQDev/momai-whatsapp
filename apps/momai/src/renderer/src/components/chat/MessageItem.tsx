@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { Message } from '../../services/api'
 import { cleanMomaiActions } from '../../utils/text'
 import icon from '../../assets/icon.png'
-import { DocumentTextIcon, ClipboardIcon, CheckIcon, SpeakerWaveIcon, SpeakerXMarkIcon } from '@heroicons/react/24/outline'
+import { DocumentTextIcon, ClipboardIcon, CheckIcon, SpeakerWaveIcon, StopIcon } from '@heroicons/react/24/outline'
 import { ExtrasRenderer } from './ExtrasRenderer'
 import MessageContextMenu from './MessageContextMenu'
 import { useI18n } from '../../i18n'
@@ -559,18 +559,7 @@ const MessageItem = memo(function MessageItem({
       onContextMenu={handleContextMenu}
       className={`relative flex items-start gap-3 sm:gap-4 max-w-full group ${message.role === 'assistant' ? 'self-start w-full' : 'self-end flex-row-reverse ml-12'}`}
     >
-      {/* Botão flutuante de parar TTS (Modos Pro/Ultra) */}
-      {isSpeaking && message.role === 'assistant' && !hideStopButton && (aiTier === 'pro' || aiTier === 'ultra') && (
-        <div className="absolute right-4 top-2 z-[100] animate-in fade-in zoom-in slide-in-from-right-4 duration-500">
-          <button
-            onClick={handleStopVoiceClick}
-            className="flex items-center justify-center w-11 h-11 rounded-full bg-zinc-900/90 backdrop-blur-md border border-accent/40 text-accent shadow-[0_0_25px_rgba(139,92,246,0.4)] hover:bg-accent hover:text-white hover:border-white/20 transition-all duration-300 active:scale-90 group"
-            title={t('chat.voice.stop')}
-          >
-            <SpeakerXMarkIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
-          </button>
-        </div>
-      )}
+      {/* Context Menu logic remains same */}
       {contextMenu && (
         <MessageContextMenu
           x={contextMenu.x}
@@ -606,9 +595,9 @@ const MessageItem = memo(function MessageItem({
       </div>
 
       <div
-        className={`relative break-words overflow-hidden min-w-0 max-w-full transition-all duration-300 ${
+        className={`relative break-words overflow-hidden min-w-0 flex-1 transition-all duration-300 ${
           message.role === 'assistant'
-            ? 'flex-1 pt-0.5 text-text text-[15px] sm:text-[16px] leading-relaxed message'
+            ? 'pt-0.5 text-text text-[15px] sm:text-[16px] leading-relaxed message'
             : 'bg-zinc-100 dark:bg-[#282A2C] p-3 px-4 rounded-lg rounded-tr-none text-text text-[15px] sm:text-[16px] message'
         }`}
       >
@@ -1093,7 +1082,7 @@ const MessageItem = memo(function MessageItem({
                             title={t('chat.voice.stop')}
                             aria-label={t('chat.voice.stop')}
                           >
-                            <SpeakerXMarkIcon className="w-[14px] h-[14px]" />
+                            <StopIcon className="w-[14px] h-[14px]" />
                           </button>
                         ) : (
                           <button
@@ -1162,6 +1151,40 @@ const MessageItem = memo(function MessageItem({
           )}
         </div>
       </div>
+
+      {/* Coluna lateral de ações (Sticky Gemini-style) */}
+      {message.role === 'assistant' && (
+        <div className="flex-shrink-0 w-12 flex flex-col items-center pt-10 self-stretch min-h-[100px]">
+          {isSpeaking && !hideStopButton && (aiTier === 'pro' || aiTier === 'ultra') && (
+            <div className="sticky top-[45%] -translate-y-1/2 z-[100] animate-in fade-in zoom-in slide-in-from-right-4 duration-700">
+              <button
+                onClick={handleStopVoiceClick}
+                className="relative flex items-center justify-center w-10 h-10 rounded-full bg-[#0a0a0a] border border-purple-500/40 text-purple-400/80 shadow-[0_0_10px_rgba(168,85,247,0.2)] hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:border-purple-400/60 transition-all duration-500 active:scale-90 group overflow-hidden"
+                title={t('chat.voice.stop')}
+              >
+                {/* Glow interno muito sutil */}
+                <div className="absolute inset-0 bg-purple-600/5 animate-pulse"></div>
+                
+                {/* O quadrado vazado da imagem (mais discreto) */}
+                <div className="w-3.5 h-3.5 border-[1.5px] border-purple-500/50 rounded-[2.5px] shadow-[0_0_5px_rgba(168,85,247,0.3)] group-hover:scale-110 transition-transform duration-300 relative z-10"></div>
+                
+                {/* Reflexo de luz sutil */}
+                <div className="absolute -top-3 -left-3 w-6 h-6 bg-white/5 blur-xl rounded-full"></div>
+              </button>
+              
+              {/* Brilho externo sutil (apenas para separar do fundo) */}
+              <div className="absolute -inset-1 rounded-full bg-purple-500/5 blur-sm -z-10"></div>
+              
+              {/* Texto "Parar" abaixo do ícone */}
+              <div className="mt-0.5 text-center">
+                <span className="text-[9px] font-bold text-purple-400/60 uppercase tracking-widest leading-none">
+                  Parar
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 })
