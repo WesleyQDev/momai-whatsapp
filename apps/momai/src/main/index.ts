@@ -1,6 +1,6 @@
 import './env'
 import { app, globalShortcut, BrowserWindow, ipcMain, shell } from 'electron'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { state, setIsQuitting } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
 import { saveOnboardingCompleted, isOnboardingCompleted } from './pythonManager'

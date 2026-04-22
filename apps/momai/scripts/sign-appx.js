@@ -173,37 +173,58 @@ async function main() {
 function installCertificate() {
   const ps1 = `
 $ErrorActionPreference = "Stop"
-$pfx = "${certPath.replace(/\\/g, '\\\\')}"
+$pfxPath = "${certPath.replace(/\\/g, '\\\\')}"
 $pwd = "${password}"
 
-$secPwd = ConvertTo-SecureString -String $pwd -AsPlainText -Force
-$col = [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]::new()
-$col.Import($pfx, $pwd, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::DefaultKeySet)
-$thumb = $col[0].Thumbprint
+# Load certificate using .NET
+$flags = [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet
+$cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxPath, $pwd, $flags)
+$thumb = $cert.Thumbprint
 Write-Host "Thumbprint: $thumb"
 
-$userStores = @("Cert:\\CurrentUser\\TrustedPeople", "Cert:\\CurrentUser\\Root")
-foreach ($store in $userStores) {
-    $existing = Get-ChildItem $store -ErrorAction SilentlyContinue | Where-Object { $_.Thumbprint -eq $thumb }
+function Install-Cert-Net($storeName, $storeLocation) {
+    $store = New-Object System.Security.Cryptography.X509Certificates.X509Store($storeName, $storeLocation)
+    $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+    
+    $existing = $store.Certificates | Where-Object { $_.Thumbprint -eq $thumb }
     if (-not $existing) {
-        Import-PfxCertificate -FilePath $pfx -CertStoreLocation $store -Password $secPwd | Out-Null
-        Write-Host "  Installed in $store"
+        $store.Add($cert)
+        Write-Host "  Installed in $storeLocation\\$storeName"
     } else {
-        Write-Host "  Already in $store"
+        Write-Host "  Already in $storeLocation\\$storeName"
     }
+    $store.Close()
 }
 
-$machineStores = @("Cert:\\LocalMachine\\TrustedPeople", "Cert:\\LocalMachine\\Root")
+# Install for CurrentUser (does not require admin)
+Install-Cert-Net "Root" "CurrentUser"
+Install-Cert-Net "TrustedPeople" "CurrentUser"
+
+# Check if needed for LocalMachine
 $needsAdmin = $false
-foreach ($store in $machineStores) {
-    $existing = Get-ChildItem $store -ErrorAction SilentlyContinue | Where-Object { $_.Thumbprint -eq $thumb }
-    if (-not $existing) { $needsAdmin = $true; break }
+$machineStores = @("Root", "TrustedPeople")
+foreach ($sName in $machineStores) {
+    $mStore = New-Object System.Security.Cryptography.X509Certificates.X509Store($sName, "LocalMachine")
+    $mStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
+    $exists = $mStore.Certificates | Where-Object { $_.Thumbprint -eq $thumb }
+    $mStore.Close()
+    if (-not $exists) { $needsAdmin = $true; break }
 }
 
 if ($needsAdmin) {
     Write-Host "  Installing in LocalMachine stores (requires elevation)..."
-    $cmd = "Import-PfxCertificate -FilePath '$pfx' -CertStoreLocation Cert:\\LocalMachine\\TrustedPeople -Password (ConvertTo-SecureString -String '$pwd' -AsPlainText -Force); Import-PfxCertificate -FilePath '$pfx' -CertStoreLocation Cert:\\LocalMachine\\Root -Password (ConvertTo-SecureString -String '$pwd' -AsPlainText -Force)"
-    Start-Process powershell -Verb RunAs -ArgumentList "-Command", $cmd -Wait
+    $script = {
+        param($path, $p)
+        $c = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($path, $p, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
+        $stores = @("Root", "TrustedPeople")
+        foreach ($sName in $stores) {
+            $s = New-Object System.Security.Cryptography.X509Certificates.X509Store($sName, "LocalMachine")
+            $s.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+            $s.Add($c)
+            $s.Close()
+        }
+    }
+    Start-Process powershell -Verb RunAs -ArgumentList "-Command", "& { $($script.ToString()) '$pfxPath' '$pwd' }" -Wait
     Write-Host "  Installed in LocalMachine stores"
 } else {
     Write-Host "  Already in LocalMachine stores"

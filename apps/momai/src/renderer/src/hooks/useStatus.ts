@@ -78,6 +78,10 @@ export function useStatus() {
         setIsBooting(false)
         setInitProgress(100)
       } else if (isUpdating || data.is_loading || !data.brain_ready) {
+        if (!isBooting) {
+          setVisualProgress(2)
+          setInitProgress(0)
+        }
         setIsBooting(true)
         if (data.is_loading || !data.brain_ready) {
           setInitProgress((prev) => Math.max(prev, 5))

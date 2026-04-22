@@ -453,11 +453,11 @@ export default function ContainerChat({
       )
   }, [threadId])
 
-  const displayProgress = isSystemDone ? 100 : (visualProgress || initProgress || 0)
+  const displayProgress = isSystemDone ? 100 : Math.min(96, (visualProgress || initProgress || 0))
   const loadingProgress = displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
   const hasMessages = messages.length > 0
-  const showLoading = !animationFinished || isModeChanging
+  const showLoading = !animationFinished || isModeChanging || isBooting || (isBrainLoading && !isBrainReady)
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage =
@@ -538,22 +538,6 @@ export default function ContainerChat({
             </div>
           </div>
 
-          {/* Inline Loading / Init Progress indicator when loading locally */}
-          {animationFinished && isBrainLoading && (initProgress < 100 || (initProgress >= 100 && !isBrainReady)) && (
-            <div className="px-4 py-1 mx-4 mt-2 bg-black/40 border border-accent/20 rounded-lg flex items-center justify-between animate-fade-in backdrop-blur-md z-20 shadow-lg">
-              <span className="text-[10px] font-bold text-accent tracking-wider uppercase animate-pulse">
-                {t('home.bootingAi')}... {Math.round(visualProgress)}%
-              </span>
-              <div className="w-32 h-1.5 bg-white/10 rounded-full overflow-hidden shadow-inner">
-                <div
-                  className="h-full bg-accent relative transition-all duration-300 ease-out shadow-[0_0_10px_rgba(139,92,246,0.6)]"
-                  style={{ width: `${visualProgress}%` }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
-                </div>
-              </div>
-            </div>
-          )}
 
           <div className="flex-1 overflow-hidden relative flex flex-col">
             {/* Message Area */}

@@ -64,6 +64,86 @@ const VOICE_CATALOG: LanguageGroup[] = [
   }
 ]
 
+interface TierCardProps {
+  id: 'lite' | 'pro' | 'ultra'
+  onSelect: (id: 'lite' | 'pro' | 'ultra') => void
+  t: (key: string) => string
+}
+
+const TierCard = ({ id, onSelect, t }: TierCardProps) => {
+  const styles = {
+    lite: { text: 'text-emerald-500', iconBg: 'bg-emerald-500/10' },
+    pro: { text: 'text-red-500', iconBg: 'bg-red-500/10' },
+    ultra: { text: 'text-yellow-400', iconBg: 'bg-yellow-400/10' }
+  }[id]
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(id)}
+      className="no-drag group relative bg-white/[0.03] border border-white/5 rounded-2xl p-6 text-left flex flex-row items-center hover:bg-white/[0.08] transition-[transform,background-color] duration-150 hover:scale-[1.02] active:scale-[0.98] w-full gap-6 h-[140px] transform-gpu will-change-transform overflow-hidden"
+      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+    >
+      <div className="relative z-10 flex flex-row items-center gap-6 w-full pointer-events-none">
+        <div
+          className={`w-16 h-16 shrink-0 rounded-xl ${styles.iconBg} flex items-center justify-center ${styles.text} shadow-inner border border-white/5`}
+        >
+          {id === 'lite' && (
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+            </svg>
+          )}
+          {id === 'pro' && (
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
+          )}
+          {id === 'ultra' && (
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+          )}
+        </div>
+
+        <div className="flex flex-col items-start w-full">
+          <h3 className={`text-2xl font-bold ${styles.text} uppercase tracking-tight mb-1`}>
+            {t(`onboarding.tier.${id}.title`)}
+          </h3>
+
+          <div className="w-full">
+            <p
+              className={`text-[13px] ${styles.text} font-medium leading-relaxed text-left w-full opacity-80 max-w-[400px]`}
+            >
+              {t(`onboarding.tier.${id}.hover`)}
+            </p>
+          </div>
+        </div>
+      </div>
+    </button>
+  )
+}
+
 export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   const { t, setLocale } = useI18n()
   const [step, setStep] = useState(1)
@@ -198,100 +278,6 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       setIsSaving(false)
     }
   }
-
-  const TierCard = ({ id }: { id: 'lite' | 'pro' | 'ultra' }) => {
-    const styles = {
-      lite: { text: 'text-emerald-500', iconBg: 'bg-emerald-500/10' },
-      pro: { text: 'text-red-500', iconBg: 'bg-red-500/10' },
-      ultra: { text: 'text-yellow-400', iconBg: 'bg-yellow-400/10' }
-    }[id]
-
-    return (
-      <button
-        type="button"
-        onClick={() => handleSelectTier(id)}
-        className="no-drag group relative bg-white/[0.03] border border-white/5 rounded-2xl p-6 text-left flex flex-row items-center hover:border-accent/40 hover:bg-white/[0.05] transition-[border-color,background-color] duration-300 overflow-hidden w-full gap-6 h-[140px]"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-      >
-        {/* Subtle background pattern/glow */}
-        <div
-          className={`absolute -top-24 -right-24 w-48 h-48 ${styles.iconBg} blur-[80px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`}
-        />
-
-        <div className="relative z-10 flex flex-row items-center gap-6 w-full pointer-events-none transition-transform duration-200 group-active:scale-[0.98]">
-          <div
-            className={`w-16 h-16 shrink-0 rounded-xl ${styles.iconBg} flex items-center justify-center ${styles.text} shadow-inner border border-white/5 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 group-active:scale-90`}
-          >
-            {id === 'lite' && (
-              <svg
-                width="32"
-                height="32"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              >
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-              </svg>
-            )}
-            {id === 'pro' && (
-              <svg
-                width="32"
-                height="32"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              >
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-              </svg>
-            )}
-            {id === 'ultra' && (
-              <svg
-                width="32"
-                height="32"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              >
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-            )}
-          </div>
-
-          <div className="flex flex-col items-start w-full">
-            <h3 className={`text-2xl font-bold ${styles.text} uppercase tracking-tight mb-1`}>
-              {t(`onboarding.tier.${id}.title`)}
-            </h3>
-
-            <div className="w-full">
-              <p
-                className={`text-[13px] ${styles.text} font-medium leading-relaxed text-left w-full opacity-80 max-w-[400px]`}
-              >
-                {t(`onboarding.tier.${id}.hover`)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="absolute right-8 opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all duration-300 text-accent/50 pointer-events-none">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="3"
-          >
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </div>
-      </button>
-    )
-  }
-
-
 
   return (
     <div
@@ -514,10 +500,10 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 w-full max-w-[700px] px-4">
-                <TierCard id="lite" />
-                <TierCard id="pro" />
-                <TierCard id="ultra" />
+              <div className="grid grid-cols-1 gap-4 w-full max-w-[700px] px-4 py-4">
+                <TierCard id="lite" onSelect={handleSelectTier} t={t} />
+                <TierCard id="pro" onSelect={handleSelectTier} t={t} />
+                <TierCard id="ultra" onSelect={handleSelectTier} t={t} />
               </div>
             </div>
           ) : (

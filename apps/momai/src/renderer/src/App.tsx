@@ -92,7 +92,7 @@ function App(): React.JSX.Element {
       chat.setAnimationFinished(false)
       resetVisualProgress()
     }
-  }, [isAppVisible])
+  }, [isAppVisible, isBooting])
 
   const triggerClearHistory = () => setShowClearConfirm(true)
   const confirmClearHistory = () => {
