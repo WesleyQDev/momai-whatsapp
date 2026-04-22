@@ -495,6 +495,8 @@ function pickEmbeddingModelPath() {
   return path.join(MODELS_DIR, candidates[0])
 }
 
+let embeddingStartGeneration = 0
+
 const semanticState = {
   enabled: false,
   ready: false,
@@ -508,6 +510,8 @@ const semanticState = {
   skillsSnapshotHash: null,
   toolsSnapshotHash: null,
   lanceModule: null,
+  syncingNotes: false,
+  syncingSkills: false,
   db: null,
   tableNotes: null,
   tableSkills: null,
@@ -638,6 +642,7 @@ async function checkEmbeddingHealth() {
 }
 
 async function stopEmbeddingServer() {
+  embeddingStartGeneration += 1
   const proc = semanticState.embedding.process
   semanticState.embedding.ready = false
   semanticState.embedding.starting = false
@@ -674,141 +679,152 @@ async function ensureEmbeddingReady() {
   if (semanticState.embedding.ready) return true
   if (semanticState.embedding.startingPromise) return semanticState.embedding.startingPromise
 
-  // Stop any stale embedding process from a previous cancelled startup
-  if (semanticState.embedding.process && !semanticState.embedding.ready) {
-    log(`[embedding] Cleaning up stale embedding process before new startup`)
-    await stopEmbeddingServer()
-  }
+  const myGeneration = embeddingStartGeneration
 
-  log(`[embedding] Checking embedding server...`)
+  semanticState.embedding.startingPromise = (async () => {
+    try {
+      // Stop any stale embedding process from a previous cancelled startup
+      if (semanticState.embedding.process && !semanticState.embedding.ready) {
+        log(`[embedding] Cleaning up stale embedding process before new startup`)
+        await stopEmbeddingServer()
+      }
 
-  log(`[embedding] Searching for model in: ${MODELS_DIR}`)
-  let modelPath = pickEmbeddingModelPath()
-  if (!modelPath) {
-    const tierConfig = tiersConfig.ultra || DEFAULT_TIERS.ultra
-    log(`[embedding] Model missing. Attempting auto-download: ${tierConfig.embedding_file}`)
+      log(`[embedding] Checking embedding server...`)
 
-    const downloadResult = await ensureTierModelAvailable('ultra-embedding', {
-      file: tierConfig.embedding_file,
-      repo: tierConfig.embedding_repo
-    })
-    if (downloadResult.ok) {
-      log(`[embedding] Model downloaded successfully to: ${downloadResult.path}`)
-      modelPath = downloadResult.path
-    } else {
-      log(`[embedding] Download failed: ${downloadResult.reason}`)
-      semanticState.lastFallbackReason = 'embedding model not found'
-      return false
-    }
-  }
+      log(`[embedding] Searching for model in: ${MODELS_DIR}`)
+      let modelPath = pickEmbeddingModelPath()
+      if (!modelPath) {
+        const tierConfig = tiersConfig.ultra || DEFAULT_TIERS.ultra
+        log(`[embedding] Model missing. Attempting auto-download: ${tierConfig.embedding_file}`)
 
-  log(`[embedding] Selected model: ${modelPath}`)
-  semanticState.embedding.startingPromise = new Promise((resolve) => {
-    ;(async () => {
-      try {
-        semanticState.embedding.starting = true
-        // Force CPU for embeddings to save VRAM for the main LLM in ULTRA mode
-        const backend = 'cpu'
-        const exePath = llamaBackendExePath(backend)
-        log(`[embedding] Starting server on port ${EMBEDDING_PORT} (backend: ${backend})`)
-
-        if (!fs.existsSync(exePath)) {
-          throw new Error(`llama-server binary missing for ${backend}`)
+        const downloadResult = await ensureTierModelAvailable('ultra-embedding', {
+          file: tierConfig.embedding_file,
+          repo: tierConfig.embedding_repo
+        })
+        if (downloadResult.ok) {
+          log(`[embedding] Model downloaded successfully to: ${downloadResult.path}`)
+          modelPath = downloadResult.path
+        } else {
+          log(`[embedding] Download failed: ${downloadResult.reason}`)
+          semanticState.lastFallbackReason = 'embedding model not found'
+          return false
         }
+      }
 
-        const proc = spawn(
-          exePath,
-          [
-            '-m', modelPath,
-            '--port', String(EMBEDDING_PORT),
-            '--embedding',
-            '--pooling', 'last',
-            '--parallel', '4',
-            '--ctx-size', '2048',
-            '--threads', '4',
-            '-ngl', backend === 'vulkan' ? '99' : '0'
-          ],
-          {
-            cwd: path.dirname(exePath),
-            env: { ...process.env, GGML_VULKAN_DEVICE: '0' },
-            stdio: ['ignore', 'pipe', 'pipe']
-          }
-        )
+      log(`[embedding] Selected model: ${modelPath}`)
+      
+      semanticState.embedding.starting = true
+      // Force CPU for embeddings to save VRAM for the main LLM in ULTRA mode
+      const backend = 'cpu'
+      const exePath = llamaBackendExePath(backend)
+      log(`[embedding] Starting server on port ${EMBEDDING_PORT} (backend: ${backend})`)
 
-        semanticState.embedding.process = proc
-        log(`[embedding] Process spawned (PID: ${proc.pid})`)
+      if (!fs.existsSync(exePath)) {
+        throw new Error(`llama-server binary missing for ${backend}`)
+      }
 
-        proc.stdout.on('data', (d) => {
-          const line = String(d || '').trim()
-          if (line) log(`[embedding][stdout] ${line}`)
-        })
-        proc.stderr.on('data', (d) => {
-          const line = String(d || '').trim()
-          if (line) log(`[embedding][stderr] ${line}`)
-        })
+      const proc = spawn(
+        exePath,
+        [
+          '-m', modelPath,
+          '--port', String(EMBEDDING_PORT),
+          '--embedding',
+          '--pooling', 'last',
+          '--parallel', '2',
+          '--ctx-size', '2048',
+          '--threads', '2',
+          '-ngl', backend === 'vulkan' ? '99' : '0'
+        ],
+        {
+          cwd: path.dirname(exePath),
+          env: { ...process.env, GGML_VULKAN_DEVICE: '0' },
+          stdio: ['ignore', 'pipe', 'pipe']
+        }
+      )
 
-        proc.on('exit', (code, signal) => {
-          const wasStarting = semanticState.embedding.starting
-          log(`[embedding] Process exited (code=${code}, signal=${signal})`)
+      semanticState.embedding.process = proc
+      log(`[embedding] Process spawned (PID: ${proc.pid}, generation: ${myGeneration})`)
+
+      proc.stdout.on('data', (d) => {
+        const line = String(d || '').trim()
+        if (line) log(`[embedding][stdout] ${line}`)
+      })
+      proc.stderr.on('data', (d) => {
+        const line = String(d || '').trim()
+        if (line) log(`[embedding][stderr] ${line}`)
+      })
+
+      proc.on('exit', (code, signal) => {
+        const wasStarting = semanticState.embedding.starting
+        log(`[embedding] Process exited (code=${code}, signal=${signal})`)
+        if (semanticState.embedding.process === proc) {
           semanticState.embedding.process = null
           semanticState.embedding.ready = false
           semanticState.embedding.starting = false
           semanticState.embedding.startingPromise = null
-          if (wasStarting) {
-            semanticState.degraded = true
-            semanticState.lastFallbackReason = `embedding exited (${code}/${signal})`
-            resolve(false)
-          }
-        })
+        }
+        if (wasStarting) {
+          semanticState.degraded = true
+          semanticState.lastFallbackReason = `embedding exited (${code}/${signal})`
+        }
+      })
 
-        proc.on('error', (error) => {
-          log(`[embedding] Process error: ${error?.message}`)
+      proc.on('error', (error) => {
+        log(`[embedding] Process error: ${error?.message}`)
+        if (semanticState.embedding.process === proc) {
           semanticState.embedding.lastError = error?.message
           semanticState.embedding.ready = false
           semanticState.embedding.starting = false
           semanticState.embedding.startingPromise = null
           semanticState.embedding.process = null
-          semanticState.degraded = true
-          semanticState.lastFallbackReason = error?.message
-          resolve(false)
-        })
-
-        const startedAt = Date.now()
-        const timeoutMs = 25000
-        while (Date.now() - startedAt < timeoutMs) {
-          if (!semanticState.embedding.process) return // Already handled by exit/error
-          try {
-            const ok = await checkEmbeddingHealth()
-            if (ok) {
-              log(`[embedding] Server is healthy and ready!`)
-              semanticState.embedding.ready = true
-              semanticState.embedding.starting = false
-              semanticState.embedding.startingPromise = null
-              semanticState.enabled = true
-              semanticState.ready = true
-              semanticState.degraded = false
-              semanticState.lastFallbackReason = null
-              resolve(true)
-              return
-            }
-          } catch {}
-          await new Promise((r) => setTimeout(r, 500))
         }
+        semanticState.degraded = true
+        semanticState.lastFallbackReason = error?.message
+      })
 
-        log(`[embedding] Startup timed out after ${timeoutMs}ms`)
-        semanticState.degraded = true
-        semanticState.lastFallbackReason = 'embedding startup timeout'
-        await stopEmbeddingServer()
-        resolve(false)
-      } catch (error) {
-        log(`[embedding] Panic in startup task: ${error?.message}`)
-        semanticState.degraded = true
-        semanticState.lastFallbackReason = error?.message || 'embedding startup failure'
-        await stopEmbeddingServer()
-        resolve(false)
+      const startedAt = Date.now()
+      const timeoutMs = 25000
+      while (Date.now() - startedAt < timeoutMs) {
+        if (embeddingStartGeneration !== myGeneration) {
+          log(`[embedding] Startup cancelled (generation ${myGeneration} superseded by ${embeddingStartGeneration})`)
+          try { if (proc && !proc.killed) proc.kill('SIGTERM') } catch {}
+          return false
+        }
+        if (proc.killed || proc.exitCode !== null) return false
+        try {
+          const ok = await checkEmbeddingHealth()
+          if (ok) {
+            log(`[embedding] Server is healthy and ready!`)
+            semanticState.embedding.ready = true
+            semanticState.embedding.starting = false
+            semanticState.embedding.startingPromise = null
+            semanticState.enabled = true
+            semanticState.ready = true
+            semanticState.degraded = false
+            semanticState.lastFallbackReason = null
+            return true
+          }
+        } catch {}
+        await new Promise((r) => setTimeout(r, 500))
       }
-    })()
-  })
+
+      log(`[embedding] Startup timed out after ${timeoutMs}ms`)
+      semanticState.degraded = true
+      semanticState.lastFallbackReason = 'embedding startup timeout'
+      await stopEmbeddingServer()
+      return false
+    } catch (error) {
+      log(`[embedding] Panic in startup task: ${error?.message}`)
+      semanticState.degraded = true
+      semanticState.lastFallbackReason = error?.message || 'embedding startup failure'
+      await stopEmbeddingServer()
+      return false
+    } finally {
+      if (!semanticState.embedding.ready) {
+        semanticState.embedding.startingPromise = null
+      }
+    }
+  })();
 
   return semanticState.embedding.startingPromise
 }
@@ -974,6 +990,7 @@ async function createOrOverwriteTable(tableName, rows) {
 
 async function syncSkillAndToolIndexes(force = false) {
   if ((store.settings.ai_tier || 'pro') !== 'ultra') return
+  if (semanticState.syncingSkills) return
   const now = Date.now()
   if (!force && now - semanticState.lastSkillSyncAt < SEMANTIC_SYNC_INTERVAL_MS) return
 
@@ -1004,26 +1021,32 @@ async function syncSkillAndToolIndexes(force = false) {
     return
   }
 
-  const skillRows = skills.map((item, idx) => ({ ...item, vector: vectors[idx] }))
-  const toolRows = tools.map((item, idx) => ({ ...item, vector: vectors[skills.length + idx] }))
+  try {
+    semanticState.syncingSkills = true
+    const skillRows = skills.map((item, idx) => ({ ...item, vector: vectors[idx] }))
+    const toolRows = tools.map((item, idx) => ({ ...item, vector: vectors[skills.length + idx] }))
 
-  const tSkills = await createOrOverwriteTable('skills', skillRows)
-  const tTools = await createOrOverwriteTable('tools', toolRows)
-  
-  if (tSkills) {
-    semanticState.tableSkills = tSkills
-    semanticState.skillsSnapshotHash = skillsDigest
+    const tSkills = await createOrOverwriteTable('skills', skillRows)
+    const tTools = await createOrOverwriteTable('tools', toolRows)
+    
+    if (tSkills) {
+      semanticState.tableSkills = tSkills
+      semanticState.skillsSnapshotHash = skillsDigest
+    }
+    if (tTools) {
+      semanticState.tableTools = tTools
+      semanticState.toolsSnapshotHash = toolsDigest
+    }
+    
+    semanticState.lastSkillSyncAt = now
+  } finally {
+    semanticState.syncingSkills = false
   }
-  if (tTools) {
-    semanticState.tableTools = tTools
-    semanticState.toolsSnapshotHash = toolsDigest
-  }
-  
-  semanticState.lastSkillSyncAt = now
 }
 
 async function syncNoteIndex(force = false) {
   if ((store.settings.ai_tier || 'pro') !== 'ultra') return
+  if (semanticState.syncingNotes) return
   const now = Date.now()
   if (!force && now - semanticState.lastNotesSyncAt < SEMANTIC_SYNC_INTERVAL_MS) return
 
@@ -1071,17 +1094,22 @@ async function syncNoteIndex(force = false) {
     }
   })
 
-  const validRows = rows.filter(Boolean)
-  if (validRows.length === 0 && allChunksToEmbed.length > 0) {
-    log('[semantic] Note sync failed: no vectors generated')
-    return
-  }
+  try {
+    semanticState.syncingNotes = true
+    const validRows = rows.filter(Boolean)
+    if (validRows.length === 0 && allChunksToEmbed.length > 0) {
+      log('[semantic] Note sync failed: no vectors generated')
+      return
+    }
 
-  const table = await createOrOverwriteTable('notes', validRows)
-  if (table) {
-    semanticState.tableNotes = table
-    semanticState.notesSnapshotHash = digest
-    semanticState.lastNotesSyncAt = now
+    const table = await createOrOverwriteTable('notes', validRows)
+    if (table) {
+      semanticState.tableNotes = table
+      semanticState.notesSnapshotHash = digest
+      semanticState.lastNotesSyncAt = now
+    }
+  } finally {
+    semanticState.syncingNotes = false
   }
 }
 
@@ -1821,258 +1849,256 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
   const tierName = store.settings.ai_tier || 'pro'
   const tierConfig = tiersConfig[tierName] || tiersConfig.pro || DEFAULT_TIERS.pro
 
-  log(`[llama] ensuring llama ready. tier: ${tierName}, file: ${tierConfig.file}, generation: ${myGeneration}`)
+  llamaState.startingPromise = (async () => {
+    try {
+      log(`[llama] ensuring llama ready. tier: ${tierName}, file: ${tierConfig.file}, generation: ${myGeneration}`)
 
-  if (!backendAttempts.length) {
-    const incompatibleBackends = listIncompatibleBackends()
-    let msg = 'llama-server binary not found (bin/llama/<backend>/llama-server)'
+      if (!backendAttempts.length) {
+        const incompatibleBackends = listIncompatibleBackends()
+        let msg = 'llama-server binary not found (bin/llama/<backend>/llama-server)'
 
-    if (incompatibleBackends.length) {
-      const backendList = incompatibleBackends.join(', ')
-      if (process.platform === 'win32') {
-        msg = `Only non-Windows llama binaries found for backend(s): ${backendList}. Run \"pnpm --filter momai prebuild\" to hydrate native binaries.`
-      } else {
-        msg = `Only Windows llama binaries found for backend(s): ${backendList}. Run \"pnpm --filter momai prebuild\" on this Linux/macOS machine to hydrate native binaries.`
+        if (incompatibleBackends.length) {
+          const backendList = incompatibleBackends.join(', ')
+          if (process.platform === 'win32') {
+            msg = `Only non-Windows llama binaries found for backend(s): ${backendList}. Run \"pnpm --filter momai prebuild\" to hydrate native binaries.`
+          } else {
+            msg = `Only Windows llama binaries found for backend(s): ${backendList}. Run \"pnpm --filter momai prebuild\" on this Linux/macOS machine to hydrate native binaries.`
+          }
+        }
+        llamaState.lastError = msg
+        setInitStatus('error', 'Local model binary missing', 99, msg)
+        return false
       }
-    }
 
-    llamaState.lastError = msg
-    llamaState.backend = null
-    llamaState.backendReason = 'backend_unavailable'
-    llamaState.backendMode = preferred
-    setInitStatus('error', 'Local model engine missing', 99, msg)
-    return false
-  }
-
-  const existingModelPath = resolveModelPath(tierConfig)
-  if (!existingModelPath) {
-    if (!allowModelDownload) {
-      const msg = `Model for tier ${tierName.toUpperCase()} not present yet.`
-      llamaState.lastError = msg
-      setInitStatus('loading', `Waiting model download (${tierName.toUpperCase()})...`, 25, null)
-      return false
-    }
-    const modelReady = await ensureTierModelAvailable(tierName, tierConfig)
-    if (!modelReady.ok) {
-      const msg = modelReady.reason || `Failed to prepare model for tier ${tierName}`
-      llamaState.lastError = msg
-      setInitStatus('error', 'Local model download failed', 99, msg)
-      return false
-    }
-  }
-
-  const modelPath = resolveModelPath(tierConfig)
-  if (!modelPath) {
-    const msg = `No GGUF model found in ${MODELS_DIR}`
-    llamaState.lastError = msg
-    setInitStatus('error', 'Local model file missing', 99, msg)
-    return false
-  }
-  const configuredModelFile = typeof tierConfig.file === 'string' ? tierConfig.file : null
-  const actualModelFile = path.basename(modelPath)
-  const usingFallbackModel =
-    Boolean(configuredModelFile) &&
-    configuredModelFile.toLowerCase() !== actualModelFile.toLowerCase()
-
-  if (usingFallbackModel && typeof process.send === 'function') {
-    process.send({
-      type: 'node-core-log',
-      message: `[llama] Tier ${tierName.toUpperCase()} requested "${configuredModelFile}" but loaded fallback "${actualModelFile}".`
-    })
-  }
-
-  const visionEnabled = tierConfig.enable_vision === true
-  const mmprojPath = visionEnabled ? resolveMmprojPath() : null
-  const parallelSlots = 2
-  const requestCtx = Number(tierConfig.request_ctx_size || tierConfig.ctx_size || 8192)
-  const ctxBase = Math.max(2048, Math.min(requestCtx, 8192))
-  const totalCtx = ctxBase * parallelSlots
-
-  const startAttempt = (backend, isFallbackAttempt) =>
-    new Promise((resolve) => {
-      const exePath = llamaBackendExePath(backend)
-      const exeDir = path.dirname(exePath)
-      ;(async () => {
-        if (llamaStartGeneration !== myGeneration) {
-          resolve({ ok: false, reason: 'cancelled: newer startup requested' })
-          return
+      const existingModelPath = resolveModelPath(tierConfig)
+      if (!existingModelPath) {
+        if (!allowModelDownload) {
+          const msg = `Model for tier ${tierName.toUpperCase()} not present yet.`
+          llamaState.lastError = msg
+          setInitStatus('loading', `Waiting model download (${tierName.toUpperCase()})...`, 25, null)
+          return false
         }
-        const selectedPort = await pickAvailablePort(llamaState.port || LLAMA_PORT)
-        const args = [
-          '-m',
-          modelPath,
-          '--port',
-          String(selectedPort),
-          '-c',
-          String(totalCtx),
-          '--parallel',
-          String(parallelSlots),
-          '-ngl',
-          String(Number.isFinite(tierConfig.gpu_layers) ? tierConfig.gpu_layers : 99),
-          '--flash-attn',
-          'auto',
-          '--reasoning',
-          'off',
-          '--cache-prompt',
-          '-b',
-          '2048',
-          '-ub',
-          '512',
-          '--top-p',
-          String(Number.isFinite(tierConfig.top_p) ? tierConfig.top_p : 1),
-          '--top-k',
-          String(Number.isFinite(tierConfig.top_k) ? tierConfig.top_k : 20),
-          '--presence-penalty',
-          String(Number.isFinite(tierConfig.presence_penalty) ? tierConfig.presence_penalty : 0),
-          '--repeat-penalty',
-          String(Number.isFinite(tierConfig.repetition_penalty) ? tierConfig.repetition_penalty : 1)
-        ]
-
-        if (backend === 'cpu') args.push('--no-mmap')
-        else args.push('--mmap')
-
-        if (mmprojPath) args.push('--mmproj', mmprojPath)
-
-        llamaState.starting = true
-        llamaState.ready = false
-        llamaState.lastError = null
-        llamaState.contextTotalTokens = ctxBase
-        llamaState.backend = backend
-        llamaState.backendMode = preferred
-        llamaState.backendReason = backendReason(preferred, backend, {
-          vulkanAttempted: isFallbackAttempt
-        })
-        llamaState.modelPath = modelPath
-        llamaState.configuredModelFile = configuredModelFile
-        llamaState.usingFallbackModel = usingFallbackModel
-        llamaState.currentTier = tierName
-        llamaState.currentModelName = tierConfig.name || null
-        llamaState.port = selectedPort
-
-        setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 80, null)
-
-        let child = null
-        try {
-          child = spawn(exePath, args, {
-            cwd: exeDir,
-            env: {
-              ...process.env,
-              PATH: `${exeDir}${path.delimiter}${process.env.PATH || ''}`
-            },
-            shell: false,
-            stdio: ['ignore', 'pipe', 'pipe']
-          })
-        } catch (error) {
-          const errMsg = error?.message || 'Failed to spawn llama-server'
-          resolve({ ok: false, reason: errMsg })
-          return
+        const modelReady = await ensureTierModelAvailable(tierName, tierConfig)
+        if (!modelReady.ok) {
+          const msg = modelReady.reason || `Failed to prepare model for tier ${tierName}`
+          llamaState.lastError = msg
+          setInitStatus('error', 'Local model download failed', 99, msg)
+          return false
         }
+      }
 
-        llamaState.process = child
-        let exitedDuringStartup = false
+      const modelPath = resolveModelPath(tierConfig)
+      if (!modelPath) {
+        const msg = `No GGUF model found in ${MODELS_DIR}`
+        llamaState.lastError = msg
+        setInitStatus('error', 'Local model file missing', 99, msg)
+        return false
+      }
+      const configuredModelFile = typeof tierConfig.file === 'string' ? tierConfig.file : null
+      const actualModelFile = path.basename(modelPath)
+      const usingFallbackModel =
+        Boolean(configuredModelFile) &&
+        configuredModelFile.toLowerCase() !== actualModelFile.toLowerCase()
 
-        child.stdout?.on('data', (data) => {
-          const line = String(data).trim()
-          if (line && typeof process.send === 'function') {
-            process.send({ type: 'node-core-log', message: `[llama] ${line}` })
-          }
+      if (usingFallbackModel && typeof process.send === 'function') {
+        process.send({
+          type: 'node-core-log',
+          message: `[llama] Tier ${tierName.toUpperCase()} requested "${configuredModelFile}" but loaded fallback "${actualModelFile}".`
         })
+      }
 
-        child.stderr?.on('data', (data) => {
-          const line = String(data).trim()
-          if (line && typeof process.send === 'function') {
-            process.send({ type: 'node-core-log', message: `[llama] ${line}` })
-          }
-        })
+      const visionEnabled = tierConfig.enable_vision === true
+      const mmprojPath = visionEnabled ? resolveMmprojPath() : null
+      const parallelSlots = 2
+      const requestCtx = Number(tierConfig.request_ctx_size || tierConfig.ctx_size || 8192)
+      const ctxBase = Math.max(2048, Math.min(requestCtx, 8192))
+      const totalCtx = ctxBase * parallelSlots
 
-        child.on('exit', () => {
-          const endedWhileStarting = llamaState.starting
-          llamaState.ready = false
-          llamaState.starting = false
-          llamaState.process = null
-          if (endedWhileStarting) exitedDuringStartup = true
-        })
-
-        child.on('error', (error) => {
-          exitedDuringStartup = true
-          llamaState.lastError = error?.message || 'llama-server spawn error'
-        })
-
-        const startedAt = Date.now()
-        const timeoutMs = 25000
-        ;(async () => {
-          while (Date.now() - startedAt < timeoutMs) {
+      const startAttempt = (backend, isFallbackAttempt) =>
+        new Promise((resolve) => {
+          const exePath = llamaBackendExePath(backend)
+          const exeDir = path.dirname(exePath)
+          ;(async () => {
             if (llamaStartGeneration !== myGeneration) {
-              log(`[llama] Startup cancelled (generation ${myGeneration} superseded by ${llamaStartGeneration})`)
-              try { if (child && !child.killed) child.kill('SIGTERM') } catch {}
               resolve({ ok: false, reason: 'cancelled: newer startup requested' })
               return
             }
-            if (
-              exitedDuringStartup ||
-              !llamaState.process ||
-              llamaState.process.exitCode !== null
-            ) {
-              resolve({ ok: false, reason: 'llama-server exited during startup' })
+            const selectedPort = await pickAvailablePort(llamaState.port || LLAMA_PORT)
+            const args = [
+              '-m',
+              modelPath,
+              '--port',
+              String(selectedPort),
+              '-c',
+              String(totalCtx),
+              '--parallel',
+              String(parallelSlots),
+              '-ngl',
+              String(Number.isFinite(tierConfig.gpu_layers) ? tierConfig.gpu_layers : 99),
+              '--flash-attn',
+              'auto',
+              '--reasoning',
+              'off',
+              '--cache-prompt',
+              '-b',
+              '2048',
+              '-ub',
+              '512',
+              '--top-p',
+              String(Number.isFinite(tierConfig.top_p) ? tierConfig.top_p : 1),
+              '--top-k',
+              String(Number.isFinite(tierConfig.top_k) ? tierConfig.top_k : 20),
+              '--presence-penalty',
+              String(Number.isFinite(tierConfig.presence_penalty) ? tierConfig.presence_penalty : 0),
+              '--repeat-penalty',
+              String(Number.isFinite(tierConfig.repetition_penalty) ? tierConfig.repetition_penalty : 1)
+            ]
+
+            if (backend === 'cpu') args.push('--no-mmap')
+            else args.push('--mmap')
+
+            if (mmprojPath) args.push('--mmproj', mmprojPath)
+
+            llamaState.starting = true
+            llamaState.ready = false
+            llamaState.lastError = null
+            llamaState.contextTotalTokens = ctxBase
+            llamaState.backend = backend
+            llamaState.backendMode = preferred
+            llamaState.backendReason = backendReason(preferred, backend, {
+              vulkanAttempted: isFallbackAttempt
+            })
+            llamaState.modelPath = modelPath
+            llamaState.configuredModelFile = configuredModelFile
+            llamaState.usingFallbackModel = usingFallbackModel
+            llamaState.currentTier = tierName
+            llamaState.currentModelName = tierConfig.name || null
+            llamaState.port = selectedPort
+
+            setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 80, null)
+
+            let child = null
+            try {
+              child = spawn(exePath, args, {
+                cwd: exeDir,
+                env: {
+                  ...process.env,
+                  PATH: `${exeDir}${path.delimiter}${process.env.PATH || ''}`
+                },
+                shell: false,
+                stdio: ['ignore', 'pipe', 'pipe']
+              })
+            } catch (error) {
+              const errMsg = error?.message || 'Failed to spawn llama-server'
+              resolve({ ok: false, reason: errMsg })
               return
             }
-            try {
-              const ok = await checkLlamaHealth()
-              if (ok) {
-                llamaState.ready = true
-                llamaState.starting = false
-                setInitStatus('ready', 'System ready.', 100, null)
-                resolve({ ok: true, reason: null })
-                return
-              }
-            } catch {}
-            await new Promise((r) => setTimeout(r, 300))
-          }
-          await stopLlamaServer()
-          resolve({ ok: false, reason: 'llama-server healthcheck timeout' })
-        })().catch(async (error) => {
-          await stopLlamaServer()
-          resolve({ ok: false, reason: error?.message || 'Unexpected llama startup failure' })
-        })
-      })().catch((error) => {
-        resolve({ ok: false, reason: error?.message || 'Failed to select llama port' })
-      })
-    })
 
-  llamaState.startingPromise = (async () => {
-    for (let i = 0; i < backendAttempts.length; i += 1) {
-      if (llamaStartGeneration !== myGeneration) {
-        log(`[llama] Backend loop cancelled (generation ${myGeneration} superseded by ${llamaStartGeneration})`)
-        return false
-      }
-      const backend = backendAttempts[i]
-      const result = await startAttempt(backend, i > 0)
-      if (result.ok) return true
-      llamaState.lastError = result.reason
-      if (preferred !== 'auto') {
-        setInitStatus('error', 'Failed to initialize local model', 99, result.reason)
-        return false
-      }
-      if (i === 0 && backend === 'vulkan' && backendAttempts[i + 1] === 'cpu') {
-        if (typeof process.send === 'function') {
-          process.send({
-            type: 'node-core-log',
-            message: `[llama] Vulkan probe failed (${result.reason}). Falling back to CPU.`
+            llamaState.process = child
+            let exitedDuringStartup = false
+
+            child.stdout?.on('data', (data) => {
+              const line = String(data).trim()
+              if (line && typeof process.send === 'function') {
+                process.send({ type: 'node-core-log', message: `[llama] ${line}` })
+              }
+            })
+
+            child.stderr?.on('data', (data) => {
+              const line = String(data).trim()
+              if (line && typeof process.send === 'function') {
+                process.send({ type: 'node-core-log', message: `[llama] ${line}` })
+              }
+            })
+
+            child.on('exit', () => {
+              exitedDuringStartup = true
+              if (llamaState.process === child) {
+                llamaState.ready = false
+                llamaState.starting = false
+                llamaState.process = null
+              }
+            })
+
+            child.on('error', (error) => {
+              exitedDuringStartup = true
+              llamaState.lastError = error?.message || 'llama-server spawn error'
+            })
+
+            const startedAt = Date.now()
+            const timeoutMs = 25000
+            ;(async () => {
+              while (Date.now() - startedAt < timeoutMs) {
+                if (llamaStartGeneration !== myGeneration) {
+                  log(`[llama] Startup cancelled (generation ${myGeneration} superseded by ${llamaStartGeneration})`)
+                  try { if (child && !child.killed) child.kill('SIGTERM') } catch {}
+                  resolve({ ok: false, reason: 'cancelled: newer startup requested' })
+                  return
+                }
+                if (
+                  exitedDuringStartup ||
+                  child.killed ||
+                  child.exitCode !== null
+                ) {
+                  resolve({ ok: false, reason: 'llama-server exited during startup' })
+                  return
+                }
+                try {
+                  const ok = await checkLlamaHealth()
+                  if (ok) {
+                    llamaState.ready = true
+                    llamaState.starting = false
+                    setInitStatus('ready', 'System ready.', 100, null)
+                    resolve({ ok: true, reason: null })
+                    return
+                  }
+                } catch {}
+                await new Promise((r) => setTimeout(r, 300))
+              }
+              await stopLlamaServer()
+              resolve({ ok: false, reason: 'llama-server healthcheck timeout' })
+            })().catch(async (error) => {
+              await stopLlamaServer()
+              resolve({ ok: false, reason: error?.message || 'Unexpected llama startup failure' })
+            })
+          })().catch((error) => {
+            resolve({ ok: false, reason: error?.message || 'Failed to select llama port' })
           })
+        })
+
+      for (let i = 0; i < backendAttempts.length; i += 1) {
+        if (llamaStartGeneration !== myGeneration) {
+          log(`[llama] Backend loop cancelled (generation ${myGeneration} superseded by ${llamaStartGeneration})`)
+          return false
+        }
+        const backend = backendAttempts[i]
+        const result = await startAttempt(backend, i > 0)
+        if (result.ok) return true
+        llamaState.lastError = result.reason
+        if (preferred !== 'auto') {
+          setInitStatus('error', 'Failed to initialize local model', 99, result.reason)
+          return false
+        }
+        if (i === 0 && backend === 'vulkan' && backendAttempts[i + 1] === 'cpu') {
+          if (typeof process.send === 'function') {
+            process.send({
+              type: 'node-core-log',
+              message: `[llama] Vulkan probe failed (${result.reason}). Falling back to CPU.`
+            })
+          }
         }
       }
+
+      setInitStatus('error', 'Failed to initialize local model', 99, llamaState.lastError)
+      return false
+    } finally {
+      if (!llamaState.ready) {
+        llamaState.startingPromise = null
+      }
     }
+  })();
 
-    setInitStatus('error', 'Failed to initialize local model', 99, llamaState.lastError)
-    return false
-  })()
-
-  try {
-    return await llamaState.startingPromise
-  } finally {
-    llamaState.startingPromise = null
-    if (!llamaState.ready) llamaState.starting = false
-  }
+  return llamaState.startingPromise
 }
 
 function splitTokens(text) {
