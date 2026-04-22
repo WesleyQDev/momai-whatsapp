@@ -3204,6 +3204,9 @@ async function maybeRestartLlamaOnTierChange(prevTier, nextTier, prevBackend, ne
       llamaState.lastError = modelReady.reason || `Failed to prepare model for tier ${nextTier}`
       return false
     }
+    if (!llamaState.ready && !llamaState.starting) {
+      return ensureLlamaReady(false)
+    }
     return true
   }
   if (nextTier !== 'ultra') {
@@ -3398,7 +3401,7 @@ async function handleRequest(req, res) {
       return
     }
 
-    const prevTier = store.settings.ai_tier || 'pro'
+    const prevTier = store.settings.ai_tier || '__unset__'
     const prevBackend = normalizeBackendMode(store.settings.local_backend || 'auto')
 
     store.mode = 'local'
@@ -3437,7 +3440,7 @@ async function handleRequest(req, res) {
 
   if (pathname === '/mode' && req.method === 'POST') {
     const payload = await readJsonBody(req).catch(() => ({}))
-    const prevTier = store.settings.ai_tier || 'pro'
+    const prevTier = store.settings.ai_tier || '__unset__'
     const mode = payload.mode || prevTier
 
     if (!isValidTier(mode)) {
@@ -3530,7 +3533,7 @@ async function handleRequest(req, res) {
   if (pathname === '/settings' && req.method === 'PATCH') {
     try {
       const payload = await readJsonBody(req).catch(() => ({}))
-      const prevTier = store.settings.ai_tier || 'pro'
+      const prevTier = store.settings.ai_tier || '__unset__'
       const prevBackend = store.settings.local_backend || 'auto'
 
       if (payload.ai_tier && !isValidTier(payload.ai_tier)) {
