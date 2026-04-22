@@ -35,6 +35,8 @@ interface ContainerChatProps {
   onRemoveMessage?: (index: number) => void
   onRegenerateMessage?: (index: number) => void
   isFirstLaunch?: boolean
+  animationFinished: boolean
+  setAnimationFinished: (finished: boolean) => void
 }
 
 const CallModeUI = ({
@@ -371,15 +373,15 @@ export default function ContainerChat({
   onSpeakMessage,
   onRemoveMessage,
   onRegenerateMessage,
-  isFirstLaunch = false
+  isFirstLaunch = false,
+  animationFinished,
+  setAnimationFinished
 }: ContainerChatProps): JSX.Element {
   const { t } = useI18n()
   const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
   const isBrainReady = statusInfo?.brain_ready ?? false
   const isBrainLoading = statusInfo?.is_loading ?? false
   const isSystemDone = initProgress >= 100 && !isBooting && (visualProgress ?? 0) >= 100
-
-  const [animationFinished, setAnimationFinished] = useState(false)
 
   const [settings, setSettings] = useState<SettingsData | null>(null)
   const [dynamicSuggestion, setDynamicSuggestion] = useState<string | null>(null)

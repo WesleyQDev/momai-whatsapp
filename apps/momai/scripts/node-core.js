@@ -418,6 +418,23 @@ function advanceReminder(reminder) {
   reminder.scheduled_time = current.toISOString()
 }
 
+function catchUpReminders() {
+  const now = Date.now()
+  let touched = false
+  for (const reminder of store.reminders) {
+    if (reminder.is_active && parseTime(reminder.scheduled_time) < now) {
+      log(`[Reminders] Skipping missed reminder on startup: ${reminder.title}`)
+      while (reminder.is_active && parseTime(reminder.scheduled_time) < now) {
+        advanceReminder(reminder)
+      }
+      touched = true
+    }
+  }
+  if (touched) saveStore()
+}
+
+catchUpReminders()
+
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true })
 }

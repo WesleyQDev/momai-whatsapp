@@ -55,6 +55,8 @@ const ChatView = (props: any) => {
       onRemoveMessage={props.chat.removeMessage}
       onRegenerateMessage={props.chat.regenerateMessage}
       isFirstLaunch={props.isFirstLaunch}
+      animationFinished={props.chat.animationFinished}
+      setAnimationFinished={props.chat.setAnimationFinished}
     />
   )
 }

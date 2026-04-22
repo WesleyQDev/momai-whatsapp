@@ -36,7 +36,9 @@ export function useChat() {
     isCallModeRef,
     currentGraphOptionsRef,
     isGraphOpenRef,
-    toolTraceRef
+    toolTraceRef,
+    animationFinished,
+    setAnimationFinished
   } = chatState
 
   // 1. Actions Hook
@@ -169,6 +171,8 @@ export function useChat() {
     callHistory,
     threadId,
     setThreadId,
-    scrollToBottom
+    scrollToBottom,
+    animationFinished,
+    setAnimationFinished
   }
 }

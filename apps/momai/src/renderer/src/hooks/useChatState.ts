@@ -62,6 +62,8 @@ export function useChatState() {
     isGraphOpenRef.current = graphState.view !== null
   }, [graphState])
 
+  const [animationFinished, setAnimationFinished] = useState(false)
+
   return {
     messages,
     setMessages,
@@ -88,6 +90,8 @@ export function useChatState() {
     isCallModeRef,
     currentGraphOptionsRef,
     isGraphOpenRef,
-    toolTraceRef
+    toolTraceRef,
+    animationFinished,
+    setAnimationFinished
   }
 }
