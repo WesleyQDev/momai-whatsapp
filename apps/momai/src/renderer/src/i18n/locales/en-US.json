@@ -132,7 +132,7 @@
   "notes.errors.import": "Failed to import notes",
   "notes.newNoteTitleDefault": "New note",
   "notes.welcome.title": "Welcome to Notes",
-  "notes.welcome.content": "# Notes Workspace\\nThis is where MomAI keeps your structured memory.\\n\\n## How it works\\nWhen you ask me to save something, I can create and organize notes for you here automatically.\\n\\n## What you can do\\n- **Organize ideas:** Write with Markdown support, including headings, lists, and emphasis.\\n- **Drag and drop:** Import and export `.md` files using the folder button above.\\n- **Ask for summaries:** You can ask in chat things like \\\"What do my notes say about X?\\\" and I can summarize quickly.\\n\\n> Tip: Right-click a note in the sidebar to rename it.\\n\\nYou're all set.",
+  "notes.welcome.content": "# Notes Workspace\nThis is where MomAI keeps your structured memory.\n\n## How it works\nWhen you ask me to save something, I can create and organize notes for you here automatically.\n\n## What you can do\n- **Organize ideas:** Write with Markdown support, including headings, lists, and emphasis.\n- **Drag and drop:** Import and export `.md` files using the folder button above.\n- **Ask for summaries:** You can ask in chat things like \"What do my notes say about X?\" and I can summarize quickly.\n\n> Tip: Right-click a note in the sidebar to rename it.\n\nYou're all set.",
   "notes.confirmDelete": "Do you want to remove this note?",
   "notes.tabs.all": "All Notes",
   "notes.tabs.recent": "Recent",

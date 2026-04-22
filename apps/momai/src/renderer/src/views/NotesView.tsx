@@ -316,8 +316,8 @@ export default function NotesView() {
     try {
       const note = await getMemoryNote(noteId)
       setTitle(note.title)
-      setContent(note.content)
-      lastSaved.current = { title: note.title, content: note.content }
+      setContent(note.content.replace(/\\n/g, '\n'))
+      lastSaved.current = { title: note.title, content: note.content.replace(/\\n/g, '\n') }
     } catch (err) {
       setError(t('notes.errors.open'))
     } finally {
@@ -756,22 +756,22 @@ export default function NotesView() {
         // HEADER SIZES: Force sizes with high specificity
         '.cm-h1': {
           fontSize: '1.8em !important',
-          fontWeight: '800 !important',
+          fontWeight: '700 !important',
           fontFamily: "'Outfit', sans-serif"
         },
         '.cm-h2': {
           fontSize: '1.5em !important',
-          fontWeight: '700 !important',
+          fontWeight: '600 !important',
           fontFamily: "'Outfit', sans-serif"
         },
         '.cm-h3': {
           fontSize: '1.25em !important',
-          fontWeight: '700 !important',
+          fontWeight: '600 !important',
           fontFamily: "'Outfit', sans-serif"
         },
         '.cm-h4': {
           fontSize: '1.1em !important',
-          fontWeight: '600 !important',
+          fontWeight: '500 !important',
           fontFamily: "'Outfit', sans-serif"
         },
 
