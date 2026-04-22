@@ -71,8 +71,8 @@ function createPromptRegistry({ promptsDir }) {
         ultra: { response_style: 'concise', max_sentences: 3, tier_instructions: '' }
       },
       fallback_replies: {
-        empty: 'Mensagem vazia.',
-        greeting: 'Assistente online.',
+        empty: 'Por favor, envie uma mensagem para eu te ajudar.',
+        greeting: 'Olá! Sou seu assistente MomAI. Como posso ajudar hoje?',
         reason: 'Fallback: {{summary}} ({{reason}}).',
         with_memory: 'Fallback com memoria: {{summary}}.',
         default: 'Fallback: {{summary}}.'

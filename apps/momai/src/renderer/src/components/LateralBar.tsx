@@ -18,7 +18,6 @@ interface LateralBarProps {
   activeRoute: string
   onNavigate: (path: string) => void
   onOpenSettings?: () => void
-  onOpenAbout?: () => void
   isCompact?: boolean
 }
 
@@ -45,7 +44,6 @@ export default function LateralBar({
   activeRoute,
   onNavigate,
   onOpenSettings,
-  onOpenAbout,
   isCompact = false
 }: LateralBarProps) {
   const { t } = useI18n()
@@ -208,10 +206,15 @@ export default function LateralBar({
 
         {/* About Icon */}
         <button
-          onClick={onOpenAbout}
+          onClick={() => onNavigate('/about')}
           title={t('sidebar.about')}
-          className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 text-text-muted hover:text-text`}
+          className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 ${activeRoute === '/about' ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
         >
+          {activeRoute === '/about' && (
+            <div
+              className={`absolute ${isCompact ? '-left-2 h-4' : '-left-3 h-6'} w-1 bg-accent rounded-r-full animate-fade-in`}
+            />
+          )}
           <QuestionMarkCircleIcon
             className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
           />

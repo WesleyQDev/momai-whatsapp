@@ -3,6 +3,7 @@ import ContainerChat from './ContainerChat'
 import RemindersView from '../views/RemindersView'
 import ExtensionsView from '../views/ExtensionsView'
 import NotesView from '../views/NotesView'
+import AboutView from '../views/AboutView'
 import DynamicDashboard from './DynamicDashboard'
 import { StatusData } from '../services/api'
 
@@ -63,6 +64,7 @@ const VIEW_MAP: Record<string, React.ComponentType<any>> = {
   RemindersDashboard: RemindersView,
   NotesDashboard: NotesView,
   ExtensionsStore: ExtensionsView,
+  AboutDashboard: AboutView,
   DynamicDashboard: DynamicDashboard
 }
 

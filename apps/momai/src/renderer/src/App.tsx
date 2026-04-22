@@ -11,7 +11,6 @@ import ConfirmationCard from './components/floating/ConfirmationCard'
 import OnboardingCard from './components/floating/OnboardingCard'
 import AutoUpdateCard from './components/floating/AutoUpdateCard'
 import MainViewRenderer from './components/MainViewRenderer'
-import AboutCard from './components/floating/AboutCard'
 
 // New modular imports
 import WelcomeScreen from './components/WelcomeScreen'
@@ -71,7 +70,6 @@ function App(): React.JSX.Element {
     'general' | 'brain' | 'voice' | 'economy' | 'updates'
   >('general')
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [showAbout, setShowAbout] = useState(false)
 
   const openSettings = useCallback(
     (tab: 'general' | 'brain' | 'voice' | 'economy' | 'updates' = 'general') => {
@@ -99,6 +97,7 @@ function App(): React.JSX.Element {
     '/extensions': 'ExtensionsStore',
     '/notes': 'NotesDashboard',
     '/agenda': 'RemindersDashboard',
+    '/about': 'AboutDashboard',
     '/': 'ChatDashboard'
   }
 
@@ -134,7 +133,6 @@ function App(): React.JSX.Element {
             activeRoute={location.pathname}
             onNavigate={(path) => navigate(path)}
             onOpenSettings={() => openSettings('general')}
-            onOpenAbout={() => setShowAbout(true)}
             isCompact={isCompact}
           />
 
@@ -193,7 +191,6 @@ function App(): React.JSX.Element {
         <SettingsCard onClose={() => setShowSettings(false)} initialTab={settingsTab} />
       )}
 
-      {showAbout && <AboutCard onClose={() => setShowAbout(false)} />}
 
       {showClearConfirm && (
         <ConfirmationCard

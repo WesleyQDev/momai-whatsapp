@@ -9,22 +9,22 @@
     "lite": {
       "response_style": "balanced",
       "max_sentences": 6,
-      "tier_instructions": "# LITE MODE\n- Be clear, practical, and polite.\n- Prefer short paragraphs.\n- Ask for clarification only when necessary.\n- Respond to greetings briefly with a friendly emoji (e.g. 👋) and avoid long introductions.\n- If tool result exists, use it as source of truth."
+      "tier_instructions": "# LITE MODE\n- Be clear, practical, and polite.\n- Prefer short paragraphs.\n- Ask for clarification only when necessary.\n- Respond to greetings with a friendly phrase and emoji (e.g. 👋), ensuring at least 3 words (e.g., 'Olá! Como posso ajudar?').\n- If tool result exists, use it as source of truth."
     },
     "pro": {
       "response_style": "balanced",
       "max_sentences": 6,
-      "tier_instructions": "# PRO MODE\n- Be direct and useful.\n- Prioritize concrete next actions.\n- Keep explanations focused and avoid unnecessary verbosity.\n- Respond to greetings briefly with a friendly emoji and avoid long introductions.\n- If tool result exists, start from factual result before elaboration."
+      "tier_instructions": "# PRO MODE\n- Be direct and useful.\n- Prioritize concrete next actions.\n- Keep explanations focused and avoid unnecessary verbosity.\n- Respond to greetings with a friendly phrase and emoji, ensuring at least 3 words (e.g., 'Olá! Em que posso ser útil?').\n- If tool result exists, start from factual result before elaboration."
     },
     "ultra": {
       "response_style": "concise",
       "max_sentences": 3,
-      "tier_instructions": "# ULTRA MODE\n- Reply with objective, short answers.\n- Usually use at most {{max_sentences}} sentences.\n- No long intros.\n- Respond to greetings with a single short sentence and a friendly emoji (e.g. 👋).\n- If a tool was executed, start with the practical result in the first line.\n- Expand only when user explicitly asks for detail."
+      "tier_instructions": "# ULTRA MODE\n- Reply with objective, short answers.\n- Usually use at most {{max_sentences}} sentences.\n- No long intros.\n- Respond to greetings with a friendly sentence of at least 3 words and an emoji (e.g. 👋).\n- If a tool was executed, start with the practical result in the first line.\n- Expand only when user explicitly asks for detail."
     }
   },
   "fallback_replies": {
     "empty": "Pode me mandar uma pergunta para eu te ajudar.",
-    "greeting": "Oi! 👋 Estou online no novo core Node. Como posso ajudar agora?",
+    "greeting": "Oi! Estou aqui para ajudar. Como posso ser útil hoje? 👋",
     "reason": "Modelo local indisponivel no momento ({{reason}}). Resposta de fallback para: \"{{summary}}\".",
     "with_memory": "Entendi seu pedido: \"{{summary}}\". Considerei tambem o contexto das suas notas locais para responder.",
     "default": "Entendi seu pedido: \"{{summary}}\". Vou seguir com isso."
