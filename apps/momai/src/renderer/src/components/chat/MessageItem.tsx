@@ -557,8 +557,20 @@ const MessageItem = memo(function MessageItem({
   return (
     <div
       onContextMenu={handleContextMenu}
-      className={`flex items-start gap-3 sm:gap-4 max-w-full group ${message.role === 'assistant' ? 'self-start w-full' : 'self-end flex-row-reverse ml-12'}`}
+      className={`relative flex items-start gap-3 sm:gap-4 max-w-full group ${message.role === 'assistant' ? 'self-start w-full' : 'self-end flex-row-reverse ml-12'}`}
     >
+      {/* Botão flutuante de parar TTS (Modos Pro/Ultra) */}
+      {isSpeaking && message.role === 'assistant' && !hideStopButton && (aiTier === 'pro' || aiTier === 'ultra') && (
+        <div className="absolute right-4 top-2 z-[100] animate-in fade-in zoom-in slide-in-from-right-4 duration-500">
+          <button
+            onClick={handleStopVoiceClick}
+            className="flex items-center justify-center w-11 h-11 rounded-full bg-zinc-900/90 backdrop-blur-md border border-accent/40 text-accent shadow-[0_0_25px_rgba(139,92,246,0.4)] hover:bg-accent hover:text-white hover:border-white/20 transition-all duration-300 active:scale-90 group"
+            title={t('chat.voice.stop')}
+          >
+            <SpeakerXMarkIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
+          </button>
+        </div>
+      )}
       {contextMenu && (
         <MessageContextMenu
           x={contextMenu.x}

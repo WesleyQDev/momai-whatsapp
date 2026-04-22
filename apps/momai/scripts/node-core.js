@@ -2175,6 +2175,50 @@ function generateFallbackReply(content, memoryContext, reason, responseLanguage)
 let wss = null
 const wsClients = new Set()
 
+let pythonWs = null
+function connectPythonSidecar() {
+  if (!WebSocketServer) return
+  const WebSocket = require('ws')
+  const url = `ws://${PYTHON_HOST}:${PYTHON_PORT}/voice/ws`
+
+  if (pythonWs) {
+    try {
+      pythonWs.close()
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  pythonWs = new WebSocket(url)
+
+  pythonWs.on('open', () => {
+    console.log(`[NodeCore] Connected to Python sidecar WebSocket at ${url}`)
+  })
+
+  pythonWs.on('message', (data) => {
+    try {
+      const msg = JSON.parse(data.toString())
+      // Proxy specific voice events from Python to all UI clients
+      if (
+        ['tts_start', 'tts_stop', 'voice_bands', 'voice_status', 'voice_partial'].includes(msg.type)
+      ) {
+        broadcast(msg)
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  })
+
+  pythonWs.on('error', () => {
+    // Suppress error logs to avoid noise if Python is starting up
+  })
+
+  pythonWs.on('close', () => {
+    pythonWs = null
+    setTimeout(connectPythonSidecar, 5000)
+  })
+}
+
 function broadcast(payload) {
   if (!wss) return
   const data = JSON.stringify(payload)
@@ -3955,6 +3999,9 @@ server.listen(PORT, HOST, () => {
       })
       .catch(() => {})
   }
+
+  // Start bridging voice events from Python sidecar
+  connectPythonSidecar()
 })
 
 async function shutdownAll() {

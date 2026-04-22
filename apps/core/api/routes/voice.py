@@ -1,11 +1,33 @@
 import asyncio
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 import logging
 
 logger = logging.getLogger("uvicorn.error")
 
+
 router = APIRouter(prefix="/voice", tags=["voice"])
+
+
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    import app_state
+
+    await websocket.accept()
+    app_state.active_websockets.append(websocket)
+    logger.info("[VoiceWS] New connection accepted")
+    try:
+        while True:
+            # Keep connection alive and wait for client to close
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        if websocket in app_state.active_websockets:
+            app_state.active_websockets.remove(websocket)
+        logger.info("[VoiceWS] Connection closed")
+    except Exception as e:
+        logger.error("[VoiceWS] Error: %s", e)
+        if websocket in app_state.active_websockets:
+            app_state.active_websockets.remove(websocket)
 
 
 class TranscriptionResponse(BaseModel):
