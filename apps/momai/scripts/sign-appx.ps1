@@ -1,5 +1,5 @@
 param(
-    [string]$Password = "SuaSenhaForte"
+    [string]$Password = "momai2026"
 )
 
 $ErrorActionPreference = "Stop"
@@ -7,12 +7,38 @@ $ErrorActionPreference = "Stop"
 $root       = Resolve-Path "$PSScriptRoot\..\..\.."
 $pfx        = "$root\momai_certificado.pfx"
 $appx       = "$root\apps\momai\dist\MomAI-Installer.appx"
-$signTool   = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
+$cacheDir   = "$env:LOCALAPPDATA\momai-build-cache\signtool"
 
 if (-not (Test-Path $pfx))   { throw "PFX not found: $pfx" }
 if (-not (Test-Path $appx))  { throw "APPX not found: $appx" }
 
+function Find-SignTool {
+    $sdkPaths = @(
+        "C:\Program Files (x86)\Windows Kits\10\bin",
+        "C:\Program Files\Windows Kits\10\bin"
+    )
+    foreach ($sdkBase in $sdkPaths) {
+        if (-not (Test-Path $sdkBase)) { continue }
+        $versions = Get-ChildItem $sdkBase -Directory | Where-Object { $_.Name -like "10.*" } | Sort-Object Name -Descending
+        foreach ($ver in $versions) {
+            $candidate = Join-Path $ver.FullName "x64\signtool.exe"
+            if (Test-Path $candidate) { return $candidate }
+        }
+    }
+
+    $cached = Join-Path $cacheDir "x64\signtool.exe"
+    if (Test-Path $cached) { return $cached }
+
+    Write-Host "--- signtool not found, running Node downloader... ---" -ForegroundColor Yellow
+    node "$PSScriptRoot\sign-appx.js" --download-only 2>&1 | Out-Null
+    if (Test-Path $cached) { return $cached }
+
+    throw "signtool.exe not found. Run 'node scripts/sign-appx.js' first or install Windows SDK."
+}
+
+$signTool = Find-SignTool
 Write-Host "`n[1/3] Signing APPX..." -ForegroundColor Cyan
+Write-Host "SignTool: $signTool"
 & $signTool sign /fd SHA256 /f $pfx /p $Password /v $appx
 if ($LASTEXITCODE -ne 0) { throw "signtool failed with exit code $LASTEXITCODE" }
 
