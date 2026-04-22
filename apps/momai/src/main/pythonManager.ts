@@ -303,7 +303,7 @@ function setSyncLock(success: boolean): void {
   } catch {}
 }
 
-function killAllLlamaServers(): void {
+export function killAllLlamaServers(): void {
   try {
     if (process.platform === 'win32') {
       execSync('taskkill /f /im llama-server.exe', { stdio: 'ignore' })

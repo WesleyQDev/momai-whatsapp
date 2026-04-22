@@ -12,6 +12,7 @@ import {
   startPythonBackend,
   killPythonBackend,
   killProcessOnPort,
+  killAllLlamaServers,
   isOnboardingCompleted,
   type PythonBackendStartOptions
 } from './pythonManager'
@@ -501,6 +502,9 @@ export async function shutdownCoreBackend(): Promise<void> {
   }
 
   setNodeCoreProcess(null)
+
+  // Kill any orphan llama-server processes that may have leaked
+  killAllLlamaServers()
 
   if (isPythonRunning()) {
     await shutdownPython()

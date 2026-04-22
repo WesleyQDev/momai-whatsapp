@@ -674,6 +674,12 @@ async function ensureEmbeddingReady() {
   if (semanticState.embedding.ready) return true
   if (semanticState.embedding.startingPromise) return semanticState.embedding.startingPromise
 
+  // Stop any stale embedding process from a previous cancelled startup
+  if (semanticState.embedding.process && !semanticState.embedding.ready) {
+    log(`[embedding] Cleaning up stale embedding process before new startup`)
+    await stopEmbeddingServer()
+  }
+
   log(`[embedding] Checking embedding server...`)
 
   log(`[embedding] Searching for model in: ${MODELS_DIR}`)
@@ -1745,6 +1751,8 @@ const llamaState = {
   port: LLAMA_PORT
 }
 
+let llamaStartGeneration = 0
+
 function setInitStatus(stage, message, progress, error = null) {
   store.init_status = {
     stage,
@@ -1799,17 +1807,21 @@ function stopLlamaServer() {
 }
 
 async function ensureLlamaReady(forceRestart = false, allowModelDownload = true) {
-  if (forceRestart) await stopLlamaServer()
+  if (forceRestart) {
+    llamaStartGeneration += 1
+    await stopLlamaServer()
+  }
 
   if (llamaState.ready) return true
   if (llamaState.startingPromise) return llamaState.startingPromise
 
+  const myGeneration = llamaStartGeneration
   const preferred = normalizeBackendMode(store.settings.local_backend || 'auto')
   const backendAttempts = pickBackendAttempts(preferred)
   const tierName = store.settings.ai_tier || 'pro'
   const tierConfig = tiersConfig[tierName] || tiersConfig.pro || DEFAULT_TIERS.pro
 
-  log(`[llama] ensuring llama ready. tier: ${tierName}, file: ${tierConfig.file}`)
+  log(`[llama] ensuring llama ready. tier: ${tierName}, file: ${tierConfig.file}, generation: ${myGeneration}`)
 
   if (!backendAttempts.length) {
     const incompatibleBackends = listIncompatibleBackends()
@@ -1881,6 +1893,10 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
       const exePath = llamaBackendExePath(backend)
       const exeDir = path.dirname(exePath)
       ;(async () => {
+        if (llamaStartGeneration !== myGeneration) {
+          resolve({ ok: false, reason: 'cancelled: newer startup requested' })
+          return
+        }
         const selectedPort = await pickAvailablePort(llamaState.port || LLAMA_PORT)
         const args = [
           '-m',
@@ -1986,6 +2002,12 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
         const timeoutMs = 25000
         ;(async () => {
           while (Date.now() - startedAt < timeoutMs) {
+            if (llamaStartGeneration !== myGeneration) {
+              log(`[llama] Startup cancelled (generation ${myGeneration} superseded by ${llamaStartGeneration})`)
+              try { if (child && !child.killed) child.kill('SIGTERM') } catch {}
+              resolve({ ok: false, reason: 'cancelled: newer startup requested' })
+              return
+            }
             if (
               exitedDuringStartup ||
               !llamaState.process ||
@@ -2019,6 +2041,10 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
 
   llamaState.startingPromise = (async () => {
     for (let i = 0; i < backendAttempts.length; i += 1) {
+      if (llamaStartGeneration !== myGeneration) {
+        log(`[llama] Backend loop cancelled (generation ${myGeneration} superseded by ${llamaStartGeneration})`)
+        return false
+      }
       const backend = backendAttempts[i]
       const result = await startAttempt(backend, i > 0)
       if (result.ok) return true
@@ -3278,15 +3304,18 @@ async function maybeRestartLlamaOnTierChange(prevTier, nextTier, prevBackend, ne
     }
     return true
   }
+  await stopEmbeddingServer()
   if (nextTier !== 'ultra') {
-    await stopEmbeddingServer()
     semanticState.enabled = false
     semanticState.ready = false
   }
   const llamaReady = await ensureLlamaReady(true)
   if (nextTier === 'ultra') {
-    await ensureEmbeddingReady()
-    await syncSkillAndToolIndexes(false)
+    ensureEmbeddingReady()
+      .then((ok) => {
+        if (ok) syncSkillAndToolIndexes(false).catch(() => {})
+      })
+      .catch(() => {})
   }
   return llamaReady
 }
