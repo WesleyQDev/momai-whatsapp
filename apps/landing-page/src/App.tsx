@@ -3,12 +3,7 @@ import { BackgroundEffects } from './components/BackgroundEffects'
 import { Navbar } from './components/Navbar'
 import { UpdateBanner } from './components/UpdateBanner'
 import { Footer } from './components/Footer'
-import { HeroSection } from './components/HeroSection'
-import { VideoSection } from './components/VideoSection'
-import { FeaturesSection } from './components/FeaturesSection'
-import { HowItWorksSection } from './components/HowItWorksSection'
-import { DownloadSection } from './components/DownloadSection'
-import { MobileAppsSection } from './components/MobileAppsSection'
+import { HomePage } from './pages/HomePage'
 import { BlogPage } from './pages/BlogPage'
 import { ChangelogPage } from './pages/ChangelogPage'
 import { ContatoPage } from './pages/ContatoPage'
@@ -24,19 +19,6 @@ function Layout() {
       <Outlet />
       <Footer />
     </div>
-  )
-}
-
-function HomePage() {
-  return (
-    <>
-      <HeroSection />
-      <VideoSection />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <DownloadSection />
-      <MobileAppsSection />
-    </>
   )
 }
 

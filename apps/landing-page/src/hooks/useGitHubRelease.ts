@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
+import { REPO } from '@/constants'
 import type { DownloadUrls, GitHubRelease } from '@/types'
 
-const REPO = 'WesleyQDev/MomAI-App'
 const CACHE_KEYS = {
   exe: 'momai_latest_exe_v3',
   linux: 'momai_latest_linux_v3',
   version: 'momai_latest_version_v3',
+  downloads: 'momai_total_downloads_v3',
 }
 
 export function useGitHubRelease() {
@@ -14,6 +15,7 @@ export function useGitHubRelease() {
     linuxUrl: `https://github.com/${REPO}/releases/latest`,
     version: '',
   })
+  const [totalDownloads, setTotalDownloads] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -23,6 +25,7 @@ export function useGitHubRelease() {
       const cachedExe = sessionStorage.getItem(CACHE_KEYS.exe)
       const cachedLinux = sessionStorage.getItem(CACHE_KEYS.linux)
       const cachedVersion = sessionStorage.getItem(CACHE_KEYS.version)
+      const cachedDownloads = sessionStorage.getItem(CACHE_KEYS.downloads)
 
       if (cachedVersion && cachedExe && cachedLinux) {
         if (!cancelled) {
@@ -31,46 +34,62 @@ export function useGitHubRelease() {
             linuxUrl: cachedLinux,
             version: cachedVersion,
           })
+          if (cachedDownloads) {
+            setTotalDownloads(Number(cachedDownloads))
+          }
           setLoading(false)
         }
         return
       }
 
       try {
-        let res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`)
-        let data: GitHubRelease | null = null
+        // Busca TODAS as releases para somar downloads acumulados
+        const resList = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`)
+        let allReleases: GitHubRelease[] = []
 
-        if (res.ok) {
-          data = await res.json()
-        } else if (res.status === 404) {
-          const resList = await fetch(`https://api.github.com/repos/${REPO}/releases`)
-          if (resList.ok) {
-            const list = await resList.json()
-            if (list && list.length > 0) data = list[0]
-          }
+        if (resList.ok) {
+          allReleases = await resList.json()
         }
 
-        if (data && data.assets) {
-          const winAsset = data.assets.find((a) => a.name.endsWith('.exe'))
+        // Soma downloads de TODOS os assets de TODAS as releases
+        let total = 0
+        if (Array.isArray(allReleases)) {
+          total = allReleases.reduce((releaseSum, release) => {
+            if (!release.assets) return releaseSum
+            return releaseSum + release.assets.reduce((assetSum, asset) => {
+              return assetSum + (asset.download_count || 0)
+            }, 0)
+          }, 0)
+        }
+
+        // Pega a última release para as URLs de download
+        const latest = Array.isArray(allReleases) && allReleases.length > 0 ? allReleases[0] : null
+
+        let winExeUrl = `https://github.com/${REPO}/releases/latest`
+        let linuxUrl = `https://github.com/${REPO}/releases/latest`
+        let version = ''
+
+        if (latest && latest.assets) {
+          const winAsset = latest.assets.find((a) => a.name.endsWith('.exe'))
           const linuxAsset =
-            data.assets.find((a) => a.name.endsWith('.AppImage')) ||
-            data.assets.find((a) => a.name.endsWith('.deb'))
-          const version = data.tag_name || data.name || ''
-          const winExeUrl =
-            winAsset?.browser_download_url || `https://github.com/${REPO}/releases/latest`
-          const linuxUrl =
-            linuxAsset?.browser_download_url || `https://github.com/${REPO}/releases/latest`
+            latest.assets.find((a) => a.name.endsWith('.AppImage')) ||
+            latest.assets.find((a) => a.name.endsWith('.deb'))
+          version = latest.tag_name || latest.name || ''
+          winExeUrl = winAsset?.browser_download_url || winExeUrl
+          linuxUrl = linuxAsset?.browser_download_url || linuxUrl
+        }
 
-          sessionStorage.setItem(CACHE_KEYS.exe, winExeUrl)
-          sessionStorage.setItem(CACHE_KEYS.linux, linuxUrl)
-          sessionStorage.setItem(CACHE_KEYS.version, version)
+        sessionStorage.setItem(CACHE_KEYS.exe, winExeUrl)
+        sessionStorage.setItem(CACHE_KEYS.linux, linuxUrl)
+        sessionStorage.setItem(CACHE_KEYS.version, version)
+        sessionStorage.setItem(CACHE_KEYS.downloads, String(total))
 
-          if (!cancelled) {
-            setUrls({ winExeUrl, linuxUrl, version })
-          }
+        if (!cancelled) {
+          setUrls({ winExeUrl, linuxUrl, version })
+          setTotalDownloads(total)
         }
       } catch (err) {
-        console.error('Erro ao buscar release do GitHub:', err)
+        console.error('Erro ao buscar releases do GitHub:', err)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -82,5 +101,5 @@ export function useGitHubRelease() {
     }
   }, [])
 
-  return { urls, loading }
+  return { urls, loading, totalDownloads }
 }

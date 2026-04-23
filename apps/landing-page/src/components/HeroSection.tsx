@@ -1,8 +1,7 @@
+import { WIN_STORE_URL } from '@/constants'
 import { useOSDetection } from '@/hooks/useOSDetection'
 import { useGitHubRelease } from '@/hooks/useGitHubRelease'
 import { useDownloadTracking } from '@/hooks/useDownloadTracking'
-
-const WIN_STORE_URL = 'ms-windows-store://pdp/?ProductId=9NM4JG67CGCD&mode=mini'
 
 export function HeroSection() {
   const { detectPlatform } = useOSDetection()
@@ -18,6 +17,16 @@ export function HeroSection() {
 
   const handleHeroDownload = () => {
     trackDownload(heroText, heroHref.split('/').pop(), heroHref.split('.').pop())
+
+    if (!isLinux) {
+      // Protocolo ms-windows-store pode falhar em alguns navegadores
+      // Espera 1.5s e redireciona para .exe se ainda estiver na mesma página
+      setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          window.location.href = urls.winExeUrl
+        }
+      }, 1500)
+    }
   }
 
   return (
@@ -25,7 +34,7 @@ export function HeroSection() {
       <div className="hero-logo relative mx-auto mb-4 flex h-[180px] w-[180px] items-center justify-center md:h-[180px] md:w-[180px]">
         <div className="hero-logo-ring absolute left-1/2 top-1/2 z-[1] h-[180px] w-[180px] -translate-x-1/2 -translate-y-1/2 rounded-full before:absolute before:left-1/2 before:top-1/2 before:h-full before:w-full before:-translate-x-1/2 before:-translate-y-1/2 before:rounded-full before:border before:border-[var(--accent)] before:opacity-0 before:content-[''] after:absolute after:left-1/2 after:top-1/2 after:h-full after:w-full after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:border after:border-[var(--accent)] after:opacity-0 after:content-['']" style={{ ['--tw-content' as string]: '' }} />
         <div className="hero-logo-shine pointer-events-none absolute left-1/2 top-1/2 z-[3] h-[180px] w-[180px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full" />
-        <img src="/icon.gif" alt="MomAI" className="hero-logo-img relative z-[2] max-h-[160px] max-w-[160px] rounded-[20px] object-contain" />
+        <img src="/icon.gif" alt="MomAI" className="hero-logo-img relative z-[2] max-h-[160px] max-w-[160px] rounded-[20px] object-contain" loading="eager" />
       </div>
 
       <div className="badge mb-5 inline-block rounded-full border border-[rgba(138,180,248,0.2)] bg-[var(--gradient-subtle)] px-4 py-1 text-sm font-medium text-[var(--accent)]" style={{ animation: 'fadeInUp 0.8s ease-out forwards', opacity: 0 }}>
@@ -46,7 +55,7 @@ export function HeroSection() {
             href={heroHref}
             id="heroDownloadBtn"
             onClick={handleHeroDownload}
-            className="btn-download inline-flex items-center gap-2 rounded-full bg-white px-6 py-[0.7rem] text-sm font-semibold text-black no-underline transition-transform hover:-translate-y-0.5"
+            className="btn-download inline-flex items-center gap-2 rounded-full bg-white px-6 py-[0.7rem] text-sm font-semibold text-black no-underline transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
             style={{ animation: 'softPulse 3s ease-in-out infinite' }}
           >
             {isLinux ? (
@@ -61,11 +70,11 @@ export function HeroSection() {
               <span className="relative z-[1] ml-2 text-sm font-normal opacity-70">{heroVersion}</span>
             )}
           </a>
-          <a href="#download" className="text-sm text-[var(--text-secondary)] no-underline opacity-70 transition-all hover:text-[var(--accent)] hover:opacity-100 hover:underline">
+          <a href="#download" className="text-sm text-[var(--text-secondary)] no-underline opacity-70 transition-all hover:text-[var(--accent)] hover:opacity-100 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
             Outros downloads
           </a>
         </div>
-        <a href="#features" className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(255,255,255,0.15)] bg-transparent px-6 py-[0.7rem] text-sm font-medium text-[var(--text-secondary)] no-underline transition-all hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--text)] hover:border-[rgba(255,255,255,0.25)]">
+        <a href="#features" className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(255,255,255,0.15)] bg-transparent px-6 py-[0.7rem] text-sm font-medium text-[var(--text-secondary)] no-underline transition-all hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--text)] hover:border-[rgba(255,255,255,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]">
           Saiba mais
         </a>
       </div>

@@ -4,7 +4,7 @@ import { GitHubIcon, YouTubeIcon } from './Icons'
 export function Footer() {
   return (
     <footer className="bg-[var(--bg-secondary)] px-8 py-16 text-center text-[var(--text-tertiary)]">
-      <img src="/icon.png" alt="MomAI" className="mx-auto mb-4 h-16 w-16 rounded-2xl" />
+      <img src="/icon.png" alt="MomAI" className="mx-auto mb-4 h-16 w-16 rounded-2xl" loading="lazy" />
       <div className="mb-2 text-xl font-medium text-[var(--text)]">Wesley Developer Studios</div>
       <div className="mt-4 flex flex-wrap items-center justify-center gap-6">
         <span>© 2026 MomAI</span>

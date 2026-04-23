@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { ScrollReveal } from './ScrollReveal'
 import { HeartIcon, WalletIcon, LinkIcon, ChevronRightIcon } from './Icons'
 
@@ -34,6 +35,47 @@ const MOBILE_APPS = [
   },
 ]
 
+function NotifyMeForm({ appName, color }: { appName: string; color: string }) {
+  const [email, setEmail] = useState('')
+  const [submitted, setSubmitted] = useState(false)
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim()) return
+    // Aqui você pode integrar com uma API de newsletter/email
+    console.log(`[Lead] ${appName}: ${email}`)
+    setSubmitted(true)
+  }
+
+  if (submitted) {
+    return (
+      <p className="text-sm font-medium" style={{ color }}>
+        Obrigado! Avisaremos quando estiver pronto.
+      </p>
+    )
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 sm:flex-row">
+      <input
+        type="email"
+        required
+        placeholder="seu@email.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="flex-1 rounded-lg border border-[var(--feature-border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-tertiary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+      />
+      <button
+        type="submit"
+        className="rounded-lg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        style={{ background: color }}
+      >
+        Avise-me
+      </button>
+    </form>
+  )
+}
+
 export function MobileAppsSection() {
   return (
     <section id="apps" className="relative mx-auto max-w-[1100px] px-8 py-24">
@@ -57,7 +99,7 @@ export function MobileAppsSection() {
 
               <div className="relative z-[1]">
                 <div className="mb-6 flex items-center gap-4">
-                  <img src={app.image} alt={app.name} className="h-14 w-14 rounded-xl object-contain" />
+                  <img src={app.image} alt={app.name} className="h-14 w-14 rounded-xl object-contain" loading="lazy" />
                   <div>
                     <h3 className="text-lg font-medium text-[var(--text)]">{app.name}</h3>
                     <span className={`text-xs font-semibold uppercase tracking-wide ${app.available ? 'text-[var(--accent)]' : 'text-[var(--text-tertiary)]'}`}>
@@ -68,22 +110,16 @@ export function MobileAppsSection() {
 
                 <p className="mb-6 text-sm leading-relaxed text-[var(--text-secondary)]">{app.description}</p>
 
-                <a
-                  href={app.href}
-                  className={`inline-flex items-center gap-2 text-sm font-medium no-underline transition-colors ${
-                    app.available
-                      ? 'text-[var(--accent)] hover:text-[var(--accent-hover)]'
-                      : 'cursor-default text-[var(--text-tertiary)]'
-                  }`}
-                >
-                  {app.available ? (
-                    <>
-                      Conhecer o app <ChevronRightIcon className="h-3.5 w-3.5" />
-                    </>
-                  ) : (
-                    'Fique por dentro'
-                  )}
-                </a>
+                {app.available ? (
+                  <a
+                    href={app.href}
+                    className="inline-flex items-center gap-2 text-sm font-medium text-[var(--accent)] no-underline transition-colors hover:text-[var(--accent-hover)] focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                  >
+                    Conhecer o app <ChevronRightIcon className="h-3.5 w-3.5" />
+                  </a>
+                ) : (
+                  <NotifyMeForm appName={app.name} color={app.color} />
+                )}
               </div>
             </div>
           </ScrollReveal>

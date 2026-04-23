@@ -1,9 +1,8 @@
+import { WIN_STORE_URL } from '@/constants'
 import { useGitHubRelease } from '@/hooks/useGitHubRelease'
 import { useDownloadTracking } from '@/hooks/useDownloadTracking'
 import { ScrollReveal } from './ScrollReveal'
 import { WindowsIcon, LinuxIcon, AppleIcon, AndroidIcon, MonitorIcon, CpuIcon, MemoryIcon, GpuIcon } from './Icons'
-
-const WIN_STORE_URL = 'ms-windows-store://pdp/?ProductId=9NM4JG67CGCD&mode=mini'
 
 const PLATFORMS = [
   { id: 'win', name: 'Windows (.exe)', icon: WindowsIcon, status: 'Instalar', disabled: false },
@@ -14,7 +13,7 @@ const PLATFORMS = [
 ]
 
 export function DownloadSection() {
-  const { urls } = useGitHubRelease()
+  const { urls, loading } = useGitHubRelease()
   const { trackDownload } = useDownloadTracking()
   const cleanVersion = urls.version.replace(/^v/, '')
 
@@ -28,6 +27,15 @@ export function DownloadSection() {
   const handlePlatformClick = (id: string, name: string) => {
     const href = getHref(id)
     trackDownload(name, href.split('/').pop(), href.split('.').pop())
+
+    if (id === 'store') {
+      // Fallback para .exe se o protocolo da loja falhar
+      setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          window.location.href = urls.winExeUrl
+        }
+      }, 1500)
+    }
   }
 
   return (
@@ -53,9 +61,13 @@ export function DownloadSection() {
 
                   const statusText =
                     p.id === 'win' && !p.disabled
-                      ? `Instalar (v${cleanVersion})`
+                      ? loading
+                        ? 'Carregando...'
+                        : `Instalar (v${cleanVersion})`
                       : p.id === 'linux' && !p.disabled
-                        ? `AppImage (v${cleanVersion})`
+                        ? loading
+                          ? 'Carregando...'
+                          : `AppImage (v${cleanVersion})`
                         : p.status
 
                   return (
@@ -63,8 +75,9 @@ export function DownloadSection() {
                       key={p.id}
                       href={p.disabled ? undefined : href}
                       id={`${p.id}DownloadBtn`}
-                      onClick={() => handlePlatformClick(p.id, p.name)}
-                      className={`platform-btn flex items-center justify-between rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-6 py-5 text-[var(--text)] no-underline transition-all ${
+                      onClick={() => !p.disabled && handlePlatformClick(p.id, p.name)}
+                      aria-disabled={p.disabled}
+                      className={`platform-btn flex items-center justify-between rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-6 py-5 text-[var(--text)] no-underline transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
                         p.disabled
                           ? 'disabled cursor-not-allowed opacity-40'
                           : 'hover:translate-x-2 hover:border-[var(--text)] hover:bg-[var(--text)] hover:text-[var(--bg)]'
