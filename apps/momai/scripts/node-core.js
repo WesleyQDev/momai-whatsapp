@@ -60,9 +60,13 @@ async function pickAvailablePort(preferredPort, maxAttempts = 20) {
   const base = Number(preferredPort || LLAMA_PORT)
   for (let i = 0; i < maxAttempts; i += 1) {
     const candidate = base + i
+    if (portReservations.has(candidate)) continue
     // eslint-disable-next-line no-await-in-loop
     const available = await checkPortAvailable(candidate)
-    if (available) return candidate
+    if (available) {
+      portReservations.add(candidate)
+      return candidate
+    }
   }
   return base
 }
@@ -105,20 +109,51 @@ function log(message) {
   }
 }
 
-const managedLlamaPids = new Set()
+const managedLlamaPids = new Map() // PID -> 'main' | 'embedding'
+const portReservations = new Set()
+let llamaSpawnLock = false
 
-function registerManagedLlama(proc) {
+async function acquireSpawnLock() {
+  while (llamaSpawnLock) {
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  llamaSpawnLock = true
+}
+
+function releaseSpawnLock() {
+  llamaSpawnLock = false
+}
+
+function registerManagedLlama(proc, type = 'main') {
   if (!proc || !proc.pid) return
-  managedLlamaPids.add(proc.pid)
   const pid = proc.pid
+  managedLlamaPids.set(pid, type)
   proc.on('exit', () => {
     managedLlamaPids.delete(pid)
   })
 }
 
-async function killOrphanLlamaServers() {
+async function killOrphanLlamaServers(typeToKill = null) {
   try {
     const exeName = process.platform === 'win32' ? 'llama-server.exe' : 'llama-server'
+    
+    // First, kill processes that we KNOW we manage but want to replace
+    if (typeToKill) {
+      for (const [pid, type] of managedLlamaPids.entries()) {
+        if (type === typeToKill) {
+          log(`[guard] Killing managed ${type} llama-server PID: ${pid} to prepare for new spawn`)
+          try {
+            if (process.platform === 'win32') {
+              execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' })
+            } else {
+              process.kill(pid, 'SIGKILL')
+            }
+          } catch {}
+          managedLlamaPids.delete(pid)
+        }
+      }
+    }
+
     if (process.platform === 'win32') {
       const output = execSync(`tasklist /NH /FO CSV /FI "IMAGENAME eq ${exeName}"`, { encoding: 'utf8' })
       const lines = output.split('\n').filter((l) => l.trim().startsWith(`"${exeName}"`))
@@ -692,33 +727,15 @@ async function checkEmbeddingHealth() {
 
 async function stopEmbeddingServer() {
   embeddingStartGeneration += 1
-  const proc = semanticState.embedding.process
+  
+  // Kill ALL embedding llama processes that we are tracking
+  await killOrphanLlamaServers('embedding')
+  
+  // Clean up state
+  semanticState.embedding.process = null
   semanticState.embedding.ready = false
   semanticState.embedding.starting = false
   semanticState.embedding.startingPromise = null
-  if (!proc || proc.killed || proc.exitCode !== null) {
-    semanticState.embedding.process = null
-    return
-  }
-
-  await new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      try {
-        proc.kill('SIGKILL')
-      } catch {}
-    }, 2000)
-    proc.once('exit', () => {
-      clearTimeout(timer)
-      resolve()
-    })
-    try {
-      proc.kill('SIGTERM')
-    } catch {
-      clearTimeout(timer)
-      resolve()
-    }
-  })
-  semanticState.embedding.process = null
 }
 
 async function ensureEmbeddingReady() {
@@ -749,7 +766,7 @@ async function ensureEmbeddingReady() {
         const downloadResult = await ensureTierModelAvailable('ultra-embedding', {
           file: tierConfig.embedding_file,
           repo: tierConfig.embedding_repo
-        })
+        }, false)
         if (downloadResult.ok) {
           log(`[embedding] Model downloaded successfully to: ${downloadResult.path}`)
           modelPath = downloadResult.path
@@ -772,28 +789,37 @@ async function ensureEmbeddingReady() {
         throw new Error(`llama-server binary missing for ${backend}`)
       }
 
-      await killOrphanLlamaServers()
+      await acquireSpawnLock()
+      let proc = null
+      try {
+        portReservations.add(EMBEDDING_PORT)
+        // Kill ANY existing embedding llama server (managed or orphan) before spawning a new one
+        await killOrphanLlamaServers('embedding')
+        
+        proc = spawn(
+          exePath,
+          [
+            '-m', modelPath,
+            '--port', String(EMBEDDING_PORT),
+            '--embedding',
+            '--pooling', 'last',
+            '--parallel', '2',
+            '--ctx-size', '2048',
+            '--threads', '2',
+            '-ngl', backend === 'vulkan' ? '99' : '0'
+          ],
+          {
+            cwd: path.dirname(exePath),
+            env: { ...process.env, GGML_VULKAN_DEVICE: '0' },
+            stdio: ['ignore', 'pipe', 'pipe']
+          }
+        )
+        registerManagedLlama(proc, 'embedding')
+      } finally {
+        releaseSpawnLock()
+        portReservations.delete(EMBEDDING_PORT)
+      }
 
-      const proc = spawn(
-        exePath,
-        [
-          '-m', modelPath,
-          '--port', String(EMBEDDING_PORT),
-          '--embedding',
-          '--pooling', 'last',
-          '--parallel', '2',
-          '--ctx-size', '2048',
-          '--threads', '2',
-          '-ngl', backend === 'vulkan' ? '99' : '0'
-        ],
-        {
-          cwd: path.dirname(exePath),
-          env: { ...process.env, GGML_VULKAN_DEVICE: '0' },
-          stdio: ['ignore', 'pipe', 'pipe']
-        }
-      )
-
-      registerManagedLlama(proc)
       semanticState.embedding.process = proc
       log(`[embedding] Process spawned (PID: ${proc.pid}, generation: ${myGeneration})`)
 
@@ -1726,7 +1752,7 @@ function downloadToFile(url, targetPath, onProgress) {
   })
 }
 
-async function ensureTierModelAvailable(tierName, tierConfig) {
+async function ensureTierModelAvailable(tierName, tierConfig, reportProgress = true) {
   const configuredFile = String(tierConfig?.file || '').trim()
   if (!configuredFile) {
     return { ok: false, reason: `Tier "${tierName}" has no configured model file.` }
@@ -1751,18 +1777,20 @@ async function ensureTierModelAvailable(tierName, tierConfig) {
       }
     }
 
-    setModelDownloadState({
-      in_progress: true,
-      tier: tierName,
-      file: configuredFile,
-      downloaded_bytes: 0,
-      total_bytes: null,
-      progress: 1,
-      status: 'downloading',
-      message: `Downloading model (${tierName.toUpperCase()})...`,
-      error: null
-    })
-    setInitStatus('loading', `Downloading model (${tierName.toUpperCase()})... 0%`, 45, null)
+    if (reportProgress) {
+      setModelDownloadState({
+        in_progress: true,
+        tier: tierName,
+        file: configuredFile,
+        downloaded_bytes: 0,
+        total_bytes: null,
+        progress: 1,
+        status: 'downloading',
+        message: `Downloading model (${tierName.toUpperCase()})...`,
+        error: null
+      })
+      setInitStatus('loading', `Downloading model (${tierName.toUpperCase()})... 0%`, 45, null)
+    }
 
     if (typeof process.send === 'function') {
       process.send({
@@ -1778,45 +1806,52 @@ async function ensureTierModelAvailable(tierName, tierConfig) {
         const percent = total
           ? Math.max(1, Math.min(99, Math.round((received / total) * 100)))
           : null
-        setModelDownloadState({
-          downloaded_bytes: received,
-          total_bytes: total,
-          progress: percent || modelDownloadState.progress,
-          message: percent
-            ? `Downloading model (${tierName.toUpperCase()})... ${percent}%`
-            : `Downloading model (${tierName.toUpperCase()})...`
-        })
-        if (now - lastProgressUpdate >= 300) {
-          const initProgress = percent ? 45 + Math.min(45, Math.round(percent * 0.45)) : 50
-          setInitStatus(
-            'loading',
-            percent
+        
+        if (reportProgress) {
+          setModelDownloadState({
+            downloaded_bytes: received,
+            total_bytes: total,
+            progress: percent || modelDownloadState.progress,
+            message: percent
               ? `Downloading model (${tierName.toUpperCase()})... ${percent}%`
-              : `Downloading model (${tierName.toUpperCase()})...`,
-            initProgress,
-            null
-          )
-          lastProgressUpdate = now
+              : `Downloading model (${tierName.toUpperCase()})...`
+          })
+          if (now - lastProgressUpdate >= 300) {
+            const initProgress = percent ? 45 + Math.min(45, Math.round(percent * 0.45)) : 50
+            setInitStatus(
+              'loading',
+              percent
+                ? `Downloading model (${tierName.toUpperCase()})... ${percent}%`
+                : `Downloading model (${tierName.toUpperCase()})...`,
+              initProgress,
+              null
+            )
+            lastProgressUpdate = now
+          }
         }
       })
 
-      setModelDownloadState({
-        in_progress: false,
-        status: 'ready',
-        progress: 100,
-        message: `Model ready (${tierName.toUpperCase()})`,
-        error: null
-      })
-      setInitStatus('loading', `Model downloaded (${tierName.toUpperCase()}).`, 92, null)
+      if (reportProgress) {
+        setModelDownloadState({
+          in_progress: false,
+          status: 'ready',
+          progress: 100,
+          message: `Model ready (${tierName.toUpperCase()})`,
+          error: null
+        })
+        setInitStatus('loading', `Model downloaded (${tierName.toUpperCase()}).`, 92, null)
+      }
       return { ok: true, path: targetPath, downloaded: true }
     } catch (error) {
       const message = error?.message || 'Model download failed'
-      setModelDownloadState({
-        in_progress: false,
-        status: 'error',
-        error: message,
-        message: 'Model download failed'
-      })
+      if (reportProgress) {
+        setModelDownloadState({
+          in_progress: false,
+          status: 'error',
+          error: message,
+          message: 'Model download failed'
+        })
+      }
       return { ok: false, reason: message }
     }
   })()
@@ -1850,6 +1885,14 @@ const llamaState = {
 let llamaStartGeneration = 0
 
 function setInitStatus(stage, message, progress, error = null) {
+  const current = store.init_status || {}
+  
+  // Don't regress progress if we are in the same stage, unless it's an error
+  if (!error && stage === current.stage && progress < current.progress && progress > 0) {
+    // Only log if it's a significant regression for debugging, but don't update store
+    return
+  }
+
   store.init_status = {
     stage,
     message,
@@ -1866,40 +1909,17 @@ async function checkLlamaHealth() {
   return resp.ok
 }
 
-function stopLlamaServer() {
-  return new Promise((resolve) => {
-    const proc = llamaState.process
-    if (!proc || proc.killed || proc.exitCode !== null) {
-      llamaState.process = null
-      llamaState.ready = false
-      llamaState.starting = false
-      llamaState.startingPromise = null
-      resolve()
-      return
-    }
-
-    const timer = setTimeout(() => {
-      try {
-        proc.kill('SIGKILL')
-      } catch {}
-    }, 2500)
-
-    proc.once('exit', () => {
-      clearTimeout(timer)
-      llamaState.process = null
-      llamaState.ready = false
-      llamaState.starting = false
-      llamaState.startingPromise = null
-      resolve()
-    })
-
-    try {
-      proc.kill('SIGTERM')
-    } catch {
-      clearTimeout(timer)
-      resolve()
-    }
-  })
+async function stopLlamaServer() {
+  llamaStartGeneration += 1
+  
+  // Kill ALL main llama processes that we are tracking
+  await killOrphanLlamaServers('main')
+  
+  // Clean up state
+  llamaState.process = null
+  llamaState.ready = false
+  llamaState.starting = false
+  llamaState.startingPromise = null
 }
 
 async function ensureLlamaReady(forceRestart = false, allowModelDownload = true) {
@@ -2049,8 +2069,11 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
             setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 80, null)
 
             let child = null
+            await acquireSpawnLock()
             try {
-              await killOrphanLlamaServers()
+              // Kill ANY existing main llama server (managed or orphan) before spawning a new one
+              await killOrphanLlamaServers('main')
+              
               child = spawn(exePath, args, {
                 cwd: exeDir,
                 env: {
@@ -2060,13 +2083,16 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
                 shell: false,
                 stdio: ['ignore', 'pipe', 'pipe']
               })
+              registerManagedLlama(child, 'main')
             } catch (error) {
               const errMsg = error?.message || 'Failed to spawn llama-server'
               resolve({ ok: false, reason: errMsg })
               return
+            } finally {
+              releaseSpawnLock()
+              portReservations.delete(selectedPort)
             }
 
-            registerManagedLlama(child)
             llamaState.process = child
             let exitedDuringStartup = false
 
