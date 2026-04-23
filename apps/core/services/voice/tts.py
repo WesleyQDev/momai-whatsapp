@@ -310,7 +310,7 @@ class TTSManager:
                 default_idx = sd.default.device[1]
                 default_dev = sd.query_devices(default_idx)
                 device_sr = int(default_dev["default_samplerate"])
-                logger.info(
+                logger.debug(
                     f"[TTS Worker] Using default output: [{default_idx}] "
                     f"{default_dev['name']} @ {device_sr}Hz"
                 )
@@ -318,7 +318,7 @@ class TTSManager:
                 logger.warning(f"[TTS Worker] Could not query default device: {e}")
 
         logger.info(
-            f"[TTS Worker] Started (sr={device_sr}, sounddevice={HAS_SOUNDDEVICE})"
+            f"[TTS] Worker started (sr={device_sr}, sounddevice={HAS_SOUNDDEVICE})"
         )
 
         try:
@@ -334,7 +334,7 @@ class TTSManager:
                 with self.state_lock:
                     sid = self.session_id
 
-                logger.info(f"[TTS Gen] Start: '{text[:40]}...' (Session {sid})")
+                logger.debug(f"[TTS Gen] Start: '{text[:40]}...' (Session {sid})")
 
                 self._is_playing = True
                 if self.on_speech_start:
@@ -389,7 +389,7 @@ class TTSManager:
                             # Play this chunk immediately
                             if HAS_SOUNDDEVICE:
                                 if not playback_started:
-                                    logger.info(f"[TTS Stream] Starting playback for first chunk")
+                                    logger.debug(f"[TTS Stream] Starting playback for first chunk")
                                     playback_started = True
                                 
                                 sd.play(play_data, samplerate=play_sr)

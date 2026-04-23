@@ -24,15 +24,15 @@ async def prewarm_tts_if_needed() -> None:
     tts_enabled = True if not settings else bool(settings.tts_enabled)
 
     if ai_tier == "lite":
-        logger.info("[Startup] TTS prewarm skipped: ai_tier=lite")
+        logger.debug("[Startup] TTS prewarm skipped: ai_tier=lite")
         return
     if not tts_enabled:
-        logger.info("[Startup] TTS prewarm skipped: settings.tts_enabled=false")
+        logger.debug("[Startup] TTS prewarm skipped: settings.tts_enabled=false")
         return
 
     tts_module = app_state.ensure_tts_runtime(prewarm=True)
     if not tts_module:
-        logger.warning("[Startup] TTS prewarm skipped: runtime unavailable")
+        logger.debug("[Startup] TTS prewarm skipped: runtime unavailable")
         return
 
     if settings and settings.tts_voice:
@@ -88,7 +88,7 @@ async def lifespan(app):
         except psutil.NoSuchProcess:
             os._exit(0)
         except Exception as e:
-            app_state.logger.debug(f"[startup] parent monitor error: {e}")
+            logger.debug(f"[startup] parent monitor error: {e}")
 
     threading.Thread(target=monitor_parent, daemon=True).start()
 

@@ -98,7 +98,7 @@ let WebSocketServer = null
 try {
   WebSocketServer = require('ws').WebSocketServer
 } catch {
-  console.warn('[NodeCore] ws module not available, websocket features disabled.')
+  warn('[NodeCore] ws module not available, websocket features disabled.')
 }
 
 function log(message) {
@@ -107,6 +107,23 @@ function log(message) {
   } else {
     console.log(message)
   }
+}
+
+const LOG_LEVEL = (process.env.LOG_LEVEL || 'info').toLowerCase()
+const LEVEL_RANK = { debug: 0, info: 1, warn: 2, error: 3 }
+const CURRENT_RANK = LEVEL_RANK[LOG_LEVEL] ?? 1
+
+function debug(message) {
+  if (CURRENT_RANK <= LEVEL_RANK.debug) log(`[debug] ${message}`)
+}
+function info(message) {
+  if (CURRENT_RANK <= LEVEL_RANK.info) log(`[info] ${message}`)
+}
+function warn(message) {
+  if (CURRENT_RANK <= LEVEL_RANK.warn) log(`[warn] ${message}`)
+}
+function error(message) {
+  if (CURRENT_RANK <= LEVEL_RANK.error) log(`[error] ${message}`)
 }
 
 const managedLlamaPids = new Map() // PID -> 'main' | 'embedding'
@@ -198,7 +215,7 @@ const skillRegistry = createSkillRegistry({
   dataDir: DATA_DIR,
   builtinSkillsDir
 })
-log(`[core] Skill registry initialized from: ${builtinSkillsDir}`)
+info(`[core] Skill registry initialized from: ${builtinSkillsDir}`)
 const promptRegistry = createPromptRegistry({
   promptsDir: PROMPTS_DIR
 })
@@ -268,7 +285,7 @@ function loadTierConfig() {
     }
     return merged
   } catch (error) {
-    console.error('[NodeCore] Failed to parse ai_tiers.json:', error)
+    error('[NodeCore] Failed to parse ai_tiers.json:', error)
     return DEFAULT_TIERS
   }
 }
@@ -346,7 +363,7 @@ function loadStore() {
       settings: { ...defaultStore().settings, ...(parsed.settings || {}) }
     }
   } catch (error) {
-    console.error('[NodeCore] Failed to load store:', error)
+    error('[NodeCore] Failed to load store:', error)
     return defaultStore()
   }
 }
@@ -355,7 +372,7 @@ function saveStore() {
   try {
     fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), 'utf8')
   } catch (error) {
-    console.error('[NodeCore] Failed to save store:', error)
+    error('[NodeCore] Failed to save store:', error)
   }
 }
 
@@ -507,7 +524,7 @@ function catchUpReminders() {
   let touched = false
   for (const reminder of store.reminders) {
     if (reminder.is_active && parseTime(reminder.scheduled_time) < now) {
-      log(`[Reminders] Skipping missed reminder on startup: ${reminder.title}`)
+      debug(`[Reminders] Skipping missed reminder on startup: ${reminder.title}`)
       while (reminder.is_active && parseTime(reminder.scheduled_time) < now) {
         advanceReminder(reminder)
       }
@@ -751,39 +768,39 @@ async function ensureEmbeddingReady() {
     try {
       // Stop any stale embedding process from a previous cancelled startup
       if (semanticState.embedding.process && !semanticState.embedding.ready) {
-        log(`[embedding] Cleaning up stale embedding process before new startup`)
+        debug(`[embedding] Cleaning up stale embedding process before new startup`)
         await stopEmbeddingServer()
       }
 
-      log(`[embedding] Checking embedding server...`)
+      debug(`[embedding] Checking embedding server...`)
 
-      log(`[embedding] Searching for model in: ${MODELS_DIR}`)
+      debug(`[embedding] Searching for model in: ${MODELS_DIR}`)
       let modelPath = pickEmbeddingModelPath()
       if (!modelPath) {
         const tierConfig = tiersConfig.ultra || DEFAULT_TIERS.ultra
-        log(`[embedding] Model missing. Attempting auto-download: ${tierConfig.embedding_file}`)
+        info(`[embedding] Model missing. Attempting auto-download: ${tierConfig.embedding_file}`)
 
         const downloadResult = await ensureTierModelAvailable('ultra-embedding', {
           file: tierConfig.embedding_file,
           repo: tierConfig.embedding_repo
         }, false)
         if (downloadResult.ok) {
-          log(`[embedding] Model downloaded successfully to: ${downloadResult.path}`)
+          info(`[embedding] Model downloaded successfully to: ${downloadResult.path}`)
           modelPath = downloadResult.path
         } else {
-          log(`[embedding] Download failed: ${downloadResult.reason}`)
+          warn(`[embedding] Download failed: ${downloadResult.reason}`)
           semanticState.lastFallbackReason = 'embedding model not found'
           return false
         }
       }
 
-      log(`[embedding] Selected model: ${modelPath}`)
+      debug(`[embedding] Selected model: ${modelPath}`)
       
       semanticState.embedding.starting = true
       // Force CPU for embeddings to save VRAM for the main LLM in ULTRA mode
       const backend = 'cpu'
       const exePath = llamaBackendExePath(backend)
-      log(`[embedding] Starting server on port ${EMBEDDING_PORT} (backend: ${backend})`)
+      info(`[embedding] Starting server on port ${EMBEDDING_PORT} (backend: ${backend})`)
 
       if (!fs.existsSync(exePath)) {
         throw new Error(`llama-server binary missing for ${backend}`)
@@ -821,20 +838,20 @@ async function ensureEmbeddingReady() {
       }
 
       semanticState.embedding.process = proc
-      log(`[embedding] Process spawned (PID: ${proc.pid}, generation: ${myGeneration})`)
+      info(`[embedding] Process spawned (PID: ${proc.pid}, generation: ${myGeneration})`)
 
       proc.stdout.on('data', (d) => {
         const line = String(d || '').trim()
-        if (line) log(`[embedding][stdout] ${line}`)
+        if (line) debug(`[embedding][stdout] ${line}`)
       })
       proc.stderr.on('data', (d) => {
         const line = String(d || '').trim()
-        if (line) log(`[embedding][stderr] ${line}`)
+        if (line) debug(`[embedding][stderr] ${line}`)
       })
 
       proc.on('exit', (code, signal) => {
         const wasStarting = semanticState.embedding.starting
-        log(`[embedding] Process exited (code=${code}, signal=${signal})`)
+        warn(`[embedding] Process exited (code=${code}, signal=${signal})`)
         if (semanticState.embedding.process === proc) {
           semanticState.embedding.process = null
           semanticState.embedding.ready = false
@@ -848,7 +865,7 @@ async function ensureEmbeddingReady() {
       })
 
       proc.on('error', (error) => {
-        log(`[embedding] Process error: ${error?.message}`)
+        error(`[embedding] Process error: ${error?.message}`)
         if (semanticState.embedding.process === proc) {
           semanticState.embedding.lastError = error?.message
           semanticState.embedding.ready = false
@@ -864,7 +881,7 @@ async function ensureEmbeddingReady() {
       const timeoutMs = 25000
       while (Date.now() - startedAt < timeoutMs) {
         if (embeddingStartGeneration !== myGeneration) {
-          log(`[embedding] Startup cancelled (generation ${myGeneration} superseded by ${embeddingStartGeneration})`)
+          debug(`[embedding] Startup cancelled (generation ${myGeneration} superseded by ${embeddingStartGeneration})`)
           try { if (proc && !proc.killed) proc.kill('SIGTERM') } catch {}
           return false
         }
@@ -872,7 +889,7 @@ async function ensureEmbeddingReady() {
         try {
           const ok = await checkEmbeddingHealth()
           if (ok) {
-            log(`[embedding] Server is healthy and ready!`)
+            info(`[embedding] Server is healthy and ready!`)
             semanticState.embedding.ready = true
             semanticState.embedding.starting = false
             semanticState.embedding.startingPromise = null
@@ -886,13 +903,13 @@ async function ensureEmbeddingReady() {
         await new Promise((r) => setTimeout(r, 500))
       }
 
-      log(`[embedding] Startup timed out after ${timeoutMs}ms`)
+      warn(`[embedding] Startup timed out after ${timeoutMs}ms`)
       semanticState.degraded = true
       semanticState.lastFallbackReason = 'embedding startup timeout'
       await stopEmbeddingServer()
       return false
     } catch (error) {
-      log(`[embedding] Panic in startup task: ${error?.message}`)
+      error(`[embedding] Panic in startup task: ${error?.message}`)
       semanticState.degraded = true
       semanticState.lastFallbackReason = error?.message || 'embedding startup failure'
       await stopEmbeddingServer()
@@ -1088,14 +1105,14 @@ async function syncSkillAndToolIndexes(force = false) {
     return
   }
 
-  log('[semantic] Syncing skills and tools catalog...')
+  debug('[semantic] Syncing skills and tools catalog...')
   const allItems = [...skills, ...tools]
-  
+   
   // Parallel embedding with concurrency limit of 5
   const vectors = await promiseAllStep(5, allItems, (item) => embedText(item.text))
-  
+   
   if (vectors.some(v => v === null)) {
-    log('[semantic] Skill sync partially failed due to embedding errors')
+    warn('[semantic] Skill sync partially failed due to embedding errors')
     return
   }
 
@@ -1137,7 +1154,7 @@ async function syncNoteIndex(force = false) {
     return
   }
 
-  log('[semantic] Syncing notes index...')
+  debug('[semantic] Syncing notes index...')
   const allChunksToEmbed = []
   
   for (const note of records) {
@@ -1176,7 +1193,7 @@ async function syncNoteIndex(force = false) {
     semanticState.syncingNotes = true
     const validRows = rows.filter(Boolean)
     if (validRows.length === 0 && allChunksToEmbed.length > 0) {
-      log('[semantic] Note sync failed: no vectors generated')
+      warn('[semantic] Note sync failed: no vectors generated')
       return
     }
 
@@ -1942,7 +1959,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
       if (forceRestart) {
         await stopLlamaServer()
       }
-      log(`[llama] ensuring llama ready. tier: ${tierName}, file: ${tierConfig.file}, generation: ${myGeneration}`)
+      debug(`[llama] ensuring llama ready. tier: ${tierName}, file: ${tierConfig.file}, generation: ${myGeneration}`)
 
       if (!backendAttempts.length) {
         const incompatibleBackends = listIncompatibleBackends()
@@ -2096,16 +2113,28 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
             llamaState.process = child
             let exitedDuringStartup = false
 
+            function isLlamaNoise(line) {
+              if (!line) return true
+              const lower = line.toLowerCase()
+              // Keep errors/warnings and main milestones
+              if (lower.includes('error') || lower.includes('warn') || lower.includes('fail')) return false
+              if (lower.startsWith('main:')) return false
+              if (lower.startsWith('slot ')) return false
+              if (lower.startsWith('srv ')) return false
+              // Discard everything else (metadata, tensors, kv dumps, dots, sched, etc.)
+              return true
+            }
+
             child.stdout?.on('data', (data) => {
               const line = String(data).trim()
-              if (line && typeof process.send === 'function') {
+              if (line && !isLlamaNoise(line) && typeof process.send === 'function') {
                 process.send({ type: 'node-core-log', message: `[llama] ${line}` })
               }
             })
 
             child.stderr?.on('data', (data) => {
               const line = String(data).trim()
-              if (line && typeof process.send === 'function') {
+              if (line && !isLlamaNoise(line) && typeof process.send === 'function') {
                 process.send({ type: 'node-core-log', message: `[llama] ${line}` })
               }
             })
@@ -2129,7 +2158,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
             ;(async () => {
               while (Date.now() - startedAt < timeoutMs) {
                 if (llamaStartGeneration !== myGeneration) {
-                  log(`[llama] Startup cancelled (generation ${myGeneration} superseded by ${llamaStartGeneration})`)
+                  debug(`[llama] Startup cancelled (generation ${myGeneration} superseded by ${llamaStartGeneration})`)
                   try { if (child && !child.killed) child.kill('SIGTERM') } catch {}
                   resolve({ ok: false, reason: 'cancelled: newer startup requested' })
                   return
@@ -2167,7 +2196,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
 
       for (let i = 0; i < backendAttempts.length; i += 1) {
         if (llamaStartGeneration !== myGeneration) {
-          log(`[llama] Backend loop cancelled (generation ${myGeneration} superseded by ${llamaStartGeneration})`)
+          debug(`[llama] Backend loop cancelled (generation ${myGeneration} superseded by ${llamaStartGeneration})`)
           return false
         }
         const backend = backendAttempts[i]
@@ -2424,7 +2453,7 @@ function connectPythonSidecar() {
   pythonWs = new WebSocket(url)
 
   pythonWs.on('open', () => {
-    console.log(`[NodeCore] Connected to Python sidecar WebSocket at ${url}`)
+    info(`[NodeCore] Connected to Python sidecar WebSocket at ${url}`)
   })
 
   pythonWs.on('message', (data) => {
@@ -2610,7 +2639,7 @@ async function syncWakeWordState(reason = 'unknown') {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: false })
       })
-      console.info(`[NodeCore][Voice] Wake-word force-disabled for lite tier (${reason})`)
+      info(`[NodeCore][Voice] Wake-word force-disabled for lite tier (${reason})`)
     } catch {
       // Python sidecar may not be available in lite — that's fine
     }
@@ -2630,7 +2659,7 @@ async function syncWakeWordState(reason = 'unknown') {
       })
 
       if (response.ok) {
-        console.info(
+        info(
           `[NodeCore][Voice] Wake-word synced (${reason}): ${shouldEnable ? 'enabled' : 'disabled'}${attempt > 1 ? ` (retry ${attempt}/${maxAttempts})` : ''}`
         )
         return
@@ -2648,7 +2677,7 @@ async function syncWakeWordState(reason = 'unknown') {
     }
   }
 
-  console.warn(
+  warn(
     `[NodeCore][Voice] Wake-word sync failed (${reason}) after retries: ${lastError || 'unknown error'}`
   )
 }
@@ -2674,7 +2703,7 @@ async function syncPythonCallModeState(reason = 'unknown') {
       })
 
       if (response.ok) {
-        console.info(
+        info(
           `[NodeCore][Voice] Call-mode synced (${reason}): ${enabled ? 'enabled' : 'disabled'}${attempt > 1 ? ` (retry ${attempt}/${maxAttempts})` : ''}`
         )
         return
@@ -2692,14 +2721,14 @@ async function syncPythonCallModeState(reason = 'unknown') {
     }
   }
 
-  console.warn(
+  warn(
     `[NodeCore][Voice] Call-mode sync failed (${reason}) after retries: ${lastError || 'unknown error'}`
   )
 }
 
 async function triggerAutoTts(text) {
   if (stopGenerationRequested || stopVoiceRequested) {
-    console.info('[NodeCore][Voice] Auto TTS cancelled: stop flag is true')
+    debug('[NodeCore][Voice] Auto TTS cancelled: stop flag is true')
     return
   }
 
@@ -2708,15 +2737,15 @@ async function triggerAutoTts(text) {
   const cleaned = String(text || '').trim()
 
   if (aiTier === 'lite') {
-    console.info('[NodeCore][Voice] Auto TTS skipped: ai_tier=lite')
+    debug('[NodeCore][Voice] Auto TTS skipped: ai_tier=lite')
     return
   }
   if (!ttsEnabled) {
-    console.info('[NodeCore][Voice] Auto TTS skipped: settings.tts_enabled=false')
+    debug('[NodeCore][Voice] Auto TTS skipped: settings.tts_enabled=false')
     return
   }
   if (cleaned.length < 2) {
-    console.info('[NodeCore][Voice] Auto TTS skipped: empty/short text')
+    debug('[NodeCore][Voice] Auto TTS skipped: empty/short text')
     return
   }
 
@@ -2748,9 +2777,9 @@ async function triggerAutoTts(text) {
           })
         }
         if (attempt > 1) {
-          console.info(`[NodeCore][Voice] Auto TTS requested (retry ${attempt}/${maxAttempts})`)
+          debug(`[NodeCore][Voice] Auto TTS requested (retry ${attempt}/${maxAttempts})`)
         } else {
-          console.info('[NodeCore][Voice] Auto TTS requested')
+          debug('[NodeCore][Voice] Auto TTS requested')
         }
         return
       }
@@ -2790,7 +2819,7 @@ async function triggerAutoTts(text) {
       }
     })
   }
-  console.warn(`[NodeCore][Voice] Auto TTS failed after retries: ${lastError || 'unknown error'}`)
+  warn(`[NodeCore][Voice] Auto TTS failed after retries: ${lastError || 'unknown error'}`)
 }
 
 let stopGenerationRequested = false
@@ -2882,15 +2911,12 @@ async function streamLlamaChat(req, res, payload) {
   let toolSteps = []
   let activeSkill = null
 
-  log(`[chat] streamLlamaChat called: tier=${tierName}, content="${content.slice(0, 60)}", thread=${threadId}`)
-  log(`[chat] llamaState BEFORE ensureLlamaReady: ready=${llamaState.ready}, starting=${llamaState.starting}, lastError=${llamaState.lastError}, process=${!!llamaState.process}, port=${llamaState.port}`)
-
-  const ready = await ensureLlamaReady(false)
-
-  log(`[chat] ensureLlamaReady returned: ${ready}, llamaState.ready=${llamaState.ready}, lastError=${llamaState.lastError}`)
-
+  debug(`[chat] streamLlamaChat called: tier=${tierName}, content="${content.slice(0, 60)}", thread=${threadId}`)
+  debug(`[chat] llamaState BEFORE ensureLlamaReady: ready=${llamaState.ready}, starting=${llamaState.starting}, lastError=${llamaState.lastError}, process=${!!llamaState.process}, port=${llamaState.port}`)
+  const ready = await ensureLlamaReady()
+  debug(`[chat] ensureLlamaReady returned: ${ready}, llamaState.ready=${llamaState.ready}, lastError=${llamaState.lastError}`)
   if (!ready) {
-    log(`[chat] FALLBACK triggered! reason=${llamaState.lastError || 'llama unavailable'}`)
+    warn(`[chat] FALLBACK triggered! reason=${llamaState.lastError || 'llama unavailable'}`)
     await streamFallbackResponse(
       req,
       res,
@@ -3359,7 +3385,7 @@ async function runVoiceCommand(payload = {}) {
   if (!content) return
   const threadId = String(payload.thread_id || 'default')
   const speakResponse = payload.speak_response !== false
-  log(`[voice-cmd] runVoiceCommand called: content="${content.slice(0, 80)}", thread=${threadId}`)
+  debug(`[voice-cmd] runVoiceCommand called: content="${content.slice(0, 80)}", thread=${threadId}`)
 
   broadcast({ type: 'user', content })
   broadcast({ type: 'assistant', data: { status: 'Pensando...' } })
@@ -3815,7 +3841,7 @@ async function handleRequest(req, res) {
 
       sendJson(res, 200, store.settings)
     } catch (error) {
-      console.error('[NodeCore] Error in PATCH /settings:', error)
+      error('[NodeCore] Error in PATCH /settings:', error)
       sendJson(res, 500, { status: 'error', message: 'Internal server error' })
     }
     return
@@ -4109,7 +4135,7 @@ async function handleRequest(req, res) {
 
 const server = http.createServer((req, res) => {
   handleRequest(req, res).catch((error) => {
-    console.error('[NodeCore] Unexpected request error:', error)
+    error('[NodeCore] Unexpected request error:', error)
     sendJson(res, 500, { detail: 'Internal server error' })
   })
 })
@@ -4183,7 +4209,7 @@ setInterval(() => {
     })
 
     if (reminder.action_type === 'cron') {
-      console.info(`[NodeCore][Reminders] Triggering cron action: ${reminder.title}`)
+      debug(`[NodeCore][Reminders] Triggering cron action: ${reminder.title}`)
       stopVoiceRequested = false
       stopGenerationRequested = false
       void runVoiceCommand({
@@ -4191,7 +4217,7 @@ setInterval(() => {
         speak_response: reminder.voice_response !== false
       })
     } else if (reminder.voice_response !== false) {
-      console.info(`[NodeCore][Reminders] Triggering voice response: ${reminder.title}`)
+      debug(`[NodeCore][Reminders] Triggering voice response: ${reminder.title}`)
       stopVoiceRequested = false
       stopGenerationRequested = false
       void triggerAutoTts(`${reminder.title}. ${reminder.content || ''}`)
@@ -4213,7 +4239,7 @@ server.on('error', (error) => {
       ? `Port ${PORT} is already in use (${HOST}:${PORT})`
       : error?.message || 'Unexpected node-core server error'
 
-  console.error(`[NodeCore] ${message}`)
+  error(`[NodeCore] ${message}`)
   if (typeof process.send === 'function') {
     process.send({ type: 'node-core-error', error: message })
   }
@@ -4222,7 +4248,7 @@ server.on('error', (error) => {
 
   server.listen(PORT, HOST, () => {
   const msg = `Node core listening on http://${HOST}:${PORT}`
-  console.log(msg)
+  log(msg)
 
   setInitStatus('loading', 'Starting local services...', 35, null)
 
@@ -4231,7 +4257,7 @@ server.on('error', (error) => {
     if (autoStartLlm) {
       const tierName = store.settings.ai_tier
       if (!tierName) {
-        console.info('[NodeCore] Skipping auto-start LLM: AI Tier not selected yet (onboarding).')
+        info('[NodeCore] Skipping auto-start LLM: AI Tier not selected yet (onboarding).')
         setInitStatus('ready', 'Aguardando seleção do modo...', 40, null)
       } else {
         setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 75, null)
@@ -4239,7 +4265,7 @@ server.on('error', (error) => {
           // On startup, allow model download so auto-start can reach ready state.
           await ensureLlamaReady(false, true)
         } catch (error) {
-          console.error('[NodeCore] auto-start llama failed:', error)
+          error('[NodeCore] auto-start llama failed:', error)
         }
       }
     } else {

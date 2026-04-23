@@ -5,7 +5,7 @@ import app_state
 from database.models import SessionLocal, Settings
 
 router = APIRouter()
-logger = logging.getLogger("uvicorn.error")
+logger = logging.getLogger("momai.api.chat_voice")
 
 
 @router.post("/chat/stop-voice")
@@ -25,14 +25,14 @@ async def stop_chat_voice():
 async def speak_text(data: dict):
     text = data.get("text")
     if not text:
-        logger.info("[ChatVoice] /chat/speak blocked: empty text")
+        logger.debug("[ChatVoice] /chat/speak blocked: empty text")
         raise HTTPException(status_code=400, detail="No text provided")
 
     try:
         # Load only voice runtime here (avoid full AI stack load on first TTS).
         tts = app_state.ensure_tts_runtime(prewarm=True)
         if not tts:
-            logger.warning("[ChatVoice] /chat/speak blocked: app_state.tts unavailable")
+            logger.debug("[ChatVoice] /chat/speak blocked: app_state.tts unavailable")
             raise HTTPException(status_code=503, detail="TTS unavailable")
 
         db = SessionLocal()
@@ -42,7 +42,7 @@ async def speak_text(data: dict):
             db.close()
 
         if settings and settings.tts_enabled is False:
-            logger.info("[ChatVoice] /chat/speak blocked: settings.tts_enabled=false")
+            logger.debug("[ChatVoice] /chat/speak blocked: settings.tts_enabled=false")
             raise HTTPException(status_code=409, detail="TTS is disabled in settings")
 
         # Sidecar mode: initialize TTS lazily on first speak request.
@@ -54,7 +54,7 @@ async def speak_text(data: dict):
             tts.tts.set_voice(voice_to_use)
 
         tts.speak_sentence(text)
-        logger.info("[ChatVoice] /chat/speak accepted")
+        logger.debug("[ChatVoice] /chat/speak accepted")
         return {"status": "ok"}
     except HTTPException:
         raise

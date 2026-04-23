@@ -9,7 +9,7 @@ const StructuredResponseRenderer = ({ response }) => {
   const Renderer = getRenderer(response.type)
 
   if (!Renderer) {
-    console.warn(`No renderer found for structured response type: ${response.type}`)
+    console.debug(`[StructuredResponse] No renderer found for type: ${response.type}`)
     return null
   }
 

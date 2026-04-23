@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 import logging
 
-logger = logging.getLogger("uvicorn.error")
+logger = logging.getLogger("momai.api.voice")
 
 
 router = APIRouter(prefix="/voice", tags=["voice"])
@@ -15,7 +15,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     await websocket.accept()
     app_state.active_websockets.append(websocket)
-    logger.info("[VoiceWS] New connection accepted")
+    logger.debug("[VoiceWS] New connection accepted")
     try:
         while True:
             # Keep connection alive and wait for client to close
@@ -23,7 +23,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         if websocket in app_state.active_websockets:
             app_state.active_websockets.remove(websocket)
-        logger.info("[VoiceWS] Connection closed")
+        logger.debug("[VoiceWS] Connection closed")
     except Exception as e:
         logger.error("[VoiceWS] Error: %s", e)
         if websocket in app_state.active_websockets:
@@ -92,7 +92,7 @@ def get_transcriber():
         # Usa o modelo do wake word detector se disponível
         if hasattr(app_state, "ww") and app_state.ww and app_state.ww.model:
             model = app_state.ww.model
-            logger.info(
+            logger.debug(
                 "[VoiceAPI] Using existing Whisper model from wake word detector"
             )
         else:
@@ -103,7 +103,7 @@ def get_transcriber():
             device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
             compute_type = "float16" if device == "cuda" else "int8"
             logger.info(
-                f"[VoiceAPI] Loading Whisper tiny for quick transcription on {device}"
+                f"[VoiceAPI] Loading Whisper tiny on {device}"
             )
             model = WhisperModel("tiny", device=device, compute_type=compute_type)
 

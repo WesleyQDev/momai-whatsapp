@@ -93,7 +93,7 @@ export function useChat() {
   useEffect(() => {
     // @ts-ignore
     const removeOnlineListener = window.api?.onBackendOnline?.(() => {
-      console.log('[useChat] Backend notified as online. Syncing session...');
+        console.debug('[useChat] Backend notified as online. Syncing session...');
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: 'session_sync', thread_id: threadId }))
       }

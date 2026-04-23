@@ -1,0 +1,70 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+out/
+release/
+.next/
+.electron-vite/
+.docusaurus/
+
+# Cache & temp
+.turbo/
+.eslintcache
+.prettiercache
+*.log
+logs/
+coverage/
+
+# Graphify own artifacts (re-extracting these causes false incremental refresh)
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/cost.json
+graphify-out/transcripts/
+graphify-out/removed_legacy/
+
+# AI assistant config (don't extract your own instructions as knowledge)
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.opencode/
+.cursor/
+.kiro/
+
+# Secrets & env
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Package manager files that don't add semantic value
+# Keep: package.json, pnpm-workspace.yaml, turbo.json
+# Skip: lockfiles are fine for AST extraction
+
+# Large binary / media that should not be graph-extracted
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.mp3
+*.wav
+*.ogg
+*.zip
+*.tar.gz
+*.exe
+*.dmg
+*.AppImage
+
+# Generated / auto-created files
+*.generated.*
+*.min.js
+*.min.css

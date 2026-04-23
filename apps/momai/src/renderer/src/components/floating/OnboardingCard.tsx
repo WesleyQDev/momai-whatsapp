@@ -173,7 +173,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         if (data.tts_voice) setSelectedVoice(data.tts_voice)
         if (data.ai_tier) setSelectedTier(data.ai_tier)
       } catch (err) {
-        console.warn('[Onboarding] Failed to load existing settings:', err)
+        console.debug('[Onboarding] Failed to load existing settings:', err)
       }
     }
 
@@ -241,7 +241,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
     try {
       await api.post(`/setup/apply-tier?tier=${tier}`)
     } catch (err) {
-      console.warn('[Onboarding] Failed to pre-apply tier:', err)
+      console.debug('[Onboarding] Failed to pre-apply tier:', err)
     }
   }
 
@@ -265,7 +265,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       try {
         window.api?.markFirstLaunchFinished?.(payload)
       } catch (error) {
-        console.warn('[Onboarding] Failed to mark first launch as finished:', error)
+        console.debug('[Onboarding] Failed to mark first launch as finished:', error)
       }
 
       // Try to sync with backend directly
@@ -274,7 +274,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: payload }))
         onFinish()
       } catch (apiError) {
-        console.warn('[Onboarding] Backend not ready, settings will be queued by App.tsx')
+        console.debug('[Onboarding] Backend not ready, settings will be queued by App.tsx')
         onFinish(payload)
       }
     } catch (error) {

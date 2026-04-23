@@ -14,7 +14,7 @@ WhisperModel = None
 HAS_SOUNDDEVICE = None  # Will be set on first check
 
 # Configure logger
-logger = logging.getLogger("uvicorn.error")
+logger = logging.getLogger("momai.voice.detector")
 
 # Light imports at module level
 import app_state
@@ -145,7 +145,7 @@ class WakeWordDetector:
 
         if ctranslate2 is None or WhisperModel is None:
             if retries < 3:
-                logger.info(f"[WakeWord] Dependencies not ready, retrying in 5s... (attempt {retries+1}/3)")
+                logger.debug(f"[WakeWord] Dependencies not ready, retrying in 5s... (attempt {retries+1}/3)")
                 time.sleep(5)
                 return self._load_model(retries + 1)
             
@@ -159,7 +159,7 @@ class WakeWordDetector:
 
             # Use 'base' for the best balance between speed and accuracy in real-time
             logger.info(
-                f"[WakeWord] Initializing Faster-Whisper (base) on {device} ({compute_type})..."
+                f"[WakeWord] Loading model on {device} ({compute_type})..."
             )
             self.model = WhisperModel("base", device=device, compute_type=compute_type)
             return True
@@ -355,7 +355,7 @@ class WakeWordDetector:
                         recording_duration = self.recorded_samples / self.sample_rate
 
                         if recording_duration >= self.max_recording_duration:
-                            logger.info(
+                            logger.debug(
                                 f"[WakeWord] Max recording duration reached ({recording_duration:.1f}s). Processing..."
                             )
                             self._set_state(self.STATE_PROCESSING)
@@ -410,7 +410,7 @@ class WakeWordDetector:
                 break
         # Reset the state machine
         self._reset_state()
-        logger.info("[WakeWord] Buffers flushed.")
+        logger.debug("[WakeWord] Buffers flushed.")
 
     def _enqueue_recording(self):
         """Queue recorded audio for transcription without blocking capture."""
@@ -553,7 +553,7 @@ class WakeWordDetector:
                 return
 
             if not is_repeat:
-                logger.info(f"[WakeWord] Transcribed: '{raw_text}'")
+                logger.debug(f"[WakeWord] Transcribed: '{raw_text}'")
                 self._handle_transcription(text, raw_text)
                 self.last_text = text
                 self.last_text_time = now
@@ -612,7 +612,7 @@ class WakeWordDetector:
         """Stop any ongoing TTS playback."""
         try:
             if tts.is_speaking():
-                logger.info("[WakeWord] Interruption! Stopping TTS.")
+                logger.debug("[WakeWord] Interruption! Stopping TTS.")
                 tts.stop_all()
         except Exception:
             # Stop tts check failed
@@ -664,7 +664,7 @@ class WakeWordDetector:
                 if word in fuzzy_variants:
                     detected_variation = word
                     match = re.search(re.escape(word), text)
-                    logger.info(f"[WakeWord] Fuzzy match: '{word}' recognized as wake word")
+                    logger.debug(f"[WakeWord] Fuzzy match: '{word}' recognized as wake word")
                     break
                 # Also try SequenceMatcher for words very close to "luna"
                 # Increased threshold to 0.88 and min length 4 to avoid "lula", "tuna", etc.
@@ -675,7 +675,7 @@ class WakeWordDetector:
                         if ratio >= 0.88:
                             detected_variation = word
                             match = re.search(re.escape(word), text)
-                            logger.info(
+                            logger.debug(
                                 f"[WakeWord] Fuzzy similarity match: '{word}' ~ '{kw}' "
                                 f"(ratio={ratio:.2f})"
                             )
@@ -710,7 +710,7 @@ class WakeWordDetector:
                 final_cmd = command_clean
 
             logger.info(
-                f"[WakeWord] Keyword detected. Command: '{final_cmd if final_cmd else '(empty)'}'"
+                f"[WakeWord] Command: '{final_cmd if final_cmd else '(empty)'}'"
             )
 
             if self.callback:
@@ -739,7 +739,7 @@ class WakeWordDetector:
                 logger.debug(f"[WakeWord] Call mode: filtered hallucination: '{text}'")
                 return
 
-            logger.info(
+            logger.debug(
                 f"[WakeWord] Bypass active (conversation). Message: '{raw_text}'"
             )
             self._stop_tts()

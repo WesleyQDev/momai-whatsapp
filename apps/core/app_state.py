@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import WebSocket
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("momai.app_state")
 
 active_websockets: list[WebSocket] = []
 main_loop: asyncio.AbstractEventLoop | None = None
@@ -33,7 +33,7 @@ def set_call_mode(enabled: bool) -> None:
     """Enable or disable call mode."""
     global call_mode
     call_mode = enabled
-    logger.info("[Main] Call mode: %s", enabled)
+    logger.debug("[Main] Call mode: %s", enabled)
 
 
 def _bind_tts_callbacks(tts_module) -> None:
@@ -69,12 +69,12 @@ def ensure_tts_runtime(prewarm: bool = False):
             return None
         tts = t
         _bind_tts_callbacks(tts)
-        logger.info("[Main] TTS runtime loaded")
+        logger.debug("[Main] TTS runtime loaded")
 
     if prewarm:
         try:
             tts.tts.initialize()
-            logger.info("[Main] TTS prewarm requested")
+            logger.debug("[Main] TTS prewarm requested")
         except Exception as e:
             logger.warning("[Main] TTS prewarm failed: %s", e)
 
@@ -139,7 +139,7 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
     if not text or len(text.strip()) < 2:
         text = "Oi"  # This will trigger a greeting/ready response from the AI
 
-    logger.info("[Voice] Processing: %s", text)
+    logger.debug("[Voice] Processing: %s", text)
     logger.debug("[Voice] Thread: %s", last_thread_id)
 
     node_host = os.getenv("MOMAI_NODE_CORE_HOST", "127.0.0.1")
@@ -166,4 +166,4 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
                 )
         logger.debug("[Voice] Node voice-command completed")
     except Exception as exc:
-        logger.exception("Error processing voice: %s", exc)
+        logger.error("Error processing voice: %s", exc)

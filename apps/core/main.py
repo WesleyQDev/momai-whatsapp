@@ -45,7 +45,7 @@ configure_logging()
 install_uvicorn_access_filter()
 patch_thread_start()
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("momai.main")
 logger.info("[Python] Interpreter started")
 
 
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
 
     logger.info(
-        "[Main] Starting MomAI Core on %s:%s (Reload: %s)", host, port, should_reload
+        "[Main] Starting MomAI Core on %s:%s (debug=%s)", host, port, should_reload
     )
     
     app = create_app()

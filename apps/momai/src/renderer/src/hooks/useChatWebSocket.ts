@@ -27,7 +27,7 @@ export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocket
       reconnectAttempts++
       
       reconnectTimeout = setTimeout(() => {
-        console.log(`Tentando reconectar WebSocket (tentativa ${reconnectAttempts})...`)
+        console.debug(`[WS] Reconnecting (attempt ${reconnectAttempts})...`)
         connect()
       }, delay)
     }
@@ -46,7 +46,7 @@ export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocket
       const ws = wsRef.current
 
       ws.onopen = () => {
-        console.log('Voice WebSocket conectado!')
+        console.debug('[WS] Voice WebSocket connected')
         window.dispatchEvent(new CustomEvent('momai_socket_connected'))
         reconnectAttempts = 0
         if (wsRef.current) {
@@ -70,7 +70,7 @@ export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocket
 
       ws.onclose = () => {
         if (!isUnmounting) {
-          console.log('WebSocket desconectado, agendando reconexão...')
+          console.debug('[WS] Disconnected, scheduling reconnect...')
           scheduleReconnect()
         }
       }

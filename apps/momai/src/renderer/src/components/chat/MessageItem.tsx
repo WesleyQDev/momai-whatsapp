@@ -245,7 +245,7 @@ const MessageItem = memo(function MessageItem({
           await navigator.clipboard.writeText(text)
           success = true
         } catch (e) {
-          console.warn('Clipboard API failed:', e)
+          console.debug('Clipboard API failed:', e)
         }
       }
 

@@ -13,7 +13,7 @@ import time
 import logging
 from typing import Optional
 
-logger = logging.getLogger("uvicorn.error")
+logger = logging.getLogger("momai.voice.quick_transcriber")
 
 
 class QuickTranscriber:
@@ -39,7 +39,7 @@ class QuickTranscriber:
     def stop_recording(self):
         """Sinaliza para parar a gravação atual."""
         if self.is_recording_active:
-            logger.info("[QuickTranscriber] Stop requested manually")
+            logger.debug("[QuickTranscriber] Stop requested manually")
             self.stop_requested = True
             if self.stop_event:
                 self.stop_event.set()
@@ -54,7 +54,7 @@ class QuickTranscriber:
         Retorna o áudio gravado ou None se não houve fala suficiente.
         """
         if not HAS_SOUNDDEVICE:
-            logger.warning("[QuickTranscriber] Sounddevice not available.")
+            logger.warning("[QuickTranscriber] Sounddevice not available")
             return None
 
         self.stop_requested = False
@@ -105,13 +105,13 @@ class QuickTranscriber:
                 blocksize=self.blocksize,  # 125ms chunks (mais responsivo)
                 callback=audio_callback,
             ):
-                logger.info("[QuickTranscriber] Recording started...")
+                logger.debug("[QuickTranscriber] Recording started...")
                 start_time = time.time()
 
                 while is_looping:
                     # Check for manual stop or stop event from callback/external
                     if self.stop_requested or self.stop_event.is_set():
-                        logger.info("[QuickTranscriber] Interrupted by user request or event")
+                        logger.debug("[QuickTranscriber] Interrupted by user request or event")
                         is_looping = False
                         self.stop_event.set()
                         break
@@ -139,7 +139,7 @@ class QuickTranscriber:
                             silence_counter >= self.silence_chunks_required
                             and speech_chunk_count >= self.min_speech_chunks
                         ):
-                            logger.info(
+                            logger.debug(
                                 f"[QuickTranscriber] Silence detected, stopping..."
                             )
                             is_looping = False
@@ -147,14 +147,14 @@ class QuickTranscriber:
 
                         # Safety: para se atingir duração máxima
                         if recorded_samples >= max_samples:
-                            logger.info("[QuickTranscriber] Max duration reached")
+                            logger.debug("[QuickTranscriber] Max duration reached")
                             is_looping = False
                             self.stop_event.set()
 
                     except queue.Empty:
                         # Verifica timeout global
                         if time.time() - start_time > self.max_recording_duration + 2:
-                            logger.info("[QuickTranscriber] Global timeout")
+                            logger.debug("[QuickTranscriber] Global timeout")
                             is_looping = False
                             self.stop_event.set()
                         continue
@@ -172,14 +172,14 @@ class QuickTranscriber:
         # Processa o resultado
         # Se foi parado manualmente, transcrevemos o que temos mesmo que seja pouco
         if not audio_buffer or (not self.stop_requested and speech_chunk_count < self.min_speech_chunks):
-            logger.info("[QuickTranscriber] Not enough speech detected")
+            logger.debug("[QuickTranscriber] Not enough speech detected")
             return None
 
         try:
             # Concatena todos os chunks
             audio = np.concatenate(audio_buffer)
             duration = len(audio) / self.sample_rate
-            logger.info(
+            logger.debug(
                 f"[QuickTranscriber] Recording complete: {duration:.1f}s, "
                 f"{speech_chunk_count} speech chunks"
             )
@@ -201,7 +201,7 @@ class QuickTranscriber:
             )
 
             text = " ".join([segment.text for segment in segments]).strip()
-            logger.info(f"[QuickTranscriber] Transcribed: '{text}'")
+            logger.debug(f"[QuickTranscriber] Transcribed: '{text}'")
             return text
 
         except Exception as e:

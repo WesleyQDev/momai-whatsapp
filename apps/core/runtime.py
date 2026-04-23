@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 import threading
 
@@ -51,12 +52,20 @@ def configure_logging() -> None:
     except Exception:
         pass
 
+    # Root logger: WARNING+ only to silence noisy third-party libraries
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(logging.WARNING)
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(ColorFormatter())
+
     if not root_logger.handlers:
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(ColorFormatter())
         root_logger.addHandler(handler)
+
+    # MomAI namespace: INFO+ for our own code
+    momai_logger = logging.getLogger("momai")
+    momai_logger.setLevel(logging.DEBUG if os.getenv("LOG_LEVEL", "").lower() == "debug" else logging.INFO)
+    momai_logger.propagate = True  # logs flow up to root handler
 
 
 def install_uvicorn_access_filter() -> None:
