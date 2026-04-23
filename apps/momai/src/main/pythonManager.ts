@@ -1415,6 +1415,72 @@ function buildEnv(venvPath: string, dataDir: string, uvExe: string) {
 
 let restartAttempts = 0
 let pythonStartPromise: Promise<void> | null = null
+let pythonHealthCheckTimer: ReturnType<typeof setInterval> | null = null
+const PYTHON_RUNTIME_RESTART_MAX = 3
+let runtimeRestartCount = 0
+let lastPythonBackendOptions: PythonBackendStartOptions | null = null
+
+function broadcastPythonStatus(online: boolean, detail?: string): void {
+  const window = getMainWindow()
+  if (window && !window.isDestroyed()) {
+    window.webContents.send('python-status', { online, detail: detail || '' })
+  }
+}
+
+function stopPythonHealthCheck(): void {
+  if (pythonHealthCheckTimer) {
+    clearInterval(pythonHealthCheckTimer)
+    pythonHealthCheckTimer = null
+  }
+}
+
+function startPythonHealthCheck(host: string, port: number): void {
+  stopPythonHealthCheck()
+  pythonHealthCheckTimer = setInterval(async () => {
+    if (state.isQuitting) return
+    if (!isPythonRunning()) {
+      logger.warn('[Python][HealthCheck] Process not running. Stopping health checks.')
+      stopPythonHealthCheck()
+      broadcastPythonStatus(false, 'Processo Python encerrado')
+      return
+    }
+    const reachable = await isPortReachable(port, host, 800)
+    if (!reachable) {
+      logger.warn('[Python][HealthCheck] Port not reachable. Sidecar may be frozen.')
+      broadcastPythonStatus(false, 'Python sidecar não responde')
+    }
+  }, 8000)
+}
+
+async function restartPythonBackend(reason: string): Promise<void> {
+  if (state.isQuitting) return
+  if (!lastPythonBackendOptions) {
+    logger.warn(`[Python] Cannot restart: no previous options stored. Reason: ${reason}`)
+    return
+  }
+  if (runtimeRestartCount >= PYTHON_RUNTIME_RESTART_MAX) {
+    logger.error(`[Python] Max runtime restarts (${PYTHON_RUNTIME_RESTART_MAX}) reached. Giving up.`)
+    broadcastPythonStatus(false, 'Máximo de tentativas de reinício atingido')
+    return
+  }
+
+  runtimeRestartCount++
+  logger.warn(`[Python] Runtime restart triggered: ${reason} (attempt ${runtimeRestartCount}/${PYTHON_RUNTIME_RESTART_MAX})`)
+  broadcastPythonStatus(false, `Reiniciando motor de voz (${runtimeRestartCount}/${PYTHON_RUNTIME_RESTART_MAX})...`)
+
+  // Kill any lingering process and wait for port release
+  await killPythonBackend()
+  await new Promise((resolve) => setTimeout(resolve, 1500))
+
+  try {
+    await startPythonBackend(lastPythonBackendOptions)
+    logger.info('[Python] Runtime restart succeeded.')
+    broadcastPythonStatus(true)
+  } catch (err: any) {
+    logger.error('[Python] Runtime restart failed:', err)
+    broadcastPythonStatus(false, err?.message || 'Falha ao reiniciar motor de voz')
+  }
+}
 
 export interface PythonBackendStartOptions {
   host?: string
@@ -1424,6 +1490,7 @@ export interface PythonBackendStartOptions {
 }
 
 export async function startPythonBackend(options: PythonBackendStartOptions = {}): Promise<void> {
+  lastPythonBackendOptions = { ...options }
   const desiredHost = options.host || API_HOST
   const desiredPort = options.port ?? API_PORT
   if (isPythonRunning()) return
@@ -1561,9 +1628,13 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
         .then(() => {
           logger.info(`[Electron] Backend HTTP server is online on ${host}:${port}`)
           reachedOnline = true
+          runtimeRestartCount = 0
 
           // Backend considered "stable" enough to reset retry counter after it's online
           restartAttempts = 0
+
+          broadcastPythonStatus(true)
+          startPythonHealthCheck(host, port)
 
           const window = getMainWindow()
           if (announceOnline && window && !window.isDestroyed()) {
@@ -1627,6 +1698,7 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
           `[Python] Processo encerrado com código ${code} e sinal ${signal ?? 'none'} (Duração: ${runDuration}ms)`
         )
         setPythonProcess(null)
+        stopPythonHealthCheck()
 
         void (async () => {
           const backendStillAlive = await isPortReachable(port, host, 500)
@@ -1694,8 +1766,9 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
             }
           } else if (!state.isQuitting && isAbnormalExit && !exitedBeforeOnline) {
             logger.warn(
-              `[Python] Backend encerrou após ficar online (Código: ${code}, Sinal: ${signal ?? 'none'}). Ignorando retry de boot para evitar loop de loading.`
+              `[Python] Backend encerrou após ficar online (Código: ${code}, Sinal: ${signal ?? 'none'}). Tentando restart automático...`
             )
+            setTimeout(() => restartPythonBackend('Runtime crash after online'), 2000)
           }
         })().catch((err) => {
           logger.error('[Python] Erro ao processar encerramento do backend:', err)
@@ -1803,6 +1876,7 @@ export async function killProcessOnPort(port: number): Promise<void> {
 
 export async function shutdownPython(): Promise<void> {
   setIsQuitting(true)
+  stopPythonHealthCheck()
   await killPythonBackend()
   await delay(1000)
   killAllLlamaServers()

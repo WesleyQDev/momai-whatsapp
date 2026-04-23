@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import time
 from typing import Any
 
 from fastapi import WebSocket
@@ -10,14 +9,8 @@ logger = logging.getLogger(__name__)
 
 active_websockets: list[WebSocket] = []
 main_loop: asyncio.AbstractEventLoop | None = None
-reminder_manager = None
 ww = None
 system_ready = asyncio.Event()
-
-is_gaming_mode = False
-ai_busy = False
-startup_error: str | None = None
-last_interaction_time = time.time()
 
 last_init_event: dict[str, Any] = {
     "stage": "pending",
@@ -26,10 +19,6 @@ last_init_event: dict[str, Any] = {
 }
 
 tts = None
-
-active_graph = {"view": None, "bypass_wake_word": False}
-
-pending_graph_data: dict[str, dict[str, Any]] = {}
 
 call_mode = False
 last_thread_id = "default"
@@ -91,6 +80,7 @@ def ensure_tts_runtime(prewarm: bool = False):
 
     return tts
 
+
 def get_wake_word_detector_class():
     """Returns WakeWordDetector class without loading legacy AI stack."""
     try:
@@ -99,48 +89,6 @@ def get_wake_word_detector_class():
     except Exception as e:
         logger.warning("[Main] WakeWordDetector import skipped: %s", e)
         return None
-
-
-def set_gaming_mode(enabled: bool) -> None:
-    """Set gaming mode flag."""
-    global is_gaming_mode
-    is_gaming_mode = enabled
-    logger.info("[Main] Gaming mode: %s", enabled)
-
-
-def set_ai_busy(enabled: bool) -> None:
-    """Marks when the AI pipeline is actively streaming a response."""
-    global ai_busy, last_interaction_time
-    ai_busy = enabled
-    if enabled:
-        last_interaction_time = time.time()
-
-
-def is_ai_busy() -> bool:
-    """Returns True when AI is generating or speaking a response."""
-    return ai_busy
-
-
-def set_pending_graph_data(thread_id: str, data: dict) -> None:
-    """Stores graph data to be saved with the next message."""
-    pending_graph_data[thread_id] = data
-
-
-def get_pending_graph_data(thread_id: str) -> dict | None:
-    """Retrieves and clears pending graph data for a thread."""
-    return pending_graph_data.pop(thread_id, None)
-
-
-def get_graph_state() -> dict[str, Any]:
-    """Returns current active UI graph state."""
-    return active_graph
-
-
-def set_graph_state(view: str | None, bypass_wake_word: bool = False) -> None:
-    """Updates the active UI graph state."""
-    global active_graph
-    active_graph = {"view": view, "bypass_wake_word": bypass_wake_word}
-    logger.debug("[Main] Graph State changed: %s", active_graph)
 
 
 async def broadcast_to_sockets(message: dict) -> None:
@@ -219,5 +167,3 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
         logger.debug("[Voice] Node voice-command completed")
     except Exception as exc:
         logger.exception("Error processing voice: %s", exc)
-
-

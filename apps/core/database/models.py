@@ -8,24 +8,6 @@ import os
 Base = declarative_base()
 
 
-class Reminder(Base):
-    __tablename__ = "reminders"
-
-    id = Column(Integer, primary_key=True)
-    title = Column(String, nullable=False)
-    content = Column(String)
-    scheduled_time = Column(DateTime, nullable=False)
-    repeat_interval = Column(
-        String
-    )  # 'minutes', 'hours', 'days', 'weeks', 'months' or None
-    repeat_value = Column(Integer)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now())
-    note_id = Column(String, nullable=True)
-    action_type = Column(String, default="voice")  # 'voice' or 'command'
-    voice_response = Column(Boolean, default=True)
-
-
 class Settings(Base):
     __tablename__ = "settings"
 
@@ -63,73 +45,6 @@ class Settings(Base):
     # Daily Briefing
     daily_briefing_enabled = Column(Boolean, default=False)
     last_briefing_date = Column(String, default=None)  # YYYY-MM-DD
-
-
-class Message(Base):
-    __tablename__ = "messages"
-
-    id = Column(Integer, primary_key=True)
-    thread_id = Column(String, index=True)
-    role = Column(String)  # 'user' or 'assistant'
-    content = Column(String)
-    activities = Column(String, default=None)  # JSON array of activity strings
-    graph_data = Column(String, default=None)  # JSON object for generated interfaces
-    sources = Column(
-        String, default=None
-    )  # JSON array of source objects with url, title, snippet
-    snippets = Column(String, default=None)  # JSON array of snippet objects
-    cards = Column(String, default=None)  # JSON array of card objects
-    created_at = Column(DateTime, default=lambda: datetime.now())
-
-
-class ConversationSummary(Base):
-    __tablename__ = "conversation_summaries"
-
-    thread_id = Column(String, primary_key=True)
-    content = Column(String, nullable=False)
-    last_message_id = Column(Integer, default=0)
-    updated_at = Column(DateTime, default=lambda: datetime.now())
-
-
-class ExternalNote(Base):
-    __tablename__ = "external_notes"
-
-    id = Column(String, primary_key=True)
-    title = Column(String, nullable=False)
-    path = Column(String, nullable=False)
-    source = Column(String, default="local")
-    last_indexed_at = Column(DateTime, default=None)
-    created_at = Column(DateTime, default=lambda: datetime.now())
-    updated_at = Column(DateTime, default=lambda: datetime.now())
-
-
-class Extension(Base):
-    __tablename__ = "extensions"
-
-    id = Column(String, primary_key=True)
-    is_enabled = Column(Boolean, default=True)
-    is_builtin = Column(Boolean, default=False)
-    installed_at = Column(DateTime, default=lambda: datetime.now())
-
-
-class GamingApp(Base):
-    """Apps that, when opened, activate the resource saving mode."""
-
-    __tablename__ = "gaming_apps"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    executable = Column(String, nullable=False, unique=True)  # ex: 'rdr2.exe'
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now())
-
-
-class SessionTitle(Base):
-    __tablename__ = "session_titles"
-
-    thread_id = Column(String, primary_key=True)
-    title = Column(String, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now())
 
 
 # Database setup
@@ -179,23 +94,6 @@ def init_db():
                 )
             )
 
-        # Migration for messages.sources column
-        res = conn.execute(text("PRAGMA table_info(messages)"))
-        msg_cols = {row[1] for row in res.fetchall()}
-        if "sources" not in msg_cols:
-            conn.execute(
-                text("ALTER TABLE messages ADD COLUMN sources TEXT DEFAULT NULL")
-            )
-        if "snippets" not in msg_cols:
-            conn.execute(
-                text("ALTER TABLE messages ADD COLUMN snippets TEXT DEFAULT NULL")
-            )
-        if "cards" not in msg_cols:
-            conn.execute(
-                text("ALTER TABLE messages ADD COLUMN cards TEXT DEFAULT NULL")
-            )
-        conn.commit()
-
         if "tutorial_completed" not in cols:
             conn.execute(
                 text(
@@ -221,26 +119,6 @@ def init_db():
         if "auto_start_llm" not in cols:
             conn.execute(
                 text("ALTER TABLE settings ADD COLUMN auto_start_llm BOOLEAN DEFAULT 1")
-            )
-
-        # Migration for reminders.note_id
-        res = conn.execute(text("PRAGMA table_info(reminders)"))
-        rem_cols = {row[1] for row in res.fetchall()}
-        if "note_id" not in rem_cols:
-            conn.execute(
-                text("ALTER TABLE reminders ADD COLUMN note_id TEXT DEFAULT NULL")
-            )
-        if "action_type" not in rem_cols:
-            conn.execute(
-                text(
-                    "ALTER TABLE reminders ADD COLUMN action_type TEXT DEFAULT 'reminder'"
-                )
-            )
-        if "voice_response" not in rem_cols:
-            conn.execute(
-                text(
-                    "ALTER TABLE reminders ADD COLUMN voice_response BOOLEAN DEFAULT 1"
-                )
             )
 
         conn.commit()
