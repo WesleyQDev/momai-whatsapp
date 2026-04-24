@@ -28,7 +28,9 @@ export const GeneralTab = ({
 }: GeneralTabProps) => {
   const [autoStartWindows, setAutoStartWindows] = useState(false)
   const [showIaTooltip, setShowIaTooltip] = useState(false)
-  const [isDevMode, setIsDevMode] = useState(() => localStorage.getItem('momai_dev_mode') === 'true')
+  const [isDevMode, setIsDevMode] = useState(
+    () => localStorage.getItem('momai_dev_mode') === 'true'
+  )
 
   useEffect(() => {
     window.api
@@ -417,9 +419,7 @@ export const GeneralTab = ({
             type="button"
             onClick={handleDevMode}
             className={`text-[9px] font-bold uppercase tracking-widest transition-colors flex items-center gap-1.5 ${
-              isDevMode
-                ? 'text-accent'
-                : 'text-text-muted/30 hover:text-accent/50'
+              isDevMode ? 'text-accent' : 'text-text-muted/30 hover:text-accent/50'
             }`}
           >
             <svg

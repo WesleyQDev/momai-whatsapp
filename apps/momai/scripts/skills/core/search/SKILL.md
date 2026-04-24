@@ -26,9 +26,11 @@ compatibility: MomAI Node Core Ultra
 Executa busca web e retorna resultados com fontes.
 
 ## Quando usar
+
 - Usuario pedir noticias recentes.
 - Usuario pedir busca aberta na internet.
 - Usuario quiser saber o que esta acontecendo no mundo.
 
 ## Comportamento
+
 - Execute `web_search` e sintetize com base nas fontes retornadas.

@@ -236,7 +236,7 @@ export async function fetchChatHistory(threadId: string = 'default'): Promise<Me
     sources: msg.sources ? JSON.parse(msg.sources) : undefined,
     snippets: msg.snippets ? JSON.parse(msg.snippets) : undefined,
     cards: msg.cards ? JSON.parse(msg.cards) : undefined,
-    toolSteps: (msg.graph_data && msg.graph_data.tool_steps) ? msg.graph_data.tool_steps : undefined,
+    toolSteps: msg.graph_data && msg.graph_data.tool_steps ? msg.graph_data.tool_steps : undefined,
     structuredResponse: msg.structured_response ? JSON.parse(msg.structured_response) : undefined
   }))
 }

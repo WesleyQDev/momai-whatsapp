@@ -8,7 +8,7 @@ interface UseChatWebSocketProps {
 
 export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocketProps) {
   const wsRef = useRef<WebSocket | null>(null)
-  
+
   useEffect(() => {
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
     let reconnectAttempts = 0
@@ -22,10 +22,10 @@ export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocket
 
     const scheduleReconnect = () => {
       if (isUnmounting || reconnectAttempts >= maxReconnectAttempts) return
-      
+
       const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 10000)
       reconnectAttempts++
-      
+
       reconnectTimeout = setTimeout(() => {
         console.debug(`[WS] Reconnecting (attempt ${reconnectAttempts})...`)
         connect()

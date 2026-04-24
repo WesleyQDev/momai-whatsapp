@@ -3,7 +3,7 @@ import { app, globalShortcut, BrowserWindow, ipcMain, shell } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { state, setIsQuitting } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
-import { saveOnboardingCompleted, isOnboardingCompleted } from './pythonManager'
+import { saveOnboardingCompleted, isOnboardingCompleted } from './python'
 import { startCoreBackend, shutdownCoreBackend, ensurePythonSidecar } from './coreManager'
 import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
@@ -42,7 +42,12 @@ if (process.platform === 'linux') {
   app.disableHardwareAcceleration()
 }
 
-logger.info(`[Electron] Starting MomAI... ${app.getVersion()} (First launch: ${state.isFirstLaunch})`)
+logger.info(
+  `[Electron] Starting MomAI... ${app.getVersion()} (First launch: ${state.isFirstLaunch})`
+)
+logger.info(
+  `[Electron] Platform: ${process.platform} | Arch: ${process.arch} | Node: ${process.version}`
+)
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
 
@@ -69,6 +74,52 @@ ipcMain.handle('open-logs-folder', () => {
   const mainLogPath = getMainLogPath()
   shell.showItemInFolder(mainLogPath)
 })
+ipcMain.handle('read-logs', async (_, lines = 200) => {
+  try {
+    const fs = await import('fs/promises')
+    const logPath = getMainLogPath()
+
+    const content = await fs.readFile(logPath, 'utf-8')
+    const allLines = content.trim().split('\n').filter(Boolean)
+    const recentLines = allLines.slice(-lines)
+
+    const logEntries = recentLines.map((line) => {
+      const match = line.match(
+        /^\[(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\.(\d{3})\]\s*\[(\w+)\]\s*(.*)$/
+      )
+      if (match) {
+        const [, , , , h, min, s, ms, level, message] = match
+        const component = detectLogComponent(message)
+        return {
+          timestamp: `${h}:${min}:${s}.${ms}`,
+          level: level.toLowerCase(),
+          component,
+          message,
+          raw: line
+        }
+      }
+      return { timestamp: '', level: 'info', component: 'system', message: line, raw: line }
+    })
+
+    return { success: true, entries: logEntries }
+  } catch (error) {
+    return { success: false, error: String(error) }
+  }
+})
+
+function detectLogComponent(message: string): string {
+  const msg = message.toLowerCase()
+  if (msg.includes('[llama]') || msg.includes('model') || msg.includes('llama-server'))
+    return 'model'
+  if (msg.includes('[chat]') || msg.includes('streamllamachat') || msg.includes('assistant'))
+    return 'chat'
+  if (msg.includes('[voice]') || msg.includes('tts') || msg.includes('wake') || msg.includes('stt'))
+    return 'voice'
+  if (msg.includes('[embedding]') || msg.includes('semantic')) return 'embedding'
+  if (msg.includes('[python]') || msg.includes('sidecar')) return 'python'
+  if (msg.includes('[electron]') || msg.includes('bootstrap')) return 'system'
+  return 'system'
+}
 ipcMain.handle('get-app-version', () => app.getVersion())
 
 ipcMain.handle('is-first-launch', () => {
@@ -83,11 +134,11 @@ ipcMain.on('reset-onboarding', () => {
 
 ipcMain.on('restart-app', async () => {
   logger.info('[Electron] Restarting application services (Soft Restart)...')
-  
+
   // 1. Physically reset onboarding status
   saveOnboardingCompleted(false)
   state.isFirstLaunch = true
-  
+
   // 2. Reload the main window IMMEDIATELY for instant UI feedback
   const win = state.mainWindow
   if (win && !win.isDestroyed()) {
@@ -129,8 +180,10 @@ ipcMain.on('report-bootstrap-error', (_, error: string) => {
 
 ipcMain.handle('notes:list', async () => listNotes())
 ipcMain.handle('notes:get', async (_, noteId: string) => getNote(noteId))
-ipcMain.handle('notes:create', async (_, payload: { title: string; content: string; path?: string }) =>
-  createNote(payload.title, payload.content, payload.path)
+ipcMain.handle(
+  'notes:create',
+  async (_, payload: { title: string; content: string; path?: string }) =>
+    createNote(payload.title, payload.content, payload.path)
 )
 ipcMain.handle(
   'notes:update',
@@ -148,7 +201,9 @@ ipcMain.handle('notes:folders:rename', async (_, oldPath: string, newPath: strin
 )
 ipcMain.handle('notes:folders:delete', async (_, pathValue: string) => deleteFolder(pathValue))
 ipcMain.handle('notes:open-folder', async (_, noteId: string) => openNoteFolder(noteId))
-ipcMain.handle('notes:search', async (_, query: string, limit?: number) => searchNotes(query, limit ?? 6))
+ipcMain.handle('notes:search', async (_, query: string, limit?: number) =>
+  searchNotes(query, limit ?? 6)
+)
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.wesleyqdev.momai')

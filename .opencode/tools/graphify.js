@@ -1,8 +1,17 @@
 import { readFileSync } from "node:fs"
-import { tool } from "@opencode-ai/plugin"
+import { execFileSync } from "node:child_process"
+import { dirname, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
+import { tool } from "@opencode-ai/plugin/tool"
 
-function extractReportSection(section: string) {
-  const report = readFileSync("graphify-out/GRAPH_REPORT.md", "utf8")
+const TOOL_FILE = fileURLToPath(import.meta.url)
+const TOOL_DIR = dirname(TOOL_FILE)
+const REPO_ROOT = resolve(TOOL_DIR, "..", "..")
+const GRAPH_REPORT_PATH = resolve(REPO_ROOT, "graphify-out", "GRAPH_REPORT.md")
+const GRAPHIFY_RUNNER = resolve(REPO_ROOT, ".opencode", "scripts", "run-graphify.bat")
+
+function extractReportSection(section) {
+  const report = readFileSync(GRAPH_REPORT_PATH, "utf8")
   if (section === "all") return report
 
   const lines = report.split("\n")
@@ -11,9 +20,9 @@ function extractReportSection(section: string) {
     communities: ["community", "communities"],
     surprising_connections: ["surprising connection", "surprising connections"],
     suggested_questions: ["suggested question", "suggested questions"],
-  } as const
+  }
 
-  const needles = headers[section as keyof typeof headers] ?? []
+  const needles = headers[section] ?? []
   const start = lines.findIndex((line) =>
     needles.some((needle) => line.toLowerCase().includes(needle)),
   )
@@ -29,9 +38,25 @@ function extractReportSection(section: string) {
   return lines.slice(start, end).join("\n").trim()
 }
 
-async function runGraphify(args: string[]) {
-  const out = await Bun.$`graphify ${args}`.quiet()
-  return out.text().then((v) => v.trim())
+async function runGraphify(args) {
+  try {
+    const output = execFileSync(GRAPHIFY_RUNNER, args, {
+      encoding: "utf8",
+      timeout: 60000,
+      maxBuffer: 10 * 1024 * 1024,
+      cwd: REPO_ROOT,
+      shell: true,
+    })
+    return output.trim()
+  } catch (error) {
+    if (error.status) {
+      throw new Error(`graphify exited with code ${error.status}: ${error.message}`)
+    }
+    if (error.signal === 'SIGTERM' || error.message?.includes('timeout')) {
+      throw new Error(`Timeout executing graphify command`)
+    }
+    throw error
+  }
 }
 
 export const query = tool({

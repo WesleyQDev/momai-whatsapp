@@ -6,10 +6,7 @@ const pkg = require('../package.json')
 exports.default = async function afterPack(context) {
   if (context.electronPlatformName !== 'win32') return
 
-  const exePath = path.join(
-    context.appOutDir,
-    `${context.packager.appInfo.productFilename}.exe`
-  )
+  const exePath = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.exe`)
   const icoPath = path.join(__dirname, '..', 'build', 'icon.ico')
 
   if (!fs.existsSync(exePath)) {

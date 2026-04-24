@@ -38,15 +38,18 @@ export function useAppEvents({ openSettings, handleGraphOption }: AppEventsProps
       handleGraphOption(action)
     })
 
-    const removeNotificationClick = window.electron.ipcRenderer.on('notification-clicked', (_, { title, body, voice_response }) => {
-      // If voice_response was enabled for this reminder, or if the user clicked it (selection)
-      // we speak the content.
-      if (voice_response !== false) {
-        import('../services/api').then(({ speakText }) => {
-          speakText(`${title}. ${body}`)
-        })
+    const removeNotificationClick = window.electron.ipcRenderer.on(
+      'notification-clicked',
+      (_, { title, body, voice_response }) => {
+        // If voice_response was enabled for this reminder, or if the user clicked it (selection)
+        // we speak the content.
+        if (voice_response !== false) {
+          import('../services/api').then(({ speakText }) => {
+            speakText(`${title}. ${body}`)
+          })
+        }
       }
-    })
+    )
 
     return () => {
       window.removeEventListener('momai_open_extensions', handleOpenExtensions)

@@ -24,9 +24,7 @@ function saveHistory(entries: HistoryEntry[]): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
   } catch {
     // quota exceeded — prune oldest entries
-    const pruned = entries
-      .sort((a, b) => b.count - a.count)
-      .slice(0, Math.floor(MAX_ENTRIES / 2))
+    const pruned = entries.sort((a, b) => b.count - a.count).slice(0, Math.floor(MAX_ENTRIES / 2))
     localStorage.setItem(STORAGE_KEY, JSON.stringify(pruned))
   }
 }

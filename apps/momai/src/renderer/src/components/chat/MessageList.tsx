@@ -1,5 +1,5 @@
 import { RefObject, JSX, memo, useRef, useEffect, useCallback } from 'react'
-import MessageItem from './MessageItem'
+import { MessageItem } from '../../features/chat/message'
 import { Message, StatusData } from '../../services/api'
 
 interface MessageListProps {
@@ -51,16 +51,16 @@ const MessageList = memo(function MessageList({
     lastMessagesLength.current = messages.length
 
     if (isNewMessage || isAtBottomRef.current) {
-      messagesEndRef.current?.scrollIntoView({ 
-        behavior: isNewMessage ? 'smooth' : 'auto' 
+      messagesEndRef.current?.scrollIntoView({
+        behavior: isNewMessage ? 'smooth' : 'auto'
       })
-      
+
       if (isNewMessage) isAtBottomRef.current = true
     }
   }, [messages, messagesEndRef])
 
   return (
-    <main 
+    <main
       ref={containerRef}
       onScroll={handleScroll}
       className="flex-1 flex flex-col gap-5 p-4 overflow-y-auto overflow-x-hidden relative scroll-smooth"
@@ -76,9 +76,10 @@ const MessageList = memo(function MessageList({
 
         return messages.map((msg, i) => {
           if (msg.role === 'user' && msg.content.startsWith('__TOOL__:')) return null
-          
+
           const isLastAssistant = i === lastAssistantIdx
-          const isSelfSpeaking = speakingMessageId === msg.id || (isLastAssistant && speakingMessageId !== null)
+          const isSelfSpeaking =
+            speakingMessageId === msg.id || (isLastAssistant && speakingMessageId !== null)
 
           return (
             <MessageItem
@@ -93,7 +94,11 @@ const MessageList = memo(function MessageList({
               onStopGeneration={onStopGeneration}
               onSpeak={() => onSpeakMessage?.(msg.content, i)}
               onDelete={() => onRemoveMessage?.(i)}
-              onRetry={msg.role === 'assistant' ? () => onRegenerateMessage?.(i) : () => onSendMessage(msg.content)}
+              onRetry={
+                msg.role === 'assistant'
+                  ? () => onRegenerateMessage?.(i)
+                  : () => onSendMessage(msg.content)
+              }
               aiTier={statusInfo?.ai_tier || 'pro'}
             />
           )

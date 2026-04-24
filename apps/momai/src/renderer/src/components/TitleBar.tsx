@@ -37,7 +37,9 @@ export default function TitleBar({}: TitleBarProps) {
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
         <img src={icon} alt="Icon" className="w-3.5 h-3.5" />
         <div className="flex items-baseline gap-1.5 translate-y-[0.5px]">
-          <span className="text-[11px] font-black text-text/80 uppercase tracking-[0.1em]">MomAI</span>
+          <span className="text-[11px] font-black text-text/80 uppercase tracking-[0.1em]">
+            MomAI
+          </span>
           <span className="text-[11px] font-black text-text/80 uppercase tracking-[0.1em]">
             v{version}
           </span>

@@ -276,7 +276,8 @@ class TTSManager:
 
             self.has_tts = True
             self.ready_event.set()
-            logger.debug("✅ [TTS] Kokoro-ONNX ready!")
+            logger.info("[TTS] Model ready: %s (voices=%s, provider=%s)",
+                         os.path.basename(model_path), os.path.basename(voices_path), ONNX_PROVIDER)
 
             # If any text arrived while initialization was running,
             # start the worker immediately so first utterance is not delayed.
@@ -286,7 +287,7 @@ class TTSManager:
             self._error = str(e)
             self.has_tts = False
             self.ready_event.set()
-            logger.error(f"❌ [TTS] Error loading Kokoro-ONNX: {e}")
+            logger.error("[TTS] Error loading Kokoro-ONNX: %s", e)
 
     def _speech_worker(self):
         """Simple TTS worker: generates audio then plays with sd.play().

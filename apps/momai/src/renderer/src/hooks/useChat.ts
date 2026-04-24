@@ -93,11 +93,11 @@ export function useChat() {
   useEffect(() => {
     // @ts-ignore
     const removeOnlineListener = window.api?.onBackendOnline?.(() => {
-        console.debug('[useChat] Backend notified as online. Syncing session...');
+      console.debug('[useChat] Backend notified as online. Syncing session...')
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: 'session_sync', thread_id: threadId }))
       }
-    });
+    })
 
     return () => {
       if (removeOnlineListener) removeOnlineListener()
@@ -117,9 +117,12 @@ export function useChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
-  const reopenGraph = useCallback((data: any) => {
-    setGraphState(data)
-  }, [setGraphState])
+  const reopenGraph = useCallback(
+    (data: any) => {
+      setGraphState(data)
+    },
+    [setGraphState]
+  )
 
   const closeGraph = useCallback(() => {
     setGraphState((prev: any) => ({ ...prev, view: null }))

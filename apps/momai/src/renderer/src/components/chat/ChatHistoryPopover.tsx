@@ -11,7 +11,15 @@ interface Props {
   stopCurrentVoice?: () => void
 }
 
-export function ChatHistoryPopover({ threadId, setThreadId, isOpen, setIsOpen, isSidebarVariant, stopCurrentGeneration, stopCurrentVoice }: Props) {
+export function ChatHistoryPopover({
+  threadId,
+  setThreadId,
+  isOpen,
+  setIsOpen,
+  isSidebarVariant,
+  stopCurrentGeneration,
+  stopCurrentVoice
+}: Props) {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -28,10 +36,11 @@ export function ChatHistoryPopover({ threadId, setThreadId, isOpen, setIsOpen, i
 
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node
-      
+
       // Check if the click was on the trigger button in ContainerChat
-      const isTriggerClick = (target instanceof Element) && target.closest('[data-history-trigger="true"]')
-      
+      const isTriggerClick =
+        target instanceof Element && target.closest('[data-history-trigger="true"]')
+
       if (
         panelRef.current &&
         !panelRef.current.contains(target) &&
@@ -51,13 +60,15 @@ export function ChatHistoryPopover({ threadId, setThreadId, isOpen, setIsOpen, i
       if (!isOpen) return
       const { threadId: titleThreadId, title } = e.detail || {}
       if (titleThreadId && title) {
-        setSessions(prev =>
-          prev.map(s => (s.id === titleThreadId ? { ...s, title } : s))
-        )
+        setSessions((prev) => prev.map((s) => (s.id === titleThreadId ? { ...s, title } : s)))
       }
     }
     window.addEventListener('momai_session_title_generated', handleTitleGenerated as EventListener)
-    return () => window.removeEventListener('momai_session_title_generated', handleTitleGenerated as EventListener)
+    return () =>
+      window.removeEventListener(
+        'momai_session_title_generated',
+        handleTitleGenerated as EventListener
+      )
   }, [isOpen])
 
   const loadSessions = async () => {
@@ -108,11 +119,7 @@ export function ChatHistoryPopover({ threadId, setThreadId, isOpen, setIsOpen, i
           }`}
           title="Conversas anteriores"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            className="w-3.5 h-3.5"
-          >
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
             <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
           </svg>
           <span>Conversas anteriores</span>
@@ -152,7 +159,14 @@ export function ChatHistoryPopover({ threadId, setThreadId, isOpen, setIsOpen, i
                 }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/20 hover:border-accent/40 rounded-full transition-all uppercase tracking-wider"
               >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                >
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
@@ -162,7 +176,14 @@ export function ChatHistoryPopover({ threadId, setThreadId, isOpen, setIsOpen, i
                 onClick={() => setIsOpen(false)}
                 className="w-7 h-7 rounded-full flex items-center justify-center text-text-muted hover:text-text hover:bg-white/5 transition-all"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
@@ -204,13 +225,26 @@ export function ChatHistoryPopover({ threadId, setThreadId, isOpen, setIsOpen, i
                   style={{ animationDelay: `${index * 30}ms` }}
                 >
                   <div className="flex items-center gap-3 w-[calc(100%-36px)]">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                      threadId === s.id
-                        ? 'bg-accent/20 text-accent'
-                        : 'bg-white/[0.03] text-text-muted/50 group-hover:bg-white/[0.06] group-hover:text-text-muted'
-                    }`}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                        threadId === s.id
+                          ? 'bg-accent/20 text-accent'
+                          : 'bg-white/[0.03] text-text-muted/50 group-hover:bg-white/[0.06] group-hover:text-text-muted'
+                      }`}
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                        />
                       </svg>
                     </div>
                     <div className="flex flex-col gap-0.5 min-w-0">

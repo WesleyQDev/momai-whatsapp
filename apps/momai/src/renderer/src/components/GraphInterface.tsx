@@ -10,11 +10,7 @@ interface GraphInterfaceProps {
   onClose: () => void
 }
 
-export default function GraphInterface({
-  view,
-  content,
-  onClose
-}: GraphInterfaceProps) {
+export default function GraphInterface({ view, content, onClose }: GraphInterfaceProps) {
   const { t, formatDate } = useI18n()
 
   // Renderizadores de Componentes
@@ -24,18 +20,34 @@ export default function GraphInterface({
         remarkPlugins={[remarkGfm]}
         components={{
           h1: ({ node, ...props }) => (
-            <h1 className="text-2xl font-black text-white mb-6 mt-2 tracking-tight animate-fade-in" {...props} />
+            <h1
+              className="text-2xl font-black text-white mb-6 mt-2 tracking-tight animate-fade-in"
+              {...props}
+            />
           ),
           h2: ({ node, ...props }) => (
-            <h2 className="text-xl font-bold text-white/90 mb-5 mt-10 tracking-tight animate-fade-in" {...props} />
+            <h2
+              className="text-xl font-bold text-white/90 mb-5 mt-10 tracking-tight animate-fade-in"
+              {...props}
+            />
           ),
           h3: ({ node, ...props }) => (
-            <h3 className="text-lg font-bold text-white/80 mb-4 mt-8 tracking-tight animate-fade-in" {...props} />
+            <h3
+              className="text-lg font-bold text-white/80 mb-4 mt-8 tracking-tight animate-fade-in"
+              {...props}
+            />
           ),
-          p: ({ node, ...props }) => <p className="mb-6 leading-relaxed text-sm animate-fade-in" {...props} />,
-          ul: ({ node, ...props }) => <ul className="flex flex-col gap-3 mb-8 animate-fade-in" {...props} />,
+          p: ({ node, ...props }) => (
+            <p className="mb-6 leading-relaxed text-sm animate-fade-in" {...props} />
+          ),
+          ul: ({ node, ...props }) => (
+            <ul className="flex flex-col gap-3 mb-8 animate-fade-in" {...props} />
+          ),
           li: ({ node, ...props }) => (
-            <li className="flex flex-col justify-center px-5 py-4 min-h-[4rem] rounded-xl bg-white/[0.03] border border-white/10 hover:bg-white/[0.06] hover:border-white/20 transition-all cursor-default text-sm text-text/80 animate-fade-up shadow-sm break-words overflow-hidden" {...props} />
+            <li
+              className="flex flex-col justify-center px-5 py-4 min-h-[4rem] rounded-xl bg-white/[0.03] border border-white/10 hover:bg-white/[0.06] hover:border-white/20 transition-all cursor-default text-sm text-text/80 animate-fade-up shadow-sm break-words overflow-hidden"
+              {...props}
+            />
           ),
           blockquote: ({ node, ...props }) => (
             <blockquote
@@ -55,9 +67,7 @@ export default function GraphInterface({
               <table className="min-w-full border-collapse" {...props} />
             </div>
           ),
-          thead: ({ node, ...props }) => (
-            <thead className="border-b border-white/10" {...props} />
-          ),
+          thead: ({ node, ...props }) => <thead className="border-b border-white/10" {...props} />,
           th: ({ node, ...props }) => (
             <th
               className="px-4 py-3 text-left text-[10px] font-black text-accent/70 uppercase tracking-widest"
@@ -65,10 +75,7 @@ export default function GraphInterface({
             />
           ),
           td: ({ node, ...props }) => (
-            <td
-              className="px-4 py-3 text-sm text-text-muted border-b border-white/5"
-              {...props}
-            />
+            <td className="px-4 py-3 text-sm text-text-muted border-b border-white/5" {...props} />
           ),
           tr: ({ node, ...props }) => (
             <tr className="hover:bg-white/[0.02] transition-colors" {...props} />
@@ -84,9 +91,7 @@ export default function GraphInterface({
   if (view === 'center') {
     return (
       <FloatingCard onClose={onClose}>
-        <div className="flex flex-col gap-10">
-          {MarkdownArea}
-        </div>
+        <div className="flex flex-col gap-10">{MarkdownArea}</div>
       </FloatingCard>
     )
   }

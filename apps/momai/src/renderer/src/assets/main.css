@@ -63,7 +63,12 @@
     @apply antialiased bg-bg text-text;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: 'Outfit', sans-serif;
   }
 
@@ -113,15 +118,15 @@
   .message .think-container {
     @apply my-3 bg-white/[0.03] dark:bg-black/20 border-l-2 border-accent/30 rounded-r overflow-hidden transition-all duration-300;
   }
-  
+
   .message .think-header {
     @apply py-1.5 px-3 bg-white/[0.02] flex items-center gap-2 cursor-pointer hover:bg-white/[0.04] transition-colors border-b border-white/[0.05];
   }
-  
+
   .message .think-header span {
     @apply text-[10px] font-black uppercase tracking-widest text-text/40;
   }
-  
+
   .message .think-content {
     @apply p-4 text-[13px] text-text-muted/70 italic leading-relaxed;
   }
@@ -197,11 +202,13 @@
     @apply border-collapse w-full my-4 rounded-lg overflow-hidden border border-border/10 shadow-sm;
   }
 
-  th, td {
+  th,
+  td {
     @apply border-b border-r border-border/5 p-3.5 text-left text-sm;
   }
 
-  th:last-child, td:last-child {
+  th:last-child,
+  td:last-child {
     @apply border-r-0;
   }
 
@@ -224,7 +231,7 @@
   tr:hover {
     @apply bg-white/[0.07] transition-all duration-200;
   }
-  
+
   /* Selection colors */
   ::selection {
     @apply bg-accent/30 text-white;
@@ -232,13 +239,25 @@
 }
 
 @keyframes slide-down {
-  from { transform: translateY(-20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 @keyframes slide-right {
-  from { transform: translateX(-20px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .animate-slide-down {
@@ -283,7 +302,8 @@
 }
 
 @keyframes stt-bounce {
-  0%, 100% {
+  0%,
+  100% {
     height: 15%;
     opacity: 0.3;
   }
@@ -294,8 +314,13 @@
 }
 
 @keyframes drop-shadow-pulse {
-  0%, 100% { filter: drop-shadow(0 0 5px rgba(139, 92, 246, 0.3)); }
-  50% { filter: drop-shadow(0 0 15px rgba(139, 92, 246, 0.6)); }
+  0%,
+  100% {
+    filter: drop-shadow(0 0 5px rgba(139, 92, 246, 0.3));
+  }
+  50% {
+    filter: drop-shadow(0 0 15px rgba(139, 92, 246, 0.6));
+  }
 }
 
 .drop-shadow-accent-glow {

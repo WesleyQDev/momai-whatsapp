@@ -20,11 +20,13 @@ compatibility: MomAI Node Core Ultra
 Retorna previsao do tempo para qualquer localidade usando a API Open-Meteo.
 
 ## Quando usar
+
 - Usuario perguntar sobre o clima ou temperatura
 - Usuario pedir previsao do tempo para uma cidade
 - Usuario mencionar "previsao", "clima", "tempo"
 
 ## Comportamento
+
 - Execute `get_weather` com a localidade extraida da mensagem
 - A resposta sera exibida como um card visual com a previsao de 7 dias
 - Se a localidade nao for especificada, use a localidade padrao do usuario

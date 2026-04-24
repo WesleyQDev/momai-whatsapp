@@ -1,4 +1,4 @@
-// Note: In production, these should ideally come from environment variables 
+// Note: In production, these should ideally come from environment variables
 // or be passed from the main process.
 export const API_HOST = '127.0.0.1'
 export const API_PORT = 8000

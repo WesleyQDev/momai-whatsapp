@@ -170,12 +170,16 @@ export default function SlashCommandMenu({
               onClick={() => onSelect(cmd.snippet)}
               onMouseEnter={() => setSelectedIndex(index)}
               className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-all group ${
-                isSelected ? 'bg-accent/10 text-accent' : 'text-text-muted hover:bg-white/5 hover:text-text'
+                isSelected
+                  ? 'bg-accent/10 text-accent'
+                  : 'text-text-muted hover:bg-white/5 hover:text-text'
               }`}
             >
               <div
                 className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${
-                  isSelected ? 'bg-accent/20 text-accent' : 'bg-input/50 text-text-muted group-hover:text-text'
+                  isSelected
+                    ? 'bg-accent/20 text-accent'
+                    : 'bg-input/50 text-text-muted group-hover:text-text'
                 }`}
               >
                 {typeof Icon === 'string' ? (

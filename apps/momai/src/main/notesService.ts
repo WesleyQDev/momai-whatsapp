@@ -167,7 +167,11 @@ export async function getNote(noteId: string): Promise<NoteDetail | null> {
   return { ...found, content }
 }
 
-export async function createNote(title: string, content: string, path?: string): Promise<NoteDetail> {
+export async function createNote(
+  title: string,
+  content: string,
+  path?: string
+): Promise<NoteDetail> {
   const folder = sanitizeFolderPath(path)
   const noteId = randomUUID()
   const fileName = `${noteId}.md`
@@ -298,7 +302,11 @@ export async function renameFolder(oldPath: string, newPath: string): Promise<bo
   const nextPrefix = `notes/${newFolder}/`
   const updated = index.map((item) => {
     if (!item.path.startsWith(oldPrefix)) return item
-    return { ...item, path: `${nextPrefix}${item.path.slice(oldPrefix.length)}`, updated_at: nowIso() }
+    return {
+      ...item,
+      path: `${nextPrefix}${item.path.slice(oldPrefix.length)}`,
+      updated_at: nowIso()
+    }
   })
 
   await writeIndex(updated)

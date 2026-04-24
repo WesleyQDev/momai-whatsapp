@@ -121,10 +121,19 @@ function SnippetItem({ snippet }: { snippet: Snippet }) {
       {snippet.icon && (
         <div className="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center flex-shrink-0">
           {isNews ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="4" y="4" width="16" height="16" rx="2" ry="2"/>
-              <rect x="9" y="9" width="6" height="6"/>
-              <line x1="9" y1="5" x2="15" y2="5"/>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="4" y="4" width="16" height="16" rx="2" ry="2" />
+              <rect x="9" y="9" width="6" height="6" />
+              <line x1="9" y1="5" x2="15" y2="5" />
             </svg>
           ) : (
             <span className="text-sm">{snippet.icon}</span>
@@ -132,7 +141,9 @@ function SnippetItem({ snippet }: { snippet: Snippet }) {
         </div>
       )}
       <div className="flex flex-col min-w-0 flex-1 pt-[2px]">
-        <span className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200 truncate">{snippet.title}</span>
+        <span className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200 truncate">
+          {snippet.title}
+        </span>
         {snippet.content && (
           <span className="text-[12px] text-zinc-500 dark:text-zinc-400 line-clamp-3 leading-snug">
             {snippet.content}

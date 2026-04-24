@@ -10,6 +10,19 @@ declare global {
       close: () => void
       getLogsPath: () => Promise<string>
       openLogsFolder: () => Promise<void>
+      readLogs: (
+        lines?: number
+      ) => Promise<{
+        success: boolean
+        entries?: Array<{
+          timestamp: string
+          level: string
+          component: string
+          message: string
+          raw: string
+        }>
+        error?: string
+      }>
       getAppVersion: () => Promise<string>
       isFirstLaunch: () => Promise<boolean>
       getAutoStart: () => Promise<boolean>

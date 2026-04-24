@@ -316,7 +316,7 @@ export function useStatus() {
           // 70-96% in 60s = 26% / 300 ticks = 0.087/tick
           let autoStep: number
           if (prev < 30) {
-            autoStep = 0.30
+            autoStep = 0.3
           } else if (prev < 70) {
             autoStep = 0.267
           } else if (prev < 85) {

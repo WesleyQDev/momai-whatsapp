@@ -175,11 +175,7 @@ function App(): React.JSX.Element {
 
                 {graphState.view === 'side' && !isCompact && (
                   <div className="flex-1 min-w-[280px] xl:min-w-[380px] max-w-[650px] rounded-xl bg-card border border-border/10 shadow-2xl overflow-hidden relative animate-in slide-in-from-right duration-500 shrink">
-                    <GraphInterface
-                      view="side"
-                      content={graphState.content}
-                      onClose={closeGraph}
-                    />
+                    <GraphInterface view="side" content={graphState.content} onClose={closeGraph} />
                   </div>
                 )}
 
@@ -203,7 +199,6 @@ function App(): React.JSX.Element {
         <SettingsCard onClose={() => setShowSettings(false)} initialTab={settingsTab} />
       )}
 
-
       {showClearConfirm && (
         <ConfirmationCard
           title="Limpar Histórico"
@@ -218,11 +213,7 @@ function App(): React.JSX.Element {
       )}
 
       {graphState.view === 'center' && (
-        <GraphInterface
-          view="center"
-          content={graphState.content}
-          onClose={closeGraph}
-        />
+        <GraphInterface view="center" content={graphState.content} onClose={closeGraph} />
       )}
 
       {bootstrapError && <BootstrapError error={bootstrapError} />}
@@ -258,9 +249,7 @@ function App(): React.JSX.Element {
             <div className="flex items-center gap-2">
               <span
                 className={`inline-block w-2 h-2 rounded-full ${
-                  chat.voiceEngineLoading.loading
-                    ? 'bg-amber-300 animate-pulse'
-                    : 'bg-emerald-300'
+                  chat.voiceEngineLoading.loading ? 'bg-amber-300 animate-pulse' : 'bg-emerald-300'
                 }`}
               />
               <span>{chat.voiceEngineLoading.message}</span>

@@ -15,7 +15,7 @@ import {
   killAllLlamaServers,
   isOnboardingCompleted,
   type PythonBackendStartOptions
-} from './pythonManager'
+} from './python'
 
 const PYTHON_SIDECAR_HOST = API_HOST
 const PYTHON_SIDECAR_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
@@ -203,7 +203,11 @@ function emitInitProgress(message: string, progress: number): void {
   }
 }
 
-export async function ensurePythonSidecar(): Promise<{ ok: boolean; error?: string; baseUrl?: string }> {
+export async function ensurePythonSidecar(): Promise<{
+  ok: boolean
+  error?: string
+  baseUrl?: string
+}> {
   try {
     const tier = getCurrentTier()
     if (tier === 'lite') {
@@ -325,12 +329,22 @@ function spawnNodeCore(): ReturnType<typeof spawn> {
 
   child.stdout?.on('data', (data) => {
     const line = data.toString().trim()
-    if (line) logger.info(`[NodeCore] ${line}`)
+    if (!line) return
+    // Filter out overly verbose llama.cpp logs
+    if (line.includes('slot update_slots:') || line.includes('slot launch_slot_:') || line.includes('slot get_availabl:') || line.includes('srv  params_from_:') || line.includes('srv  log_server_r:') || line.includes('slot print_timing:') || line.includes('slot create_check:') || line.includes('srv          init:') || line.includes('srv    load_model:') || line.includes('srv        update:') || line.includes('srv  get_availabl:') || line.includes('slot init_sampler:') || line.includes('slot      release:') || line.includes('main: server is listening') || line.includes('main: starting the main loop')) {
+      return
+    }
+    logger.info(`[NodeCore] ${line}`)
   })
 
   child.stderr?.on('data', (data) => {
     const line = data.toString().trim()
-    if (line) logger.error(`[NodeCore] ${line}`)
+    if (!line) return
+    // Filter out llama.cpp stderr noise
+    if (line.includes('slot update_slots:') || line.includes('speculative decoding')) {
+      return
+    }
+    logger.error(`[NodeCore] ${line}`)
   })
 
   attachCoreIpcHandlers(child)
@@ -358,7 +372,11 @@ function spawnNodeCore(): ReturnType<typeof spawn> {
 }
 
 export async function startCoreBackend(): Promise<void> {
-  if (state.nodeCoreProcess && !state.nodeCoreProcess.killed && state.nodeCoreProcess.exitCode === null) {
+  if (
+    state.nodeCoreProcess &&
+    !state.nodeCoreProcess.killed &&
+    state.nodeCoreProcess.exitCode === null
+  ) {
     return
   }
 
@@ -369,9 +387,7 @@ export async function startCoreBackend(): Promise<void> {
   if (await isPortReachable(API_PORT, API_HOST, 350)) {
     if (await isMomaiNodeCoreReachable(API_HOST, API_PORT)) {
       if (REUSE_NODE_CORE) {
-        logger.info(
-          `[CoreManager] Reusing existing Node core on ${API_HOST}:${API_PORT}.`
-        )
+        logger.info(`[CoreManager] Reusing existing Node core on ${API_HOST}:${API_PORT}.`)
         emitInitProgress('Node core online. Loading local model...', 32)
         const mainWindow = getMainWindow()
         if (mainWindow && !mainWindow.isDestroyed()) {

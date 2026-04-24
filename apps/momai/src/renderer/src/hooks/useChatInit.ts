@@ -15,7 +15,6 @@ export function useChatInit({
   setIsHistoryLoaded,
   setThreadId
 }: UseChatInitProps) {
-  
   useEffect(() => {
     let retries = 0
     const maxRetries = 5

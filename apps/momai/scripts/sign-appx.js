@@ -69,7 +69,9 @@ function downloadFile(url) {
 }
 
 async function downloadModernSigntool() {
-  console.log('--- Downloading modern signtool from NuGet (Microsoft.Windows.SDK.BuildTools)... ---')
+  console.log(
+    '--- Downloading modern signtool from NuGet (Microsoft.Windows.SDK.BuildTools)... ---'
+  )
 
   const nugetIndexUrl =
     'https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.buildtools/index.json'

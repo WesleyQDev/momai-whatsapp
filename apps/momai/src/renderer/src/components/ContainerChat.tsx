@@ -112,14 +112,20 @@ const CallModeContent = ({
 
       // Smooth the bands for fluid motion
       for (let i = 0; i < 16; i++) {
-        const target = isActive ? (bandsRef.current[i] || 0) : 0
+        const target = isActive ? bandsRef.current[i] || 0 : 0
         // Interpolation to avoid jitter
         smoothedBandsRef.current[i] += (target - smoothedBandsRef.current[i]) * 0.15
         // Reset base bands slightly so they don't get stuck
         bandsRef.current[i] *= 0.92
       }
 
-      const drawWave = (color: string, opacity: number, scale: number, phaseShift: number, offset: number) => {
+      const drawWave = (
+        color: string,
+        opacity: number,
+        scale: number,
+        phaseShift: number,
+        offset: number
+      ) => {
         ctx.beginPath()
         ctx.strokeStyle = color
         ctx.lineWidth = 1.4
@@ -137,7 +143,8 @@ const CallModeContent = ({
           const bandLerp = (normX * 15) % 1
 
           // Interpolate between bands for smooth "mountains"
-          const bandValue = smoothedBandsRef.current[bandIdx] * (1 - bandLerp) +
+          const bandValue =
+            smoothedBandsRef.current[bandIdx] * (1 - bandLerp) +
             smoothedBandsRef.current[nextBandIdx] * bandLerp
 
           // Create the "Mountain" effect
@@ -145,7 +152,8 @@ const CallModeContent = ({
           const peakHeight = bandValue * (height / 2) * scale
           const baseNoise = Math.sin(normX * 5 + phaseRef.current + phaseShift) * (height / 15)
 
-          const y = (height / 2) +
+          const y =
+            height / 2 +
             (peakHeight + baseNoise) * envelope +
             Math.sin(normX * 12 + phaseRef.current * 1.5) * (height / 40) * envelope +
             offset
@@ -210,7 +218,7 @@ const CallModeContent = ({
 
     // Smooth timer to add words one by one
     const timer = setInterval(() => {
-      setWordIndex(prev => {
+      setWordIndex((prev) => {
         if (prev < words.length) {
           const next = prev + 1
           setDisplayedWords(words.slice(0, next))
@@ -241,22 +249,25 @@ const CallModeContent = ({
       {/* 1. TOP: User Phrase (Minimal & Stable) */}
       <div className="w-full max-w-[700px] relative z-20 min-h-[80px] flex items-end justify-center pb-6">
         {(() => {
-          if (!lastUser) return (
-            <div className="flex flex-col items-center justify-center gap-2">
-              <span className="text-[10px] font-black tracking-[0.8em] text-accent/80 uppercase drop-shadow-[0_0_8px_rgba(139,92,246,0.3)]">
-                Escutando
-              </span>
-              <div className="flex gap-2 h-4 items-center">
-                <div className="w-1 h-1 rounded-full bg-accent animate-[bounce_0.8s_infinite]" />
-                <div className="w-1 h-1 rounded-full bg-accent animate-[bounce_0.8s_0.15s_infinite]" />
-                <div className="w-1 h-1 rounded-full bg-accent animate-[bounce_0.8s_0.3s_infinite]" />
+          if (!lastUser)
+            return (
+              <div className="flex flex-col items-center justify-center gap-2">
+                <span className="text-[10px] font-black tracking-[0.8em] text-accent/80 uppercase drop-shadow-[0_0_8px_rgba(139,92,246,0.3)]">
+                  Escutando
+                </span>
+                <div className="flex gap-2 h-4 items-center">
+                  <div className="w-1 h-1 rounded-full bg-accent animate-[bounce_0.8s_infinite]" />
+                  <div className="w-1 h-1 rounded-full bg-accent animate-[bounce_0.8s_0.15s_infinite]" />
+                  <div className="w-1 h-1 rounded-full bg-accent animate-[bounce_0.8s_0.3s_infinite]" />
+                </div>
               </div>
-            </div>
-          )
+            )
 
           return (
             <div className="flex flex-col items-center animate-in fade-in duration-700">
-              <span className="text-[8px] font-black tracking-[0.4em] text-white/20 uppercase mb-2">Entrada de Voz</span>
+              <span className="text-[8px] font-black tracking-[0.4em] text-white/20 uppercase mb-2">
+                Entrada de Voz
+              </span>
               <p className="text-center text-sm text-white/80 font-medium italic leading-relaxed px-12 opacity-60">
                 "{stripMarkdown(lastUser.content)}"
               </p>
@@ -296,8 +307,11 @@ const CallModeContent = ({
               return (
                 <span
                   key={`${idx}-${word}`}
-                  className={`text-xl font-semibold tracking-tight transition-all duration-1000 ease-out fill-mode-both animate-in fade-in slide-in-from-bottom-2 ${shouldHighlight ? 'text-white scale-105 drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]' : 'text-white/40 blur-[0.2px]'
-                    }`}
+                  className={`text-xl font-semibold tracking-tight transition-all duration-1000 ease-out fill-mode-both animate-in fade-in slide-in-from-bottom-2 ${
+                    shouldHighlight
+                      ? 'text-white scale-105 drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]'
+                      : 'text-white/40 blur-[0.2px]'
+                  }`}
                 >
                   {word}
                 </span>
@@ -319,11 +333,19 @@ const CallModeContent = ({
             className="group flex flex-col items-center gap-3 transition-all duration-300 active:scale-95"
           >
             <div className="w-12 h-12 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center group-hover:bg-accent/20 group-hover:border-accent/40 transition-all duration-500 shadow-accent-glow">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-accent group-hover:scale-110 transition-transform">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="text-accent group-hover:scale-110 transition-transform"
+              >
                 <rect x="6" y="6" width="12" height="12" rx="1.5" />
               </svg>
             </div>
-            <span className="text-[8px] font-black tracking-[0.5em] uppercase text-accent/60 group-hover:text-accent transition-colors">Parar</span>
+            <span className="text-[8px] font-black tracking-[0.5em] uppercase text-accent/60 group-hover:text-accent transition-colors">
+              Parar
+            </span>
           </button>
         )}
 
@@ -333,11 +355,21 @@ const CallModeContent = ({
           className="group flex flex-col items-center gap-3 transition-all duration-300 active:scale-95"
         >
           <div className="w-12 h-12 rounded-full bg-red-500/5 border border-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 group-hover:border-red-500/40 transition-all duration-500">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-red-500/80 group-hover:text-red-500 transform rotate-135">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              className="text-red-500/80 group-hover:text-red-500 transform rotate-135"
+            >
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
             </svg>
           </div>
-          <span className="text-[8px] font-black tracking-[0.5em] uppercase text-red-500/40 group-hover:text-red-500 transition-colors">Encerrar</span>
+          <span className="text-[8px] font-black tracking-[0.5em] uppercase text-red-500/40 group-hover:text-red-500 transition-colors">
+            Encerrar
+          </span>
         </button>
       </div>
     </div>
@@ -453,11 +485,12 @@ export default function ContainerChat({
       )
   }, [threadId])
 
-  const displayProgress = isSystemDone ? 100 : Math.min(96, (visualProgress || initProgress || 0))
+  const displayProgress = isSystemDone ? 100 : Math.min(96, visualProgress || initProgress || 0)
   const loadingProgress = displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
   const hasMessages = messages.length > 0
-  const showLoading = !animationFinished || isModeChanging || isBooting || (isBrainLoading && !isBrainReady)
+  const showLoading =
+    !animationFinished || isModeChanging || isBooting || (isBrainLoading && !isBrainReady)
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage =
@@ -481,7 +514,7 @@ export default function ContainerChat({
         />
       ) : isCallMode ? (
         <CallModeUI
-          onEndCall={onToggleCallMode || (() => { })}
+          onEndCall={onToggleCallMode || (() => {})}
           onStopVoice={stopCurrentVoice}
           history={callHistory}
           status={voiceStatus}
@@ -537,7 +570,6 @@ export default function ContainerChat({
               </button>
             </div>
           </div>
-
 
           <div className="flex-1 overflow-hidden relative flex flex-col">
             {/* Message Area */}
@@ -605,7 +637,6 @@ export default function ContainerChat({
                 voiceStatus={voiceStatus}
               />
             </div>
-
           </div>
         </>
       )}

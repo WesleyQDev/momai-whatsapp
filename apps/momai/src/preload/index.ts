@@ -8,6 +8,7 @@ const api = {
   close: (): void => electronAPI.ipcRenderer.send('window-close'),
   getLogsPath: (): Promise<string> => electronAPI.ipcRenderer.invoke('get-logs-path'),
   openLogsFolder: (): Promise<void> => electronAPI.ipcRenderer.invoke('open-logs-folder'),
+  readLogs: (lines?: number): Promise<any> => electronAPI.ipcRenderer.invoke('read-logs', lines),
   getAppVersion: (): Promise<string> => electronAPI.ipcRenderer.invoke('get-app-version'),
   isFirstLaunch: (): Promise<boolean> => electronAPI.ipcRenderer.invoke('is-first-launch'),
   getAutoStart: (): Promise<boolean> => electronAPI.ipcRenderer.invoke('get-auto-start'),
@@ -66,20 +67,20 @@ const api = {
     electronAPI.ipcRenderer.send('window-set-resizable', resizable),
   restartBackend: (): Promise<{ success: boolean; error?: string }> =>
     electronAPI.ipcRenderer.invoke('restart-backend'),
-  restartApp: (): void =>
-    electronAPI.ipcRenderer.send('restart-app'),
-  resetWindowSize: (): void =>
-    electronAPI.ipcRenderer.send('window-reset-size'),
+  restartApp: (): void => electronAPI.ipcRenderer.send('restart-app'),
+  resetWindowSize: (): void => electronAPI.ipcRenderer.send('window-reset-size'),
   notes: {
     list: (): Promise<any[]> => electronAPI.ipcRenderer.invoke('notes:list'),
-    get: (noteId: string): Promise<any | null> => electronAPI.ipcRenderer.invoke('notes:get', noteId),
+    get: (noteId: string): Promise<any | null> =>
+      electronAPI.ipcRenderer.invoke('notes:get', noteId),
     create: (payload: { title: string; content: string; path?: string }): Promise<any> =>
       electronAPI.ipcRenderer.invoke('notes:create', payload),
     update: (
       noteId: string,
       payload: { title?: string; content?: string; path?: string }
     ): Promise<any | null> => electronAPI.ipcRenderer.invoke('notes:update', noteId, payload),
-    delete: (noteId: string): Promise<boolean> => electronAPI.ipcRenderer.invoke('notes:delete', noteId),
+    delete: (noteId: string): Promise<boolean> =>
+      electronAPI.ipcRenderer.invoke('notes:delete', noteId),
     import: (files: { name: string; content: string }[]): Promise<void> =>
       electronAPI.ipcRenderer.invoke('notes:import', files),
     listFolders: (): Promise<string[]> => electronAPI.ipcRenderer.invoke('notes:folders:list'),

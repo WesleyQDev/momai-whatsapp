@@ -81,8 +81,8 @@ function normalizeSkillRecord({ id, kind, parsed, runtime }) {
   const tools = Array.isArray(runtime?.tools)
     ? runtime.tools
         .filter((t) => t && t.name)
-        .map((t) => ({ 
-          name: String(t.name), 
+        .map((t) => ({
+          name: String(t.name),
           description: String(t.description || ''),
           parameters: t.parameters
         }))
@@ -144,6 +144,8 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   }
 
   function loadBuiltins() {
+    // Capture count BEFORE clearing
+    const previousCount = state.builtins.size
     state.builtins.clear()
     const log = (msg) => {
       if (typeof process.send === 'function') {
@@ -151,7 +153,10 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       }
     }
 
-    log(`[skills] Loading builtins from: ${builtinSkillsDir}`)
+    // Only log on first load or when count changes
+    if (previousCount === 0) {
+      log(`[skills] Loading builtins from: ${builtinSkillsDir}`)
+    }
     if (!fs.existsSync(builtinSkillsDir)) {
       log(`[skills] ERROR: builtinSkillsDir does not exist!`)
       return
@@ -167,7 +172,11 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
         if (!skill) continue
         state.builtins.set(skill.id, skill)
       }
-      log(`[skills] Successfully loaded ${state.builtins.size} builtin skills.`)
+
+      const newCount = state.builtins.size
+      if (previousCount === 0 || newCount !== previousCount) {
+        log(`[skills] Successfully loaded ${newCount} builtin skills.`)
+      }
     } catch (err) {
       log(`[skills] FATAL: Failed to read builtinSkillsDir: ${err.message}`)
     }
@@ -268,7 +277,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   function toOpenAITools(skillIds) {
     const skills = skillIds ? getEnabled().filter((s) => skillIds.includes(s.id)) : getEnabled()
     const functions = []
-    
+
     for (const skill of skills) {
       const tools = skill.manifest.tools || []
       if (tools.length === 0) {
@@ -291,7 +300,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
         })
         continue
       }
-      
+
       for (const tool of tools) {
         functions.push({
           type: 'function',
@@ -312,7 +321,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
         })
       }
     }
-    
+
     return functions
   }
 

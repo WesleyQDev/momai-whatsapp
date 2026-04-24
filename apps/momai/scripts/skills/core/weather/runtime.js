@@ -19,7 +19,9 @@ function formatPtDate(isoDate, idx) {
   const date = new Date(`${isoDate}T12:00:00`)
   if (Number.isNaN(date.getTime())) return idx === 0 ? 'Hoje' : `Dia ${idx + 1}`
   const weekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(date)
-  const dayMonth = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(date)
+  const dayMonth = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(
+    date
+  )
   if (idx === 0) return `Hoje (${dayMonth})`
   return `${weekday.replace('.', '')} (${dayMonth})`
 }
@@ -83,7 +85,9 @@ async function resolveWeatherForecast(location) {
     return null
   }
 
-  console.error(`[weather] Found: ${place.name}, ${place.admin1 || place.country || ''} (${place.latitude}, ${place.longitude})`)
+  console.error(
+    `[weather] Found: ${place.name}, ${place.admin1 || place.country || ''} (${place.latitude}, ${place.longitude})`
+  )
 
   if (!Number.isFinite(Number(place.latitude)) || !Number.isFinite(Number(place.longitude))) {
     console.error(`[weather] Invalid coordinates`)

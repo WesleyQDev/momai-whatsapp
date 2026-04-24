@@ -1,0 +1,143 @@
+function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
+  let WebSocketServer = null
+  try {
+    WebSocketServer = require('ws').WebSocketServer
+  } catch {
+    /* ws module not available */
+  }
+
+  let wss = null
+  const wsClients = new Set()
+  let pythonWs = null
+
+  function broadcast(payload) {
+    if (!wss) return
+    const data = JSON.stringify(payload)
+    for (const client of wsClients) {
+      if (client.readyState === 1) client.send(data)
+    }
+  }
+
+  function emitInitProgress() {
+    broadcast({
+      type: 'init_progress',
+      data: {
+        message: store.init_status.message,
+        progress: store.init_status.progress
+      }
+    })
+  }
+
+  function sendResourceUsage() {
+    const mem = process.memoryUsage()
+    const ramMb = Math.round(mem.rss / 1024 / 1024)
+
+    broadcast({
+      type: 'resource_usage',
+      data: {
+        ram_mb: ramMb,
+        vram_used_mb: 0,
+        vram_total_mb: 0,
+        context_used_tokens: 0,
+        context_total_tokens: llamaState.contextTotalTokens || 8192
+      }
+    })
+  }
+
+  const PYTHON_HOST = process.env.MOMAI_PYTHON_SIDECAR_HOST || '127.0.0.1'
+  const PYTHON_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
+
+  function connectPythonSidecar() {
+    if (!WebSocketServer) return
+    const WebSocket = require('ws')
+    const url = `ws://${PYTHON_HOST}:${PYTHON_PORT}/voice/ws`
+
+    if (pythonWs) {
+      try {
+        pythonWs.close()
+      } catch (e) {
+        /* ignore */
+      }
+    }
+
+    pythonWs = new WebSocket(url)
+
+    pythonWs.on('open', () => {
+      info(`[NodeCore] Connected to Python sidecar WebSocket at ${url}`)
+    })
+
+    pythonWs.on('message', (data) => {
+      try {
+        const msg = JSON.parse(data.toString())
+        if (
+          ['tts_start', 'tts_stop', 'voice_bands', 'voice_status', 'voice_partial'].includes(
+            msg.type
+          )
+        ) {
+          broadcast(msg)
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    })
+
+    pythonWs.on('error', () => {
+      // Suppress error logs to avoid noise if Python is starting up
+    })
+
+    pythonWs.on('close', () => {
+      pythonWs = null
+      setTimeout(connectPythonSidecar, 5000)
+    })
+  }
+
+  if (WebSocketServer && server) {
+    wss = new WebSocketServer({ noServer: true })
+
+    server.on('upgrade', (req, socket, head) => {
+      const url = new URL(req.url || '/', `http://${HOST}:${PORT}`)
+      if (url.pathname !== '/ws') {
+        socket.destroy()
+        return
+      }
+
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req)
+      })
+    })
+
+    wss.on('connection', (ws) => {
+      wsClients.add(ws)
+      sendResourceUsage()
+      emitInitProgress()
+
+      ws.on('message', (raw) => {
+        let parsed
+        try {
+          parsed = JSON.parse(String(raw))
+        } catch {
+          return
+        }
+        if (parsed?.type === 'session_sync') {
+          ws.send(JSON.stringify({ type: 'session_sync', ok: true }))
+        }
+      })
+
+      ws.on('close', () => {
+        wsClients.delete(ws)
+      })
+    })
+  }
+
+  return {
+    wss,
+    wsClients,
+    pythonWs,
+    broadcast,
+    emitInitProgress,
+    sendResourceUsage,
+    connectPythonSidecar
+  }
+}
+
+module.exports = { setupWebSocket }

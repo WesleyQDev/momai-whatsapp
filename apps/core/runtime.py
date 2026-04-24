@@ -3,6 +3,23 @@ import os
 import sys
 import threading
 
+# Force UTF-8 encoding for Windows console
+if sys.platform == "win32":
+    import ctypes
+    try:
+        # Set console code page to UTF-8 (65001)
+        ctypes.windll.kernel32.SetConsoleCP(65001)
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+    except Exception:
+        pass
+    # Set environment variable for UTF-8
+    os.environ["PYTHONIOENCODING"] = "utf-8"
+    # Reconfigure stdout/stderr to UTF-8
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
+
 logger = logging.getLogger(__name__)
 
 
@@ -28,7 +45,7 @@ class ColorFormatter(logging.Formatter):
 
     COLORS = {
         "DEBUG": "\033[90m",  # Gray
-        "INFO": "\033[0m",  # Default Terminal (was Cyan)
+        "INFO": "\033[36m",  # Cyan
         "WARNING": "\033[33m",  # Yellow
         "ERROR": "\033[31m",  # Red
         "CRITICAL": "\033[1;31m",  # Bold Red
@@ -36,12 +53,14 @@ class ColorFormatter(logging.Formatter):
     RESET = "\033[0m"
 
     def format(self, record: logging.LogRecord) -> str:
-        msg = record.getMessage()
+        # Get colored level (no timestamp — parent logger already adds it)
         color = self.COLORS.get(record.levelname, self.RESET)
-        if record.levelname == "INFO":
-            # For INFO, we now use default terminal text, but we keep the same logic.
-            return f"{color}{msg}{self.RESET}"
-        return f"{color}[{record.levelname}] {msg}{self.RESET}"
+        level_colored = f"{color}[{record.levelname}]{self.RESET}"
+        
+        # Format message
+        msg = record.getMessage()
+        
+        return f"{level_colored} {msg}"
 
 
 def configure_logging() -> None:
@@ -56,8 +75,15 @@ def configure_logging() -> None:
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.WARNING)
 
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(ColorFormatter())
+    use_tui = os.getenv("TUI_LOGS", "").lower() in ("1", "true", "yes")
+
+    if use_tui:
+        from utils.tui_logger import tui_handler
+
+        handler = tui_handler(app_name="MomAI")
+    else:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(ColorFormatter())
 
     if not root_logger.handlers:
         root_logger.addHandler(handler)

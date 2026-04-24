@@ -22,7 +22,10 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
     () => localStorage.getItem('momai_mode_changing') === 'true'
   )
   const [appVersion, setAppVersion] = useState('1.0.0')
-  const [pendingOnboardingSettings, setPendingOnboardingSettings] = useState<Record<string, any> | null>(null)
+  const [pendingOnboardingSettings, setPendingOnboardingSettings] = useState<Record<
+    string,
+    any
+  > | null>(null)
 
   useEffect(() => {
     if (!settingsLoaded) return
@@ -44,7 +47,10 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
     }
     window.addEventListener('momai_tier_change_start', handleModeChangeStart)
 
-    window.api.getAppVersion?.().then(setAppVersion).catch(() => {})
+    window.api
+      .getAppVersion?.()
+      .then(setAppVersion)
+      .catch(() => {})
 
     const removeBootError = window.electron.ipcRenderer.on(
       'bootstrap-error',
@@ -149,7 +155,7 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
       }
     }
     window.addEventListener('momai_settings_sync', handleSync)
-    
+
     const handleExtSync = (e: any) => setExtensions(e.detail)
     window.addEventListener('momai_extensions_sync', handleExtSync)
 

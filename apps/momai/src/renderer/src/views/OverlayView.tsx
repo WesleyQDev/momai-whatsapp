@@ -44,11 +44,7 @@ export default function OverlayView() {
                  Or better, pass 'side' to GraphInterface but override container styles?
                  GraphInterface has a rigid div wrapper. Let's replicate the structure cleanly here.
              */}
-        <GraphInterface
-          view="side"
-          content={data.content}
-          onClose={handleClose}
-        />
+        <GraphInterface view="side" content={data.content} onClose={handleClose} />
       </div>
     </div>
   )

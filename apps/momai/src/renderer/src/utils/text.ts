@@ -4,12 +4,12 @@
  */
 export function cleanMomaiActions(text: string): string {
   if (typeof text !== 'string') return ''
-  
+
   // Remove technical sections (JSON blocks that follow markers)
   return text
     .split('__MOMAI_ACTIONS__')
-    .map(part => part.trim())
-    .filter(part => part.length > 0)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
     .join('\n\n')
     .trim()
 }

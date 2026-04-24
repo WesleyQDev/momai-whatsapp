@@ -2,7 +2,7 @@ import React from 'react'
 import ContainerChat from './ContainerChat'
 import RemindersView from '../views/RemindersView'
 import ExtensionsView from '../views/ExtensionsView'
-import NotesView from '../views/NotesView'
+import NotesView from '../features/notes/NotesView'
 import AboutView from '../views/AboutView'
 import DynamicDashboard from './DynamicDashboard'
 import { StatusData } from '../services/api'
@@ -46,9 +46,9 @@ const ChatView = (props: any) => {
       callHistory={props.chat.callHistory}
       initProgress={props.initProgress}
       visualProgress={props.visualProgress}
-        initMessage={props.initMessage}
-        isBooting={props.isBooting}
-        threadId={props.chat.threadId}
+      initMessage={props.initMessage}
+      isBooting={props.isBooting}
+      threadId={props.chat.threadId}
       setThreadId={props.chat.setThreadId}
       setHistoryOpen={props.setHistoryOpen}
       onSpeakMessage={props.chat.speakMessage}

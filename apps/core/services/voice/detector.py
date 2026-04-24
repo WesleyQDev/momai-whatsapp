@@ -157,11 +157,9 @@ class WakeWordDetector:
             device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
             compute_type = "float16" if device == "cuda" else "int8"
 
-            # Use 'base' for the best balance between speed and accuracy in real-time
-            logger.info(
-                f"[WakeWord] Loading model on {device} ({compute_type})..."
-            )
+            logger.info("[WakeWord] Loading model: base (device=%s, compute=%s)", device, compute_type)
             self.model = WhisperModel("base", device=device, compute_type=compute_type)
+            logger.info("[WakeWord] Model ready (device=%s)", device)
             return True
         except Exception as e:
             logger.warning(
@@ -204,7 +202,7 @@ class WakeWordDetector:
 
     def _listen_loop(self):
         """Main listening loop with state-machine based speech segmentation."""
-        logger.info("[WakeWord] Starting Faster-Whisper listening loop...")
+        logger.info("[WakeWord] Listener started (keyword='%s', mic=active)", self.keyword)
 
         try:
             with sd.InputStream(
@@ -709,9 +707,7 @@ class WakeWordDetector:
             else:
                 final_cmd = command_clean
 
-            logger.info(
-                f"[WakeWord] Command: '{final_cmd if final_cmd else '(empty)'}'"
-            )
+            logger.info("[WakeWord] Detected: cmd='%s' match='%s'", final_cmd, detected_variation)
 
             if self.callback:
                 # Small sleep to let the chime start before the UI reacts

@@ -12,7 +12,12 @@ import {
   setCallMode as setCallModeApi,
   generateSessionTitle
 } from '../services/api'
-import { createAssistantMessageId, isToolTraceMessage, splitToolTraceContent, buildToolTraceContent } from '../utils/chatUtils'
+import {
+  createAssistantMessageId,
+  isToolTraceMessage,
+  splitToolTraceContent,
+  buildToolTraceContent
+} from '../utils/chatUtils'
 import { cleanMomaiActions } from '../utils/text'
 
 interface UseChatActionsProps {
@@ -49,7 +54,10 @@ export function useChatActions({
   const buildInjectedMemory = useCallback(async (content: string) => {
     const query = content.trim()
     if (!query || query.length < 3) {
-      return { memory_context: undefined as string | undefined, memory_sources: undefined as Source[] | undefined }
+      return {
+        memory_context: undefined as string | undefined,
+        memory_sources: undefined as Source[] | undefined
+      }
     }
 
     try {
@@ -58,7 +66,7 @@ export function useChatActions({
         return { memory_context: undefined, memory_sources: undefined }
       }
 
-      const unique = new Map<string, typeof hits[number]>()
+      const unique = new Map<string, (typeof hits)[number]>()
       for (const hit of hits) {
         if (!unique.has(hit.note_id)) unique.set(hit.note_id, hit)
       }
@@ -87,7 +95,7 @@ export function useChatActions({
       return { memory_context: undefined, memory_sources: undefined }
     }
   }, [])
-  
+
   const stopGeneration = useCallback(async () => {
     try {
       await stopGenerationApi()
@@ -124,10 +132,7 @@ export function useChatActions({
 
         if (isCallModeRef.current) {
           setCallHistory((prev) =>
-            [
-              ...prev,
-              { id: `user-${Date.now()}`, role: 'user' as const, content }
-            ].slice(-5)
+            [...prev, { id: `user-${Date.now()}`, role: 'user' as const, content }].slice(-5)
           )
         }
       }
@@ -137,16 +142,21 @@ export function useChatActions({
       if (isSilent) {
         try {
           const memoryPayload = await buildInjectedMemory(content)
-          await sendChatMessage(content, threadId, {
-            onToken: () => {},
-            onStatus: () => {},
-            onSources: () => {},
-            onSnippets: () => {},
-            onCards: () => {},
-            onToolSteps: () => {},
-            onDone: () => {},
-            onError: (err) => console.error('[SilentTool] Error:', err)
-          }, memoryPayload)
+          await sendChatMessage(
+            content,
+            threadId,
+            {
+              onToken: () => {},
+              onStatus: () => {},
+              onSources: () => {},
+              onSnippets: () => {},
+              onCards: () => {},
+              onToolSteps: () => {},
+              onDone: () => {},
+              onError: (err) => console.error('[SilentTool] Error:', err)
+            },
+            memoryPayload
+          )
         } catch (err) {
           console.error('[SilentTool] Error:', err)
         }
@@ -158,200 +168,230 @@ export function useChatActions({
 
       // Start memory search early so it runs in parallel with UI updates
       const memoryPromise = buildInjectedMemory(content)
-      
+
       const assistantMsgId = createAssistantMessageId()
       toolTraceRef.current.activeMsgId = assistantMsgId
-      setMessages((prev) => [
-        ...prev,
-        { id: assistantMsgId, role: 'assistant', content: '...' }
-      ])
+      setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '...' }])
 
       const messageThreadId = threadId
       const isFirstMessage = messagesRef.current.length <= 1
 
       try {
         const memoryPayload = await memoryPromise
-        await sendChatMessage(content, threadId, {
-          onToken: (token) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = updated.length - 1
-              if (
-                updated[lastIdx]?.role === 'assistant' &&
-                !updated[lastIdx].content.startsWith('Cérebro alterado')
-              ) {
-                const currentContent = updated[lastIdx].content
-                const newBase = currentContent === '...' ? '' : currentContent
+        await sendChatMessage(
+          content,
+          threadId,
+          {
+            onToken: (token) => {
+              if (currentThreadRef.current !== messageThreadId) return
+              setMessages((prev) => {
+                const updated = [...prev]
+                const lastIdx = updated.length - 1
+                if (
+                  updated[lastIdx]?.role === 'assistant' &&
+                  !updated[lastIdx].content.startsWith('Cérebro alterado')
+                ) {
+                  const currentContent = updated[lastIdx].content
+                  const newBase = currentContent === '...' ? '' : currentContent
 
-                if (isToolTraceMessage(updated[lastIdx])) {
-                  const parsed = splitToolTraceContent(updated[lastIdx].content)
-                  let traceData: any = null
-                  const textPart = parsed?.textPart || ''
-                  try {
-                    traceData = parsed?.jsonPart ? JSON.parse(parsed.jsonPart) : null
-                  } catch {
-                    traceData = null
+                  if (isToolTraceMessage(updated[lastIdx])) {
+                    const parsed = splitToolTraceContent(updated[lastIdx].content)
+                    let traceData: any = null
+                    const textPart = parsed?.textPart || ''
+                    try {
+                      traceData = parsed?.jsonPart ? JSON.parse(parsed.jsonPart) : null
+                    } catch {
+                      traceData = null
+                    }
+                    updated[lastIdx] = {
+                      ...updated[lastIdx],
+                      content: buildToolTraceContent(traceData || {}, textPart + token)
+                    }
+                  } else {
+                    updated[lastIdx] = {
+                      ...updated[lastIdx],
+                      content: newBase + token
+                    }
                   }
-                  updated[lastIdx] = {
-                    ...updated[lastIdx],
-                    content: buildToolTraceContent(traceData || {}, textPart + token)
-                  }
-                } else {
-                  updated[lastIdx] = {
-                    ...updated[lastIdx],
-                    content: newBase + token
+                  return updated
+                }
+                return updated
+              })
+
+              if (isCallModeRef.current) {
+                const cleanTokenForCall = token.split('__MOMAI_ACTIONS__')[0]
+                if (cleanTokenForCall !== undefined) {
+                  setCallHistory((prevHistory) => {
+                    const last = prevHistory[prevHistory.length - 1]
+                    if (last && last.role === 'assistant') {
+                      const history = [...prevHistory]
+                      const prevContent = history[history.length - 1].content
+                      let nextToken = cleanTokenForCall
+                      if (prevContent === '...' || prevContent === '') {
+                        nextToken = nextToken.replace(/^\s+/, '')
+                      }
+                      history[history.length - 1] = {
+                        ...last,
+                        content: (prevContent === '...' ? '' : prevContent) + nextToken
+                      }
+                      return history
+                    }
+                    const trimmed = cleanTokenForCall.replace(/^\s+/, '')
+                    if (trimmed) {
+                      return [
+                        ...prevHistory,
+                        {
+                          id: `assistant-${Date.now()}`,
+                          role: 'assistant' as const,
+                          content: trimmed
+                        }
+                      ].slice(-5)
+                    }
+                    return prevHistory
+                  })
+                }
+              }
+            },
+            onStatus: (status) => {
+              if (currentThreadRef.current !== messageThreadId) return
+              setMessages((prev) => {
+                const updated = [...prev]
+                const lastIdx = updated.length - 1
+                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                  const currentActivities = updated[lastIdx].activities || []
+                  const buscandoIdx = currentActivities.findIndex((a: string) =>
+                    a.startsWith('Buscando')
+                  )
+                  if (buscandoIdx !== -1 && status.startsWith('Buscando')) {
+                    const updatedActivities = [...currentActivities]
+                    updatedActivities[buscandoIdx] = status
+                    updated[lastIdx] = { ...updated[lastIdx], activities: updatedActivities }
+                  } else if (!currentActivities.includes(status)) {
+                    updated[lastIdx] = {
+                      ...updated[lastIdx],
+                      activities: [...currentActivities, status]
+                    }
                   }
                 }
                 return updated
-              }
-              return updated
-            })
-
-            if (isCallModeRef.current) {
-              const cleanTokenForCall = token.split('__MOMAI_ACTIONS__')[0]
-              if (cleanTokenForCall !== undefined) {
-                setCallHistory((prevHistory) => {
-                  const last = prevHistory[prevHistory.length - 1]
-                  if (last && last.role === 'assistant') {
-                    const history = [...prevHistory]
-                    const prevContent = history[history.length - 1].content
-                    let nextToken = cleanTokenForCall
-                    if (prevContent === '...' || prevContent === '') {
-                      nextToken = nextToken.replace(/^\s+/, '')
+              })
+            },
+            onSources: (sources) => {
+              if (currentThreadRef.current !== messageThreadId) return
+              setMessages((prev) => {
+                const updated = [...prev]
+                const lastIdx = updated.length - 1
+                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                  updated[lastIdx] = { ...updated[lastIdx], sources }
+                }
+                return updated
+              })
+            },
+            onSnippets: (snippets) => {
+              if (currentThreadRef.current !== messageThreadId) return
+              setMessages((prev) => {
+                const updated = [...prev]
+                const lastIdx = updated.length - 1
+                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                  updated[lastIdx] = { ...updated[lastIdx], snippets }
+                }
+                return updated
+              })
+            },
+            onCards: (cards) => {
+              if (currentThreadRef.current !== messageThreadId) return
+              setMessages((prev) => {
+                const updated = [...prev]
+                const lastIdx = updated.length - 1
+                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                  updated[lastIdx] = { ...updated[lastIdx], cards }
+                }
+                return updated
+              })
+            },
+            onToolSteps: (toolSteps) => {
+              if (currentThreadRef.current !== messageThreadId) return
+              setMessages((prev) => {
+                const updated = [...prev]
+                const lastIdx = updated.length - 1
+                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                  updated[lastIdx] = { ...updated[lastIdx], toolSteps }
+                }
+                return updated
+              })
+            },
+            onActiveSkill: (skillName) => {
+              if (currentThreadRef.current !== messageThreadId) return
+              setMessages((prev) => {
+                const updated = [...prev]
+                const lastIdx = updated.length - 1
+                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                  updated[lastIdx] = { ...updated[lastIdx], activeSkill: skillName }
+                }
+                return updated
+              })
+            },
+            onStructuredResponse: (response) => {
+              if (currentThreadRef.current !== messageThreadId) return
+              setMessages((prev) => {
+                const updated = [...prev]
+                const lastIdx = updated.length - 1
+                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                  updated[lastIdx] = { ...updated[lastIdx], structuredResponse: response }
+                }
+                return updated
+              })
+            },
+            onDone: () => {
+              if (currentThreadRef.current !== messageThreadId) return
+              setIsLoading(false)
+              if (isFirstMessage) {
+                const lastMsgs = messagesRef.current
+                const assistantReply = lastMsgs[lastMsgs.length - 1]?.content || ''
+                generateSessionTitle(messageThreadId, content, assistantReply)
+                  .then((title) => {
+                    if (title) {
+                      window.dispatchEvent(
+                        new CustomEvent('momai_session_title_generated', {
+                          detail: { threadId: messageThreadId, title }
+                        })
+                      )
                     }
-                    history[history.length - 1] = {
-                      ...last,
-                      content: (prevContent === '...' ? '' : prevContent) + nextToken
-                    }
-                    return history
-                  }
-                  const trimmed = cleanTokenForCall.replace(/^\s+/, '')
-                  if (trimmed) {
-                    return [...prevHistory, { id: `assistant-${Date.now()}`, role: 'assistant' as const, content: trimmed }].slice(-5)
-                  }
-                  return prevHistory
-                })
+                  })
+                  .catch(console.error)
               }
+            },
+            onError: (err) => {
+              if (currentThreadRef.current !== messageThreadId) return
+              setIsLoading(false)
+              setMessages((prev) => {
+                const updated = [...prev]
+                const lastIdx = updated.length - 1
+                if (lastIdx >= 0) {
+                  updated[lastIdx].content = `Erro: ${err}`
+                }
+                return updated
+              })
             }
           },
-          onStatus: (status) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = updated.length - 1
-              if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                const currentActivities = updated[lastIdx].activities || []
-                const buscandoIdx = currentActivities.findIndex((a: string) => a.startsWith('Buscando'))
-                if (buscandoIdx !== -1 && status.startsWith('Buscando')) {
-                  const updatedActivities = [...currentActivities]
-                  updatedActivities[buscandoIdx] = status
-                  updated[lastIdx] = { ...updated[lastIdx], activities: updatedActivities }
-                } else if (!currentActivities.includes(status)) {
-                  updated[lastIdx] = { ...updated[lastIdx], activities: [...currentActivities, status] }
-                }
-              }
-              return updated
-            })
-          },
-          onSources: (sources) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = updated.length - 1
-              if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                updated[lastIdx] = { ...updated[lastIdx], sources }
-              }
-              return updated
-            })
-          },
-          onSnippets: (snippets) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = updated.length - 1
-              if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                updated[lastIdx] = { ...updated[lastIdx], snippets }
-              }
-              return updated
-            })
-          },
-          onCards: (cards) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = updated.length - 1
-              if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                updated[lastIdx] = { ...updated[lastIdx], cards }
-              }
-              return updated
-            })
-          },
-          onToolSteps: (toolSteps) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = updated.length - 1
-              if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                updated[lastIdx] = { ...updated[lastIdx], toolSteps }
-              }
-              return updated
-            })
-          },
-          onActiveSkill: (skillName) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = updated.length - 1
-              if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                updated[lastIdx] = { ...updated[lastIdx], activeSkill: skillName }
-              }
-              return updated
-            })
-          },
-          onStructuredResponse: (response) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = updated.length - 1
-              if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                updated[lastIdx] = { ...updated[lastIdx], structuredResponse: response }
-              }
-              return updated
-            })
-          },
-          onDone: () => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setIsLoading(false)
-            if (isFirstMessage) {
-              const lastMsgs = messagesRef.current
-              const assistantReply = lastMsgs[lastMsgs.length - 1]?.content || ''
-              generateSessionTitle(messageThreadId, content, assistantReply).then((title) => {
-                if (title) {
-                  window.dispatchEvent(new CustomEvent('momai_session_title_generated', { detail: { threadId: messageThreadId, title } }))
-                }
-              }).catch(console.error)
-            }
-          },
-          onError: (err) => {
-            if (currentThreadRef.current !== messageThreadId) return
-            setIsLoading(false)
-            setMessages((prev) => {
-              const updated = [...prev]
-              const lastIdx = updated.length - 1
-              if (lastIdx >= 0) {
-                updated[lastIdx].content = `Erro: ${err}`
-              }
-              return updated
-            })
-          }
-        }, memoryPayload)
+          memoryPayload
+        )
       } catch (err) {
         setIsLoading(false)
         console.error('Erro ao enviar mensagem:', err)
       }
     },
-    [threadId, currentThreadRef, messagesRef, setMessages, setIsLoading, toolTraceRef, setCallHistory, isCallModeRef, setText]
+    [
+      threadId,
+      currentThreadRef,
+      messagesRef,
+      setMessages,
+      setIsLoading,
+      toolTraceRef,
+      setCallHistory,
+      isCallModeRef,
+      setText
+    ]
   )
 
   const handleClear = useCallback(async () => {
@@ -408,24 +448,27 @@ export function useChatActions({
     [messagesRef, removeMessage, sendMessage, setSpeakingMessageId]
   )
 
-  const speakMessage = useCallback(async (content: string, index: number) => {
-    const msg = messagesRef.current[index]
-    if (!msg || !msg.id) return
+  const speakMessage = useCallback(
+    async (content: string, index: number) => {
+      const msg = messagesRef.current[index]
+      if (!msg || !msg.id) return
 
-    const cleanText = cleanMomaiActions(content)
-    if (!cleanText || cleanText === '...') return
-    try {
-      // Stop any ongoing TTS before starting a new one
-      await stopVoiceApi().catch(() => {})
-      // Small delay to ensure backend TTS worker has fully stopped
-      await new Promise(resolve => setTimeout(resolve, 150))
-      setSpeakingMessageId(msg.id)
-      await speakTextApi(cleanText)
-    } catch (err) {
-      console.error('Erro ao sintetizar voz:', err)
-      setSpeakingMessageId(null)
-    }
-  }, [setSpeakingMessageId, messagesRef])
+      const cleanText = cleanMomaiActions(content)
+      if (!cleanText || cleanText === '...') return
+      try {
+        // Stop any ongoing TTS before starting a new one
+        await stopVoiceApi().catch(() => {})
+        // Small delay to ensure backend TTS worker has fully stopped
+        await new Promise((resolve) => setTimeout(resolve, 150))
+        setSpeakingMessageId(msg.id)
+        await speakTextApi(cleanText)
+      } catch (err) {
+        console.error('Erro ao sintetizar voz:', err)
+        setSpeakingMessageId(null)
+      }
+    },
+    [setSpeakingMessageId, messagesRef]
+  )
 
   const toggleCallMode = useCallback(async () => {
     const newState = !isCallMode

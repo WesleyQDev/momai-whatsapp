@@ -210,5 +210,11 @@
   "C:\\Users\\wesle\\dev\\momai\\saude\\assets\\tutorial_print01.jpeg": 1776164442.1570094,
   "C:\\Users\\wesle\\dev\\momai\\saude\\assets\\tutorial_print02.jpeg": 1776164442.1585321,
   "C:\\Users\\wesle\\dev\\momai\\saude\\assets\\tutorial_print03.jpeg": 1776164442.1585321,
-  "C:\\Users\\wesle\\dev\\momai\\saude\\assets\\tutorial_print04.jpeg": 1776164442.160075
+  "C:\\Users\\wesle\\dev\\momai\\saude\\assets\\tutorial_print04.jpeg": 1776164442.160075,
+  "last_wrapper_update": {
+    "at": "2026-04-24T18:14:29.035651+00:00",
+    "target": "C:\\Users\\wesle\\dev\\momai",
+    "mode": "ast",
+    "note": "Fallback local update. Full graph rebuild CLI not available in this environment."
+  }
 }

@@ -331,10 +331,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                 <rect width="720" height="504" fill="#009c3b" />
                 <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
                 <circle cx="360" cy="252" r="126" fill="#002776" />
-                <path
-                  d="M245 285a126 126 0 0 1 230-66 126 126 0 0 0-230 66z"
-                  fill="#fff"
-                />
+                <path d="M245 285a126 126 0 0 1 230-66 126 126 0 0 0-230 66z" fill="#fff" />
               </svg>
             </div>
 
@@ -500,7 +497,10 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       </div>
 
       {/* Right Pane - Configuration Form */}
-      <div className="no-drag flex-1 bg-card p-8 flex flex-col justify-center overflow-y-auto transition-colors duration-500" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <div
+        className="no-drag flex-1 bg-card p-8 flex flex-col justify-center overflow-y-auto transition-colors duration-500"
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      >
         <div className="w-full max-w-none mx-auto px-6">
           {step === 1 ? (
             <div className="space-y-10 animate-fade-in flex flex-col items-center text-center">
@@ -555,15 +555,15 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                   <label className="text-[8px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">
                     {t('onboarding.nameLabel')}
                   </label>
-                    <input
-                      type="text"
-                      autoFocus
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="no-drag w-full bg-input border border-border/20 rounded-lg px-3.5 py-3 text-sm font-bold text-text focus:border-accent/40 outline-none transition-all placeholder:opacity-10 shadow-inner select-text"
-                      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                      placeholder={t('onboarding.namePlaceholder')}
-                    />
+                  <input
+                    type="text"
+                    autoFocus
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="no-drag w-full bg-input border border-border/20 rounded-lg px-3.5 py-3 text-sm font-bold text-text focus:border-accent/40 outline-none transition-all placeholder:opacity-10 shadow-inner select-text"
+                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    placeholder={t('onboarding.namePlaceholder')}
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

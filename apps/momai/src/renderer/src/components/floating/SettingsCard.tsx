@@ -7,6 +7,7 @@ import { BrainTab } from './settings/tabs/BrainTab'
 import { VoiceTab } from './settings/tabs/VoiceTab'
 import { EconomyTab } from './settings/tabs/EconomyTab'
 import { UpdatesTab } from './settings/tabs/UpdatesTab'
+import LogsCard from './LogsCard'
 
 interface SettingsCardProps {
   onClose: () => void
@@ -59,7 +60,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
   return (
     <FloatingCard title={t('settings.title')} onClose={onClose} width="max-w-4xl">
       <div className="flex h-[520px] -mx-6 -my-6 bg-card">
-        <Sidebar 
+        <Sidebar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           t={t}
@@ -70,7 +71,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
           {activeTab === 'general' && (
-            <GeneralTab 
+            <GeneralTab
               t={t}
               settings={settings}
               theme={theme}
@@ -85,7 +86,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
           )}
 
           {activeTab === 'brain' && (
-            <BrainTab 
+            <BrainTab
               t={t}
               settings={settings}
               tiersConfig={tiersConfig}
@@ -99,7 +100,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
           )}
 
           {activeTab === 'voice' && (
-            <VoiceTab 
+            <VoiceTab
               t={t}
               settings={settings}
               setActiveTab={setActiveTab}
@@ -110,7 +111,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
           )}
 
           {activeTab === 'updates' && (
-            <UpdatesTab 
+            <UpdatesTab
               t={t}
               appVersion={appVersion}
               localDetails={localDetails}
@@ -122,7 +123,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
           )}
 
           {activeTab === 'economy' && (
-            <EconomyTab 
+            <EconomyTab
               t={t}
               newApp={newApp}
               setNewApp={setNewApp}
@@ -131,6 +132,8 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
               gamingApps={gamingApps}
             />
           )}
+
+          {activeTab === 'logs' && <LogsCard onClose={() => setActiveTab('general')} />}
         </div>
       </div>
 

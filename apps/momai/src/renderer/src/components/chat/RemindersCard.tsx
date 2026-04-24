@@ -25,24 +25,17 @@ const RemindersCard = ({ data }) => {
       <div className="px-5 pb-2">
         <div className="flex flex-col gap-3">
           {items.map((item, idx) => (
-            <div
-              key={item.id || idx}
-              className="flex items-start gap-3 py-2"
-            >
+            <div key={item.id || idx} className="flex items-start gap-3 py-2">
               <span className="text-[20px] leading-none mt-0.5">⏰</span>
               <div className="flex-1 min-w-0">
                 <div className="text-[14px] font-medium text-white/90 truncate">
                   {item.title || item.datetime || 'Lembrete'}
                 </div>
                 {item.datetime && (
-                  <div className="text-[12px] text-white/60 mt-0.5">
-                    {item.datetime}
-                  </div>
+                  <div className="text-[12px] text-white/60 mt-0.5">{item.datetime}</div>
                 )}
                 {item.content && (
-                  <div className="text-[12px] text-white/40 mt-1 line-clamp-2">
-                    {item.content}
-                  </div>
+                  <div className="text-[12px] text-white/40 mt-1 line-clamp-2">{item.content}</div>
                 )}
               </div>
             </div>

@@ -15,7 +15,7 @@ export const VoiceTab = ({
   setActiveTab,
   expandedLang,
   setExpandedLang,
-  updateField,
+  updateField
 }: VoiceTabProps) => {
   const voiceCatalog = [
     {
@@ -69,7 +69,16 @@ export const VoiceTab = ({
         <div className="absolute inset-x-[-2rem] inset-y-[-2rem] z-20 flex items-center justify-center backdrop-blur-[3px] bg-black/40 rounded-3xl animate-in fade-in duration-500">
           <div className="max-w-[340px] flex flex-col items-center text-center gap-4">
             <div className="p-4 rounded-full bg-white/5 text-text-muted mb-2 border border-white/5 shadow-2xl shadow-black">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
                 <line x1="16" y1="8" x2="2" y2="22" />
                 <line x1="17.5" y1="15" x2="9" y2="15" />
@@ -80,7 +89,8 @@ export const VoiceTab = ({
                 Foco em Desempenho
               </h3>
               <p className="text-[12px] text-text-muted font-medium leading-relaxed">
-                A modalidade <strong className="text-text">Lite</strong> foca em agilidade e baixo consumo, por isso os recursos de voz ficam em repouso.
+                A modalidade <strong className="text-text">Lite</strong> foca em agilidade e baixo
+                consumo, por isso os recursos de voz ficam em repouso.
               </p>
             </div>
             <button
@@ -93,7 +103,9 @@ export const VoiceTab = ({
         </div>
       )}
 
-      <div className={`space-y-6 ${settings.ai_tier === 'lite' ? 'opacity-20 pointer-events-none grayscale' : ''}`}>
+      <div
+        className={`space-y-6 ${settings.ai_tier === 'lite' ? 'opacity-20 pointer-events-none grayscale' : ''}`}
+      >
         <div className="space-y-1">
           <h2 className="text-lg font-black text-text tracking-tight uppercase">
             {t('settings.tabs.voice')}
@@ -103,97 +115,115 @@ export const VoiceTab = ({
           </p>
         </div>
 
-      {/* Recursos de Voz */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-black/30 shadow-inner group transition-all duration-300 hover:border-white/10">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300 ${
-              settings.daily_briefing_enabled 
-                ? 'bg-accent/20 text-accent shadow-[0_0_20px_rgba(var(--accent),0.15)]' 
-                : 'bg-white/5 text-text-muted/40'
-            }`}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-            </div>
-            <div className="flex flex-col">
-              <span className={`text-xs font-black uppercase tracking-wider transition-colors duration-300 ${
-                settings.daily_briefing_enabled ? 'text-text' : 'text-text-muted'
-              }`}>
-                {t('settings.general.dailyBriefingLabel')}
-              </span>
-              <span className="text-[10px] text-text-muted font-medium opacity-60">
-                {t('settings.general.dailyBriefingSubtitle')}
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={() =>
-              updateField('daily_briefing_enabled', !settings.daily_briefing_enabled, true)
-            }
-            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-              settings.daily_briefing_enabled ? 'bg-accent/80' : 'bg-white/10'
-            }`}
-          >
-            <span
-              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                settings.daily_briefing_enabled ? 'translate-x-4' : 'translate-x-0'
-              }`}
-            />
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">
-            {t('settings.voice.catalogLabel')}
-          </label>
-          <div className="flex gap-4 h-[220px]">
-            <div className="w-[160px] space-y-1.5 overflow-y-auto custom-scrollbar pr-2">
-              {voiceCatalog.map((catalog) => (
-                <button
-                  key={catalog.code}
-                  onClick={() => setExpandedLang(catalog.code)}
-                  className={`w-full flex items-center justify-between p-2.5 rounded-lg border text-[9px] font-black uppercase tracking-tight transition-all ${expandedLang === catalog.code ? 'bg-accent/10 border-accent/40 text-accent shadow-sm' : 'bg-black/10 border-transparent text-text-muted hover:bg-black/20'}`}
+        {/* Recursos de Voz */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-black/30 shadow-inner group transition-all duration-300 hover:border-white/10">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300 ${
+                  settings.daily_briefing_enabled
+                    ? 'bg-accent/20 text-accent shadow-[0_0_20px_rgba(var(--accent),0.15)]'
+                    : 'bg-white/5 text-text-muted/40'
+                }`}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
                 >
-                  {t(catalog.langKey)}
-                </button>
-              ))}
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </div>
+              <div className="flex flex-col">
+                <span
+                  className={`text-xs font-black uppercase tracking-wider transition-colors duration-300 ${
+                    settings.daily_briefing_enabled ? 'text-text' : 'text-text-muted'
+                  }`}
+                >
+                  {t('settings.general.dailyBriefingLabel')}
+                </span>
+                <span className="text-[10px] text-text-muted font-medium opacity-60">
+                  {t('settings.general.dailyBriefingSubtitle')}
+                </span>
+              </div>
             </div>
+            <button
+              onClick={() =>
+                updateField('daily_briefing_enabled', !settings.daily_briefing_enabled, true)
+              }
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                settings.daily_briefing_enabled ? 'bg-accent/80' : 'bg-white/10'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  settings.daily_briefing_enabled ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
 
-            <div className="flex-1 p-2.5 rounded-xl bg-black/10 border border-border/40 overflow-y-auto custom-scrollbar">
-              <div className="grid grid-cols-1 gap-1">
-                {voiceCatalog
-                  .find((c) => c.code === expandedLang)
-                  ?.voices.map((v) => (
-                    <button
-                      key={v.id}
-                      onClick={() => updateField('tts_voice', v.id, true)}
-                      className={`flex items-center justify-between p-2.5 rounded-lg border text-[10px] font-bold transition-all ${settings.tts_voice === v.id ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20' : 'bg-input border-border/40 text-text-muted hover:bg-black/20'}`}
-                    >
-                      <div className="flex flex-col items-start gap-0.5">
-                        <span>
-                          {v.suggested
-                            ? t('settings.voice.nameSuggested', { name: v.name })
-                            : v.name}
-                        </span>
-                        <span className="text-[7px] uppercase font-black tracking-tighter opacity-60">
-                          {t(`settings.voice.trait.${v.trait}`)}
-                        </span>
-                      </div>
-                      {settings.tts_voice === v.id && (
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      )}
-                    </button>
-                  ))}
+          <div className="space-y-3">
+            <label className="text-[9px] font-black text-text-muted uppercase tracking-widest">
+              {t('settings.voice.catalogLabel')}
+            </label>
+            <div className="flex gap-4 h-[220px]">
+              <div className="w-[160px] space-y-1.5 overflow-y-auto custom-scrollbar pr-2">
+                {voiceCatalog.map((catalog) => (
+                  <button
+                    key={catalog.code}
+                    onClick={() => setExpandedLang(catalog.code)}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-lg border text-[9px] font-black uppercase tracking-tight transition-all ${expandedLang === catalog.code ? 'bg-accent/10 border-accent/40 text-accent shadow-sm' : 'bg-black/10 border-transparent text-text-muted hover:bg-black/20'}`}
+                  >
+                    {t(catalog.langKey)}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex-1 p-2.5 rounded-xl bg-black/10 border border-border/40 overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-1 gap-1">
+                  {voiceCatalog
+                    .find((c) => c.code === expandedLang)
+                    ?.voices.map((v) => (
+                      <button
+                        key={v.id}
+                        onClick={() => updateField('tts_voice', v.id, true)}
+                        className={`flex items-center justify-between p-2.5 rounded-lg border text-[10px] font-bold transition-all ${settings.tts_voice === v.id ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20' : 'bg-input border-border/40 text-text-muted hover:bg-black/20'}`}
+                      >
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span>
+                            {v.suggested
+                              ? t('settings.voice.nameSuggested', { name: v.name })
+                              : v.name}
+                          </span>
+                          <span className="text-[7px] uppercase font-black tracking-tighter opacity-60">
+                            {t(`settings.voice.trait.${v.trait}`)}
+                          </span>
+                        </div>
+                        {settings.tts_voice === v.id && (
+                          <svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
   )
 }

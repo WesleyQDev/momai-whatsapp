@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { api, stopVoice, stopGeneration } from '../services/api'
 import { useI18n } from '../i18n'
 
-export type Tab = 'general' | 'brain' | 'updates' | 'economy' | 'voice'
+export type Tab = 'general' | 'brain' | 'updates' | 'economy' | 'voice' | 'logs'
 export type Theme = 'dark' | 'light'
 
 export interface Settings {
@@ -193,14 +193,14 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     // @ts-ignore
     window.api.resetWindowSize?.()
     onClose()
-    
+
     // This flag helps AppInitialization show onboarding immediately after restart
     localStorage.setItem('momai_mode_changing', 'true')
 
     try {
       stopVoice().catch(() => {})
       stopGeneration().catch(() => {})
-      
+
       // ONLY reset onboarding status. DO NOT change the tier here.
       // The user will choose the tier fresh inside the Onboarding screen.
       await api.patch('/settings', { onboarding_completed: false })

@@ -2,6 +2,20 @@ import os
 import sys
 import logging
 
+# Force UTF-8 encoding for Windows console (must be before any imports that use stdout)
+if sys.platform == "win32":
+    import ctypes
+    try:
+        ctypes.windll.kernel32.SetConsoleCP(65001)
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)
+    except Exception:
+        pass
+    os.environ["PYTHONIOENCODING"] = "utf-8"
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8')
+
 # Ensure native DLLs (VC++ Runtime, etc.) can be found in MSIX environments
 if sys.platform == "win32":
     sys_root = os.environ.get("SystemRoot", r"C:\Windows")
