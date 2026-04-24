@@ -94,6 +94,11 @@ export function registerIpcHandlers(): void {
     }
   })
 
+  ipcMain.handle('is-window-maximized', () => {
+    const win = getMainWindow()
+    return win ? win.isMaximized() : false
+  })
+
   ipcMain.on('window-close', () => {
     app.quit()
   })
@@ -297,6 +302,14 @@ function createMainWindow(): BrowserWindow {
     if (!isWindowMinimizing) {
       mainWindow.webContents.send('check-wake-word-on-show')
     }
+  })
+
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send('window-state-changed', { maximized: true })
+  })
+
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send('window-state-changed', { maximized: false })
   })
 
   setupTray()

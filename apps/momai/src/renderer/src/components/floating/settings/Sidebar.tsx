@@ -3,29 +3,33 @@ import { Tab, LocalDetails } from '../../../hooks/useSettingsCard'
 interface SidebarProps {
   activeTab: Tab
   setActiveTab: (tab: Tab) => void
+  onClose: () => void
   t: any
   localDetails: LocalDetails
   settings: any
   setShowHelp: (show: boolean) => void
+  compact?: boolean
 }
 
 export const Sidebar = ({
   activeTab,
   setActiveTab,
+  onClose,
   t,
   localDetails,
   settings,
-  setShowHelp
+  setShowHelp,
+  compact = false
 }: SidebarProps) => {
   const icons = {
     general: (
       <svg
-        width="16"
-        height="16"
+        width="18"
+        height="18"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2.5"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
@@ -35,12 +39,12 @@ export const Sidebar = ({
     ),
     brain: (
       <svg
-        width="16"
-        height="16"
+        width="18"
+        height="18"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2.5"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
@@ -51,12 +55,12 @@ export const Sidebar = ({
     ),
     updates: (
       <svg
-        width="16"
-        height="16"
+        width="18"
+        height="18"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2.5"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
@@ -67,12 +71,12 @@ export const Sidebar = ({
     ),
     economy: (
       <svg
-        width="16"
-        height="16"
+        width="18"
+        height="18"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2.5"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
@@ -80,32 +84,29 @@ export const Sidebar = ({
         <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
       </svg>
     ),
-    logs: (
+    developer: (
       <svg
-        width="16"
-        height="16"
+        width="18"
+        height="18"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2.5"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <rect x="2" y="3" width="20" height="14" rx="2" />
-        <line x1="8" y1="10" x2="16" y2="10" />
-        <line x1="8" y1="14" x2="12" y2="14" />
-        <circle cx="6" cy="10" r="0.5" fill="currentColor" />
-        <circle cx="6" cy="14" r="0.5" fill="currentColor" />
+        <polyline points="16 18 22 12 16 6" />
+        <polyline points="8 6 2 12 8 18" />
       </svg>
     ),
     voice: (
       <svg
-        width="16"
-        height="16"
+        width="18"
+        height="18"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2.5"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
@@ -134,24 +135,26 @@ export const Sidebar = ({
         )
     },
     { id: 'economy', label: t('settings.tabs.economy'), icon: icons.economy },
-    { id: 'logs', label: 'Logs', icon: icons.logs },
-    { id: 'updates', label: t('settings.tabs.updates'), icon: icons.updates }
+    { id: 'updates', label: t('settings.tabs.updates'), icon: icons.updates },
+    { id: 'developer', label: 'Dev', icon: icons.developer }
   ]
 
   return (
-    <div className="w-44 border-r border-border bg-sidebar p-4 flex flex-col gap-1">
+    <div
+      className={`${compact ? 'w-40' : 'w-44'} border-r border-border bg-sidebar ${compact ? 'pl-4 pr-2 py-4' : 'pl-5 pr-3 py-5'} flex flex-col gap-1`}
+    >
       {tabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => setActiveTab(tab.id as Tab)}
-          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-bold transition-all duration-200 ${activeTab === tab.id ? 'bg-accent/10 text-accent shadow-sm' : 'text-text-muted hover:bg-text/5 hover:text-text'}`}
+          className={`flex items-center gap-2 ${compact ? 'px-2.5 py-2' : 'gap-3 px-3 py-2.5'} rounded-lg text-sm font-semibold transition-all duration-200 ${activeTab === tab.id ? 'bg-accent/10 text-accent' : 'text-text-muted hover:bg-white/[0.03] hover:text-text'}`}
         >
           {tab.icon}
           {tab.label}
           {tab.id === 'updates' &&
             localDetails.installed_version !== localDetails.latest_version &&
             localDetails.latest_version && (
-              <div className="ml-auto w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+              <div className="ml-auto w-2 h-2 rounded-full bg-accent" />
             )}
         </button>
       ))}
@@ -160,11 +163,11 @@ export const Sidebar = ({
 
       <button
         onClick={() => setShowHelp(true)}
-        className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-bold transition-all duration-200 text-text-muted hover:bg-text/5 hover:text-text"
+        className={`flex items-center gap-2 ${compact ? 'px-2.5 py-2' : 'gap-3 px-3 py-2.5'} rounded-lg text-sm font-semibold transition-all duration-200 text-text-muted hover:bg-white/[0.03] hover:text-text`}
       >
         <svg
-          width="16"
-          height="16"
+          width="18"
+          height="18"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

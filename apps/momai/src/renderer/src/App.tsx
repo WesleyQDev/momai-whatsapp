@@ -80,6 +80,17 @@ function App(): React.JSX.Element {
     []
   )
 
+  // ESC key to close settings
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showSettings) {
+        setShowSettings(false)
+      }
+    }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [showSettings])
+
   // Event Listeners registration
   useAppEvents({ openSettings, handleGraphOption })
 

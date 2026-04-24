@@ -17,10 +17,10 @@ export default function FloatingCard({
 }: FloatingCardProps) {
   return (
     <div
-      className={`fixed inset-0 z-[200] flex items-center justify-center ${overlayPaddingClass} bg-black/40 backdrop-blur-sm animate-fade-in`}
+      className={`fixed inset-0 z-[200] flex items-center justify-center ${overlayPaddingClass} bg-black/50 backdrop-blur-sm animate-fade-in`}
     >
       <div
-        className={`w-full ${width} bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-zoom-in`}
+        className={`w-full ${width} bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-zoom-in flex flex-col max-h-[95vh]`}
         onClick={(e) => e.stopPropagation()}
       >
         {(title || onClose) && (

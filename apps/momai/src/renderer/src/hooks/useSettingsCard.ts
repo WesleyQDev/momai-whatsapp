@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { api, stopVoice, stopGeneration } from '../services/api'
 import { useI18n } from '../i18n'
 
-export type Tab = 'general' | 'brain' | 'updates' | 'economy' | 'voice' | 'logs'
+export type Tab = 'general' | 'brain' | 'updates' | 'economy' | 'voice' | 'logs' | 'developer'
 export type Theme = 'dark' | 'light'
 
 export interface Settings {
@@ -73,6 +73,11 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     skip_intro: false
   })
 
+  const settingsRef = useRef(settings)
+  useEffect(() => {
+    settingsRef.current = settings
+  }, [settings])
+
   const [installStatus, setInstallStatus] = useState<
     'checking' | 'installed' | 'missing' | 'installing' | 'error'
   >('checking')
@@ -84,6 +89,21 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   const [isAdvancedHardwareOpen, setIsAdvancedHardwareOpen] = useState(false)
   const [tiersConfig, setTiersConfig] = useState<any>(null)
   const [expandedLang, setExpandedLang] = useState<string | null>('p')
+  const [isDevMode, setIsDevMode] = useState(() => localStorage.getItem('momai_dev_mode') === 'true')
+
+  useEffect(() => {
+    const syncDevMode = (event: Event) => {
+      const detail = (event as CustomEvent<boolean>).detail
+      if (typeof detail === 'boolean') {
+        setIsDevMode(detail)
+        return
+      }
+      setIsDevMode(localStorage.getItem('momai_dev_mode') === 'true')
+    }
+
+    window.addEventListener('momai_dev_mode_sync', syncDevMode as EventListener)
+    return () => window.removeEventListener('momai_dev_mode_sync', syncDevMode as EventListener)
+  }, [])
 
   useEffect(() => {
     // @ts-ignore
@@ -92,6 +112,172 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
       .then(setAppVersion)
       .catch(() => {})
   }, [])
+
+  const changeTheme = useCallback((newTheme: Theme) => {
+    setTheme(newTheme)
+    document.documentElement.setAttribute('data-theme', newTheme)
+    localStorage.setItem('momai_theme', newTheme)
+  }, [])
+
+  const checkLocalStatus = useCallback(async () => {
+    try {
+      const res = await api.get('/setup/status')
+      setLocalDetails(res.data)
+      if (res.data.engine_installed) {
+        setInstallStatus('installed')
+      } else {
+        setInstallStatus('missing')
+      }
+    } catch (error) {
+      console.error('Error checking local status:', error)
+      setInstallStatus('error')
+    }
+  }, [])
+
+  const handleInstallEngine = useCallback(async (backend?: string) => {
+    setInstallStatus('installing')
+    setInstallProgress(0)
+    try {
+      const res = await api.post('/setup/install-engine', { backend })
+      if (res.data.status === 'error') {
+        setInstallStatus('error')
+        alert(res.data.message)
+      }
+    } catch (error) {
+      setInstallStatus('error')
+    }
+  }, [])
+
+  const loadGamingApps = useCallback(async () => {
+    try {
+      const res = await api.get('/system/gaming-apps')
+      setGamingApps(res.data)
+    } catch (error) {
+      console.error('Error loading gaming apps:', error)
+    }
+  }, [])
+
+  const handleAddGamingApp = useCallback(async () => {
+    if (!newApp.name || !newApp.executable) return
+    try {
+      await api.post('/system/gaming-apps', newApp)
+      setNewApp({ name: '', executable: '' })
+      loadGamingApps()
+    } catch (error) {
+      alert(t('settings.economy.addAppError'))
+    }
+  }, [newApp, loadGamingApps, t])
+
+  const handleDeleteGamingApp = useCallback(async (id: number) => {
+    try {
+      await api.delete(`/system/gaming-apps/${id}`)
+      loadGamingApps()
+    } catch (error) {
+      alert(t('settings.economy.removeAppError'))
+    }
+  }, [loadGamingApps, t])
+
+  const handleTierChange = useCallback(async (_tier: 'lite' | 'pro' | 'ultra') => {
+    // @ts-ignore
+    window.api.resetWindowSize?.()
+    onClose()
+
+    // This flag helps AppInitialization show onboarding immediately after restart
+    localStorage.setItem('momai_mode_changing', 'true')
+
+    try {
+      stopVoice().catch(() => {})
+      stopGeneration().catch(() => {})
+
+      // ONLY reset onboarding status. DO NOT change the tier here.
+      // The user will choose the tier fresh inside the Onboarding screen.
+      await api.patch('/settings', { onboarding_completed: false })
+
+      // Very small delay to ensure UI consistency before restarting
+      setTimeout(() => {
+        // @ts-ignore
+        window.api.restartApp()
+      }, 50)
+    } catch (error) {
+      console.error('Error triggering onboarding reset:', error)
+      // @ts-ignore
+      window.api.restartApp()
+    }
+  }, [onClose])
+
+  const loadSettings = useCallback(async () => {
+    try {
+      const res = await api.get('/settings')
+      setSettings(res.data)
+      if (res.data.locale) {
+        setLocale(res.data.locale)
+      }
+
+      const statusRes = await api.get('/status')
+      setTiersConfig(statusRes.data.tiers_config)
+    } catch (error) {
+      console.error('Error loading settings:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [setLocale])
+
+  const saveSettings = useCallback(async (newSettings: Settings) => {
+    try {
+      const res = await api.patch('/settings', newSettings)
+      window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: newSettings }))
+      if (newSettings.ai_tier) localStorage.setItem('momai_ai_tier', newSettings.ai_tier)
+      if (newSettings.user_name) localStorage.setItem('momai_user_name', newSettings.user_name)
+      return res
+    } catch (error) {
+      console.error('Error saving settings:', error)
+      throw error
+    }
+  }, [])
+
+  const updateField = useCallback(async (field: string, value: any, saveNow = false): Promise<void> => {
+    const prev = settingsRef.current
+    const newState = { ...prev, [field]: value }
+    setSettings(newState)
+
+    if (field === 'locale') {
+      setLocale(value)
+    }
+
+    if (saveNow) {
+      await api.patch('/settings', newState)
+      window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: newState }))
+      if (newState.ai_tier) localStorage.setItem('momai_ai_tier', newState.ai_tier)
+      if (newState.user_name) localStorage.setItem('momai_user_name', newState.user_name)
+    }
+  }, [setLocale])
+
+  const handleDevMode = useCallback(() => {
+    const current = localStorage.getItem('momai_dev_mode') === 'true'
+    const next = !current
+    localStorage.setItem('momai_dev_mode', String(next))
+    window.dispatchEvent(new CustomEvent('momai_dev_mode_sync', { detail: next }))
+    setIsDevMode(next)
+  }, [])
+
+  const resetOnboarding = useCallback(async () => {
+    // @ts-ignore
+    window.api.resetWindowSize?.()
+
+    const newSettings = { ...settingsRef.current, onboarding_completed: false }
+    setSettings(newSettings)
+    try {
+      await api.patch('/settings', newSettings)
+      window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: newSettings }))
+    } catch (e) {
+      console.error(e)
+    }
+
+    // @ts-ignore
+    window.electron.ipcRenderer.send('reset-onboarding')
+
+    onClose()
+  }, [onClose])
 
   useEffect(() => {
     loadSettings()
@@ -123,163 +309,7 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
       window.removeEventListener('momai_setup_progress', handleSetupProgress)
       window.removeEventListener('momai_setup_complete', handleSetupComplete)
     }
-  }, [])
-
-  const changeTheme = (newTheme: Theme) => {
-    setTheme(newTheme)
-    document.documentElement.setAttribute('data-theme', newTheme)
-    localStorage.setItem('momai_theme', newTheme)
-  }
-
-  const checkLocalStatus = async () => {
-    try {
-      const res = await api.get('/setup/status')
-      setLocalDetails(res.data)
-      if (res.data.engine_installed) {
-        setInstallStatus('installed')
-      } else {
-        setInstallStatus('missing')
-      }
-    } catch (error) {
-      console.error('Error checking local status:', error)
-      setInstallStatus('error')
-    }
-  }
-
-  const handleInstallEngine = async (backend?: string) => {
-    setInstallStatus('installing')
-    setInstallProgress(0)
-    try {
-      const res = await api.post('/setup/install-engine', { backend })
-      if (res.data.status === 'error') {
-        setInstallStatus('error')
-        alert(res.data.message)
-      }
-    } catch (error) {
-      setInstallStatus('error')
-    }
-  }
-
-  const loadGamingApps = async () => {
-    try {
-      const res = await api.get('/system/gaming-apps')
-      setGamingApps(res.data)
-    } catch (error) {
-      console.error('Error loading gaming apps:', error)
-    }
-  }
-
-  const handleAddGamingApp = async () => {
-    if (!newApp.name || !newApp.executable) return
-    try {
-      await api.post('/system/gaming-apps', newApp)
-      setNewApp({ name: '', executable: '' })
-      loadGamingApps()
-    } catch (error) {
-      alert(t('settings.economy.addAppError'))
-    }
-  }
-
-  const handleDeleteGamingApp = async (id: number) => {
-    try {
-      await api.delete(`/system/gaming-apps/${id}`)
-      loadGamingApps()
-    } catch (error) {
-      alert(t('settings.economy.removeAppError'))
-    }
-  }
-
-  const handleTierChange = async (_tier: 'lite' | 'pro' | 'ultra') => {
-    // @ts-ignore
-    window.api.resetWindowSize?.()
-    onClose()
-
-    // This flag helps AppInitialization show onboarding immediately after restart
-    localStorage.setItem('momai_mode_changing', 'true')
-
-    try {
-      stopVoice().catch(() => {})
-      stopGeneration().catch(() => {})
-
-      // ONLY reset onboarding status. DO NOT change the tier here.
-      // The user will choose the tier fresh inside the Onboarding screen.
-      await api.patch('/settings', { onboarding_completed: false })
-
-      // Very small delay to ensure UI consistency before restarting
-      setTimeout(() => {
-        // @ts-ignore
-        window.api.restartApp()
-      }, 50)
-    } catch (error) {
-      console.error('Error triggering onboarding reset:', error)
-      // @ts-ignore
-      window.api.restartApp()
-    }
-  }
-
-  const loadSettings = async () => {
-    try {
-      const res = await api.get('/settings')
-      setSettings(res.data)
-      if (res.data.locale) {
-        setLocale(res.data.locale)
-      }
-
-      const statusRes = await api.get('/status')
-      setTiersConfig(statusRes.data.tiers_config)
-    } catch (error) {
-      console.error('Error loading settings:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const saveSettings = async (newSettings: Settings) => {
-    try {
-      const res = await api.patch('/settings', newSettings)
-      window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: newSettings }))
-      if (newSettings.ai_tier) localStorage.setItem('momai_ai_tier', newSettings.ai_tier)
-      if (newSettings.user_name) localStorage.setItem('momai_user_name', newSettings.user_name)
-      return res
-    } catch (error) {
-      console.error('Error saving settings:', error)
-      throw error
-    }
-  }
-
-  const updateField = async (field: string, value: any, saveNow = false): Promise<void> => {
-    const newState = { ...settings, [field]: value }
-    setSettings(newState)
-
-    if (field === 'locale') {
-      setLocale(value)
-    }
-
-    if (saveNow) {
-      await saveSettings(newState)
-    }
-  }
-
-  const handleDevMode = () => {
-    const current = localStorage.getItem('momai_dev_mode') === 'true'
-    localStorage.setItem('momai_dev_mode', String(!current))
-    window.dispatchEvent(new CustomEvent('momai_dev_mode_sync', { detail: !current }))
-  }
-
-  const resetOnboarding = async () => {
-    // @ts-ignore
-    window.api.resetWindowSize?.()
-
-    // We update the field and wait for the save to complete before closing
-    // This ensures the momai_settings_sync event is dispatched while component is still potentially active
-    // and that the API call isn't interrupted by unmounting.
-    await updateField('onboarding_completed', false, true)
-
-    // @ts-ignore
-    window.electron.ipcRenderer.send('reset-onboarding')
-
-    onClose()
-  }
+  }, [loadSettings, checkLocalStatus, loadGamingApps])
 
   return {
     t,
@@ -304,6 +334,7 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     tiersConfig,
     expandedLang,
     setExpandedLang,
+    isDevMode,
     changeTheme,
     checkLocalStatus,
     handleInstallEngine,
