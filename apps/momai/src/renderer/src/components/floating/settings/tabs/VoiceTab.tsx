@@ -1,5 +1,6 @@
 import { Settings, Tab } from '../../../../hooks/useSettingsCard'
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import { useTTS } from '../../../../hooks/useTTS'
 
 interface VoiceTabProps {
   t: any
@@ -12,6 +13,19 @@ interface VoiceTabProps {
 
 export const VoiceTab = React.memo(
   ({ t, settings, setActiveTab, expandedLang, setExpandedLang, updateField }: VoiceTabProps) => {
+    const { 
+      isReady, 
+      isSpeaking, 
+      currentEngine, 
+      availableVoices, 
+      setEngine, 
+      setVoice,
+      refreshVoices 
+    } = useTTS()
+
+    const [localEngine, setLocalEngine] = useState(currentEngine)
+    const [isLoadingVoices, setIsLoadingVoices] = useState(false)
+
     const voiceCatalog = [
       {
         langKey: 'settings.voice.lang.ptBR',
@@ -57,6 +71,50 @@ export const VoiceTab = React.memo(
         ]
       }
     ]
+
+    const engines = [
+      { id: 'kokoro' as const, name: 'Kokoro (Local)', description: 'Alta qualidade, requer Python' },
+      { id: 'edge-tts' as const, name: 'Edge TTS (Online)', description: 'Alta qualidade, requer internet' },
+      { id: 'say' as const, name: 'Say.js (Local)', description: 'Voz do sistema, sem dependências' }
+    ]
+
+    // Carregar vozes quando a engine muda
+    useEffect(() => {
+      const loadVoices = async () => {
+        setIsLoadingVoices(true)
+        try {
+          await refreshVoices(localEngine)
+        } catch (error) {
+          console.error('Erro ao carregar vozes:', error)
+        } finally {
+          setIsLoadingVoices(false)
+        }
+      }
+
+      if (isReady) {
+        loadVoices()
+      }
+    }, [localEngine, isReady, refreshVoices])
+
+    // Atualizar engine local quando a engine do hook mudar
+    useEffect(() => {
+      setLocalEngine(currentEngine)
+    }, [currentEngine])
+
+    // Atualizar configuração quando a engine muda
+    const handleEngineChange = async (engine: typeof localEngine) => {
+      setLocalEngine(engine)
+      await updateField('tts_engine', engine, true)
+      await setEngine(engine)
+      
+      // Resetar expandedLang quando mudar de engine
+      setExpandedLang(null)
+    }
+
+    const handleVoiceSelect = async (voiceId: string) => {
+      await updateField('tts_voice', voiceId, true)
+      await setVoice(voiceId)
+    }
 
     return (
       <div className="relative min-h-full flex flex-col gap-6">
@@ -160,60 +218,124 @@ export const VoiceTab = React.memo(
               </button>
             </div>
 
+            {/* Seleção de Engine TTS */}
+            <div className="space-y-3">
+              <label className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+                Engine de TTS
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {engines.map((engine) => (
+                  <button
+                    key={engine.id}
+                    onClick={() => handleEngineChange(engine.id)}
+                    className={`p-3 rounded-lg border text-xs font-medium transition-all ${
+                      localEngine === engine.id
+                        ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20'
+                        : 'bg-input border-border/40 text-text-muted hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="font-semibold">{engine.name}</span>
+                      <span className="text-[9px] opacity-70">{engine.description}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Catálogo de Vozes */}
             <div className="space-y-3">
               <label className="text-xs font-semibold text-text-muted uppercase tracking-wide">
                 {t('settings.voice.catalogLabel')}
               </label>
-              <div className="flex gap-3 h-[200px]">
-                <div className="w-[160px] space-y-1 overflow-y-auto custom-scrollbar pr-2">
-                  {voiceCatalog.map((catalog) => (
-                    <button
-                      key={catalog.code}
-                      onClick={() => setExpandedLang(catalog.code)}
-                      className={`w-full flex items-center justify-between p-2 rounded-lg border text-[11px] font-semibold uppercase tracking-wide transition-all ${expandedLang === catalog.code ? 'bg-accent/10 border-accent/40 text-accent' : 'bg-white/[0.03] border-transparent text-text-muted hover:bg-white/[0.05]'}`}
-                    >
-                      {t(catalog.langKey)}
-                    </button>
-                  ))}
+              
+              {isLoadingVoices ? (
+                <div className="flex items-center justify-center h-[200px] rounded-xl bg-white/[0.03] border border-border/40">
+                  <div className="text-xs text-text-muted">Carregando vozes...</div>
                 </div>
+              ) : localEngine === 'kokoro' ? (
+                <div className="flex gap-3 h-[200px]">
+                  <div className="w-[160px] space-y-1 overflow-y-auto custom-scrollbar pr-2">
+                    {voiceCatalog.map((catalog) => (
+                      <button
+                        key={catalog.code}
+                        onClick={() => setExpandedLang(catalog.code)}
+                        className={`w-full flex items-center justify-between p-2 rounded-lg border text-[11px] font-semibold uppercase tracking-wide transition-all ${expandedLang === catalog.code ? 'bg-accent/10 border-accent/40 text-accent' : 'bg-white/[0.03] border-transparent text-text-muted hover:bg-white/[0.05]'}`}
+                      >
+                        {t(catalog.langKey)}
+                      </button>
+                    ))}
+                  </div>
 
-                <div className="flex-1 p-2 rounded-xl bg-white/[0.03] border border-border/40 overflow-y-auto custom-scrollbar">
-                  <div className="grid grid-cols-1 gap-1.5">
-                    {voiceCatalog
-                      .find((c) => c.code === expandedLang)
-                      ?.voices.map((v) => (
-                        <button
-                          key={v.id}
-                          onClick={() => updateField('tts_voice', v.id, true)}
-                          className={`flex items-center justify-between p-2 rounded-lg border text-xs font-medium transition-all ${settings.tts_voice === v.id ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20' : 'bg-input border-border/40 text-text-muted hover:bg-white/[0.05]'}`}
-                        >
-                          <div className="flex flex-col items-start gap-0">
-                            <span>
-                              {v.suggested
-                                ? t('settings.voice.nameSuggested', { name: v.name })
-                                : v.name}
-                            </span>
-                            <span className="text-[9px] uppercase font-semibold tracking-wide opacity-60">
-                              {t(`settings.voice.trait.${v.trait}`)}
-                            </span>
-                          </div>
-                          {settings.tts_voice === v.id && (
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="3"
-                            >
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          )}
-                        </button>
-                      ))}
+                  <div className="flex-1 p-2 rounded-xl bg-white/[0.03] border border-border/40 overflow-y-auto custom-scrollbar">
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {voiceCatalog
+                        .find((c) => c.code === expandedLang)
+                        ?.voices.map((v) => (
+                          <button
+                            key={v.id}
+                            onClick={() => handleVoiceSelect(v.id)}
+                            className={`flex items-center justify-between p-2 rounded-lg border text-xs font-medium transition-all ${settings.tts_voice === v.id ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20' : 'bg-input border-border/40 text-text-muted hover:bg-white/[0.05]'}`}
+                          >
+                            <div className="flex flex-col items-start gap-0">
+                              <span>
+                                {v.suggested
+                                  ? t('settings.voice.nameSuggested', { name: v.name })
+                                  : v.name}
+                              </span>
+                              <span className="text-[9px] uppercase font-semibold tracking-wide opacity-60">
+                                {t(`settings.voice.trait.${v.trait}`)}
+                              </span>
+                            </div>
+                            {settings.tts_voice === v.id && (
+                              <svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                              >
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </button>
+                        ))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-2 rounded-xl bg-white/[0.03] border border-border/40 overflow-y-auto custom-scrollbar h-[200px]">
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {availableVoices.map((v) => (
+                      <button
+                        key={v.id}
+                        onClick={() => handleVoiceSelect(v.id)}
+                        className={`flex items-center justify-between p-2 rounded-lg border text-xs font-medium transition-all ${settings.tts_voice === v.id ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20' : 'bg-input border-border/40 text-text-muted hover:bg-white/[0.05]'}`}
+                      >
+                        <div className="flex flex-col items-start gap-0">
+                          <span>{v.name}</span>
+                          <span className="text-[9px] uppercase font-semibold tracking-wide opacity-60">
+                            {v.language} • {v.gender || 'voz'}
+                          </span>
+                        </div>
+                        {settings.tts_voice === v.id && (
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

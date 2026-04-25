@@ -13,6 +13,9 @@ export default defineConfig({
     build: {
       lib: {
         entry: resolve(__dirname, 'src/main/index.ts')
+      },
+      rollupOptions: {
+        external: ['edge-tts-universal', 'say']
       }
     }
   },

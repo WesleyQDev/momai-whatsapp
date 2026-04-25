@@ -420,12 +420,14 @@ export default function RemindersView() {
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-bg/80 backdrop-blur-md animate-in fade-in duration-300">
           <div className="absolute inset-0" onClick={() => setIsModalOpen(false)}></div>
-          <ReminderForm
-            initialData={formData}
-            onSubmit={handleSubmit}
-            onCancel={() => setIsModalOpen(false)}
-            variant="modal"
-          />
+          <div className="relative w-full max-w-md bg-zinc-800 border border-white/10 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <ReminderForm
+              initialData={formData}
+              onSubmit={handleSubmit}
+              onCancel={() => setIsModalOpen(false)}
+              variant="modal"
+            />
+          </div>
         </div>
       )}
     </div>

@@ -45,11 +45,13 @@
     "@lezer/highlight": "^1.2.3",
     "@uiw/react-codemirror": "^4.23.7",
     "axios": "^1.13.2",
+    "edge-tts-universal": "^1.4.0",
     "electron-log": "^5.4.3",
     "electron-updater": "6.8.3",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.12.0",
     "remark-gfm": "^4.0.1",
+    "say": "^0.16.0",
     "ws": "^8.20.0",
     "zod": "^4.3.6"
   },

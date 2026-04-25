@@ -16,6 +16,7 @@ import {
   isOnboardingCompleted,
   type PythonBackendStartOptions
 } from './python'
+import { getTTSService } from './ttsService'
 
 const PYTHON_SIDECAR_HOST = API_HOST
 const PYTHON_SIDECAR_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
@@ -296,6 +297,47 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
         requestId: req.requestId,
         ...result
       })
+      return
+    }
+
+    if (msg.type === 'tts-speak') {
+      const { requestId, text, voice, engine } = msg as any
+      logger.info(`[CoreManager] Received tts-speak IPC requestId=${requestId} engine=${engine} text="${text?.slice(0,40)}"`)
+      if (!requestId || !text) {
+        logger.warn('[CoreManager] tts-speak missing requestId or text')
+        return
+      }
+
+      try {
+        const ttsService = getTTSService()
+
+        if (voice) {
+          logger.info(`[CoreManager] Setting voice: ${voice}`)
+          ttsService.setVoice(voice)
+        }
+        if (engine) {
+          logger.info(`[CoreManager] Setting engine: ${engine}`)
+          ttsService.setEngine(engine)
+        }
+
+        logger.info('[CoreManager] Calling ttsService.speak()...')
+        await ttsService.speak(text, engine || 'edge-tts')
+        logger.info('[CoreManager] ttsService.speak() DONE')
+
+        child.send({
+          type: 'tts-speak-result',
+          requestId,
+          ok: true
+        })
+      } catch (error: any) {
+        logger.error(`[CoreManager] TTS speak failed: ${error?.message || error}`)
+        child.send({
+          type: 'tts-speak-result',
+          requestId,
+          ok: false,
+          error: error?.message || String(error)
+        })
+      }
     }
   })
 }

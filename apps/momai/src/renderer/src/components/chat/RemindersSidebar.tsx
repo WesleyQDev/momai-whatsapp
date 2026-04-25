@@ -211,12 +211,14 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
           <div className="flex-1 flex flex-col items-center justify-center p-4">
             {showQuickAdd ? (
               <div className="w-full flex-1 flex flex-col items-center justify-start pt-2">
-                <ReminderForm
-                  onSubmit={handleQuickAdd}
-                  onCancel={() => setShowQuickAdd(false)}
-                  isSaving={isSaving}
-                  variant="inline"
-                />
+                <div className="w-full bg-zinc-800/50 border border-white/10 rounded-2xl p-4">
+                  <ReminderForm
+                    onSubmit={handleQuickAdd}
+                    onCancel={() => setShowQuickAdd(false)}
+                    isSaving={isSaving}
+                    variant="inline"
+                  />
+                </div>
               </div>
             ) : !isBooting ? (
               <button
@@ -234,12 +236,14 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
           <div className="flex-1 overflow-y-auto custom-scrollbar px-2 space-y-1 pb-4 pt-2">
             {showQuickAdd && (
               <div className="mb-4 mt-2 px-1">
-                <ReminderForm
-                  onSubmit={handleQuickAdd}
-                  onCancel={() => setShowQuickAdd(false)}
-                  isSaving={isSaving}
-                  variant="inline"
-                />
+                <div className="bg-zinc-800/50 border border-white/10 rounded-2xl p-4">
+                  <ReminderForm
+                    onSubmit={handleQuickAdd}
+                    onCancel={() => setShowQuickAdd(false)}
+                    isSaving={isSaving}
+                    variant="inline"
+                  />
+                </div>
               </div>
             )}
             {(() => {
@@ -281,26 +285,28 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
                     )}
                     {editingReminder?.id === r.id ? (
                       <div className="mb-4 mt-2 px-1">
-                        <ReminderForm
-                          initialData={{
-                            id: editingReminder.id,
-                            title: editingReminder.title,
-                            content: editingReminder.content || '',
-                            newDate: editingReminder.scheduled_time.split('T')[0],
-                            newTime: editingReminder.scheduled_time.split('T')[1].slice(0, 5),
-                            repeat_interval: editingReminder.repeat_interval as any,
-                            repeat_value: editingReminder.repeat_value || 1,
-                            action_type: (editingReminder.action_type as any) || 'reminder',
-                            voice_response:
-                              editingReminder.voice_response !== undefined
-                                ? editingReminder.voice_response
-                                : true
-                          }}
-                          onSubmit={handleUpdate}
-                          onCancel={() => setEditingReminder(null)}
-                          isSaving={isSaving}
-                          variant="inline"
-                        />
+                        <div className="bg-zinc-800/50 border border-white/10 rounded-2xl p-4">
+                          <ReminderForm
+                            initialData={{
+                              id: editingReminder.id,
+                              title: editingReminder.title,
+                              content: editingReminder.content || '',
+                              newDate: editingReminder.scheduled_time.split('T')[0],
+                              newTime: editingReminder.scheduled_time.split('T')[1].slice(0, 5),
+                              repeat_interval: editingReminder.repeat_interval as any,
+                              repeat_value: editingReminder.repeat_value || 1,
+                              action_type: (editingReminder.action_type as any) || 'reminder',
+                              voice_response:
+                                editingReminder.voice_response !== undefined
+                                  ? editingReminder.voice_response
+                                  : true
+                            }}
+                            onSubmit={handleUpdate}
+                            onCancel={() => setEditingReminder(null)}
+                            isSaving={isSaving}
+                            variant="inline"
+                          />
+                        </div>
                       </div>
                     ) : (
                       <div

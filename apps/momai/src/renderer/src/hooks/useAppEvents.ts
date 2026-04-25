@@ -45,7 +45,14 @@ export function useAppEvents({ openSettings, handleGraphOption }: AppEventsProps
         // we speak the content.
         if (voice_response !== false) {
           import('../services/api').then(({ speakText }) => {
-            speakText(`${title}. ${body}`)
+            // Obter engine TTS atual das configurações
+            import('../services/ttsService').then(({ getTTSServiceRenderer }) => {
+              const ttsService = getTTSServiceRenderer()
+              ttsService.getConfig().then((configResponse) => {
+                const engine = configResponse.success ? configResponse.data?.engine : undefined
+                speakText(`${title}. ${body}`, engine)
+              })
+            })
           })
         }
       }

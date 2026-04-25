@@ -7,6 +7,7 @@ import { saveOnboardingCompleted, isOnboardingCompleted } from './python'
 import { startCoreBackend, shutdownCoreBackend, ensurePythonSidecar } from './coreManager'
 import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
+import { setupTTSHandlers, cleanupTTSHandlers } from './ttsIpcHandlers'
 import {
   createFolder,
   createNote,
@@ -213,6 +214,7 @@ app.whenReady().then(() => {
   })
 
   registerIpcHandlers()
+  setupTTSHandlers()
   setupUpdater()
 
   createWindow()
@@ -235,6 +237,7 @@ app.on('will-quit', async (event) => {
   logger.info('[Electron] will-quit event triggered. Iniciando shutdown...')
   globalShortcut.unregisterAll()
 
+  cleanupTTSHandlers()
   await shutdownCoreBackend()
 
   logger.info('[Electron] Shutdown completo.')

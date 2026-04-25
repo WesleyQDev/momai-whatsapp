@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   CalendarIcon,
   ClockIcon,
@@ -6,8 +6,7 @@ import {
   ChevronDownIcon,
   XMarkIcon,
   PlusIcon,
-  SpeakerWaveIcon,
-  CommandLineIcon
+  SpeakerWaveIcon
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import { useI18n } from '../../i18n'
@@ -53,19 +52,6 @@ export default function ReminderForm({
 }: ReminderFormProps) {
   const { t } = useI18n()
   const [isRepeatMenuOpen, setIsRepeatMenuOpen] = useState(false)
-  const [aiTier, setAiTier] = useState<string | null>(
-    () => localStorage.getItem('momai_ai_tier') || 'pro'
-  )
-
-  useEffect(() => {
-    const handleSync = (e: any) => {
-      if (e.detail?.ai_tier) {
-        setAiTier(e.detail.ai_tier)
-      }
-    }
-    window.addEventListener('momai_settings_sync', handleSync as any)
-    return () => window.removeEventListener('momai_settings_sync', handleSync as any)
-  }, [])
 
   const [formData, setFormData] = useState<ReminderFormData>({
     title: initialData?.title || '',
@@ -78,12 +64,7 @@ export default function ReminderForm({
     id: initialData?.id,
     note_id: initialData?.note_id,
     action_type: initialData?.action_type || 'reminder',
-    voice_response:
-      aiTier === 'lite'
-        ? false
-        : initialData?.voice_response !== undefined
-          ? initialData.voice_response
-          : true
+    voice_response: initialData?.voice_response !== undefined ? initialData.voice_response : true
   })
   const [isCreatingNote, setIsCreatingNote] = useState(false)
   const [showNoteSection, setShowNoteSection] = useState(!!initialData?.note_id)
@@ -133,249 +114,195 @@ export default function ReminderForm({
     }
   }
 
-  const containerClasses =
-    variant === 'modal'
-      ? 'relative w-full max-w-sm bg-card border border-white/10 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200'
-      : 'w-full bg-white/[0.03] border border-white/10 p-3 rounded-xl animate-in zoom-in-95 duration-200 backdrop-blur-xl shadow-2xl'
-
-  const paddingClasses = variant === 'modal' ? 'p-5' : ''
+  const isModal = variant === 'modal'
 
   return (
-    <form onSubmit={handleSubmit} className={containerClasses}>
-      <div className={`${paddingClasses} space-y-3`}>
-        <div className="space-y-1">
-          <div className="flex items-center justify-between gap-2">
-            <input
-              required
-              autoFocus
-              type="text"
-              placeholder={t('reminders.modal.fields.titlePlaceholder') || 'Título'}
-              className={`w-full bg-transparent border-none font-bold p-0 placeholder:text-text-muted/20 outline-none focus:ring-0 text-text ${variant === 'modal' ? 'text-lg' : 'text-sm'}`}
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            />
-            {variant === 'inline' && (
-              <button
-                type="button"
-                onClick={onCancel}
-                className="p-1 text-text/20 hover:text-text/50 transition-colors"
-              >
-                <XMarkIcon className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
+    <form onSubmit={handleSubmit} className="w-full">
+      <div className="space-y-3">
+        {/* Title */}
+        <input
+          required
+          autoFocus
+          type="text"
+          placeholder="O que devo lembrar?"
+          className="w-full bg-transparent border-b border-white/10 pb-2 placeholder:text-text-muted/50 outline-none focus:border-accent/50 text-text text-[15px] font-medium transition-colors"
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+        />
 
-        <div className="grid grid-cols-2 gap-2">
-          {/* Date Picker */}
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 bg-white/[0.03] rounded-lg border border-white/5 hover:border-accent/30 transition-colors cursor-pointer group"
-            onClick={handlePicker}
-          >
-            <CalendarIcon className="w-3.5 h-3.5 text-accent opacity-70 group-hover:opacity-100" />
-            <input
-              required
-              type="date"
-              className="bg-transparent border-none text-[10px] font-bold uppercase tracking-wider text-text outline-none p-0 focus:ring-0 w-full cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden [color-scheme:dark]"
-              value={formData.newDate}
-              onChange={(e) => setFormData({ ...formData, newDate: e.target.value })}
-            />
-          </div>
-
-          {/* Time Picker */}
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 bg-white/[0.03] rounded-lg border border-white/5 hover:border-accent/30 transition-colors cursor-pointer group"
-            onClick={handlePicker}
-          >
-            <ClockIcon className="w-3.5 h-3.5 text-accent opacity-70 group-hover:opacity-100" />
-            <input
-              required
-              type="time"
-              className="bg-transparent border-none text-[10px] font-bold uppercase tracking-wider text-text outline-none p-0 focus:ring-0 w-full cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden [color-scheme:dark]"
-              value={formData.newTime}
-              onChange={(e) => setFormData({ ...formData, newTime: e.target.value })}
-            />
-          </div>
-        </div>
-
-        {/* Repeat Toggle */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <button
-              type="button"
-              onClick={() => setIsRepeatMenuOpen(!isRepeatMenuOpen)}
-              className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 bg-white/[0.03] rounded-lg border transition-all hover:border-accent/30 ${isRepeatMenuOpen ? 'border-accent/50 ring-1 ring-accent/20' : 'border-white/5'}`}
-            >
-              <div className="flex items-center gap-2">
-                <ArrowPathIcon
-                  className={`w-3.5 h-3.5 ${formData.repeat_interval ? 'text-emerald-500' : 'text-text-muted/40'}`}
-                />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-text/80">
-                  {formData.repeat_interval
-                    ? t(`reminders.repeat.${formData.repeat_interval}`) || formData.repeat_interval
-                    : t('reminders.repeat.none') || 'Não repetir'}
-                </span>
-              </div>
-              <ChevronDownIcon
-                className={`w-3 h-3 text-text-muted/40 transition-transform ${isRepeatMenuOpen ? 'rotate-180' : ''}`}
-              />
-            </button>
-
-            {isRepeatMenuOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setIsRepeatMenuOpen(false)}
-                ></div>
-                <div className="absolute top-full mt-1 left-0 w-full bg-card/95 border border-white/10 rounded-xl shadow-2xl py-1.5 z-20 animate-in fade-in slide-in-from-top-1 duration-200 backdrop-blur-xl max-h-40 overflow-y-auto custom-scrollbar">
-                  {[
-                    { id: null, label: t('reminders.repeat.none') || 'Não repetir' },
-                    { id: 'minutes', label: t('reminders.repeat.minutes') || 'Minutos' },
-                    { id: 'hours', label: t('reminders.repeat.hours') || 'Horas' },
-                    { id: 'days', label: t('reminders.repeat.days') || 'Dias' },
-                    { id: 'weeks', label: t('reminders.repeat.weeks') || 'Semanas' },
-                    { id: 'months', label: t('reminders.repeat.months') || 'Meses' }
-                  ].map((opt) => (
-                    <button
-                      key={opt.id || 'none'}
-                      type="button"
-                      className={`w-full px-4 py-1.5 text-left text-[10px] font-bold uppercase tracking-widest flex items-center justify-between transition-colors ${formData.repeat_interval === opt.id ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text hover:bg-white/5'}`}
-                      onClick={() => {
-                        setFormData({
-                          ...formData,
-                          repeat_interval: opt.id as any,
-                          repeat_value: opt.id ? formData.repeat_value || 1 : 1
-                        })
-                        setIsRepeatMenuOpen(false)
-                      }}
-                    >
-                      <span>{opt.label}</span>
-                      {formData.repeat_interval === opt.id && (
-                        <CheckCircleSolid className="w-3 h-3" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          {formData.repeat_interval && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-accent/10 rounded-lg border border-accent/20 animate-in fade-in slide-in-from-left-2 duration-300">
-              <input
-                type="number"
-                min="1"
-                max="99"
-                className="w-8 bg-transparent border-none p-0 text-[10px] font-bold text-accent outline-none focus:ring-0 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                value={formData.repeat_value}
-                onFocus={(e) => e.currentTarget.select()}
-                onChange={(e) =>
-                  setFormData({ ...formData, repeat_value: parseInt(e.target.value) || 1 })
-                }
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Note Area */}
-        {showNoteSection ? (
-          <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
-            <div className="flex items-center gap-1.5 px-1 opacity-40">
-              <DocumentTextIcon className="w-3 h-3" />
-              <span className="text-[9px] font-bold uppercase tracking-widest">
-                {t('reminders.modal.fields.attachedNoteActive') || 'Anotação'}
-              </span>
-            </div>
-            <textarea
-              placeholder={
-                t('reminders.modal.fields.detailsLabel') || 'Escreva os detalhes aqui...'
-              }
-              className={`w-full bg-white/[0.03] border border-white/5 rounded-lg p-3 placeholder:text-text-muted/20 outline-none focus:ring-1 focus:ring-accent/20 text-text/80 resize-none text-[11px] min-h-[80px] transition-all`}
-              value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-            />
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={handleToggleNote}
-            disabled={isCreatingNote}
-            className="w-full flex items-center justify-center gap-2 py-2 bg-white/[0.03] border border-dashed border-white/10 rounded-lg text-text-muted/60 hover:text-accent hover:border-accent/30 hover:bg-accent/5 transition-all text-[10px] font-bold uppercase tracking-widest group"
-          >
-            <PlusIcon
-              className={`w-3.5 h-3.5 transition-transform group-hover:rotate-90 ${isCreatingNote ? 'animate-spin' : ''}`}
-            />
-            {isCreatingNote
-              ? '...'
-              : t('reminders.modal.fields.attachNote') || 'Adicionar Anotação'}
-          </button>
-        )}
-
-        {/* Action Type & Voice Toggle */}
-        <div className="flex flex-col gap-2 pt-1 border-t border-white/5 mt-1">
-          <div className="flex items-center gap-2">
+        {/* Type Selector - Moved to top */}
+        <div className="flex items-center gap-2.5">
+          <span className="text-[10px] text-text-muted/60 uppercase tracking-wider shrink-0">Tipo</span>
+          <div className="flex items-center bg-white/[0.03] rounded-lg p-0.5 flex-1">
             <button
               type="button"
               onClick={() => setFormData({ ...formData, action_type: 'reminder' })}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border transition-all text-[10px] font-bold uppercase tracking-widest ${formData.action_type === 'reminder' ? 'bg-accent/10 border-accent/30 text-accent' : 'bg-white/[0.03] border-white/5 text-text-muted hover:text-text/80'}`}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-all ${formData.action_type === 'reminder' ? 'bg-accent/15 text-accent' : 'text-text-muted/60 hover:text-text-muted'}`}
             >
-              <SpeakerWaveIcon className="w-3.5 h-3.5" />
-              Lembrete
+              <SpeakerWaveIcon className="w-3 h-3" />
+              Notificação
             </button>
             <button
               type="button"
               onClick={() => setFormData({ ...formData, action_type: 'cron' })}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border transition-all text-[10px] font-bold uppercase tracking-widest ${formData.action_type === 'cron' ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' : 'bg-white/[0.03] border-white/5 text-text-muted hover:text-text/80'}`}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-all ${formData.action_type === 'cron' ? 'bg-indigo-500/15 text-indigo-400' : 'text-text-muted/60 hover:text-text-muted'}`}
             >
-              <CommandLineIcon className="w-3.5 h-3.5" />
-              Agendador
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 002 2v12a2 2 0 002 2z" />
+              </svg>
+              Ação
             </button>
           </div>
+        </div>
 
-          {aiTier !== 'lite' && (
-            <div className="flex items-center justify-between px-3 py-2 bg-white/[0.03] rounded-lg border border-white/5 animate-in slide-in-from-top-1 duration-200">
-              <div className="flex items-center gap-2">
-                <SpeakerWaveIcon
-                  className={`w-3.5 h-3.5 ${formData.voice_response ? 'text-accent' : 'text-text-muted/40'}`}
-                />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-text/80">
-                  {formData.action_type === 'cron'
-                    ? t('reminders.modal.fields.voicePrompt') || 'Ouvir voz do prompt'
-                    : t('reminders.modal.fields.voiceReminder') || 'Ouvir voz do lembrete'}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setFormData({ ...formData, voice_response: !formData.voice_response })
-                }
-                className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${formData.voice_response ? 'bg-accent' : 'bg-white/10'}`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${formData.voice_response ? 'translate-x-4' : 'translate-x-0'}`}
-                />
-              </button>
+        {/* Date & Time */}
+        <div className="flex items-center gap-3">
+          <div
+            className="flex items-center gap-2 flex-1 cursor-pointer group"
+            onClick={handlePicker}
+          >
+            <CalendarIcon className="w-4 h-4 text-text-muted/60 group-hover:text-accent transition-colors shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <span className="text-[9px] text-text-muted/60 uppercase tracking-wider leading-none mb-0.5">Quando</span>
+              <input
+                required
+                type="date"
+                className="bg-transparent border-none text-sm text-text/90 outline-none p-0 focus:ring-0 cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden [color-scheme:dark]"
+                value={formData.newDate}
+                onChange={(e) => setFormData({ ...formData, newDate: e.target.value })}
+              />
             </div>
+          </div>
+
+          <div
+            className="flex items-center gap-2 flex-1 cursor-pointer group"
+            onClick={handlePicker}
+          >
+            <ClockIcon className="w-4 h-4 text-text-muted/60 group-hover:text-accent transition-colors shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <span className="text-[9px] text-text-muted/60 uppercase tracking-wider leading-none mb-0.5">Hora</span>
+              <input
+                required
+                type="time"
+                className="bg-transparent border-none text-sm text-text/90 outline-none p-0 focus:ring-0 cursor-pointer [&::-webkit-calendar-picker-indicator]:hidden [color-scheme:dark]"
+                value={formData.newTime}
+                onChange={(e) => setFormData({ ...formData, newTime: e.target.value })}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Repeat */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsRepeatMenuOpen(!isRepeatMenuOpen)}
+            className="flex items-center gap-2 text-sm text-text-muted/70 hover:text-text-muted transition-colors w-full"
+          >
+            <ArrowPathIcon className={`w-3.5 h-3.5 ${formData.repeat_interval ? 'text-emerald-500' : ''}`} />
+            <span className="truncate">
+              {formData.repeat_interval
+                ? `A cada ${formData.repeat_value} ${t(`reminders.repeat.${formData.repeat_interval}`) || formData.repeat_interval}`
+                : 'Sem repetição'}
+            </span>
+            <ChevronDownIcon className={`w-3 h-3 ml-auto shrink-0 transition-transform ${isRepeatMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {isRepeatMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setIsRepeatMenuOpen(false)} />
+              <div className="absolute top-full mt-1 left-0 w-full bg-zinc-900 border border-white/10 rounded-xl shadow-2xl py-1 z-20 animate-in fade-in slide-in-from-top-1">
+                {[
+                  { id: null, label: 'Sem repetição' },
+                  { id: 'minutes', label: 'Minutos' },
+                  { id: 'hours', label: 'Horas' },
+                  { id: 'days', label: 'Dias' },
+                  { id: 'weeks', label: 'Semanas' },
+                  { id: 'months', label: 'Meses' }
+                ].map((opt) => (
+                  <button
+                    key={opt.id || 'none'}
+                    type="button"
+                    className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between transition-colors ${formData.repeat_interval === opt.id ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text hover:bg-white/5'}`}
+                    onClick={() => {
+                      setFormData({
+                        ...formData,
+                        repeat_interval: opt.id as any,
+                        repeat_value: opt.id ? formData.repeat_value || 1 : 1
+                      })
+                      setIsRepeatMenuOpen(false)
+                    }}
+                  >
+                    <span>{opt.label}</span>
+                    {formData.repeat_interval === opt.id && (
+                      <CheckCircleSolid className="w-4 h-4" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </div>
+
+        {/* Note */}
+        {!showNoteSection ? (
+          <button
+            type="button"
+            onClick={handleToggleNote}
+            disabled={isCreatingNote}
+            className="flex items-center gap-1.5 text-xs text-text-muted/60 hover:text-accent transition-colors"
+          >
+            <PlusIcon className={`w-3.5 h-3.5 ${isCreatingNote ? 'animate-spin' : ''}`} />
+            {isCreatingNote ? 'Criando...' : 'Adicionar nota'}
+          </button>
+        ) : (
+          <div className="space-y-2 animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <DocumentTextIcon className="w-3.5 h-3.5 text-text-muted/60" />
+                <span className="text-xs text-text-muted/70">Nota</span>
+              </div>
+              <button type="button" onClick={() => setShowNoteSection(false)} className="text-text-muted/50 hover:text-text-muted">
+                <XMarkIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <textarea
+              placeholder="Detalhes..."
+              className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 placeholder:text-text-muted/40 outline-none focus:ring-1 focus:ring-accent/20 text-text/90 resize-none text-sm min-h-[60px]"
+              value={formData.content}
+              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+            />
+          </div>
+        )}
       </div>
 
-      <div
-        className={`${variant === 'modal' ? 'px-5 py-4 bg-white/[0.02] border-t border-white/5 flex rounded-b-2xl' : 'mt-4 flex'} gap-2`}
-      >
+      {/* Voice toggle */}
+      <div className="flex items-center justify-between py-2">
+        <span className="text-xs text-text-muted/70">Ler em voz alta</span>
+        <button
+          type="button"
+          onClick={() => setFormData({ ...formData, voice_response: !formData.voice_response })}
+          className={`relative inline-flex h-5 w-9 cursor-pointer rounded-full transition-colors ${formData.voice_response ? 'bg-accent' : 'bg-white/10'}`}
+        >
+          <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${formData.voice_response ? 'translate-x-4' : ''}`} />
+        </button>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/5">
         <button
           type="button"
           onClick={onCancel}
-          className={`${variant === 'modal' ? 'flex-1 py-2' : 'flex-none px-4'} text-[10px] font-bold text-text-muted hover:text-text uppercase tracking-widest transition-all rounded-xl hover:bg-white/5 border border-transparent`}
+          className="px-3 py-2 text-xs text-text-muted/70 hover:text-text-muted rounded-lg hover:bg-white/5 transition-colors"
         >
-          {t('common.cancel') || 'Cancelar'}
+          Cancelar
         </button>
         <button
           type="submit"
           disabled={isSaving || !formData.title.trim()}
-          className={`${variant === 'modal' ? 'flex-[2] py-2' : 'flex-1 py-1.5'} bg-accent text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:brightness-110 shadow-lg shadow-accent/10 transition-all active:scale-[0.98] disabled:opacity-50`}
+          className="flex-1 bg-accent text-white rounded-xl text-xs font-medium py-2 hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-40"
         >
-          {isSaving ? '...' : t('common.save') || 'Salvar'}
+          {isSaving ? 'Salvando...' : 'Salvar'}
         </button>
       </div>
     </form>

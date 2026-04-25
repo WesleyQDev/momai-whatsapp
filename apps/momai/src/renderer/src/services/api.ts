@@ -197,7 +197,20 @@ export async function stopVoice(): Promise<void> {
   if (!response.ok) throw new Error('Erro ao parar voz')
 }
 
-export async function speakText(text: string): Promise<void> {
+import { getTTSServiceRenderer } from './ttsService'
+
+export async function speakText(text: string, engine?: string): Promise<void> {
+  // Usar serviço TTS local do Node.js quando não for Kokoro
+  if (engine && engine !== 'kokoro') {
+    const ttsService = getTTSServiceRenderer()
+    const response = await ttsService.speak(text, engine as any)
+    if (!response.success) {
+      throw new Error(response.error || 'Erro ao falar')
+    }
+    return
+  }
+
+  // Fallback para o backend Python (Kokoro)
   const response = await fetch(`${API_URL}/chat/speak`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

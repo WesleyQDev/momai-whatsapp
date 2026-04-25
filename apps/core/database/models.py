@@ -26,7 +26,8 @@ class Settings(Base):
     local_backend = Column(String, default="auto")  # auto, cuda, vulkan, cpu
     auto_start_llm = Column(Boolean, default=True)
 
-    # Audio
+    # Audio / TTS
+    tts_engine = Column(String, default="kokoro")  # kokoro, edge-tts, say
     tts_voice = Column(String, default="pf_dora")
     tts_enabled = Column(Boolean, default=True)
     wake_word_enabled = Column(Boolean, default=False)
@@ -119,6 +120,10 @@ def init_db():
         if "auto_start_llm" not in cols:
             conn.execute(
                 text("ALTER TABLE settings ADD COLUMN auto_start_llm BOOLEAN DEFAULT 1")
+            )
+        if "tts_engine" not in cols:
+            conn.execute(
+                text("ALTER TABLE settings ADD COLUMN tts_engine TEXT DEFAULT 'kokoro'")
             )
 
         conn.commit()

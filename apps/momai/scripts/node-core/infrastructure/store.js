@@ -25,6 +25,7 @@ function defaultStore() {
       ai_model: 'Qwen 3.5',
       local_backend: 'auto',
       auto_start_llm: true,
+      tts_engine: 'kokoro',
       tts_voice: 'pf_dora',
       tts_enabled: true,
       wake_word_enabled: false,
@@ -59,23 +60,36 @@ function defaultStore() {
 
 function loadStore() {
   if (!fs.existsSync(STORE_FILE)) return defaultStore()
+  const raw = fs.readFileSync(STORE_FILE, 'utf8')
+  if (!raw || !raw.trim()) return defaultStore()
+
+  let parsed
   try {
-    const raw = fs.readFileSync(STORE_FILE, 'utf8')
-    const parsed = JSON.parse(raw)
-    return {
-      ...defaultStore(),
-      ...parsed,
-      settings: { ...defaultStore().settings, ...(parsed.settings || {}) }
-    }
+    parsed = JSON.parse(raw)
   } catch (err) {
-    error('[Store] Failed to load store:', err)
-    return defaultStore()
+    error('[Store] Failed to parse store JSON, attempting recovery:', err)
+    try {
+      const fixed = raw.replace(/[\u0000-\u001F]+/g, ' ').replace(/,(\s*[}\]])/g, '$1')
+      parsed = JSON.parse(fixed)
+      warn('[Store] Recovered store via JSON cleanup')
+    } catch (err2) {
+      error('[Store] Store recovery failed, using defaults:', err2)
+      return defaultStore()
+    }
+  }
+
+  return {
+    ...defaultStore(),
+    ...parsed,
+    settings: { ...defaultStore().settings, ...(parsed.settings || {}) }
   }
 }
 
 function saveStore(store) {
   try {
-    fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), 'utf8')
+    const tmp = STORE_FILE + '.tmp.' + Date.now()
+    fs.writeFileSync(tmp, JSON.stringify(store, null, 2), 'utf8')
+    fs.renameSync(tmp, STORE_FILE)
   } catch (err) {
     error('[Store] Failed to save store:', err)
   }

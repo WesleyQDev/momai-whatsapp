@@ -461,7 +461,19 @@ export function useChatActions({
         // Small delay to ensure backend TTS worker has fully stopped
         await new Promise((resolve) => setTimeout(resolve, 150))
         setSpeakingMessageId(msg.id)
-        await speakTextApi(cleanText)
+        
+        // Obter engine TTS atual
+        let engine: string | undefined
+        try {
+          const { getTTSServiceRenderer } = await import('../services/ttsService')
+          const ttsService = getTTSServiceRenderer()
+          const configResponse = await ttsService.getConfig()
+          if (configResponse.success && configResponse.data) {
+            engine = configResponse.data.engine
+          }
+        } catch {}
+        
+        await speakTextApi(cleanText, engine)
       } catch (err) {
         console.error('Erro ao sintetizar voz:', err)
         setSpeakingMessageId(null)

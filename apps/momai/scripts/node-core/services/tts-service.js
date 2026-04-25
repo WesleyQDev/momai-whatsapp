@@ -16,17 +16,32 @@ function broadcast(payload) {
 const ensurePythonPending = new Map()
 let ensurePythonMsgId = 0
 
+// ttsSpeak pending (for non-kokoro engines via main process)
+const ttsSpeakPending = new Map()
+let ttsSpeakMsgId = 0
+
 if (typeof process.send === 'function') {
   process.on('message', (msg) => {
     if (!msg || typeof msg !== 'object') return
-    if (msg.type !== 'ensure-python-result') return
 
-    const pending = ensurePythonPending.get(msg.requestId)
-    if (!pending) return
+    if (msg.type === 'ensure-python-result') {
+      const pending = ensurePythonPending.get(msg.requestId)
+      if (!pending) return
 
-    ensurePythonPending.delete(msg.requestId)
-    if (msg.ok) pending.resolve(msg.baseUrl || PYTHON_BASE_URL)
-    else pending.reject(new Error(msg.error || 'Python sidecar unavailable'))
+      ensurePythonPending.delete(msg.requestId)
+      if (msg.ok) pending.resolve(msg.baseUrl || PYTHON_BASE_URL)
+      else pending.reject(new Error(msg.error || 'Python sidecar unavailable'))
+      return
+    }
+
+    if (msg.type === 'tts-speak-result') {
+      const pending = ttsSpeakPending.get(msg.requestId)
+      if (!pending) return
+
+      ttsSpeakPending.delete(msg.requestId)
+      if (msg.ok) pending.resolve()
+      else pending.reject(new Error(msg.error || 'TTS speak failed'))
+    }
   })
 }
 
@@ -68,6 +83,45 @@ async function triggerAutoTts(text) {
   }
   if (cleaned.length < 2) {
     debug('[NodeCore][Voice] Auto TTS skipped: empty/short text')
+    return
+  }
+
+  // Use main process TTSService for non-kokoro engines (edge-tts, say)
+  const ttsEngine = store.settings.tts_engine || 'kokoro'
+  console.log(`[NodeCore][Voice] triggerAutoTts engine=${ttsEngine} text="${cleaned.slice(0,40)}"`)
+  if (ttsEngine !== 'kokoro') {
+    if (typeof process.send !== 'function') {
+      warn('[NodeCore][Voice] Auto TTS skipped: no IPC available for engine', ttsEngine)
+      return
+    }
+    ttsSpeakMsgId += 1
+    const requestId = `tts-speak-${ttsSpeakMsgId}-${Date.now()}`
+    const promise = new Promise((resolve, reject) => {
+      ttsSpeakPending.set(requestId, { resolve, reject })
+    })
+    console.log(`[NodeCore][Voice] Sending IPC tts-speak engine=${ttsEngine}`)
+    process.send({
+      type: 'tts-speak',
+      requestId,
+      text: cleaned,
+      voice: store.settings.tts_voice,
+      engine: ttsEngine
+    })
+    const timeout = setTimeout(() => {
+      const p = ttsSpeakPending.get(requestId)
+      if (p) {
+        ttsSpeakPending.delete(requestId)
+        p.reject(new Error('TTS speak timeout'))
+      }
+    }, 30000)
+    try {
+      await promise
+      console.log(`[NodeCore][Voice] Auto TTS via ${ttsEngine} completed`)
+    } catch (err) {
+      warn(`[NodeCore][Voice] Auto TTS via ${ttsEngine} failed:`, err?.message || err)
+    } finally {
+      clearTimeout(timeout)
+    }
     return
   }
 
