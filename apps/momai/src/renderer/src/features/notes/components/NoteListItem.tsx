@@ -1,5 +1,5 @@
 import React from 'react'
-import { InboxIcon } from '@heroicons/react/24/outline'
+import { FileText } from 'lucide-react'
 import { useI18n } from '../../../i18n'
 import { NoteSummary } from '../../../services/api'
 
@@ -59,18 +59,16 @@ export default function NoteListItem({
         onAuxClick={(e) => {
           if (e.button === 1) onSelect(note.id, true, true)
         }}
-        className={`w-full text-left px-3 py-2 rounded-lg transition-all group relative border border-transparent ${
+        className={`w-full text-left px-2 py-1.5 rounded-md transition-all group relative flex items-center gap-2 ${
           isActive
-            ? 'bg-accent/10 text-accent font-semibold'
-            : 'text-text-muted hover:bg-white/5 hover:text-text'
+            ? 'bg-accent/10 text-accent'
+            : 'text-text-muted/80 hover:bg-white/5 hover:text-text'
         }`}
       >
-        <div className="text-[13px] truncate flex items-center gap-2">
-          <InboxIcon className="w-4 h-4 opacity-30 group-hover:opacity-60" />
-          {note.title || t('notes.untitled')}
-        </div>
+        <FileText className="w-3.5 h-3.5 opacity-50 group-hover:opacity-80 shrink-0" />
+        <span className="text-xs truncate flex-1">{note.title || t('notes.untitled')}</span>
         {isActive && (
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-3/5 bg-accent rounded-r-full"></div>
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4/5 bg-accent rounded-r-full"></div>
         )}
       </button>
     </div>

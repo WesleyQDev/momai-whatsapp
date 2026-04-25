@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import {
-  TrashIcon,
-  ArrowsPointingOutIcon,
-  ArrowsPointingInIcon,
-  ChevronRightIcon,
-  PencilIcon,
-  FolderIcon,
-  PlusIcon
-} from '@heroicons/react/24/outline'
+  Trash2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ChevronRight,
+  Pencil,
+  Folder
+} from 'lucide-react'
 import { useI18n } from '../../i18n'
 import ConfirmationCard from '../../components/floating/ConfirmationCard'
 import SlashCommandMenu from '../../components/notes/SlashCommandMenu'
@@ -19,6 +18,7 @@ import { useEditorExtensions, SlashMenuState } from './hooks/useEditorExtensions
 import NoteSidebar from './components/NoteSidebar'
 import NoteEditor from './components/NoteEditor'
 import NoteToolbar from './components/NoteToolbar'
+import NoteGraphView from './components/NoteGraphView'
 import { NoteSummary } from '../../services/api'
 
 export default function NotesView() {
@@ -104,6 +104,7 @@ export default function NotesView() {
     id: string
     type: 'note' | 'folder'
   } | null>(null)
+  const [showGraph, setShowGraph] = useState(false)
 
   // Refs
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -432,7 +433,7 @@ export default function NotesView() {
             }
             className="text-left px-3 py-1.5 text-xs text-text/80 hover:bg-white/5 hover:text-text flex items-center gap-2 transition-all"
           >
-            <PencilIcon className="w-3.5 h-3.5 opacity-40" />
+            <Pencil className="w-3.5 h-3.5 opacity-40" />
             Renomear
           </button>
 
@@ -444,7 +445,7 @@ export default function NotesView() {
               }}
               className="text-left px-3 py-1.5 text-xs text-text/80 hover:bg-white/5 hover:text-text flex items-center gap-2 transition-all"
             >
-              <FolderIcon className="w-3.5 h-3.5 opacity-40" />
+              <Folder className="w-3.5 h-3.5 opacity-40" />
               Abrir local do arquivo
             </button>
           )}
@@ -459,7 +460,7 @@ export default function NotesView() {
             }}
             className="text-left px-3 py-1.5 text-xs text-red-500/70 hover:bg-red-500/10 hover:text-red-500 flex items-center gap-2 transition-all"
           >
-            <TrashIcon className="w-3.5 h-3.5 opacity-40" />
+            <Trash2 className="w-3.5 h-3.5 opacity-40" />
             Excluir
           </button>
         </div>
@@ -486,6 +487,7 @@ export default function NotesView() {
             onSelectNote={handleSelectNote}
             onDeleteNote={handleDeleteNoteWrapper}
             onFocusTitle={focusAndSelectTitle}
+            onShowGraph={() => setShowGraph(true)}
             t={t}
           />
 
@@ -494,7 +496,7 @@ export default function NotesView() {
             {activeId && (
               <div className="hidden lg:flex items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-text-muted/30">
                 <span>Notes</span>
-                <ChevronRightIcon className="w-2.5 h-2.5" />
+                <ChevronRight className="w-2.5 h-2.5" />
                 <span
                   onClick={focusAndSelectTitle}
                   className="text-text-muted/50 cursor-text hover:text-text-muted/70 transition-colors"
@@ -524,7 +526,7 @@ export default function NotesView() {
                 className="p-1.5 text-text-muted/30 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-all"
                 title={t('notes.deleteTooltip')}
               >
-                <TrashIcon className="w-3.5 h-3.5" />
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -613,6 +615,14 @@ export default function NotesView() {
           options={['Confirmar', 'Cancelar']}
           onSelect={(opt) => (opt === 'Confirmar' ? confirmDelete() : setDeleteConfirmTarget(null))}
           onCancel={() => setDeleteConfirmTarget(null)}
+        />
+      )}
+
+      {/* Graph View */}
+      {showGraph && (
+        <NoteGraphView
+          notes={notes}
+          onClose={() => setShowGraph(false)}
         />
       )}
     </div>

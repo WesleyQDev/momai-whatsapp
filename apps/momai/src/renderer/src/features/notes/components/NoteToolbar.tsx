@@ -1,11 +1,12 @@
 import React from 'react'
 import {
-  ArrowsPointingOutIcon,
-  ArrowsPointingInIcon,
-  TrashIcon,
-  PlusIcon,
-  ChevronRightIcon
-} from '@heroicons/react/24/outline'
+  PanelLeftClose,
+  PanelLeftOpen,
+  Trash2,
+  Plus,
+  ChevronRight,
+  Network
+} from 'lucide-react'
 import { useI18n } from '../../../i18n'
 
 interface Tab {
@@ -27,6 +28,7 @@ interface NoteToolbarProps {
   onSelectNote: (noteId: string, forceNewTab: boolean, selectTitle: boolean) => void
   onDeleteNote: (id?: string) => void
   onFocusTitle: () => void
+  onShowGraph: () => void
   t: (key: string) => string
 }
 
@@ -44,6 +46,7 @@ export default function NoteToolbar({
   onSelectNote,
   onDeleteNote,
   onFocusTitle,
+  onShowGraph,
   t
 }: NoteToolbarProps) {
   return (
@@ -53,7 +56,7 @@ export default function NoteToolbar({
         className={`p-1.5 transition-all rounded-md ${isSidebarCollapsed ? 'text-accent bg-accent/10' : 'text-text-muted hover:text-text hover:bg-white/5'}`}
         title="Toggle Sidebar"
       >
-        <ArrowsPointingOutIcon className="w-4 h-4" />
+        {isSidebarCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
       </button>
 
       <div className="h-4 w-px bg-border/20 mx-1"></div>
@@ -82,7 +85,7 @@ export default function NoteToolbar({
                   isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 }`}
               >
-                <PlusIcon className="w-3 h-3 rotate-45" />
+                <Plus className="w-3 h-3 rotate-45" />
               </button>
             </div>
           )
@@ -96,9 +99,18 @@ export default function NoteToolbar({
           className="p-1 text-text-muted/40 hover:text-text hover:bg-white/10 rounded-md transition-all ml-1 mb-1"
           title={t('notes.newNote')}
         >
-          <PlusIcon className="w-4 h-4" />
+          <Plus className="w-4 h-4" />
         </button>
       )}
+
+      {/* Graph View Button */}
+      <button
+        onClick={onShowGraph}
+        className="p-1.5 text-text-muted hover:text-accent hover:bg-accent/10 rounded-md transition-all ml-2"
+        title="Visualização de Grafo"
+      >
+        <Network className="w-4 h-4" />
+      </button>
     </div>
   )
 }

@@ -1,10 +1,5 @@
 import React from 'react'
-import {
-  ChevronRightIcon,
-  ChevronDownIcon,
-  FolderIcon,
-  InboxIcon
-} from '@heroicons/react/24/outline'
+import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react'
 import { useI18n } from '../../../i18n'
 import { NoteSummary } from '../../../services/api'
 import NoteListItem from './NoteListItem'
@@ -88,24 +83,28 @@ export default function FolderTree({
               <button
                 onClick={() => onToggleFolder(folderPath)}
                 onContextMenu={(e) => onContextMenu(e, folderPath, 'folder')}
-                className={`w-full text-left px-2 py-1.5 rounded-lg transition-all flex items-center gap-2 group ${
+                className={`w-full text-left px-2 py-1 rounded-md transition-all flex items-center gap-1.5 group ${
                   dragOverFolder === folderPath
-                    ? 'bg-accent/20 text-accent scale-[1.02]'
-                    : 'text-text-muted hover:bg-white/5 hover:text-text'
+                    ? 'bg-accent/20 text-accent'
+                    : 'text-text-muted/80 hover:bg-white/5 hover:text-text'
                 }`}
               >
-                <div className="w-4 flex justify-center">
+                <div className="w-4 flex justify-center shrink-0">
                   {isExpanded ? (
-                    <ChevronDownIcon className="w-3 h-3 opacity-40 group-hover:opacity-100" />
+                    <ChevronDown className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100" />
                   ) : (
-                    <ChevronRightIcon className="w-3 h-3 opacity-40 group-hover:opacity-100" />
+                    <ChevronRight className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100" />
                   )}
                 </div>
-                <FolderIcon className="w-4 h-4 text-accent/60" />
-                <span className="text-[12.5px] font-medium truncate flex-1 leading-none">
+                {isExpanded ? (
+                  <FolderOpen className="w-4 h-4 text-accent/70 shrink-0" />
+                ) : (
+                  <Folder className="w-4 h-4 text-accent/50 shrink-0" />
+                )}
+                <span className="text-xs font-medium truncate flex-1 leading-none">
                   {folderName}
                 </span>
-                <span className="text-[10px] opacity-30 group-hover:opacity-60">
+                <span className="text-[10px] opacity-40 group-hover:opacity-70 shrink-0">
                   {folderNotes.length}
                 </span>
               </button>

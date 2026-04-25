@@ -41,7 +41,8 @@ export function useEditorExtensions() {
       { tag: tags.list, class: 'cm-list-marker' },
       { tag: tags.atom, class: 'cm-checkbox' },
       { tag: tags.link, textDecoration: 'underline', color: accentColor, opacity: '0.9' },
-      { tag: tags.url, textDecoration: 'underline', opacity: '0.5' }
+      { tag: tags.url, textDecoration: 'underline', opacity: '0.5' },
+      { tag: tags.tagName, class: 'cm-wiki-link' }
     ])
   }, [])
 
@@ -173,7 +174,18 @@ export function useEditorExtensions() {
           borderLeftWidth: '2px'
         },
         '.cm-activeLine': { backgroundColor: 'transparent' },
-        '.cm-gutters': { display: 'none' }
+        '.cm-gutters': { display: 'none' },
+        '.cm-wiki-link': {
+          color: 'rgb(var(--accent)) !important',
+          backgroundColor: 'rgb(var(--accent) / 0.15)',
+          borderRadius: '4px',
+          padding: '1px 4px',
+          textDecoration: 'none',
+          cursor: 'pointer'
+        },
+        '.cm-wiki-link:hover': {
+          backgroundColor: 'rgb(var(--accent) / 0.25)'
+        }
       }),
       EditorView.updateListener.of((update) => {
         if (update.docChanged || update.selectionSet) {
@@ -218,6 +230,29 @@ export function useEditorExtensions() {
             const decorator = new MatchDecorator({
               regexp: /(?<=^[ \t]*)[-*+]/gm,
               decoration: Decoration.mark({ class: 'cm-bullet-conceal' })
+            })
+            return decorator.createDeco(view)
+          }
+        },
+        {
+          decorations: (v) => v.decorations
+        }
+      ),
+      ViewPlugin.fromClass(
+        class {
+          decorations
+          constructor(view: EditorView) {
+            this.decorations = this.getDecorations(view)
+          }
+          update(update: ViewUpdate) {
+            if (update.docChanged || update.selectionSet) {
+              this.decorations = this.getDecorations(update.view)
+            }
+          }
+          getDecorations(view: EditorView) {
+            const decorator = new MatchDecorator({
+              regexp: /\[\[([^\]]+)\]\]/g,
+              decoration: Decoration.mark({ class: 'cm-wiki-link' })
             })
             return decorator.createDeco(view)
           }
