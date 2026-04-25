@@ -1,6 +1,13 @@
 ---
 name: launcher
 description: Abre programas, aplicativos e pastas no computador. Busca no menu iniciar, desktop, Program Files e PATH do sistema. Use quando o usuario pedir para abrir, executar ou iniciar qualquer programa ou pasta.
+icon: RocketLaunch
+tags:
+  - sistema
+  - launcher
+  - arquivos
+author: MomAI Team
+version: 1.0.0
 intents:
   - abrir
   - abra

@@ -12,9 +12,9 @@ export default function HelpCard({ onClose }: HelpCardProps) {
         'Digite suas mensagens na caixa de texto e pressione Enter ou clique no botão de enviar para conversar com a IA.'
     },
     {
-      title: 'Extensões',
+      title: 'Skills',
       content:
-        'Acesse a loja de extensões para adicionar novas funcionalidades à MomAI. Cada extensão pode adicionar agentes, ferramentas ou integrações.'
+        'Acesse a loja de skills para adicionar novas capacidades à MomAI. Cada skill pode adicionar agentes, ferramentas ou integrações.'
     },
     {
       title: 'Notas',

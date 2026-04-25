@@ -23,7 +23,7 @@ export default function DynamicDashboard({
   extensionId,
   schema = [],
   title = 'Painel Dinâmico',
-  description = 'Interface gerada automaticamente pela extensão'
+  description = 'Interface gerada automaticamente pela skill'
 }: DynamicDashboardProps) {
   const [data, setData] = useState<Record<string, any>>({})
   const [inputs, setInputs] = useState<Record<string, string>>({})
@@ -423,7 +423,7 @@ export default function DynamicDashboard({
         {schema.length === 0 && (
           <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30 italic py-20">
             <CubeTransparentIcon className="w-16 h-16 mb-4" />
-            <p>Nenhum componente definido no manifesto desta extensao.</p>
+            <p>Nenhum componente definido no manifesto desta skill.</p>
           </div>
         )}
       </div>

@@ -321,6 +321,7 @@ export interface Extension {
   author?: string
   is_official?: boolean
   download_url?: string
+  tags?: string[]
   manifest?: any
 }
 

@@ -1,6 +1,13 @@
 ---
 name: weather
 description: Previsao do tempo e informacoes meteorologicas. Use quando o usuario perguntar sobre clima, temperatura ou previsao do tempo.
+icon: Sun
+tags:
+  - utilidade
+  - clima
+  - previsão
+author: MomAI Team
+version: 1.0.0
 intents:
   - clima
   - tempo

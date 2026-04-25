@@ -1,6 +1,13 @@
 ---
 name: memory
 description: Salva e consulta memoria de longo prazo em notas locais. Use para anotar, guardar ou recuperar informacoes relevantes.
+icon: BookOpen
+tags:
+  - memória
+  - notas
+  - conhecimento
+author: MomAI Team
+version: 1.0.0
 intents:
   - memoria
   - anote

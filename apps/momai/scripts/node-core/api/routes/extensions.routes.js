@@ -78,8 +78,19 @@ function createExtensionsRoutes(context) {
 
     if (pathname === '/extensions/toggle' && req.method === 'POST') {
       const payload = await readJsonBody(req).catch(() => ({}))
-      const found = store.extensions.find((item) => item.id === payload.id)
-      if (found) found.enabled = Boolean(payload.enabled)
+      let found = store.extensions.find((item) => item.id === payload.id)
+      if (!found) {
+        // Allow toggling builtins/packaged by creating a store entry
+        found = {
+          id: payload.id,
+          name: payload.id,
+          description: '',
+          category: 'builtin',
+          enabled: true
+        }
+        store.extensions.push(found)
+      }
+      found.enabled = Boolean(payload.enabled)
       saveStore()
       skillRegistry.loadExtensions()
       sendJson(res, 200, { ok: true })
@@ -118,7 +129,7 @@ function createExtensionsRoutes(context) {
             context: {},
             manifest: skill.manifest,
             args: actionPayload,
-            toolName: actionName,
+            toolName: actionName
           })
           sendJson(res, 200, result || { ok: true })
           return true

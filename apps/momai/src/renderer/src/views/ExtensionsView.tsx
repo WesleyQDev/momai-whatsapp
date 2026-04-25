@@ -1,21 +1,19 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   fetchExtensions,
-  fetchExtensionRegistry,
   installExtension,
   toggleExtension,
   uninstallExtension,
   Extension
 } from '../services/api'
 import {
-  PuzzlePieceIcon,
+  WrenchIcon,
   CheckBadgeIcon,
   CloudArrowDownIcon,
   ArrowPathIcon,
-  ShieldCheckIcon,
   CpuChipIcon,
   GlobeAltIcon,
   MusicalNoteIcon,
@@ -26,65 +24,395 @@ import {
   TrashIcon,
   ArrowLeftIcon,
   ExclamationCircleIcon,
-  ArrowUpRightIcon
+  ArrowUpRightIcon,
+  SparklesIcon,
+  SunIcon,
+  CloudIcon,
+  MagnifyingGlassIcon,
+  ClockIcon,
+  BookOpenIcon,
+  RocketLaunchIcon,
+  StarIcon,
+  UserIcon,
+  TagIcon,
+  BoltIcon,
+  ShieldCheckIcon,
+  ShoppingBagIcon,
+  ChevronRightIcon,
+  InformationCircleIcon,
+  PuzzlePieceIcon,
+  ChevronLeftIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline'
 import { useI18n } from '../i18n'
 
-// Mapeamento de ícones para exibição (Nomes do HeroIcons ou Alias)
-const iconMap: Record<string, any> = {
-  Cpu: <CpuChipIcon />,
-  CpuChip: <CpuChipIcon />,
-  Search: <GlobeAltIcon />,
-  GlobeAlt: <GlobeAltIcon />,
-  Music: <MusicalNoteIcon />,
-  MusicalNote: <MusicalNoteIcon />,
-  Calendar: <CalendarIcon />,
-  MessageSquare: <CommandLineIcon />,
-  CommandLine: <CommandLineIcon />,
-  FolderOpen: <PuzzlePieceIcon />, // Fallback aprimorado
-  Puzzle: <PuzzlePieceIcon />,
-  PuzzlePiece: <PuzzlePieceIcon />,
-  Sparkles: <PuzzlePieceIcon />, // Temporário até importar SparklesIcon se necessário
-  Variable: <CpuChipIcon />
+/* ─── Icon Registry ─── */
+const iconMap: Record<string, React.ElementType> = {
+  Cpu: CpuChipIcon,
+  CpuChip: CpuChipIcon,
+  Search: MagnifyingGlassIcon,
+  MagnifyingGlass: MagnifyingGlassIcon,
+  GlobeAlt: GlobeAltIcon,
+  Music: MusicalNoteIcon,
+  MusicalNote: MusicalNoteIcon,
+  Calendar: CalendarIcon,
+  Clock: ClockIcon,
+  MessageSquare: CommandLineIcon,
+  CommandLine: CommandLineIcon,
+  FolderOpen: PuzzlePieceIcon,
+  Puzzle: PuzzlePieceIcon,
+  PuzzlePiece: PuzzlePieceIcon,
+  Sparkles: SparklesIcon,
+  Variable: CpuChipIcon,
+  Sun: SunIcon,
+  Cloud: CloudIcon,
+  BookOpen: BookOpenIcon,
+  RocketLaunch: RocketLaunchIcon,
+  Wrench: WrenchIcon,
+  Star: StarIcon,
+  User: UserIcon,
+  Tag: TagIcon,
+  Bolt: BoltIcon,
+  Shield: ShieldCheckIcon
 }
 
-import SecurityConfirm from '../components/floating/SecurityConfirm'
+function getSkillGradient(name: string) {
+  const gradients = [
+    'from-violet-600 to-purple-500',
+    'from-rose-600 to-pink-500',
+    'from-cyan-600 to-blue-500',
+    'from-emerald-600 to-teal-500',
+    'from-amber-600 to-orange-500',
+    'from-fuchsia-600 to-pink-500',
+    'from-indigo-600 to-violet-500',
+    'from-lime-600 to-green-500',
+    'from-sky-600 to-cyan-500',
+    'from-red-600 to-rose-500'
+  ]
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return gradients[Math.abs(hash) % gradients.length]
+}
 
+function getSkillIcon(name: string) {
+  return iconMap[name] || PuzzlePieceIcon
+}
+
+/* ─── Star Rating ─── */
+function StarRating({ value = 4.8 }: { value?: number }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <StarIcon
+          key={i}
+          className={`w-3 h-3 ${i <= Math.round(value) ? 'text-amber-400 fill-amber-400' : 'text-zinc-600'}`}
+        />
+      ))}
+      <span className="text-[10px] text-zinc-500 ml-1 font-medium">{value}</span>
+    </div>
+  )
+}
+
+/* ─── Carousel Banner ─── */
+function FeaturedCarousel({
+  skills,
+  onSelect
+}: {
+  skills: Extension[]
+  onSelect: (s: Extension) => void
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(true)
+
+  const checkScroll = () => {
+    if (!scrollRef.current) return
+    const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current
+    setCanScrollLeft(scrollLeft > 0)
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10)
+  }
+
+  useEffect(() => {
+    checkScroll()
+    const el = scrollRef.current
+    el?.addEventListener('scroll', checkScroll)
+    return () => el?.removeEventListener('scroll', checkScroll)
+  }, [skills])
+
+  const scroll = (dir: 'left' | 'right') => {
+    scrollRef.current?.scrollBy({ left: dir === 'left' ? -320 : 320, behavior: 'smooth' })
+  }
+
+  if (skills.length === 0) return null
+
+  return (
+    <div className="relative group">
+      {canScrollLeft && (
+        <button
+          onClick={() => scroll('left')}
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-full bg-zinc-800/90 border border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-700 shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+        >
+          <ChevronLeftIcon className="w-4 h-4" />
+        </button>
+      )}
+      {canScrollRight && (
+        <button
+          onClick={() => scroll('right')}
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 p-1.5 rounded-full bg-zinc-800/90 border border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-700 shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+        >
+          <ChevronRightIcon className="w-4 h-4" />
+        </button>
+      )}
+
+      <div ref={scrollRef} className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
+        {skills.map((skill) => {
+          const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece')
+          return (
+            <div
+              key={skill.id}
+              onClick={() => onSelect(skill)}
+              className="shrink-0 w-72 h-40 rounded-xl overflow-hidden cursor-pointer group/card relative border border-zinc-700/50 hover:border-zinc-600 transition-all hover:-translate-y-0.5 hover:shadow-lg"
+            >
+              <div
+                className={`absolute inset-0 bg-gradient-to-br ${getSkillGradient(skill.name)} opacity-30`}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/40 to-transparent" />
+              <div className="absolute inset-0 p-4 flex flex-col justify-between">
+                <div className="flex items-start justify-between">
+                  <div className="p-2 rounded-lg bg-zinc-800/80 backdrop-blur-sm border border-zinc-700/50">
+                    {React.createElement(IconComponent, { className: 'w-5 h-5 text-white' })}
+                  </div>
+                  {skill.is_official && (
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-500/30 rounded text-[9px] text-emerald-400 font-semibold">
+                      <CheckBadgeIcon className="w-3 h-3" />
+                      Oficial
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white mb-0.5">{skill.name}</h3>
+                  <p className="text-[10px] text-zinc-400 line-clamp-2 leading-relaxed">
+                    {skill.description}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/* ─── Skill Card ─── */
+function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extension) => void }) {
+  const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece')
+  return (
+    <div
+      onClick={() => onSelect(skill)}
+      className="group bg-zinc-800/60 border border-zinc-700/50 rounded-xl overflow-hidden cursor-pointer hover:border-zinc-600 hover:bg-zinc-800/80 transition-all hover:-translate-y-0.5 hover:shadow-lg"
+    >
+      <div className="p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div className={`p-2.5 rounded-xl bg-gradient-to-br ${getSkillGradient(skill.name)}`}>
+            {React.createElement(IconComponent, { className: 'w-5 h-5 text-white' })}
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            {skill.is_official ? (
+              <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded text-[8px] text-emerald-400 font-semibold">
+                <CheckBadgeIcon className="w-3 h-3" />
+                Oficial
+              </div>
+            ) : (
+              <div className="px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-[8px] text-amber-400 font-semibold">
+                Terceiro
+              </div>
+            )}
+            {!skill.enabled && (
+              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-500">
+                Off
+              </span>
+            )}
+          </div>
+        </div>
+        <h3 className="text-sm font-semibold text-zinc-200 mb-1">{skill.name}</h3>
+        <p className="text-[11px] text-zinc-500 line-clamp-2 leading-relaxed mb-3">
+          {skill.description}
+        </p>
+        <div className="flex items-center justify-between pt-2.5 border-t border-zinc-700/50">
+          <div className="flex items-center gap-1.5">
+            <UserIcon className="w-3 h-3 text-zinc-600" />
+            <span className="text-[10px] text-zinc-500">{skill.author || 'Desconhecido'}</span>
+          </div>
+          <StarRating value={skill.is_official ? 5 : 4.5} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Skill Detail (inline, keeps navbar) ─── */
+function SkillDetailView({
+  skill,
+  onBack,
+  onInstall,
+  onToggle,
+  onUninstall,
+  installing
+}: {
+  skill: Extension
+  onBack: () => void
+  onInstall: (s: Extension) => void
+  onToggle: (s: Extension) => void
+  onUninstall: (s: Extension) => void
+  installing: string | null
+}) {
+  const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece')
+  const isInstalled = skill.category !== 'builtin'
+  const isBuiltin = skill.category === 'builtin'
+
+  return (
+    <div className="animate-fade-in">
+      {/* Banner */}
+      <div className="relative -mx-6 -mt-5 mb-6">
+        <div className={`h-40 bg-gradient-to-br ${getSkillGradient(skill.name)} opacity-30`} />
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/50 to-transparent" />
+      </div>
+
+      {/* Back button */}
+      <button
+        onClick={onBack}
+        className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-xs font-medium mb-4 transition-colors"
+      >
+        <ArrowLeftIcon className="w-4 h-4" />
+        Voltar para lista
+      </button>
+
+      {/* Title section */}
+      <div className="flex items-start gap-4 mb-6">
+        <div
+          className={`p-3 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name)} shadow-lg shrink-0`}
+        >
+          {React.createElement(IconComponent, { className: 'w-8 h-8 text-white' })}
+        </div>
+        <div className="flex-1 pt-1">
+          <h1 className="text-2xl font-bold text-white">{skill.name}</h1>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="text-sm text-zinc-400">{skill.author || 'Desconhecido'}</span>
+            <span className="text-zinc-700">•</span>
+            <span className="text-sm text-zinc-500">v{skill.version || '1.0.0'}</span>
+            <StarRating value={skill.is_official ? 5 : 4.5} />
+          </div>
+        </div>
+        {/* Status badge */}
+        <div className="shrink-0">
+          {isBuiltin ? (
+            <div className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-[10px] font-semibold text-zinc-400 uppercase tracking-wide">
+              Integrada
+            </div>
+          ) : isInstalled ? (
+            <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">
+              Instalada
+            </div>
+          ) : (
+            <div className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-[10px] font-semibold text-zinc-400 uppercase tracking-wide">
+              Disponível
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-3 mb-6">
+        {!isBuiltin && !isInstalled ? (
+          <button
+            onClick={() => onInstall(skill)}
+            disabled={installing === skill.id}
+            className="flex items-center gap-2 px-6 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-500 disabled:opacity-50 transition-colors"
+          >
+            {installing === skill.id ? (
+              <ArrowPathIcon className="w-4 h-4 animate-spin" />
+            ) : (
+              <CloudArrowDownIcon className="w-4 h-4" />
+            )}
+            {installing === skill.id ? 'Instalando...' : 'Instalar'}
+          </button>
+        ) : (
+          <button
+            onClick={() => onToggle(skill)}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+              skill.enabled
+                ? 'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20'
+                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20'
+            }`}
+          >
+            <PowerIcon className="w-4 h-4" />
+            {skill.enabled ? 'Desativar' : 'Ativar'}
+          </button>
+        )}
+        {!isBuiltin && isInstalled && (
+          <button
+            onClick={() => onUninstall(skill)}
+            className="p-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-red-400 hover:border-red-500/30 transition-colors"
+          >
+            <TrashIcon className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Tags */}
+      {skill.tags && skill.tags.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-6">
+          {skill.tags.map((tag: string) => (
+            <span
+              key={tag}
+              className="px-3 py-1 rounded-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-400 font-medium"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Description */}
+      <div className="mb-8">
+        <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wide mb-3">Sobre</h2>
+        <div className="prose prose-invert prose-sm max-w-none prose-headings:text-zinc-200 prose-p:text-zinc-400 prose-a:text-violet-400">
+          {skill.manifest?.readme || skill.manifest?.instructions ? (
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {skill.manifest?.readme || skill.manifest?.instructions}
+            </ReactMarkdown>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-zinc-600">
+              <ExclamationCircleIcon className="w-10 h-10 mb-3" />
+              <p className="text-sm">Nenhuma documentação detalhada encontrada para esta skill.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Main View ─── */
 export default function ExtensionsView() {
   const { t } = useI18n()
   const location = useLocation()
-  const [installed, setInstalled] = useState<Extension[]>([])
-  const [available, setAvailable] = useState<any[]>([])
+  const [allSkills, setAllSkills] = useState<Extension[]>([])
   const [loading, setLoading] = useState(true)
   const [installing, setInstalling] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'store' | 'installed' | 'system'>('installed')
-  const [selectedExt, setSelectedExt] = useState<Extension | any | null>(null)
-
-  // Security Modal State
-  const [securityModal, setSecurityModal] = useState<{
-    isOpen: boolean
-    ext?: Extension
-  }>({ isOpen: false })
+  const [activeTab, setActiveTab] = useState<'installed' | 'store'>('installed')
+  const [selectedSkill, setSelectedSkill] = useState<Extension | null>(null)
+  const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const loadData = async () => {
     setLoading(true)
     try {
-      const [installedData, registryData] = await Promise.all([
-        fetchExtensions(),
-        fetchExtensionRegistry()
-      ])
-      setInstalled(installedData)
-      setAvailable(registryData)
-
-      // Sync selection if it's already open
-      if (selectedExt) {
-        const updated =
-          installedData.find((e) => e.id === selectedExt.id) ||
-          registryData.find((e) => e.id === selectedExt.id)
-        if (updated) setSelectedExt(updated)
-      }
+      const data = await fetchExtensions()
+      setAllSkills(data)
     } catch (err) {
-      console.error('Erro ao carregar extensões:', err)
+      console.error('Erro ao carregar skills:', err)
     } finally {
       setLoading(false)
     }
@@ -96,15 +424,13 @@ export default function ExtensionsView() {
 
   useEffect(() => {
     const tab = (location.state as any)?.tab
-    if (tab === 'store' || tab === 'installed' || tab === 'system') {
-      setActiveTab(tab)
-    }
+    if (tab === 'store' || tab === 'installed') setActiveTab(tab)
   }, [location.state])
 
-  const handleInstall = async (ext: any) => {
+  const handleInstall = async (ext: Extension) => {
     setInstalling(ext.id)
     try {
-      await installExtension(ext.id, ext.download_url)
+      await installExtension(ext.id, ext.download_url || '')
       await loadData()
     } catch (err) {
       alert(t('extensions.errors.install', { error: String(err) }))
@@ -114,28 +440,8 @@ export default function ExtensionsView() {
   }
 
   const handleToggle = async (ext: Extension) => {
-    const newStatus = !ext.enabled
-
-    if (newStatus && ext.category !== 'builtin') {
-      setSecurityModal({ isOpen: true, ext })
-      return
-    }
-
     try {
-      await toggleExtension(ext.id, newStatus)
-      await loadData()
-    } catch (err) {
-      alert(t('extensions.errors.toggle', { error: String(err) }))
-    }
-  }
-
-  const confirmToggle = async () => {
-    const ext = securityModal.ext
-    if (!ext) return
-
-    try {
-      await toggleExtension(ext.id, true)
-      setSecurityModal({ isOpen: false })
+      await toggleExtension(ext.id, !ext.enabled)
       await loadData()
     } catch (err) {
       alert(t('extensions.errors.toggle', { error: String(err) }))
@@ -143,349 +449,195 @@ export default function ExtensionsView() {
   }
 
   const handleUninstall = async (ext: Extension) => {
-    if (!window.confirm(t('extensions.confirmUninstall', { name: ext.name }))) {
-      return
-    }
-
+    if (!window.confirm(t('extensions.confirmUninstall', { name: ext.name }))) return
     try {
       await uninstallExtension(ext.id)
-      setSelectedExt(null)
+      setSelectedSkill(null)
       await loadData()
     } catch (err) {
       alert(t('extensions.errors.uninstall', { error: String(err) }))
     }
   }
 
-  const isInstalled = (id: string) => installed.some((ext) => ext.id === id)
+  const installedSkills = useMemo(
+    () => allSkills.filter((s) => s.category !== 'builtin'),
+    [allSkills]
+  )
+  const builtinSkills = useMemo(
+    () => allSkills.filter((s) => s.category === 'builtin'),
+    [allSkills]
+  )
+  const storeSkills = useMemo(
+    () =>
+      allSkills.filter(
+        (s) => s.category !== 'builtin' && !installedSkills.some((i) => i.id === s.id)
+      ),
+    [allSkills, installedSkills]
+  )
 
-  const systemExtensions = installed.filter((ext) => ext.category === 'builtin')
-  const userExtensions = installed.filter((ext) => ext.category !== 'builtin')
+  const allTags = useMemo(() => {
+    const tags = new Set<string>()
+    allSkills.forEach((s) => s.tags?.forEach((tag: string) => tags.add(tag)))
+    return Array.from(tags).sort()
+  }, [allSkills])
 
   const currentList =
-    activeTab === 'installed'
-      ? userExtensions
-      : activeTab === 'system'
-        ? systemExtensions
-        : available.filter((ext) => !isInstalled(ext.id)).map((ext) => ({ ...ext, isStore: true }))
+    activeTab === 'installed' ? [...builtinSkills, ...installedSkills] : storeSkills
+
+  const filteredList = useMemo(() => {
+    let list = currentList
+    if (selectedTag) list = list.filter((s) => s.tags?.includes(selectedTag))
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      list = list.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.description.toLowerCase().includes(q) ||
+          s.tags?.some((t: string) => t.toLowerCase().includes(q))
+      )
+    }
+    return list
+  }, [currentList, selectedTag, searchQuery])
+
+  const featuredSkills = useMemo(() => {
+    const candidates = activeTab === 'store' ? storeSkills : allSkills
+    return candidates.slice(0, 6)
+  }, [activeTab, storeSkills, allSkills])
 
   return (
-    <div className="flex-1 h-full bg-bg overflow-hidden flex flex-col font-sans">
-      {/* Header Area (Compact Desktop) */}
-      <div
-        className={`p-2 flex items-center justify-between border-b border-white/5 bg-bg/80 backdrop-blur-xl z-20 flex-shrink-0 ${selectedExt ? 'opacity-40 pointer-events-none grayscale' : ''}`}
-      >
+    <div className="flex-1 h-full bg-zinc-900 overflow-hidden flex flex-col">
+      {/* ─── Header (always visible) ─── */}
+      <div className="px-6 py-3 flex items-center justify-between border-b border-zinc-800 bg-zinc-900 shrink-0">
         <div className="flex items-center gap-4">
-          <h1 className="text-xs font-black text-text flex items-center gap-2 tracking-tight uppercase px-2 py-1">
-            <PuzzlePieceIcon className="w-4 h-4 text-accent" />
-            <span className="hidden sm:inline">{t('extensions.header.title')}</span>
-          </h1>
+          <div className="flex items-center gap-2">
+            <WrenchIcon className="w-4 h-4 text-violet-400" />
+            <h1 className="text-sm font-bold text-zinc-200 uppercase tracking-wide">Skills</h1>
+          </div>
 
-          {/* Navigation Tabs (Icons only) */}
-          <div className="flex items-center gap-1 p-0.5 bg-white/5 border border-white/5 rounded-lg">
+          <div className="flex items-center gap-1 p-0.5 bg-zinc-800 rounded-lg border border-zinc-700">
             <button
               onClick={() => setActiveTab('installed')}
-              title={t('extensions.tabs.installed')}
-              className={`p-1.5 rounded-md flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
                 activeTab === 'installed'
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-text-muted hover:text-text hover:bg-white/5'
+                  ? 'bg-violet-600 text-white shadow-sm'
+                  : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
               <Squares2X2Icon className="w-3.5 h-3.5" />
-              <span className="text-[9px] font-black">{userExtensions.length}</span>
+              Minhas Skills
             </button>
-
             <button
               onClick={() => setActiveTab('store')}
-              title={t('extensions.tabs.store')}
-              className={`p-1.5 rounded-md ${
+              className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
                 activeTab === 'store'
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-text-muted hover:text-text hover:bg-white/5'
+                  ? 'bg-violet-600 text-white shadow-sm'
+                  : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
-              <CloudArrowDownIcon className="w-3.5 h-3.5" />
-            </button>
-
-            <button
-              onClick={() => setActiveTab('system')}
-              title={t('extensions.tabs.system')}
-              className={`p-1.5 rounded-md ${
-                activeTab === 'system'
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-text-muted hover:text-text hover:bg-white/5'
-              }`}
-            >
-              <CpuChipIcon className="w-3.5 h-3.5" />
+              <ShoppingBagIcon className="w-3.5 h-3.5" />
+              Loja
             </button>
           </div>
         </div>
 
-        <button
-          onClick={loadData}
-          className="p-1 px-2 flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-md text-text-muted hover:text-text transition-colors"
-        >
-          <ArrowPathIcon className="w-3.5 h-3.5" />
-          <span className="text-[8px] font-black uppercase tracking-widest hidden md:inline">
-            Sync
-          </span>
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar skills..."
+              className="pl-8 pr-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 focus:bg-zinc-800/80 w-48 transition-all"
+            />
+          </div>
+          <button
+            onClick={loadData}
+            className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition-colors"
+          >
+            <ArrowPathIcon className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* List Section */}
-        <div
-          className={`flex flex-col ${selectedExt ? 'w-[320px] border-r border-white/5' : 'w-full'}`}
-        >
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
-            <div
-              className={`grid gap-3 ${selectedExt ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'}`}
-            >
-              {currentList.map((ext: any) => {
-                const isSelected = selectedExt?.id === ext.id
-                const isSystem = activeTab === 'system'
-                const isStore = activeTab === 'store'
-
-                return (
-                  <div
-                    key={ext.id}
-                    onClick={() => setSelectedExt(ext)}
-                    className={`group relative p-3.5 rounded-xl bg-card border cursor-pointer flex flex-col gap-3 overflow-hidden
-                      ${isSelected ? 'border-accent bg-accent/[0.02] ring-2 ring-accent/5' : 'border-border/5 hover:border-white/10 hover:bg-white/[0.01]'}
-                      ${!ext.enabled && !isStore ? 'opacity-60 grayscale-[0.5]' : ''}
-                    `}
-                  >
-                    <div className="flex justify-between items-start z-10">
-                      <div
-                        className={`p-2 rounded-lg bg-bg border border-white/5 ${isSelected ? 'border-accent/20' : ''}`}
-                      >
-                        {iconMap[ext.icon || ext.manifest?.icon] ? (
-                          React.cloneElement(iconMap[ext.icon || ext.manifest?.icon], {
-                            className: 'w-5 h-5 text-accent'
-                          })
-                        ) : (
-                          <PuzzlePieceIcon className="w-5 h-5 text-accent/50" />
-                        )}
-                      </div>
-
-                      <div className="flex flex-col items-end gap-1">
-                        {ext.is_official || ext.author === 'WesleyQDev' ? (
-                          <div className="flex items-center gap-1 px-1.5 py-0.5 bg-accent/10 border border-accent/20 rounded-md text-[8px] text-accent font-black uppercase tracking-widest text-center">
-                            <CheckBadgeIcon className="w-2.5 h-2.5" />
-                            {t('extensions.badges.trusted')}
-                          </div>
-                        ) : (
-                          <div className="px-1.5 py-0.5 bg-orange-500/10 border border-orange-500/20 rounded-md text-[8px] text-orange-400 font-black uppercase tracking-widest">
-                            {t('extensions.badges.thirdParty')}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="z-10">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <h3 className="font-black text-xs text-text tracking-tight flex items-center gap-2">
-                          {ext.name}
-                        </h3>
-                        {!ext.enabled && !isStore && (
-                          <span className="text-[7px] font-black uppercase tracking-tighter px-1 py-0.5 rounded-md bg-red-500/10 text-red-500 border border-red-500/20">
-                            OFF
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-text-muted/60 line-clamp-2 leading-relaxed font-medium">
-                        {(ext.description || t('extensions.store.noDescription')).replace(
-                          /[\\"]/g,
-                          ''
-                        )}
-                      </p>
-                    </div>
-
-                    {!selectedExt && (
-                      <div className="mt-auto pt-2 flex items-center justify-between z-10">
-                        <div className="flex flex-col">
-                          <span className="text-[8px] text-text-muted/30 uppercase font-black tracking-widest">
-                            {ext.category || 'EXTENSÃO'}
-                          </span>
-                        </div>
-                        <div className="flex items-center text-accent/30 group-hover:text-accent transition-colors">
-                          <ArrowUpRightIcon className="w-3 h-3" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-
-            {currentList.length === 0 && !loading && (
-              <div className="flex flex-col items-center justify-center p-12 text-center gap-4 opacity-20 grayscale">
-                <div className="p-5 rounded-full bg-white/5 border border-white/5">
-                  <PuzzlePieceIcon className="w-10 h-10 text-text-muted" />
-                </div>
-                <div className="space-y-0.5">
-                  <p className="text-xs font-black uppercase tracking-[0.2em]">
-                    {t('extensions.installed.emptyTitle')}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Details Section */}
-        <div
-          className={`flex-1 bg-card/20 backdrop-blur-xl overflow-hidden flex flex-col border-l border-white/5 ${selectedExt ? 'translate-x-0' : 'translate-x-full absolute'}`}
-        >
-          {selectedExt && (
+      {/* ─── Content ─── */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-6xl mx-auto px-6 py-5">
+          {selectedSkill ? (
+            /* ─── Detail View ─── */
+            <SkillDetailView
+              skill={selectedSkill}
+              onBack={() => setSelectedSkill(null)}
+              onInstall={handleInstall}
+              onToggle={handleToggle}
+              onUninstall={handleUninstall}
+              installing={installing}
+            />
+          ) : (
+            /* ─── List View ─── */
             <>
-              {/* Detail Header (Slim) */}
-              <div className="p-3 border-b border-white/5 bg-white/[0.02] relative overflow-hidden flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 relative z-10">
-                  <button
-                    onClick={() => setSelectedExt(null)}
-                    title={t('common.back')}
-                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-text-muted hover:text-text ring-1 ring-white/5 active:bg-accent active:text-white"
-                  >
-                    <ArrowLeftIcon className="w-3.5 h-3.5" />
-                  </button>
-
-                  <div className="p-2 rounded-xl bg-bg border border-white/10 shadow-lg shrink-0">
-                    {iconMap[selectedExt.icon || selectedExt.manifest?.icon] ? (
-                      React.cloneElement(iconMap[selectedExt.icon || selectedExt.manifest?.icon], {
-                        className: 'w-5 h-5 text-accent'
-                      })
-                    ) : (
-                      <PuzzlePieceIcon className="w-5 h-5 text-accent/50" />
-                    )}
-                  </div>
-
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-sm font-black tracking-tight text-text uppercase leading-none">
-                        {selectedExt.name}
-                      </h2>
-                      <span className="text-[8px] font-black text-accent tracking-widest px-1.5 py-0.5 bg-accent/10 rounded-md border border-accent/20">
-                        V{selectedExt.version || selectedExt.manifest?.version || '0.1.0'}
-                      </span>
-                    </div>
-                    <p className="text-[9px] font-black text-text-muted/70 uppercase tracking-tighter mt-0.5">
-                      {selectedExt.author || selectedExt.manifest?.author || 'UNKNOWN'}
-                    </p>
-                  </div>
+              {/* Featured Carousel */}
+              {featuredSkills.length > 0 && !searchQuery && (
+                <div className="mb-6">
+                  <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
+                    {activeTab === 'store' ? 'Destaques' : 'Suas Skills'}
+                  </h2>
+                  <FeaturedCarousel skills={featuredSkills} onSelect={setSelectedSkill} />
                 </div>
+              )}
 
-                <div className="flex items-center gap-1.5 relative z-10">
-                  {/* Persistent / System Badge */}
-                  <div
-                    className={`px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest border ${
-                      selectedExt.category === 'builtin'
-                        ? 'bg-blue-500/5 text-blue-400 border-blue-500/10'
-                        : 'bg-green-500/5 text-green-400 border-green-500/10'
+              {/* Tag Filters */}
+              {allTags.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-1">
+                  <button
+                    onClick={() => setSelectedTag(null)}
+                    className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide border transition-all ${
+                      !selectedTag
+                        ? 'bg-violet-600 text-white border-violet-500'
+                        : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300 hover:border-zinc-600'
                     }`}
                   >
-                    {selectedExt.category === 'builtin' ? 'CORE' : 'ROAMING'}
-                  </div>
-
-                  {!isInstalled(selectedExt.id) ? (
+                    Todas
+                  </button>
+                  {allTags.map((tag) => (
                     <button
-                      onClick={() => handleInstall(selectedExt)}
-                      disabled={installing === selectedExt.id}
-                      className="px-3 py-1.5 bg-accent text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:brightness-110 disabled:opacity-50 shadow-sm flex items-center gap-1.5"
+                      key={tag}
+                      onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
+                      className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide border transition-all ${
+                        selectedTag === tag
+                          ? 'bg-violet-600 text-white border-violet-500'
+                          : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300 hover:border-zinc-600'
+                      }`}
                     >
-                      {installing === selectedExt.id ? (
-                        <ArrowPathIcon className="w-3 h-3" />
-                      ) : (
-                        <CloudArrowDownIcon className="w-3 h-3" />
-                      )}
-                      {installing === selectedExt.id
-                        ? t('extensions.actions.installing')
-                        : t('extensions.actions.install')}
+                      {tag}
                     </button>
-                  ) : selectedExt.category !== 'builtin' ? (
-                    <>
-                      <button
-                        onClick={() => handleToggle(selectedExt)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm ring-1 ${
-                          selectedExt.enabled
-                            ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 ring-red-500/10'
-                            : 'bg-accent/10 text-accent hover:bg-accent/20 ring-accent/10'
-                        }`}
-                      >
-                        <PowerIcon className="w-3 h-3" />
-                        {selectedExt.enabled
-                          ? t('extensions.actions.disable')
-                          : t('extensions.actions.enable')}
-                      </button>
-                      <button
-                        onClick={() => handleUninstall(selectedExt)}
-                        className="p-1.5 rounded-lg bg-red-400/5 text-red-400 hover:bg-red-500/10 hover:text-red-500 border border-red-500/5 shadow-sm"
-                        title={t('extensions.actions.uninstall')}
-                      >
-                        <TrashIcon className="w-3.5 h-3.5" />
-                      </button>
-                    </>
-                  ) : (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-white/5 text-text-muted ring-1 ring-white/5 opacity-50">
-                      <ShieldCheckIcon className="w-3 h-3" />
-                      {t('extensions.status.core')}
-                    </div>
-                  )}
+                  ))}
                 </div>
-              </div>
+              )}
 
-              {/* Detail Content */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-card/[0.01]">
-                <div className="max-w-3xl space-y-6 pb-8">
-                  {(selectedExt.download_url || selectedExt.repo) && (
-                    <div className="flex items-center justify-between p-2 px-3 rounded-lg bg-white/5 border border-white/5">
-                      <div className="flex items-center gap-2">
-                        <GlobeAltIcon className="w-3.5 h-3.5 text-accent/50" />
-                        <span className="text-[9px] font-black text-text-muted uppercase tracking-widest">
-                          Source Repo
-                        </span>
-                      </div>
-                      <a
-                        href={selectedExt.download_url || selectedExt.repo}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[9px] font-black text-accent hover:underline flex items-center gap-1"
-                      >
-                        GITHUB
-                        <ArrowUpRightIcon className="w-3 h-3" />
-                      </a>
-                    </div>
-                  )}
-
-                  <div className="prose prose-invert prose-sm max-w-none prose-accent prose-headings:font-black prose-headings:tracking-tight prose-headings:uppercase prose-p:text-text-muted/70 prose-pre:bg-bg/40 prose-pre:border prose-pre:border-white/5 prose-pre:rounded-xl">
-                    {selectedExt.manifest?.readme ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {selectedExt.manifest.readme}
-                      </ReactMarkdown>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center py-12 opacity-20 gap-3">
-                        <ExclamationCircleIcon className="w-8 h-8" />
-                        <p className="text-[10px] font-black uppercase tracking-widest">
-                          {t('extensions.detail.noReadme')}
-                        </p>
-                      </div>
-                    )}
-                  </div>
+              {/* Skills Grid */}
+              {filteredList.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {filteredList.map((skill) => (
+                    <SkillCard key={skill.id} skill={skill} onSelect={setSelectedSkill} />
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
+                  <WrenchIcon className="w-12 h-12 mb-4 opacity-30" />
+                  <p className="text-sm font-medium">
+                    {activeTab === 'store' ? 'Nenhuma skill disponível' : 'Nenhuma skill instalada'}
+                  </p>
+                  <p className="text-xs mt-1 text-zinc-700">
+                    {activeTab === 'store'
+                      ? 'Todas as skills já estão instaladas.'
+                      : 'Vá até a Loja para explorar novas funcionalidades.'}
+                  </p>
+                </div>
+              )}
             </>
           )}
         </div>
       </div>
-
-      <SecurityConfirm
-        isOpen={securityModal.isOpen}
-        extensionName={securityModal.ext?.name || ''}
-        extensionAuthor={securityModal.ext?.author || ''}
-        onConfirm={confirmToggle}
-        onCancel={() => setSecurityModal({ isOpen: false })}
-      />
     </div>
   )
 }

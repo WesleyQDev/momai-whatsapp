@@ -1,6 +1,13 @@
 ---
 name: search
 description: Busca informacoes na web em tempo real. Use quando o usuario pedir para pesquisar ou buscar na internet.
+icon: MagnifyingGlass
+tags:
+  - produtividade
+  - web
+  - pesquisa
+author: MomAI Team
+version: 1.0.0
 intents:
   - pesquise
   - pesquisar

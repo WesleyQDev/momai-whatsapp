@@ -52,12 +52,12 @@ function parseSkillMarkdown(filePath) {
       continue
     }
 
-    if (key === 'intents' || key === 'allowed-tools') {
+    if (key === 'intents' || key === 'allowed-tools' || key === 'tags') {
       frontmatter[key] = parseListValue(val)
     } else if (key === 'enabled') {
       frontmatter[key] = !/^false$/i.test(val.trim())
     } else {
-      frontmatter[key] = val.trim().replace(/^['\"]|['\"]$/g, '')
+      frontmatter[key] = val.trim().replace(/^['"]|['"]$/g, '')
     }
   }
 
@@ -97,6 +97,10 @@ function normalizeSkillRecord({ id, kind, parsed, runtime }) {
       name: parsed.name,
       description: parsed.description,
       intents: parsed.intents || [],
+      tags: parsed.frontmatter.tags || [],
+      icon: parsed.frontmatter.icon || null,
+      author: parsed.frontmatter.author || null,
+      version: parsed.frontmatter.version || null,
       tools,
       allowed_tools: parsed.allowedTools || [],
       compatibility: parsed.compatibility,

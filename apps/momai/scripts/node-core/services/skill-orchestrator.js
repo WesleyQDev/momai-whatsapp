@@ -6,9 +6,12 @@ function getSkillRegistry() {
 }
 
 function isSkillEnabledByStore(skill) {
-  if (!skill || skill.kind === 'builtin' || skill.kind === 'packaged') return true
   const entry = store.extensions.find((e) => e.id === skill.id)
-  if (!entry) return true
+  if (!entry) {
+    // Default state: builtins/packaged start enabled, extensions start disabled unless explicitly enabled
+    if (skill.kind === 'builtin' || skill.kind === 'packaged') return true
+    return false
+  }
   return entry.enabled !== false
 }
 
@@ -32,6 +35,10 @@ function buildExtensionsPayload() {
     category: skill.kind,
     enabled: skill.enabled && isSkillEnabledByStore(skill),
     intents: skill.manifest.intents || [],
+    tags: skill.manifest.tags || [],
+    icon: skill.manifest.icon || null,
+    author: skill.manifest.author || null,
+    version: skill.manifest.version || null,
     tools: (skill.manifest.tools || []).map((t) => t.name),
     features: {
       sidebar: skill.manifest.sidebar === true,

@@ -4,7 +4,7 @@ import icon from '../assets/icon.png'
 import {
   ChatBubbleLeftRightIcon,
   CalendarIcon,
-  PuzzlePieceIcon,
+  WrenchIcon,
   Cog6ToothIcon,
   CpuChipIcon,
   GlobeAltIcon,
@@ -36,8 +36,14 @@ const iconMap: Record<string, any> = {
   Cpu: CpuChipIcon,
   MessageSquare: ChatBubbleLeftRightIcon,
   Calendar: CalendarIcon,
-  Puzzle: PuzzlePieceIcon,
-  Layout: GlobeAltIcon
+  Puzzle: WrenchIcon,
+  Wrench: WrenchIcon,
+  Layout: GlobeAltIcon,
+  Sun: GlobeAltIcon,
+  MagnifyingGlass: GlobeAltIcon,
+  Clock: CalendarIcon,
+  BookOpen: DocumentTextIcon,
+  RocketLaunch: CpuChipIcon
 }
 
 export default function LateralBar({
@@ -105,7 +111,7 @@ export default function LateralBar({
         {(() => {
           const chatIcon = extensions.find((e) => e.name === 'responder')
 
-          const renderExt = (ext: ExtensionItem, IconComponent: any = PuzzlePieceIcon) => {
+          const renderExt = (ext: ExtensionItem, IconComponent: any = WrenchIcon) => {
             const isChat = ext.name === 'responder'
             const route = isChat ? '/' : `/extensions/${ext.id}`
             const isActive = isChat ? activeRoute === '/' : activeRoute === `/extensions/${ext.id}`
@@ -199,7 +205,7 @@ export default function LateralBar({
               className={`absolute ${isCompact ? '-left-2 h-4' : '-left-3 h-6'} w-1 bg-accent rounded-r-full animate-fade-in`}
             />
           )}
-          <PuzzlePieceIcon
+          <WrenchIcon
             className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
           />
         </button>

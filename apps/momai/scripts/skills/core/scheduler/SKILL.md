@@ -1,6 +1,13 @@
 ---
 name: scheduler
 description: Cria e consulta lembretes locais. Use quando o usuario pedir para lembrar, agendar ou listar lembretes.
+icon: Clock
+tags:
+  - produtividade
+  - agenda
+  - lembretes
+author: MomAI Team
+version: 1.0.0
 intents:
   - lembrete
   - lembre

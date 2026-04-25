@@ -18,7 +18,7 @@ export default function SecurityConfirm({
 }: SecurityConfirmProps) {
   if (!isOpen) return null
 
-  const isOfficial = extensionAuthor === 'WesleyQDev'
+  const isOfficial = extensionAuthor === 'MomAI Team'
 
   return (
     <FloatingCard title="Confirmação de Segurança" onClose={onCancel} width="max-w-md">
@@ -34,10 +34,10 @@ export default function SecurityConfirm({
         </div>
 
         <div className="space-y-1">
-          <h2 className="text-lg font-bold text-text">Ativar Extensão?</h2>
+          <h2 className="text-lg font-bold text-text">Ativar Skill?</h2>
           <p className="text-xs text-text-muted leading-relaxed">
-            A extensão <span className="text-text font-bold">"{extensionName}"</span> deseja
-            executar código Python no seu computador.
+            A skill <span className="text-text font-bold">"{extensionName}"</span> deseja executar
+            código no seu computador.
           </p>
         </div>
 
@@ -47,8 +47,8 @@ export default function SecurityConfirm({
               Aviso de Terceiro
             </h4>
             <p className="text-[10px] text-orange-400/80 leading-relaxed font-medium">
-              Esta extensão não foi verificada pelo time oficial da MomAI. Use apenas se você confia
-              na fonte e no autor.
+              Esta skill não foi verificada pelo time oficial da MomAI. Use apenas se você confia na
+              fonte e no autor.
             </p>
           </div>
         )}
