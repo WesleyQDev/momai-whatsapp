@@ -8,6 +8,7 @@ function createExtensionsRoutes(context) {
     skillRegistry,
     buildExtensionsPayload,
     sendJson,
+    readJsonBody,
     store,
     saveStore,
     ensureDir,
@@ -29,7 +30,7 @@ function createExtensionsRoutes(context) {
     }
 
     if (pathname === '/extensions/install' && req.method === 'POST') {
-      const payload = await context.readJsonBody(req).catch(() => ({}))
+      const payload = await readJsonBody(req).catch(() => ({}))
       const requested = String(payload.id || crypto.randomUUID()).toLowerCase()
       const id =
         requested.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '') || crypto.randomUUID()
@@ -76,7 +77,7 @@ function createExtensionsRoutes(context) {
     }
 
     if (pathname === '/extensions/toggle' && req.method === 'POST') {
-      const payload = await context.readJsonBody(req).catch(() => ({}))
+      const payload = await readJsonBody(req).catch(() => ({}))
       const found = store.extensions.find((item) => item.id === payload.id)
       if (found) found.enabled = Boolean(payload.enabled)
       saveStore()
@@ -86,7 +87,7 @@ function createExtensionsRoutes(context) {
     }
 
     if (pathname === '/extensions/uninstall' && req.method === 'POST') {
-      const payload = await context.readJsonBody(req).catch(() => ({}))
+      const payload = await readJsonBody(req).catch(() => ({}))
       store.extensions = store.extensions.filter((item) => item.id !== payload.id)
       const extDir = path.join(skillRegistry.extensionsDir, String(payload.id || ''))
       if (fs.existsSync(extDir)) fs.rmSync(extDir, { recursive: true, force: true })
@@ -96,12 +97,69 @@ function createExtensionsRoutes(context) {
       return true
     }
 
+    /* ── Generic Extension Action Endpoint ── */
     if (
       pathname.startsWith('/extensions/') &&
       pathname.endsWith('/action') &&
       req.method === 'POST'
     ) {
+      const parts = pathname.split('/').filter(Boolean)
+      const extId = parts[1]
+      const body = await readJsonBody(req).catch(() => ({}))
+      const actionName = String(body.action || 'default')
+      const actionPayload = body.payload || {}
+
+      /* Try to find the skill and execute */
+      const skill = skillRegistry.getById(extId)
+      if (skill && typeof skill.execute === 'function') {
+        try {
+          const result = await skill.execute({
+            content: actionName,
+            context: {},
+            manifest: skill.manifest,
+            args: actionPayload,
+            toolName: actionName,
+          })
+          sendJson(res, 200, result || { ok: true })
+          return true
+        } catch (err) {
+          sendJson(res, 500, { ok: false, error: err.message })
+          return true
+        }
+      }
+
+      /* Fallback: return ok for extensions without runtime */
       sendJson(res, 200, { ok: true, result: null })
+      return true
+    }
+
+    /* ── Launcher Open Endpoint (keep for backward compat) ── */
+    if (pathname === '/launcher/open' && req.method === 'POST') {
+      const payload = await readJsonBody(req).catch(() => ({}))
+      const targetPath = String(payload.path || '').trim()
+
+      if (!targetPath) {
+        sendJson(res, 400, { ok: false, error: 'Caminho nao fornecido' })
+        return true
+      }
+
+      if (!fs.existsSync(targetPath)) {
+        sendJson(res, 400, { ok: false, error: 'Caminho nao encontrado no disco' })
+        return true
+      }
+
+      const cmd = process.platform === 'win32'
+        ? `start "" "${targetPath}"`
+        : `open "${targetPath}"`
+
+      const { exec } = require('node:child_process')
+      exec(cmd, (err) => {
+        if (err) {
+          sendJson(res, 500, { ok: false, error: err.message })
+        } else {
+          sendJson(res, 200, { ok: true, path: targetPath })
+        }
+      })
       return true
     }
 

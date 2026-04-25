@@ -6,7 +6,7 @@ function getSkillRegistry() {
 }
 
 function isSkillEnabledByStore(skill) {
-  if (!skill || skill.kind === 'builtin') return true
+  if (!skill || skill.kind === 'builtin' || skill.kind === 'packaged') return true
   const entry = store.extensions.find((e) => e.id === skill.id)
   if (!entry) return true
   return entry.enabled !== false

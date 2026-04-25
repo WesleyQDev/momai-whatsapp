@@ -12,6 +12,7 @@ interface ContainerChatProps {
   onSendMessage: (text?: string) => void
   onClearHistory?: () => void
   messagesEndRef: RefObject<HTMLDivElement | null>
+  scrollPositionRef?: RefObject<number>
   isModeChanging?: boolean
   onReopenGraph: (data: any) => void
   onGraphOption: (option: string) => void
@@ -383,6 +384,7 @@ export default function ContainerChat({
   onSendMessage,
   onClearHistory,
   messagesEndRef,
+  scrollPositionRef,
   isModeChanging = false,
   onReopenGraph,
   onGraphOption,
@@ -582,6 +584,7 @@ export default function ContainerChat({
                     messages={messages}
                     isLoading={isLoading}
                     messagesEndRef={messagesEndRef}
+                    scrollPositionRef={scrollPositionRef}
                     onReopenGraph={onReopenGraph}
                     onGraphOption={onGraphOption}
                     onSendMessage={onSendMessage}

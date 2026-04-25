@@ -64,7 +64,7 @@ function createPromptRegistry({ promptsDir }) {
       default_max_sentences: 6,
       memory_context_header: '{{sections}}',
       system_template:
-        'Persona: {{assistant_persona}}\nStyle: {{response_style}}\nMax sentences: {{max_sentences}}\n{{memory_block}}',
+        'Persona: {{assistant_persona}}\nStyle: {{response_style}}\nMax sentences: {{max_sentences}}\n{{memory_block}}\n{{tool_instruction}}',
       tiers: {
         lite: { response_style: 'balanced', max_sentences: 6, tier_instructions: '' },
         pro: { response_style: 'balanced', max_sentences: 6, tier_instructions: '' },
@@ -117,7 +117,8 @@ function createPromptRegistry({ promptsDir }) {
       tier_instructions: sanitize(String(tierCfg.tier_instructions || '')),
       response_language_block: sanitize(formatResponseLanguageInstruction(input.responseLanguage)),
       runtime_clock: sanitize(buildRuntimeClockContext()),
-      memory_block: input.memoryContext ? `MEMORY CONTEXT:\n${sanitize(input.memoryContext)}` : ''
+      memory_block: input.memoryContext ? `MEMORY CONTEXT:\n${sanitize(input.memoryContext)}` : '',
+      tool_instruction: input.toolInstruction || ''
     }
 
     runtime.lastTier = tier

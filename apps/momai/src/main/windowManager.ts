@@ -298,6 +298,20 @@ function createMainWindow(): BrowserWindow {
     }
   })
 
+  mainWindow.on('close', (event) => {
+    if (process.platform === 'darwin') return
+    if (state.isQuitting) return
+    event.preventDefault()
+    setIsQuitting(true)
+
+    if (state.tray) {
+      state.tray.destroy()
+      setTray(null as any)
+    }
+
+    app.quit()
+  })
+
   mainWindow.on('show', () => {
     if (!isWindowMinimizing) {
       mainWindow.webContents.send('check-wake-word-on-show')

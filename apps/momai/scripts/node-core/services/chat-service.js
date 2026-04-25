@@ -475,21 +475,6 @@ async function streamLlamaChat(req, res, payload) {
 
   const responseStyle = tierName === 'ultra' ? 'concise' : 'balanced'
   const promptRegistry = getPromptRegistry()
-  let promptText = ''
-  if (promptRegistry && typeof promptRegistry.buildSystemPrompt === 'function') {
-    promptText = promptRegistry.buildSystemPrompt({
-      tier: tierName,
-      persona: store.settings.assistant_persona || (promptRegistry.getDefaults ? promptRegistry.getDefaults().assistant_persona : 'MomAI'),
-      memoryContext,
-      toolInstruction: null,
-      responseStyle,
-      responseLanguage
-    })
-  }
-  const systemMessage = {
-    role: 'system',
-    content: sanitizePromptText(promptText)
-  }
 
   const tier = tiersConfig[tierName] || tiersConfig.pro || DEFAULT_TIERS.pro
 
@@ -550,21 +535,171 @@ async function streamLlamaChat(req, res, payload) {
     enqueueAutoTts(chunk)
   }
 
-  const messages = [systemMessage, ...history]
+  let messages = [...history]
   let maxToolRounds = 3
   let round = 0
 
   try {
+    let directSkillResult = null
+
     while (round < maxToolRounds) {
       round++
 
       let toolsPayload = []
-      if (isUltra) {
-        const top5SkillIds = await getTop5SkillsSemantic(content)
+      {
         const skillRegistry = getSkillRegistry()
+        let top5SkillIds = []
+
+        if (isUltra) {
+          top5SkillIds = await getTop5SkillsSemantic(content)
+        }
+
+        /* Fallback: if semantic search returned no skills (embedding not ready or non-ultra),
+           use lexical discovery from the skill registry */
+        if (top5SkillIds.length === 0 && skillRegistry && typeof skillRegistry.discover === 'function') {
+          const discovered = skillRegistry.discover(content)
+          if (discovered) {
+            debug(`[chat] Lexical discovery found "${discovered.id}" (confidence=${discovered.confidence})`)
+            top5SkillIds.push(discovered.id)
+
+            /* High-confidence direct execution: if confidence is very high,
+               execute the skill immediately without waiting for LLM tool calling.
+               This is more reliable with small models that struggle with function calling. */
+            if (discovered.confidence >= 0.8 && skillRegistry.execute) {
+              try {
+                const skillInput = content
+                const runtimeContext = {
+                  listActiveReminders(limit = 8) {
+                    return store.reminders
+                      .filter((r) => r.is_active)
+                      .sort(
+                        (a, b) =>
+                          new Date(a.scheduled_time).getTime() - new Date(b.scheduled_time).getTime()
+                      )
+                      .slice(0, limit)
+                  },
+                  createReminderFromText(text) {
+                    const {
+                      parseRelativeReminder,
+                      extractReminderTitle,
+                      normalizeReminder
+                    } = require('./reminder-service')
+                    const rawText = String(text || '').trim()
+                    const scheduled =
+                      parseRelativeReminder(rawText) ||
+                      new Date(Date.now() + 60 * 60 * 1000).toISOString()
+                    const title = extractReminderTitle(rawText)
+                    const reminder = normalizeReminder({
+                      id: store.next_reminder_id++,
+                      title: title || 'Lembrete',
+                      content: rawText,
+                      scheduled_time: scheduled,
+                      is_active: true,
+                      created_at: isoNow()
+                    })
+                    store.reminders.push(reminder)
+                    saveStore()
+                    broadcast({ type: 'reminders_updated' })
+                    return reminder
+                  },
+                  deleteRemindersByIds(ids) {
+                    const idSet = new Set(Array.isArray(ids) ? ids : [ids])
+                    const initialCount = store.reminders.length
+                    store.reminders = store.reminders.filter((r) => !idSet.has(r.id))
+                    const changed = store.reminders.length !== initialCount
+                    if (changed) {
+                      saveStore()
+                      broadcast({ type: 'reminders_updated' })
+                    }
+                    return { success: changed, count: initialCount - store.reminders.length }
+                  },
+                  searchWeb
+                }
+                directSkillResult = await skillRegistry.execute(
+                  discovered.id,
+                  skillInput,
+                  runtimeContext,
+                  { query: content },
+                  null
+                )
+                debug(`[chat] Direct skill execution result: hasStructured=${!!directSkillResult?.structuredResponse}`)
+                if (directSkillResult?.structuredResponse) {
+                  bufferedStructuredResponse = directSkillResult.structuredResponse
+                }
+              } catch (execErr) {
+                debug(`[chat] Direct skill execution failed: ${execErr.message}`)
+              }
+            }
+          }
+        }
+
         if (skillRegistry && typeof skillRegistry.toOpenAITools === 'function') {
           toolsPayload = skillRegistry.toOpenAITools(top5SkillIds)
         }
+      }
+
+      /* Build tool instruction for the system prompt */
+      let toolInstruction = null
+      if (toolsPayload.length > 0) {
+        const toolDescs = toolsPayload
+          .map((t) => {
+            const name = t.function?.name || t.name
+            const desc = t.function?.description || t.description
+            return desc ? `- ${name}: ${desc}` : `- ${name}`
+          })
+          .filter(Boolean)
+        toolInstruction = [
+          '# AVAILABLE TOOLS',
+          'You have access to the following tools. When the user asks for something a tool can do, you MUST call the tool instead of answering in text.',
+          '',
+          ...toolDescs,
+          '',
+          '# EXAMPLES',
+          'User: "Abrir pasta dev"',
+          'Your response (tool_calls):',
+          '<tool_call>{"name":"search_programs","arguments":{"query":"dev"}}</tool_call>',
+          '',
+          'User: "Mostrar pastas com dev"',
+          'Your response (tool_calls):',
+          '<tool_call>{"name":"search_programs","arguments":{"query":"dev"}}</tool_call>',
+          '',
+          '# RULES',
+          '- NEVER describe what you would do. ALWAYS call the tool.',
+          '- Use the exact format: <tool_call>{"name":"TOOL_NAME","arguments":{...}}</tool_call>'
+        ].join('\n')
+      }
+
+      /* If direct skill execution already produced a structured response,
+         we can skip the LLM round for tool calling and just ask the LLM
+         to generate a brief confirmation text. */
+      if (directSkillResult?.structuredResponse && !bufferedStructuredResponse) {
+        bufferedStructuredResponse = directSkillResult.structuredResponse
+      }
+
+      /* Rebuild system message with tool instructions */
+      let promptText = ''
+      if (promptRegistry && typeof promptRegistry.buildSystemPrompt === 'function') {
+        promptText = promptRegistry.buildSystemPrompt({
+          tier: tierName,
+          persona: store.settings.assistant_persona || (promptRegistry.getDefaults ? promptRegistry.getDefaults().assistant_persona : 'MomAI'),
+          memoryContext,
+          toolInstruction,
+          responseStyle,
+          responseLanguage
+        })
+      }
+      const systemMessage = {
+        role: 'system',
+        content: sanitizePromptText(promptText)
+      }
+
+      /* Inject direct skill result into conversation context so LLM sees it */
+      const currentMessages = [...messages]
+      if (directSkillResult?.instruction) {
+        currentMessages.push({
+          role: 'system',
+          content: `[TOOL RESULT] ${directSkillResult.instruction}`
+        })
       }
 
       const requestBody = {
@@ -573,11 +708,14 @@ async function streamLlamaChat(req, res, payload) {
         temperature: Number.isFinite(tier.temperature) ? tier.temperature : 0.7,
         top_p: Number.isFinite(tier.top_p) ? tier.top_p : 1,
         max_tokens: Number.isFinite(tier.max_tokens) ? tier.max_tokens : 320,
-        messages
+        messages: [systemMessage, ...currentMessages.filter((m) => m.role !== 'system')]
       }
-      if (toolsPayload.length > 0) {
+      if (toolsPayload.length > 0 && !directSkillResult?.structuredResponse) {
         requestBody.tools = toolsPayload
       }
+
+      debug(`[chat] Request: tools=${toolsPayload.length}, sys_prompt_len=${systemMessage.content.length}, msg_count=${requestBody.messages.length}`)
+      debug(`[chat] Tools: ${toolsPayload.map((t) => t.function?.name || t.name).join(', ')}`)
 
       writeSse(res, { status: 'responding' })
 
@@ -646,6 +784,11 @@ async function streamLlamaChat(req, res, payload) {
             flushTtsChunks(false)
           }
         }
+      }
+
+      debug(`[chat] Round ${round} result: text_len=${roundText.length}, tool_calls=${toolCallsAccum.length}`)
+      if (roundText.length > 0) {
+        debug(`[chat] Round ${round} text preview: "${roundText.slice(0, 120)}"`)
       }
 
       if (toolCallsAccum.length > 0 && toolCallsAccum[0]?.function?.name) {
@@ -863,6 +1006,21 @@ async function streamLlamaChat(req, res, payload) {
       }
 
       break
+    }
+
+    /* ── Retry: if LLM returned nothing usable (empty or only <think> tags),
+       generate a contextual fallback so the user never sees a blank message ── */
+    const visibleText = assembled.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+    if (!visibleText && !bufferedStructuredResponse) {
+      debug('[chat] LLM returned empty/think-only response, generating fallback')
+      const fallbackMsg = generateFallbackReply(content, memoryContext, null, responseLanguage)
+      for (const token of splitTokens(fallbackMsg)) {
+        if (closed || stopGenerationRequested) break
+        assembled += token
+        writeSse(res, { token })
+        flushTtsChunks(false)
+      }
+      flushTtsChunks(true)
     }
 
     appendMessage(threadId, 'assistant', assembled.trim() || 'Interrompido.', {

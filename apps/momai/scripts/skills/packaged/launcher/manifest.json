@@ -1,0 +1,14 @@
+{
+  "id": "launcher",
+  "name": "Launcher de Programas",
+  "version": "1.0.0",
+  "kind": "packaged",
+  "description": "Abre programas, aplicativos e pastas no computador. Busca no menu iniciar, desktop, Program Files e PATH do sistema.",
+  "icon": "🔍",
+  "author": "WesleyQDev",
+  "structuredTypes": ["generic-extension"],
+  "api": {
+    "actions": ["/launcher/open"]
+  },
+  "permissions": ["filesystem:read", "process:spawn"]
+}

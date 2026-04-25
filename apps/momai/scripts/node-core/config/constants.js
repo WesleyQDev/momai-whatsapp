@@ -49,7 +49,7 @@ const PROMPTS_DIR = path.resolve(__dirname, '..', '..', '..', 'prompts')
 
 const MAX_EMBEDDING_CACHE_SIZE = 512
 const EMBEDDING_CACHE_TTL_MS = 10 * 60 * 1000
-const EMBEDDING_TIMEOUT_MS = 2500
+const EMBEDDING_TIMEOUT_MS = 8000
 const SEMANTIC_SYNC_INTERVAL_MS = 30 * 1000
 
 function resolveModelsDir() {

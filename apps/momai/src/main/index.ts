@@ -229,19 +229,27 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('will-quit', async (event) => {
+app.on('before-quit', (event) => {
   if (state.isQuitting) return
-  setIsQuitting(true)
   event.preventDefault()
+  setIsQuitting(true)
 
-  logger.info('[Electron] will-quit event triggered. Iniciando shutdown...')
+  logger.info('[Electron] before-quit: Iniciando shutdown...')
   globalShortcut.unregisterAll()
 
-  cleanupTTSHandlers()
-  await shutdownCoreBackend()
+  if (state.tray) {
+    state.tray.destroy()
+  }
 
-  logger.info('[Electron] Shutdown completo.')
-  app.quit()
+  cleanupTTSHandlers()
+
+  void shutdownCoreBackend().then(() => {
+    logger.info('[Electron] Shutdown completo. Saindo...')
+    app.quit()
+  }).catch((err) => {
+    logger.error('[Electron] Erro no shutdown:', err)
+    app.quit()
+  })
 })
 
 app.on('window-all-closed', () => {

@@ -8,6 +8,7 @@ import { useChatInit } from './useChatInit'
 export function useChat() {
   const [text, setText] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollPositionRef = useRef<number>(0)
 
   const chatState = useChatState()
   const {
@@ -156,6 +157,7 @@ export function useChat() {
     isLoading,
     sendMessage: actions.sendMessage,
     messagesEndRef,
+    scrollPositionRef,
     graphState,
     handleGraphOption: actions.handleGraphOption,
     closeGraph,

@@ -1,6 +1,6 @@
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
-import { spawn, spawnSync } from 'child_process'
+import { spawn, spawnSync, execSync } from 'child_process'
 import { app as _app } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { logger } from '../logger'
@@ -423,19 +423,14 @@ export async function killPythonBackend(): Promise<void> {
   logger.info(`[Electron] Encerrando Python (PID ${pid})...`)
 
   try {
-    state.pythonProcess.kill('SIGTERM')
-    if (await waitForPythonExit(2000)) {
-      logger.info('[Electron] Python encerrado graciosamente.')
-      return
-    }
-
     if (process.platform === 'win32') {
-      await new Promise<void>((resolve) => {
-        const child = spawn('taskkill', ['/pid', String(pid), '/f', '/t'], { shell: true })
-        child.on('close', () => resolve())
-        child.on('error', () => resolve())
-      })
+      execSync(`taskkill /pid ${pid} /t /f`, { stdio: 'ignore' })
     } else {
+      state.pythonProcess.kill('SIGTERM')
+      if (await waitForPythonExit(2000)) {
+        logger.info('[Electron] Python encerrado graciosamente.')
+        return
+      }
       state.pythonProcess.kill('SIGKILL')
     }
 
@@ -447,7 +442,6 @@ export async function killPythonBackend(): Promise<void> {
     logger.error('[Electron] Erro durante shutdown de Python:', err)
   } finally {
     setPythonProcess(null)
-    // Extra safety: make sure the port is actually free
     await killProcessOnPort(Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001))
   }
 }

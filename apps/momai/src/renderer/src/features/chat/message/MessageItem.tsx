@@ -25,6 +25,7 @@ import {
 import { registerRenderer } from '../../../components/chat/SkillResponseRegistry'
 import WeatherCard from '../../../components/chat/WeatherCard'
 import RemindersCard from '../../../components/chat/RemindersCard'
+import '../../../components/chat/ExtensionRendererLoader'
 
 registerRenderer('weather', WeatherCard)
 registerRenderer('reminders', RemindersCard)
@@ -298,6 +299,8 @@ const MessageItem = memo(function MessageItem({
                     <MarkdownRenderer>{part.cleanText}</MarkdownRenderer>
                   </div>
                 )}
+
+
               </React.Fragment>
             )
           })}

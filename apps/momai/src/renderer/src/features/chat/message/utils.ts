@@ -62,16 +62,12 @@ export interface ProcessedThinkResult {
 
 export const processThinkTags = (text: string): ProcessedThinkResult => {
   const thinkRegex = /<think>([\s\S]*?)<\/think>/g
-  let match
-  const thoughts: string[] = []
   let cleanText = text
 
-  while ((match = thinkRegex.exec(text)) !== null) {
-    thoughts.push(match[1].trim())
-  }
-
+  /* Strip <think> blocks entirely — don't show a "Pensamento" UI
+     since local LLM thinking is disabled server-side. */
   cleanText = text.replace(thinkRegex, '').trim()
-  return { thoughts, cleanText }
+  return { thoughts: [], cleanText }
 }
 
 export const ACTION_MARKER = '__MOMAI_ACTIONS__'

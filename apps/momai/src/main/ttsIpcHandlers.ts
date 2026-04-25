@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { getTTSService, TTSEngine } from './ttsService'
+import { getTTSService, resetTTSService, TTSEngine } from './ttsService'
 
 export function setupTTSHandlers() {
   const ttsService = getTTSService()
@@ -168,7 +168,6 @@ export function cleanupTTSHandlers() {
   })
 
   // Resetar serviço
-  const { resetTTSService } = require('./ttsService')
   resetTTSService()
 
   console.log('[TTS IPC] Handlers limpos')

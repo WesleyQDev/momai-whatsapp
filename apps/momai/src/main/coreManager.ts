@@ -1,10 +1,10 @@
 import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync } from 'fs'
 import { join, resolve } from 'path'
-import { spawn } from 'child_process'
+import { spawn, execSync } from 'child_process'
 import { createConnection } from 'net'
 import { API_HOST, API_PORT } from './constants'
-import { getMainWindow, setNodeCoreProcess, setIsQuitting, state } from './state'
+import { getMainWindow, setNodeCoreProcess, state } from './state'
 import { logger } from './logger'
 import {
   isPythonRunning,
@@ -534,39 +534,50 @@ export async function startCoreBackend(): Promise<void> {
 
 export async function shutdownCoreBackend(): Promise<void> {
   isStoppingCore = true
-  setIsQuitting(true)
+
+  logger.info('[CoreManager] Iniciando shutdown...')
 
   const child = state.nodeCoreProcess
   if (child && child.exitCode === null && !child.killed) {
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
-        try {
-          child.kill('SIGKILL')
-        } catch {}
-      }, 3000)
+    const pid = child.pid
+    logger.info(`[CoreManager] Encerrando Node core (PID ${pid})...`)
 
-      child.once('exit', () => {
-        clearTimeout(timer)
-        resolve()
-      })
-
+    if (process.platform === 'win32') {
       try {
-        child.kill('SIGTERM')
-      } catch {
-        clearTimeout(timer)
-        resolve()
-      }
-    })
+        execSync(`taskkill /pid ${pid} /t /f`, { stdio: 'ignore' })
+      } catch {}
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    } else {
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          try { child.kill('SIGKILL') } catch {}
+          resolve()
+        }, 3000)
+
+        child.once('exit', () => {
+          clearTimeout(timer)
+          resolve()
+        })
+
+        try { child.kill('SIGTERM') } catch { clearTimeout(timer); resolve() }
+      })
+    }
   }
 
   setNodeCoreProcess(null)
 
-  // Kill any orphan llama-server processes that may have leaked
   killAllLlamaServers()
 
   if (isPythonRunning()) {
     await shutdownPython()
   }
+
+  if (process.platform === 'win32') {
+    killProcessOnPort(API_PORT)
+    killProcessOnPort(Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001))
+  }
+
+  logger.info('[CoreManager] Shutdown completo.')
 }
 
 export async function restartCoreBackend(): Promise<{ success: boolean; error?: string }> {

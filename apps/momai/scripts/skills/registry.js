@@ -138,8 +138,10 @@ function loadSkillFromDir({ dir, kind }) {
 
 function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   const extensionsDir = path.join(dataDir, 'extensions')
+  const packagedSkillsDir = path.resolve(__dirname, 'packaged')
   const state = {
     builtins: new Map(),
+    packaged: new Map(),
     extensions: new Map()
   }
 
@@ -182,6 +184,66 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     }
   }
 
+  function loadPackaged() {
+    state.packaged.clear()
+    const log = (msg) => {
+      if (typeof process.send === 'function') {
+        process.send({ type: 'node-core-log', message: msg })
+      }
+    }
+
+    if (!fs.existsSync(packagedSkillsDir)) {
+      log(`[skills] Packaged skills dir not found: ${packagedSkillsDir}`)
+      return
+    }
+
+    try {
+      const items = fs.readdirSync(packagedSkillsDir)
+      for (const name of items) {
+        const dir = path.join(packagedSkillsDir, name)
+        const stat = fs.statSync(dir, { throwIfNoEntry: false })
+        if (!stat || !stat.isDirectory()) continue
+
+        const skillMdPath = path.join(dir, 'SKILL.md')
+        if (!fs.existsSync(skillMdPath)) continue
+
+        const parsed = parseSkillMarkdown(skillMdPath)
+        if (!parsed) continue
+
+        const runtimePath = path.join(dir, 'runtime.js')
+        let runtime = null
+        if (fs.existsSync(runtimePath)) {
+          try {
+            delete require.cache[require.resolve(runtimePath)]
+            runtime = require(runtimePath)
+          } catch {
+            runtime = null
+          }
+        }
+
+        /* Load manifest.json if present */
+        let manifestExtra = null
+        const manifestPath = path.join(dir, 'manifest.json')
+        if (fs.existsSync(manifestPath)) {
+          try {
+            manifestExtra = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+          } catch {
+            /* ignore */
+          }
+        }
+
+        const skill = normalizeSkillRecord({ id: parsed.name, kind: 'packaged', parsed, runtime })
+        if (manifestExtra) {
+          skill.manifest = { ...skill.manifest, ...manifestExtra }
+        }
+        state.packaged.set(skill.id, skill)
+      }
+      log(`[skills] Loaded ${state.packaged.size} packaged extension skills.`)
+    } catch (err) {
+      log(`[skills] Error loading packaged skills: ${err.message}`)
+    }
+  }
+
   function loadExtensions() {
     if (!fs.existsSync(extensionsDir)) fs.mkdirSync(extensionsDir, { recursive: true })
     state.extensions.clear()
@@ -198,11 +260,12 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
 
   function refresh() {
     loadBuiltins()
+    loadPackaged()
     loadExtensions()
   }
 
   function getAll() {
-    return [...state.builtins.values(), ...state.extensions.values()]
+    return [...state.builtins.values(), ...state.packaged.values(), ...state.extensions.values()]
   }
 
   function getEnabled() {
@@ -210,7 +273,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   }
 
   function getById(skillId) {
-    return state.builtins.get(skillId) || state.extensions.get(skillId) || null
+    return state.builtins.get(skillId) || state.packaged.get(skillId) || state.extensions.get(skillId) || null
   }
 
   function discover(query) {

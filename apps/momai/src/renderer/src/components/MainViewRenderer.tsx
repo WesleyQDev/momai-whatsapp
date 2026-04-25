@@ -33,6 +33,7 @@ const ChatView = (props: any) => {
       onSendMessage={props.chat.sendMessage}
       onClearHistory={props.chat.clearHistory}
       messagesEndRef={props.chat.messagesEndRef}
+      scrollPositionRef={props.chat.scrollPositionRef}
       onReopenGraph={props.chat.reopenGraph}
       onGraphOption={props.chat.handleGraphOption}
       statusInfo={props.statusInfo}

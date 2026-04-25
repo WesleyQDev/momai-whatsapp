@@ -21,12 +21,13 @@ export function killAllLlamaServers(): void {
   try {
     if (process.platform === 'win32') {
       execSync('taskkill /f /im llama-server.exe', { stdio: 'ignore' })
+      execSync('taskkill /f /im llama-cli.exe', { stdio: 'ignore' })
+      execSync('taskkill /f /im main.exe', { stdio: 'ignore' })
     } else {
-      // macOS/Linux: -f matches full process name, default signal is SIGTERM (safer)
       execSync('pkill -f llama-server', { stdio: 'ignore' })
+      execSync('pkill -f llama-cli', { stdio: 'ignore' })
     }
   } catch {
-    // Silently ignore errors if process doesn't exist
   }
 }
 
