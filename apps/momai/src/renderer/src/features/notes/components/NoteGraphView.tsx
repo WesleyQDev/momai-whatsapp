@@ -239,9 +239,9 @@ export default function NoteGraphView({ notes, onClose }: NoteGraphViewProps) {
   }, [])
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-bg flex flex-col">
+    <div className="fixed top-8 bottom-0 left-0 right-0 z-[210] bg-bg flex flex-col">
       {/* Header - fixed above canvas with solid background */}
-       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/20 bg-bg shrink-0 relative z-[9998] pointer-events-auto shadow-lg">
+       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/20 bg-bg shrink-0 relative z-[20] pointer-events-auto shadow-lg">
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
@@ -337,7 +337,7 @@ export default function NoteGraphView({ notes, onClose }: NoteGraphViewProps) {
         )}
 
         {/* Legend - above canvas */}
-        <div className="absolute bottom-4 left-4 bg-card border border-border/40 rounded-lg px-4 py-3 text-xs z-[9997] shadow-xl">
+        <div className="absolute bottom-4 left-4 bg-card border border-border/40 rounded-lg px-4 py-3 text-xs z-[20] shadow-xl">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-3 h-3 rounded-full bg-accent" />
             <span className="text-text font-semibold">Nota</span>
@@ -349,7 +349,7 @@ export default function NoteGraphView({ notes, onClose }: NoteGraphViewProps) {
         </div>
 
         {/* Hint - above canvas */}
-        <div className="absolute bottom-4 right-4 bg-card border border-border/40 rounded-lg px-4 py-2 text-xs text-text z-[9997] shadow-xl">
+        <div className="absolute bottom-4 right-4 bg-card border border-border/40 rounded-lg px-4 py-2 text-xs text-text z-[20] shadow-xl">
           Clique em um nó para destacar · Scroll para zoom
         </div>
       </div>
