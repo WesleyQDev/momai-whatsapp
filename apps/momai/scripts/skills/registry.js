@@ -119,6 +119,11 @@ function loadSkillFromDir({ dir, kind }) {
 
   const skillMdPath = path.join(dir, 'SKILL.md')
   if (!fs.existsSync(skillMdPath)) {
+    // Ignore runtime/state-only directories used by packaged skills.
+    const stateJsonPath = path.join(dir, 'state.json')
+    if (fs.existsSync(stateJsonPath)) {
+      return null
+    }
     log(`[skills] Skip: No SKILL.md in ${dir}`)
     return null
   }

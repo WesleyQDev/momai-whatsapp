@@ -164,6 +164,11 @@ export const ToolSteps: React.FC<ToolStepsProps> = ({
                     <span className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300">
                       {group.name}
                     </span>
+                    {group.description && (
+                      <span className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        {group.description}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}

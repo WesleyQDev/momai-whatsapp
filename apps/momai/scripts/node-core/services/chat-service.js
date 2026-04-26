@@ -397,6 +397,32 @@ function shouldPreferSilentForCodeRequest(userText) {
   )
 }
 
+function isLikelyHtmlCreationRequest(userText) {
+  const text = String(userText || '').toLowerCase()
+  if (!text) return false
+  return /(crie|gera|monta|fa[çc]a|create|generate).*(html|landing|site|pagina|página)/i.test(
+    text
+  )
+}
+
+function extractHtmlDocument(text) {
+  const value = String(text || '').trim()
+  if (!value) return ''
+
+  const fenced = value.match(/```(?:html)?\s*([\s\S]*?)```/i)
+  if (fenced?.[1] && /<(?:!doctype|html|head|body|main|section|div)[\s>]/i.test(fenced[1])) {
+    return fenced[1].trim()
+  }
+
+  const docMatch = value.match(/<!doctype html>[\s\S]*<\/html>/i)
+  if (docMatch?.[0]) return docMatch[0].trim()
+
+  const htmlMatch = value.match(/<html[\s\S]*<\/html>/i)
+  if (htmlMatch?.[0]) return htmlMatch[0].trim()
+
+  return ''
+}
+
 function containsCodeLikeContent(text) {
   const value = String(text || '')
   if (!value) return false
@@ -405,34 +431,6 @@ function containsCodeLikeContent(text) {
   if (/<html[\s>]/i.test(value) || /<!doctype html>/i.test(value)) return true
   if (/<(div|span|section|header|main|script|style)[\s>]/i.test(value)) return true
   return false
-}
-
-function extractHtmlPreviewData(text) {
-  const value = String(text || '')
-  if (!value) return null
-
-  const fenced =
-    value.match(/```html\s*([\s\S]*?)```/i) ||
-    value.match(/```(?:htm)?\s*([\s\S]*?)```/i)
-  if (fenced && fenced[1]) {
-    const html = fenced[1].trim()
-    if (/<html[\s>]/i.test(html) || /<!doctype html>/i.test(html)) {
-      return { html, title: 'Preview HTML gerada automaticamente' }
-    }
-  }
-
-  const doctypeIdx = value.search(/<!doctype html>/i)
-  const htmlIdx = value.search(/<html[\s>]/i)
-  const startIdx = doctypeIdx >= 0 ? doctypeIdx : htmlIdx
-  if (startIdx >= 0) {
-    const raw = value.slice(startIdx).trim()
-    const html = raw.length > 160000 ? raw.slice(0, 160000) : raw
-    if (html.length >= 120) {
-      return { html, title: 'Preview HTML gerada automaticamente' }
-    }
-  }
-
-  return null
 }
 
 function computeDynamicMaxTokens(tierMaxTokens, estimatedPromptTokens, contextTotalTokens) {
@@ -738,6 +736,7 @@ async function streamLlamaChat(req, res, payload) {
       {
         const skillRegistry = getSkillRegistry()
         let top5SkillIds = []
+        const isHtmlIntent = isLikelyHtmlCreationRequest(content)
 
         if (isUltra) {
           top5SkillIds = await getTop5SkillsSemantic(content)
@@ -815,6 +814,23 @@ async function streamLlamaChat(req, res, payload) {
                 if (directSkillResult?.structuredResponse) {
                   bufferedStructuredResponse = directSkillResult.structuredResponse
                 }
+                const discoveredSkill = getSkillRegistry()?.getById?.(discovered.id)
+                const directStep = {
+                  skill_id: discovered.id,
+                  skill_name: discoveredSkill?.manifest?.name || discovered.id,
+                  tool: 'skill_execute',
+                  name: `skill:${discovered.id}`,
+                  description: String(
+                    discoveredSkill?.manifest?.description ||
+                      'Execução direta de skill por detecção lexical.'
+                  ),
+                  status: directSkillResult ? 'success' : 'error',
+                  started_at: isoNow()
+                }
+                toolSteps.push(directStep)
+                activeSkill = discovered.id
+                writeSse(res, { active_skill: activeSkill })
+                writeSse(res, { tool_steps: toolSteps })
               } catch (execErr) {
                 debug(`[chat] Direct skill execution failed: ${execErr.message}`)
               }
@@ -822,8 +838,27 @@ async function streamLlamaChat(req, res, payload) {
           }
         }
 
+        if (isHtmlIntent && skillRegistry?.execute) {
+          try {
+            const knowledgeResult = await skillRegistry.execute(
+              'dev',
+              content,
+              { searchWeb },
+              { query: content },
+              'knowledge_routes'
+            )
+            if (knowledgeResult?.instruction) {
+              memoryContext = memoryContext
+                ? `${memoryContext}\n\n${knowledgeResult.instruction}`
+                : knowledgeResult.instruction
+            }
+          } catch (err) {
+            debug(`[chat] HTML knowledge route lookup failed: ${err.message}`)
+          }
+        }
+
         if (skillRegistry && typeof skillRegistry.toOpenAITools === 'function') {
-          toolsPayload = skillRegistry.toOpenAITools(top5SkillIds)
+          toolsPayload = isHtmlIntent ? [] : skillRegistry.toOpenAITools(top5SkillIds)
         }
       }
 
@@ -839,7 +874,7 @@ async function streamLlamaChat(req, res, payload) {
           .filter(Boolean)
         toolInstruction = [
           '# AVAILABLE TOOLS',
-          'You have access to the following tools. When the user asks for something a tool can do, you MUST call the tool instead of answering in text.',
+          'You have access to the following tools. Prefer calling a relevant tool when it materially improves correctness, safety, or execution of the task.',
           '',
           ...toolDescs,
           '',
@@ -853,7 +888,8 @@ async function streamLlamaChat(req, res, payload) {
           '<tool_call>{"name":"search_programs","arguments":{"query":"dev"}}</tool_call>',
           '',
           '# RULES',
-          '- NEVER describe what you would do. ALWAYS call the tool.',
+          '- Use tools when they add clear value (actions, retrieval, structured operations).',
+          '- If the user request is primarily generative and does not require an external action, you may answer directly in text.',
           '- Use the exact format: <tool_call>{"name":"TOOL_NAME","arguments":{...}}</tool_call>'
         ].join('\n')
       }
@@ -876,6 +912,10 @@ async function streamLlamaChat(req, res, payload) {
           responseStyle,
           responseLanguage
         })
+      }
+      if (isLikelyHtmlCreationRequest(content)) {
+        promptText +=
+          '\n\n# HTML GENERATION MODE\nReturn one complete HTML document only.\nDo not call tools.\nDo not wrap the HTML in JSON.\nDo not explain the code before or after.\nUse the knowledge context when relevant.'
       }
       const systemMessage = {
         role: 'system',
@@ -937,6 +977,10 @@ async function streamLlamaChat(req, res, payload) {
         const isContextExceeded =
           llamaResp.status === 400 &&
           /exceeds the available context size|exceed_context_size/i.test(txt)
+        const isToolArgsParseError =
+          /failed to parse tool call arguments as json|parse_error\.101|missing closing quote/i.test(
+            txt
+          )
 
         if (isContextExceeded) {
           const retryCandidates = []
@@ -987,6 +1031,49 @@ async function streamLlamaChat(req, res, payload) {
           }
 
           if (!recovered) {
+            const retryTxt = await llamaResp.text().catch(() => '')
+            throw new Error(`llama HTTP ${llamaResp.status}: ${retryTxt.slice(0, 240)}`)
+          }
+        } else if (isToolArgsParseError) {
+          // Some local models can emit malformed tool_call JSON when payloads get large (e.g. HTML).
+          // Recover by retrying without tools AND without tool-focused instruction in system prompt.
+          let fallbackSystemContent = systemMessage.content
+          if (promptRegistry && typeof promptRegistry.buildSystemPrompt === 'function') {
+            fallbackSystemContent = sanitizePromptText(
+              promptRegistry.buildSystemPrompt({
+                tier: tierName,
+                persona:
+                  store.settings.assistant_persona ||
+                  (promptRegistry.getDefaults
+                    ? promptRegistry.getDefaults().assistant_persona
+                    : 'MomAI'),
+                memoryContext,
+                toolInstruction: null,
+                responseStyle,
+                responseLanguage
+              })
+            )
+          }
+          const fallbackBody = {
+            ...requestBody,
+            messages: [
+              { role: 'system', content: fallbackSystemContent },
+              ...currentMessages.filter((m) => m.role !== 'system')
+            ],
+            tools: undefined,
+            max_tokens: Math.min(
+              Number(requestBody.max_tokens || 320),
+              Math.max(320, Math.floor(Number(llamaState.contextTotalTokens || 8192) * 0.18))
+            )
+          }
+          debug('[chat] Tool-call JSON parse error from llama server. Retrying without tools.')
+          llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify(fallbackBody)
+          })
+          if (!llamaResp.ok || !llamaResp.body) {
             const retryTxt = await llamaResp.text().catch(() => '')
             throw new Error(`llama HTTP ${llamaResp.status}: ${retryTxt.slice(0, 240)}`)
           }
@@ -1229,6 +1316,11 @@ async function streamLlamaChat(req, res, payload) {
                 skill_id: skillId,
                 skill_name: skillObj.manifest.name,
                 tool: toolName,
+                name: toolName,
+                description: String(
+                  (skillObj.manifest.tools || []).find((t) => t.name === toolName)?.description ||
+                    ''
+                ),
                 status: result ? 'success' : 'error',
                 started_at: isoNow()
               }
@@ -1369,12 +1461,36 @@ async function streamLlamaChat(req, res, payload) {
       flushTtsChunks(true)
     }
 
-    if (!bufferedStructuredResponse) {
-      const htmlPreview = extractHtmlPreviewData(assembled)
-      if (htmlPreview) {
-        bufferedStructuredResponse = {
-          type: 'html_preview',
-          data: htmlPreview
+    if (!bufferedStructuredResponse && isLikelyHtmlCreationRequest(content)) {
+      const generatedHtml = extractHtmlDocument(assembled)
+      if (generatedHtml) {
+        const skillRegistry = getSkillRegistry()
+        try {
+          const prepareResult = await skillRegistry?.execute?.(
+            'dev',
+            content,
+            { searchWeb },
+            { query: content, content: generatedHtml, path: payload.path },
+            'prepare_html_write'
+          )
+          if (prepareResult?.structuredResponse) {
+            bufferedStructuredResponse = prepareResult.structuredResponse
+            assembled = 'HTML gerado pelo modelo e preparado para escrita. Confira o card abaixo.'
+            if (!toolSteps.some((step) => step.name === 'prepare_html_write')) {
+              toolSteps.push({
+                skill_id: 'dev',
+                skill_name: 'dev',
+                tool: 'prepare_html_write',
+                name: 'prepare_html_write',
+                description: 'Preparou o HTML gerado pelo modelo para confirmação de escrita.',
+                status: 'success',
+                started_at: isoNow()
+              })
+              activeSkill = 'dev'
+            }
+          }
+        } catch (err) {
+          debug(`[chat] Failed to prepare generated HTML for write: ${err.message}`)
         }
       }
     }

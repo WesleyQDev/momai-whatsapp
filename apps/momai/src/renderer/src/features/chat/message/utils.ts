@@ -75,6 +75,7 @@ export const ACTION_MARKER = '__MOMAI_ACTIONS__'
 export interface UnifiedStep {
   isMemory: boolean
   name: string
+  description?: string
   rawName?: string
   isSkill?: boolean
   step?: any
@@ -108,7 +109,8 @@ export const createUnifiedSteps = (
 
   toolSteps.forEach((step, originalIdx) => {
     let isSkill = false
-    let displayName = String(step.name || 'tool')
+    let displayName = String(step.name || step.tool || 'tool')
+    const description = minimizeText(step.description || step.detail || '')
 
     if (displayName === 'activate_skill') {
       isSkill = true
@@ -125,6 +127,7 @@ export const createUnifiedSteps = (
     rawSteps.push({
       isMemory: false,
       name: displayName,
+      description,
       rawName: step.name,
       isSkill,
       step,
