@@ -1,8 +1,10 @@
 import { useMemo, useRef, useState } from 'react'
-import { markdown } from '@codemirror/lang-markdown'
-import { EditorView, Decoration, MatchDecorator, ViewPlugin, ViewUpdate } from '@codemirror/view'
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
+import { EditorView, Decoration, ViewPlugin, ViewUpdate } from '@codemirror/view'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
+import { languages } from '@codemirror/language-data'
+import type { Range } from '@codemirror/state'
 
 export interface SlashMenuState {
   x: number
@@ -18,15 +20,18 @@ export function useEditorExtensions() {
   const markdownHighlighting = useMemo(() => {
     const textColor = 'rgb(var(--text-primary))'
     const accentColor = 'rgb(var(--accent))'
+    const mutedColor = 'rgb(var(--text-muted))'
     return HighlightStyle.define([
       { tag: tags.heading1, class: 'cm-h1' },
       { tag: tags.heading2, class: 'cm-h2' },
       { tag: tags.heading3, class: 'cm-h3' },
       { tag: tags.heading4, class: 'cm-h4' },
+      { tag: tags.heading5, class: 'cm-h5' },
+      { tag: tags.heading6, class: 'cm-h6' },
       { tag: tags.strong, fontWeight: '700', color: textColor },
-      { tag: tags.emphasis, fontStyle: 'italic' },
-      { tag: tags.strikethrough, textDecoration: 'line-through', opacity: '0.6' },
-      { tag: tags.quote, color: 'rgb(var(--text-muted))', fontStyle: 'italic' },
+      { tag: tags.emphasis, fontStyle: 'italic', color: textColor },
+      { tag: tags.strikethrough, textDecoration: 'line-through', color: mutedColor, opacity: '0.7' },
+      { tag: tags.quote, color: mutedColor, fontStyle: 'italic' },
       {
         tag: tags.monospace,
         color: accentColor,
@@ -34,35 +39,28 @@ export function useEditorExtensions() {
         borderRadius: '4px',
         padding: '1px 4px'
       },
-      {
-        tag: [tags.processingInstruction, tags.punctuation, tags.meta, tags.modifier],
-        class: 'cm-md-marker'
-      },
       { tag: tags.list, class: 'cm-list-marker' },
       { tag: tags.atom, class: 'cm-checkbox' },
       { tag: tags.link, textDecoration: 'underline', color: accentColor, opacity: '0.9' },
       { tag: tags.url, textDecoration: 'underline', opacity: '0.5' },
-      { tag: tags.tagName, class: 'cm-wiki-link' }
+      { tag: tags.tagName, class: 'cm-wiki-link' },
+      { tag: tags.keyword, color: accentColor, fontWeight: '600' },
+      { tag: tags.variableName, color: textColor },
+      { tag: tags.definition(tags.variableName), color: accentColor, fontWeight: '600' },
+      { tag: tags.definition(tags.propertyName), color: accentColor },
+      { tag: tags.angleBracket, opacity: '0.5' },
+      { tag: tags.contentSeparator, color: mutedColor }
     ])
   }, [])
 
   const handleSelectSlashCommand = (snippet: string) => {
     if (!slashMenu || !editorViewRef.current) return
-
     const view = editorViewRef.current
     const { pos, query } = slashMenu
-
     const transaction = view.state.update({
-      changes: {
-        from: pos,
-        to: pos + 1 + query.length,
-        insert: snippet
-      },
-      selection: {
-        anchor: pos + snippet.length
-      }
+      changes: { from: pos, to: pos + 1 + query.length, insert: snippet },
+      selection: { anchor: pos + snippet.length }
     })
-
     view.dispatch(transaction)
     view.focus()
     setSlashMenu(null)
@@ -70,7 +68,11 @@ export function useEditorExtensions() {
 
   const editorExtensions = useMemo(
     () => [
-      markdown(),
+      markdown({
+        base: markdownLanguage,
+        codeLanguages: languages,
+        addKeymap: true
+      }),
       syntaxHighlighting(markdownHighlighting),
       EditorView.lineWrapping,
       EditorView.theme({
@@ -78,38 +80,69 @@ export function useEditorExtensions() {
           backgroundColor: 'transparent !important',
           height: '100%'
         },
-        '&.cm-focused': {
-          outline: 'none'
-        },
+        '&.cm-focused': { outline: 'none' },
         '.cm-scroller': {
           fontFamily: "'Inter', sans-serif",
           fontSize: '16px',
           lineHeight: '1.7',
           overflow: 'auto',
-          padding: '20px 0'
+          padding: '20px 2rem'
         },
         '.cm-content': {
           color: 'rgb(var(--text-primary))',
           caretColor: 'rgb(var(--text-primary)) !important',
           backgroundColor: 'transparent !important',
-          padding: '0 32px !important'
+          padding: '0 !important'
         },
-        '.cm-line': {
-          padding: '2px 0'
+        '.cm-line': { padding: '2px 0' },
+        '.cm-strong': { fontWeight: '700 !important', color: 'rgb(var(--text-primary)) !important' },
+        '.cm-emphasis': { fontStyle: 'italic !important', color: 'rgb(var(--text-primary)) !important' },
+        '.cm-strikethrough': { textDecoration: 'line-through !important', color: 'rgb(var(--text-muted)) !important', opacity: '0.7' },
+        '.cm-h1': { fontSize: '1.8em !important', fontWeight: '700 !important', fontFamily: "'Outfit', sans-serif" },
+        '.cm-h2': { fontSize: '1.5em !important', fontWeight: '600 !important', fontFamily: "'Outfit', sans-serif" },
+        '.cm-h3': { fontSize: '1.25em !important', fontWeight: '600 !important', fontFamily: "'Outfit', sans-serif" },
+        '.cm-h4': { fontSize: '1.1em !important', fontWeight: '500 !important', fontFamily: "'Outfit', sans-serif" },
+        '.cm-h5': { fontSize: '1em !important', fontWeight: '500 !important', fontFamily: "'Outfit', sans-serif", color: 'rgb(var(--text-muted))' },
+        '.cm-h6': { fontSize: '0.9em !important', fontWeight: '500 !important', fontFamily: "'Outfit', sans-serif", color: 'rgb(var(--text-muted))' },
+        '.cm-line:not(.cm-activeLine) .cm-h1, .cm-line:not(.cm-activeLine) .cm-h2, .cm-line:not(.cm-activeLine) .cm-h3, .cm-line:not(.cm-activeLine) .cm-h4': {
+          marginLeft: '-0.32em !important',
+          display: 'inline-block'
         },
-        '.cm-line:not(.cm-activeLine) .cm-md-marker:not(.cm-list-marker):not(.cm-checkbox)': {
-          display: 'none !important'
+        '.cm-quote': {
+          borderLeft: '3px solid rgb(var(--accent) / 0.3)',
+          paddingLeft: '1rem',
+          display: 'inline-block',
+          width: '100%',
+          color: 'rgb(var(--text-muted))',
+          fontStyle: 'italic'
         },
-        '.cm-activeLine .cm-md-marker': {
-          display: 'inline !important',
-          opacity: '0.4',
-          marginRight: '0.1em'
+        '.cm-hr': { borderTop: '1px solid rgb(var(--border) / 0.3)', margin: '1em 0', display: 'block' },
+        '.cm-table': { borderCollapse: 'collapse', width: '100%', margin: '1em 0' },
+        '.cm-table-cell': { border: '1px solid rgb(var(--border) / 0.2)', padding: '0.5em 0.75em' },
+        '.cm-table-header': { fontWeight: '600', backgroundColor: 'rgb(var(--accent) / 0.05)' },
+        '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: 'rgb(var(--accent) / 0.2) !important' },
+        '.cm-cursor': { borderLeftColor: 'rgb(var(--text-primary)) !important', borderLeftWidth: '2px' },
+        '.cm-activeLine': { backgroundColor: 'transparent' },
+        '.cm-gutters': { display: 'none' },
+        '.cm-wiki-link': {
+          color: 'rgb(var(--accent)) !important',
+          backgroundColor: 'rgb(var(--accent) / 0.15)',
+          borderRadius: '4px',
+          padding: '1px 4px',
+          textDecoration: 'none',
+          cursor: 'pointer'
         },
-        '.cm-list-marker': {
-          display: 'inline !important',
-          color: 'rgb(var(--text-primary))',
-          fontWeight: '400',
-          marginRight: '-0.2em'
+        '.cm-wiki-link:hover': { backgroundColor: 'rgb(var(--accent) / 0.25)' },
+        '.cm-bold-italic': { fontWeight: '700', fontStyle: 'italic', color: 'rgb(var(--accent))' },
+        '.cm-highlight': { backgroundColor: 'rgb(var(--accent) / 0.2)', padding: '1px 4px', borderRadius: '3px' },
+        '.cm-link': { color: 'rgb(var(--accent)) !important', textDecoration: 'underline !important' },
+        '.cm-url': { color: 'rgb(var(--text-muted)) !important', opacity: '0.6' },
+        '.cm-code': {
+          color: 'rgb(var(--accent)) !important',
+          backgroundColor: 'rgb(var(--accent) / 0.1) !important',
+          borderRadius: '3px',
+          padding: '1px 4px',
+          fontFamily: 'monospace'
         },
         '.cm-bullet-conceal': {
           color: 'transparent !important',
@@ -135,56 +168,27 @@ export function useEditorExtensions() {
           fontFamily: 'monospace',
           marginRight: '-0.2em'
         },
-        '.cm-h1': {
-          fontSize: '1.8em !important',
-          fontWeight: '700 !important',
-          fontFamily: "'Outfit', sans-serif"
+        '.cm-checkbox-checked': { color: 'rgb(var(--accent)) !important' },
+        '.cm-md-hidden': {
+          opacity: '0 !important',
+          width: '0 !important',
+          display: 'inline-block !important',
+          overflow: 'hidden !important',
+          fontSize: '0 !important',
+          lineHeight: '0 !important',
+          height: '0 !important',
+          margin: '0 !important',
+          padding: '0 !important'
         },
-        '.cm-h2': {
-          fontSize: '1.5em !important',
-          fontWeight: '600 !important',
-          fontFamily: "'Outfit', sans-serif"
-        },
-        '.cm-h3': {
-          fontSize: '1.25em !important',
-          fontWeight: '600 !important',
-          fontFamily: "'Outfit', sans-serif"
-        },
-        '.cm-h4': {
-          fontSize: '1.1em !important',
-          fontWeight: '500 !important',
-          fontFamily: "'Outfit', sans-serif"
-        },
-        '.cm-line:not(.cm-activeLine) .cm-h1, .cm-line:not(.cm-activeLine) .cm-h2, .cm-line:not(.cm-activeLine) .cm-h3, .cm-line:not(.cm-activeLine) .cm-h4':
-          {
-            marginLeft: '-0.32em !important',
-            display: 'inline-block'
-          },
-        '.cm-quote': {
-          borderLeft: '3px solid rgb(var(--accent) / 0.3)',
-          paddingLeft: '1rem',
-          display: 'inline-block',
-          width: '100%'
-        },
-        '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
-          backgroundColor: 'rgb(var(--accent) / 0.2) !important'
-        },
-        '.cm-cursor': {
-          borderLeftColor: 'rgb(var(--text-primary)) !important',
-          borderLeftWidth: '2px'
-        },
-        '.cm-activeLine': { backgroundColor: 'transparent' },
-        '.cm-gutters': { display: 'none' },
-        '.cm-wiki-link': {
-          color: 'rgb(var(--accent)) !important',
-          backgroundColor: 'rgb(var(--accent) / 0.15)',
-          borderRadius: '4px',
-          padding: '1px 4px',
-          textDecoration: 'none',
-          cursor: 'pointer'
-        },
-        '.cm-wiki-link:hover': {
-          backgroundColor: 'rgb(var(--accent) / 0.25)'
+        '.cm-activeLine .cm-md-hidden': {
+          opacity: '0.35 !important',
+          width: 'auto !important',
+          fontSize: 'inherit !important',
+          display: 'inline !important',
+          lineHeight: 'inherit !important',
+          height: 'auto !important',
+          margin: '0 !important',
+          padding: '0 !important'
         }
       }),
       EditorView.updateListener.of((update) => {
@@ -193,21 +197,14 @@ export function useEditorExtensions() {
           const pos = state.selection.main.head
           const line = state.doc.lineAt(pos)
           const lineText = line.text.slice(0, pos - line.from)
-
           const match = lineText.match(/(?:^|\s)\/(\w*)$/)
           if (match) {
             const query = match[1]
             const slashPos = line.from + lineText.lastIndexOf('/')
-
             setTimeout(() => {
               const coords = update.view.coordsAtPos(pos)
               if (coords) {
-                setSlashMenu({
-                  x: coords.left,
-                  y: coords.bottom + 8,
-                  query,
-                  pos: slashPos
-                })
+                setSlashMenu({ x: coords.left, y: coords.bottom + 8, query, pos: slashPos })
               }
             }, 0)
           } else {
@@ -219,57 +216,135 @@ export function useEditorExtensions() {
         class {
           decorations
           constructor(view: EditorView) {
-            this.decorations = this.getDecorations(view)
+            this.decorations = this.buildDecorations(view)
           }
           update(update: ViewUpdate) {
-            if (update.docChanged || update.selectionSet) {
-              this.decorations = this.getDecorations(update.view)
+            if (update.docChanged || update.selectionSet || update.viewportChanged) {
+              this.decorations = this.buildDecorations(update.view)
             }
           }
-          getDecorations(view: EditorView) {
-            const decorator = new MatchDecorator({
-              regexp: /(?<=^[ \t]*)[-*+]/gm,
-              decoration: Decoration.mark({ class: 'cm-bullet-conceal' })
-            })
-            return decorator.createDeco(view)
-          }
-        },
-        {
-          decorations: (v) => v.decorations
-        }
-      ),
-      ViewPlugin.fromClass(
-        class {
-          decorations
-          constructor(view: EditorView) {
-            this.decorations = this.getDecorations(view)
-          }
-          update(update: ViewUpdate) {
-            if (update.docChanged || update.selectionSet) {
-              this.decorations = this.getDecorations(update.view)
+          buildDecorations(view: EditorView) {
+            const decos: Range<Decoration>[] = []
+            const doc = view.state.doc
+            const activeLineNo = doc.lineAt(view.state.selection.main.head).number
+
+            for (let i = 1; i <= doc.lines; i++) {
+              const line = doc.line(i)
+              const text = line.text
+              const isActive = i === activeLineNo
+
+              if (isActive) continue
+
+              const from = line.from
+
+              const hashes = text.match(/^(#{1,6})(\s)/)
+              if (hashes) {
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from, from + hashes[1].length))
+              }
+
+              const quote = text.match(/^(\s*>)(\s)/)
+              if (quote) {
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from, from + quote[1].length))
+              }
+
+              const bullet = text.match(/^(\s*)([-*+])(\s)/)
+              if (bullet) {
+                const markerStart = from + bullet[1].length
+                decos.push(Decoration.mark({ class: 'cm-bullet-conceal' }).range(markerStart, markerStart + bullet[2].length))
+              }
+
+              const checkbox = text.match(/^(\s*)([-*+])(\s)(\[[ xX]\])(\s)/)
+              if (checkbox) {
+                const cbStart = from + checkbox[1].length + checkbox[2].length + checkbox[3].length
+                const isChecked = checkbox[4].toLowerCase() === '[x]'
+                decos.push(
+                  Decoration.mark({ class: isChecked ? 'cm-checkbox cm-checkbox-checked' : 'cm-checkbox' })
+                    .range(cbStart, cbStart + checkbox[4].length)
+                )
+              }
+
+              const hr = text.match(/^(\s*)([-*_]{3,})(\s*)$/)
+              if (hr) {
+                decos.push(Decoration.line({ class: 'cm-hr' }).range(line.from, line.to))
+              }
+
+              const boldMatches = [...text.matchAll(/\*\*(.+?)\*\*/g)]
+              for (const m of boldMatches) {
+                const s = m.index!
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 2))
+                const e = s + m[0].length - 2
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 2))
+              }
+
+              const italicMatches = [...text.matchAll(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g)]
+              for (const m of italicMatches) {
+                const s = m.index!
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 1))
+                const e = s + m[0].length - 1
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 1))
+              }
+
+              const strikeMatches = [...text.matchAll(/~~(.+?)~~/g)]
+              for (const m of strikeMatches) {
+                const s = m.index!
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 2))
+                const e = s + m[0].length - 2
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 2))
+              }
+
+              const codeMatches = [...text.matchAll(/`(.+?)`/g)]
+              for (const m of codeMatches) {
+                const s = m.index!
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 1))
+                const e = s + m[0].length - 1
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 1))
+              }
+
+              const linkMatches = [...text.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)]
+              for (const m of linkMatches) {
+                const s = m.index!
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 1))
+                const be = s + 1 + m[1].length
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + be, from + be + 1))
+                const ps = be + 1
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + ps, from + ps + 1))
+                const pe = s + m[0].length - 1
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + pe, from + pe + 1))
+              }
+
+              const wikiMatches = [...text.matchAll(/\[\[([^\]]+)\]\]/g)]
+              for (const m of wikiMatches) {
+                const s = m.index!
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 2))
+                const e = s + m[0].length - 2
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 2))
+              }
+
+              const highlightMatches = [...text.matchAll(/==(.+?)==/g)]
+              for (const m of highlightMatches) {
+                const s = m.index!
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 2))
+                const e = s + m[0].length - 2
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 2))
+              }
+
+              const boldItalicMatches = [...text.matchAll(/\*\*\*(.+?)\*\*\*/g)]
+              for (const m of boldItalicMatches) {
+                const s = m.index!
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 3))
+                const e = s + m[0].length - 3
+                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 3))
+              }
             }
-          }
-          getDecorations(view: EditorView) {
-            const decorator = new MatchDecorator({
-              regexp: /\[\[([^\]]+)\]\]/g,
-              decoration: Decoration.mark({ class: 'cm-wiki-link' })
-            })
-            return decorator.createDeco(view)
+
+            return Decoration.set(decos)
           }
         },
-        {
-          decorations: (v) => v.decorations
-        }
+        { decorations: (v) => v.decorations }
       )
     ],
     [markdownHighlighting]
   )
 
-  return {
-    editorViewRef,
-    slashMenu,
-    setSlashMenu,
-    editorExtensions,
-    handleSelectSlashCommand
-  }
+  return { editorViewRef, slashMenu, setSlashMenu, editorExtensions, handleSelectSlashCommand }
 }

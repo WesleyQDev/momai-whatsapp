@@ -468,11 +468,11 @@ export default function NotesView() {
 
       {/* Main Editor Content */}
       <main
-        className="flex-1 flex flex-col bg-card/40 relative transition-colors duration-300"
+        className="flex-1 flex flex-col bg-card/40 relative transition-colors duration-300 overflow-hidden"
         onClick={() => setContextMenu(null)}
       >
         {/* Toolbar with tabs */}
-        <header className="h-11 border-b border-border/10 flex items-center px-2 justify-between gap-4 bg-bg/80 backdrop-blur-md z-20">
+        <header className="h-11 border-b border-border/10 flex items-center px-2 justify-between gap-4 bg-bg/80 backdrop-blur-md z-20 shrink-0">
           <NoteToolbar
             isSidebarCollapsed={isSidebarCollapsed}
             isNotesUiLocked={isNotesUiLocked}
@@ -566,7 +566,7 @@ export default function NotesView() {
         </style>
 
         {/* Editor */}
-        <div className="flex-1 relative overflow-hidden flex mt-4 h-full">
+        <div className="flex-1 relative overflow-hidden flex h-full">
           <NoteEditor
             title={title}
             content={content}

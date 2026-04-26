@@ -73,7 +73,7 @@ export default function NoteEditor({
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar w-full">
-      <div className="max-w-5xl py-4 px-8 flex flex-col min-h-full">
+      <div className="max-w-4xl mx-auto w-full flex flex-col min-h-full">
         {slashMenu && (
           <SlashCommandMenu
             x={slashMenu.x}
@@ -83,16 +83,16 @@ export default function NoteEditor({
             onClose={onCloseSlashMenu}
           />
         )}
-        <input
-          ref={titleInputRef as React.RefObject<HTMLInputElement>}
-          value={title}
-          onChange={(e) => onTitleChange(e.target.value)}
-          onClick={(e) => (e.currentTarget as HTMLInputElement).select()}
-          placeholder={t('notes.untitled')}
-          className="w-full bg-transparent text-4xl font-bold text-text mb-4 outline-none placeholder:text-text-muted/20 border-none px-8"
-        />
-        <div className="px-8 mb-4 shrink-0">
-          <div className="h-px bg-border/20 w-full"></div>
+        <div className="px-8 pt-6 pb-0">
+          <input
+            ref={titleInputRef as React.RefObject<HTMLInputElement>}
+            value={title}
+            onChange={(e) => onTitleChange(e.target.value)}
+            onClick={(e) => (e.currentTarget as HTMLInputElement).select()}
+            placeholder={t('notes.untitled')}
+            className="w-full bg-transparent text-3xl font-bold text-text outline-none placeholder:text-text-muted/20 border-none"
+          />
+          <div className="h-px bg-border/15 w-full mt-3 mb-4"></div>
         </div>
         <CodeMirror
           value={content}

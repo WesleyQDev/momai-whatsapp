@@ -114,6 +114,14 @@
     @apply italic opacity-90;
   }
 
+  .message del {
+    @apply line-through opacity-60;
+  }
+
+  .message mark {
+    @apply bg-accent/20 text-accent px-1 py-0.5 rounded;
+  }
+
   /* Thinking block stylization */
   .message .think-container {
     @apply my-3 bg-white/[0.03] dark:bg-black/20 border-l-2 border-accent/30 rounded-r overflow-hidden transition-all duration-300;

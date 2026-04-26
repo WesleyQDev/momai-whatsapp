@@ -5,12 +5,9 @@ import {
   Search,
   Folder,
   FileText,
-  ChevronRight,
-  ChevronDown,
-  MoreHorizontal
+  Pin
 } from 'lucide-react'
 import { useI18n } from '../../../i18n'
-import FolderTree from './FolderTree'
 import ImportDropdown from './ImportDropdown'
 import { NoteSummary } from '../../../services/api'
 
@@ -53,6 +50,13 @@ interface NoteSidebarProps {
   rootNotes: NoteSummary[]
   isLoading: boolean
   notes: NoteSummary[]
+}
+
+const SYSTEM_FOLDERS = ['Lembretes', 'Reminders', 'System']
+
+function isSystemFolder(folderPath: string): boolean {
+  const folderName = folderPath.split('/').pop() || ''
+  return SYSTEM_FOLDERS.some(sf => folderName.toLowerCase().includes(sf.toLowerCase()))
 }
 
 export default function NoteSidebar({
@@ -98,6 +102,29 @@ export default function NoteSidebar({
   const { t } = useI18n()
 
   if (isCollapsed) return null
+
+  const allItems: Array<{ type: 'folder' | 'note'; path: string; note?: NoteSummary; folderNotes?: NoteSummary[] }> = []
+
+  folders.forEach((folderPath) => {
+    const folderNotes = notesByFolder[folderPath] || []
+    allItems.push({ type: 'folder', path: folderPath, folderNotes })
+    folderNotes.forEach((note) => {
+      allItems.push({ type: 'note', path: note.id, note })
+    })
+  })
+
+  rootNotes.forEach((note) => {
+    allItems.push({ type: 'note', path: note.id, note })
+  })
+
+  const filteredItems = filterText
+    ? allItems.filter((item) => {
+        if (item.type === 'folder') {
+          return item.path.toLowerCase().includes(filterText.toLowerCase())
+        }
+        return item.note?.title?.toLowerCase().includes(filterText.toLowerCase())
+      })
+    : allItems
 
   return (
     <aside className="w-64 border-r border-border/10 bg-sidebar flex flex-col shrink-0 transition-all duration-300">
@@ -194,75 +221,113 @@ export default function NoteSidebar({
           <div className="px-3 py-4 text-center text-xs opacity-30 italic">{t('notes.loading')}</div>
         ) : (
           <div className="space-y-0.5">
-            <FolderTree
-              folders={folders}
-              notesByFolder={notesByFolder}
-              expandedFolders={expandedFolders}
-              dragOverFolder={dragOverFolder}
-              renamingFolder={renamingFolder}
-              renameValue={renameValue}
-              renameInputRef={renameInputRef}
-              activeId={activeId}
-              onToggleFolder={onToggleFolder}
-              onContextMenu={onContextMenu}
-              onDragOver={onDragOver}
-              onDragEnter={onDragEnter}
-              onDragLeave={() => onDragLeave(new MouseEvent('dragleave') as any)}
-              onDrop={onDrop}
-              onRenameChange={onRenameChange}
-              onRenameBlur={onRenameBlur}
-              onRenameKeyDown={onRenameKeyDown}
-              onSelectNote={onSelectNote}
-              onContextMenuNote={onContextMenuNote}
-              onDragStartNote={onDragStartNote}
-            />
+            {filteredItems.map((item) => {
+              if (item.type === 'folder') {
+                const folderPath = item.path
+                const folderName = folderPath.split('/').pop() || folderPath
+                const isSystem = isSystemFolder(folderPath)
+                const isExpanded = expandedFolders.has(folderPath)
+                const folderNotes = item.folderNotes || []
 
-            {/* Root Notes Section */}
-            {rootNotes.length > 0 && (
-              <div className="pt-2">
-                <div className="px-2 py-1 text-[10px] font-semibold text-text-muted/40 uppercase tracking-wider">
-                  Notas
-                </div>
-                {rootNotes.map((note) => (
-                  <div
-                    key={note.id}
-                    draggable
-                    onDragStart={(e) => onDragStartNote(e, note.id)}
-                    onContextMenu={(e) => onContextMenuNote(e, note.id)}
-                  >
-                    {false ? (
-                      <input
-                        ref={renameInputRef as React.RefObject<HTMLInputElement>}
-                        value={renameValue}
-                        onChange={(e) => onRenameChange(e.target.value)}
-                        onBlur={onRenameBlur}
-                        onKeyDown={onRenameKeyDown}
-                        className="w-full bg-input border border-accent/50 rounded-md px-2 py-1.5 text-xs font-medium text-text outline-none mb-0.5"
-                        autoFocus
-                      />
+                return (
+                  <div key={`folder-${folderPath}`}>
+                    {renamingFolder === folderPath ? (
+                      <div className="px-1 py-0.5">
+                        <input
+                          ref={renameInputRef as React.RefObject<HTMLInputElement>}
+                          value={renameValue}
+                          onChange={(e) => onRenameChange(e.target.value)}
+                          onBlur={onRenameBlur}
+                          onKeyDown={onRenameKeyDown}
+                          className="w-full bg-input border border-accent/50 rounded-md px-2 py-1.5 text-xs font-medium text-text outline-none"
+                          autoFocus
+                        />
+                      </div>
                     ) : (
                       <button
-                        onClick={() => onSelectNote(note.id, false, true)}
-                        onAuxClick={(e) => {
-                          if (e.button === 1) onSelectNote(note.id, true, true)
-                        }}
-                        className={`w-full text-left px-2 py-1.5 rounded-md transition-all group relative flex items-center gap-2 ${
-                          note.id === activeId
-                            ? 'bg-accent/10 text-accent'
+                        onClick={() => onToggleFolder(folderPath)}
+                        onContextMenu={(e) => onContextMenu(e, folderPath, 'folder')}
+                        className={`w-full text-left px-2 py-1.5 rounded-md transition-all flex items-center gap-2 group ${
+                          dragOverFolder === folderPath
+                            ? 'bg-accent/20 text-accent'
                             : 'text-text-muted/80 hover:bg-white/5 hover:text-text'
                         }`}
                       >
-                        <FileText className="w-3.5 h-3.5 opacity-50 group-hover:opacity-80" />
-                        <span className="text-xs truncate flex-1">{note.title || t('notes.untitled')}</span>
-                        {note.id === activeId && (
-                          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4/5 bg-accent rounded-r-full"></div>
+                        {isSystem ? (
+                          <Pin className="w-3.5 h-3.5 text-accent/70 shrink-0" />
+                        ) : isExpanded ? (
+                          <Folder className="w-3.5 h-3.5 text-accent/70 shrink-0" />
+                        ) : (
+                          <Folder className="w-3.5 h-3.5 text-accent/50 shrink-0" />
                         )}
+                        <span className="text-xs font-medium truncate flex-1 leading-none">
+                          {folderName}
+                        </span>
+                        <span className="text-[10px] opacity-40 group-hover:opacity-70 shrink-0">
+                          {folderNotes.length}
+                        </span>
                       </button>
                     )}
+
+                    {isExpanded && (
+                      <div className="space-y-0.5 mt-0.5">
+                        {folderNotes.map((note) => (
+                          <button
+                            key={note.id}
+                            onClick={() => onSelectNote(note.id, false, true)}
+                            onAuxClick={(e) => {
+                              if (e.button === 1) onSelectNote(note.id, true, true)
+                            }}
+                            onContextMenu={(e) => onContextMenuNote(e, note.id)}
+                            draggable
+                            onDragStart={(e) => onDragStartNote(e, note.id)}
+                            className={`w-full text-left pl-6 pr-2 py-1 rounded-md transition-all group relative flex items-center gap-2 ${
+                              note.id === activeId
+                                ? 'bg-accent/10 text-accent'
+                                : 'text-text-muted/80 hover:bg-white/5 hover:text-text'
+                            }`}
+                          >
+                            <FileText className="w-3 h-3 opacity-50 group-hover:opacity-80 shrink-0" />
+                            <span className="text-xs truncate flex-1">{note.title || t('notes.untitled')}</span>
+                            {note.id === activeId && (
+                              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4/5 bg-accent rounded-r-full"></div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
+                )
+              }
+
+              const note = item.note!
+              return (
+                <div
+                  key={`note-${note.id}`}
+                  draggable
+                  onDragStart={(e) => onDragStartNote(e, note.id)}
+                  onContextMenu={(e) => onContextMenuNote(e, note.id)}
+                >
+                  <button
+                    onClick={() => onSelectNote(note.id, false, true)}
+                    onAuxClick={(e) => {
+                      if (e.button === 1) onSelectNote(note.id, true, true)
+                    }}
+                    className={`w-full text-left px-2 py-1.5 rounded-md transition-all group relative flex items-center gap-2 ${
+                      note.id === activeId
+                        ? 'bg-accent/10 text-accent'
+                        : 'text-text-muted/80 hover:bg-white/5 hover:text-text'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5 opacity-50 group-hover:opacity-80 shrink-0" />
+                    <span className="text-xs truncate flex-1">{note.title || t('notes.untitled')}</span>
+                    {note.id === activeId && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4/5 bg-accent rounded-r-full"></div>
+                    )}
+                  </button>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

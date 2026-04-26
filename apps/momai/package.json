@@ -34,6 +34,7 @@
   "dependencies": {
     "@codemirror/lang-markdown": "^6.3.1",
     "@codemirror/language": "^6.12.1",
+    "@codemirror/language-data": "^6.5.2",
     "@codemirror/view": "^6.38.1",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
