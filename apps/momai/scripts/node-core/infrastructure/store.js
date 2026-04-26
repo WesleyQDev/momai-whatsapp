@@ -36,7 +36,9 @@ function defaultStore() {
       onboarding_completed: false,
       tutorial_completed: false,
       ai_tier: null,
-      skip_intro: false
+      skip_intro: false,
+      context_window_mode: 'min',
+      context_window_tokens: 2048
     },
     mode: 'local',
     call_mode: false,

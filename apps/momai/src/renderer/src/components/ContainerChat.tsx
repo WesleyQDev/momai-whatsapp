@@ -1,9 +1,17 @@
 import { RefObject, JSX, useState, useEffect, useMemo, useRef } from 'react'
 import { MessageList, ChatInput, LoadingAnimation } from './chat'
-import { Message, StatusData, SettingsData, fetchSettings, listMemoryNotes } from '../services/api'
+import {
+  Message,
+  StatusData,
+  SettingsData,
+  fetchSettings,
+  listMemoryNotes,
+  resetChatContextUsage
+} from '../services/api'
 import { cleanMomaiActions, stripMarkdown } from '../utils/text'
 import { WelcomeHeader, WelcomeActions } from './chat/WelcomeTips'
 import { useI18n } from '../i18n'
+import { WS_URL } from '../constants'
 
 interface ContainerChatProps {
   messages: Message[]
@@ -38,6 +46,61 @@ interface ContainerChatProps {
   isFirstLaunch?: boolean
   animationFinished: boolean
   setAnimationFinished: (finished: boolean) => void
+}
+
+function ContextUsageRing() {
+  const [used, setUsed] = useState(0)
+  const [total, setTotal] = useState(0)
+
+  useEffect(() => {
+    let ws: WebSocket | null = null
+    try {
+      ws = new WebSocket(WS_URL)
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data)
+        if (msg.type === 'resource_usage') {
+          const nextUsed = Number(msg.data?.context_used_tokens || 0)
+          const nextTotal = Number(msg.data?.context_total_tokens || 0)
+          if (Number.isFinite(nextUsed)) setUsed(Math.max(0, nextUsed))
+          if (Number.isFinite(nextTotal)) setTotal(Math.max(0, nextTotal))
+        }
+      }
+    } catch {}
+    return () => ws?.close()
+  }, [])
+
+  const percent = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0
+  const angle = (percent / 100) * 360
+  const statusColor =
+    percent >= 85 ? '#ef4444' : percent >= 65 ? '#f59e0b' : 'rgba(139,92,246,0.95)'
+  const toneClass =
+    percent >= 85
+      ? 'border-red-400/30 text-red-300 bg-red-500/5'
+      : percent >= 65
+        ? 'border-amber-400/30 text-amber-200 bg-amber-500/5'
+        : 'border-accent/25 text-accent bg-accent/10'
+
+  return (
+    <div
+      className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-full border h-[34px] backdrop-blur-sm transition-colors ${toneClass}`}
+      title={`Contexto em uso: ${used}/${total || 0} tokens (${percent}%)`}
+    >
+      <div className="relative w-5 h-5 shrink-0">
+        <div
+          className="absolute inset-0 rounded-full"
+          style={{
+            background: `conic-gradient(${statusColor} ${angle}deg, rgba(255,255,255,0.10) ${angle}deg 360deg)`
+          }}
+        />
+        <div className="absolute inset-[3px] rounded-full bg-card border border-white/15" />
+      </div>
+      <span className="text-[10px] font-black tracking-[0.14em] uppercase">CTX</span>
+      <span className="text-[10px] font-semibold tabular-nums leading-none">
+        {used}/{total || 0}
+      </span>
+      <span className="text-[10px] font-bold tabular-nums leading-none opacity-90">{percent}%</span>
+    </div>
+  )
 }
 
 const CallModeUI = ({
@@ -419,6 +482,11 @@ export default function ContainerChat({
 
   const [settings, setSettings] = useState<SettingsData | null>(null)
   const [dynamicSuggestion, setDynamicSuggestion] = useState<string | null>(null)
+  const [showContextRing, setShowContextRing] = useState(() => {
+    const dev = localStorage.getItem('momai_dev_mode') === 'true'
+    const ring = localStorage.getItem('momai_show_context_ring') === 'true'
+    return dev && ring
+  })
 
   const isEmpty = messages.length === 0
 
@@ -472,6 +540,20 @@ export default function ContainerChat({
   useEffect(() => {
     setLocalSessionTitle(null)
   }, [threadId])
+
+  useEffect(() => {
+    const sync = () => {
+      const dev = localStorage.getItem('momai_dev_mode') === 'true'
+      const ring = localStorage.getItem('momai_show_context_ring') === 'true'
+      setShowContextRing(dev && ring)
+    }
+    window.addEventListener('momai_dev_mode_sync', sync as EventListener)
+    window.addEventListener('momai_context_ring_sync', sync as EventListener)
+    return () => {
+      window.removeEventListener('momai_dev_mode_sync', sync as EventListener)
+      window.removeEventListener('momai_context_ring_sync', sync as EventListener)
+    }
+  }, [])
 
   useEffect(() => {
     const handleTitleGenerated = (e: CustomEvent) => {
@@ -536,11 +618,13 @@ export default function ContainerChat({
               })()}
             </span>
             <div className="flex items-center gap-2 shrink-0">
+              {showContextRing && <ContextUsageRing />}
               <button
                 type="button"
                 onClick={() => {
                   stopCurrentGeneration?.()
                   stopCurrentVoice?.()
+                  resetChatContextUsage().catch(() => {})
                   setThreadId(`sessao_${Date.now()}`)
                 }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/20 hover:border-accent/40 rounded-full transition-all uppercase tracking-wider h-[34px]"

@@ -240,7 +240,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
         onClose={onClose}
         width="max-w-5xl w-[92vw] xl:w-[85vw]"
       >
-        <div className="flex h-full -m-4">
+        <div className="flex h-[61vh] min-h-[460px] max-h-[600px] -m-4">
           {sidebar}
           {mainContent}
         </div>

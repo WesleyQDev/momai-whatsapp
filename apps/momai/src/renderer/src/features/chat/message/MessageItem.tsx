@@ -25,10 +25,12 @@ import {
 import { registerRenderer } from '../../../components/chat/SkillResponseRegistry'
 import WeatherCard from '../../../components/chat/WeatherCard'
 import RemindersCard from '../../../components/chat/RemindersCard'
+import HtmlPreviewCard from '../../../components/chat/HtmlPreviewCard'
 import '../../../components/chat/ExtensionRendererLoader'
 
 registerRenderer('weather', WeatherCard)
 registerRenderer('reminders', RemindersCard)
+registerRenderer('html_preview', HtmlPreviewCard)
 
 interface MessageItemProps {
   message: Message

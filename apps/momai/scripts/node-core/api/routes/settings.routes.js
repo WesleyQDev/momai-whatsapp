@@ -4,6 +4,8 @@ function createSettingsRoutes(context) {
     sendJson,
     isValidTier,
     normalizeBackendMode,
+    normalizeContextWindowMode,
+    clampContextTokens,
     saveStore,
     maybeRestartLlamaOnTierChange,
     syncWakeWordState,
@@ -20,6 +22,12 @@ function createSettingsRoutes(context) {
       } else if (tier === 'pro') {
         store.settings.wake_word_enabled = false
       }
+      store.settings.context_window_mode = normalizeContextWindowMode(
+        store.settings.context_window_mode || 'min'
+      )
+      store.settings.context_window_tokens = clampContextTokens(
+        store.settings.context_window_tokens || 2048
+      )
       sendJson(res, 200, store.settings)
       return true
     }
@@ -40,6 +48,12 @@ function createSettingsRoutes(context) {
 
         store.settings = { ...store.settings, ...payload }
         store.settings.local_backend = normalizeBackendMode(store.settings.local_backend || 'auto')
+        store.settings.context_window_mode = normalizeContextWindowMode(
+          store.settings.context_window_mode || 'min'
+        )
+        store.settings.context_window_tokens = clampContextTokens(
+          store.settings.context_window_tokens || 2048
+        )
 
         if (payload.ai_tier) {
           if (store.settings.ai_tier === 'lite') {

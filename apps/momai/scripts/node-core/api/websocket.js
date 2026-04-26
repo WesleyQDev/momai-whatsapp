@@ -28,18 +28,44 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
     })
   }
 
-  function sendResourceUsage() {
+  async function sendResourceUsage() {
     const mem = process.memoryUsage()
     const ramMb = Math.round(mem.rss / 1024 / 1024)
+    let runtime = null
+    try {
+      const { fetchLlamaRuntimeTelemetry } = require('../services/llama-manager')
+      runtime = await fetchLlamaRuntimeTelemetry().catch(() => null)
+    } catch {
+      runtime = null
+    }
 
     broadcast({
       type: 'resource_usage',
       data: {
         ram_mb: ramMb,
-        vram_used_mb: 0,
-        vram_total_mb: 0,
-        context_used_tokens: 0,
-        context_total_tokens: llamaState.contextTotalTokens || 8192
+        vram_used_mb: Math.max(
+          0,
+          Number(runtime?.vramUsedMb || llamaState.vramUsedMb || 0)
+        ),
+        vram_total_mb: Math.max(
+          0,
+          Number(runtime?.vramTotalMb || llamaState.vramTotalMb || 0)
+        ),
+        context_used_tokens: Math.max(
+          0,
+          Number(
+            runtime?.kvUsedTokens || llamaState.kvCacheUsedTokens || llamaState.contextUsedTokens || 0
+          )
+        ),
+        context_total_tokens: Math.max(
+          0,
+          Number(
+            runtime?.kvTotalTokens ||
+              llamaState.kvCacheTotalTokens ||
+              llamaState.contextTotalTokens ||
+              8192
+          )
+        )
       }
     })
   }

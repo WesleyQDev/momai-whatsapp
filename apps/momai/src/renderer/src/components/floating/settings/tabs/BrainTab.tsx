@@ -69,6 +69,50 @@ export const BrainTab = React.memo(
       [t, localDetails.recommended_build]
     )
 
+    const normalizeMode = (mode: unknown): 'min' | 'medium' | 'max' | 'custom' => {
+      const value = String(mode || '').toLowerCase()
+      if (value === 'min' || value === 'medium' || value === 'max' || value === 'custom') return value
+      return 'min'
+    }
+
+    const clampTokens = (value: number): number => {
+      const stepped = Math.round(Number(value || 0) / 256) * 256
+      return Math.max(1024, Math.min(16384, stepped))
+    }
+
+    const currentMode = normalizeMode(settings.context_window_mode)
+    const currentTokens = clampTokens(Number(settings.context_window_tokens || 2048))
+    const ramGb = Number(localDetails.total_ram_gb || 0)
+    const vramGb = Number(localDetails.total_vram_gb || 0)
+    const gpuBackend = currentBackend === 'cuda' || currentBackend === 'vulkan'
+
+    const estimateAutoTokens = (mode: 'min' | 'medium' | 'max'): number => {
+      const factors = { min: 0.3, medium: 0.55, max: 0.85 }
+      const factor = factors[mode]
+      const mbPer1k = gpuBackend ? 90 : 110
+      const baseBudgetGb = gpuBackend
+        ? Math.max(2, (vramGb || 4) * 0.35)
+        : Math.max(1, (ramGb || 8) * 0.1)
+      const tokens = Math.floor((baseBudgetGb * factor * 1024 * 1000) / mbPer1k)
+      return clampTokens(tokens)
+    }
+
+    const modeTokens = {
+      min: estimateAutoTokens('min'),
+      medium: estimateAutoTokens('medium'),
+      max: estimateAutoTokens('max'),
+      custom: currentTokens
+    }
+
+    const estimatedCtxGb = useMemo(() => {
+      const mbPer1k = gpuBackend ? 90 : 110
+      const tokens = currentMode === 'custom' ? currentTokens : modeTokens[currentMode]
+      return (tokens / 1000) * (mbPer1k / 1024)
+    }, [gpuBackend, currentMode, currentTokens, modeTokens])
+
+    const estimatedModelGb = settings.ai_tier === 'ultra' ? 3.8 : settings.ai_tier === 'pro' ? 2.2 : 1.3
+    const estimatedTotalGb = estimatedModelGb + estimatedCtxGb
+
     return (
       <div className="space-y-5">
         <div className="flex items-center justify-between border-b border-border/40 pb-3">
@@ -306,6 +350,92 @@ export const BrainTab = React.memo(
               </button>
               {isAdvancedHardwareOpen && (
                 <div className="flex flex-col gap-1.5 min-h-[200px]">
+                  <div className="p-3 rounded-lg bg-white/[0.02] border border-border/30 space-y-2 mb-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wide">
+                        Janela de Contexto
+                      </label>
+                      <button
+                        onClick={() => {
+                          updateField('context_window_mode', 'min', true)
+                          updateField('context_window_tokens', modeTokens.min, true)
+                        }}
+                        className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide bg-white/[0.05] border border-border/40 text-text-muted hover:text-text hover:bg-white/[0.09] transition-colors"
+                      >
+                        Reset
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'min', title: 'Mínimo', subtitle: `${modeTokens.min} tokens` },
+                        { id: 'medium', title: 'Médio', subtitle: `${modeTokens.medium} tokens` },
+                        { id: 'max', title: 'Máximo', subtitle: `${modeTokens.max} tokens` },
+                        { id: 'custom', title: 'Personalizado', subtitle: `${currentTokens} tokens` }
+                      ].map((opt) => {
+                        const selected = currentMode === opt.id
+                        return (
+                          <button
+                            key={opt.id}
+                            onClick={() => {
+                              const mode = opt.id as 'min' | 'medium' | 'max' | 'custom'
+                              const tokens = mode === 'custom' ? currentTokens : modeTokens[mode]
+                              updateField('context_window_mode', mode, true)
+                              updateField('context_window_tokens', tokens, true)
+                            }}
+                            className={`p-2.5 rounded-lg border text-left transition-all ${
+                              selected
+                                ? 'bg-accent/10 border-accent/40'
+                                : 'bg-white/[0.02] border-border/30 hover:bg-white/[0.04]'
+                            }`}
+                          >
+                            <div className="text-xs font-semibold text-text">{opt.title}</div>
+                            <div className="text-[10px] text-text-muted">{opt.subtitle}</div>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    <div className="pt-1 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold text-text">Tokens da Janela</span>
+                        <input
+                          type="number"
+                          min={1024}
+                          max={16384}
+                          step={256}
+                          value={currentTokens}
+                          onChange={(e) => {
+                            const next = clampTokens(Number(e.target.value || 0))
+                            updateField('context_window_mode', 'custom', true)
+                            updateField('context_window_tokens', next, true)
+                          }}
+                          className="w-28 bg-input border border-border/60 rounded-md px-2 py-1 text-xs text-text focus:border-accent/40 outline-none"
+                        />
+                      </div>
+                      <input
+                        type="range"
+                        min={1024}
+                        max={16384}
+                        step={256}
+                        value={currentTokens}
+                        onChange={(e) => {
+                          const next = clampTokens(Number(e.target.value || 0))
+                          updateField('context_window_mode', 'custom', true)
+                          updateField('context_window_tokens', next, true)
+                        }}
+                        className="w-full accent-[var(--color-accent,#8b5cf6)]"
+                      />
+                      <div className="text-[11px] text-text-muted">
+                        Estimativa LLM + janela:{' '}
+                        <span className="text-text font-semibold">{estimatedTotalGb.toFixed(2)} GB</span>
+                        <span className="ml-1 opacity-80">
+                          ({estimatedModelGb.toFixed(1)} GB modelo + {estimatedCtxGb.toFixed(2)} GB contexto)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
                   {backendOptions.map((opt) => {
                     const isSelected = settings.local_backend === opt.id
                     const isInstalled =

@@ -10,6 +10,7 @@ function createChatRoutes(context) {
     runVoiceCommand,
     stopGenerationRequested,
     activeChatControllers,
+    llamaState,
     getThreadMessages,
     saveStore,
     listSessions
@@ -78,6 +79,12 @@ function createChatRoutes(context) {
         // TTS might not be available, ignore
       }
       sendJson(res, 200, { status: 'ok' })
+      return true
+    }
+
+    if (pathname === '/chat/context/reset' && req.method === 'POST') {
+      llamaState.contextUsedTokens = 0
+      sendJson(res, 200, { status: 'ok', context_used_tokens: 0 })
       return true
     }
 

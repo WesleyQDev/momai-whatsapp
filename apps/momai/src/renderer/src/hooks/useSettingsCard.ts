@@ -21,6 +21,8 @@ export interface Settings {
   daily_briefing_enabled: boolean
   ai_tier: 'lite' | 'pro' | 'ultra'
   auto_start_llm: boolean
+  context_window_mode?: 'min' | 'medium' | 'max' | 'custom'
+  context_window_tokens?: number
   skip_intro?: boolean
   onboarding_completed?: boolean
 }
@@ -39,6 +41,8 @@ export interface LocalDetails {
   installed_backends?: string[]
   current_local_backend?: string
   os_name?: string
+  total_ram_gb?: number
+  total_vram_gb?: number
 }
 
 const TIER_DEFAULTS: Record<string, { tts_enabled: boolean; wake_word_enabled: boolean }> = {
@@ -72,6 +76,8 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     daily_briefing_enabled: false,
     ai_tier: 'pro',
     auto_start_llm: true,
+    context_window_mode: 'min',
+    context_window_tokens: 2048,
     skip_intro: false
   })
 

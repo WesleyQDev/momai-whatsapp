@@ -110,11 +110,19 @@ export function useAutocomplete() {
     [suggestion]
   )
 
+  const getRecentHistory = useCallback((): string[] => {
+    return [...historyRef.current]
+      .sort((a, b) => b.lastUsed - a.lastUsed || b.count - a.count)
+      .map((entry) => entry.text)
+      .filter((text) => Boolean(text && text.trim()))
+  }, [])
+
   return {
     suggestion,
     addToHistory,
     getSuggestion,
     clearSuggestion,
-    acceptSuggestion
+    acceptSuggestion,
+    getRecentHistory
   }
 }

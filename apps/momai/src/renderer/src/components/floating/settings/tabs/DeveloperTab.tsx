@@ -49,6 +49,9 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
   const [isDevMode, setIsDevMode] = useState(
     () => localStorage.getItem('momai_dev_mode') === 'true'
   )
+  const [showContextRing, setShowContextRing] = useState(
+    () => localStorage.getItem('momai_show_context_ring') === 'true'
+  )
 
   useEffect(() => {
     const syncDevMode = (event: Event) => {
@@ -58,6 +61,7 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
         return
       }
       setIsDevMode(localStorage.getItem('momai_dev_mode') === 'true')
+      setShowContextRing(localStorage.getItem('momai_show_context_ring') === 'true')
     }
 
     window.addEventListener('momai_dev_mode_sync', syncDevMode as EventListener)
@@ -212,6 +216,34 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
           ))}
         </div>
       </div>
+
+      {isDevMode && (
+        <div className="flex items-center justify-between gap-2 p-4 rounded-xl bg-white/[0.03] border border-border/40">
+          <div className="flex flex-col gap-0.5 pr-4 min-w-0">
+            <span className="text-xs font-semibold text-text">Ver contexto total usado</span>
+            <span className="text-[11px] text-text-muted font-medium">
+              Mostra no chat uma circunferência com contexto usado e restante.
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              const next = !showContextRing
+              localStorage.setItem('momai_show_context_ring', String(next))
+              window.dispatchEvent(new CustomEvent('momai_context_ring_sync', { detail: next }))
+              setShowContextRing(next)
+            }}
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              showContextRing ? 'bg-accent/80' : 'bg-white/10'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                showContextRing ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+      )}
 
       {/* Logs Panel - só aparece quando ativo */}
       {isDevMode && <LogsPanel />}

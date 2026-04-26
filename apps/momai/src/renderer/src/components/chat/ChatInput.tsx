@@ -81,10 +81,12 @@ export default function ChatInput({
   const [aiTier, setAiTier] = useState<string | null>(null)
   const [isQuickRecording, setIsQuickRecording] = useState(false)
   const recordingRef = useRef(false)
+  const historyNavIndexRef = useRef<number>(-1)
+  const historyDraftRef = useRef<string>('')
   const isBrainUnavailable = statusInfo ? !statusInfo.brain_ready || statusInfo.is_loading : false
   const pythonStatus = usePythonStatus()
 
-  const { suggestion, addToHistory, getSuggestion, clearSuggestion, acceptSuggestion } =
+  const { suggestion, addToHistory, getSuggestion, clearSuggestion, acceptSuggestion, getRecentHistory } =
     useAutocomplete()
 
   // Sync local text with external text
@@ -224,6 +226,8 @@ export default function ChatInput({
   const handleSend = useCallback(() => {
     if (!localText.trim() || isLoading || isModeChanging || isBrainUnavailable) return
     addToHistory(localText)
+    historyNavIndexRef.current = -1
+    historyDraftRef.current = ''
     clearSuggestion()
     onSend(localText)
     setLocalText('')
@@ -240,6 +244,10 @@ export default function ChatInput({
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const value = e.target.value
+      if (historyNavIndexRef.current !== -1) {
+        historyNavIndexRef.current = -1
+        historyDraftRef.current = value
+      }
       setLocalText(value)
       getSuggestion(value)
     },
@@ -264,9 +272,86 @@ export default function ChatInput({
         const completed = acceptSuggestion(localText)
         setLocalText(completed)
         clearSuggestion()
+        return
+      }
+
+      if (e.key === 'ArrowUp') {
+        const textarea = inputRef.current
+        if (!textarea) return
+        const caretAtStart = textarea.selectionStart === 0 && textarea.selectionEnd === 0
+        if (!caretAtStart) return
+
+        const history = getRecentHistory()
+        if (!history.length) return
+
+        e.preventDefault()
+        if (historyNavIndexRef.current === -1) {
+          historyDraftRef.current = localText
+          historyNavIndexRef.current = 0
+        } else if (historyNavIndexRef.current < history.length - 1) {
+          historyNavIndexRef.current += 1
+        }
+
+        const nextValue = history[historyNavIndexRef.current] || ''
+        setLocalText(nextValue)
+        clearSuggestion()
+        requestAnimationFrame(() => {
+          if (!inputRef.current) return
+          const pos = nextValue.length
+          inputRef.current.setSelectionRange(pos, pos)
+        })
+        return
+      }
+
+      if (e.key === 'ArrowDown') {
+        const textarea = inputRef.current
+        if (!textarea) return
+        const caretAtEnd =
+          textarea.selectionStart === localText.length && textarea.selectionEnd === localText.length
+        if (!caretAtEnd) return
+        if (historyNavIndexRef.current === -1) return
+
+        e.preventDefault()
+        const history = getRecentHistory()
+        if (!history.length) {
+          historyNavIndexRef.current = -1
+          const draft = historyDraftRef.current || ''
+          setLocalText(draft)
+          return
+        }
+
+        if (historyNavIndexRef.current > 0) {
+          historyNavIndexRef.current -= 1
+          const nextValue = history[historyNavIndexRef.current] || ''
+          setLocalText(nextValue)
+          clearSuggestion()
+          requestAnimationFrame(() => {
+            if (!inputRef.current) return
+            const pos = nextValue.length
+            inputRef.current.setSelectionRange(pos, pos)
+          })
+          return
+        }
+
+        historyNavIndexRef.current = -1
+        const draft = historyDraftRef.current || ''
+        setLocalText(draft)
+        clearSuggestion()
+        requestAnimationFrame(() => {
+          if (!inputRef.current) return
+          const pos = draft.length
+          inputRef.current.setSelectionRange(pos, pos)
+        })
       }
     },
-    [suggestion, localText, handleSend, acceptSuggestion, clearSuggestion]
+    [
+      suggestion,
+      localText,
+      handleSend,
+      acceptSuggestion,
+      clearSuggestion,
+      getRecentHistory
+    ]
   )
 
   const handleMicClick = async () => {

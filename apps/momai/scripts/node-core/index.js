@@ -168,15 +168,29 @@ function getSetupInfo() {
   const { hasBackendBinary, normalizeBackendMode, pickBackend } = require('./services/llama-manager')
   const { llamaState } = require('./services/shared-state')
   const { store } = require('./infrastructure/store')
-  const installedBackends = ['vulkan', 'cpu'].filter((backend) => hasBackendBinary(backend))
-  const localInstalled = hasBackendBinary('vulkan') || hasBackendBinary('cpu')
+  const installedBackends = ['cuda', 'vulkan', 'cpu'].filter((backend) => hasBackendBinary(backend))
+  const localInstalled =
+    hasBackendBinary('cuda') || hasBackendBinary('vulkan') || hasBackendBinary('cpu')
   const cpuName = os.cpus?.()?.[0]?.model || 'Unknown CPU'
-  const recommendedBuild = installedBackends.includes('vulkan') ? 'vulkan' : 'cpu'
-  const detectedHardware = installedBackends.includes('vulkan')
+  const totalRamGb = Math.round((os.totalmem() / 1024 / 1024 / 1024) * 10) / 10
+  const totalVramGb =
+    llamaState.vramTotalMb && llamaState.vramTotalMb > 0
+      ? Math.round((Number(llamaState.vramTotalMb) / 1024) * 10) / 10
+      : 0
+  const recommendedBuild = installedBackends.includes('cuda')
+    ? 'cuda'
+    : installedBackends.includes('vulkan')
+      ? 'vulkan'
+      : 'cpu'
+  const detectedHardware = installedBackends.includes('cuda')
+    ? 'GPU NVIDIA detectada (CUDA)'
+    : installedBackends.includes('vulkan')
     ? 'GPU com suporte a Vulkan detectada'
     : 'GPU dedicada não detectada (modo CPU)'
   const preferred = normalizeBackendMode(store.settings.local_backend || 'auto')
   const currentLocalBackend = llamaState.backend || pickBackend(preferred) || 'cpu'
+  store.settings.hardware_total_ram_gb = totalRamGb
+  store.settings.hardware_total_vram_gb = totalVramGb
   return {
     local_installed: localInstalled,
     installed_version: process.env.npm_package_version || '1.0.0',
@@ -186,7 +200,9 @@ function getSetupInfo() {
     recommended_build: recommendedBuild,
     installed_backends: installedBackends,
     current_local_backend: currentLocalBackend,
-    os_name: `${os.platform()} ${os.release()}`
+    os_name: `${os.platform()} ${os.release()}`,
+    total_ram_gb: totalRamGb,
+    total_vram_gb: totalVramGb
   }
 }
 
@@ -367,6 +383,8 @@ function startServer() {
     streamLlamaChat: chatService.streamLlamaChat || (() => Promise.resolve()),
     isValidTier,
     normalizeBackendMode: llamaManager.normalizeBackendMode || ((v) => v),
+    normalizeContextWindowMode: llamaManager.normalizeContextWindowMode || ((v) => v),
+    clampContextTokens: llamaManager.clampContextTokens || ((v) => v),
     maybeRestartLlamaOnTierChange,
     getSetupInfo,
     buildSemanticRuntimeStatus,

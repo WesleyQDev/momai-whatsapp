@@ -30,6 +30,12 @@ let stopGenerationRequested = false
 let stopVoiceRequested = false
 const activeChatControllers = new Set()
 
+function estimateTokenCount(text) {
+  const safe = String(text || '')
+  if (!safe) return 0
+  return Math.max(1, Math.ceil(safe.length / 4))
+}
+
 function getThreadMessages(threadId) {
   if (!store.thread_messages[threadId]) {
     store.thread_messages[threadId] = []
@@ -268,6 +274,16 @@ function buildLocalizedFallbackReply({ key, summary, reason, language }) {
   const safeSummary = String(summary || '').trim()
   const safeReason = String(reason || '').trim() || 'unknown reason'
 
+  if (lang === 'pt-BR') {
+    if (key === 'empty') return 'Me envie uma pergunta e eu te ajudo.'
+    if (key === 'greeting') return 'Oi! Estou online. Como posso te ajudar agora?'
+    if (key === 'reason')
+      return `O modelo local ficou indisponível no momento (${safeReason}). Posso tentar novamente em seguida.`
+    if (key === 'with_memory')
+      return `Entendi seu pedido: "${safeSummary}". Também considerei o contexto das suas notas locais.`
+    return `Entendi seu pedido: "${safeSummary}". Vou seguir com isso.`
+  }
+
   if (lang === 'en') {
     if (key === 'empty') return 'Send me a question and I will help you.'
     if (key === 'greeting') return 'Hi! I am online. How can I help you now?'
@@ -293,6 +309,165 @@ function buildLocalizedFallbackReply({ key, summary, reason, language }) {
     return safeSummary
   }
   return promptRegistry.buildFallbackReply({ key, summary: safeSummary, reason: safeReason })
+}
+
+function humanizeFallbackReason(reason, language = 'pt-BR') {
+  const raw = String(reason || '').toLowerCase()
+  const lang = normalizeLanguageTag(language)
+  const isPt = lang === 'pt-BR'
+
+  if (raw.includes('exceeds the available context size') || raw.includes('exceed_context_size')) {
+    return isPt
+      ? 'o contexto da conversa ficou maior que o limite atual'
+      : 'the conversation context is larger than the current limit'
+  }
+  if (raw.includes('healthcheck timeout')) {
+    return isPt ? 'o modelo local demorou para iniciar' : 'the local model took too long to start'
+  }
+  if (raw.includes('llama unavailable')) {
+    return isPt ? 'o modelo local não ficou disponível' : 'the local model is unavailable'
+  }
+  return isPt ? 'falha temporária no modelo local' : 'temporary local model failure'
+}
+
+function trimMessageForContext(text, maxChars = 900) {
+  const clean = sanitizePromptText(String(text || '').trim())
+  if (clean.length <= maxChars) return clean
+  return `${clean.slice(0, maxChars)}...`
+}
+
+function buildCompactedMessages(systemMessage, currentMessages, userContent = '') {
+  const compactSystem = {
+    ...systemMessage,
+    content: trimMessageForContext(systemMessage.content, 1200)
+  }
+  const compactHistory = currentMessages
+    .filter((m) => m.role !== 'system')
+    .slice(-2)
+    .map((m) => ({ ...m, content: trimMessageForContext(m.content, 700) }))
+  const hasUser = compactHistory.some((m) => m.role === 'user')
+  if (!hasUser) {
+    compactHistory.push({
+      role: 'user',
+      content: trimMessageForContext(userContent, 700)
+    })
+  }
+  return [compactSystem, ...compactHistory]
+}
+
+function buildHistoryWithinBudget(messages, tokenBudget) {
+  const safeBudget = Math.max(200, Number(tokenBudget || 0))
+  const normalized = (Array.isArray(messages) ? messages : [])
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant'))
+    .map((m) => {
+      const maxChars = m.role === 'assistant' ? 520 : 820
+      return {
+        role: m.role,
+        content: trimMessageForContext(m.content, maxChars)
+      }
+    })
+
+  const picked = []
+  let consumed = 0
+  let hasUser = false
+
+  for (let i = normalized.length - 1; i >= 0; i -= 1) {
+    const msg = normalized[i]
+    const cost = estimateTokenCount(msg.content)
+    if (picked.length > 0 && consumed + cost > safeBudget) continue
+    picked.unshift(msg)
+    consumed += cost
+    if (msg.role === 'user') hasUser = true
+    if (consumed >= safeBudget) break
+  }
+
+  if (!hasUser) {
+    const lastUser = [...normalized].reverse().find((m) => m.role === 'user')
+    if (lastUser) picked.push(lastUser)
+  }
+
+  return picked
+}
+
+function shouldPreferSilentForCodeRequest(userText) {
+  const text = String(userText || '').toLowerCase()
+  if (!text) return false
+  return /(c[óo]digo|code|html|css|javascript|typescript|react|vue|angular|sql|python|java|c\+\+|snippet)/i.test(
+    text
+  )
+}
+
+function containsCodeLikeContent(text) {
+  const value = String(text || '')
+  if (!value) return false
+  if (/```[\s\S]*?```/.test(value)) return true
+  if (/```/.test(value)) return true
+  if (/<html[\s>]/i.test(value) || /<!doctype html>/i.test(value)) return true
+  if (/<(div|span|section|header|main|script|style)[\s>]/i.test(value)) return true
+  return false
+}
+
+function extractHtmlPreviewData(text) {
+  const value = String(text || '')
+  if (!value) return null
+
+  const fenced =
+    value.match(/```html\s*([\s\S]*?)```/i) ||
+    value.match(/```(?:htm)?\s*([\s\S]*?)```/i)
+  if (fenced && fenced[1]) {
+    const html = fenced[1].trim()
+    if (/<html[\s>]/i.test(html) || /<!doctype html>/i.test(html)) {
+      return { html, title: 'Preview HTML gerada automaticamente' }
+    }
+  }
+
+  const doctypeIdx = value.search(/<!doctype html>/i)
+  const htmlIdx = value.search(/<html[\s>]/i)
+  const startIdx = doctypeIdx >= 0 ? doctypeIdx : htmlIdx
+  if (startIdx >= 0) {
+    const raw = value.slice(startIdx).trim()
+    const html = raw.length > 160000 ? raw.slice(0, 160000) : raw
+    if (html.length >= 120) {
+      return { html, title: 'Preview HTML gerada automaticamente' }
+    }
+  }
+
+  return null
+}
+
+function computeDynamicMaxTokens(tierMaxTokens, estimatedPromptTokens, contextTotalTokens) {
+  const total = Math.max(512, Number(contextTotalTokens || 2048))
+  const prompt = Math.max(0, Number(estimatedPromptTokens || 0))
+  const reserve = Math.max(96, Math.floor(total * 0.06))
+  const available = Math.max(64, total - prompt - reserve)
+  const hardCap = Math.max(256, Math.min(3072, Math.floor(total * 0.35)))
+  const desired =
+    total >= 12000 ? Math.max(Number(tierMaxTokens || 0), 1200)
+      : total >= 8000 ? Math.max(Number(tierMaxTokens || 0), 900)
+      : Math.max(Number(tierMaxTokens || 0), 600)
+
+  const candidate = Math.min(available, hardCap)
+  if (candidate >= desired) return desired
+  if (candidate >= 160) return candidate
+  return Math.max(64, candidate)
+}
+
+function isLikelyIncompleteResponse(text, finishReason) {
+  const value = String(text || '').trim()
+  if (!value) return false
+  if (String(finishReason || '').toLowerCase() === 'length') return true
+
+  const fenceMatches = value.match(/```/g)
+  const fenceCount = fenceMatches ? fenceMatches.length : 0
+  if (fenceCount % 2 !== 0) return true
+
+  if (/<html[\s>]/i.test(value) && !/<\/html>/i.test(value)) return true
+  if (/<body[\s>]/i.test(value) && !/<\/body>/i.test(value)) return true
+
+  if (/[{[(]$/.test(value)) return true
+  if (/[,:;]$/.test(value) && value.length > 120) return true
+
+  return false
 }
 
 function generateFallbackReply(content, memoryContext, reason, responseLanguage) {
@@ -335,6 +510,11 @@ async function streamFallbackResponse(
   appendMessage(threadId, 'user', content, { sources: memorySources })
   const reply = generateFallbackReply(content, memoryContext, reason, responseLanguage)
   const tokens = splitTokens(reply)
+  const fallbackUsed = estimateTokenCount(content) + estimateTokenCount(memoryContext) + estimateTokenCount(reply)
+  llamaState.contextUsedTokens = Math.min(
+    Number(llamaState.contextTotalTokens || 8192),
+    Math.max(0, fallbackUsed)
+  )
 
   stopGenerationRequested = false
   sendSseHeaders(res)
@@ -399,7 +579,9 @@ async function streamLlamaChat(req, res, payload) {
   const content = String(payload.content || '')
   const threadId = String(payload.thread_id || 'default')
   const responseLanguage = resolveResponseLanguage(content, threadId)
+  const fallbackLanguage = normalizeLanguageTag(store.settings.locale || 'pt-BR')
   const speakResponse = payload.speak_response !== false
+  const silentForCodeIntent = shouldPreferSilentForCodeRequest(content)
   const tierName = store.settings.ai_tier || 'pro'
   const isUltra = tierName === 'ultra'
   let memoryContext = typeof payload.memory_context === 'string' ? payload.memory_context : null
@@ -426,8 +608,8 @@ async function streamLlamaChat(req, res, payload) {
       threadId,
       memoryContext,
       memorySources.length ? memorySources : undefined,
-      llamaState.lastError || 'llama unavailable',
-      responseLanguage
+      humanizeFallbackReason(llamaState.lastError || 'llama unavailable', fallbackLanguage),
+      fallbackLanguage
     )
     return
   }
@@ -466,12 +648,14 @@ async function streamLlamaChat(req, res, payload) {
     writeSse(res, { memory_sources: memorySources })
   }
 
-  const history = getThreadMessages(threadId)
-    .slice(-8)
-    .map((msg) => ({
+  const baseCtx = Number(llamaState.contextTotalTokens || 2048)
+  const dynamicHistoryBudget = Math.max(450, Math.floor(baseCtx * 0.62))
+  const history = buildHistoryWithinBudget(getThreadMessages(threadId), dynamicHistoryBudget).map(
+    (msg) => ({
       role: msg.role === 'assistant' ? 'assistant' : 'user',
       content: sanitizePromptText(String(msg.content || ''))
-    }))
+    })
+  )
 
   const responseStyle = tierName === 'ultra' ? 'concise' : 'balanced'
   const promptRegistry = getPromptRegistry()
@@ -513,7 +697,8 @@ async function streamLlamaChat(req, res, payload) {
   }
 
   const flushTtsChunks = (final = false) => {
-    if (!speakResponse || stopGenerationRequested || closed) return
+    if (!speakResponse || silentForCodeIntent || stopGenerationRequested || closed) return
+    if (containsCodeLikeContent(assembled)) return
     const pending = assembled.slice(ttsCursor)
     if (!pending) return
     if (!final && pending.length < prebufferChars) return
@@ -538,6 +723,10 @@ async function streamLlamaChat(req, res, payload) {
   let messages = [...history]
   let maxToolRounds = 3
   let round = 0
+  let estimatedPromptTokens = estimateTokenCount(content) + estimateTokenCount(memoryContext)
+  let lastSystemMessage = null
+  let lastCurrentMessages = []
+  let lastFinishReason = null
 
   try {
     let directSkillResult = null
@@ -707,9 +896,27 @@ async function streamLlamaChat(req, res, payload) {
         stream: true,
         temperature: Number.isFinite(tier.temperature) ? tier.temperature : 0.7,
         top_p: Number.isFinite(tier.top_p) ? tier.top_p : 1,
-        max_tokens: Number.isFinite(tier.max_tokens) ? tier.max_tokens : 320,
+        max_tokens: computeDynamicMaxTokens(
+          Number.isFinite(tier.max_tokens) ? tier.max_tokens : 320,
+          estimatedPromptTokens,
+          llamaState.contextTotalTokens
+        ),
         messages: [systemMessage, ...currentMessages.filter((m) => m.role !== 'system')]
       }
+      estimatedPromptTokens =
+        estimateTokenCount(systemMessage.content) +
+        requestBody.messages.reduce((acc, msg) => acc + estimateTokenCount(msg.content), 0)
+      requestBody.max_tokens = computeDynamicMaxTokens(
+        requestBody.max_tokens,
+        estimatedPromptTokens,
+        llamaState.contextTotalTokens
+      )
+      lastSystemMessage = systemMessage
+      lastCurrentMessages = currentMessages
+      llamaState.contextUsedTokens = Math.min(
+        Number(llamaState.contextTotalTokens || 8192),
+        Math.max(0, estimatedPromptTokens)
+      )
       if (toolsPayload.length > 0 && !directSkillResult?.structuredResponse) {
         requestBody.tools = toolsPayload
       }
@@ -718,8 +925,7 @@ async function streamLlamaChat(req, res, payload) {
       debug(`[chat] Tools: ${toolsPayload.map((t) => t.function?.name || t.name).join(', ')}`)
 
       writeSse(res, { status: 'responding' })
-
-      const llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
+      let llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
@@ -728,14 +934,74 @@ async function streamLlamaChat(req, res, payload) {
 
       if (!llamaResp.ok || !llamaResp.body) {
         const txt = await llamaResp.text().catch(() => '')
-        throw new Error(`llama HTTP ${llamaResp.status}: ${txt.slice(0, 240)}`)
+        const isContextExceeded =
+          llamaResp.status === 400 &&
+          /exceeds the available context size|exceed_context_size/i.test(txt)
+
+        if (isContextExceeded) {
+          const retryCandidates = []
+          const totalCtx = Number(llamaState.contextTotalTokens || 8192)
+          const retryMax1 = Math.max(192, Math.min(640, Math.floor(totalCtx * 0.16)))
+          const retryMax2 = Math.max(160, Math.min(480, Math.floor(totalCtx * 0.12)))
+
+          retryCandidates.push({
+            ...requestBody,
+            max_tokens: Math.min(Number(requestBody.max_tokens || 320), retryMax1),
+            tools: undefined,
+            messages: buildCompactedMessages(systemMessage, currentMessages, content)
+          })
+
+          retryCandidates.push({
+            ...requestBody,
+            max_tokens: Math.min(Number(requestBody.max_tokens || 320), retryMax2),
+            tools: undefined,
+            messages: [
+              { ...systemMessage, content: trimMessageForContext(systemMessage.content, 700) },
+              { role: 'user', content: trimMessageForContext(content, 520) }
+            ]
+          })
+
+          let recovered = false
+          for (let i = 0; i < retryCandidates.length; i += 1) {
+            const retryBody = retryCandidates[i]
+            estimatedPromptTokens = retryBody.messages.reduce(
+              (acc, msg) => acc + estimateTokenCount(msg.content),
+              0
+            )
+            llamaState.contextUsedTokens = Math.min(
+              Number(llamaState.contextTotalTokens || 8192),
+              Math.max(0, estimatedPromptTokens)
+            )
+            debug(`[chat] Context overflow detected. Retrying with compacted payload (level ${i + 1}).`)
+
+            llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              signal: controller.signal,
+              body: JSON.stringify(retryBody)
+            })
+            if (llamaResp.ok && llamaResp.body) {
+              recovered = true
+              break
+            }
+          }
+
+          if (!recovered) {
+            const retryTxt = await llamaResp.text().catch(() => '')
+            throw new Error(`llama HTTP ${llamaResp.status}: ${retryTxt.slice(0, 240)}`)
+          }
+        } else {
+          throw new Error(`llama HTTP ${llamaResp.status}: ${txt.slice(0, 240)}`)
+        }
       }
 
       const reader = llamaResp.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
       let roundText = ''
+      let generatedTokensEstimate = 0
       let toolCallsAccum = []
+      let roundFinishReason = null
 
       while (true) {
         if (stopGenerationRequested || closed) {
@@ -754,6 +1020,7 @@ async function streamLlamaChat(req, res, payload) {
           const line = rawLine.trim()
           if (!line.startsWith('data:')) continue
           const parsed = parseLlamaDataLine(line)
+          if (parsed.finish_reason) roundFinishReason = parsed.finish_reason
           if (parsed.type === 'done') break
           if (parsed.type === 'error') {
             writeSse(res, { error: parsed.error })
@@ -780,6 +1047,11 @@ async function streamLlamaChat(req, res, payload) {
           if (parsed.type === 'token') {
             roundText += parsed.token
             assembled += parsed.token
+            generatedTokensEstimate += estimateTokenCount(parsed.token)
+            llamaState.contextUsedTokens = Math.min(
+              Number(llamaState.contextTotalTokens || 8192),
+              Math.max(0, estimatedPromptTokens + generatedTokensEstimate)
+            )
             writeSse(res, { token: parsed.token })
             flushTtsChunks(false)
           }
@@ -787,6 +1059,7 @@ async function streamLlamaChat(req, res, payload) {
       }
 
       debug(`[chat] Round ${round} result: text_len=${roundText.length}, tool_calls=${toolCallsAccum.length}`)
+      lastFinishReason = roundFinishReason || lastFinishReason
       if (roundText.length > 0) {
         debug(`[chat] Round ${round} text preview: "${roundText.slice(0, 120)}"`)
       }
@@ -1008,12 +1281,85 @@ async function streamLlamaChat(req, res, payload) {
       break
     }
 
+    if (
+      !stopGenerationRequested &&
+      !closed &&
+      !bufferedStructuredResponse &&
+      isLikelyIncompleteResponse(assembled, lastFinishReason)
+    ) {
+      const continuationPrompt =
+        'Continue exatamente de onde parou, sem repetir conteúdo já enviado. Feche blocos de código e tags pendentes quando necessário.'
+      const tailAssistant = trimMessageForContext(assembled, 2200)
+      const continuationMessages = [
+        ...(lastCurrentMessages || []).filter((m) => m.role !== 'system'),
+        { role: 'assistant', content: tailAssistant },
+        { role: 'user', content: continuationPrompt }
+      ]
+      const estimatedContinuationPromptTokens =
+        estimateTokenCount(lastSystemMessage?.content || '') +
+        continuationMessages.reduce((acc, msg) => acc + estimateTokenCount(msg.content), 0)
+      const continuationBody = {
+        model: 'gpt-4o',
+        stream: true,
+        temperature: Number.isFinite(tier.temperature) ? Math.min(0.7, tier.temperature) : 0.5,
+        top_p: Number.isFinite(tier.top_p) ? tier.top_p : 1,
+        max_tokens: computeDynamicMaxTokens(
+          Math.max(Number(tier.max_tokens || 320), 700),
+          estimatedContinuationPromptTokens,
+          llamaState.contextTotalTokens
+        ),
+        messages: [
+          {
+            role: 'system',
+            content: sanitizePromptText(String(lastSystemMessage?.content || ''))
+          },
+          ...continuationMessages
+        ]
+      }
+
+      debug('[chat] Detected incomplete answer. Running automatic continuation.')
+      const continuationResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify(continuationBody)
+      })
+
+      if (continuationResp.ok && continuationResp.body) {
+        const reader = continuationResp.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        while (true) {
+          if (stopGenerationRequested || closed) {
+            controller.abort()
+            break
+          }
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+          for (const rawLine of lines) {
+            const line = rawLine.trim()
+            if (!line.startsWith('data:')) continue
+            const parsed = parseLlamaDataLine(line)
+            if (parsed.type === 'done') break
+            if (parsed.type === 'token') {
+              assembled += parsed.token
+              writeSse(res, { token: parsed.token })
+              flushTtsChunks(false)
+            }
+          }
+        }
+      }
+    }
+
     /* ── Retry: if LLM returned nothing usable (empty or only <think> tags),
        generate a contextual fallback so the user never sees a blank message ── */
     const visibleText = assembled.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
     if (!visibleText && !bufferedStructuredResponse) {
       debug('[chat] LLM returned empty/think-only response, generating fallback')
-      const fallbackMsg = generateFallbackReply(content, memoryContext, null, responseLanguage)
+      const fallbackMsg = generateFallbackReply(content, memoryContext, null, fallbackLanguage)
       for (const token of splitTokens(fallbackMsg)) {
         if (closed || stopGenerationRequested) break
         assembled += token
@@ -1021,6 +1367,16 @@ async function streamLlamaChat(req, res, payload) {
         flushTtsChunks(false)
       }
       flushTtsChunks(true)
+    }
+
+    if (!bufferedStructuredResponse) {
+      const htmlPreview = extractHtmlPreviewData(assembled)
+      if (htmlPreview) {
+        bufferedStructuredResponse = {
+          type: 'html_preview',
+          data: htmlPreview
+        }
+      }
     }
 
     appendMessage(threadId, 'assistant', assembled.trim() || 'Interrompido.', {
@@ -1031,6 +1387,10 @@ async function streamLlamaChat(req, res, payload) {
           : null,
       structured_response: bufferedStructuredResponse || undefined
     })
+    llamaState.contextUsedTokens = Math.min(
+      Number(llamaState.contextTotalTokens || 8192),
+      Math.max(0, estimatedPromptTokens + estimateTokenCount(assembled))
+    )
     flushTtsChunks(true)
     if (bufferedStructuredResponse) {
       writeSse(res, { structured_response: bufferedStructuredResponse })
@@ -1041,8 +1401,8 @@ async function streamLlamaChat(req, res, payload) {
     const fallbackMsg = generateFallbackReply(
       content,
       memoryContext,
-      error?.message || 'llama failure',
-      responseLanguage
+      humanizeFallbackReason(error?.message || 'llama failure', fallbackLanguage),
+      fallbackLanguage
     )
     const tail = fallbackMsg.slice(assembled.length)
     if (tail) {

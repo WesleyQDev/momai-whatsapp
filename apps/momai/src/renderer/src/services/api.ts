@@ -189,6 +189,14 @@ export async function stopGeneration(): Promise<void> {
   if (!response.ok) throw new Error('Erro ao parar geracao')
 }
 
+export async function resetChatContextUsage(): Promise<void> {
+  const response = await fetch(`${API_URL}/chat/context/reset`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  })
+  if (!response.ok) throw new Error('Erro ao resetar contexto')
+}
+
 export async function stopVoice(): Promise<void> {
   const response = await fetch(`${API_URL}/chat/stop-voice`, {
     method: 'POST',
@@ -418,6 +426,8 @@ export interface SettingsData {
   onboarding_completed?: boolean
   tutorial_completed?: boolean
   ai_tier?: string | null
+  context_window_mode?: 'min' | 'medium' | 'max' | 'custom'
+  context_window_tokens?: number
   skip_intro?: boolean
 }
 

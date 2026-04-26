@@ -42,7 +42,8 @@ function createStatusRoutes(context) {
             ? require('node:path').basename(llamaState.modelPath)
             : null,
           loaded_model_name: llamaState.currentModelName,
-          using_fallback_model: llamaState.usingFallbackModel
+          using_fallback_model: llamaState.usingFallbackModel,
+          parallel_slots: llamaState.parallelSlots || 2
         },
         model_download: modelDownloadState,
         semantic_runtime: buildSemanticRuntimeStatus(),
@@ -101,13 +102,18 @@ function createStatusRoutes(context) {
         recommended_build: setup.recommended_build,
         installed_backends: setup.installed_backends,
         current_local_backend: setup.current_local_backend,
+        total_ram_gb: setup.total_ram_gb,
+        total_vram_gb: setup.total_vram_gb,
         os_name: setup.os_name,
         ai_tier: store.settings.ai_tier || 'pro',
         llama_runtime: {
           backend_active: llamaState.backend,
           backend_reason: llamaState.backendReason,
           backend_mode:
-            llamaState.backendMode || normalizeBackendMode(store.settings.local_backend || 'auto')
+            llamaState.backendMode || normalizeBackendMode(store.settings.local_backend || 'auto'),
+          parallel_slots: llamaState.parallelSlots || 2,
+          vram_used_mb: llamaState.vramUsedMb || 0,
+          vram_total_mb: llamaState.vramTotalMb || 0
         },
         model_download: modelDownloadState,
         semantic_runtime: buildSemanticRuntimeStatus(),
