@@ -397,32 +397,6 @@ function shouldPreferSilentForCodeRequest(userText) {
   )
 }
 
-function isLikelyHtmlCreationRequest(userText) {
-  const text = String(userText || '').toLowerCase()
-  if (!text) return false
-  return /(crie|gera|monta|fa[çc]a|create|generate).*(html|landing|site|pagina|página)/i.test(
-    text
-  )
-}
-
-function extractHtmlDocument(text) {
-  const value = String(text || '').trim()
-  if (!value) return ''
-
-  const fenced = value.match(/```(?:html)?\s*([\s\S]*?)```/i)
-  if (fenced?.[1] && /<(?:!doctype|html|head|body|main|section|div)[\s>]/i.test(fenced[1])) {
-    return fenced[1].trim()
-  }
-
-  const docMatch = value.match(/<!doctype html>[\s\S]*<\/html>/i)
-  if (docMatch?.[0]) return docMatch[0].trim()
-
-  const htmlMatch = value.match(/<html[\s\S]*<\/html>/i)
-  if (htmlMatch?.[0]) return htmlMatch[0].trim()
-
-  return ''
-}
-
 function containsCodeLikeContent(text) {
   const value = String(text || '')
   if (!value) return false
@@ -725,8 +699,97 @@ async function streamLlamaChat(req, res, payload) {
   let lastSystemMessage = null
   let lastCurrentMessages = []
   let lastFinishReason = null
+  const activeHookSessions = []
 
   try {
+    const skillRegistry = getSkillRegistry()
+    const beforeHookSkills = skillRegistry?.getSkillsWithHook?.('beforeModel') || []
+    let disableToolsForTurn = false
+    let extraSystemInstructions = []
+
+    for (const skill of beforeHookSkills) {
+      try {
+        const hookResult = await skillRegistry.executeHook(skill.id, 'beforeModel', {
+          content,
+          args: { query: content, path: payload.path },
+          context: {
+            threadId,
+            responseLanguage,
+            memoryContext,
+            searchWeb
+          }
+        })
+        if (!hookResult?.active) continue
+        activeHookSessions.push({ skillId: skill.id, beforeModel: hookResult })
+        if (hookResult.contextInstruction) {
+          memoryContext = memoryContext
+            ? `${memoryContext}\n\n${hookResult.contextInstruction}`
+            : hookResult.contextInstruction
+        }
+        if (hookResult.systemInstruction) {
+          extraSystemInstructions.push(String(hookResult.systemInstruction))
+        }
+        if (hookResult.disableTools) {
+          disableToolsForTurn = true
+        }
+        if (hookResult.step) {
+          toolSteps.push({
+            skill_id: skill.id,
+            skill_name: skill.manifest.name,
+            tool: hookResult.step.tool || 'hook',
+            name: hookResult.step.name || 'beforeModel',
+            description: String(hookResult.step.description || ''),
+            status: 'success',
+            started_at: isoNow()
+          })
+          activeSkill = activeSkill || skill.id
+        }
+        if (hookResult.shortCircuit) {
+          if (activeSkill) {
+            writeSse(res, { active_skill: activeSkill })
+          }
+          if (toolSteps.length > 0) {
+            writeSse(res, { tool_steps: toolSteps })
+          }
+          const shortText = String(hookResult.replaceText || '').trim()
+          if (shortText) {
+            assembled = shortText
+            for (const token of splitTokens(shortText)) {
+              writeSse(res, { token })
+            }
+          }
+          if (hookResult.structuredResponse) {
+            bufferedStructuredResponse = hookResult.structuredResponse
+          }
+          llamaState.contextUsedTokens = Math.min(
+            Number(llamaState.contextTotalTokens || 8192),
+            Math.max(
+              0,
+              estimateTokenCount(content) +
+                estimateTokenCount(memoryContext) +
+                extraSystemInstructions.reduce((acc, item) => acc + estimateTokenCount(item), 0)
+            )
+          )
+          appendMessage(threadId, 'assistant', assembled.trim(), {
+            sources: memorySources.length ? memorySources : undefined,
+            graph_data:
+              activeSkill || toolSteps.length
+                ? { active_skill: activeSkill, tool_steps: toolSteps }
+                : null,
+            structured_response: bufferedStructuredResponse || undefined
+          })
+          if (bufferedStructuredResponse) {
+            writeSse(res, { structured_response: bufferedStructuredResponse })
+          }
+          writeSse(res, { done: true })
+          res.end()
+          return
+        }
+      } catch (err) {
+        debug(`[chat] beforeModel hook failed for ${skill.id}: ${err.message}`)
+      }
+    }
+
     let directSkillResult = null
 
     while (round < maxToolRounds) {
@@ -734,9 +797,7 @@ async function streamLlamaChat(req, res, payload) {
 
       let toolsPayload = []
       {
-        const skillRegistry = getSkillRegistry()
         let top5SkillIds = []
-        const isHtmlIntent = isLikelyHtmlCreationRequest(content)
 
         if (isUltra) {
           top5SkillIds = await getTop5SkillsSemantic(content)
@@ -838,27 +899,8 @@ async function streamLlamaChat(req, res, payload) {
           }
         }
 
-        if (isHtmlIntent && skillRegistry?.execute) {
-          try {
-            const knowledgeResult = await skillRegistry.execute(
-              'dev',
-              content,
-              { searchWeb },
-              { query: content },
-              'knowledge_routes'
-            )
-            if (knowledgeResult?.instruction) {
-              memoryContext = memoryContext
-                ? `${memoryContext}\n\n${knowledgeResult.instruction}`
-                : knowledgeResult.instruction
-            }
-          } catch (err) {
-            debug(`[chat] HTML knowledge route lookup failed: ${err.message}`)
-          }
-        }
-
         if (skillRegistry && typeof skillRegistry.toOpenAITools === 'function') {
-          toolsPayload = isHtmlIntent ? [] : skillRegistry.toOpenAITools(top5SkillIds)
+          toolsPayload = disableToolsForTurn ? [] : skillRegistry.toOpenAITools(top5SkillIds)
         }
       }
 
@@ -913,9 +955,8 @@ async function streamLlamaChat(req, res, payload) {
           responseLanguage
         })
       }
-      if (isLikelyHtmlCreationRequest(content)) {
-        promptText +=
-          '\n\n# HTML GENERATION MODE\nReturn one complete HTML document only.\nDo not call tools.\nDo not wrap the HTML in JSON.\nDo not explain the code before or after.\nUse the knowledge context when relevant.'
+      if (extraSystemInstructions.length > 0) {
+        promptText += `\n\n${extraSystemInstructions.join('\n\n')}`
       }
       const systemMessage = {
         role: 'system',
@@ -1461,36 +1502,44 @@ async function streamLlamaChat(req, res, payload) {
       flushTtsChunks(true)
     }
 
-    if (!bufferedStructuredResponse && isLikelyHtmlCreationRequest(content)) {
-      const generatedHtml = extractHtmlDocument(assembled)
-      if (generatedHtml) {
-        const skillRegistry = getSkillRegistry()
+    if (!bufferedStructuredResponse && activeHookSessions.length > 0) {
+      for (const session of activeHookSessions) {
         try {
-          const prepareResult = await skillRegistry?.execute?.(
-            'dev',
+          const hookResult = await skillRegistry?.executeHook?.(session.skillId, 'afterModel', {
             content,
-            { searchWeb },
-            { query: content, content: generatedHtml, path: payload.path },
-            'prepare_html_write'
-          )
-          if (prepareResult?.structuredResponse) {
-            bufferedStructuredResponse = prepareResult.structuredResponse
-            assembled = 'HTML gerado pelo modelo e preparado para escrita. Confira o card abaixo.'
-            if (!toolSteps.some((step) => step.name === 'prepare_html_write')) {
-              toolSteps.push({
-                skill_id: 'dev',
-                skill_name: 'dev',
-                tool: 'prepare_html_write',
-                name: 'prepare_html_write',
-                description: 'Preparou o HTML gerado pelo modelo para confirmação de escrita.',
-                status: 'success',
-                started_at: isoNow()
-              })
-              activeSkill = 'dev'
-            }
+            args: { query: content, path: payload.path },
+            context: {
+              threadId,
+              responseLanguage,
+              memoryContext,
+              searchWeb,
+              beforeModel: session.beforeModel || null
+            },
+            responseText: assembled
+          })
+          if (!hookResult?.handled) continue
+
+          if (hookResult.structuredResponse) {
+            bufferedStructuredResponse = hookResult.structuredResponse
           }
+          if (typeof hookResult.replaceText === 'string' && hookResult.replaceText.trim()) {
+            assembled = hookResult.replaceText.trim()
+          }
+          if (hookResult.step) {
+            toolSteps.push({
+              skill_id: session.skillId,
+              skill_name: getSkillRegistry()?.getById?.(session.skillId)?.manifest?.name || session.skillId,
+              tool: hookResult.step.tool || 'hook',
+              name: hookResult.step.name || 'afterModel',
+              description: String(hookResult.step.description || ''),
+              status: 'success',
+              started_at: isoNow()
+            })
+            activeSkill = activeSkill || session.skillId
+          }
+          break
         } catch (err) {
-          debug(`[chat] Failed to prepare generated HTML for write: ${err.message}`)
+          debug(`[chat] afterModel hook failed for ${session.skillId}: ${err.message}`)
         }
       }
     }

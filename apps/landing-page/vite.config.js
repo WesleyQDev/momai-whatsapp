@@ -12,4 +12,10 @@ export default defineConfig({
         outDir: 'dist',
         sourcemap: true,
     },
+    publicDir: 'public',
+    server: {
+        fs: {
+            allow: ['..', 'public'],
+        },
+    },
 });

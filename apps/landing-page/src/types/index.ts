@@ -16,3 +16,13 @@ export interface DownloadUrls {
   linuxUrl: string
   version: string
 }
+
+export interface BlogPost {
+  id: string
+  title: string
+  date: string
+  excerpt: string
+  image: string
+  content: string
+  featured: boolean
+}

@@ -312,8 +312,8 @@ function buildDevHtmlRenderCard(html, sourcePath = '') {
   return {
     type: 'dev_html_render',
     data: {
-      title: 'HTML detectado',
-      subtitle: sourcePath || 'Render sob demanda',
+      title: 'Arquivo HTML criado',
+      subtitle: sourcePath || 'Arquivo pronto para visualização',
       html: String(html || ''),
       code: String(html || '')
     }
@@ -324,6 +324,312 @@ function isHtmlGenerationIntent(text) {
   const value = String(text || '').toLowerCase()
   if (!value) return false
   return /(crie|gera|monta|fa[çc]a|create|generate).*(html|landing|site|pagina|página)/.test(value)
+}
+
+function extractHtmlDocument(text) {
+  const value = String(text || '').trim()
+  if (!value) return ''
+
+  const fenced = value.match(/```(?:html)?\s*([\s\S]*?)```/i)
+  if (fenced?.[1]) {
+    const candidate = fenced[1].trim()
+    if (candidate) return candidate
+  }
+
+  const docMatch = value.match(/<!doctype html>[\s\S]*<\/html>/i)
+  if (docMatch?.[0]) return docMatch[0].trim()
+
+  const htmlMatch = value.match(/<html[\s\S]*<\/html>/i)
+  if (htmlMatch?.[0]) return htmlMatch[0].trim()
+
+  if (/<[a-z][\s\S]*>/i.test(value)) {
+    return value
+  }
+
+  return ''
+}
+
+function ensureValidHtmlDocument(html) {
+  let raw = String(html || '').trim()
+  if (!raw) return ''
+
+  raw = raw
+    .replace(/^\s*```(?:html)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .replace(/```/g, '')
+    .trim()
+  if (!raw) return ''
+
+  function findMatchingHtmlCloseIndex(text, openIdx) {
+    const lower = text.toLowerCase()
+    const openTagRe = /<html(?:\s|>)/gi
+    const closeTagRe = /<\/html>/gi
+    let depth = 0
+    let cursor = openIdx
+    while (cursor < text.length) {
+      openTagRe.lastIndex = cursor
+      closeTagRe.lastIndex = cursor
+      const nextOpen = openTagRe.exec(lower)
+      const nextClose = closeTagRe.exec(lower)
+      if (!nextClose) return -1
+      if (nextOpen && nextOpen.index < nextClose.index) {
+        depth += 1
+        cursor = nextOpen.index + 5
+        continue
+      }
+      if (depth === 0) return nextClose.index + 7
+      depth -= 1
+      cursor = nextClose.index + 7
+    }
+    return -1
+  }
+
+  function extractInnermostHtml(text) {
+    const lower = text.toLowerCase()
+    const starts = []
+    let idx = lower.indexOf('<html')
+    while (idx >= 0) {
+      starts.push(idx)
+      idx = lower.indexOf('<html', idx + 5)
+    }
+    if (!starts.length) return text
+    for (let i = starts.length - 1; i >= 0; i -= 1) {
+      const start = starts[i]
+      const end = findMatchingHtmlCloseIndex(text, start)
+      if (end > start) return text.slice(start, end).trim()
+    }
+    return text.slice(starts[starts.length - 1]).trim()
+  }
+
+  const lowerRaw = raw.toLowerCase()
+  const lastDoctype = lowerRaw.lastIndexOf('<!doctype html>')
+  const lastHtmlTag = lowerRaw.lastIndexOf('<html')
+  const docStart = Math.max(lastDoctype, lastHtmlTag)
+  if (docStart > 0) {
+    raw = raw.slice(docStart).trim()
+  }
+
+  raw = extractInnermostHtml(raw)
+
+  const closingIdx = raw.toLowerCase().indexOf('</html>')
+  if (closingIdx >= 0) {
+    raw = `${raw.slice(0, closingIdx + 7)}`
+  }
+
+  const firstDoctypeIdx = raw.toLowerCase().indexOf('<!doctype html>')
+  if (firstDoctypeIdx > 0) {
+    raw = raw.slice(firstDoctypeIdx).trim()
+  }
+
+  const doctypeMatches = raw.match(/<!doctype html>/gi) || []
+  if (doctypeMatches.length > 1) {
+    const first = raw.toLowerCase().indexOf('<!doctype html>')
+    const second = raw.toLowerCase().indexOf('<!doctype html>', first + 1)
+    if (second > 0) {
+      const secondDoc = raw.slice(second).trim()
+      const secondDocClosed = /<\/html>\s*$/i.test(secondDoc)
+        ? secondDoc
+        : `${secondDoc}\n</html>`
+      return secondDocClosed
+    }
+  }
+
+  const nestedDocMatch = raw.match(/<!doctype html>[\s\S]*<\/html>/i) || raw.match(/<html[\s\S]*<\/html>/i)
+  if (nestedDocMatch?.[0]) {
+    raw = nestedDocMatch[0].trim()
+  }
+
+  const hasHtmlTag = /<html[\s>]/i.test(raw)
+  const hasDoctype = /<!doctype html>/i.test(raw)
+  const hasHead = /<head[\s>]/i.test(raw)
+  const hasBody = /<body[\s>]/i.test(raw)
+
+  if (hasHtmlTag && hasDoctype && hasHead && hasBody) return raw
+  if (hasHtmlTag && /<\/html>/i.test(raw)) {
+    let wrapped = raw
+    if (!hasHead) wrapped = wrapped.replace(/<html([^>]*)>/i, '<html$1><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>')
+    if (!hasBody) wrapped = wrapped.replace(/<\/head>/i, '$&<body>').replace(/<\/html>/i, '</body></html>')
+    if (!/<\/body>/i.test(wrapped)) wrapped = wrapped.replace(/<\/html>/i, '</body></html>')
+    if (!/<!doctype html>/i.test(wrapped)) wrapped = `<!DOCTYPE html>\n${wrapped}`
+
+    const bodyStart = wrapped.search(/<body[^>]*>/i)
+    if (bodyStart >= 0) {
+      const bodyTail = wrapped.slice(bodyStart)
+      const nestedInBodyIdx = bodyTail.toLowerCase().indexOf('<!doctype html>')
+      if (nestedInBodyIdx >= 0) {
+        const inner = bodyTail.slice(nestedInBodyIdx).trim()
+        const innerDoc = /<\/html>\s*$/i.test(inner) ? inner : `${inner}\n</html>`
+        return innerDoc
+      }
+    }
+
+    return wrapped
+  }
+
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="pt-BR">',
+    '<head>',
+    '  <meta charset="UTF-8">',
+    '  <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+    '  <title>Pagina HTML</title>',
+    '</head>',
+    '<body>',
+    raw,
+    '</body>',
+    '</html>'
+  ].join('\n')
+}
+
+function sanitizeHtmlBeforeWrite(content) {
+  let text = String(content || '').trim()
+  if (!text) return ''
+
+  text = text
+    .replace(/^\s*```(?:html)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .replace(/```/g, '')
+    .trim()
+
+  const starts = []
+  let cursor = 0
+  const lower = text.toLowerCase()
+  while (true) {
+    const idx = lower.indexOf('<html', cursor)
+    if (idx < 0) break
+    starts.push(idx)
+    cursor = idx + 5
+  }
+
+  if (starts.length >= 2) {
+    text = text.slice(starts[starts.length - 1]).trim()
+  } else if (starts.length === 1 && starts[0] > 0) {
+    text = text.slice(starts[0]).trim()
+  }
+
+  const closeIdx = text.toLowerCase().lastIndexOf('</html>')
+  if (closeIdx >= 0) {
+    text = text.slice(0, closeIdx + 7).trim()
+  }
+
+  if (!/<html[\s>]/i.test(text)) {
+    text = [
+      '<!DOCTYPE html>',
+      '<html lang="pt-BR">',
+      '<head>',
+      '  <meta charset="UTF-8">',
+      '  <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+      '  <title>Pagina HTML</title>',
+      '</head>',
+      '<body>',
+      text,
+      '</body>',
+      '</html>'
+    ].join('\n')
+  }
+
+  if (!/<!doctype html>/i.test(text)) {
+    text = `<!DOCTYPE html>\n${text}`
+  }
+
+  if (!/<body[\s>]/i.test(text)) {
+    text = text.replace(/<\/head>/i, '$&\n<body>')
+  }
+  if (!/<\/body>/i.test(text)) {
+    text = text.replace(/<\/html>/i, '</body>\n</html>')
+  }
+  if (!/<\/html>/i.test(text)) {
+    text = `${text}\n</html>`
+  }
+
+  return text.trim()
+}
+
+function inspectHtmlStructure(content) {
+  const text = stripNonStructuralHtmlContent(String(content || ''))
+  return {
+    doctype: (text.match(/<!doctype html>/gi) || []).length,
+    htmlOpen: (text.match(/<html[\s>]/gi) || []).length,
+    htmlClose: (text.match(/<\/html>/gi) || []).length,
+    headOpen: (text.match(/<head[\s>]/gi) || []).length,
+    headClose: (text.match(/<\/head>/gi) || []).length,
+    bodyOpen: (text.match(/<body[\s>]/gi) || []).length,
+    bodyClose: (text.match(/<\/body>/gi) || []).length
+  }
+}
+
+function stripNonStructuralHtmlContent(text) {
+  return String(text || '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<template\b[^>]*>[\s\S]*?<\/template>/gi, '')
+    .replace(/<pre\b[^>]*>[\s\S]*?<\/pre>/gi, '')
+    .replace(/<code\b[^>]*>[\s\S]*?<\/code>/gi, '')
+    .replace(/<textarea\b[^>]*>[\s\S]*?<\/textarea>/gi, '')
+}
+
+function isStrictValidHtmlDocument(content) {
+  const s = inspectHtmlStructure(content)
+  return (
+    s.htmlOpen === 1 &&
+    s.htmlClose === 1 &&
+    s.headOpen === 1 &&
+    s.headClose === 1 &&
+    s.bodyOpen >= 1 &&
+    s.bodyClose >= 1
+  )
+}
+
+function forceRepairHtmlDocument(content, title = 'Pagina HTML') {
+  const source = String(content || '').trim()
+  if (!source) return ''
+
+  let headContent = ''
+  const headMatch = source.match(/<head[^>]*>([\s\S]*?)<\/head>/i)
+  if (headMatch?.[1]) {
+    headContent = headMatch[1]
+      .replace(/<title[\s\S]*?<\/title>/gi, '')
+      .replace(/<meta[^>]+charset[^>]*>/gi, '')
+      .replace(/<meta[^>]+name=["']viewport["'][^>]*>/gi, '')
+      .trim()
+  }
+
+  let bodyContent = source
+  const bodyMatch = source.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+  if (bodyMatch?.[1]) {
+    bodyContent = bodyMatch[1]
+  } else {
+    const htmlInnerMatch = source.match(/<html[^>]*>([\s\S]*?)<\/html>/i)
+    if (htmlInnerMatch?.[1]) bodyContent = htmlInnerMatch[1]
+  }
+
+  bodyContent = bodyContent
+    .replace(/<!doctype[^>]*>/gi, '')
+    .replace(/<\/?html[^>]*>/gi, '')
+    .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
+    .replace(/<head[^>]*>[\s\S]*$/gi, '')
+    .replace(/<\/?body[^>]*>/gi, '')
+    .trim()
+
+  if (!bodyContent) {
+    bodyContent = `<main><h1>${escHtml(title || 'Pagina HTML')}</h1><p>Conteudo reparado automaticamente apos resposta truncada do modelo.</p></main>`
+  }
+
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="pt-BR">',
+    '<head>',
+    '  <meta charset="UTF-8">',
+    '  <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+    `  <title>${escHtml(title || 'Pagina HTML')}</title>`,
+    headContent,
+    '</head>',
+    '<body>',
+    bodyContent,
+    '</body>',
+    '</html>'
+  ].join('\n')
 }
 
 function inferHtmlFileName(text) {
@@ -414,7 +720,10 @@ function executeMutation(state, mutation) {
 
   if (mutation.action === 'dev_write') {
     ensureDir(path.dirname(targetPath))
-    fs.writeFileSync(targetPath, String(mutation.payload.content || ''), 'utf8')
+    const rawContent = String(mutation.payload.content || '')
+    const content =
+      /\.html?$/i.test(String(targetPath || '')) ? sanitizeHtmlBeforeWrite(rawContent) : rawContent
+    fs.writeFileSync(targetPath, content, 'utf8')
     return { ok: true, message: `Arquivo salvo: ${targetPath}` }
   }
 
@@ -446,6 +755,53 @@ function executeMutation(state, mutation) {
 }
 
 module.exports = {
+  hooks: {
+    async beforeModel({ content, args }) {
+      const queryText = String(args?.query || content || '').trim()
+      if (!isHtmlGenerationIntent(queryText)) return null
+
+      const state = readState()
+      if (!state.allowed_paths.length) return null
+
+      const basePath = normalize(args?.path || state.allowed_paths[0] || '')
+      if (!isAllowedPath(state, basePath)) return null
+
+      const fileName = inferHtmlFileName(queryText)
+      const target = normalize(path.join(basePath, fileName))
+      if (!isAllowedPath(state, target)) return null
+
+      const intent = summarizeHtmlIntent(queryText)
+      const mutation = createMutation(state, 'generate_html_write', target, {
+        path: target,
+        create: true,
+        query: queryText,
+        summary: `Permissao para criar arquivo no diretorio autorizado`,
+        details: {
+          objective: queryText,
+          kind: intent.kind,
+          routes: intent.routes
+        }
+      })
+
+      return {
+        active: true,
+        shortCircuit: true,
+        structuredResponse: buildDevConfirmationCard(mutation),
+        step: {
+          tool: 'request_permission',
+          name: 'request_permission',
+          description: `Solicitou permissão para criar ${fileName} na pasta autorizada.`
+        }
+      }
+    },
+
+    async afterModel({ content, args }) {
+      const queryText = String(args?.query || content || '').trim()
+      if (!isHtmlGenerationIntent(queryText)) return null
+      return null
+    }
+  },
+
   tools: [
     {
       name: 'dev_list',
@@ -565,65 +921,10 @@ module.exports = {
     }
   ],
 
-  async execute({ content, args, toolName }) {
+  async execute({ content, args, toolName, context }) {
     const state = readState()
     const queryText = String(args?.query || content || '').trim()
     const knowledgeText = buildKnowledgeText(queryText)
-
-    if (toolName === 'knowledge_routes') {
-      const intent = summarizeHtmlIntent(queryText)
-      return {
-        ok: true,
-        tool: 'knowledge_routes',
-        instruction: knowledgeText,
-        meta: intent
-      }
-    }
-
-    if (toolName === 'prepare_html_write') {
-      const basePath = normalize(args?.path || state.allowed_paths[0] || '')
-      if (!isAllowedPath(state, basePath)) {
-        return {
-          tool: 'prepare_html_write',
-          instruction: 'Sem pasta autorizada para preparar escrita de HTML.'
-        }
-      }
-      const fileName = inferHtmlFileName(content)
-      const target = normalize(path.join(basePath, fileName))
-      if (!isAllowedPath(state, target)) {
-        return {
-          tool: 'prepare_html_write',
-          instruction: 'Caminho final para HTML ficou fora do escopo autorizado.'
-        }
-      }
-      const html = String(args?.content || '').trim()
-      if (!html) {
-        return { tool: 'prepare_html_write', instruction: 'HTML vazio para preparar escrita.' }
-      }
-      const intent = summarizeHtmlIntent(queryText)
-      const mutation = createMutation(state, 'dev_write', target, {
-        path: target,
-        content: html,
-        create: true,
-        summary: `Criar ${intent.kind} sobre ${intent.topic} em ${target}`,
-        preview: html.slice(0, 1400),
-        details: {
-          objective: queryText,
-          topic: intent.topic,
-          kind: intent.kind,
-          routes: intent.routes,
-          knowledgeHints: intent.hints,
-          estimatedLines: html.split(/\r?\n/).length,
-          estimatedChars: html.length
-        }
-      })
-      return {
-        tool: 'prepare_html_write',
-        structuredResponse: buildDevConfirmationCard(mutation),
-        instruction:
-          `${knowledgeText}\n\nHTML gerado pelo modelo e preparado para escrita. Arquivo proposto: ${target}. Aguardando confirmação humana (mutationId=${mutation.id}).`.trim()
-      }
-    }
 
     if (toolName === 'authorize_path') {
       const p = normalize(args?.path)
@@ -670,21 +971,107 @@ module.exports = {
       if (!mutation) {
         return { ok: false, tool: 'confirm_mutation', message: 'Mutação pendente não encontrada.' }
       }
-      const result = executeMutation(state, mutation)
+
+      let result = null
+      let successResponse = null
+
+      if (mutation.action === 'generate_html_write') {
+        const llm = context?.llm
+        if (!llm || typeof llm.completeText !== 'function') {
+          return {
+            ok: false,
+            tool: 'confirm_mutation',
+            message: 'LLM indisponível para gerar o HTML após a confirmação.'
+          }
+        }
+
+        const query = String(mutation.payload?.query || mutation.summary || '').trim()
+        const intent = summarizeHtmlIntent(query)
+        const knowledgeTextForPrompt = buildKnowledgeText(query)
+
+        const generation = await llm.completeText({
+          system: [
+            'You are generating a production-ready HTML file for a local desktop assistant workflow.',
+            'Return exactly one complete HTML document.',
+            'Do not use markdown fences.',
+            'Do not explain the code.',
+            'Use the provided knowledge context when relevant.',
+            'Make the page specific to the request instead of generic.'
+          ].join('\n'),
+          user: [
+            `Pedido do usuário: ${query}`,
+            `Tipo de página: ${intent.kind}`,
+            `Tema principal: ${intent.topic}`,
+            knowledgeTextForPrompt ? `\n${knowledgeTextForPrompt}` : '',
+            '',
+            'Requisitos:',
+            '- Gere um documento HTML completo.',
+            '- Inclua CSS inline no próprio arquivo.',
+            '- Estruture o layout de forma coerente com o contexto.',
+            '- Não responda com comentários fora do HTML.'
+          ].join('\n')
+        })
+
+        const extractedHtml = extractHtmlDocument(generation?.text || '')
+        let html = ensureValidHtmlDocument(extractedHtml)
+        if (!html) {
+          const rawModelText = String(generation?.text || '').trim()
+          if (rawModelText) {
+            html = ensureValidHtmlDocument(
+              `<main><h1>${escHtml(intent.topic || 'Pagina HTML')}</h1><p>${escHtml(rawModelText.slice(0, 2400))}</p></main>`
+            )
+          }
+        }
+        html = sanitizeHtmlBeforeWrite(html)
+        if (!html) {
+          return {
+            ok: false,
+            tool: 'confirm_mutation',
+            message: 'O modelo não retornou um documento HTML válido.'
+          }
+        }
+        if (!isStrictValidHtmlDocument(html)) {
+          html = forceRepairHtmlDocument(html, intent.topic || 'Pagina HTML')
+        }
+        if (!isStrictValidHtmlDocument(html)) {
+          return {
+            ok: false,
+            tool: 'confirm_mutation',
+            message: 'HTML inválido gerado pelo modelo (estrutura duplicada ou incompleta).'
+          }
+        }
+
+        result = executeMutation(state, {
+          ...mutation,
+          action: 'dev_write',
+          payload: {
+            ...mutation.payload,
+            content: html
+          }
+        })
+
+        if (result.ok) {
+          successResponse = buildDevHtmlRenderCard(html, mutation.path)
+        }
+      } else {
+        result = executeMutation(state, mutation)
+        const htmlWritten =
+          mutation.action === 'dev_write' &&
+          /\.html?$/i.test(String(mutation.path || '')) &&
+          String(mutation.payload?.content || '').trim().length > 0
+        successResponse = htmlWritten
+          ? buildDevHtmlRenderCard(String(mutation.payload.content || ''), mutation.path)
+          : buildDevResultCard('Alteração aplicada', mutation.path, [result.message])
+      }
+
       delete state.pending_mutations[id]
       writeState(state)
-      const htmlWritten =
-        mutation.action === 'dev_write' &&
-        /\.html?$/i.test(String(mutation.path || '')) &&
-        String(mutation.payload?.content || '').trim().length > 0
       return {
         ok: result.ok,
         tool: 'confirm_mutation',
         message: result.ok ? result.message : result.error,
         structuredResponse: result.ok
-          ? htmlWritten
-            ? buildDevHtmlRenderCard(String(mutation.payload.content || ''), mutation.path)
-            : buildDevResultCard('Alteração aplicada', mutation.path, [result.message])
+          ? successResponse
           : buildDevResultCard('Falha ao aplicar alteração', mutation.path, [result.error || 'Erro'])
       }
     }

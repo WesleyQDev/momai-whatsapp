@@ -106,7 +106,8 @@ function normalizeSkillRecord({ id, kind, parsed, runtime }) {
       compatibility: parsed.compatibility,
       instructions: parsed.body
     },
-    execute: typeof runtime?.execute === 'function' ? runtime.execute : null
+    execute: typeof runtime?.execute === 'function' ? runtime.execute : null,
+    hooks: runtime && typeof runtime.hooks === 'object' ? runtime.hooks : {}
   }
 }
 
@@ -330,6 +331,20 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     return skill.execute({ content: input, context, manifest: skill.manifest, args, toolName })
   }
 
+  async function executeHook(skillId, hookName, payload) {
+    const skill = getById(skillId)
+    const hook = skill?.hooks?.[hookName]
+    if (!skill || !skill.enabled || typeof hook !== 'function') return null
+    return hook({
+      ...(payload || {}),
+      manifest: skill.manifest
+    })
+  }
+
+  function getSkillsWithHook(hookName) {
+    return getEnabled().filter((skill) => typeof skill?.hooks?.[hookName] === 'function')
+  }
+
   function toListPayload() {
     return getEnabled().map((skill) => ({
       id: skill.manifest.id,
@@ -408,6 +423,8 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     getById,
     discover,
     execute,
+    executeHook,
+    getSkillsWithHook,
     toListPayload,
     toOpenAITools,
     extensionsDir

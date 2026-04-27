@@ -2,6 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const crypto = require('node:crypto')
 const os = require('node:os')
+const { createSkillLlmHelper } = require('../../services/skill-llm')
 
 function createExtensionsRoutes(context) {
   const {
@@ -124,9 +125,14 @@ function createExtensionsRoutes(context) {
       const skill = skillRegistry.getById(extId)
       if (skill && typeof skill.execute === 'function') {
         try {
+          const llm = createSkillLlmHelper({
+            llamaState,
+            tierName: store?.settings?.ai_tier || 'ultra',
+            temperature: 0.35
+          })
           const result = await skill.execute({
             content: actionName,
-            context: {},
+            context: { llm },
             manifest: skill.manifest,
             args: actionPayload,
             toolName: actionName

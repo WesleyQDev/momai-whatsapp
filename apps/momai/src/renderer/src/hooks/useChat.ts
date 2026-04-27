@@ -150,6 +150,68 @@ export function useChat() {
     return () => window.removeEventListener('momai_new_session', handleNewSession)
   }, [setIsLoading, setSpeakingMessageId, setVoiceStatus])
 
+  useEffect(() => {
+    const handleDevExecTrace = (event: Event) => {
+      const detail = (event as CustomEvent<any>)?.detail || {}
+      const traceId = String(detail.traceId || '').trim()
+      if (!traceId) return
+
+      if (detail.phase === 'start') {
+        const summary = String(detail.summary || 'Aplicando alteracao solicitada')
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: traceId,
+            role: 'assistant',
+            content: '',
+            toolSteps: [
+              {
+                tool: 'confirm_mutation',
+                name: 'confirm_mutation',
+                description: summary,
+                status: 'running',
+                started_at: new Date().toISOString()
+              }
+            ]
+          }
+        ])
+        return
+      }
+
+      if (detail.phase === 'done' || detail.phase === 'error') {
+        const doneStatus = detail.phase === 'done' ? 'success' : 'error'
+        const message = String(detail.message || '')
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id !== traceId) return msg
+            const prevSteps = Array.isArray(msg.toolSteps) ? msg.toolSteps : []
+            const nextSteps = prevSteps.length
+              ? prevSteps.map((step: any) => ({ ...step, status: doneStatus }))
+              : [
+                  {
+                    tool: 'confirm_mutation',
+                    name: 'confirm_mutation',
+                    description: 'Confirmacao de alteracao',
+                    status: doneStatus,
+                    started_at: new Date().toISOString()
+                  }
+                ]
+            return {
+              ...msg,
+              content: message,
+              toolSteps: nextSteps,
+              structuredResponse: detail.structuredResponse || msg.structuredResponse
+            }
+          })
+        )
+      }
+    }
+
+    window.addEventListener('momai_dev_exec_trace', handleDevExecTrace as EventListener)
+    return () =>
+      window.removeEventListener('momai_dev_exec_trace', handleDevExecTrace as EventListener)
+  }, [setMessages])
+
   return {
     text,
     setText,

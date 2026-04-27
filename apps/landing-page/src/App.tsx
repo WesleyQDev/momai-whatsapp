@@ -29,6 +29,7 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/post/:postId" element={<BlogPage />} />
           <Route path="/changelog" element={<ChangelogPage />} />
           <Route path="/contato" element={<ContatoPage />} />
           <Route path="/reportar-erro" element={<ReportarErroPage />} />

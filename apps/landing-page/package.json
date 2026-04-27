@@ -4,24 +4,30 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "concurrently \"node scripts/compile-md.js --watch\" \"vite\"",
+    "build": "node scripts/compile-md.js && vite build",
+    "compile:posts": "node scripts/compile-md.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "dompurify": "^3.4.1",
     "marked": "^18.0.2",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-router-dom": "^7.12.0"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.2.0",
+    "@types/marked": "^6.0.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.23",
+    "chokidar": "^5.0.0",
+    "concurrently": "^9.2.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.9.3",
