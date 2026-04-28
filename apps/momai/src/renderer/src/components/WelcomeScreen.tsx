@@ -12,7 +12,7 @@ const WelcomeScreen = ({ onComplete, isFirstLaunch, version }: WelcomeScreenProp
 
   useEffect(() => {
     // Se for primeira vez, damos mais tempo para ler a mensagem importante (10s)
-    const totalDuration = isFirstLaunch ? 8000 : 4000
+    const totalDuration = isFirstLaunch ? 8000 : 1500
     const fadeStart = totalDuration - 800
 
     const fadeTimer = setTimeout(() => {
