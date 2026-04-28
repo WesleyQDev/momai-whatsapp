@@ -49,6 +49,61 @@ let coreReadyPromise: Promise<void> | null = null
 let restartAttempts = 0
 let isStoppingCore = false
 
+const LLAMA_LOG_NOISE_PATTERNS = [
+  'slot update_slots:',
+  'slot launch_slot_:',
+  'slot get_availabl:',
+  'srv  params_from_:',
+  'srv  log_server_r:',
+  'slot print_timing:',
+  'slot create_check:',
+  'srv          init:',
+  'srv    load_model:',
+  'srv        update:',
+  'srv  get_availabl:',
+  'slot init_sampler:',
+  'slot      release:',
+  'main: server is listening',
+  'main: starting the main loop',
+  'all slots are idle',
+  'get /slots',
+  'post /v1/chat/completions'
+]
+
+const logDedupCache = new Map<string, number>()
+const LOG_DEDUP_WINDOW_MS = 1500
+const LOG_DEDUP_CACHE_LIMIT = 400
+
+function shouldIgnoreLlamaNoise(line: string): boolean {
+  const lower = String(line || '').toLowerCase()
+  return LLAMA_LOG_NOISE_PATTERNS.some((pattern) => lower.includes(pattern))
+}
+
+function shouldLogNodeCoreLine(rawLine: string): boolean {
+  const line = String(rawLine || '').trim()
+  if (!line) return false
+  if (shouldIgnoreLlamaNoise(line)) return false
+
+  const now = Date.now()
+  const key = line
+  const lastSeenAt = logDedupCache.get(key)
+  if (lastSeenAt && now - lastSeenAt < LOG_DEDUP_WINDOW_MS) {
+    return false
+  }
+  logDedupCache.set(key, now)
+
+  if (logDedupCache.size > LOG_DEDUP_CACHE_LIMIT) {
+    for (const [cachedLine, ts] of logDedupCache) {
+      if (now - ts > LOG_DEDUP_WINDOW_MS * 2) {
+        logDedupCache.delete(cachedLine)
+      }
+      if (logDedupCache.size <= LOG_DEDUP_CACHE_LIMIT) break
+    }
+  }
+
+  return true
+}
+
 function isPortReachable(port: number, host: string, timeoutMs = 400): Promise<boolean> {
   return new Promise((resolve) => {
     const sock = createConnection(port, host)
@@ -280,6 +335,7 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
     }
 
     if (msg.type === 'node-core-log' && msg.message) {
+      if (!shouldLogNodeCoreLine(String(msg.message))) return
       logger.info(`[NodeCore] ${msg.message}`)
       return
     }
@@ -301,6 +357,17 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
     }
 
     if (msg.type === 'tts-speak') {
+      if (state.isQuitting || isStoppingCore) {
+        if (child.connected) {
+          child.send({
+            type: 'tts-speak-result',
+            requestId: msg.requestId,
+            ok: false,
+            error: 'app is shutting down'
+          })
+        }
+        return
+      }
       const { requestId, text, voice, engine } = msg as any
       logger.info(`[CoreManager] Received tts-speak IPC requestId=${requestId} engine=${engine} text="${text?.slice(0,40)}"`)
       if (!requestId || !text) {
@@ -324,19 +391,23 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
         await ttsService.speak(text, engine || 'edge-tts')
         logger.info('[CoreManager] ttsService.speak() DONE')
 
-        child.send({
-          type: 'tts-speak-result',
-          requestId,
-          ok: true
-        })
+        if (child.connected) {
+          child.send({
+            type: 'tts-speak-result',
+            requestId,
+            ok: true
+          })
+        }
       } catch (error: any) {
         logger.error(`[CoreManager] TTS speak failed: ${error?.message || error}`)
-        child.send({
-          type: 'tts-speak-result',
-          requestId,
-          ok: false,
-          error: error?.message || String(error)
-        })
+        if (child.connected) {
+          child.send({
+            type: 'tts-speak-result',
+            requestId,
+            ok: false,
+            error: error?.message || String(error)
+          })
+        }
       }
     }
   })
@@ -371,21 +442,15 @@ function spawnNodeCore(): ReturnType<typeof spawn> {
 
   child.stdout?.on('data', (data) => {
     const line = data.toString().trim()
-    if (!line) return
-    // Filter out overly verbose llama.cpp logs
-    if (line.includes('slot update_slots:') || line.includes('slot launch_slot_:') || line.includes('slot get_availabl:') || line.includes('srv  params_from_:') || line.includes('srv  log_server_r:') || line.includes('slot print_timing:') || line.includes('slot create_check:') || line.includes('srv          init:') || line.includes('srv    load_model:') || line.includes('srv        update:') || line.includes('srv  get_availabl:') || line.includes('slot init_sampler:') || line.includes('slot      release:') || line.includes('main: server is listening') || line.includes('main: starting the main loop')) {
-      return
-    }
+    if (!shouldLogNodeCoreLine(line)) return
     logger.info(`[NodeCore] ${line}`)
   })
 
   child.stderr?.on('data', (data) => {
     const line = data.toString().trim()
     if (!line) return
-    // Filter out llama.cpp stderr noise
-    if (line.includes('slot update_slots:') || line.includes('speculative decoding')) {
-      return
-    }
+    if (line.toLowerCase().includes('speculative decoding')) return
+    if (!shouldLogNodeCoreLine(line)) return
     logger.error(`[NodeCore] ${line}`)
   })
 

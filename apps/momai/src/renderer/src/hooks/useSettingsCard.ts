@@ -19,6 +19,10 @@ export interface Settings {
   wake_word_sensitivity: number
   locale: string
   daily_briefing_enabled: boolean
+  greeting_auto_saudacao: boolean
+  greeting_resumo: boolean
+  greeting_acao: string
+  greeting_fixa: string
   ai_tier: 'lite' | 'pro' | 'ultra'
   auto_start_llm: boolean
   context_window_mode?: 'min' | 'medium' | 'max' | 'custom'
@@ -74,6 +78,10 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     wake_word_sensitivity: 5,
     locale: 'pt-BR',
     daily_briefing_enabled: false,
+    greeting_auto_saudacao: true,
+    greeting_resumo: true,
+    greeting_acao: '',
+    greeting_fixa: '',
     ai_tier: 'pro',
     auto_start_llm: true,
     context_window_mode: 'min',

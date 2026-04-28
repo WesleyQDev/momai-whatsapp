@@ -63,6 +63,27 @@ function visualLog(message: string) {
   console.log(`  ${timestamp}  ${style.color}${style.icon}${RESET} ${cleanMsg}`)
 }
 
+const recentLogCache = new Map<string, number>()
+const LOG_DEDUP_MS = 120
+const LOG_DEDUP_MAX = 500
+
+function shouldEmitLogLine(text: string): boolean {
+  const line = String(text || '').trim()
+  if (!line) return false
+  const now = Date.now()
+  const last = recentLogCache.get(line)
+  if (last && now - last < LOG_DEDUP_MS) return false
+  recentLogCache.set(line, now)
+
+  if (recentLogCache.size > LOG_DEDUP_MAX) {
+    for (const [key, ts] of recentLogCache) {
+      if (now - ts > LOG_DEDUP_MS * 4) recentLogCache.delete(key)
+      if (recentLogCache.size <= LOG_DEDUP_MAX) break
+    }
+  }
+  return true
+}
+
 // ── TUI mode ────────────────────────────────────────────────
 const useTui = process.env.TUI_LOGS === '1' || process.env.TUI_LOGS === 'true'
 
@@ -93,6 +114,7 @@ if (useTui) {
     log.hooks.push((msg) => {
       const level = String(msg.level).toLowerCase()
       const text = String(msg.data.join(' '))
+      if (!shouldEmitLogLine(text)) return false
       tui!.log(level, text)
       return false // swallow default console output
     })
@@ -106,6 +128,7 @@ if (useTui) {
     ;(log as any)[hookKey] = true
     log.hooks.push((msg) => {
       const text = msg.data.map((d: any) => String(d)).join(' ')
+      if (!shouldEmitLogLine(text)) return false
       visualLog(text)
       return false // swallow default console output
     })

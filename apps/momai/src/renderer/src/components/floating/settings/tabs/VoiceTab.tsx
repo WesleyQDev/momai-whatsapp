@@ -167,54 +167,108 @@ export const VoiceTab = React.memo(
 
           {/* Recursos de Voz */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2 p-4 rounded-xl border border-border/40 bg-white/[0.03] group transition-all duration-300 hover:border-border/60">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div
-                  className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300 ${
-                    settings.daily_briefing_enabled
-                      ? 'bg-accent/15 text-accent'
-                      : 'bg-white/[0.05] text-text-muted/50'
-                  }`}
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                  </svg>
-                </div>
-                <div className="flex flex-col gap-0">
-                  <span
-                    className={`text-xs font-semibold transition-colors duration-300 ${
-                      settings.daily_briefing_enabled ? 'text-text' : 'text-text-muted'
+            <div className="rounded-xl border border-border/40 bg-white/[0.03] group transition-all duration-300 hover:border-border/60">
+              <div className="flex items-center justify-between gap-2 p-4">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300 ${
+                      settings.daily_briefing_enabled
+                        ? 'bg-accent/15 text-accent'
+                        : 'bg-white/[0.05] text-text-muted/50'
                     }`}
                   >
-                    {t('settings.general.dailyBriefingLabel')}
-                  </span>
-                  <span className="text-[11px] text-text-muted font-medium">
-                    {t('settings.general.dailyBriefingSubtitle')}
-                  </span>
+                    <svg
+                      width="16" height="16" viewBox="0 0 24 24"
+                      fill="none" stroke="currentColor" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round"
+                    >
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      <path d="M12 7v6" />
+                      <path d="M9 10h6" />
+                    </svg>
+                  </div>
+                  <div className="flex flex-col gap-0">
+                    <span
+                      className={`text-xs font-semibold transition-colors duration-300 ${
+                        settings.daily_briefing_enabled ? 'text-text' : 'text-text-muted'
+                      }`}
+                    >
+                      {t('settings.general.dailyBriefingLabel')}
+                    </span>
+                    <span className="text-[11px] text-text-muted font-medium">
+                      {t('settings.general.dailyBriefingSubtitle')}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <button
-                onClick={() =>
-                  updateField('daily_briefing_enabled', !settings.daily_briefing_enabled, true)
-                }
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  settings.daily_briefing_enabled ? 'bg-accent/80' : 'bg-white/10'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    settings.daily_briefing_enabled ? 'translate-x-4' : 'translate-x-0'
+                <button
+                  onClick={() =>
+                    updateField('daily_briefing_enabled', !settings.daily_briefing_enabled, true)
+                  }
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    settings.daily_briefing_enabled ? 'bg-accent/80' : 'bg-white/10'
                   }`}
-                />
-              </button>
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      settings.daily_briefing_enabled ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {settings.daily_briefing_enabled && (
+                <div className="border-t border-border/40">
+                  <div className="px-4 py-2.5 border-b border-border/20 bg-white/[0.02]">
+                    <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wide">Componentes</span>
+                  </div>
+                  <div className="px-4 pb-3 pt-1 space-y-0 divide-y divide-border/10">
+                    <div className="flex items-center justify-between py-2.5">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-semibold text-text">Saudação automática</span>
+                        <span className="text-[10px] text-text-muted/70">&quot;Bom dia!&quot; conforme o horário</span>
+                      </div>
+                      <button
+                        onClick={() => updateField('greeting_auto_saudacao', !settings.greeting_auto_saudacao, true)}
+                        className={`relative inline-flex h-4 w-7 shrink-0 rounded-full border transition-colors ${settings.greeting_auto_saudacao ? 'bg-accent border-accent' : 'bg-white/10 border-transparent'}`}
+                      >
+                        <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition ${settings.greeting_auto_saudacao ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between py-2.5">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-semibold text-text">Resumo do dia</span>
+                        <span className="text-[10px] text-text-muted/70">Data, dia da semana e lembretes</span>
+                      </div>
+                      <button
+                        onClick={() => updateField('greeting_resumo', !settings.greeting_resumo, true)}
+                        className={`relative inline-flex h-4 w-7 shrink-0 rounded-full border transition-colors ${settings.greeting_resumo ? 'bg-accent border-accent' : 'bg-white/10 border-transparent'}`}
+                      >
+                        <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition ${settings.greeting_resumo ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                      </button>
+                    </div>
+                    <div className="py-2.5 space-y-1.5">
+                      <span className="text-xs font-semibold text-text">Ação personalizada</span>
+                      <span className="text-[10px] text-text-muted/70">Instrução extra para a IA</span>
+                      <input
+                        value={settings.greeting_acao}
+                        onChange={(e) => updateField('greeting_acao', e.target.value, true)}
+                        placeholder="Ex: Me conte uma curiosidade do dia"
+                        className="w-full mt-1 p-2 rounded-lg border border-border/40 bg-input text-xs text-text placeholder:text-text-muted/50 focus:outline-none focus:border-accent/50"
+                      />
+                    </div>
+                    <div className="py-2.5 space-y-1.5">
+                      <span className="text-xs font-semibold text-text">Mensagem fixa</span>
+                      <span className="text-[10px] text-text-muted/70">Usa este texto exato em vez de IA</span>
+                      <input
+                        value={settings.greeting_fixa}
+                        onChange={(e) => updateField('greeting_fixa', e.target.value, true)}
+                        placeholder="Ex: Bem-vindo de volta!"
+                        className="w-full mt-1 p-2 rounded-lg border border-border/40 bg-input text-xs text-text placeholder:text-text-muted/50 focus:outline-none focus:border-accent/50"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Seleção de Engine TTS */}

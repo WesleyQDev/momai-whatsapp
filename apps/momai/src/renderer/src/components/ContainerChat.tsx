@@ -538,6 +538,16 @@ export default function ContainerChat({
   }, [isModeChanging])
 
   useEffect(() => {
+    const handleBriefing = (e: CustomEvent) => {
+      if (e.detail && typeof onSendMessage === 'function') {
+        onSendMessage(e.detail, false, true)
+      }
+    }
+    window.addEventListener('momai_trigger_briefing', handleBriefing as EventListener)
+    return () => window.removeEventListener('momai_trigger_briefing', handleBriefing as EventListener)
+  }, [onSendMessage])
+
+  useEffect(() => {
     setLocalSessionTitle(null)
   }, [threadId])
 

@@ -189,8 +189,45 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
   useEffect(() => {
     if (isReady && settingsLoaded && !showOnboarding && !bootstrapError) {
       window.electron.ipcRenderer.send('app-ready')
+
+      // Briefing automático ao iniciar
+      if (settings?.daily_briefing_enabled) {
+        const now = new Date()
+        const hour = now.getHours()
+        const saudacao = hour < 12 ? 'bom dia' : hour < 18 ? 'boa tarde' : 'boa noite'
+        const dias = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
+        const mes = (now.getMonth() + 1).toString().padStart(2, '0')
+        const dia = `${dias[now.getDay()]}`
+        const data = `${now.getDate().toString().padStart(2, '0')}/${mes}/${now.getFullYear()}`
+
+        const fixa = (settings as any).greeting_fixa?.trim()
+        if (fixa) {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('momai_trigger_briefing', { detail: fixa }))
+          }, 800)
+        } else {
+          const parts: string[] = []
+          if ((settings as any).greeting_auto_saudacao !== false) {
+            parts.push(saudacao)
+          }
+          if ((settings as any).greeting_resumo !== false) {
+            parts.push(`faça um resumo do dia de hoje, ${dia}, ${data}`)
+          }
+          const acao = (settings as any).greeting_acao?.trim()
+          if (acao) {
+            parts.push(acao)
+          }
+          if (parts.length === 0) {
+            parts.push(`${saudacao!}`)
+          }
+          const prompt = parts.join('. ') + '.'
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('momai_trigger_briefing', { detail: prompt }))
+          }, 800)
+        }
+      }
     }
-  }, [isReady, settingsLoaded, showOnboarding, bootstrapError])
+  }, [isReady, settingsLoaded, showOnboarding, bootstrapError, settings?.daily_briefing_enabled])
 
   const handleWelcomeComplete = useCallback(() => {
     setShowWelcome(false)
