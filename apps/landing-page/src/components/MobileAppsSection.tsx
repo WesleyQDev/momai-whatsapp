@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { ScrollReveal } from './ScrollReveal'
 import { HeartIcon, WalletIcon, LinkIcon, ChevronRightIcon } from './Icons'
 
@@ -34,47 +33,6 @@ const MOBILE_APPS = [
     available: false,
   },
 ]
-
-function NotifyMeForm({ appName, color }: { appName: string; color: string }) {
-  const [email, setEmail] = useState('')
-  const [submitted, setSubmitted] = useState(false)
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email.trim()) return
-    // Aqui você pode integrar com uma API de newsletter/email
-    console.log(`[Lead] ${appName}: ${email}`)
-    setSubmitted(true)
-  }
-
-  if (submitted) {
-    return (
-      <p className="text-sm font-medium" style={{ color }}>
-        Obrigado! Avisaremos quando estiver pronto.
-      </p>
-    )
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 sm:flex-row">
-      <input
-        type="email"
-        required
-        placeholder="seu@email.com"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        className="flex-1 rounded-lg border border-[var(--feature-border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-tertiary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-      />
-      <button
-        type="submit"
-        className="rounded-lg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-        style={{ background: color }}
-      >
-        Avise-me
-      </button>
-    </form>
-  )
-}
 
 export function MobileAppsSection() {
   return (
@@ -118,7 +76,7 @@ export function MobileAppsSection() {
                     Conhecer o app <ChevronRightIcon className="h-3.5 w-3.5" />
                   </a>
                 ) : (
-                  <NotifyMeForm appName={app.name} color={app.color} />
+                  <span className="text-sm font-medium text-[var(--text-tertiary)]">Em breve</span>
                 )}
               </div>
             </div>

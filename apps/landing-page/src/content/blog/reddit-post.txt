@@ -1,0 +1,49 @@
+Title: MomAI — A local-first personal assistant that tries to be your Jarvis (without the subscription)
+
+Body:
+
+I've been building MomAI for a while, and I wanted to share what it's trying to be.
+
+There are great projects like OpenClaw (seriously, it's awesome), but MomAI takes a different road. OpenClaw is a multi-channel gateway that connects to WhatsApp, Telegram, Discord — brilliant at that. MomAI is a standalone desktop app with its own interface. You install it from the Microsoft Store or the website and it just works. No excessive configuration, no API keys, no understanding of external tools. As simple as Ollama.
+
+**What's already here (v1.2.0, released):**
+
+Notes system built on plain .md files on disk. The editor reads your markdown files at runtime and has a CodeMirror 6 editor with syntax highlighting, slash commands, auto-save, folder organization, and tab-based multi-note editing. Your files stay yours, no proprietary format.
+
+Reminders and scheduled AI actions created directly inside the app. Natural language parsing — say "remind me tomorrow at 2pm" and it figures out the time. No dependency on Google Calendar, Todoist, or any other platform. Supports repeating intervals and voice notifications.
+
+Voice pipeline running entirely local. Kokoro-ONNX for TTS (9 languages), Faster-Whisper for STT, wake word detection ("Luna"), and a call mode with real-time audio waveform and streamed captions. All processed on your GPU if available.
+
+Three modes (Lite, Pro, Ultra) that match your hardware, not your wallet. Lite uses a 0.8B model with text only (~1.5GB). Pro adds voice (~2.8GB). Ultra unlocks semantic memory, all tools, and everything else (~5.5GB). They're all free.
+
+Skill system with embedding-based RAG. Instead of stuffing every skill into the LLM context, MomAI embeds skill intents and retrieves only the most relevant ones per query. Similar in spirit to how Claude Code handles tools, but adapted for a personal assistant context.
+
+Computer automation via FortScript — open programs, launch files, automate tasks on your actual machine.
+
+Adaptive context window that reads your RAM, VRAM, and backend (Vulkan, CUDA, or CPU) in real time and adjusts accordingly.
+
+**What's coming (v1.3, in development):**
+
+Note graph visualization — every [[wiki-link]] between your notes becomes a node and edge in a force-directed graph. Interactive, zoomable, with node sizing by connection count and highlighting. The notes system itself is also getting improvements.
+
+Camera integration skills — object detection, people detection, expression analysis, and behavioral tracking (like monitoring screen retention through blink frequency — useful for understanding focus).
+
+Better voices and STT models — the next update will bring higher quality TTS and improved speech recognition beyond the current Kokoro/Whisper setup.
+
+Developer tools tab with logging and debug features.
+
+Extension store improvements with search, filtering, and tags.
+
+LanceDB-powered semantic tools for better memory retrieval.
+
+**The long-term vision:**
+
+MomAI is still very new, but the real goal is to make it an event-driven agent that reacts in a loop as real-life events happen. The "Jarvis" problem — having an assistant that actually assists, not just chats. Computer use, camera input, scheduled actions, all feeding into a continuous loop that understands context and acts on it.
+
+MomAI has its own design and personality. It's not trying to look like anyone else. It's being built in Brazil with primary support for Portuguese, but English and i18n are fully configured.
+
+**Tech stack:** Electron + React + TypeScript frontend, Node.js sidecar for orchestration, Python/FastAPI for voice, llama.cpp for inference, Qwen3.5 models, LanceDB for vector memory, ONNX Runtime for efficient inference.
+
+No accounts, no subscriptions, no data collection. Free to download and use.
+
+If that sounds interesting, the download is at [your-site]. Happy to answer questions.

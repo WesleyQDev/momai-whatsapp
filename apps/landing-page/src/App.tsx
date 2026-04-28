@@ -1,7 +1,6 @@
 import { HashRouter, Routes, Route, Outlet } from 'react-router-dom'
 import { BackgroundEffects } from './components/BackgroundEffects'
 import { Navbar } from './components/Navbar'
-import { UpdateBanner } from './components/UpdateBanner'
 import { Footer } from './components/Footer'
 import { HomePage } from './pages/HomePage'
 import { BlogPage } from './pages/BlogPage'
@@ -14,7 +13,6 @@ function Layout() {
   return (
     <div className="relative z-10 min-h-screen bg-[var(--bg)] text-[var(--text)]">
       <BackgroundEffects />
-      <UpdateBanner />
       <Navbar />
       <Outlet />
       <Footer />

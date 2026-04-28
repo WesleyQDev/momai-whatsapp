@@ -17,6 +17,7 @@ import WelcomeScreen from './components/WelcomeScreen'
 import BootstrapError from './components/BootstrapError'
 import InfoPanel from './components/InfoPanel'
 import { useAudioFallback } from './hooks/useAudioFallback'
+import { useInitTtsRenderer } from './hooks/useInitTtsRenderer'
 import { useAppTheme } from './hooks/useAppTheme'
 import { useAppInitialization } from './hooks/useAppInitialization'
 import { useAppEvents } from './hooks/useAppEvents'
@@ -62,6 +63,7 @@ function App(): React.JSX.Element {
   // Sub-logic hooks
   const { isCompact } = useAppTheme()
   useAudioFallback()
+  useInitTtsRenderer()
   useOverlayBridge(graphState)
 
   // Local UI State

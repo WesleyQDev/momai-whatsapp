@@ -25,4 +25,5 @@ export interface BlogPost {
   image: string
   content: string
   featured: boolean
+  author?: string
 }

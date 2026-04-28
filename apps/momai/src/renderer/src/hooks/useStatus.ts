@@ -289,52 +289,15 @@ export function useStatus() {
     return () => clearInterval(interval)
   }, [isBooting, initProgress, lastProgressTime, isStalled, isRetrying, backendOnline])
 
-  // Visual progress simulation
-  // Timing targets: 0-30% in ~20s, 30-70% in ~30s, 70-96% in ~60s
-  // Interval is 200ms, so 5 ticks/second.
+  // Visual progress — segue initProgress em tempo real
   useEffect(() => {
     const interval = setInterval(() => {
       setVisualProgress((prev) => {
-        // Phase 1: Backend says we're fully done (brain_ready + !is_loading)
-        // Rush to 100% quickly (~1-2s) so the user isn't waiting unnecessarily
-        if (!isBooting && initProgress >= 100) {
-          if (prev >= 100) return 100
-          const remaining = 100 - prev
-          const finishStep = Math.max(2.5, remaining * 0.18)
-          return Math.min(100, prev + finishStep)
-        }
-
-        // Phase 2: Still loading – simulate realistic fake progress
-        if (initProgress < 100 || isBooting) {
-          // If already past the loading cap (e.g. Phase 1 was running), hold position
-          if (prev >= 96.4) return prev
-
-          // Pure autonomous crawl — ignores backend initProgress jumps
-          // to prevent the bar from rushing when IPC sends large values
-          // 0-30% in 20s = 30% / 100 ticks = 0.30/tick
-          // 30-70% in 30s = 40% / 150 ticks = 0.267/tick
-          // 70-96% in 60s = 26% / 300 ticks = 0.087/tick
-          let autoStep: number
-          if (prev < 30) {
-            autoStep = 0.3
-          } else if (prev < 70) {
-            autoStep = 0.267
-          } else if (prev < 85) {
-            autoStep = 0.087
-          } else if (prev < 92) {
-            autoStep = 0.05
-          } else {
-            autoStep = 0.02
-          }
-
-          // Cap at 96.4 so display shows max "96%" while loading
-          return Math.min(96.4, prev + autoStep)
-        }
-
-        return prev
+        if (initProgress >= 100 && !isBooting) return 100
+        const target = Math.min(initProgress || 2, 96.4)
+        return target
       })
     }, 200)
-
     return () => clearInterval(interval)
   }, [isBooting, initProgress])
 

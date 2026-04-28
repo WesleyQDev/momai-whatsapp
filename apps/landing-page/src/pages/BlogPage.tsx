@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -16,26 +15,41 @@ function BlogPostView({ post, onBack }: { post: BlogPost; onBack: () => void }) 
   const sanitizedHtml = DOMPurify.sanitize(marked.parse(post.content) as string)
 
   return (
-    <div className="mx-auto max-w-[750px] px-6 py-24">
-      <button
-        onClick={handleBack}
-        className="mb-8 inline-flex items-center gap-2 rounded-lg border border-[var(--border-color)] bg-[var(--bg-tertiary)] px-4 py-2 text-sm text-[var(--text-secondary)] transition-all hover:border-[var(--accent)] hover:text-[var(--accent)]"
-      >
-        ← Voltar para todos os posts
-      </button>
+    <div className="blog-post-container">
+      <div className="mx-auto max-w-[760px] px-6 py-16 md:py-24">
+        <button
+          onClick={handleBack}
+          className="mb-10 inline-flex items-center gap-2 text-sm text-[var(--accent)] transition-all hover:text-[var(--accent-hover)]"
+        >
+          ← Voltar para todos os posts
+        </button>
 
-      <div className="mb-8 border-b border-[var(--border-color)] pb-8">
-        {post.featured && (
-          <span className="mb-3 inline-block rounded bg-[var(--gradient-primary)] px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white">Em Destaque</span>
-        )}
-        <div className="mb-2 text-sm text-[var(--text-tertiary)]">{post.date}</div>
-        <h1 className="font-flex text-4xl font-normal leading-[1.2] tracking-tight text-[var(--text)]">{post.title}</h1>
+        <div className="mb-10">
+          {post.featured && (
+            <span className="mb-4 inline-block rounded-full bg-[var(--gradient-primary)] px-4 py-1 text-xs font-semibold uppercase tracking-wider text-white">Novidade</span>
+          )}
+          <div className="mb-3 text-sm text-[var(--text-tertiary)]">{post.date}</div>
+          <h1 className="mb-5 font-flex text-3xl font-normal leading-[1.3] tracking-tight text-[var(--text)] md:text-4xl">{post.title}</h1>
+          {post.author && (
+            <div className="flex items-center gap-3">
+              <img
+                src={`https://github.com/${post.author}.png`}
+                alt={post.author}
+                className="h-10 w-10 rounded-full border border-[var(--border-color)]"
+              />
+              <div>
+                <div className="text-sm font-medium text-[var(--text)]">{post.author}</div>
+                <div className="text-xs text-[var(--text-tertiary)]">Desenvolvedor</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div
+          className="post-content text-base leading-[1.8] text-[var(--text-secondary)] md:text-lg"
+          dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+        />
       </div>
-
-      <div
-        className="post-content text-lg leading-[1.8] text-[var(--text-secondary)]"
-        dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-      />
     </div>
   )
 }
@@ -47,7 +61,8 @@ function BlogListing({ posts, onSelect }: { posts: BlogPost[]; onSelect: (post: 
   const remainingFeatured = featuredPosts.slice(1)
 
   return (
-    <div className="mx-auto max-w-[1100px] px-8 py-24">
+    <div className="blog-listing-container">
+      <div className="mx-auto max-w-[1100px] px-8 py-24">
       <div className="mb-16 text-center">
         <h1 className="mb-3 font-flex text-5xl font-normal tracking-tight" style={{ background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Blog</h1>
         <p className="text-lg text-[var(--text-secondary)]">Fique por dentro das últimas novidades da MomAI</p>
@@ -89,7 +104,7 @@ function BlogListing({ posts, onSelect }: { posts: BlogPost[]; onSelect: (post: 
               {post.featured && (
                 <span className="mb-2 inline-block w-fit rounded bg-[var(--gradient-primary)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">Destaque</span>
               )}
-              <div className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">{post.date}</div>
+              <div className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-secondary)]">{post.date}</div>
               <h3 className="mb-2 text-lg font-medium leading-[1.4] text-[var(--text)]">{post.title}</h3>
               <p className="mb-4 line-clamp-3 flex-1 text-sm leading-relaxed text-[var(--text-secondary)]">{post.excerpt}</p>
               <div className="text-sm font-medium text-[var(--accent)]">Ler mais →</div>
@@ -102,17 +117,14 @@ function BlogListing({ posts, onSelect }: { posts: BlogPost[]; onSelect: (post: 
         <p className="py-16 text-center text-[var(--text-tertiary)]">Nenhum post encontrado.</p>
       )}
     </div>
+    </div>
   )
 }
 
 export function BlogPage() {
-  const [posts, setPosts] = useState<BlogPost[]>([])
+  const posts = loadBlogPosts()
   const { postId } = useParams<{ postId: string }>()
   const navigate = useNavigate()
-
-  useEffect(() => {
-    setPosts(loadBlogPosts())
-  }, [])
 
   const selectedPost = postId ? posts.find(p => p.id === postId) : null
 

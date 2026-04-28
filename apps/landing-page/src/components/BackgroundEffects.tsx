@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 
 function getStarCount(): number {
   const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -8,14 +9,13 @@ function getStarCount(): number {
   return 80
 }
 
-export function BackgroundEffects() {
+function Stars() {
   const starsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const container = starsRef.current
     if (!container) return
 
-    // Limpa estrelas anteriores se houver (hot reload)
     container.innerHTML = ''
 
     const starCount = getStarCount()
@@ -49,9 +49,7 @@ export function BackgroundEffects() {
 
     container.appendChild(fragment)
 
-    // Atualiza em resize
     const handleResize = () => {
-      // Simples debounce: só recria se mudou drasticamente
       const newCount = getStarCount()
       if (container.childElementCount !== newCount) {
         container.innerHTML = ''
@@ -92,9 +90,16 @@ export function BackgroundEffects() {
     }
   }, [])
 
+  return <div className="bg-stars" ref={starsRef} />
+}
+
+export function BackgroundEffects() {
+  const { pathname } = useLocation()
+  const isBlogPage = pathname.includes('/blog')
+
   return (
-    <div className="bg-effects">
-      <div className="bg-stars" ref={starsRef} />
+    <div className={`bg-effects${isBlogPage ? ' bg-effects--blog' : ''}`}>
+      {!isBlogPage && <Stars />}
       <div className="bg-glow bg-glow-1" />
       <div className="bg-glow bg-glow-2" />
       <div className="bg-glow bg-glow-3" />

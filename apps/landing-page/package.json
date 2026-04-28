@@ -4,9 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"node scripts/compile-md.js --watch\" \"vite\"",
-    "build": "node scripts/compile-md.js && vite build",
-    "compile:posts": "node scripts/compile-md.js",
+    "dev": "vite",
+    "build": "vite build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",

@@ -101,17 +101,16 @@ export const VoiceTab = React.memo(
       setLocalEngine(currentEngine)
     }, [currentEngine])
 
-    // Atualizar configuração quando a engine muda
     const handleEngineChange = async (engine: typeof localEngine) => {
+      try { const { stopVoice } = await import('../../../../services/api'); stopVoice().catch(() => {}) } catch {}
       setLocalEngine(engine)
       await updateField('tts_engine', engine, true)
       await setEngine(engine)
-      
-      // Resetar expandedLang quando mudar de engine
       setExpandedLang(null)
     }
 
     const handleVoiceSelect = async (voiceId: string) => {
+      try { const { stopVoice } = await import('../../../../services/api'); stopVoice().catch(() => {}) } catch {}
       await updateField('tts_voice', voiceId, true)
       await setVoice(voiceId)
     }
@@ -304,38 +303,52 @@ export const VoiceTab = React.memo(
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="p-2 rounded-xl bg-white/[0.03] border border-border/40 overflow-y-auto custom-scrollbar h-[200px]">
-                  <div className="grid grid-cols-1 gap-1.5">
-                    {availableVoices.map((v) => (
+              ) : (() => {
+                const groups: Record<string, { code: string; langKey: string; voices: typeof availableVoices }> = {}
+                for (const v of availableVoices) {
+                  const lang = v.language.split('-')[0]
+                  if (!groups[lang]) groups[lang] = { code: lang, langKey: lang.toUpperCase(), voices: [] }
+                  groups[lang].voices.push(v)
+                }
+                const sorted = Object.values(groups).sort((a, b) => a.code === 'pt' ? -1 : b.code === 'pt' ? 1 : a.code.localeCompare(b.code))
+                const currentLang = (expandedLang && sorted.find(g => g.code === expandedLang)) ? expandedLang : (sorted[0]?.code || null)
+                return (
+                <div className="flex gap-3 h-[200px]">
+                  <div className="w-[160px] space-y-1 overflow-y-auto custom-scrollbar pr-2">
+                    {sorted.map((g) => (
                       <button
-                        key={v.id}
-                        onClick={() => handleVoiceSelect(v.id)}
-                        className={`flex items-center justify-between p-2 rounded-lg border text-xs font-medium transition-all ${settings.tts_voice === v.id ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20' : 'bg-input border-border/40 text-text-muted hover:bg-white/[0.05]'}`}
+                        key={g.code}
+                        onClick={() => setExpandedLang(g.code)}
+                        className={`w-full flex items-center justify-between p-2 rounded-lg border text-[11px] font-semibold uppercase tracking-wide transition-all ${currentLang === g.code ? 'bg-accent/10 border-accent/40 text-accent' : 'bg-white/[0.03] border-transparent text-text-muted hover:bg-white/[0.05]'}`}
                       >
-                        <div className="flex flex-col items-start gap-0">
-                          <span>{v.name}</span>
-                          <span className="text-[9px] uppercase font-semibold tracking-wide opacity-60">
-                            {v.language} • {v.gender || 'voz'}
-                          </span>
-                        </div>
-                        {settings.tts_voice === v.id && (
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="3"
-                          >
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
+                        {g.langKey}
                       </button>
                     ))}
                   </div>
+                  <div className="flex-1 p-2 rounded-xl bg-white/[0.03] border border-border/40 overflow-y-auto custom-scrollbar">
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {sorted.find((g) => g.code === currentLang)?.voices.map((v) => (
+                        <button
+                          key={v.id}
+                          onClick={() => handleVoiceSelect(v.id)}
+                          className={`flex items-center justify-between p-2 rounded-lg border text-xs font-medium transition-all ${settings.tts_voice === v.id ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20' : 'bg-input border-border/40 text-text-muted hover:bg-white/[0.05]'}`}
+                        >
+                          <div className="flex flex-col items-start gap-0">
+                            <span>{v.name}</span>
+                            <span className="text-[9px] uppercase font-semibold tracking-wide opacity-60">
+                              {v.language} • {v.gender || 'voz'}
+                            </span>
+                          </div>
+                          {settings.tts_voice === v.id && (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              )}
+                )
+              })()}
             </div>
           </div>
         </div>

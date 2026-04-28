@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { WIN_STORE_URL } from '@/constants'
 import { useOSDetection } from '@/hooks/useOSDetection'
 import { useGitHubRelease } from '@/hooks/useGitHubRelease'
@@ -46,7 +47,7 @@ export function HeroSection() {
       </h1>
 
       <p className="subtitle mb-10 max-w-[700px] text-lg font-normal leading-relaxed text-[var(--text-secondary)]" style={{ animation: 'fadeInUp 1s ease-out 0.2s forwards', opacity: 0 }}>
-        A MomAI é uma assistente inteligente que roda inteiramente na sua máquina. Sem nuvem, sem assinaturas, sem coleta de dados.
+        A MomAI roda inteiramente na sua máquina. Sem assinaturas, sem coleta de dados, sem contas. Seus dados ficam com você, e ela só acessa a internet quando você pedir.
       </p>
 
       <div className="btn-group flex items-start gap-3" style={{ animation: 'fadeInUp 1s ease-out 0.3s forwards', opacity: 0 }}>
@@ -74,9 +75,9 @@ export function HeroSection() {
             Outros downloads
           </a>
         </div>
-        <a href="#features" className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(255,255,255,0.15)] bg-transparent px-6 py-[0.7rem] text-sm font-medium text-[var(--text-secondary)] no-underline transition-all hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--text)] hover:border-[rgba(255,255,255,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]">
+        <Link to="/blog/post/v1-2-0" className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(255,255,255,0.15)] bg-transparent px-6 py-[0.7rem] text-sm font-medium text-[var(--text-secondary)] no-underline transition-all hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--text)] hover:border-[rgba(255,255,255,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]">
           Saiba mais
-        </a>
+        </Link>
       </div>
 
       <style>{`

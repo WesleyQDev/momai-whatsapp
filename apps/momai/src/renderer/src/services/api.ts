@@ -198,31 +198,41 @@ export async function resetChatContextUsage(): Promise<void> {
 }
 
 export async function stopVoice(): Promise<void> {
-  const response = await fetch(`${API_URL}/chat/stop-voice`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
-  })
-  if (!response.ok) throw new Error('Erro ao parar voz')
+  try {
+    const { getTTSServiceRenderer } = await import('./ttsService')
+    getTTSServiceRenderer().stop()
+  } catch {}
+  try {
+    const response = await fetch(`${API_URL}/chat/stop-voice`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (!response.ok) throw new Error('Erro ao parar voz')
+  } catch {}
 }
 
 import { getTTSServiceRenderer } from './ttsService'
 
+function stripEmojis(text: string): string {
+  return text.replace(/\p{Extended_Pictographic}/gu, '')
+}
+
 export async function speakText(text: string, engine?: string): Promise<void> {
-  // Usar serviço TTS local do Node.js quando não for Kokoro
+  const cleanText = stripEmojis(text)
+
   if (engine && engine !== 'kokoro') {
     const ttsService = getTTSServiceRenderer()
-    const response = await ttsService.speak(text, engine as any)
+    const response = await ttsService.speak(cleanText, engine as any)
     if (!response.success) {
       throw new Error(response.error || 'Erro ao falar')
     }
     return
   }
 
-  // Fallback para o backend Python (Kokoro)
   const response = await fetch(`${API_URL}/chat/speak`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text })
+    body: JSON.stringify({ text: cleanText })
   })
   if (!response.ok) throw new Error('Erro ao ler texto')
 }

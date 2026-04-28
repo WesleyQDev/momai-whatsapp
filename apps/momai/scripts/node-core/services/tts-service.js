@@ -71,7 +71,7 @@ async function triggerAutoTts(text) {
 
   const aiTier = store.settings.ai_tier || 'pro'
   const ttsEnabled = Boolean(store.settings.tts_enabled)
-  const cleaned = String(text || '').trim()
+  const cleaned = String(text || '').trim().replace(/\p{Extended_Pictographic}/gu, '')
 
   if (aiTier === 'lite') {
     debug('[NodeCore][Voice] Auto TTS skipped: ai_tier=lite')

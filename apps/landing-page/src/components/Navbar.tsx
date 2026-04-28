@@ -58,7 +58,7 @@ export function Navbar() {
           className={`${menuOpen ? 'flex' : 'hidden'} absolute left-0 right-0 top-16 flex-col gap-0 border-b border-[var(--border-color)] bg-[var(--bg)] p-2 backdrop-blur-xl md:static md:flex md:flex-row md:gap-6 md:border-none md:bg-transparent md:p-0 ${menuOpen ? 'animate-slide-down' : ''}`}
         >
           {NAV_LINKS.map((link) => (
-            <li key={link.to} className="w-full md:w-auto">
+              <li key={link.to} className="w-full md:flex md:items-center md:w-auto">
               <Link
                 to={link.to}
                 onClick={handleLinkClick}
@@ -70,7 +70,7 @@ export function Navbar() {
               </Link>
             </li>
           ))}
-          <li className="w-full md:w-auto">
+          <li className="w-full md:flex md:items-center md:w-auto">
             <Link
               to="/doar"
               onClick={handleLinkClick}

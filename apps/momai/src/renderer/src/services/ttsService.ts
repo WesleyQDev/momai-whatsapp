@@ -36,9 +36,26 @@ function on(channel: string, listener: (...args: any[]) => void): () => void {
 class TTSServiceRenderer {
   private listeners: Map<string, Set<Function>> = new Map()
   private cleanupFns: (() => void)[] = []
+  private audioCtx: AudioContext | null = null
+  private nextScheduleTime = 0
+  private currentSources: Set<AudioBufferSourceNode> = new Set()
+  private currentHtmlAudio: HTMLAudioElement | null = null
 
   constructor() {
     this.setupEventListeners()
+  }
+
+  private stopCurrentAudio() {
+    for (const src of this.currentSources) {
+      try { src.stop() } catch {}
+      try { src.disconnect() } catch {}
+    }
+    this.currentSources.clear()
+    this.nextScheduleTime = 0
+    if (this.currentHtmlAudio) {
+      try { this.currentHtmlAudio.pause() } catch {}
+      this.currentHtmlAudio = null
+    }
   }
 
   private setupEventListeners() {
@@ -48,29 +65,53 @@ class TTSServiceRenderer {
     this.cleanupFns.push(on('tts:engine-changed', (engine) => this.emit('engine-changed', engine)))
     this.cleanupFns.push(on('tts:voice-changed', (voice) => this.emit('voice-changed', voice)))
     this.cleanupFns.push(on('tts:play-audio-buffer', (payload: { data: string; mimeType: string }) => {
-      console.log('[Renderer TTS] Received audio payload, mimeType:', payload.mimeType, 'base64 length:', payload.data.length)
+      this.playAudioBuffer(payload)
+    }))
+  }
+
+  private async playAudioBuffer(payload: { data: string; mimeType: string }) {
+    try {
+      const binary = atob(payload.data)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i)
+      }
+
+      if (this.audioCtx?.state === 'suspended') {
+        await this.audioCtx.resume()
+      }
+      if (!this.audioCtx) {
+        this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
+        this.nextScheduleTime = 0
+      }
+
+      const audioBuffer = await this.audioCtx.decodeAudioData(bytes.buffer.slice(0))
+      const startTime = Math.max(this.nextScheduleTime, this.audioCtx.currentTime)
+
+      const source = this.audioCtx.createBufferSource()
+      source.buffer = audioBuffer
+      source.connect(this.audioCtx.destination)
+      this.currentSources.add(source)
+      source.onended = () => { this.currentSources.delete(source) }
+      source.start(startTime)
+
+      this.nextScheduleTime = startTime + audioBuffer.duration
+    } catch (err) {
+      console.warn('[Renderer TTS] AudioContext decode error, fallback to HTMLAudio:', err)
       try {
         const binary = atob(payload.data)
         const bytes = new Uint8Array(binary.length)
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i)
-        }
-        const blob = new Blob([bytes.buffer], { type: payload.mimeType })
-        const url = URL.createObjectURL(blob)
-        console.log('[Renderer TTS] Created blob URL:', url)
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+        const url = URL.createObjectURL(new Blob([bytes.buffer], { type: payload.mimeType }))
         const audio = new Audio(url)
-        audio.onended = () => { URL.revokeObjectURL(url); console.log('[Renderer TTS] Audio ended') }
-        audio.onerror = (e) => { console.error('[Renderer TTS] Audio error:', e); URL.revokeObjectURL(url) }
-        audio.play().then(() => {
-          console.log('[Renderer TTS] Audio playing!')
-        }).catch((err) => {
-          console.error('[Renderer TTS] Audio play error:', err)
-          URL.revokeObjectURL(url)
-        })
-      } catch (err) {
-        console.error('[Renderer TTS] Failed to play audio buffer:', err)
+        audio.onended = () => { URL.revokeObjectURL(url); if (this.currentHtmlAudio === audio) this.currentHtmlAudio = null }
+        audio.onerror = () => { URL.revokeObjectURL(url) }
+        await audio.play()
+        this.currentHtmlAudio = audio
+      } catch (fallbackErr) {
+        console.error('[Renderer TTS] All playback methods failed:', fallbackErr)
       }
-    }))
+    }
   }
 
   private emit(event: string, ...args: any[]) {
@@ -134,6 +175,7 @@ class TTSServiceRenderer {
   }
 
   async stop(): Promise<TTSResponse<void>> {
+    this.stopCurrentAudio()
     try {
       const response = await invoke('tts:stop')
       return response

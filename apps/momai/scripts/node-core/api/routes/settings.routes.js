@@ -46,7 +46,7 @@ function createSettingsRoutes(context) {
           return true
         }
 
-        store.settings = { ...store.settings, ...payload }
+        Object.assign(store.settings, payload)
         store.settings.local_backend = normalizeBackendMode(store.settings.local_backend || 'auto')
         store.settings.context_window_mode = normalizeContextWindowMode(
           store.settings.context_window_mode || 'min'

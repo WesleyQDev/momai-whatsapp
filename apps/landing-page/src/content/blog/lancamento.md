@@ -2,14 +2,14 @@
 title: O nascimento de uma assistente privada
 date: 22 de Fevereiro, 2026
 excerpt: Conheça a MomAI, uma assistente pessoal focada em privacidade que roda 100% localmente no seu computador.
-image: /images/lancamento.png
+image: https://i.ibb.co/LXgHdCFK/image.png
 ---
 
 Estou lançando a primeira versão da **MomAI**, uma assistente pessoal de computador que roda inteiramente no seu hardware.
 
 ## O que é a MomAI?
 
-A MomAI é uma assistente de inteligência artificial local. Ela não depende de internet, não exige login e não envia seus dados para nenhum servidor. Tudo roda e fica armazenado na sua própria máquina.
+A MomAI é uma assistente de inteligência artificial local. Ela não exige login nem envia seus dados para nenhum servidor. Tudo roda e fica armazenado na sua própria máquina. Ela pode acessar a internet quando você pedir, mas a decisão é sempre sua.
 
 O nome vem da ideia de ser a "mãe" do seu sistema — ela organiza, lembra e ajuda no que for preciso. E é totalmente gratuita.
 

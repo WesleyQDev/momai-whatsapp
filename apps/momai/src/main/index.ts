@@ -206,6 +206,8 @@ ipcMain.handle('notes:search', async (_, query: string, limit?: number) =>
   searchNotes(query, limit ?? 6)
 )
 
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.wesleyqdev.momai')
 
