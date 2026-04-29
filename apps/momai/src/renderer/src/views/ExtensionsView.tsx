@@ -549,11 +549,8 @@ export default function ExtensionsView() {
     [allSkills]
   )
   const storeSkills = useMemo(
-    () =>
-      allSkills.filter(
-        (s) => s.category !== 'builtin' && !installedSkills.some((i) => i.id === s.id)
-      ),
-    [allSkills, installedSkills]
+    () => allSkills.filter((s) => s.category !== 'builtin'),
+    [allSkills]
   )
 
   const currentList = activeTab === 'installed' 
