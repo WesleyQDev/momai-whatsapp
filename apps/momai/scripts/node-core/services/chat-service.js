@@ -23,6 +23,7 @@ const { isSkillEnabledByStore, getEnabledSkills } = require('./skill-orchestrato
 const { triggerAutoTts, ensurePython, broadcast } = require('./tts-service')
 const { DEFAULT_TIERS, loadTierConfig } = require('../config/tiers')
 const { DATA_DIR, NOTES_DIR, NOTES_INDEX_FILE } = require('../config/constants')
+const { saveMemoryNoteFromContent, ensureNotesIndexExists } = require('../domain/note-manager')
 
 const tiersConfig = loadTierConfig()
 
@@ -61,44 +62,6 @@ function appendMessage(threadId, role, content, extras = {}) {
   messages.push(item)
   saveStore()
   return item
-}
-
-function ensureNotesIndexExists() {
-  if (!fs.existsSync(NOTES_DIR)) {
-    fs.mkdirSync(NOTES_DIR, { recursive: true })
-  }
-  if (!fs.existsSync(NOTES_INDEX_FILE)) {
-    fs.writeFileSync(NOTES_INDEX_FILE, JSON.stringify([], null, 2), 'utf8')
-  }
-}
-
-function saveMemoryNoteFromContent(content) {
-  ensureNotesIndexExists()
-  const titleLine =
-    String(content || '')
-      .trim()
-      .split('\n')[0] || 'Nota'
-  const title = titleLine.replace(/^#+\s*/, '').slice(0, 80) || 'Nota'
-  const id = crypto.randomUUID()
-  const relPath = `notes/${id}.md`
-  const absPath = path.join(DATA_DIR, relPath)
-  fs.writeFileSync(absPath, String(content || '').trim() || 'Nota vazia.', 'utf8')
-
-  const index = JSON.parse(fs.readFileSync(NOTES_INDEX_FILE, 'utf8'))
-  index.push({
-    id,
-    title,
-    path: relPath,
-    source: 'local',
-    created_at: isoNow(),
-    updated_at: isoNow(),
-    preview: String(content || '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 220)
-  })
-  fs.writeFileSync(NOTES_INDEX_FILE, JSON.stringify(index, null, 2), 'utf8')
-  return { id, title, path: relPath }
 }
 
 async function searchWeb(query, limit = 4) {
