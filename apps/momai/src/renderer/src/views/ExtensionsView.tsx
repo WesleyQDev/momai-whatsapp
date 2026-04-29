@@ -1,4 +1,69 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+
+/* ─── Hook: Drag to Scroll ─── */
+function useDragScroll() {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const isDragging = useRef(false)
+  const startX = useRef(0)
+  const scrollLeft = useRef(0)
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    isDragging.current = true
+    startX.current = e.pageX
+    scrollLeft.current = scrollRef.current?.scrollLeft || 0
+    scrollRef.current!.style.cursor = 'grabbing'
+    scrollRef.current!.style.userSelect = 'none'
+  }, [])
+
+  const handleMouseUp = useCallback(() => {
+    isDragging.current = false
+    if (scrollRef.current) {
+      scrollRef.current.style.cursor = 'grab'
+      scrollRef.current.style.userSelect = ''
+    }
+  }, [])
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDragging.current) return
+    const x = e.pageX
+    const walk = (x - startX.current) * 1.5
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollLeft.current - walk
+    }
+  }, [])
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    startX.current = e.touches[0].pageX
+    scrollLeft.current = scrollRef.current?.scrollLeft || 0
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const x = e.touches[0].pageX
+    const walk = (x - startX.current) * 1.5
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollLeft.current - walk
+    }
+  }, [])
+
+  useEffect(() => {
+    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('mousemove', handleMouseMove)
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('mousemove', handleMouseMove)
+    }
+  }, [handleMouseUp, handleMouseMove])
+
+  return {
+    scrollRef,
+    mouseDown: handleMouseDown,
+    mouseUp: handleMouseUp,
+    mouseMove: handleMouseMove,
+    touchStart: handleTouchStart,
+    touchMove: handleTouchMove,
+    grabCursor: 'grab'
+  }
+}
 import { useLocation } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -121,26 +186,26 @@ function FeaturedCarousel({
   skills: Extension[]
   onSelect: (s: Extension) => void
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const dragScroll = useDragScroll()
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(true)
 
   const checkScroll = () => {
-    if (!scrollRef.current) return
-    const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current
+    if (!dragScroll.scrollRef.current) return
+    const { scrollLeft, scrollWidth, clientWidth } = dragScroll.scrollRef.current
     setCanScrollLeft(scrollLeft > 0)
     setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10)
   }
 
   useEffect(() => {
     checkScroll()
-    const el = scrollRef.current
+    const el = dragScroll.scrollRef.current
     el?.addEventListener('scroll', checkScroll)
     return () => el?.removeEventListener('scroll', checkScroll)
   }, [skills])
 
   const scroll = (dir: 'left' | 'right') => {
-    scrollRef.current?.scrollBy({ left: dir === 'left' ? -320 : 320, behavior: 'smooth' })
+    dragScroll.scrollRef.current?.scrollBy({ left: dir === 'left' ? -320 : 320, behavior: 'smooth' })
   }
 
   if (skills.length === 0) return null
@@ -164,7 +229,17 @@ function FeaturedCarousel({
         </button>
       )}
 
-      <div ref={scrollRef} className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
+      <div
+        ref={dragScroll.scrollRef}
+        onMouseDown={dragScroll.mouseDown}
+        onMouseUp={dragScroll.mouseUp}
+        onMouseLeave={dragScroll.mouseUp}
+        onMouseMove={dragScroll.mouseMove}
+        onTouchStart={dragScroll.touchStart}
+        onTouchMove={dragScroll.touchMove}
+        className="flex gap-3 overflow-x-auto scrollbar-none pb-1"
+        style={{ cursor: dragScroll.grabCursor }}
+      >
         {skills.map((skill) => {
           const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece')
           return (
@@ -405,6 +480,7 @@ export default function ExtensionsView() {
   const [selectedSkill, setSelectedSkill] = useState<Extension | null>(null)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const tagsDragScroll = useDragScroll()
 
   const loadData = async () => {
     setLoading(true)
@@ -506,62 +582,54 @@ export default function ExtensionsView() {
 
   return (
     <div className="flex-1 h-full bg-zinc-900 overflow-hidden flex flex-col">
-      {/* ─── Header (always visible) ─── */}
-      <div className="px-6 py-3 flex items-center justify-between border-b border-zinc-800 bg-zinc-900 shrink-0">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <WrenchIcon className="w-4 h-4 text-violet-400" />
-            <h1 className="text-sm font-bold text-zinc-200 uppercase tracking-wide">Skills</h1>
-          </div>
-
-          <div className="flex items-center gap-1 p-0.5 bg-zinc-800 rounded-lg border border-zinc-700">
-            <button
-              onClick={() => setActiveTab('installed')}
-              className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
-                activeTab === 'installed'
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              <Squares2X2Icon className="w-3.5 h-3.5" />
-              Minhas Skills
-            </button>
-            <button
-              onClick={() => setActiveTab('store')}
-              className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
-                activeTab === 'store'
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              <ShoppingBagIcon className="w-3.5 h-3.5" />
-              Loja
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar skills..."
-              className="pl-8 pr-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 focus:bg-zinc-800/80 w-48 transition-all"
-            />
-          </div>
-          <button
-            onClick={loadData}
-            className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition-colors"
-          >
-            <ArrowPathIcon className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
       {/* ─── Content ─── */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-6xl mx-auto px-6 py-5">
+          {/* ─── Tabs & Search ─── */}
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-1 p-0.5 bg-zinc-800 rounded-lg border border-zinc-700">
+              <button
+                onClick={() => setActiveTab('installed')}
+                className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
+                  activeTab === 'installed'
+                    ? 'bg-violet-600 text-white shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <Squares2X2Icon className="w-3.5 h-3.5" />
+                Minhas Skills
+              </button>
+              <button
+                onClick={() => setActiveTab('store')}
+                className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
+                  activeTab === 'store'
+                    ? 'bg-violet-600 text-white shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <ShoppingBagIcon className="w-3.5 h-3.5" />
+                Loja
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar skills..."
+                  className="pl-8 pr-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-violet-500/50 focus:bg-zinc-800/80 w-48 transition-all"
+                />
+              </div>
+              <button
+                onClick={loadData}
+                className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition-colors"
+              >
+                <ArrowPathIcon className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
           {selectedSkill ? (
             /* ─── Detail View ─── */
             <SkillDetailView
@@ -587,7 +655,17 @@ export default function ExtensionsView() {
 
               {/* Tag Filters */}
               {allTags.length > 0 && (
-                <div className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-1">
+                <div
+                  ref={tagsDragScroll.scrollRef}
+                  onMouseDown={tagsDragScroll.mouseDown}
+                  onMouseUp={tagsDragScroll.mouseUp}
+                  onMouseLeave={tagsDragScroll.mouseUp}
+                  onMouseMove={tagsDragScroll.mouseMove}
+                  onTouchStart={tagsDragScroll.touchStart}
+                  onTouchMove={tagsDragScroll.touchMove}
+                  className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-1"
+                  style={{ cursor: tagsDragScroll.grabCursor }}
+                >
                   <button
                     onClick={() => setSelectedTag(null)}
                     className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide border transition-all ${
