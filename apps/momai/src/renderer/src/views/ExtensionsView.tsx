@@ -481,7 +481,7 @@ export default function ExtensionsView() {
   const [allSkills, setAllSkills] = useState<Extension[]>([])
   const [loading, setLoading] = useState(true)
   const [installing, setInstalling] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'installed' | 'store'>('installed')
+  const [activeTab, setActiveTab] = useState<'installed' | 'store'>('store')
   const [selectedSkill, setSelectedSkill] = useState<Extension | null>(null)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -558,12 +558,13 @@ export default function ExtensionsView() {
 
   const allTags = useMemo(() => {
     const tags = new Set<string>()
-    allSkills.forEach((s) => s.tags?.forEach((tag: string) => tags.add(tag)))
+    currentList.forEach((s) => s.tags?.forEach((tag: string) => tags.add(tag)))
     return Array.from(tags).sort()
-  }, [allSkills])
+  }, [currentList])
 
-  const currentList =
-    activeTab === 'installed' ? [...builtinSkills, ...installedSkills] : storeSkills
+  const currentList = activeTab === 'installed' 
+    ? [...builtinSkills, ...installedSkills] 
+    : storeSkills
 
   const filteredList = useMemo(() => {
     let list = currentList
