@@ -192,8 +192,6 @@ export default function LateralBar({
           )
         })()}
 
-        <div className="w-8 h-[1px] bg-border/30 my-2" />
-
         <button
           onClick={() => onNavigate('/extensions')}
           title={t('sidebar.store')}
@@ -205,7 +203,7 @@ export default function LateralBar({
               className={`absolute ${isCompact ? '-left-2 h-4' : '-left-3 h-6'} w-1 bg-accent rounded-r-full animate-fade-in`}
             />
           )}
-          <WrenchIcon
+          <CpuChipIcon
             className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
           />
         </button>
