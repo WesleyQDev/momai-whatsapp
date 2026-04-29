@@ -556,15 +556,15 @@ export default function ExtensionsView() {
     [allSkills, installedSkills]
   )
 
+  const currentList = activeTab === 'installed' 
+    ? [...builtinSkills, ...installedSkills] 
+    : storeSkills
+
   const allTags = useMemo(() => {
     const tags = new Set<string>()
     currentList.forEach((s) => s.tags?.forEach((tag: string) => tags.add(tag)))
     return Array.from(tags).sort()
   }, [currentList])
-
-  const currentList = activeTab === 'installed' 
-    ? [...builtinSkills, ...installedSkills] 
-    : storeSkills
 
   const filteredList = useMemo(() => {
     let list = currentList
