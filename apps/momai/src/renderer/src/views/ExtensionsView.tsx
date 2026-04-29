@@ -35,7 +35,7 @@ function useDragScroll() {
     const walk = (e.pageX - startX.current) * 1.5
     if (scrollRef.current) {
       scrollLeft.current = scrollRef.current.scrollLeft
-      scrollRef.current.scrollLeft = scrollLeft.current - walk
+      scrollRef.current.scrollLeft = scrollLeft.current + walk
     }
   }, [])
 
@@ -52,7 +52,8 @@ function useDragScroll() {
     }
     const walk = (e.touches[0].pageX - startX.current) * 1.5
     if (scrollRef.current) {
-      scrollRef.current.scrollLeft = scrollLeft.current - walk
+      scrollLeft.current = scrollRef.current.scrollLeft
+      scrollRef.current.scrollLeft = scrollLeft.current + walk
     }
   }, [])
 
