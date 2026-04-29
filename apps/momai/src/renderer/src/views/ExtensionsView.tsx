@@ -8,25 +8,7 @@ function useDragScroll() {
   const initialX = useRef(0)
   const initialScrollLeft = useRef(0)
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    isDragging.current = true
-    hasDragged.current = false
-    initialX.current = e.pageX
-    initialScrollLeft.current = scrollRef.current?.scrollLeft || 0
-    scrollRef.current!.style.cursor = 'grabbing'
-    scrollRef.current!.style.userSelect = 'none'
-  }, [])
-
-  const handleMouseUp = useCallback(() => {
-    isDragging.current = false
-    if (scrollRef.current) {
-      scrollRef.current.style.cursor = 'grab'
-      scrollRef.current.style.userSelect = ''
-    }
-  }, [])
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
+  const onMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging.current) return
     const deltaX = Math.abs(e.pageX - initialX.current)
     if (deltaX > 5) {
@@ -37,6 +19,28 @@ function useDragScroll() {
       scrollRef.current.scrollLeft = initialScrollLeft.current - walk
     }
   }, [])
+
+  const onMouseUp = useCallback(() => {
+    isDragging.current = false
+    window.removeEventListener('mousemove', onMouseMove)
+    window.removeEventListener('mouseup', onMouseUp)
+    if (scrollRef.current) {
+      scrollRef.current.style.cursor = 'grab'
+      scrollRef.current.style.userSelect = ''
+    }
+  }, [onMouseMove])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isDragging.current = true
+    hasDragged.current = false
+    initialX.current = e.pageX
+    initialScrollLeft.current = scrollRef.current?.scrollLeft || 0
+    scrollRef.current!.style.cursor = 'grabbing'
+    scrollRef.current!.style.userSelect = 'none'
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }, [onMouseMove, onMouseUp])
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     hasDragged.current = false
@@ -59,20 +63,10 @@ function useDragScroll() {
     return hasDragged.current
   }, [])
 
-  useEffect(() => {
-    window.addEventListener('mouseup', handleMouseUp)
-    window.addEventListener('mousemove', handleMouseMove)
-    return () => {
-      window.removeEventListener('mouseup', handleMouseUp)
-      window.removeEventListener('mousemove', handleMouseMove)
-    }
-  }, [handleMouseUp, handleMouseMove])
-
   return {
     scrollRef,
     mouseDown: handleMouseDown,
-    mouseUp: handleMouseUp,
-    mouseMove: handleMouseMove,
+    mouseUp: onMouseUp,
     touchStart: handleTouchStart,
     touchMove: handleTouchMove,
     isDraggingScroll,
