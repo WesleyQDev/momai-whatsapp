@@ -2,10 +2,9 @@ import { app, shell } from 'electron'
 import { randomUUID } from 'crypto'
 import { dirname, extname, join, relative } from 'path'
 import { mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'fs/promises'
-import { existsSync, readFileSync } from 'fs'
+import { existsSync } from 'fs'
 
-// Import shared lexical search module
-const { runLexicalNoteSearch: runLexicalNoteSearchShared } = require('../../../scripts/node-core/services/lexical-search')
+import { runLexicalNoteSearch as runLexicalNoteSearchShared } from './lexical-search'
 
 const NOTES_DIR_NAME = 'notes'
 const INDEX_FILE_NAME = '.index.json'
