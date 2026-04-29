@@ -4,11 +4,14 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 function useDragScroll() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
+  const hasDragged = useRef(false)
   const startX = useRef(0)
   const scrollLeft = useRef(0)
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
     isDragging.current = true
+    hasDragged.current = false
     startX.current = e.pageX
     scrollLeft.current = scrollRef.current?.scrollLeft || 0
     scrollRef.current!.style.cursor = 'grabbing'
@@ -25,24 +28,36 @@ function useDragScroll() {
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging.current) return
-    const x = e.pageX
-    const walk = (x - startX.current) * 1.5
+    const deltaX = Math.abs(e.pageX - startX.current)
+    if (deltaX > 5) {
+      hasDragged.current = true
+    }
+    const walk = (e.pageX - startX.current) * 1.5
     if (scrollRef.current) {
+      scrollLeft.current = scrollRef.current.scrollLeft
       scrollRef.current.scrollLeft = scrollLeft.current - walk
     }
   }, [])
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    hasDragged.current = false
     startX.current = e.touches[0].pageX
     scrollLeft.current = scrollRef.current?.scrollLeft || 0
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    const x = e.touches[0].pageX
-    const walk = (x - startX.current) * 1.5
+    const deltaX = Math.abs(e.touches[0].pageX - startX.current)
+    if (deltaX > 5) {
+      hasDragged.current = true
+    }
+    const walk = (e.touches[0].pageX - startX.current) * 1.5
     if (scrollRef.current) {
       scrollRef.current.scrollLeft = scrollLeft.current - walk
     }
+  }, [])
+
+  const isDraggingScroll = useCallback(() => {
+    return hasDragged.current
   }, [])
 
   useEffect(() => {
@@ -61,6 +76,7 @@ function useDragScroll() {
     mouseMove: handleMouseMove,
     touchStart: handleTouchStart,
     touchMove: handleTouchMove,
+    isDraggingScroll,
     grabCursor: 'grab'
   }
 }
@@ -234,7 +250,6 @@ function FeaturedCarousel({
         onMouseDown={dragScroll.mouseDown}
         onMouseUp={dragScroll.mouseUp}
         onMouseLeave={dragScroll.mouseUp}
-        onMouseMove={dragScroll.mouseMove}
         onTouchStart={dragScroll.touchStart}
         onTouchMove={dragScroll.touchMove}
         className="flex gap-3 overflow-x-auto scrollbar-none pb-1"
@@ -245,7 +260,7 @@ function FeaturedCarousel({
           return (
             <div
               key={skill.id}
-              onClick={() => onSelect(skill)}
+              onClick={() => !dragScroll.isDraggingScroll() && onSelect(skill)}
               className="shrink-0 w-72 h-40 rounded-xl overflow-hidden cursor-pointer group/card relative border border-zinc-700/50 hover:border-zinc-600 transition-all hover:-translate-y-0.5 hover:shadow-lg"
             >
               <div
@@ -660,7 +675,6 @@ export default function ExtensionsView() {
                   onMouseDown={tagsDragScroll.mouseDown}
                   onMouseUp={tagsDragScroll.mouseUp}
                   onMouseLeave={tagsDragScroll.mouseUp}
-                  onMouseMove={tagsDragScroll.mouseMove}
                   onTouchStart={tagsDragScroll.touchStart}
                   onTouchMove={tagsDragScroll.touchMove}
                   className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-1"
