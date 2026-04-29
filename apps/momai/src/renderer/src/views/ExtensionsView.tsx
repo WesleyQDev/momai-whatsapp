@@ -66,7 +66,6 @@ function useDragScroll() {
   return {
     scrollRef,
     mouseDown: handleMouseDown,
-    mouseUp: onMouseUp,
     touchStart: handleTouchStart,
     touchMove: handleTouchMove,
     isDraggingScroll,
@@ -241,8 +240,6 @@ function FeaturedCarousel({
       <div
         ref={dragScroll.scrollRef}
         onMouseDown={dragScroll.mouseDown}
-        onMouseUp={dragScroll.mouseUp}
-        onMouseLeave={dragScroll.mouseUp}
         onTouchStart={dragScroll.touchStart}
         onTouchMove={dragScroll.touchMove}
         className="flex gap-3 overflow-x-auto scrollbar-none pb-1"
@@ -666,8 +663,6 @@ export default function ExtensionsView() {
                 <div
                   ref={tagsDragScroll.scrollRef}
                   onMouseDown={tagsDragScroll.mouseDown}
-                  onMouseUp={tagsDragScroll.mouseUp}
-                  onMouseLeave={tagsDragScroll.mouseUp}
                   onTouchStart={tagsDragScroll.touchStart}
                   onTouchMove={tagsDragScroll.touchMove}
                   className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-1"
