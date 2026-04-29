@@ -10,7 +10,8 @@ import {
   GlobeAltIcon,
   DocumentTextIcon,
   HomeIcon,
-  QuestionMarkCircleIcon
+  QuestionMarkCircleIcon,
+  Square3Stack3DIcon
 } from '@heroicons/react/24/outline'
 import { useI18n } from '../i18n'
 
@@ -203,7 +204,7 @@ export default function LateralBar({
               className={`absolute ${isCompact ? '-left-2 h-4' : '-left-3 h-6'} w-1 bg-accent rounded-r-full animate-fade-in`}
             />
           )}
-          <CpuChipIcon
+          <Square3Stack3DIcon
             className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
           />
         </button>
