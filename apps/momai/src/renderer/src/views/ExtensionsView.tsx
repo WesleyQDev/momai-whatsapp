@@ -592,17 +592,6 @@ export default function ExtensionsView() {
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-1 p-0.5 bg-zinc-800 rounded-lg border border-zinc-700">
               <button
-                onClick={() => setActiveTab('installed')}
-                className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
-                  activeTab === 'installed'
-                    ? 'bg-violet-600 text-white shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                <Squares2X2Icon className="w-3.5 h-3.5" />
-                Minhas Skills
-              </button>
-              <button
                 onClick={() => setActiveTab('store')}
                 className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
                   activeTab === 'store'
@@ -612,6 +601,17 @@ export default function ExtensionsView() {
               >
                 <ShoppingBagIcon className="w-3.5 h-3.5" />
                 Loja
+              </button>
+              <button
+                onClick={() => setActiveTab('installed')}
+                className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
+                  activeTab === 'installed'
+                    ? 'bg-violet-600 text-white shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <Squares2X2Icon className="w-3.5 h-3.5" />
+                Minhas Skills
               </button>
             </div>
 
