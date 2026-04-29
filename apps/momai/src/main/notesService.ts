@@ -2,7 +2,10 @@ import { app, shell } from 'electron'
 import { randomUUID } from 'crypto'
 import { dirname, extname, join, relative } from 'path'
 import { mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'fs/promises'
-import { existsSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
+
+// Import shared lexical search module
+const { runLexicalNoteSearch: runLexicalNoteSearchShared } = require('../../../scripts/node-core/services/lexical-search')
 
 const NOTES_DIR_NAME = 'notes'
 const INDEX_FILE_NAME = '.index.json'
@@ -346,65 +349,13 @@ export async function openNoteFolder(noteId: string): Promise<boolean> {
   return !result
 }
 
-const scoreText = (source: string, needle: string): number => {
-  if (!needle) return 0
-  const lower = source.toLowerCase()
-  const term = needle.toLowerCase()
-  let idx = 0
-  let count = 0
-  while (idx >= 0) {
-    idx = lower.indexOf(term, idx)
-    if (idx >= 0) {
-      count += 1
-      idx += term.length
-    }
-  }
-  return count
-}
-
-const buildSnippet = (content: string, query: string): string => {
-  const compact = content.replace(/\s+/g, ' ').trim()
-  if (!compact) return ''
-  const q = query.toLowerCase()
-  const foundIdx = compact.toLowerCase().indexOf(q)
-  if (foundIdx < 0) return compact.slice(0, 240)
-  const start = Math.max(0, foundIdx - 80)
-  const end = Math.min(compact.length, foundIdx + Math.max(80, query.length + 60))
-  return compact.slice(start, end)
-}
-
 export async function searchNotes(query: string, limit = 6): Promise<MemorySearchResult[]> {
   const term = (query || '').trim()
   if (!term) return []
 
-  const index = await readIndex()
-  const results: MemorySearchResult[] = []
-
-  for (const note of index) {
-    const abs = getNoteAbsolutePath(note)
-    let content = ''
-    try {
-      content = await readFile(abs, 'utf8')
-    } catch {
-      continue
-    }
-
-    const titleScore = scoreText(note.title, term)
-    const contentScore = scoreText(content, term)
-    const score = titleScore * 3 + contentScore
-    if (score <= 0) continue
-
-    results.push({
-      note_id: note.id,
-      chunk_id: `${note.id}:0`,
-      title: note.title,
-      path: note.path,
-      text: buildSnippet(content, term),
-      score,
-      keyword_score: score,
-      vector_score: 0
-    })
-  }
-
-  return results.sort((a, b) => b.score - a.score).slice(0, Math.max(1, limit))
+  const dataDir = getDataDir()
+  const notesIndexFile = getIndexPath()
+  
+  // Use shared lexical search module
+  return runLexicalNoteSearchShared(term, limit, dataDir, notesIndexFile)
 }

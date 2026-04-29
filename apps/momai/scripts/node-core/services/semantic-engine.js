@@ -18,11 +18,12 @@ const {
   NOTES_INDEX_FILE,
   DATA_DIR
 } = require('../config/constants')
-const { sha1, promiseAllStep, lexicalScore } = require('../utils/text')
+const { sha1, promiseAllStep } = require('../utils/text')
 const { isoNow } = require('../utils/time')
 const { debug, info, warn } = require('../infrastructure/logger')
 const { embedText } = require('./embedding-manager')
 const { getSkillCatalogRows, getToolCatalogRows } = require('./skill-orchestrator')
+const { runLexicalNoteSearch: runLexicalNoteSearchShared } = require('./lexical-search')
 
 // Initialize shared semanticState by mutating the exported object
 Object.assign(semanticState, {
@@ -301,33 +302,7 @@ async function runVectorNoteSearch(query, limit = 6) {
 }
 
 function runLexicalNoteSearch(query, limit = 6) {
-  const term = String(query || '').trim()
-  if (!term) return []
-  const out = []
-  for (const note of listNoteRecords()) {
-    let content = ''
-    try {
-      content = fs.readFileSync(note.absPath, 'utf8')
-    } catch {
-      continue
-    }
-    const titleScore = lexicalScore(note.title, term)
-    const bodyScore = lexicalScore(content, term)
-    const score = titleScore * 3 + bodyScore
-    if (score <= 0) continue
-    const snippet = content.replace(/\s+/g, ' ').trim().slice(0, 280)
-    out.push({
-      note_id: note.id,
-      chunk_id: `${note.id}:lexical`,
-      title: note.title,
-      path: note.path,
-      text: snippet,
-      score,
-      keyword_score: score,
-      vector_score: 0
-    })
-  }
-  return out.sort((a, b) => b.score - a.score).slice(0, Math.max(1, limit))
+  return runLexicalNoteSearchShared(query, limit, DATA_DIR, NOTES_INDEX_FILE)
 }
 
 function mergeMemoryHits(vectorHits, lexicalHits, limit = 6) {
