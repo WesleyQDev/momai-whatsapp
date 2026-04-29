@@ -5,15 +5,15 @@ function useDragScroll() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
   const hasDragged = useRef(false)
-  const startX = useRef(0)
-  const scrollLeft = useRef(0)
+  const initialX = useRef(0)
+  const initialScrollLeft = useRef(0)
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     isDragging.current = true
     hasDragged.current = false
-    startX.current = e.pageX
-    scrollLeft.current = scrollRef.current?.scrollLeft || 0
+    initialX.current = e.pageX
+    initialScrollLeft.current = scrollRef.current?.scrollLeft || 0
     scrollRef.current!.style.cursor = 'grabbing'
     scrollRef.current!.style.userSelect = 'none'
   }, [])
@@ -28,32 +28,30 @@ function useDragScroll() {
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging.current) return
-    const deltaX = Math.abs(e.pageX - startX.current)
+    const deltaX = Math.abs(e.pageX - initialX.current)
     if (deltaX > 5) {
       hasDragged.current = true
     }
-    const walk = (e.pageX - startX.current) * 1.5
+    const walk = e.pageX - initialX.current
     if (scrollRef.current) {
-      scrollLeft.current = scrollRef.current.scrollLeft
-      scrollRef.current.scrollLeft = scrollLeft.current + walk
+      scrollRef.current.scrollLeft = initialScrollLeft.current - walk
     }
   }, [])
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     hasDragged.current = false
-    startX.current = e.touches[0].pageX
-    scrollLeft.current = scrollRef.current?.scrollLeft || 0
+    initialX.current = e.touches[0].pageX
+    initialScrollLeft.current = scrollRef.current?.scrollLeft || 0
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    const deltaX = Math.abs(e.touches[0].pageX - startX.current)
+    const deltaX = Math.abs(e.touches[0].pageX - initialX.current)
     if (deltaX > 5) {
       hasDragged.current = true
     }
-    const walk = (e.touches[0].pageX - startX.current) * 1.5
+    const walk = e.touches[0].pageX - initialX.current
     if (scrollRef.current) {
-      scrollLeft.current = scrollRef.current.scrollLeft
-      scrollRef.current.scrollLeft = scrollLeft.current + walk
+      scrollRef.current.scrollLeft = initialScrollLeft.current - walk
     }
   }, [])
 
