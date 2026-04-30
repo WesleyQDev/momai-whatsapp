@@ -9,6 +9,7 @@ tags:
   - frontend
   - backend
 author: WesleyQDev
+repo: WesleyQDev/momai-extension-project-assistant
 version: 1.0.0
 intents:
   - código

@@ -24,13 +24,15 @@ function createExtensionsRoutes(context) {
     if (pathname === '/extensions' && req.method === 'GET') {
       console.log(`[ExtensionsAPI] GET /extensions (lang: ${lang})`)
       await skillRegistry.refresh()
-      sendJson(res, 200, buildExtensionsPayload(lang))
+      const payload = await buildExtensionsPayload(lang)
+      sendJson(res, 200, payload)
       return true
     }
 
     if (pathname === '/extensions/registry' && req.method === 'GET') {
       await skillRegistry.refresh()
-      sendJson(res, 200, buildExtensionsPayload(lang))
+      const payload = await buildExtensionsPayload(lang)
+      sendJson(res, 200, payload)
       return true
     }
 

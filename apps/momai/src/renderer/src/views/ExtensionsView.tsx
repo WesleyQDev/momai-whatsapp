@@ -117,9 +117,16 @@ import {
   ChevronLeftIcon,
   XMarkIcon
 } from '@heroicons/react/24/outline'
+import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { useI18n } from '../i18n'
 
 /* ─── Icon Registry ─── */
+const GitHubIcon = ({ className }: { className?: string }) => (
+  <svg fill="currentColor" viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+  </svg>
+)
+
 const iconMap: Record<string, React.ElementType> = {
   Cpu: CpuChipIcon,
   CpuChip: CpuChipIcon,
@@ -268,12 +275,17 @@ function FeaturedCarousel({
                   <div className="p-2 rounded-lg bg-zinc-800/80 backdrop-blur-sm border border-zinc-700/50">
                     {React.createElement(IconComponent, { className: 'w-5 h-5 text-white' })}
                   </div>
-                  {skill.is_official && (
-                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-500/30 rounded text-[9px] text-emerald-400 font-semibold">
+                  {skill.category === 'core' ? (
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500/20 border border-blue-500/30 rounded text-[9px] text-blue-400 font-semibold uppercase tracking-wider">
+                      <CpuChipIcon className="w-3 h-3" />
+                      CORE
+                    </div>
+                  ) : skill.is_official ? (
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-500/30 rounded text-[9px] text-emerald-400 font-semibold uppercase tracking-wider">
                       <CheckBadgeIcon className="w-3 h-3" />
                       Oficial
                     </div>
-                  )}
+                  ) : null}
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white mb-0.5">{skill.name}</h3>
@@ -304,7 +316,12 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
             {React.createElement(IconComponent, { className: 'w-6 h-6 text-white' })}
           </div>
           <div className="flex flex-col items-end gap-1.5">
-            {skill.is_official ? (
+            {skill.category === 'core' ? (
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[9px] text-blue-400 font-bold uppercase tracking-wider">
+                <CpuChipIcon className="w-3.5 h-3.5" />
+                CORE
+              </div>
+            ) : skill.is_official ? (
               <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[9px] text-emerald-400 font-bold uppercase tracking-wider">
                 <CheckBadgeIcon className="w-3.5 h-3.5" />
                 Oficial
@@ -321,19 +338,42 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
             )}
           </div>
         </div>
-        <h3 className="text-base font-bold text-zinc-100 mb-1.5 group-hover:text-violet-400 transition-colors">{skill.name}</h3>
+        <h3 className="text-base font-bold text-zinc-100 mb-1.5 group-hover:text-violet-400 transition-colors">
+          {skill.name}
+        </h3>
         <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed mb-4 min-h-[2.5rem]">
           {skill.description}
         </p>
         <div className="flex items-center justify-between pt-4 border-t border-zinc-700/30">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center">
-              <UserIcon className="w-3 h-3 text-zinc-400" />
+            <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-700/50">
+              {(skill.repo || (!skill.is_official && skill.author)) ? (
+                <img
+                  src={`https://avatars.githubusercontent.com/${encodeURIComponent((skill.repo?.split('/')[0] || skill.author || '').trim())}?s=32`}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (!target.src.includes('github.png')) {
+                      target.src = 'https://github.com/github.png?size=32';
+                    }
+                  }}
+                />
+              ) : (
+                <UserIcon className="w-3 h-3 text-zinc-500" />
+              )}
             </div>
             <span className="text-[11px] text-zinc-500 font-medium">{skill.author || 'MomAI'}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <StarRating value={skill.is_official ? 5 : 4.8} />
+            {skill.repo ? (
+              <div className="flex items-center gap-1 text-[10px] text-amber-400 font-bold bg-amber-400/10 px-1.5 py-0.5 rounded-md">
+                <StarIconSolid className="w-3 h-3 text-amber-400" />
+                {skill.stars || 0}
+              </div>
+            ) : skill.category === 'community' ? (
+              <StarRating value={4.8} />
+            ) : null}
           </div>
         </div>
       </div>
@@ -383,13 +423,20 @@ function SkillDetailView({
         
         <div className="flex-1 text-center md:text-left pt-1">
           <div className="flex flex-col md:flex-row md:items-end gap-3 md:gap-4 mb-3">
-            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-none">{skill.name}</h1>
-            {skill.is_official && (
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-none">{skill.name}</h1>
+            </div>
+            {skill.category === 'core' ? (
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-md text-[9px] text-blue-400 font-black uppercase tracking-wider h-fit mb-0.5">
+                <CpuChipIcon className="w-3 h-3" />
+                Componente CORE
+              </div>
+            ) : skill.is_official ? (
               <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md text-[9px] text-emerald-400 font-black uppercase tracking-wider h-fit mb-0.5">
                 <CheckBadgeIcon className="w-3 h-3" />
                 Oficial
               </div>
-            )}
+            ) : null}
           </div>
           
           <p className="text-sm text-zinc-400 font-medium mb-6 max-w-2xl leading-relaxed">
@@ -398,8 +445,23 @@ function SkillDetailView({
           
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-5 mb-8">
             <div className="flex flex-col">
-              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">Autor</span>
-              <span className="text-xs text-zinc-300 font-bold">{skill.author || 'MomAI Team'}</span>
+              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter mb-1">Autor</span>
+              <div className="flex items-center gap-2">
+                {(skill.repo || (!skill.is_official && skill.author)) && (
+                  <img
+                    src={`https://avatars.githubusercontent.com/${encodeURIComponent((skill.repo?.split('/')[0] || skill.author || '').trim())}?s=64`}
+                    alt="Author"
+                    className="w-5 h-5 rounded-full border border-zinc-800 shadow-sm"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (!target.src.includes('github.png')) {
+                        target.src = 'https://github.com/github.png?s=64';
+                      }
+                    }}
+                  />
+                )}
+                <span className="text-sm text-white font-black">{skill.author || 'MomAI'}</span>
+              </div>
             </div>
             <div className="w-px h-6 bg-zinc-800" />
             <div className="flex flex-col">
@@ -408,12 +470,32 @@ function SkillDetailView({
             </div>
             <div className="w-px h-6 bg-zinc-800" />
             <div className="flex flex-col">
-              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">Avaliação</span>
-              <StarRating value={skill.is_official ? 5 : 4.8} />
+              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">
+                {skill.repo ? 'GitHub Stars' : 'Avaliação'}
+              </span>
+              {skill.repo ? (
+                <div className="flex items-center gap-1.5 text-sm text-amber-400 font-black">
+                  <StarIconSolid className="w-4 h-4 text-amber-400" />
+                  {skill.stars || 0}
+                </div>
+              ) : skill.category === 'community' || skill.category === 'extension' ? (
+                <StarRating value={skill.is_official ? 5 : 4.8} />
+              ) : null}
             </div>
           </div>
 
           <div className="flex items-center justify-center md:justify-start gap-3">
+            {skill.repo && (
+              <a
+                href={`https://github.com/${skill.repo}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl text-[10px] font-bold hover:text-white hover:border-zinc-700 transition-all uppercase tracking-widest no-underline"
+              >
+                <GitHubIcon className="w-3.5 h-3.5" />
+                GitHub
+              </a>
+            )}
             {!isBuiltin && !isInstalled ? (
               <button
                 onClick={() => onInstall(skill)}

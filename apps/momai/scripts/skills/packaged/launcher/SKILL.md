@@ -6,7 +6,8 @@ tags:
   - sistema
   - launcher
   - arquivos
-author: MomAI Team
+author: WesleyQDev
+repo: WesleyQDev/momai-extension-launcher
 version: 1.0.0
 intents:
   - abrir

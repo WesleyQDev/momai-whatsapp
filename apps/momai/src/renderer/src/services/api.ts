@@ -345,6 +345,8 @@ export interface Extension {
   riskLevel?: 'low' | 'medium' | 'high'
   instructions?: string
   readme?: string
+  repo?: string
+  stars?: number
   compatibility?: string
 }
 

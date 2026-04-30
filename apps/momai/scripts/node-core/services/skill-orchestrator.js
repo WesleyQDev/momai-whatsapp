@@ -1,4 +1,5 @@
 const shared = require('./shared-state')
+const communityRegistry = require('./community-registry')
 const store = shared.store
 
 function getSkillRegistry() {
@@ -25,14 +26,16 @@ function getEnabledSkillManifests() {
   return getEnabledSkills().map((s) => s.manifest)
 }
 
-function buildExtensionsPayload(lang = 'pt-BR') {
+async function buildExtensionsPayload(lang = 'pt-BR') {
   const skillRegistry = getSkillRegistry()
   if (!skillRegistry || typeof skillRegistry.getAll !== 'function') return []
   
   const all = skillRegistry.getAll()
+  const community = await communityRegistry.fetchRegistry()
+  
   console.log(`[SkillOrchestrator] Building payload for ${all.length} skills (lang: ${lang})`)
 
-  return all.map((skill) => {
+  const payload = all.map(async (skill) => {
     try {
       const manifest = skill.manifest || {}
       const locales = manifest.locales || {}
@@ -41,6 +44,13 @@ function buildExtensionsPayload(lang = 'pt-BR') {
       // Determine the best name and description
       const name = localized.name || manifest.name || skill.id
       const description = localized.description || manifest.description || ''
+
+      // Fetch dynamic stats if repo is available
+      let stars = 0
+      const repo = manifest.repo || null
+      if (repo) {
+        stars = await communityRegistry.getGitHubStars(repo)
+      }
 
       // Determine the best documentation content based on language
       const readmes = (typeof manifest.readme === 'object' && manifest.readme !== null) 
@@ -53,12 +63,15 @@ function buildExtensionsPayload(lang = 'pt-BR') {
         id: manifest.id || skill.id,
         name: name,
         description: description,
-        category: skill.kind,
+        category: skill.kind === 'builtin' ? 'core' : 'extension',
         enabled: skill.enabled && isSkillEnabledByStore(skill),
         intents: manifest.intents || [],
         tags: manifest.tags || [],
         icon: manifest.icon || null,
         author: manifest.author || null,
+        repo: repo,
+        stars: stars,
+        is_official: skill.kind === 'builtin' || skill.kind === 'packaged',
         version: manifest.version || null,
         tools: (manifest.tools || []).map((t) => t.name),
 
@@ -76,7 +89,25 @@ function buildExtensionsPayload(lang = 'pt-BR') {
       console.error(`[SkillOrchestrator] Error mapping skill ${skill?.id}:`, err)
       return null
     }
-  }).filter(Boolean)
+  })
+
+  const installed = (await Promise.all(payload)).filter(Boolean)
+  const installedIds = new Set(installed.map(ext => ext.id))
+
+  // Merge with community items that aren't installed yet
+  const communityItems = community
+    .filter(item => !installedIds.has(item.id))
+    .map(item => ({
+      ...item,
+      category: 'community',
+      enabled: false,
+      installed: false,
+      is_official: false,
+      stars: 0, 
+      readme: item.description 
+    }))
+
+  return [...installed, ...communityItems]
 }
 
 

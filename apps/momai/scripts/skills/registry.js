@@ -91,7 +91,7 @@ function normalizeSkillRecord({ id, kind, parsed, runtime, dir }) {
         }))
     : []
 
-  return {
+  const record = {
     kind,
     id,
     enabled: parsed.enabled !== false,
@@ -103,6 +103,7 @@ function normalizeSkillRecord({ id, kind, parsed, runtime, dir }) {
       tags: parsed.frontmatter.tags || [],
       icon: parsed.frontmatter.icon || null,
       author: parsed.frontmatter.author || null,
+      repo: parsed.frontmatter.repo || null,
       version: parsed.frontmatter.version || null,
       tools,
       allowed_tools: parsed.allowedTools || [],
@@ -145,6 +146,10 @@ function normalizeSkillRecord({ id, kind, parsed, runtime, dir }) {
     hooks: runtime && typeof runtime.hooks === 'object' ? runtime.hooks : {},
     dir: dir || null
   }
+  if (record.manifest.repo) {
+    console.log(`[skills] Skill ${id} linked to repo: ${record.manifest.repo}`)
+  }
+  return record
 }
 
 
