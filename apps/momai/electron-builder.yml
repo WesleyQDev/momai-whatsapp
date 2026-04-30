@@ -13,6 +13,7 @@ files:
   - '!bin/**'
   - '!out/bin/**'
   - '!resources/**'
+  - '!scripts/skills/packaged/**'
 win:
   executableName: MomAI
   artifactName: MomAI-Installer.${ext}

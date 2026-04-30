@@ -1,0 +1,24 @@
+[
+  {
+    "id": "launcher",
+    "name": "Launcher",
+    "description": "Abre programas, aplicativos e pastas no computador através de comandos de voz ou texto.",
+    "category": "utility",
+    "icon": "RocketLaunch",
+    "author": "WesleyQDev",
+    "repo": "WesleyQDev/momai-extension-launcher",
+    "download_url": "https://github.com/WesleyQDev/momai-extension-launcher/archive/refs/heads/main.zip",
+    "version": "1.0.0"
+  },
+  {
+    "id": "dev",
+    "name": "Agente de Código",
+    "description": "Agente técnico para leitura, busca e edição de arquivos em projetos de software com segurança.",
+    "category": "development",
+    "icon": "Code",
+    "author": "WesleyQDev",
+    "repo": "WesleyQDev/momai-extension-project-assistant",
+    "download_url": "https://github.com/WesleyQDev/momai-extension-project-assistant/archive/refs/heads/main.zip",
+    "version": "1.0.0"
+  }
+]

@@ -71,7 +71,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         author: manifest.author || null,
         repo: repo,
         stars: stars,
-        is_official: skill.kind === 'builtin' || skill.kind === 'packaged',
+        is_official: skill.kind === 'builtin' || skill.kind === 'packaged' || manifest.author === 'WesleyQDev',
         version: manifest.version || null,
         tools: (manifest.tools || []).map((t) => t.name),
 

@@ -8,7 +8,7 @@ const https = require('node:https')
  * Manages fetching and caching the remote extensions registry.
  */
 
-const REGISTRY_URL = 'https://raw.githubusercontent.com/momai-app/extensions-registry/main/community-extensions.json'
+const REGISTRY_URL = 'https://raw.githubusercontent.com/WesleyQDev/MomAI-App/main/community-extensions.json'
 const CACHE_FILE = path.join(process.env.APPDATA || (process.platform === 'darwin' ? process.env.HOME + '/Library/Preferences' : process.env.HOME + '/.local/share'), 'momai', 'cache', 'community_registry.json')
 const CACHE_TTL = 3600 * 1000 // 1 hour
 
