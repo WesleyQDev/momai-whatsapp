@@ -39,7 +39,10 @@ function buildExtensionsPayload() {
     icon: skill.manifest.icon || null,
     author: skill.manifest.author || null,
     version: skill.manifest.version || null,
+    manifestVersion: skill.manifest.manifest_version || 1,
     tools: (skill.manifest.tools || []).map((t) => t.name),
+    permissions: skill.manifest.permissions || null,
+    riskLevel: skill.manifest._riskLevel || 'low',
     features: {
       sidebar: skill.manifest.sidebar === true,
       agent_name: skill.manifest.id

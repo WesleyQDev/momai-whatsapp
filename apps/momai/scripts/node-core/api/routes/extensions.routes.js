@@ -3,6 +3,7 @@ const path = require('node:path')
 const crypto = require('node:crypto')
 const os = require('node:os')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
+const { createPermissionSchema } = require('../../permissions/schema')
 
 function createExtensionsRoutes(context) {
   const {
@@ -73,11 +74,12 @@ function createExtensionsRoutes(context) {
         saveStore()
       }
       skillRegistry.loadExtensions()
+      await skillRegistry.executeHook(id, 'onInstall', { extId: id, extDir }).catch((err) => {
+        console.log(`[extensions] onInstall hook failed for ${id}: ${err.message}`)
+      })
       sendJson(res, 200, { ok: true })
       return true
     }
-
-    if (pathname === '/extensions/toggle' && req.method === 'POST') {
       const payload = await readJsonBody(req).catch(() => ({}))
       let found = store.extensions.find((item) => item.id === payload.id)
       if (!found) {
@@ -94,14 +96,22 @@ function createExtensionsRoutes(context) {
       found.enabled = Boolean(payload.enabled)
       saveStore()
       skillRegistry.loadExtensions()
+      const hookName = found.enabled ? 'onActivate' : 'onDeactivate'
+      await skillRegistry.executeHook(payload.id, hookName, { extId: payload.id }).catch((err) => {
+        console.log(`[extensions] ${hookName} hook failed for ${payload.id}: ${err.message}`)
+      })
       sendJson(res, 200, { ok: true })
       return true
     }
 
     if (pathname === '/extensions/uninstall' && req.method === 'POST') {
       const payload = await readJsonBody(req).catch(() => ({}))
-      store.extensions = store.extensions.filter((item) => item.id !== payload.id)
-      const extDir = path.join(skillRegistry.extensionsDir, String(payload.id || ''))
+      const extId = String(payload.id || '')
+      const extDir = path.join(skillRegistry.extensionsDir, extId)
+      await skillRegistry.executeHook(extId, 'onUninstall', { extId, extDir }).catch((err) => {
+        console.log(`[extensions] onUninstall hook failed for ${extId}: ${err.message}`)
+      })
+      store.extensions = store.extensions.filter((item) => item.id !== extId)
       if (fs.existsSync(extDir)) fs.rmSync(extDir, { recursive: true, force: true })
       saveStore()
       skillRegistry.loadExtensions()
@@ -121,8 +131,22 @@ function createExtensionsRoutes(context) {
       const actionName = String(body.action || 'default')
       const actionPayload = body.payload || {}
 
-      /* Try to find the skill and execute */
+      /* Permission enforcement before execution */
       const skill = skillRegistry.getById(extId)
+      const permSchema = createPermissionSchema()
+      const perms = skill?.manifest?.permissions
+      if (skill && perms && permSchema.needsAnyPermission(perms)) {
+        if (perms.process?.allowed === false) {
+          sendJson(res, 403, { ok: false, error: 'permission_denied', reason: 'process access denied' })
+          return true
+        }
+        if (perms.shell?.allowed === false) {
+          sendJson(res, 403, { ok: false, error: 'permission_denied', reason: 'shell access denied' })
+          return true
+        }
+      }
+
+      /* Try to find the skill and execute */
       if (skill && typeof skill.execute === 'function') {
         try {
           const llm = createSkillLlmHelper({

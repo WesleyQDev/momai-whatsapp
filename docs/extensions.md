@@ -154,6 +154,40 @@ Extensões podem implementar hooks em seu `manifest.json` via events:
 | `idle_tick` | Tick de idle (a cada N segundos) |
 | (custom) | Emitido via API `/extensions/events/emit` |
 
+### Lifecycle Hooks (runtime.js)
+
+Extensões Node.js podem implementar hooks de ciclo de vida no `module.exports.hooks`:
+
+| Hook | Disparado Quando |
+|------|-----------------|
+| `onInstall` | Extensão instalada via `/extensions/install` |
+| `onActivate` | Extensão ativada via `/extensions/toggle` |
+| `onDeactivate` | Extensão desativada via `/extensions/toggle` |
+| `onUninstall` | Extensão desinstalada via `/extensions/uninstall` |
+
+Exemplo:
+
+```javascript
+module.exports = {
+  hooks: {
+    async onInstall({ extId, extDir }) {
+      console.log(`Extensão ${extId} instalada em ${extDir}`)
+      // Inicialização: criar diretórios, configurar estado inicial
+    },
+    async onActivate({ extId }) {
+      console.log(`Extensão ${extId} ativada`)
+    },
+    async onDeactivate({ extId }) {
+      console.log(`Extensão ${extId} desativada`)
+    },
+    async onUninstall({ extId, extDir }) {
+      console.log(`Extensão ${extId} desinstalada de ${extDir}`)
+      // Limpeza: remover arquivos temporários, estados
+    }
+  }
+}
+```
+
 ## Skills Built-in
 
 | Skill | Diretório | Função |

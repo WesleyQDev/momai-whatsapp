@@ -1,5 +1,6 @@
 const fs = require('node:fs')
 const path = require('node:path')
+const { createPermissionSchema } = require('../node-core/permissions/schema')
 
 function parseListValue(value) {
   const raw = String(value || '').trim()
@@ -244,7 +245,10 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
 
         const skill = normalizeSkillRecord({ id: parsed.name, kind: 'packaged', parsed, runtime })
         if (manifestExtra) {
-          skill.manifest = { ...skill.manifest, ...manifestExtra }
+          const permSchema = createPermissionSchema()
+          const mergedPerms = permSchema.mergeManifestPermissions(skill.manifest.permissions, manifestExtra.permissions)
+          const riskLevel = permSchema.calculateRiskLevel(mergedPerms)
+          skill.manifest = { ...skill.manifest, ...manifestExtra, permissions: mergedPerms, _permSummary: permSchema.getPermissionSummary(mergedPerms), _riskLevel: riskLevel, manifest_version: manifestExtra.manifest_version || 1 }
         }
         state.packaged.set(skill.id, skill)
       }
@@ -257,6 +261,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   function loadExtensions() {
     if (!fs.existsSync(extensionsDir)) fs.mkdirSync(extensionsDir, { recursive: true })
     state.extensions.clear()
+    const permSchema = createPermissionSchema()
 
     for (const name of fs.readdirSync(extensionsDir)) {
       const dir = path.join(extensionsDir, name)
@@ -264,6 +269,18 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       if (!stat || !stat.isDirectory()) continue
       const skill = loadSkillFromDir({ dir, kind: 'extension' })
       if (!skill) continue
+
+      /* Load manifest.json for extensions */
+      const manifestPath = path.join(dir, 'manifest.json')
+      if (fs.existsSync(manifestPath)) {
+        try {
+          const manifestExtra = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+          const mergedPerms = permSchema.mergeManifestPermissions(skill.manifest.permissions, manifestExtra.permissions)
+          const riskLevel = permSchema.calculateRiskLevel(mergedPerms)
+          skill.manifest = { ...skill.manifest, ...manifestExtra, permissions: mergedPerms, _permSummary: permSchema.getPermissionSummary(mergedPerms), _riskLevel: riskLevel, manifest_version: manifestExtra.manifest_version || 1 }
+        } catch {}
+      }
+
       state.extensions.set(skill.id, skill)
     }
   }
@@ -328,6 +345,37 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   async function execute(skillId, input, context, args, toolName) {
     const skill = getById(skillId)
     if (!skill || !skill.enabled || typeof skill.execute !== 'function') return null
+
+    const permSchema = createPermissionSchema()
+    const perms = skill.manifest.permissions
+    const isV2 = skill.manifest.manifest_version === 2
+
+    if (isV2 && perms && permSchema.needsAnyPermission(perms)) {
+      if (perms.process?.allowed === false) {
+        return { ok: false, error: 'permission_denied', reason: 'process access denied', capability: 'process' }
+      }
+      if (perms.shell?.allowed === false) {
+        return { ok: false, error: 'permission_denied', reason: 'shell access denied', capability: 'shell' }
+      }
+      if (perms.subprocess?.allowed === false) {
+        return { ok: false, error: 'permission_denied', reason: 'subprocess execution denied', capability: 'subprocess' }
+      }
+      if (perms.network?.allowed === false) {
+        return { ok: false, error: 'permission_denied', reason: 'network access denied', capability: 'network' }
+      }
+      if (perms.filesystem?.allowed === false) {
+        return { ok: false, error: 'permission_denied', reason: 'filesystem access denied', capability: 'filesystem' }
+      }
+      if (perms.system_info?.allowed === false) {
+        return { ok: false, error: 'permission_denied', reason: 'system info access denied', capability: 'system_info' }
+      }
+
+      if (perms.network?.allowed === true && perms.network.domains?.length > 0) {
+        const allowedDomains = perms.network.domains.join(', ')
+        console.log(`[permissions] ${skillId}: network limited to ${allowedDomains}`)
+      }
+    }
+
     return skill.execute({ content: input, context, manifest: skill.manifest, args, toolName })
   }
 
@@ -354,6 +402,10 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       enabled: skill.enabled,
       intents: skill.manifest.intents,
       tools: (skill.manifest.tools || []).map((t) => t.name),
+      manifest_version: skill.manifest.manifest_version || 1,
+      permissions: skill.manifest.permissions || null,
+      risk_level: skill.manifest._riskLevel || 'low',
+      permission_summary: skill.manifest._permSummary || [],
       features: {
         sidebar: true,
         agent_name: skill.manifest.id
