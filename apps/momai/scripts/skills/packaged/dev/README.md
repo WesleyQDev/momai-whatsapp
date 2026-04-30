@@ -1,21 +1,21 @@
-# Assistente Técnico de Projetos (Extensão)
+# Agente de Código (Extensão)
 
-Esta extensão transforma a MomAI em um assistente inteligente para ajudar você a gerenciar e entender os arquivos do seu projeto. É a ferramenta perfeita para quem precisa analisar códigos, organizar pastas ou fazer edições rápidas com ajuda da inteligência artificial.
+Esta extensão adiciona capacidades de engenharia de software à MomAI, permitindo a interação direta com o sistema de arquivos do seu projeto através de comandos de linguagem natural.
 
-### O que ela faz por você:
-*   **Leitura de Arquivos**: Ela lê e explica o que está escrito em seus arquivos de forma clara.
-*   **Edição Inteligente**: Ajuda você a alterar trechos específicos de um texto ou código sem bagunçar o resto do arquivo.
-*   **Busca Avançada**: Localiza palavras ou conceitos em todos os seus arquivos ao mesmo tempo.
-*   **Apoio na Organização**: Ajuda a entender a estrutura das suas pastas e sugere melhorias.
+### Funcionalidades Técnicas:
+*   **Análise de Arquivos**: Leitura e interpretação de código fonte e arquivos de configuração.
+*   **Edição via Patch**: Aplicação de alterações contíguas em arquivos existentes com preservação de estrutura.
+*   **Busca Semântica e Grep**: Localização de padrões, termos ou conceitos em toda a árvore do projeto.
+*   **Mapeamento de Estrutura**: Visualização e análise da hierarquia de diretórios.
 
-### Segurança em Primeiro Lugar:
-Nenhuma alteração é feita no seu computador sem a sua **autorização explícita**. A MomAI sempre mostrará o que pretende mudar e esperará você clicar em "Confirmar" antes de salvar qualquer coisa.
+### Protocolo de Segurança:
+O agente opera sob um modelo de **confirmação explícita**. Nenhuma operação de escrita ou exclusão é executada sem que o usuário revise e valide o diff (alteração) proposto na interface da MomAI.
 
-### Exemplos de como usar:
-- "Me explique como funciona este arquivo de configuração."
-- "Onde eu mudo a cor principal do meu site neste projeto?"
-- "Crie um novo arquivo de texto com uma lista de tarefas."
-- "Encontre onde eu mencionei a palavra 'banco de dados' nos meus scripts."
+### Exemplos de Uso:
+- "Analise este arquivo e me diga como a função de autenticação está implementada."
+- "Refatore o componente de cabeçalho para usar as novas cores do tema."
+- "Onde o banco de dados está sendo inicializado?"
+- "Crie uma nova rota na API para listar os usuários."
 
-### Nota:
-Ideal para profissionais que trabalham com tecnologia ou qualquer pessoa que precise de uma ajuda extra para lidar com arquivos complexos.
+### Público-alvo:
+Desenvolvedores e profissionais técnicos que buscam automatizar tarefas repetitivas de leitura e edição de código.

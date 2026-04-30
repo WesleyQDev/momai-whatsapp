@@ -1,6 +1,6 @@
 ---
-name: dev
-description: Skill de desenvolvimento com leitura/grep/edição segura, confirmação humana para ações mutantes e rotas de conhecimento em markdown.
+name: Agente de Código
+description: Agente técnico para leitura, busca e edição de arquivos em projetos de software.
 icon: Code
 tags:
   - desenvolvimento
