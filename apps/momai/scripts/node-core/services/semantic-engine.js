@@ -156,7 +156,7 @@ async function syncSkillAndToolIndexes(force = false) {
 
   const skillRegistry = getSkillRegistry()
   if (skillRegistry && typeof skillRegistry.loadExtensions === 'function') {
-    skillRegistry.loadExtensions()
+    await skillRegistry.loadExtensions()
   }
   const skills = getSkillCatalogRows()
   const tools = getToolCatalogRows()

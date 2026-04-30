@@ -42,7 +42,7 @@ Use esta skill para gerenciar lembretes locais no MomAI.
 
 ## ⚠️ AVISO DE SEGURANÇA: Remoção Global
 
-- **JAMAIS** use `clear_all_reminders` se o usuário mencionar qualquer condição (horário, título, data).
+- **JAMAIS** use `clear_all_reminders` se o usuário mencionar qualquer condition (horário, título, data).
 - Ex: "Exclua os lembretes de amanhã" -> Use `remove_reminders_by_filter` com a data de amanhã.
 - Ex: "Exclua o lembrete das 13h" -> Use `remove_reminders_by_filter` com title="13:00".
 

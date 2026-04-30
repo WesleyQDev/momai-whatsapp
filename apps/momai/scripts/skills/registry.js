@@ -1,6 +1,8 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { createPermissionSchema } = require('../node-core/permissions/schema')
+const extensionHostManager = require('../node-core/services/extension-host-manager')
+
 
 function parseListValue(value) {
   const raw = String(value || '').trim()
@@ -78,7 +80,7 @@ function parseSkillMarkdown(filePath) {
   }
 }
 
-function normalizeSkillRecord({ id, kind, parsed, runtime }) {
+function normalizeSkillRecord({ id, kind, parsed, runtime, dir }) {
   const tools = Array.isArray(runtime?.tools)
     ? runtime.tools
         .filter((t) => t && t.name)
@@ -105,14 +107,50 @@ function normalizeSkillRecord({ id, kind, parsed, runtime }) {
       tools,
       allowed_tools: parsed.allowedTools || [],
       compatibility: parsed.compatibility,
-      instructions: parsed.body
+      instructions: parsed.body || '',
+      readme: (() => {
+        try {
+          const files = fs.readdirSync(dir)
+          const readmes = {}
+          for (const file of files) {
+            if (file === 'README.md') {
+              readmes['default'] = fs.readFileSync(path.join(dir, file), 'utf8')
+            } else if (file.startsWith('README.') && file.endsWith('.md')) {
+              const lang = file.split('.')[1]
+              readmes[lang] = fs.readFileSync(path.join(dir, file), 'utf8')
+            }
+          }
+          return readmes
+        } catch { return {} }
+      })(),
+      locales: (() => {
+        try {
+          const localesDir = path.join(dir, 'locales')
+          if (!fs.existsSync(localesDir)) return {}
+          const files = fs.readdirSync(localesDir)
+          const locales = {}
+          for (const file of files) {
+            if (file.endsWith('.json')) {
+              const lang = file.replace('.json', '')
+              locales[lang] = JSON.parse(fs.readFileSync(path.join(localesDir, file), 'utf8'))
+            }
+          }
+          return locales
+        } catch { return {} }
+      })(),
+      permissions: parsed.frontmatter.permissions || [],
+      contributions: parsed.frontmatter.contributions || {}
     },
     execute: typeof runtime?.execute === 'function' ? runtime.execute : null,
-    hooks: runtime && typeof runtime.hooks === 'object' ? runtime.hooks : {}
+    hooks: runtime && typeof runtime.hooks === 'object' ? runtime.hooks : {},
+    dir: dir || null
   }
 }
 
-function loadSkillFromDir({ dir, kind }) {
+
+
+
+async function loadSkillFromDir({ dir, kind }) {
   const log = (msg) => {
     if (typeof process.send === 'function') {
       process.send({ type: 'node-core-log', message: msg })
@@ -137,15 +175,20 @@ function loadSkillFromDir({ dir, kind }) {
   let runtime = null
   if (fs.existsSync(runtimePath)) {
     try {
-      delete require.cache[require.resolve(runtimePath)]
-      runtime = require(runtimePath)
-    } catch {
+      // Using dynamic import to support both CJS and ESM (including top-level await)
+      // We use pathToFileURL to ensure absolute paths work correctly on Windows/Linux
+      const { pathToFileURL } = require('node:url')
+      const imported = await import(pathToFileURL(runtimePath).href)
+      runtime = imported.default || imported
+    } catch (err) {
+      log(`[skills] Error loading runtime for ${parsed.name}: ${err.message}`)
       runtime = null
     }
   }
 
-  return normalizeSkillRecord({ id: parsed.name, kind, parsed, runtime })
+  return normalizeSkillRecord({ id: parsed.name, kind, parsed, runtime, dir })
 }
+
 
 function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   const extensionsDir = path.join(dataDir, 'extensions')
@@ -156,7 +199,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     extensions: new Map()
   }
 
-  function loadBuiltins() {
+  async function loadBuiltins() {
     // Capture count BEFORE clearing
     const previousCount = state.builtins.size
     state.builtins.clear()
@@ -181,7 +224,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
         const dir = path.join(builtinSkillsDir, name)
         const stat = fs.statSync(dir, { throwIfNoEntry: false })
         if (!stat || !stat.isDirectory()) continue
-        const skill = loadSkillFromDir({ dir, kind: 'builtin' })
+        const skill = await loadSkillFromDir({ dir, kind: 'builtin' })
         if (!skill) continue
         state.builtins.set(skill.id, skill)
       }
@@ -195,7 +238,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     }
   }
 
-  function loadPackaged() {
+  async function loadPackaged() {
     state.packaged.clear()
     const log = (msg) => {
       if (typeof process.send === 'function') {
@@ -225,9 +268,11 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
         let runtime = null
         if (fs.existsSync(runtimePath)) {
           try {
-            delete require.cache[require.resolve(runtimePath)]
-            runtime = require(runtimePath)
-          } catch {
+            const { pathToFileURL } = require('node:url')
+            const imported = await import(pathToFileURL(runtimePath).href)
+            runtime = imported.default || imported
+          } catch (err) {
+            log(`[skills] Error loading runtime for packaged ${parsed.name}: ${err.message}`)
             runtime = null
           }
         }
@@ -243,14 +288,19 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
           }
         }
 
-        const skill = normalizeSkillRecord({ id: parsed.name, kind: 'packaged', parsed, runtime })
-        if (manifestExtra) {
-          const permSchema = createPermissionSchema()
-          const mergedPerms = permSchema.mergeManifestPermissions(skill.manifest.permissions, manifestExtra.permissions)
-          const riskLevel = permSchema.calculateRiskLevel(mergedPerms)
-          skill.manifest = { ...skill.manifest, ...manifestExtra, permissions: mergedPerms, _permSummary: permSchema.getPermissionSummary(mergedPerms), _riskLevel: riskLevel, manifest_version: manifestExtra.manifest_version || 1 }
+        const skill = normalizeSkillRecord({ id: parsed.name, kind: 'packaged', parsed, runtime, dir })
+        const permSchema = createPermissionSchema()
+        const mergedPerms = permSchema.mergeManifestPermissions(skill.manifest.permissions, manifestExtra?.permissions)
+        const riskLevel = permSchema.calculateRiskLevel(mergedPerms)
+        skill.manifest = { 
+          ...skill.manifest, 
+          ...manifestExtra, 
+          permissions: mergedPerms, 
+          _permSummary: permSchema.getPermissionSummary(mergedPerms), 
+          _riskLevel: riskLevel 
         }
         state.packaged.set(skill.id, skill)
+
       }
       log(`[skills] Loaded ${state.packaged.size} packaged extension skills.`)
     } catch (err) {
@@ -258,7 +308,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     }
   }
 
-  function loadExtensions() {
+  async function loadExtensions() {
     if (!fs.existsSync(extensionsDir)) fs.mkdirSync(extensionsDir, { recursive: true })
     state.extensions.clear()
     const permSchema = createPermissionSchema()
@@ -267,28 +317,36 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       const dir = path.join(extensionsDir, name)
       const stat = fs.statSync(dir, { throwIfNoEntry: false })
       if (!stat || !stat.isDirectory()) continue
-      const skill = loadSkillFromDir({ dir, kind: 'extension' })
+      const skill = await loadSkillFromDir({ dir, kind: 'extension' })
       if (!skill) continue
 
-      /* Load manifest.json for extensions */
+      let manifestExtra = null
       const manifestPath = path.join(dir, 'manifest.json')
       if (fs.existsSync(manifestPath)) {
         try {
-          const manifestExtra = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-          const mergedPerms = permSchema.mergeManifestPermissions(skill.manifest.permissions, manifestExtra.permissions)
-          const riskLevel = permSchema.calculateRiskLevel(mergedPerms)
-          skill.manifest = { ...skill.manifest, ...manifestExtra, permissions: mergedPerms, _permSummary: permSchema.getPermissionSummary(mergedPerms), _riskLevel: riskLevel, manifest_version: manifestExtra.manifest_version || 1 }
+          manifestExtra = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
         } catch {}
       }
 
+      const mergedPerms = permSchema.mergeManifestPermissions(skill.manifest.permissions, manifestExtra?.permissions)
+      const riskLevel = permSchema.calculateRiskLevel(mergedPerms)
+      skill.manifest = { 
+        ...skill.manifest, 
+        ...manifestExtra, 
+        permissions: mergedPerms, 
+        _permSummary: permSchema.getPermissionSummary(mergedPerms), 
+        _riskLevel: riskLevel 
+      }
+
       state.extensions.set(skill.id, skill)
+
     }
   }
 
-  function refresh() {
-    loadBuiltins()
-    loadPackaged()
-    loadExtensions()
+  async function refresh() {
+    await loadBuiltins()
+    await loadPackaged()
+    await loadExtensions()
   }
 
   function getAll() {
@@ -348,9 +406,8 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
 
     const permSchema = createPermissionSchema()
     const perms = skill.manifest.permissions
-    const isV2 = skill.manifest.manifest_version === 2
 
-    if (isV2 && perms && permSchema.needsAnyPermission(perms)) {
+    if (perms && permSchema.needsAnyPermission(perms)) {
       if (perms.process?.allowed === false) {
         return { ok: false, error: 'permission_denied', reason: 'process access denied', capability: 'process' }
       }
@@ -369,15 +426,25 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       if (perms.system_info?.allowed === false) {
         return { ok: false, error: 'permission_denied', reason: 'system info access denied', capability: 'system_info' }
       }
+    }
 
-      if (perms.network?.allowed === true && perms.network.domains?.length > 0) {
-        const allowedDomains = perms.network.domains.join(', ')
-        console.log(`[permissions] ${skillId}: network limited to ${allowedDomains}`)
-      }
+    // Isolated execution for all non-builtins (extensions and packaged)
+    if (skill.kind === 'extension' || skill.kind === 'packaged') {
+      console.log(`[registry] Executing ${skillId} in isolated host...`)
+      return extensionHostManager.execute(skillId, skill.dir, {
+        input,
+        context,
+        manifest: skill.manifest,
+        args,
+        toolName
+      })
     }
 
     return skill.execute({ content: input, context, manifest: skill.manifest, args, toolName })
   }
+
+
+
 
   async function executeHook(skillId, hookName, payload) {
     const skill = getById(skillId)
@@ -406,6 +473,13 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       permissions: skill.manifest.permissions || null,
       risk_level: skill.manifest._riskLevel || 'low',
       permission_summary: skill.manifest._permSummary || [],
+      instructions: (skill.manifest.readme || skill.manifest.instructions || '').trim(),
+      readme: (skill.manifest.readme || skill.manifest.instructions || '').trim(),
+      version: skill.manifest.version || '1.0.0',
+      author: skill.manifest.author || 'MomAI Team',
+      tags: skill.manifest.tags || [],
+      icon: skill.manifest.icon || null,
+      compatibility: skill.manifest.compatibility || 'MomAI Node Core',
       features: {
         sidebar: true,
         agent_name: skill.manifest.id
@@ -464,9 +538,8 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     return functions
   }
 
-  refresh()
-
   return {
+    initialize: refresh,
     refresh,
     loadBuiltins,
     loadExtensions,

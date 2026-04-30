@@ -25,30 +25,60 @@ function getEnabledSkillManifests() {
   return getEnabledSkills().map((s) => s.manifest)
 }
 
-function buildExtensionsPayload() {
+function buildExtensionsPayload(lang = 'pt-BR') {
   const skillRegistry = getSkillRegistry()
   if (!skillRegistry || typeof skillRegistry.getAll !== 'function') return []
-  return skillRegistry.getAll().map((skill) => ({
-    id: skill.manifest.id,
-    name: skill.manifest.name,
-    description: skill.manifest.description,
-    category: skill.kind,
-    enabled: skill.enabled && isSkillEnabledByStore(skill),
-    intents: skill.manifest.intents || [],
-    tags: skill.manifest.tags || [],
-    icon: skill.manifest.icon || null,
-    author: skill.manifest.author || null,
-    version: skill.manifest.version || null,
-    manifestVersion: skill.manifest.manifest_version || 1,
-    tools: (skill.manifest.tools || []).map((t) => t.name),
-    permissions: skill.manifest.permissions || null,
-    riskLevel: skill.manifest._riskLevel || 'low',
-    features: {
-      sidebar: skill.manifest.sidebar === true,
-      agent_name: skill.manifest.id
+  
+  const all = skillRegistry.getAll()
+  console.log(`[SkillOrchestrator] Building payload for ${all.length} skills (lang: ${lang})`)
+
+  return all.map((skill) => {
+    try {
+      const manifest = skill.manifest || {}
+      const locales = manifest.locales || {}
+      const localized = locales[lang] || {}
+
+      // Determine the best name and description
+      const name = localized.name || manifest.name || skill.id
+      const description = localized.description || manifest.description || ''
+
+      // Determine the best documentation content based on language
+      const readmes = (typeof manifest.readme === 'object' && manifest.readme !== null) 
+        ? manifest.readme 
+        : {}
+      
+      const docContent = readmes[lang] || readmes['pt-BR'] || readmes['default'] || manifest.instructions || ''
+
+      return {
+        id: manifest.id || skill.id,
+        name: name,
+        description: description,
+        category: skill.kind,
+        enabled: skill.enabled && isSkillEnabledByStore(skill),
+        intents: manifest.intents || [],
+        tags: manifest.tags || [],
+        icon: manifest.icon || null,
+        author: manifest.author || null,
+        version: manifest.version || null,
+        tools: (manifest.tools || []).map((t) => t.name),
+
+        permissions: manifest.permissions || null,
+        permissionSummary: manifest._permSummary || [],
+        riskLevel: manifest._riskLevel || 'low',
+        instructions: docContent.trim(),
+        readme: docContent.trim(),
+        features: {
+          sidebar: manifest.sidebar === true,
+          agent_name: manifest.id
+        }
+      }
+    } catch (err) {
+      console.error(`[SkillOrchestrator] Error mapping skill ${skill?.id}:`, err)
+      return null
     }
-  }))
+  }).filter(Boolean)
 }
+
 
 function getToolCatalogRows() {
   const out = []

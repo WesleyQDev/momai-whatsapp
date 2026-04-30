@@ -341,16 +341,24 @@ export interface Extension {
   download_url?: string
   tags?: string[]
   manifest?: any
+  permissionSummary?: string[]
+  riskLevel?: 'low' | 'medium' | 'high'
+  instructions?: string
+  readme?: string
+  compatibility?: string
 }
 
-export async function fetchExtensions(): Promise<Extension[]> {
-  const response = await fetch(`${API_URL}/extensions`)
+
+export async function fetchExtensions(lang?: string): Promise<Extension[]> {
+  const url = lang ? `${API_URL}/extensions?lang=${lang}` : `${API_URL}/extensions`
+  const response = await fetch(url)
   if (!response.ok) throw new Error('Erro ao buscar extensões instaladas')
   return response.json()
 }
 
-export async function fetchExtensionRegistry(): Promise<any[]> {
-  const response = await fetch(`${API_URL}/extensions/registry`)
+export async function fetchExtensionRegistry(lang?: string): Promise<any[]> {
+  const url = lang ? `${API_URL}/extensions/registry?lang=${lang}` : `${API_URL}/extensions/registry`
+  const response = await fetch(url)
   if (!response.ok) throw new Error('Erro ao buscar registro de extensões')
   return response.json()
 }

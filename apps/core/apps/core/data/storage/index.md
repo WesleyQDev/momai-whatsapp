@@ -1,5 +1,3 @@
-# Bem-vindo ao Sistema de Notas
-
 Aqui é onde toda a memória estruturada da MomAI fica guardada!
 
 ## 🧠 Como isso funciona?

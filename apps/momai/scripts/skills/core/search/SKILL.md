@@ -30,14 +30,15 @@ compatibility: MomAI Node Core Ultra
 
 # Search Skill
 
-Executa busca web e retorna resultados com fontes.
+Skill de busca na internet usando a API do Tavily.
 
 ## Quando usar
 
-- Usuario pedir noticias recentes.
-- Usuario pedir busca aberta na internet.
-- Usuario quiser saber o que esta acontecendo no mundo.
+- Quando o usuario pedir informacoes que exigem busca na web (noticias, precos, fatos recentes).
+- Quando o usuario perguntar sobre algo que o LLM nao tem conhecimento previo (conhecimento estatico ate 2023/2024).
 
 ## Comportamento
 
-- Execute `web_search` e sintetize com base nas fontes retornadas.
+- SEMPRE use a ferramenta `web_search` para obter informacoes atualizadas.
+- O retorno contem snippets de sites e a URL da fonte.
+- SEMPRE cite a fonte da informacao no final da resposta ou inline.

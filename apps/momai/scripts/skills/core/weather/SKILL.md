@@ -24,16 +24,14 @@ compatibility: MomAI Node Core Ultra
 
 # Weather Skill
 
-Retorna previsao do tempo para qualquer localidade usando a API Open-Meteo.
+Skill de previsao do tempo baseada em API externa.
 
 ## Quando usar
 
-- Usuario perguntar sobre o clima ou temperatura
-- Usuario pedir previsao do tempo para uma cidade
-- Usuario mencionar "previsao", "clima", "tempo"
+- Quando o usuario perguntar sobre o clima atual ou previsao para os proximos dias.
 
 ## Comportamento
 
-- Execute `get_weather` com a localidade extraida da mensagem
-- A resposta sera exibida como um card visual com a previsao de 7 dias
-- Se a localidade nao for especificada, use a localidade padrao do usuario
+- Use a ferramenta `get_weather` passando a localizacao se o usuario especificar.
+- Se o usuario nao especificar a localizacao, tente obter dos settings ou pergunte ao usuario.
+- A ferramenta retorna dados meteorologicos em tempo real e previsao.

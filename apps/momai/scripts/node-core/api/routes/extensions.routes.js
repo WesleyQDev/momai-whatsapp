@@ -19,15 +19,18 @@ function createExtensionsRoutes(context) {
   } = context
 
   return async function handleExtensionsRoutes(req, res, pathname, parsedUrl) {
+    const lang = parsedUrl.searchParams?.get('lang') || 'pt-BR'
+
     if (pathname === '/extensions' && req.method === 'GET') {
-      skillRegistry.refresh()
-      sendJson(res, 200, buildExtensionsPayload())
+      console.log(`[ExtensionsAPI] GET /extensions (lang: ${lang})`)
+      await skillRegistry.refresh()
+      sendJson(res, 200, buildExtensionsPayload(lang))
       return true
     }
 
     if (pathname === '/extensions/registry' && req.method === 'GET') {
-      skillRegistry.refresh()
-      sendJson(res, 200, buildExtensionsPayload())
+      await skillRegistry.refresh()
+      sendJson(res, 200, buildExtensionsPayload(lang))
       return true
     }
 
@@ -73,13 +76,15 @@ function createExtensionsRoutes(context) {
         })
         saveStore()
       }
-      skillRegistry.loadExtensions()
+      await skillRegistry.loadExtensions()
       await skillRegistry.executeHook(id, 'onInstall', { extId: id, extDir }).catch((err) => {
         console.log(`[extensions] onInstall hook failed for ${id}: ${err.message}`)
       })
       sendJson(res, 200, { ok: true })
       return true
     }
+
+    if (pathname === '/extensions/toggle' && req.method === 'POST') {
       const payload = await readJsonBody(req).catch(() => ({}))
       let found = store.extensions.find((item) => item.id === payload.id)
       if (!found) {
@@ -95,7 +100,7 @@ function createExtensionsRoutes(context) {
       }
       found.enabled = Boolean(payload.enabled)
       saveStore()
-      skillRegistry.loadExtensions()
+      await skillRegistry.loadExtensions()
       const hookName = found.enabled ? 'onActivate' : 'onDeactivate'
       await skillRegistry.executeHook(payload.id, hookName, { extId: payload.id }).catch((err) => {
         console.log(`[extensions] ${hookName} hook failed for ${payload.id}: ${err.message}`)
@@ -114,7 +119,7 @@ function createExtensionsRoutes(context) {
       store.extensions = store.extensions.filter((item) => item.id !== extId)
       if (fs.existsSync(extDir)) fs.rmSync(extDir, { recursive: true, force: true })
       saveStore()
-      skillRegistry.loadExtensions()
+      await skillRegistry.loadExtensions()
       sendJson(res, 200, { ok: true })
       return true
     }

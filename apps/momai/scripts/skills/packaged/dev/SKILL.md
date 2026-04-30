@@ -8,7 +8,7 @@ tags:
   - debug
   - frontend
   - backend
-author: MomAI Team
+author: WesleyQDev
 version: 1.0.0
 intents:
   - código

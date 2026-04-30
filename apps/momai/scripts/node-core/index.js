@@ -37,22 +37,27 @@ const {
 } = require('./infrastructure/process-manager')
 const { store, saveStore, appendMessage, getThreadMessages, listSessions } = require('./infrastructure/store')
 
-// Initialize skill and prompt registries
+// Initialize registries (actual loading happens in initializeRegistries)
 const { DATA_DIR, PROMPTS_DIR } = constants
 const builtinSkillsDir = path.resolve(__dirname, '..', 'skills', 'core')
 let skillRegistry = null
 let promptRegistry = null
-try {
-  const { createSkillRegistry } = require('../skills/registry')
-  skillRegistry = createSkillRegistry({ dataDir: DATA_DIR, builtinSkillsDir })
-} catch (e) {
-  info('[core] Skill registry not available:', e.message)
-}
-try {
-  const { createPromptRegistry } = require('../prompt-registry')
-  promptRegistry = createPromptRegistry({ promptsDir: PROMPTS_DIR })
-} catch (e) {
-  info('[core] Prompt registry not available:', e.message)
+
+async function initializeRegistries() {
+  try {
+    const { createSkillRegistry } = require('../skills/registry')
+    skillRegistry = createSkillRegistry({ dataDir: DATA_DIR, builtinSkillsDir })
+    await skillRegistry.initialize()
+  } catch (e) {
+    info('[core] Skill registry not available or failed to initialize:', e.message)
+  }
+
+  try {
+    const { createPromptRegistry } = require('../prompt-registry')
+    promptRegistry = createPromptRegistry({ promptsDir: PROMPTS_DIR })
+  } catch (e) {
+    info('[core] Prompt registry not available:', e.message)
+  }
 }
 
 // ============================================
@@ -324,7 +329,7 @@ function sendVoiceSidecarFallback(res, pathname, error) {
 // ============================================
 // Start server function (called by node-core.js wrapper)
 // ============================================
-function startServer() {
+async function startServer() {
   const { HOST, PORT, DATA_DIR } = constants
 
   // Ensure data directory exists
@@ -332,6 +337,9 @@ function startServer() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true })
   }
+
+  // Initialize registries
+  await initializeRegistries()
 
   // Initialize shared state
   const _skillRegistry = skillRegistry || shared.skillRegistry

@@ -146,7 +146,13 @@ const iconMap: Record<string, React.ElementType> = {
   User: UserIcon,
   Tag: TagIcon,
   Bolt: BoltIcon,
-  Shield: ShieldCheckIcon
+  Shield: ShieldCheckIcon,
+  ShieldCheck: ShieldCheckIcon,
+  Information: InformationCircleIcon,
+  CheckBadge: CheckBadgeIcon,
+  Trash: TrashIcon,
+  ArrowPath: ArrowPathIcon,
+  CloudArrowDown: CloudArrowDownIcon
 }
 
 function getSkillGradient(name: string) {
@@ -290,41 +296,45 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
   return (
     <div
       onClick={() => onSelect(skill)}
-      className="group bg-zinc-800/60 border border-zinc-700/50 rounded-xl overflow-hidden cursor-pointer hover:border-zinc-600 hover:bg-zinc-800/80 transition-all hover:-translate-y-0.5 hover:shadow-lg"
+      className="group bg-zinc-800/40 border border-zinc-700/50 rounded-2xl overflow-hidden cursor-pointer hover:border-violet-500/50 hover:bg-zinc-800/80 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl active:scale-[0.98]"
     >
-      <div className="p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className={`p-2.5 rounded-xl bg-gradient-to-br ${getSkillGradient(skill.name)}`}>
-            {React.createElement(IconComponent, { className: 'w-5 h-5 text-white' })}
+      <div className="p-5">
+        <div className="flex items-start justify-between mb-4">
+          <div className={`p-3 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name)} shadow-lg shadow-violet-500/10`}>
+            {React.createElement(IconComponent, { className: 'w-6 h-6 text-white' })}
           </div>
-          <div className="flex flex-col items-end gap-1">
+          <div className="flex flex-col items-end gap-1.5">
             {skill.is_official ? (
-              <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded text-[8px] text-emerald-400 font-semibold">
-                <CheckBadgeIcon className="w-3 h-3" />
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[9px] text-emerald-400 font-bold uppercase tracking-wider">
+                <CheckBadgeIcon className="w-3.5 h-3.5" />
                 Oficial
               </div>
             ) : (
-              <div className="px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-[8px] text-amber-400 font-semibold">
-                Terceiro
+              <div className="px-2 py-0.5 bg-zinc-700/30 border border-zinc-700/50 rounded-full text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
+                Comunidade
               </div>
             )}
             {!skill.enabled && (
-              <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-500">
-                Off
+              <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-600 border border-zinc-800">
+                Inativa
               </span>
             )}
           </div>
         </div>
-        <h3 className="text-sm font-semibold text-zinc-200 mb-1">{skill.name}</h3>
-        <p className="text-[11px] text-zinc-500 line-clamp-2 leading-relaxed mb-3">
+        <h3 className="text-base font-bold text-zinc-100 mb-1.5 group-hover:text-violet-400 transition-colors">{skill.name}</h3>
+        <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed mb-4 min-h-[2.5rem]">
           {skill.description}
         </p>
-        <div className="flex items-center justify-between pt-2.5 border-t border-zinc-700/50">
-          <div className="flex items-center gap-1.5">
-            <UserIcon className="w-3 h-3 text-zinc-600" />
-            <span className="text-[10px] text-zinc-500">{skill.author || 'Desconhecido'}</span>
+        <div className="flex items-center justify-between pt-4 border-t border-zinc-700/30">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full bg-zinc-700 flex items-center justify-center">
+              <UserIcon className="w-3 h-3 text-zinc-400" />
+            </div>
+            <span className="text-[11px] text-zinc-500 font-medium">{skill.author || 'MomAI'}</span>
           </div>
-          <StarRating value={skill.is_official ? 5 : 4.5} />
+          <div className="flex items-center gap-1.5">
+            <StarRating value={skill.is_official ? 5 : 4.8} />
+          </div>
         </div>
       </div>
     </div>
@@ -352,122 +362,208 @@ function SkillDetailView({
   const isBuiltin = skill.category === 'builtin'
 
   return (
-    <div className="animate-fade-in">
-      {/* Banner */}
-      <div className="relative -mx-6 -mt-5 mb-6">
-        <div className={`h-40 bg-gradient-to-br ${getSkillGradient(skill.name)} opacity-30`} />
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/50 to-transparent" />
-      </div>
-
-      {/* Back button */}
+    <div className="animate-fade-in max-w-6xl mx-auto px-6 pb-20">
+      {/* Mini Back button */}
       <button
         onClick={onBack}
-        className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-xs font-medium mb-4 transition-colors"
+        className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-[11px] font-bold mb-6 transition-colors group uppercase tracking-widest"
       >
-        <ArrowLeftIcon className="w-4 h-4" />
-        Voltar para lista
+        <ArrowLeftIcon className="w-3 h-3 transition-transform group-hover:-translate-x-0.5" />
+        Voltar para a loja
       </button>
 
-      {/* Title section */}
-      <div className="flex items-start gap-4 mb-6">
+      {/* Tighter Hero Header */}
+      <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-10 pb-10 border-b border-zinc-800/50">
         <div
-          className={`p-3 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name)} shadow-lg shrink-0`}
+          className={`w-28 h-28 md:w-32 md:h-32 rounded-3xl bg-gradient-to-br ${getSkillGradient(skill.name)} shadow-xl shadow-violet-500/10 flex items-center justify-center shrink-0 border-2 border-zinc-800 relative overflow-hidden`}
         >
-          {React.createElement(IconComponent, { className: 'w-8 h-8 text-white' })}
+          <div className="absolute inset-0 bg-white/5" />
+          {React.createElement(IconComponent, { className: 'w-12 h-12 md:w-16 md:h-16 text-white relative z-10 drop-shadow-lg' })}
         </div>
-        <div className="flex-1 pt-1">
-          <h1 className="text-2xl font-bold text-white">{skill.name}</h1>
-          <div className="flex items-center gap-3 mt-1">
-            <span className="text-sm text-zinc-400">{skill.author || 'Desconhecido'}</span>
-            <span className="text-zinc-700">•</span>
-            <span className="text-sm text-zinc-500">v{skill.version || '1.0.0'}</span>
-            <StarRating value={skill.is_official ? 5 : 4.5} />
+        
+        <div className="flex-1 text-center md:text-left pt-1">
+          <div className="flex flex-col md:flex-row md:items-end gap-3 md:gap-4 mb-3">
+            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-none">{skill.name}</h1>
+            {skill.is_official && (
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md text-[9px] text-emerald-400 font-black uppercase tracking-wider h-fit mb-0.5">
+                <CheckBadgeIcon className="w-3 h-3" />
+                Oficial
+              </div>
+            )}
+          </div>
+          
+          <p className="text-sm text-zinc-400 font-medium mb-6 max-w-2xl leading-relaxed">
+            {skill.description}
+          </p>
+          
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-5 mb-8">
+            <div className="flex flex-col">
+              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">Autor</span>
+              <span className="text-xs text-zinc-300 font-bold">{skill.author || 'MomAI Team'}</span>
+            </div>
+            <div className="w-px h-6 bg-zinc-800" />
+            <div className="flex flex-col">
+              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">Versão</span>
+              <span className="text-xs text-zinc-300 font-bold">{skill.version || '1.0.0'}</span>
+            </div>
+            <div className="w-px h-6 bg-zinc-800" />
+            <div className="flex flex-col">
+              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">Avaliação</span>
+              <StarRating value={skill.is_official ? 5 : 4.8} />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center md:justify-start gap-3">
+            {!isBuiltin && !isInstalled ? (
+              <button
+                onClick={() => onInstall(skill)}
+                disabled={installing === skill.id}
+                className="flex items-center gap-2 px-8 py-2 bg-violet-600 text-white rounded-xl text-xs font-black hover:bg-violet-500 disabled:opacity-50 transition-all shadow-lg shadow-violet-600/20 uppercase tracking-widest"
+              >
+                {installing === skill.id ? (
+                  <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CloudArrowDownIcon className="w-4 h-4" />
+                )}
+                {installing === skill.id ? 'Obtendo...' : 'Obter'}
+              </button>
+            ) : (
+              <button
+                onClick={() => onToggle(skill)}
+                className={`flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-black transition-all shadow-md uppercase tracking-widest ${
+                  skill.enabled
+                    ? 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-600/20'
+                }`}
+              >
+                <PowerIcon className="w-4 h-4" />
+                {skill.enabled ? 'Desativar' : 'Ativar'}
+              </button>
+            )}
+            {!isBuiltin && isInstalled && (
+              <button
+                onClick={() => onUninstall(skill)}
+                className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-600 hover:text-red-500 hover:border-red-500/30 transition-all"
+                title="Desinstalar"
+              >
+                <TrashIcon className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
-        {/* Status badge */}
-        <div className="shrink-0">
-          {isBuiltin ? (
-            <div className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-[10px] font-semibold text-zinc-400 uppercase tracking-wide">
-              Integrada
-            </div>
-          ) : isInstalled ? (
-            <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">
-              Instalada
-            </div>
-          ) : (
-            <div className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-[10px] font-semibold text-zinc-400 uppercase tracking-wide">
-              Disponível
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* Action buttons */}
-      <div className="flex items-center gap-3 mb-6">
-        {!isBuiltin && !isInstalled ? (
-          <button
-            onClick={() => onInstall(skill)}
-            disabled={installing === skill.id}
-            className="flex items-center gap-2 px-6 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-500 disabled:opacity-50 transition-colors"
-          >
-            {installing === skill.id ? (
-              <ArrowPathIcon className="w-4 h-4 animate-spin" />
-            ) : (
-              <CloudArrowDownIcon className="w-4 h-4" />
-            )}
-            {installing === skill.id ? 'Instalando...' : 'Instalar'}
-          </button>
-        ) : (
-          <button
-            onClick={() => onToggle(skill)}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
-              skill.enabled
-                ? 'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20'
-                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20'
-            }`}
-          >
-            <PowerIcon className="w-4 h-4" />
-            {skill.enabled ? 'Desativar' : 'Ativar'}
-          </button>
-        )}
-        {!isBuiltin && isInstalled && (
-          <button
-            onClick={() => onUninstall(skill)}
-            className="p-2.5 rounded-xl bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-red-400 hover:border-red-500/30 transition-colors"
-          >
-            <TrashIcon className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-
-      {/* Tags */}
-      {skill.tags && skill.tags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-6">
-          {skill.tags.map((tag: string) => (
-            <span
-              key={tag}
-              className="px-3 py-1 rounded-full bg-zinc-800 border border-zinc-700 text-xs text-zinc-400 font-medium"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Description */}
-      <div className="mb-8">
-        <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wide mb-3">Sobre</h2>
-        <div className="prose prose-invert prose-sm max-w-none prose-headings:text-zinc-200 prose-p:text-zinc-400 prose-a:text-violet-400">
-          {skill.manifest?.readme || skill.manifest?.instructions ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {skill.manifest?.readme || skill.manifest?.instructions}
-            </ReactMarkdown>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-zinc-600">
-              <ExclamationCircleIcon className="w-10 h-10 mb-3" />
-              <p className="text-sm">Nenhuma documentação detalhada encontrada para esta skill.</p>
+      {/* Balanced 2-Column Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-10 items-start">
+        <div className="lg:col-span-3 space-y-10">
+          {/* Description Section - Lighter and clearer */}
+          <section className="bg-zinc-800/20 rounded-3xl p-8 border border-zinc-700/50 backdrop-blur-xl">
+            <h2 className="text-xs font-black text-zinc-300 mb-8 flex items-center gap-2 uppercase tracking-[0.2em]">
+              <InformationCircleIcon className="w-4 h-4 text-violet-400" />
+              Sobre esta extensão
+            </h2>
+            <div className="prose prose-invert prose-zinc max-w-none 
+              prose-headings:text-zinc-50 prose-headings:font-bold prose-headings:mt-8 prose-headings:mb-4
+              prose-p:text-zinc-200 prose-p:text-sm prose-p:leading-relaxed prose-p:mb-4
+              prose-li:text-zinc-200 prose-li:text-sm prose-li:mb-2
+              prose-strong:text-white prose-code:text-violet-300 prose-code:bg-violet-500/20 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded">
+              {(skill.instructions || skill.readme) ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {skill.instructions || skill.readme}
+                </ReactMarkdown>
+              ) : (
+                <div className="py-24 flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 rounded-full bg-zinc-800/50 flex items-center justify-center mb-4 border border-zinc-700/50">
+                    <CommandLineIcon className="w-8 h-8 text-zinc-600" />
+                  </div>
+                  <p className="text-zinc-500 text-xs italic font-medium">Esta extensão não forneceu um README detalhado.</p>
+                </div>
+              )}
             </div>
-          )}
+          </section>
+
+          {/* System Requirements */}
+          <section className="p-8 rounded-3xl bg-zinc-800/10 border border-zinc-700/30">
+            <h2 className="text-xs font-black text-zinc-400 mb-6 flex items-center gap-2 uppercase tracking-[0.2em]">
+              <CpuChipIcon className="w-4 h-4 text-violet-400/80" />
+              Requisitos do Sistema
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+              <div className="flex items-center gap-4">
+                <div className="p-2.5 rounded-2xl bg-zinc-700/50 border border-zinc-600/50 shadow-inner">
+                  <ShieldCheckIcon className="w-5 h-5 text-emerald-400/80" />
+                </div>
+                <div>
+                  <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-0.5">Arquitetura</p>
+                  <p className="text-xs text-white font-bold">x64 / ARM64 / WSL2</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="p-2.5 rounded-2xl bg-zinc-700/50 border border-zinc-600/50 shadow-inner">
+                  <GlobeAltIcon className="w-5 h-5 text-sky-400/80" />
+                </div>
+                <div>
+                  <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-0.5">Internet</p>
+                  <p className="text-xs text-white font-bold">Recomendado para atualizações</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* Sidebar - Brighter and Elevated */}
+        <div className="space-y-6 lg:mt-0">
+          <section className="bg-zinc-800/40 border border-zinc-600/30 rounded-3xl p-6 shadow-2xl shadow-black/40 backdrop-blur-md">
+            <h3 className="text-[10px] font-black text-zinc-200 mb-6 uppercase tracking-widest">Informações</h3>
+            
+            <div className="space-y-5">
+              <div>
+                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">Desenvolvedor</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-violet-600/20 flex items-center justify-center text-[9px] text-violet-400 font-black border border-violet-500/30 uppercase">
+                    {(skill.author || 'M')[0]}
+                  </div>
+                  <p className="text-xs text-white font-bold">{skill.author || 'MomAI Team'}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">Categoria</p>
+                <p className="text-xs text-white font-bold capitalize">{skill.tags?.[0] || 'Utilitário'}</p>
+              </div>
+
+              <div>
+                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">Nível de Risco</p>
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full shadow-[0_0_8px] ${skill.riskLevel === 'high' ? 'bg-red-500 shadow-red-500/50' : 'bg-emerald-400 shadow-emerald-400/50'}`} />
+                  <p className={`text-xs font-black ${
+                    skill.riskLevel === 'high' ? 'text-red-400' : 'text-emerald-400'
+                  }`}>
+                    {skill.riskLevel === 'high' ? 'Acesso ao Sistema' : 'Sandbox Segura'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="bg-zinc-800/20 border border-zinc-700/50 rounded-3xl p-6">
+            <h3 className="text-[10px] font-black text-zinc-400 mb-5 flex items-center gap-2 uppercase tracking-widest">
+              <BoltIcon className="w-4 h-4 text-amber-400" />
+              Permissões
+            </h3>
+            <ul className="space-y-3">
+              {(skill.permissionSummary && skill.permissionSummary.length > 0) ? (
+                skill.permissionSummary.map((perm, idx) => (
+                  <li key={idx} className="flex items-start gap-2.5 text-[10px] text-zinc-300 font-medium leading-snug">
+                    <div className="w-1 h-1 rounded-full bg-violet-400 mt-1.5 shrink-0 shadow-[0_0_5px_rgba(167,139,250,0.5)]" />
+                    {perm}
+                  </li>
+                ))
+              ) : (
+                <li className="text-[10px] text-zinc-500 italic">Nenhuma permissão especial</li>
+              )}
+            </ul>
+          </section>
         </div>
       </div>
     </div>
@@ -476,7 +572,7 @@ function SkillDetailView({
 
 /* ─── Main View ─── */
 export default function ExtensionsView() {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const location = useLocation()
   const [allSkills, setAllSkills] = useState<Extension[]>([])
   const [loading, setLoading] = useState(true)
@@ -490,7 +586,7 @@ export default function ExtensionsView() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const data = await fetchExtensions()
+      const data = await fetchExtensions(locale)
       setAllSkills(data)
     } catch (err) {
       console.error('Erro ao carregar skills:', err)
@@ -501,7 +597,7 @@ export default function ExtensionsView() {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [locale])
 
   useEffect(() => {
     const tab = (location.state as any)?.tab
