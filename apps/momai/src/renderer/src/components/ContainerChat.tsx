@@ -17,7 +17,7 @@ interface ContainerChatProps {
   messages: Message[]
   isLoading: boolean
   text: string
-  onSendMessage: (text?: string) => void
+  onSendMessage: (text?: string, isSilent?: boolean, skipUserMessage?: boolean) => void
   onClearHistory?: () => void
   messagesEndRef: RefObject<HTMLDivElement | null>
   scrollPositionRef?: RefObject<number>

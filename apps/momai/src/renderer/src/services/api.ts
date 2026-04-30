@@ -449,6 +449,7 @@ export interface SettingsData {
   context_window_mode?: 'min' | 'medium' | 'max' | 'custom'
   context_window_tokens?: number
   skip_intro?: boolean
+  daily_briefing_enabled?: boolean
 }
 
 export async function fetchSettings(): Promise<SettingsData> {

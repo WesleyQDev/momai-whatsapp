@@ -21,7 +21,7 @@ export default function LoadingAnimation({
     if (progress >= 100) {
       const timer = setTimeout(() => {
         setIsFadingOut(true)
-        setTimeout(onComplete, 300)
+        if (onComplete) setTimeout(onComplete, 300)
       }, 150)
       return () => clearTimeout(timer)
     }
