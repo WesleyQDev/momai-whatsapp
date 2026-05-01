@@ -142,10 +142,13 @@ async function ensureEmbeddingReady() {
       debug(`[embedding] Selected model: ${modelPath}`)
 
       semanticState.embedding.starting = true
-      // Force CPU for embeddings to save VRAM for the main LLM in ULTRA mode
-      const backend = 'cpu'
-      const { llamaBackendExePath } = require('./llama-manager')
-      const exePath = llamaBackendExePath(backend)
+      const llamaManager = require('./llama-manager')
+      const preferred = llamaManager.normalizeBackendMode(store.settings.local_backend || 'auto')
+      const availableBackends = llamaManager.listAvailableBackends()
+      const backend = preferred === 'auto'
+        ? (availableBackends.includes('vulkan') ? 'vulkan' : availableBackends[0] || 'cpu')
+        : (availableBackends.includes(preferred) ? preferred : 'cpu')
+      const exePath = llamaManager.llamaBackendExePath(backend)
 
       info(
         `[embedding] Loading model: ${path.basename(modelPath)} (backend=${backend}, port=${EMBEDDING_PORT})`
@@ -179,7 +182,7 @@ async function ensureEmbeddingReady() {
             '--threads',
             '2',
             '-ngl',
-            backend === 'vulkan' ? '99' : '0'
+            backend !== 'cpu' ? '99' : '0'
           ],
           {
             cwd: path.dirname(exePath),
@@ -257,6 +260,8 @@ async function ensureEmbeddingReady() {
             semanticState.ready = true
             semanticState.degraded = false
             semanticState.lastFallbackReason = null
+            // Pre-warm: fire a dummy embedding so first real call doesn't pay cold-start
+            embedText('warmup').catch(() => {})
             return true
           }
         } catch {}

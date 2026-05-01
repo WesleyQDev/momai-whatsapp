@@ -352,7 +352,6 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
   }
 
   if (llamaState.ready && !forceRestart) {
-    warmUpModel()
     return true
   }
   if (llamaState.startingPromise) return llamaState.startingPromise
@@ -486,8 +485,8 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
               '--cache-prompt',
               '-b',
               '2048',
-              '-ub',
-              '1024',
+               '-ub',
+               '512',
               '--top-p',
               String(Number.isFinite(tierConfig.top_p) ? tierConfig.top_p : 1),
               '--top-k',
@@ -842,8 +841,12 @@ function estimateContextTokensByHardware({
 
 function resolveContextWindowTokens({ settings, tierConfig, backendMode }) {
   const mode = normalizeContextWindowMode(settings?.context_window_mode)
-  const customTokens = clampContextTokens(settings?.context_window_tokens)
-  if (mode === 'custom') return customTokens
+
+  // If user explicitly set context_window_tokens, always respect it (regardless of mode)
+  const userTokens = Number(settings?.context_window_tokens)
+  if (Number.isFinite(userTokens) && userTokens > 0) {
+    return clampContextTokens(userTokens)
+  }
 
   const ramGb = Number(settings?.hardware_total_ram_gb) || os.totalmem() / 1024 / 1024 / 1024
   const vramGb = Number(settings?.hardware_total_vram_gb) || (llamaState.vramTotalMb || 0) / 1024

@@ -540,6 +540,7 @@ async function streamLlamaChat(req, res, payload) {
   let memorySources = Array.isArray(payload.memory_sources) ? [...payload.memory_sources] : []
   let toolSteps = []
   let activeSkill = null
+  const t0 = Date.now()
 
   debug(
     `[chat] streamLlamaChat called: tier=${tierName}, content="${content.slice(0, 60)}", thread=${threadId}`
@@ -1001,12 +1002,15 @@ async function streamLlamaChat(req, res, payload) {
       }).catch(() => {})
 
       writeSse(res, { status: 'responding' })
+      const tPreFetch = Date.now()
+      info(`[timing] pre-llama overhead: ${tPreFetch - t0}ms (tier=${tierName}, isUltra=${isUltra}, beforeHooks=${beforeHookSkills.length}, tools=${toolsPayload.length}, sysPromptLen=${systemMessage.content.length}, historyLen=${currentMessages.length})`)
       let llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify(requestBody)
       })
+      info(`[timing] llama first response: ${Date.now() - tPreFetch}ms (after pre-llama overhead)`)
 
       if (!llamaResp.ok || !llamaResp.body) {
         const txt = await llamaResp.text().catch(() => '')
@@ -1168,6 +1172,9 @@ async function streamLlamaChat(req, res, payload) {
             continue
           }
           if (parsed.type === 'token') {
+            if (!roundText) {
+              info(`[timing] first token received: ${Date.now() - t0}ms total (llama prefill+first=${Date.now() - tPreFetch}ms)`)
+            }
             roundText += parsed.token
             assembled += parsed.token
             generatedTokensEstimate += estimateTokenCount(parsed.token)
