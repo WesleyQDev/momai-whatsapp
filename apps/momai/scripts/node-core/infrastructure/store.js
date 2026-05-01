@@ -87,7 +87,27 @@ function loadStore() {
   }
 }
 
+let _saveTimer = null
+
 function saveStore(store) {
+  if (_saveTimer) clearTimeout(_saveTimer)
+  _saveTimer = setTimeout(() => {
+    _saveTimer = null
+    try {
+      const tmp = STORE_FILE + '.tmp.' + Date.now()
+      fs.writeFileSync(tmp, JSON.stringify(store, null, 2), 'utf8')
+      fs.renameSync(tmp, STORE_FILE)
+    } catch (err) {
+      error('[Store] Failed to save store:', err)
+    }
+  }, 2000)
+}
+
+function saveStoreNow(store) {
+  if (_saveTimer) {
+    clearTimeout(_saveTimer)
+    _saveTimer = null
+  }
   try {
     const tmp = STORE_FILE + '.tmp.' + Date.now()
     fs.writeFileSync(tmp, JSON.stringify(store, null, 2), 'utf8')
@@ -160,6 +180,7 @@ module.exports = {
   defaultStore,
   loadStore,
   saveStore,
+  saveStoreNow,
   appendMessage,
   getThreadMessages,
   listSessions

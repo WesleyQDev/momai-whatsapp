@@ -183,6 +183,7 @@ async function syncSkillAndToolIndexes(force = false) {
 
   if (vectors.some((v) => v === null)) {
     warn('[semantic] Skill sync partially failed due to embedding errors')
+    semanticState.lastSkillSyncAt = now + 300000
     return
   }
 
@@ -204,6 +205,9 @@ async function syncSkillAndToolIndexes(force = false) {
     }
 
     semanticState.lastSkillSyncAt = now
+  } catch (err) {
+    warn(`[semantic] Skill sync error: ${err.message}`)
+    semanticState.lastSkillSyncAt = now + 300000
   } finally {
     semanticState.syncingSkills = false
   }
@@ -263,6 +267,7 @@ async function syncNoteIndex(force = false) {
     const validRows = rows.filter(Boolean)
     if (validRows.length === 0 && allChunksToEmbed.length > 0) {
       warn('[semantic] Note sync failed: no vectors generated')
+      semanticState.lastNotesSyncAt = now + 300000
       return
     }
 
@@ -272,6 +277,9 @@ async function syncNoteIndex(force = false) {
       semanticState.notesSnapshotHash = digest
       semanticState.lastNotesSyncAt = now
     }
+  } catch (err) {
+    warn(`[semantic] Note sync error: ${err.message}`)
+    semanticState.lastNotesSyncAt = now + 300000
   } finally {
     semanticState.syncingNotes = false
   }

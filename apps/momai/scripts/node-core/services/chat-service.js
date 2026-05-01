@@ -34,7 +34,24 @@ const activeChatControllers = new Set()
 function estimateTokenCount(text) {
   const safe = String(text || '')
   if (!safe) return 0
-  return Math.max(1, Math.ceil(safe.length / 4))
+  return Math.max(1, Math.ceil(safe.length / 3))
+}
+
+async function tokenizePrompt(messages) {
+  try {
+    const text = messages.map((m) => `${m.role}: ${m.content}`).join('\n')
+    const resp = await fetch(`${getLlamaBaseUrl()}/v1/tokenize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: text })
+    })
+    if (!resp.ok) return null
+    const data = await resp.json()
+    if (Array.isArray(data.tokens)) return data.tokens.length
+    return null
+  } catch {
+    return null
+  }
 }
 
 function getThreadMessages(threadId) {
@@ -549,26 +566,12 @@ async function streamLlamaChat(req, res, payload) {
     return
   }
 
+  let semanticPromise = null
   if (isUltra) {
     const { syncSkillAndToolIndexes, syncNoteIndex } = require('./semantic-engine')
     syncSkillAndToolIndexes(false).catch(() => {})
     syncNoteIndex(false).catch(() => {})
-
-    const semantic = await runSemanticMemoryRetrieval(content, 6)
-    if (semantic.memoryContext) {
-      memoryContext = memoryContext
-        ? `${memoryContext}\n\n${semantic.memoryContext}`
-        : semantic.memoryContext
-    }
-
-    if (Array.isArray(semantic.memorySources) && semantic.memorySources.length) {
-      const byUrl = new Map()
-      for (const source of [...memorySources, ...semantic.memorySources]) {
-        if (!source || !source.url) continue
-        byUrl.set(source.url, source)
-      }
-      memorySources = [...byUrl.values()].slice(0, 10)
-    }
+    semanticPromise = runSemanticMemoryRetrieval(content, 6)
   }
 
   appendMessage(threadId, 'user', content, {
@@ -592,6 +595,23 @@ async function streamLlamaChat(req, res, payload) {
     })
   )
 
+  if (semanticPromise) {
+    const semantic = await semanticPromise
+    if (semantic.memoryContext) {
+      memoryContext = memoryContext
+        ? `${memoryContext}\n\n${semantic.memoryContext}`
+        : semantic.memoryContext
+    }
+    if (Array.isArray(semantic.memorySources) && semantic.memorySources.length) {
+      const byUrl = new Map()
+      for (const source of [...memorySources, ...semantic.memorySources]) {
+        if (!source || !source.url) continue
+        byUrl.set(source.url, source)
+      }
+      memorySources = [...byUrl.values()].slice(0, 10)
+    }
+  }
+
   const responseStyle = tierName === 'ultra' ? 'concise' : 'balanced'
   const promptRegistry = getPromptRegistry()
 
@@ -602,15 +622,18 @@ async function streamLlamaChat(req, res, payload) {
   stopGenerationRequested = false
   stopVoiceRequested = false
 
-  // Stop any ongoing TTS when starting a new message
-  try {
-    const pythonBase = await ensurePython()
-    await fetch(`${pythonBase}/chat/stop-voice`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
-  } catch (error) {
-    // TTS might not be available, ignore
+  // Stop any ongoing TTS when starting a new message (only if TTS is enabled)
+  const ttsEnabled = Boolean(store.settings.tts_enabled)
+  if (ttsEnabled && speakResponse) {
+    try {
+      const pythonBase = await ensurePython()
+      await fetch(`${pythonBase}/chat/stop-voice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      // TTS might not be available, ignore
+    }
   }
 
   let closed = false
@@ -656,7 +679,7 @@ async function streamLlamaChat(req, res, payload) {
   }
 
   let messages = [...history]
-  let maxToolRounds = 3
+  const maxToolRounds = isUltra ? 3 : 1
   let round = 0
   let estimatedPromptTokens = estimateTokenCount(content) + estimateTokenCount(memoryContext)
   let lastSystemMessage = null
@@ -666,7 +689,13 @@ async function streamLlamaChat(req, res, payload) {
 
   try {
     const skillRegistry = getSkillRegistry()
-    const beforeHookSkills = skillRegistry?.getSkillsWithHook?.('beforeModel') || []
+    const allHookSkills = skillRegistry?.getSkillsWithHook?.('beforeModel') || []
+    const beforeHookSkills = allHookSkills.filter((skill) => {
+      const intents = skill.manifest?.intents
+      if (!intents || !intents.length) return true
+      const lower = content.toLowerCase()
+      return intents.some((intent) => lower.includes(intent.toLowerCase()))
+    })
     let disableToolsForTurn = false
     let extraSystemInstructions = []
 
@@ -935,6 +964,10 @@ async function streamLlamaChat(req, res, payload) {
         })
       }
 
+      const allMessages = [systemMessage, ...currentMessages.filter((m) => m.role !== 'system')]
+      estimatedPromptTokens =
+        estimateTokenCount(systemMessage.content) +
+        allMessages.reduce((acc, msg) => acc + estimateTokenCount(msg.content), 0)
       const requestBody = {
         model: 'gpt-4o',
         stream: true,
@@ -945,16 +978,9 @@ async function streamLlamaChat(req, res, payload) {
           estimatedPromptTokens,
           llamaState.contextTotalTokens
         ),
-        messages: [systemMessage, ...currentMessages.filter((m) => m.role !== 'system')]
+        messages: allMessages
       }
-      estimatedPromptTokens =
-        estimateTokenCount(systemMessage.content) +
-        requestBody.messages.reduce((acc, msg) => acc + estimateTokenCount(msg.content), 0)
-      requestBody.max_tokens = computeDynamicMaxTokens(
-        requestBody.max_tokens,
-        estimatedPromptTokens,
-        llamaState.contextTotalTokens
-      )
+      const tokenizePromise = tokenizePrompt(allMessages)
       lastSystemMessage = systemMessage
       lastCurrentMessages = currentMessages
       llamaState.contextUsedTokens = Math.min(
@@ -967,6 +993,12 @@ async function streamLlamaChat(req, res, payload) {
 
       debug(`[chat] Request: tools=${toolsPayload.length}, sys_prompt_len=${systemMessage.content.length}, msg_count=${requestBody.messages.length}`)
       debug(`[chat] Tools: ${toolsPayload.map((t) => t.function?.name || t.name).join(', ')}`)
+
+      tokenizePromise.then((realTokens) => {
+        if (Number.isFinite(realTokens) && realTokens > 0) {
+          estimatedPromptTokens = realTokens
+        }
+      }).catch(() => {})
 
       writeSse(res, { status: 'responding' })
       let llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {

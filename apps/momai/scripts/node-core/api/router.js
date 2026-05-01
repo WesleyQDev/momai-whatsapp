@@ -42,8 +42,11 @@ function createRouter(context, routeHandlers) {
       return
     }
 
-    const parsedUrl = new URL(req.url, `http://${HOST}:${PORT}`)
-    const pathname = parsedUrl.pathname
+    const qIdx = req.url.indexOf('?')
+    const pathname = qIdx === -1 ? req.url : req.url.slice(0, qIdx)
+    const qs = qIdx === -1 ? '' : req.url.slice(qIdx + 1)
+    const searchParams = new URLSearchParams(qs)
+    const parsedUrl = { searchParams }
 
     for (let i = 0; i < routeHandlers.length; i++) {
       const handler = routeHandlers[i]

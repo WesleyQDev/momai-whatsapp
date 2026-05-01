@@ -64,6 +64,12 @@ class CommunityRegistryService {
       if (Date.now() - timestamp < CACHE_TTL) return stars
     }
 
+    const cached = this.starsCache.get(repo)
+    if (cached) {
+      this._fetchStarsInBackground(repo)
+      return cached.stars
+    }
+
     try {
       const url = `https://api.github.com/repos/${repo}`
       console.log(`[CommunityRegistry] Fetching stars for ${repo}...`)
@@ -80,6 +86,22 @@ class CommunityRegistryService {
       console.warn(`[CommunityRegistry] Failed to fetch stars for ${repo}:`, e.message)
       return 0
     }
+  }
+
+  _fetchStarsInBackground(repo) {
+    const url = `https://api.github.com/repos/${repo}`
+    const client = url.startsWith('https') ? https : http
+    client.get(url, { headers: { 'User-Agent': 'MomAI-App', 'Accept': 'application/vnd.github.v3+json' } }, (res) => {
+      let data = ''
+      res.on('data', (chunk) => data += chunk)
+      res.on('end', () => {
+        try {
+          const stars = JSON.parse(data).stargazers_count || 0
+          this.starsCache.set(repo, { stars, timestamp: Date.now() })
+          console.log(`[CommunityRegistry] Background update: ${repo} has ${stars} stars`)
+        } catch {}
+      })
+    }).on('error', () => {})
   }
 
   _httpGet(url, headers = {}) {

@@ -67,7 +67,26 @@ function emitInitProgress() {
   })
 }
 
+let _saveStoreTimer = null
+
 function saveStore() {
+  if (_saveStoreTimer) clearTimeout(_saveStoreTimer)
+  _saveStoreTimer = setTimeout(() => {
+    _saveStoreTimer = null
+    try {
+      const { STORE_FILE } = require('../config/constants')
+      fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), 'utf8')
+    } catch (error) {
+      debug('[NodeCore] Failed to save store:', error)
+    }
+  }, 2000)
+}
+
+function saveStoreNow() {
+  if (_saveStoreTimer) {
+    clearTimeout(_saveStoreTimer)
+    _saveStoreTimer = null
+  }
   try {
     const { STORE_FILE } = require('../config/constants')
     fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), 'utf8')
@@ -91,11 +110,41 @@ function setInitStatus(stage, message, progress, error = null) {
     error,
     updated_at: isoNow()
   }
-  saveStore()
+  saveStoreNow()
   emitInitProgress()
 }
 
 let llamaStartGeneration = 0
+let _modelWarmedUp = false
+
+const WARMUP_SYSTEM_PROMPT = 'You are MomAI.\n\nPersona: MomAI\nResponse style: balanced\nTarget max sentences: 6'
+
+async function warmUpModel() {
+  if (_modelWarmedUp) return
+  _modelWarmedUp = true
+  try {
+    const body = JSON.stringify({
+      messages: [
+        { role: 'system', content: WARMUP_SYSTEM_PROMPT },
+        { role: 'user', content: 'Hi' }
+      ],
+      max_tokens: 2,
+      stream: false,
+      temperature: 0
+    })
+    const resp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      signal: AbortSignal.timeout(10000)
+    })
+    if (resp.ok && typeof process.send === 'function') {
+      process.send({ type: 'node-core-log', message: '[llama] Model warm-up complete (hidden inference)' })
+    }
+  } catch {
+    _modelWarmedUp = false
+  }
+}
 
 function getLlamaBaseUrl() {
   const port = Number(llamaState?.port || LLAMA_PORT)
@@ -302,7 +351,10 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
     llamaState.startingPromise = null
   }
 
-  if (llamaState.ready && !forceRestart) return true
+  if (llamaState.ready && !forceRestart) {
+    warmUpModel()
+    return true
+  }
   if (llamaState.startingPromise) return llamaState.startingPromise
 
   const myGeneration = llamaStartGeneration
@@ -435,7 +487,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
               '-b',
               '2048',
               '-ub',
-              '512',
+              '1024',
               '--top-p',
               String(Number.isFinite(tierConfig.top_p) ? tierConfig.top_p : 1),
               '--top-k',
@@ -455,6 +507,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
 
             if (mmprojPath) args.push('--mmproj', mmprojPath)
 
+            _modelWarmedUp = false
             llamaState.starting = true
             llamaState.ready = false
             llamaState.lastError = null
@@ -576,6 +629,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
                       })
                     }
 
+                    warmUpModel()
                     setInitStatus('ready', 'System ready.', 100, null)
                     resolve({ ok: true, reason: null })
                     return
@@ -859,6 +913,8 @@ module.exports = {
   checkLlamaHealth,
   stopLlamaServer,
   ensureLlamaReady,
+  saveStoreNow,
+  saveStore,
   llamaBackendExePath,
   resolveBackendBinaryInfo,
   hasBackendBinary,
@@ -877,7 +933,6 @@ module.exports = {
   resolveModelPath,
   resolveMmprojPath,
   getLlamaBaseUrl,
-  saveStore,
   broadcast,
   emitInitProgress,
   wss,

@@ -5,6 +5,8 @@ const os = require('node:os')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { createPermissionSchema } = require('../../permissions/schema')
 
+let _lastExtensionsRefresh = 0
+
 function createExtensionsRoutes(context) {
   const {
     skillRegistry,
@@ -18,20 +20,31 @@ function createExtensionsRoutes(context) {
     semanticState
   } = context
 
+  async function getExtensionsPayload(lang) {
+    const now = Date.now()
+    if (now - _lastExtensionsRefresh < 10000) {
+      const cached = context._cachedExtensionsPayload
+      if (cached) return cached
+    }
+    await skillRegistry.refresh()
+    const payload = await buildExtensionsPayload(lang)
+    context._cachedExtensionsPayload = payload
+    _lastExtensionsRefresh = now
+    return payload
+  }
+
   return async function handleExtensionsRoutes(req, res, pathname, parsedUrl) {
     const lang = parsedUrl.searchParams?.get('lang') || 'pt-BR'
 
     if (pathname === '/extensions' && req.method === 'GET') {
       console.log(`[ExtensionsAPI] GET /extensions (lang: ${lang})`)
-      await skillRegistry.refresh()
-      const payload = await buildExtensionsPayload(lang)
+      const payload = await getExtensionsPayload(lang)
       sendJson(res, 200, payload)
       return true
     }
 
     if (pathname === '/extensions/registry' && req.method === 'GET') {
-      await skillRegistry.refresh()
-      const payload = await buildExtensionsPayload(lang)
+      const payload = await getExtensionsPayload(lang)
       sendJson(res, 200, payload)
       return true
     }

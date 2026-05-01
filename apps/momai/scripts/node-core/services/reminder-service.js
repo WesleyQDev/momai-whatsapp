@@ -4,12 +4,18 @@ const { isoNow, parseTime } = require('../utils/time')
 const { debug } = require('../infrastructure/logger')
 const { STORE_FILE } = require('../config/constants')
 
+let _saveTimer = null
+
 function saveStore() {
-  try {
-    fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), 'utf8')
-  } catch (error) {
-    debug('[NodeCore] Failed to save store:', error)
-  }
+  if (_saveTimer) clearTimeout(_saveTimer)
+  _saveTimer = setTimeout(() => {
+    _saveTimer = null
+    try {
+      fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), 'utf8')
+    } catch (error) {
+      debug('[NodeCore] Failed to save store:', error)
+    }
+  }, 2000)
 }
 
 function normalizeReminder(input) {
