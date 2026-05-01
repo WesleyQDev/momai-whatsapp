@@ -4,7 +4,7 @@ import { join, resolve } from 'path'
 import { spawn, execSync } from 'child_process'
 import { createConnection } from 'net'
 import { API_HOST, API_PORT } from './constants'
-import { getMainWindow, setNodeCoreProcess, state } from './state'
+import { getMainWindow, setNodeCoreProcess, setPythonProcess, state } from './state'
 import { logger } from './logger'
 import {
   isPythonRunning,
@@ -597,45 +597,47 @@ export async function startCoreBackend(): Promise<void> {
   }
 }
 
+async function killNodeCore(): Promise<void> {
+  const child = state.nodeCoreProcess
+  if (!child || child.exitCode !== null || child.killed) return
+
+  const pid = child.pid
+  logger.info(`[CoreManager] Encerrando Node core (PID ${pid})...`)
+
+  if (process.platform === 'win32') {
+    try {
+      execSync(`taskkill /pid ${pid} /t /f`, { stdio: 'ignore' })
+    } catch {}
+  } else {
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        try { child.kill('SIGKILL') } catch {}
+        resolve()
+      }, 3000)
+
+      child.once('exit', () => {
+        clearTimeout(timer)
+        resolve()
+      })
+
+      try { child.kill('SIGTERM') } catch { clearTimeout(timer); resolve() }
+    })
+  }
+
+  setNodeCoreProcess(null)
+}
+
 export async function shutdownCoreBackend(): Promise<void> {
   isStoppingCore = true
 
   logger.info('[CoreManager] Iniciando shutdown...')
 
-  const child = state.nodeCoreProcess
-  if (child && child.exitCode === null && !child.killed) {
-    const pid = child.pid
-    logger.info(`[CoreManager] Encerrando Node core (PID ${pid})...`)
-
-    if (process.platform === 'win32') {
-      try {
-        execSync(`taskkill /pid ${pid} /t /f`, { stdio: 'ignore' })
-      } catch {}
-      await new Promise((resolve) => setTimeout(resolve, 500))
-    } else {
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(() => {
-          try { child.kill('SIGKILL') } catch {}
-          resolve()
-        }, 3000)
-
-        child.once('exit', () => {
-          clearTimeout(timer)
-          resolve()
-        })
-
-        try { child.kill('SIGTERM') } catch { clearTimeout(timer); resolve() }
-      })
-    }
-  }
-
-  setNodeCoreProcess(null)
+  await Promise.all([
+    killNodeCore(),
+    isPythonRunning() ? shutdownPython() : Promise.resolve(),
+  ])
 
   killAllLlamaServers()
-
-  if (isPythonRunning()) {
-    await shutdownPython()
-  }
 
   if (process.platform === 'win32') {
     killProcessOnPort(API_PORT)
@@ -643,6 +645,34 @@ export async function shutdownCoreBackend(): Promise<void> {
   }
 
   logger.info('[CoreManager] Shutdown completo.')
+}
+
+export function forceKillAllSync(): void {
+  const nodeChild = state.nodeCoreProcess
+  if (nodeChild && nodeChild.exitCode === null && !nodeChild.killed) {
+    try {
+      if (process.platform === 'win32') {
+        execSync(`taskkill /pid ${nodeChild.pid} /t /f`, { stdio: 'ignore' })
+      } else {
+        process.kill(nodeChild.pid!, 'SIGKILL')
+      }
+    } catch {}
+  }
+  setNodeCoreProcess(null)
+
+  if (isPythonRunning()) {
+    const pid = state.pythonProcess!.pid!
+    try {
+      if (process.platform === 'win32') {
+        execSync(`taskkill /pid ${pid} /t /f`, { stdio: 'ignore' })
+      } else {
+        process.kill(pid, 'SIGKILL')
+      }
+    } catch {}
+    setPythonProcess(null)
+  }
+
+  killAllLlamaServers()
 }
 
 export async function restartCoreBackend(): Promise<{ success: boolean; error?: string }> {

@@ -478,7 +478,7 @@ export default function ContainerChat({
   const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
   const isBrainReady = statusInfo?.brain_ready ?? false
   const isBrainLoading = statusInfo?.is_loading ?? false
-  const isSystemDone = initProgress >= 100 && !isBooting && (visualProgress ?? 0) >= 100
+  const isSystemDone = initProgress >= 100 && !isBooting
 
   const [settings, setSettings] = useState<SettingsData | null>(null)
   const [dynamicSuggestion, setDynamicSuggestion] = useState<string | null>(null)
@@ -538,6 +538,10 @@ export default function ContainerChat({
   }, [isModeChanging])
 
   useEffect(() => {
+    setAnimationFinished(false)
+  }, [threadId])
+
+  useEffect(() => {
     const handleBriefing = (e: CustomEvent) => {
       if (e.detail && typeof onSendMessage === 'function') {
         onSendMessage(e.detail, false, true)
@@ -579,12 +583,12 @@ export default function ContainerChat({
       )
   }, [threadId])
 
-  const displayProgress = isSystemDone ? 100 : Math.min(96, visualProgress || initProgress || 0)
+  const displayProgress = isSystemDone ? 100 : Math.min(96, Math.max(visualProgress || 0, initProgress || 0))
   const loadingProgress = displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
   const hasMessages = messages.length > 0
   const showLoading =
-    !animationFinished || isModeChanging || isBooting || (isBrainLoading && !isBrainReady)
+    !animationFinished || isModeChanging || isBooting || !isBrainReady
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage =

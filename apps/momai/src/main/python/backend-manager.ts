@@ -479,7 +479,6 @@ export async function shutdownPython(): Promise<void> {
   setIsQuitting(true)
   stopPythonHealthCheck()
   await killPythonBackend()
-  await delay(1000)
   killAllLlamaServers()
 }
 
@@ -491,5 +490,4 @@ export function isPythonRunning(): boolean {
   )
 }
 
-// Import delay from fs-helpers
-import { delay } from './utils/fs-helpers'
+

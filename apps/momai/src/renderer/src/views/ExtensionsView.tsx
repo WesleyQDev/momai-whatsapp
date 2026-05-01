@@ -413,7 +413,7 @@ function SkillDetailView({
       </button>
 
       {/* Tighter Hero Header */}
-      <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-10 pb-10 border-b border-zinc-800/50">
+      <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-6 pb-6 border-b border-zinc-800/50">
         <div
           className={`w-28 h-28 md:w-32 md:h-32 rounded-3xl bg-gradient-to-br ${getSkillGradient(skill.name)} shadow-xl shadow-violet-500/10 flex items-center justify-center shrink-0 border-2 border-zinc-800 relative overflow-hidden`}
         >

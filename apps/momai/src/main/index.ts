@@ -4,7 +4,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { state, setIsQuitting } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
 import { saveOnboardingCompleted, isOnboardingCompleted } from './python'
-import { startCoreBackend, shutdownCoreBackend, ensurePythonSidecar } from './coreManager'
+import { startCoreBackend, shutdownCoreBackend, ensurePythonSidecar, forceKillAllSync } from './coreManager'
 import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
 import { setupTTSHandlers, cleanupTTSHandlers } from './ttsIpcHandlers'
@@ -231,27 +231,17 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('before-quit', (event) => {
+app.on('before-quit', () => {
   if (state.isQuitting) return
-  event.preventDefault()
   setIsQuitting(true)
 
   logger.info('[Electron] before-quit: Iniciando shutdown...')
   globalShortcut.unregisterAll()
-
-  if (state.tray) {
-    state.tray.destroy()
-  }
-
   cleanupTTSHandlers()
 
-  void shutdownCoreBackend().then(() => {
-    logger.info('[Electron] Shutdown completo. Saindo...')
-    app.quit()
-  }).catch((err) => {
-    logger.error('[Electron] Erro no shutdown:', err)
-    app.quit()
-  })
+  forceKillAllSync()
+
+  logger.info('[Electron] Shutdown completo. Saindo...')
 })
 
 app.on('window-all-closed', () => {

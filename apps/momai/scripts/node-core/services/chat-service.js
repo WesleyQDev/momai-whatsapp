@@ -789,11 +789,15 @@ async function streamLlamaChat(req, res, payload) {
       round++
 
       let toolsPayload = []
+      let availableSkillDescs = null
+      const scoreMap = {}
       {
         let top5SkillIds = []
 
         if (isUltra) {
-          top5SkillIds = await getTop5SkillsSemantic(content)
+          const semanticResults = await getTop5SkillsSemantic(content)
+          top5SkillIds = semanticResults.map((r) => r.id)
+          for (const r of semanticResults) scoreMap[r.id] = r.score
         }
 
         /* Fallback: if semantic search returned no skills (embedding not ready or non-ultra),
@@ -892,41 +896,41 @@ async function streamLlamaChat(req, res, payload) {
           }
         }
 
+        /* Use embedding similarity score as the relevance gatekeeper.
+           Only skills with score >= threshold get their tool schemas loaded.
+           If embedding returned all zeros (table not synced yet) or all below
+           threshold, fall back to the top 1 skill so the system still works. */
+        const SIMILARITY_THRESHOLD = 0.15
+        const toolSkillIds = disableToolsForTurn ? [] : (isUltra
+          ? (() => {
+              const highScore = top5SkillIds.filter((id) => (scoreMap[id] || 0) >= SIMILARITY_THRESHOLD)
+              if (highScore.length > 0) return highScore
+              // Fallback: no skill reached threshold → use top 1 skill anyway
+              if (top5SkillIds.length > 0) return top5SkillIds.slice(0, 1)
+              return []
+            })()
+          : top5SkillIds
+        )
+
+        // Build lightweight skill descriptions for the system prompt (name + description only)
+        const allSelectedSkills = top5SkillIds
+          .map((id) => skillRegistry?.getById?.(id))
+          .filter(Boolean)
+        availableSkillDescs = allSelectedSkills.length
+          ? `# AVAILABLE SKILLS\n${allSelectedSkills.map((s) => `- ${s.manifest.name}: ${s.manifest.description}`).join('\n')}`
+          : null
+
         if (skillRegistry && typeof skillRegistry.toOpenAITools === 'function') {
-          toolsPayload = disableToolsForTurn ? [] : skillRegistry.toOpenAITools(top5SkillIds)
+          toolsPayload = skillRegistry.toOpenAITools(toolSkillIds)
         }
       }
 
-      /* Build tool instruction for the system prompt */
+      /* Build tool instruction for the system prompt — lightweight, no full schemas */
       let toolInstruction = null
       if (toolsPayload.length > 0) {
-        const toolDescs = toolsPayload
-          .map((t) => {
-            const name = t.function?.name || t.name
-            const desc = t.function?.description || t.description
-            return desc ? `- ${name}: ${desc}` : `- ${name}`
-          })
-          .filter(Boolean)
-        toolInstruction = [
-          '# AVAILABLE TOOLS',
-          'You have access to the following tools. Prefer calling a relevant tool when it materially improves correctness, safety, or execution of the task.',
-          '',
-          ...toolDescs,
-          '',
-          '# EXAMPLES',
-          'User: "Abrir pasta dev"',
-          'Your response (tool_calls):',
-          '<tool_call>{"name":"search_programs","arguments":{"query":"dev"}}</tool_call>',
-          '',
-          'User: "Mostrar pastas com dev"',
-          'Your response (tool_calls):',
-          '<tool_call>{"name":"search_programs","arguments":{"query":"dev"}}</tool_call>',
-          '',
-          '# RULES',
-          '- Use tools when they add clear value (actions, retrieval, structured operations).',
-          '- If the user request is primarily generative and does not require an external action, you may answer directly in text.',
-          '- Use the exact format: <tool_call>{"name":"TOOL_NAME","arguments":{...}}</tool_call>'
-        ].join('\n')
+        toolInstruction = `# AVAILABLE TOOLS CALLING\nYou have access to the following tools:\n${toolsPayload.map((t) => `- ${t.function?.name || t.name}: ${t.function?.description || t.description}`).join('\n')}\n\nWhen you need to use a tool, respond with a tool_call in the format: <tool_call>{"name":"tool_name","arguments":{...}}</tool_call>`
+      } else if (availableSkillDescs) {
+        toolInstruction = availableSkillDescs
       }
 
       /* If direct skill execution already produced a structured response,
@@ -1003,7 +1007,8 @@ async function streamLlamaChat(req, res, payload) {
 
       writeSse(res, { status: 'responding' })
       const tPreFetch = Date.now()
-      info(`[timing] pre-llama overhead: ${tPreFetch - t0}ms (tier=${tierName}, isUltra=${isUltra}, beforeHooks=${beforeHookSkills.length}, tools=${toolsPayload.length}, sysPromptLen=${systemMessage.content.length}, historyLen=${currentMessages.length})`)
+      const scoresSummary = Object.keys(scoreMap).length ? `scores=${Object.entries(scoreMap).map(([k,v]) => `${k}=${v.toFixed(2)}`).join(',')}` : ''
+      info(`[timing] pre-llama overhead: ${tPreFetch - t0}ms (tier=${tierName}, tools=${toolsPayload.length}, sysPromptLen=${systemMessage.content.length}, historyLen=${currentMessages.length}${scoresSummary ? ', '+scoresSummary : ''})`)
       let llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

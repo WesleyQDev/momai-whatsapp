@@ -405,7 +405,7 @@ async function getTop5SkillsSemantic(query) {
   if (enabledSkills.length === 0) return []
 
   if (!text || !semanticState.ready || enabledSkills.length <= 5) {
-    return enabledSkills.slice(0, 5).map((s) => s.id)
+    return enabledSkills.slice(0, 5).map((s) => ({ id: s.id, score: 0.5 }))
   }
 
   if (semanticState.tableSkills) {
@@ -414,23 +414,24 @@ async function getTop5SkillsSemantic(query) {
       if (Array.isArray(qVec)) {
         const rows = await semanticState.tableSkills.search(qVec).limit(5).toArray()
         if (rows.length) {
-          const ids = []
+          const results = []
           for (const row of rows) {
             const skillRegistry = getSkillRegistry()
             const candidate = skillRegistry && typeof skillRegistry.getById === 'function'
               ? skillRegistry.getById(row.id)
               : null
+            const score = Number.isFinite(row._distance) ? Math.max(0, 1 - row._distance) : 0
             if (candidate && require('./skill-orchestrator').isSkillEnabledByStore(candidate)) {
-              ids.push(candidate.id)
+              results.push({ id: candidate.id, score })
             }
           }
-          if (ids.length > 0) return ids
+          if (results.length > 0) return results
         }
       }
     } catch {}
   }
 
-  return enabledSkills.slice(0, 5).map((s) => s.id)
+  return enabledSkills.slice(0, 5).map((s) => ({ id: s.id, score: 0 }))
 }
 
 module.exports = {
