@@ -415,13 +415,13 @@ function SkillDetailView({
       {/* Tighter Hero Header */}
       <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-6 pb-6 border-b border-zinc-800/50">
         <div
-          className={`w-28 h-28 md:w-32 md:h-32 rounded-3xl bg-gradient-to-br ${getSkillGradient(skill.name)} shadow-xl shadow-violet-500/10 flex items-center justify-center shrink-0 border-2 border-zinc-800 relative overflow-hidden`}
+          className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name)} shadow-xl shadow-violet-500/10 flex items-center justify-center shrink-0 border-2 border-zinc-800 relative overflow-hidden`}
         >
           <div className="absolute inset-0 bg-white/5" />
-          {React.createElement(IconComponent, { className: 'w-12 h-12 md:w-16 md:h-16 text-white relative z-10 drop-shadow-lg' })}
+          {React.createElement(IconComponent, { className: 'w-10 h-10 md:w-12 md:h-12 text-white relative z-10 drop-shadow-lg' })}
         </div>
         
-        <div className="flex-1 text-center md:text-left pt-1">
+        <div className="flex-1 text-center md:text-left pt-0">
           <div className="flex flex-col md:flex-row md:items-end gap-3 md:gap-4 mb-3">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-none">{skill.name}</h1>
@@ -500,46 +500,39 @@ function SkillDetailView({
               <button
                 onClick={() => onInstall(skill)}
                 disabled={installing === skill.id}
-                className="flex items-center gap-2 px-8 py-2 bg-violet-600 text-white rounded-xl text-xs font-black hover:bg-violet-500 disabled:opacity-50 transition-all shadow-lg shadow-violet-600/20 uppercase tracking-widest"
+                className="px-8 py-2.5 bg-violet-600 text-white rounded-xl text-xs font-black hover:bg-violet-500 disabled:opacity-50 transition-all uppercase tracking-widest"
               >
-                {installing === skill.id ? (
-                  <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                ) : (
-                  <CloudArrowDownIcon className="w-4 h-4" />
-                )}
-                {installing === skill.id ? 'Obtendo...' : 'Obter'}
+                {installing === skill.id ? 'Obtendo...' : 'Instalar'}
               </button>
             ) : (
-              <button
-                onClick={() => onToggle(skill)}
-                className={`flex items-center gap-2 px-6 py-2 rounded-xl text-xs font-black transition-all shadow-md uppercase tracking-widest ${
-                  skill.enabled
-                    ? 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700'
-                    : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-emerald-600/20'
-                }`}
-              >
-                <PowerIcon className="w-4 h-4" />
-                {skill.enabled ? 'Desativar' : 'Ativar'}
-              </button>
-            )}
-            {!isBuiltin && isInstalled && (
-              <button
-                onClick={() => onUninstall(skill)}
-                className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-600 hover:text-red-500 hover:border-red-500/30 transition-all"
-                title="Desinstalar"
-              >
-                <TrashIcon className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => onToggle(skill)}
+                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all uppercase tracking-widest ${
+                    skill.enabled
+                      ? 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-300'
+                      : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700 hover:text-white'
+                  }`}
+                >
+                  {skill.enabled ? 'Desativar' : 'Ativar'}
+                </button>
+                <button
+                  onClick={() => onUninstall(skill)}
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-zinc-500 border border-zinc-800 hover:text-red-400 hover:border-red-500/40 transition-all uppercase tracking-widest"
+                >
+                  Desinstalar
+                </button>
+              </div>
             )}
           </div>
         </div>
       </div>
 
       {/* Balanced 2-Column Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-10 items-start">
-        <div className="lg:col-span-3 space-y-10">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+        <div className="lg:col-span-3 space-y-8">
           {/* Description Section - Lighter and clearer */}
-          <section className="bg-zinc-800/20 rounded-3xl p-8 border border-zinc-700/50 backdrop-blur-xl">
+          <section className="bg-zinc-800/20 rounded-2xl p-8 border border-zinc-700/50 backdrop-blur-xl">
             <h2 className="text-xs font-black text-zinc-300 mb-8 flex items-center gap-2 uppercase tracking-[0.2em]">
               <InformationCircleIcon className="w-4 h-4 text-violet-400" />
               Sobre esta extensão
@@ -565,7 +558,7 @@ function SkillDetailView({
           </section>
 
           {/* System Requirements */}
-          <section className="p-8 rounded-3xl bg-zinc-800/10 border border-zinc-700/30">
+          <section className="p-8 rounded-2xl bg-zinc-800/10 border border-zinc-700/30">
             <h2 className="text-xs font-black text-zinc-400 mb-6 flex items-center gap-2 uppercase tracking-[0.2em]">
               <CpuChipIcon className="w-4 h-4 text-violet-400/80" />
               Requisitos do Sistema
@@ -595,7 +588,7 @@ function SkillDetailView({
 
         {/* Sidebar - Brighter and Elevated */}
         <div className="space-y-6 lg:mt-0">
-          <section className="bg-zinc-800/40 border border-zinc-600/30 rounded-3xl p-6 shadow-2xl shadow-black/40 backdrop-blur-md">
+          <section className="bg-zinc-800/40 border border-zinc-600/30 rounded-2xl p-6 shadow-2xl shadow-black/40 backdrop-blur-md">
             <h3 className="text-[10px] font-black text-zinc-200 mb-6 uppercase tracking-widest">Informações</h3>
             
             <div className="space-y-5">
@@ -628,7 +621,7 @@ function SkillDetailView({
             </div>
           </section>
 
-          <section className="bg-zinc-800/20 border border-zinc-700/50 rounded-3xl p-6">
+          <section className="bg-zinc-800/20 border border-zinc-700/50 rounded-2xl p-6">
             <h3 className="text-[10px] font-black text-zinc-400 mb-5 flex items-center gap-2 uppercase tracking-widest">
               <BoltIcon className="w-4 h-4 text-amber-400" />
               Permissões
