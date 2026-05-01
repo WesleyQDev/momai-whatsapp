@@ -40,12 +40,21 @@ class TTSServiceRenderer {
   private nextScheduleTime = 0
   private currentSources: Set<AudioBufferSourceNode> = new Set()
   private currentHtmlAudio: HTMLAudioElement | null = null
+  private hasLocalAudio = false
 
   constructor() {
     this.setupEventListeners()
   }
 
+  private checkAllAudioEnded() {
+    if (this.currentSources.size === 0 && !this.currentHtmlAudio && this.hasLocalAudio) {
+      this.hasLocalAudio = false
+      this.emit('speaking-end')
+    }
+  }
+
   private stopCurrentAudio() {
+    const hadAudio = this.currentSources.size > 0 || !!this.currentHtmlAudio
     for (const src of this.currentSources) {
       try { src.stop() } catch {}
       try { src.disconnect() } catch {}
@@ -56,11 +65,21 @@ class TTSServiceRenderer {
       try { this.currentHtmlAudio.pause() } catch {}
       this.currentHtmlAudio = null
     }
+    if (hadAudio) {
+      this.hasLocalAudio = false
+      this.emit('speaking-end')
+    }
   }
 
   private setupEventListeners() {
     this.cleanupFns.push(on('tts:speaking-start', (data) => this.emit('speaking-start', data)))
-    this.cleanupFns.push(on('tts:speaking-end', () => this.emit('speaking-end')))
+    this.cleanupFns.push(on('tts:speaking-end', () => {
+      if (this.hasLocalAudio) {
+        this.checkAllAudioEnded()
+      } else {
+        this.emit('speaking-end')
+      }
+    }))
     this.cleanupFns.push(on('tts:error', (error) => this.emit('error', error)))
     this.cleanupFns.push(on('tts:engine-changed', (engine) => this.emit('engine-changed', engine)))
     this.cleanupFns.push(on('tts:voice-changed', (voice) => this.emit('voice-changed', voice)))
@@ -70,6 +89,7 @@ class TTSServiceRenderer {
   }
 
   private async playAudioBuffer(payload: { data: string; mimeType: string }) {
+    this.hasLocalAudio = true
     try {
       const binary = atob(payload.data)
       const bytes = new Uint8Array(binary.length)
@@ -92,7 +112,10 @@ class TTSServiceRenderer {
       source.buffer = audioBuffer
       source.connect(this.audioCtx.destination)
       this.currentSources.add(source)
-      source.onended = () => { this.currentSources.delete(source) }
+      source.onended = () => {
+        this.currentSources.delete(source)
+        this.checkAllAudioEnded()
+      }
       source.start(startTime)
 
       this.nextScheduleTime = startTime + audioBuffer.duration
@@ -104,7 +127,11 @@ class TTSServiceRenderer {
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
         const url = URL.createObjectURL(new Blob([bytes.buffer], { type: payload.mimeType }))
         const audio = new Audio(url)
-        audio.onended = () => { URL.revokeObjectURL(url); if (this.currentHtmlAudio === audio) this.currentHtmlAudio = null }
+        audio.onended = () => {
+          URL.revokeObjectURL(url)
+          if (this.currentHtmlAudio === audio) this.currentHtmlAudio = null
+          this.checkAllAudioEnded()
+        }
         audio.onerror = () => { URL.revokeObjectURL(url) }
         await audio.play()
         this.currentHtmlAudio = audio

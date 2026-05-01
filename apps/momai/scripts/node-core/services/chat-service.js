@@ -655,7 +655,7 @@ async function streamLlamaChat(req, res, payload) {
   }
 
   const flushTtsChunks = (final = false) => {
-    if (!speakResponse || silentForCodeIntent || stopGenerationRequested || closed) return
+    if (!speakResponse || silentForCodeIntent || stopGenerationRequested || stopVoiceRequested || closed) return
     if (containsCodeLikeContent(assembled)) return
     const pending = assembled.slice(ttsCursor)
     if (!pending) return
@@ -1658,3 +1658,20 @@ module.exports = {
   stopVoiceRequested,
   activeChatControllers
 }
+
+// Live getters/setters so all consumers read the current value,
+// not a CommonJS value-copy made at module-load time.
+Object.defineProperties(module.exports, {
+  stopGenerationRequested: {
+    get: () => stopGenerationRequested,
+    set: (v) => { stopGenerationRequested = v; },
+    enumerable: true,
+    configurable: true
+  },
+  stopVoiceRequested: {
+    get: () => stopVoiceRequested,
+    set: (v) => { stopVoiceRequested = v; },
+    enumerable: true,
+    configurable: true
+  }
+})

@@ -225,6 +225,11 @@ export class TTSService extends EventEmitter {
       const result = await edge.synthesize()
       console.log('[TTSService] Synthesize OK type:', result.audio.type, 'size:', result.audio.size)
 
+      if (!this.isSpeaking) {
+        console.log('[TTSService] TTS was stopped during synthesize, discarding audio')
+        return
+      }
+
       const arrayBuffer = await result.audio.arrayBuffer()
       const audioBuffer = Buffer.from(arrayBuffer)
       console.log('[TTSService] Buffer len:', audioBuffer.length)

@@ -4,6 +4,7 @@ import { useChatWebSocket } from './useChatWebSocket'
 import { useChatHandlers } from './useChatHandlers'
 import { useChatActions } from './useChatActions'
 import { useChatInit } from './useChatInit'
+import { getTTSServiceRenderer } from '../services/ttsService'
 
 export function useChat() {
   const [text, setText] = useState('')
@@ -137,6 +138,38 @@ export function useChat() {
     window.addEventListener('keydown', handleEsc)
     return () => window.removeEventListener('keydown', handleEsc)
   }, [closeGraph])
+
+  // Listen to renderer TTS events for non-Kokoro engines (edge-tts, say)
+  // Kokoro uses WebSocket tts_start/tts_stop handled by useChatHandlers
+  useEffect(() => {
+    const tts = getTTSServiceRenderer()
+
+    const handleSpeakingStart = () => {
+      setSpeakingMessageId((prev) => {
+        if (prev !== null) return prev
+        const msgs = messagesRef.current
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          const msg = msgs[i]
+          if (msg.role === 'assistant' && msg.id) {
+            return msg.id
+          }
+        }
+        return 'tts-active'
+      })
+    }
+
+    const handleSpeakingEnd = () => {
+      setSpeakingMessageId(null)
+    }
+
+    tts.on('speaking-start', handleSpeakingStart)
+    tts.on('speaking-end', handleSpeakingEnd)
+
+    return () => {
+      tts.off('speaking-start', handleSpeakingStart)
+      tts.off('speaking-end', handleSpeakingEnd)
+    }
+  }, [setSpeakingMessageId])
 
   // Reset states on new session (e.g. tier change)
   useEffect(() => {

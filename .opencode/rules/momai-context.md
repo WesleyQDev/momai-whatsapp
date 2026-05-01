@@ -7,7 +7,7 @@ alwaysApply: true
 # MomAIOS Project Context
 
 ## Architecture
-MomAIOS is a local-first, privacy-focused virtual assistant combining LLMs with real computer actions.
+MomAI is a local-first, privacy-focused virtual assistant combining LLMs with real computer actions.
 
 ### Apps
 - `apps/momai/` - Electron + React + TypeScript (GUI)
