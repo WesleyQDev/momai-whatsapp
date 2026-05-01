@@ -8,11 +8,12 @@ const { exec } = require('node:child_process')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { createPermissionSchema } = require('../../permissions/schema')
 
+let _cachedExtensionsPayload = null
 let _lastExtensionsRefresh = 0
 
 /* ── Helpers for downloading & extracting community extensions ── */
 
-function downloadFile(url, destPath) {
+function downloadFile(url, destPath, onProgress) {
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https') ? https : http
     const file = fs.createWriteStream(destPath)
@@ -20,13 +21,34 @@ function downloadFile(url, destPath) {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         file.close()
         try { fs.unlinkSync(destPath) } catch {}
-        return downloadFile(response.headers.location, destPath).then(resolve).catch(reject)
+        return downloadFile(response.headers.location, destPath, onProgress).then(resolve).catch(reject)
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         file.close()
         try { fs.unlinkSync(destPath) } catch {}
         return reject(new Error(`HTTP ${response.statusCode}`))
       }
+      
+      const totalBytes = parseInt(response.headers['content-length'] || '0', 10)
+      let receivedBytes = 0
+      let lastTime = Date.now()
+      let lastBytes = 0
+
+      response.on('data', (chunk) => {
+        receivedBytes += chunk.length
+        const now = Date.now()
+        if (now - lastTime >= 500) {
+          const speedBps = ((receivedBytes - lastBytes) / (now - lastTime)) * 1000
+          const speedStr = speedBps > 1048576 
+            ? (speedBps / 1048576).toFixed(1) + ' MB/s' 
+            : (speedBps / 1024).toFixed(1) + ' KB/s'
+          const percent = totalBytes ? Math.round((receivedBytes / totalBytes) * 100) : 0
+          if (onProgress) onProgress(percent, speedStr)
+          lastTime = now
+          lastBytes = receivedBytes
+        }
+      })
+
       response.pipe(file)
       file.on('finish', () => { file.close(); resolve() })
     })
@@ -94,12 +116,12 @@ function createExtensionsRoutes(context) {
   async function getExtensionsPayload(lang) {
     const now = Date.now()
     if (now - _lastExtensionsRefresh < 10000) {
-      const cached = context._cachedExtensionsPayload
+      const cached = _cachedExtensionsPayload
       if (cached) return cached
     }
     await skillRegistry.refresh()
     const payload = await buildExtensionsPayload(lang)
-    context._cachedExtensionsPayload = payload
+    _cachedExtensionsPayload = payload
     _lastExtensionsRefresh = now
     return payload
   }
@@ -127,20 +149,32 @@ function createExtensionsRoutes(context) {
         requested.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '') || crypto.randomUUID()
       const extDir = path.join(skillRegistry.extensionsDir, id)
 
+      res.writeHead(200, {
+        'Content-Type': 'application/x-ndjson',
+        'Transfer-Encoding': 'chunked'
+      })
+
+      const sendStatus = (status, percent, speed) => {
+        res.write(JSON.stringify({ status, percent, speed }) + '\n')
+      }
+
       const downloadUrl = String(payload.download_url || '').trim()
       if (downloadUrl) {
         ensureDir(extDir)
         console.log(`[ExtensionsAPI] Downloading extension ${id} from ${downloadUrl}...`)
         const zipPath = path.join(extDir, 'archive.zip')
         try {
-          await downloadFile(downloadUrl, zipPath)
+          sendStatus('Baixando...', 0, '0 KB/s')
+          await downloadFile(downloadUrl, zipPath, (percent, speed) => sendStatus('Baixando...', percent, speed))
           console.log(`[ExtensionsAPI] Extracting ${id}...`)
+          sendStatus('Extraindo...', 100, '-')
           await extractZip(zipPath, extDir)
           try { fs.unlinkSync(zipPath) } catch {}
           flattenExtractedDir(extDir)
         } catch (err) {
           try { fs.rmSync(extDir, { recursive: true, force: true }) } catch {}
-          sendJson(res, 500, { ok: false, error: `Failed to download/extract: ${err.message}` })
+          res.write(JSON.stringify({ ok: false, error: `Failed to download/extract: ${err.message}` }) + '\n')
+          res.end()
           return true
         }
       } else {
@@ -186,7 +220,16 @@ function createExtensionsRoutes(context) {
       await skillRegistry.executeHook(id, 'onInstall', { extId: id, extDir }).catch((err) => {
         console.log(`[extensions] onInstall hook failed for ${id}: ${err.message}`)
       })
-      sendJson(res, 200, { ok: true })
+      
+      _cachedExtensionsPayload = null
+      _lastExtensionsRefresh = 0
+      if (context.syncSkillAndToolIndexes) {
+        context.syncSkillAndToolIndexes(true).catch(() => {})
+      }
+      
+      sendStatus('Concluído', 100, '-')
+      res.write(JSON.stringify({ ok: true }) + '\n')
+      res.end()
       return true
     }
 
@@ -207,6 +250,13 @@ function createExtensionsRoutes(context) {
       found.enabled = Boolean(payload.enabled)
       saveStore()
       await skillRegistry.loadExtensions()
+      
+      _cachedExtensionsPayload = null
+      _lastExtensionsRefresh = 0
+      if (context.syncSkillAndToolIndexes) {
+        context.syncSkillAndToolIndexes(true).catch(() => {})
+      }
+      
       const hookName = found.enabled ? 'onActivate' : 'onDeactivate'
       await skillRegistry.executeHook(payload.id, hookName, { extId: payload.id }).catch((err) => {
         console.log(`[extensions] ${hookName} hook failed for ${payload.id}: ${err.message}`)
@@ -226,6 +276,13 @@ function createExtensionsRoutes(context) {
       if (fs.existsSync(extDir)) fs.rmSync(extDir, { recursive: true, force: true })
       saveStore()
       await skillRegistry.loadExtensions()
+      
+      _cachedExtensionsPayload = null
+      _lastExtensionsRefresh = 0
+      if (context.syncSkillAndToolIndexes) {
+        context.syncSkillAndToolIndexes(true).catch(() => {})
+      }
+      
       sendJson(res, 200, { ok: true })
       return true
     }

@@ -41,7 +41,7 @@ function createChatRoutes(context) {
       return true
     }
 
-    if (pathname === '/chat/stop-voice' || pathname.startsWith('/voice/')) {
+    if (pathname === '/chat/stop-voice') {
       context.stopVoiceRequested = true
       try {
         await proxyToPython(req, res, pathname)

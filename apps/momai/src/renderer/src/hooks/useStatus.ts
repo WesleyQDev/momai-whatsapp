@@ -289,13 +289,27 @@ export function useStatus() {
     return () => clearInterval(interval)
   }, [isBooting, initProgress, lastProgressTime, isStalled, isRetrying, backendOnline])
 
-  // Visual progress — segue initProgress em tempo real
+  // Visual progress simulation — animação autônoma lenta (ignora pulos do initProgress)
+  // Timing targets: 0-30% em ~20s, 30-70% em ~30s, 70-96% em ~60s (~110s total)
   useEffect(() => {
     const interval = setInterval(() => {
       setVisualProgress((prev) => {
-        if (initProgress >= 100 && !isBooting) return 100
-        const target = Math.min(initProgress || 2, 96.4)
-        return target
+        if (!isBooting && initProgress >= 100) {
+          if (prev >= 100) return 100
+          const remaining = 100 - prev
+          return Math.min(100, prev + Math.max(2.5, remaining * 0.18))
+        }
+        if (initProgress < 100 || isBooting) {
+          if (prev >= 96.4) return prev
+          let step: number
+          if (prev < 30) step = 0.3
+          else if (prev < 70) step = 0.267
+          else if (prev < 85) step = 0.087
+          else if (prev < 92) step = 0.05
+          else step = 0.02
+          return Math.min(96.4, prev + step)
+        }
+        return prev
       })
     }, 200)
     return () => clearInterval(interval)

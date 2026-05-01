@@ -13,7 +13,7 @@ class Settings(Base):
 
     id = Column(Integer, primary_key=True)
     # Perfil
-    user_name = Column(String, default="Senhor")
+    user_name = Column(String, default=None)
     assistant_persona = Column(
         String,
         default="You are MomAI, a professional and efficient local AI assistant created by Wesley Developer Studios. Always maintain a direct assistant-to-owner relationship and avoid over-nurturing behavior.",
@@ -125,5 +125,10 @@ def init_db():
             conn.execute(
                 text("ALTER TABLE settings ADD COLUMN tts_engine TEXT DEFAULT 'kokoro'")
             )
+
+        # Migrate legacy default name to NULL so onboarding can handle it
+        conn.execute(
+            text("UPDATE settings SET user_name = NULL, onboarding_completed = 0 WHERE user_name = 'Senhor' OR user_name = 'Usuário' OR user_name = 'Usuario'")
+        )
 
         conn.commit()

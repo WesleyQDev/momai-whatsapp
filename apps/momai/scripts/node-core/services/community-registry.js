@@ -9,7 +9,7 @@ const https = require('node:https')
  */
 
 const REGISTRY_URL = 'https://raw.githubusercontent.com/WesleyQDev/MomAI-App/main/community-extensions.json'
-const CACHE_FILE = path.join(process.env.APPDATA || (process.platform === 'darwin' ? process.env.HOME + '/Library/Preferences' : process.env.HOME + '/.local/share'), 'momai', 'cache', 'community_registry.json')
+const CACHE_FILE = path.join(process.env.APPDATA || (process.platform === 'darwin' ? process.env.HOME + '/Library/Preferences' : process.env.HOME + '/.local/share'), 'MomAI', 'cache', 'community_registry.json')
 const CACHE_TTL = 3600 * 1000 // 1 hour
 
 class CommunityRegistryService {
@@ -21,31 +21,20 @@ class CommunityRegistryService {
 
   async fetchRegistry() {
     const now = Date.now()
+
+    // Use in-memory cache within TTL (avoids excessive remote requests in-session)
     if (this.cache && (now - this.lastFetch < CACHE_TTL)) {
       return this.cache
     }
 
-    // Try to load from disk cache first if offline or error
-    try {
-      if (fs.existsSync(CACHE_FILE)) {
-        const stats = fs.statSync(CACHE_FILE)
-        if (now - stats.mtimeMs < CACHE_TTL) {
-          this.cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'))
-          this.lastFetch = stats.mtimeMs
-          return this.cache
-        }
-      }
-    } catch (e) {
-      console.warn('[CommunityRegistry] Error reading cache file:', e.message)
-    }
-
+    // Always try remote first (stale-while-revalidate pattern)
     try {
       console.log('[CommunityRegistry] Fetching remote registry...')
       const data = await this._httpGet(REGISTRY_URL)
       this.cache = JSON.parse(data)
       this.lastFetch = now
 
-      // Save to disk cache
+      // Update disk cache
       const cacheDir = path.dirname(CACHE_FILE)
       if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true })
       fs.writeFileSync(CACHE_FILE, JSON.stringify(this.cache), 'utf8')
@@ -53,9 +42,24 @@ class CommunityRegistryService {
       return this.cache
     } catch (e) {
       console.error('[CommunityRegistry] Failed to fetch remote registry:', e.message)
-      // Fallback to stale cache if available
-      return this.cache || []
     }
+
+    // Fallback: load from disk cache if remote failed
+    try {
+      if (fs.existsSync(CACHE_FILE)) {
+        const stats = fs.statSync(CACHE_FILE)
+        if (now - stats.mtimeMs < CACHE_TTL * 24) { // stale cache ok for 24h
+          this.cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'))
+          this.lastFetch = now
+          console.log('[CommunityRegistry] Using disk cache fallback')
+          return this.cache
+        }
+      }
+    } catch (e) {
+      console.warn('[CommunityRegistry] Error reading cache file:', e.message)
+    }
+
+    return this.cache || []
   }
 
   async getGitHubStars(repo) {

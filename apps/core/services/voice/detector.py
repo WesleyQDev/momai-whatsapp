@@ -116,7 +116,7 @@ class WakeWordDetector:
         self.call_silence_chunks = 4        # Balanced end-of-speech (was 3/5)
         self.call_min_speech_chunks = 3     # Better noise filtering (was 2/4)
         self.call_interrupt_threshold = 0.04 # Harder to interrupt by noise (was 0.025)
-        self.post_tts_cooldown = 1.0        # More breathing room after smooth TTS (was 0.8)
+        self.post_tts_cooldown = 0.7        # More breathing room after smooth TTS (was 1.0)
         self._tts_stop_time = 0.0
 
         # --- State machine ---
@@ -242,7 +242,7 @@ class WakeWordDetector:
                     # Check if TTS is speaking
                     tts_speaking = False
                     try:
-                        tts_speaking = tts.is_speaking()
+                        tts_speaking = tts.is_speaking() or getattr(app_state, "external_tts_speaking", False)
                     except Exception:
                         # app_state or tts not ready
                         pass
@@ -322,7 +322,7 @@ class WakeWordDetector:
                     is_speech = energy > energy_thresh
 
                     if self.state == self.STATE_IDLE:
-                        if is_speech:
+                        if energy > energy_thresh:
                             self._set_state(self.STATE_LISTENING)
                             self.speech_buffer = [chunk]
                             self.speech_chunk_count = 1
@@ -718,8 +718,9 @@ class WakeWordDetector:
         # 2. Bypass Mode (Only if keyword NOT detected)
         if self.bypass_condition and self.bypass_condition():
             # Stricter filtering in call mode to avoid false triggers
-            if len(text) < 5 or (now - self.last_trigger_time) < self.trigger_cooldown:
-                if len(text) < 5:
+            # Min length 2 allows "Oi", "Sim", "Não"
+            if len(text) < 2 or (now - self.last_trigger_time) < self.trigger_cooldown:
+                if len(text) < 2:
                     logger.debug(f"[WakeWord] Call mode: ignoring too-short text: '{text}'")
                 return
 

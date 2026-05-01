@@ -255,10 +255,9 @@ async function syncWakeWordState(reason = 'unknown') {
 }
 
 async function syncPythonCallModeState(reason = 'unknown') {
-  const tier = store.settings.ai_tier || 'pro'
-  const enabled = tier === 'ultra' && Boolean(store.call_mode)
+  const enabled = Boolean(store.call_mode)
 
-  if (tier === 'lite') {
+  if ((store.settings.ai_tier || 'pro') === 'lite') {
     return
   }
 

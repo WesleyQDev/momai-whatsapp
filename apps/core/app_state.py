@@ -36,6 +36,20 @@ def set_call_mode(enabled: bool) -> None:
     logger.debug("[Main] Call mode: %s", enabled)
 
 
+external_tts_speaking = False
+
+def set_external_tts_speaking(speaking: bool) -> None:
+    """Set the state of external TTS engines (like EdgeTTS via Node)"""
+    global external_tts_speaking
+    external_tts_speaking = speaking
+    logger.debug("[Main] External TTS speaking: %s", speaking)
+    if not speaking and ww:
+        try:
+            import time
+            ww._tts_stop_time = time.time()
+        except Exception:
+            pass
+
 def _bind_tts_callbacks(tts_module) -> None:
     """Attach TTS lifecycle callbacks to websocket events."""
     if not tts_module:

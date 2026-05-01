@@ -237,6 +237,17 @@ export async function speakText(text: string, engine?: string): Promise<void> {
   if (!response.ok) throw new Error('Erro ao ler texto')
 }
 
+export async function updateTtsStatus(isSpeaking: boolean): Promise<void> {
+  try {
+    const response = await fetch(`${API_URL}/voice/tts-status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_speaking: isSpeaking })
+    })
+    if (!response.ok) throw new Error('Erro ao atualizar status do TTS')
+  } catch {}
+}
+
 export async function fetchInitStatus(): Promise<{
   stage: string
   message: string
@@ -377,13 +388,48 @@ export async function fetchExtensionRegistry(lang?: string): Promise<any[]> {
   return response.json()
 }
 
-export async function installExtension(id: string, downloadUrl: string): Promise<void> {
+export async function installExtension(
+  id: string,
+  downloadUrl: string,
+  onProgress?: (progress: { percent: number; speed: string; status: string }) => void
+): Promise<void> {
   const response = await fetch(`${API_URL}/extensions/install`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, download_url: downloadUrl })
   })
-  if (!response.ok) throw new Error('Erro ao instalar extensão')
+
+  if (!response.ok) throw new Error('Erro ao iniciar instalação de extensão')
+
+  if (response.body) {
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const data = JSON.parse(line)
+            if (data.status && onProgress) {
+              onProgress(data)
+            }
+            if (data.error) {
+              throw new Error(data.error)
+            }
+          } catch (e) {
+            if (e instanceof Error && e.message !== 'Unexpected end of JSON input' && e.message !== 'Unexpected token o in JSON at position 1') {
+              throw e
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 export async function toggleExtension(id: string, enabled: boolean): Promise<void> {

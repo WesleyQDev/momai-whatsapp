@@ -33,6 +33,8 @@ function on(channel: string, listener: (...args: any[]) => void): () => void {
   }
 }
 
+import { updateTtsStatus } from './api'
+
 class TTSServiceRenderer {
   private listeners: Map<string, Set<Function>> = new Map()
   private cleanupFns: (() => void)[] = []
@@ -142,6 +144,11 @@ class TTSServiceRenderer {
   }
 
   private emit(event: string, ...args: any[]) {
+    if (event === 'speaking-start') {
+      updateTtsStatus(true).catch(() => {})
+    } else if (event === 'speaking-end') {
+      updateTtsStatus(false).catch(() => {})
+    }
     const listeners = this.listeners.get(event)
     if (listeners) {
       listeners.forEach(callback => callback(...args))

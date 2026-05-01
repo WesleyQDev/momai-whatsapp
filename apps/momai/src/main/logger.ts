@@ -4,7 +4,12 @@ import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
 import { TuiLogger } from './logger-tui'
 
-const logsDir = join(app.getPath('userData'), 'logs')
+let logsDir: string
+try {
+  logsDir = join(app.getPath('userData'), 'logs')
+} catch {
+  logsDir = join(process.cwd(), 'logs')
+}
 
 try {
   if (!existsSync(logsDir)) {
@@ -107,7 +112,7 @@ if (useTui) {
   }
 
   // Hook electron-log console transport so table rendering wins
-  log.transports.console.format = ''
+  log.transports.console.level = false
   const tuiHookKey = '__momaiTuiHookInstalled'
   if (!(log as any)[tuiHookKey]) {
     ;(log as any)[tuiHookKey] = true
@@ -115,13 +120,13 @@ if (useTui) {
       const level = String(msg.level).toLowerCase()
       const text = String(msg.data.join(' '))
       if (!shouldEmitLogLine(text)) return false
-      tui!.log(level, text)
-      return false // swallow default console output
+      tui!.log(level as any, text)
+      return msg // return msg so file transport gets it
     })
   }
 } else {
   // Component-based visual format
-  log.transports.console.format = '{text}'
+  log.transports.console.level = false // disable default console
   // Guard against duplicate hooks (e.g., during dev reloads)
   const hookKey = '__momaiVisualHookInstalled'
   if (!(log as any)[hookKey]) {
@@ -130,7 +135,7 @@ if (useTui) {
       const text = msg.data.map((d: any) => String(d)).join(' ')
       if (!shouldEmitLogLine(text)) return false
       visualLog(text)
-      return false // swallow default console output
+      return msg // return the message so file transport still gets it!
     })
   }
 }

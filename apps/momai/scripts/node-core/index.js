@@ -371,7 +371,11 @@ async function startServer() {
     advanceReminder: reminderService.advanceReminder || (() => {}),
     normalizeReminder: reminderService.normalizeReminder || ((r) => r),
     saveStore: () => saveStore(store),
-    ensureDir: semanticEngine.ensureDir || (() => {}),
+    saveStoreNow: () => saveStoreNow(store),
+    ensureDir: (dirPath) => {
+      const fs = require('node:fs')
+      if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true })
+    },
     getThreadMessages: (threadId) => getThreadMessages(store, threadId),
     listSessions: () => listSessions(store),
     runVoiceCommand: chatService.runVoiceCommand || (() => {}),
@@ -499,6 +503,14 @@ async function startServer() {
     if (typeof context.connectPythonSidecar === 'function') {
       context.connectPythonSidecar()
     }
+  })
+
+  // Global error handlers — evitam crash do processo durante instalação de extensões etc.
+  process.on('uncaughtException', (err) => {
+    error('[NodeCore] Uncaught exception:', err)
+  })
+  process.on('unhandledRejection', (err) => {
+    error('[NodeCore] Unhandled rejection:', err)
   })
 
   // Graceful shutdown

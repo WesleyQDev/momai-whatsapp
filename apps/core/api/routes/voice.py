@@ -242,3 +242,20 @@ async def control_call_mode(control: CallModeControl):
     except Exception as e:
         logger.error(f"[VoiceAPI] Call mode control error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+class TTSStatusReq(BaseModel):
+    is_speaking: bool
+
+@router.post("/tts-status")
+async def update_tts_status(req: TTSStatusReq):
+    """
+    Sync TTS status from external engines (e.g. EdgeTTS from Node)
+    to prevent wake word false positives while AI is speaking.
+    """
+    try:
+        import app_state
+        app_state.set_external_tts_speaking(req.is_speaking)
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"[VoiceAPI] TTS status update error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

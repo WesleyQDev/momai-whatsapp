@@ -155,7 +155,7 @@ function normalizeSkillRecord({ id, kind, parsed, runtime, dir }) {
 
 
 
-async function loadSkillFromDir({ dir, kind }) {
+async function loadSkillFromDir({ dir, kind, expectedId }) {
   const log = (msg) => {
     if (typeof process.send === 'function') {
       process.send({ type: 'node-core-log', message: msg })
@@ -191,7 +191,7 @@ async function loadSkillFromDir({ dir, kind }) {
     }
   }
 
-  return normalizeSkillRecord({ id: parsed.name, kind, parsed, runtime, dir })
+  return normalizeSkillRecord({ id: expectedId || parsed.name, kind, parsed, runtime, dir })
 }
 
 
@@ -229,7 +229,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
         const dir = path.join(builtinSkillsDir, name)
         const stat = fs.statSync(dir, { throwIfNoEntry: false })
         if (!stat || !stat.isDirectory()) continue
-        const skill = await loadSkillFromDir({ dir, kind: 'builtin' })
+        const skill = await loadSkillFromDir({ dir, kind: 'builtin', expectedId: name })
         if (!skill) continue
         state.builtins.set(skill.id, skill)
       }
@@ -293,7 +293,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
           }
         }
 
-        const skill = normalizeSkillRecord({ id: parsed.name, kind: 'packaged', parsed, runtime, dir })
+        const skill = normalizeSkillRecord({ id: name || parsed.name, kind: 'packaged', parsed, runtime, dir })
         const permSchema = createPermissionSchema()
         const mergedPerms = permSchema.mergeManifestPermissions(skill.manifest.permissions, manifestExtra?.permissions)
         const riskLevel = permSchema.calculateRiskLevel(mergedPerms)
@@ -322,7 +322,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       const dir = path.join(extensionsDir, name)
       const stat = fs.statSync(dir, { throwIfNoEntry: false })
       if (!stat || !stat.isDirectory()) continue
-      const skill = await loadSkillFromDir({ dir, kind: 'extension' })
+      const skill = await loadSkillFromDir({ dir, kind: 'extension', expectedId: name })
       if (!skill) continue
 
       let manifestExtra = null

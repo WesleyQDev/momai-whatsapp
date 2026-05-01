@@ -396,6 +396,7 @@ function SkillDetailView({
   onToggle: (s: Extension) => void
   onUninstall: (s: Extension) => void
   installing: string | null
+  installProgress?: { percent: number; speed: string; status: string } | null
 }) {
   const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece')
   const isInstalled = skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
@@ -497,13 +498,31 @@ function SkillDetailView({
               </a>
             )}
             {!isBuiltin && !isInstalled ? (
-              <button
-                onClick={() => onInstall(skill)}
-                disabled={installing === skill.id}
-                className="px-8 py-2.5 bg-violet-600 text-white rounded-xl text-xs font-black hover:bg-violet-500 disabled:opacity-50 transition-all uppercase tracking-widest"
-              >
-                {installing === skill.id ? 'Obtendo...' : 'Instalar'}
-              </button>
+              <div className="flex flex-col gap-2 min-w-[140px]">
+                <button
+                  onClick={() => onInstall(skill)}
+                  disabled={installing === skill.id}
+                  className="px-8 py-2.5 bg-violet-600 text-white rounded-xl text-xs font-black hover:bg-violet-500 disabled:opacity-50 transition-all uppercase tracking-widest relative overflow-hidden"
+                >
+                  {installing === skill.id && installProgress && (
+                    <div 
+                      className="absolute left-0 top-0 bottom-0 bg-violet-400/30 transition-all duration-300" 
+                      style={{ width: `${installProgress.percent}%` }} 
+                    />
+                  )}
+                  <span className="relative z-10">
+                    {installing === skill.id 
+                      ? (installProgress?.status || 'Obtendo...')
+                      : 'Instalar'}
+                  </span>
+                </button>
+                {installing === skill.id && installProgress && (
+                  <div className="flex items-center justify-between px-1 text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
+                    <span>{installProgress.percent}%</span>
+                    <span>{installProgress.speed}</span>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="flex items-center gap-3">
                 <button
@@ -652,6 +671,7 @@ export default function ExtensionsView() {
   const [allSkills, setAllSkills] = useState<Extension[]>([])
   const [loading, setLoading] = useState(true)
   const [installing, setInstalling] = useState<string | null>(null)
+  const [installProgress, setInstallProgress] = useState<{percent: number, speed: string, status: string} | null>(null)
   const [activeTab, setActiveTab] = useState<'installed' | 'store'>('store')
   const [selectedSkill, setSelectedSkill] = useState<Extension | null>(null)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
@@ -663,9 +683,11 @@ export default function ExtensionsView() {
     try {
       const data = await fetchExtensions(locale)
       setAllSkills(data)
+      return data
     } catch (err) {
       console.error('Erro ao carregar skills:', err)
       alert(t('extensions.errors.fetch', { error: String(err) }))
+      return []
     } finally {
       setLoading(false)
     }
@@ -682,13 +704,23 @@ export default function ExtensionsView() {
 
   const handleInstall = async (ext: Extension) => {
     setInstalling(ext.id)
+    setInstallProgress({ percent: 0, speed: '0 KB/s', status: 'Iniciando...' })
     try {
-      await installExtension(ext.id, ext.download_url || '')
-      await loadData(true)
+      await installExtension(ext.id, ext.download_url || '', (progress) => {
+        setInstallProgress(progress)
+      })
+      const freshData = await loadData(true)
+      
+      // Update selectedSkill if it's the one we just installed
+      if (selectedSkill?.id === ext.id) {
+        const updated = freshData.find(s => s.id === ext.id)
+        if (updated) setSelectedSkill(updated)
+      }
     } catch (err) {
       alert(t('extensions.errors.install', { error: String(err) }))
     } finally {
       setInstalling(null)
+      setInstallProgress(null)
     }
   }
 
@@ -814,6 +846,7 @@ export default function ExtensionsView() {
               onToggle={handleToggle}
               onUninstall={handleUninstall}
               installing={installing}
+              installProgress={installProgress}
             />
           ) : (
             /* ─── List View ─── */

@@ -548,7 +548,8 @@ export default function ContainerChat({
       }
     }
     window.addEventListener('momai_trigger_briefing', handleBriefing as EventListener)
-    return () => window.removeEventListener('momai_trigger_briefing', handleBriefing as EventListener)
+    return () =>
+      window.removeEventListener('momai_trigger_briefing', handleBriefing as EventListener)
   }, [onSendMessage])
 
   useEffect(() => {
@@ -583,12 +584,15 @@ export default function ContainerChat({
       )
   }, [threadId])
 
-  const displayProgress = isSystemDone ? 100 : Math.min(96, Math.max(visualProgress || 0, initProgress || 0))
+  const displayProgress = isSystemDone ? 100 : Math.min(96, visualProgress || initProgress || 0)
   const loadingProgress = displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
   const hasMessages = messages.length > 0
   const showLoading =
-    !animationFinished || isModeChanging || isBooting || !isBrainReady
+    (!animationFinished && !isSystemDone) ||
+    isModeChanging ||
+    isBooting ||
+    (isBrainLoading && !isBrainReady)
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage =

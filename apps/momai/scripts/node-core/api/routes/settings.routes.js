@@ -7,6 +7,7 @@ function createSettingsRoutes(context) {
     normalizeContextWindowMode,
     clampContextTokens,
     saveStore,
+    saveStoreNow,
     maybeRestartLlamaOnTierChange,
     syncWakeWordState,
     ensurePython,
@@ -76,8 +77,12 @@ function createSettingsRoutes(context) {
           }
         }
 
-        if (payload.ai_tier) store.mode = 'local'
-        saveStore()
+        if (payload.ai_tier) {
+          store.mode = 'local'
+          saveStoreNow()
+        } else {
+          saveStore()
+        }
 
         const ready = await maybeRestartLlamaOnTierChange(
           prevTier,
@@ -123,7 +128,7 @@ function createSettingsRoutes(context) {
         store.settings.tts_enabled = true
         store.settings.wake_word_enabled = true
       }
-      saveStore()
+      saveStoreNow()
 
       context.broadcast({ type: 'model_changed', data: { new_mode: 'local' } })
 
