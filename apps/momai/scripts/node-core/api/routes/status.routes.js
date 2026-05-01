@@ -12,6 +12,7 @@ function createStatusRoutes(context) {
     isValidTier,
     normalizeBackendMode,
     saveStore,
+    saveStoreNow,
     maybeRestartLlamaOnTierChange,
     syncWakeWordState,
     syncSkillAndToolIndexes,
@@ -143,7 +144,7 @@ function createStatusRoutes(context) {
         store.settings.tts_enabled = true
         store.settings.wake_word_enabled = true
       }
-      saveStore()
+      saveStoreNow()
       const ready = await maybeRestartLlamaOnTierChange(
         prevTier,
         requestedTier,

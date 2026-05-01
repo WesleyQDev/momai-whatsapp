@@ -205,9 +205,8 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
       stopVoice().catch(() => {})
       stopGeneration().catch(() => {})
 
-      // ONLY reset onboarding status. DO NOT change the tier here.
-      // The user will choose the tier fresh inside the Onboarding screen.
-      await api.patch('/settings', { onboarding_completed: false })
+      // Save the selected tier so onboarding pre-selects it, then reset onboarding
+      await api.patch('/settings', { ai_tier: _tier, onboarding_completed: false })
 
       // Very small delay to ensure UI consistency before restarting
       setTimeout(() => {

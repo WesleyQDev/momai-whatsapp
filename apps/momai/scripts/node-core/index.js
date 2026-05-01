@@ -35,7 +35,7 @@ const {
   registerManagedLlama,
   killOrphanLlamaServers
 } = require('./infrastructure/process-manager')
-const { store, saveStore, appendMessage, getThreadMessages, listSessions } = require('./infrastructure/store')
+const { store, saveStore, saveStoreNow, appendMessage, getThreadMessages, listSessions } = require('./infrastructure/store')
 
 // Initialize registries (actual loading happens in initializeRegistries)
 const { DATA_DIR, PROMPTS_DIR } = constants
