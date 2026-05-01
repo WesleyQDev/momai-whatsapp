@@ -482,12 +482,15 @@ export function useChatHandlers({
               if (isToolTrace) {
                 const parsed = splitToolTraceContent(current.content)
                 if (parsed) {
+                  let jsonData
+                  try {
+                    jsonData = JSON.parse(parsed.jsonPart)
+                  } catch {
+                    return updated
+                  }
                   updated[lastIdx] = {
                     ...current,
-                    content: buildToolTraceContent(
-                      JSON.parse(parsed.jsonPart),
-                      parsed.textPart + data.token
-                    )
+                    content: buildToolTraceContent(jsonData, parsed.textPart + data.token)
                   }
                 }
               } else {

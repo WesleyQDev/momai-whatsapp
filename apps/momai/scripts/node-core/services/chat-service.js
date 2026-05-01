@@ -597,19 +597,23 @@ async function streamLlamaChat(req, res, payload) {
   )
 
   if (semanticPromise) {
-    const semantic = await semanticPromise
-    if (semantic.memoryContext) {
-      memoryContext = memoryContext
-        ? `${memoryContext}\n\n${semantic.memoryContext}`
-        : semantic.memoryContext
-    }
-    if (Array.isArray(semantic.memorySources) && semantic.memorySources.length) {
-      const byUrl = new Map()
-      for (const source of [...memorySources, ...semantic.memorySources]) {
-        if (!source || !source.url) continue
-        byUrl.set(source.url, source)
+    try {
+      const semantic = await semanticPromise
+      if (semantic?.memoryContext) {
+        memoryContext = memoryContext
+          ? `${memoryContext}\n\n${semantic.memoryContext}`
+          : semantic.memoryContext
       }
-      memorySources = [...byUrl.values()].slice(0, 10)
+      if (Array.isArray(semantic?.memorySources) && semantic.memorySources.length) {
+        const byUrl = new Map()
+        for (const source of [...memorySources, ...semantic.memorySources]) {
+          if (!source || !source.url) continue
+          byUrl.set(source.url, source)
+        }
+        memorySources = [...byUrl.values()].slice(0, 10)
+      }
+    } catch (e) {
+      console.error('[ChatService] Semantic memory failed, continuing without it:', e)
     }
   }
 

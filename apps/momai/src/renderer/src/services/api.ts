@@ -257,18 +257,28 @@ export async function updateMode(mode: string): Promise<void> {
   if (!response.ok) throw new Error('Erro ao atualizar modo')
 }
 
+function safeJsonParse(str: string | null | undefined): any {
+  if (!str) return undefined
+  try {
+    return JSON.parse(str)
+  } catch {
+    return undefined
+  }
+}
+
 export async function fetchChatHistory(threadId: string = 'default'): Promise<Message[]> {
   const response = await fetch(`${API_URL}/chat/history?thread_id=${threadId}`)
   if (!response.ok) throw new Error('Erro ao buscar histórico')
   const messages = await response.json()
+  if (!Array.isArray(messages)) return []
 
   return messages.map((msg: any) => ({
     ...msg,
-    sources: msg.sources ? JSON.parse(msg.sources) : undefined,
-    snippets: msg.snippets ? JSON.parse(msg.snippets) : undefined,
-    cards: msg.cards ? JSON.parse(msg.cards) : undefined,
+    sources: safeJsonParse(msg.sources),
+    snippets: safeJsonParse(msg.snippets),
+    cards: safeJsonParse(msg.cards),
     toolSteps: msg.graph_data && msg.graph_data.tool_steps ? msg.graph_data.tool_steps : undefined,
-    structuredResponse: msg.structured_response ? JSON.parse(msg.structured_response) : undefined
+    structuredResponse: safeJsonParse(msg.structured_response)
   }))
 }
 
@@ -351,7 +361,6 @@ export interface Extension {
   compatibility?: string
 }
 
-
 export async function fetchExtensions(lang?: string): Promise<Extension[]> {
   const url = lang ? `${API_URL}/extensions?lang=${lang}` : `${API_URL}/extensions`
   const response = await fetch(url)
@@ -360,7 +369,9 @@ export async function fetchExtensions(lang?: string): Promise<Extension[]> {
 }
 
 export async function fetchExtensionRegistry(lang?: string): Promise<any[]> {
-  const url = lang ? `${API_URL}/extensions/registry?lang=${lang}` : `${API_URL}/extensions/registry`
+  const url = lang
+    ? `${API_URL}/extensions/registry?lang=${lang}`
+    : `${API_URL}/extensions/registry`
   const response = await fetch(url)
   if (!response.ok) throw new Error('Erro ao buscar registro de extensões')
   return response.json()

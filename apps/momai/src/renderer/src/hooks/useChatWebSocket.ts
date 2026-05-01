@@ -6,8 +6,29 @@ interface UseChatWebSocketProps {
   handleWsMessage: (msg: any) => void
 }
 
+function extractJsonObjects(text: string): string[] {
+  const results: string[] = []
+  let depth = 0
+  let start = -1
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '{') {
+      if (depth === 0) start = i
+      depth++
+    } else if (text[i] === '}') {
+      depth--
+      if (depth === 0 && start >= 0) {
+        results.push(text.slice(start, i + 1))
+        start = -1
+      }
+    }
+  }
+  return results.length ? results : [text]
+}
+
 export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocketProps) {
   const wsRef = useRef<WebSocket | null>(null)
+  const handleWsMessageRef = useRef(handleWsMessage)
+  handleWsMessageRef.current = handleWsMessage
 
   useEffect(() => {
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
@@ -56,12 +77,12 @@ export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocket
 
       ws.onmessage = (event) => {
         const rawData = event.data
-        const jsonObjects = rawData.match(/\{.*?\}(?=\{|$)/g) || [rawData]
+        const jsonObjects = extractJsonObjects(rawData)
 
         for (const jsonStr of jsonObjects) {
           try {
             const msg = JSON.parse(jsonStr)
-            handleWsMessage(msg)
+            handleWsMessageRef.current(msg)
           } catch (e) {
             console.error('Erro ao processar JSON via WS:', e, jsonStr)
           }
@@ -79,7 +100,6 @@ export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocket
         if (!isBooting) {
           console.error('Erro no WebSocket:', err)
         }
-        ws?.close()
       }
     }
 
@@ -93,7 +113,7 @@ export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocket
         wsRef.current.close()
       }
     }
-  }, [threadId, handleWsMessage])
+  }, [threadId])
 
   return { wsRef }
 }
