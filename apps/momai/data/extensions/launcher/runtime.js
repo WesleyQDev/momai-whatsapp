@@ -215,25 +215,7 @@ function scanUserSubfolders() {
 
   const items = []
   const seen = new Set()
-
-  try {
-    const entries = fs.readdirSync(userDir, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      if (entry.name.startsWith('.') || entry.name === 'AppData') continue
-      const fullPath = path.join(userDir, entry.name)
-      if (seen.has(fullPath)) continue
-      seen.add(fullPath)
-      items.push({
-        name: entry.name,
-        path: fullPath,
-        type: 'Pasta',
-        category: inferCategory(entry.name, userDir),
-      })
-    }
-  } catch {
-    /* skip */
-  }
+  walkUserFolder(userDir, items, seen, 'Sistema', 2)
   return items
 }
 
@@ -243,35 +225,7 @@ function scanUserDocuments() {
 
   const items = []
   const seen = new Set()
-
-  try {
-    const entries = fs.readdirSync(docsDir, { withFileTypes: true })
-    for (const entry of entries) {
-      const fullPath = path.join(docsDir, entry.name)
-      if (seen.has(fullPath)) continue
-
-      if (entry.isDirectory()) {
-        seen.add(fullPath)
-        items.push({
-          name: entry.name,
-          path: fullPath,
-          type: 'Pasta',
-          category: 'Documentos',
-        })
-      } else if (entry.isFile() && /\.(docx?|xlsx?|pptx?|pdf|txt|md|csv|json|xml)$/i.test(entry.name)) {
-        seen.add(fullPath)
-        const displayName = entry.name.replace(/\.[^.]+$/, '')
-        items.push({
-          name: displayName,
-          path: fullPath,
-          type: 'Arquivo',
-          category: inferCategory(displayName, docsDir),
-        })
-      }
-    }
-  } catch {
-    /* skip */
-  }
+  walkUserFolder(docsDir, items, seen, 'Documentos', 3)
   return items
 }
 
@@ -281,35 +235,7 @@ function scanUserDownloads() {
 
   const items = []
   const seen = new Set()
-
-  try {
-    const entries = fs.readdirSync(dlDir, { withFileTypes: true })
-    for (const entry of entries) {
-      const fullPath = path.join(dlDir, entry.name)
-      if (seen.has(fullPath)) continue
-
-      if (entry.isDirectory()) {
-        seen.add(fullPath)
-        items.push({
-          name: entry.name,
-          path: fullPath,
-          type: 'Pasta',
-          category: 'Downloads',
-        })
-      } else if (entry.isFile() && /\.(zip|rar|7z|exe|msi|dmg|pkg|iso|img|pdf|docx?|xlsx?|jpg|jpeg|png|gif|mp4|mkv|mp3|wav)$/i.test(entry.name)) {
-        seen.add(fullPath)
-        const displayName = entry.name.replace(/\.[^.]+$/, '')
-        items.push({
-          name: displayName,
-          path: fullPath,
-          type: 'Arquivo',
-          category: inferCategory(displayName, dlDir),
-        })
-      }
-    }
-  } catch {
-    /* skip */
-  }
+  walkUserFolder(dlDir, items, seen, 'Downloads', 3)
   return items
 }
 
@@ -319,35 +245,7 @@ function scanUserDesktopFiles() {
 
   const items = []
   const seen = new Set()
-
-  try {
-    const entries = fs.readdirSync(deskDir, { withFileTypes: true })
-    for (const entry of entries) {
-      const fullPath = path.join(deskDir, entry.name)
-      if (seen.has(fullPath)) continue
-
-      if (entry.isDirectory()) {
-        seen.add(fullPath)
-        items.push({
-          name: entry.name,
-          path: fullPath,
-          type: 'Pasta',
-          category: 'Desktop',
-        })
-      } else if (entry.isFile() && /\.(docx?|xlsx?|pptx?|pdf|txt|md|csv|jpg|jpeg|png|gif|mp4|zip|rar)$/i.test(entry.name)) {
-        seen.add(fullPath)
-        const displayName = entry.name.replace(/\.[^.]+$/, '')
-        items.push({
-          name: displayName,
-          path: fullPath,
-          type: 'Arquivo',
-          category: 'Desktop',
-        })
-      }
-    }
-  } catch {
-    /* skip */
-  }
+  walkUserFolder(deskDir, items, seen, 'Desktop', 3)
   return items
 }
 
@@ -381,6 +279,45 @@ function walkDir(dirPath, items, seen, defaultType, maxDepth) {
         path: fullPath,
         type: entry.name.endsWith('.lnk') ? 'Atalho' : 'Programa',
         category: inferCategory(displayName, dirPath),
+      })
+    }
+  }
+}
+
+const DOC_FILE_RE = /\.(docx?|xlsx?|pptx?|pdf|txt|md|csv|json|xml|jpg|jpeg|png|gif|mp4|mkv|mp3|wav|zip|rar|7z)$/i
+
+function walkUserFolder(dirPath, items, seen, category, maxDepth) {
+  if (maxDepth <= 0) return
+
+  let entries
+  try {
+    entries = fs.readdirSync(dirPath, { withFileTypes: true })
+  } catch {
+    return
+  }
+
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name)
+    if (seen.has(fullPath)) continue
+
+    if (entry.isDirectory()) {
+      seen.add(fullPath)
+      if (entry.name.startsWith('.') || entry.name === 'AppData') continue
+      items.push({
+        name: entry.name,
+        path: fullPath,
+        type: 'Pasta',
+        category,
+      })
+      walkUserFolder(fullPath, items, seen, category, maxDepth - 1)
+    } else if (DOC_FILE_RE.test(entry.name)) {
+      seen.add(fullPath)
+      const displayName = entry.name.replace(/\.[^.]+$/, '')
+      items.push({
+        name: displayName,
+        path: fullPath,
+        type: 'Arquivo',
+        category,
       })
     }
   }
@@ -733,15 +670,56 @@ function buildOpenedCardPayload(itemName, itemPath) {
    Module Exports
    ────────────────────────────────────────────── */
 
+function extractSearchTerms(raw) {
+  const q = String(raw || '').trim()
+  const removePatterns = [
+    /^(abra|abrir|abra o|abra a|abre|abre o|abre a)\s+/i,
+    /^(abrir o|abrir a|abrir)\s+/i,
+    /^(executar|iniciar|run|launch|start|open)\s+/i,
+    /^(busque|buscar|busca o|busca a|busca)\s+/i,
+    /^(encontre|encontrar|encontra o|encontra a)\s+/i,
+    /^(procure|procurar|procura o|procura a)\s+/i,
+    /^(localize|localizar|localiza o|localiza a)\s+/i,
+    /^(mostre|mostrar|mostra o|mostra a)\s+/i,
+    /(?<!\w)(o|a|os|as|de|da|do|dos|das|em|no|na|nos|nas|um|uma|para|por|pelo|pela)\b\s*/gi,
+    /\b(pasta|folder|diretorio|diretorio|arquivo|file|programa|aplicativo|app)\b\s*/gi,
+    /\b(me|mim|eu|por favor|pfv|pf)\b\s*/gi,
+    /[\s,;:!?]+/g,
+  ]
+  let cleaned = q
+  for (const pattern of removePatterns) {
+    cleaned = cleaned.replace(pattern, ' ').trim()
+  }
+  return cleaned || q
+}
+
+async function debugLog(msg, momai) {
+  try {
+    if (momai?.log) momai.log(msg)
+    else console.log(`[launcher] ${msg}`)
+  } catch {}
+}
+
+/* ──────────────────────────────────────────────
+   Module Exports
+   ────────────────────────────────────────────── */
+
 module.exports = {
   tools: [
     {
-      name: 'search_programs',
-      description: 'Busca programas, aplicativos, pastas e arquivos no computador por nome. Retorna resultados similares com score de confianca.',
+      name: 'search_local_items',
+      description: 'Busca pastas, arquivos, programas e aplicativos no computador local por nome. Usar para abrir ou encontrar qualquer item no computador. Retorna caminhos absolutos com score de confianca.',
+      parameters: {
+        type: 'object',
+        required: ['query'],
+        properties: {
+          query: { type: 'string', description: 'Nome ou termo do item a buscar (pasta, arquivo ou programa)' },
+        },
+      },
     },
     {
-      name: 'open_program',
-      description: 'Abre um programa, pasta ou arquivo pelo caminho absoluto retornado pelo search_programs.',
+      name: 'open_local_item',
+      description: 'Abre pasta, arquivo ou programa pelo caminho absoluto. Use APENAS com caminho absoluto retornado pelo search_local_items.',
       parameters: {
         type: 'object',
         required: ['path'],
@@ -753,17 +731,18 @@ module.exports = {
     },
   ],
 
-  async execute({ content, args, toolName }) {
+  async execute({ content, args, toolName, momai }) {
     const text = String(content || '').trim()
+    await debugLog(`execute called: toolName=${toolName}, text="${text.slice(0, 80)}"`, momai)
 
-    /* ── open_program ── */
-    if (toolName === 'open_program') {
+    /* ── open_local_item ── */
+    if (toolName === 'open_local_item') {
       const targetPath = String(args?.path || '').trim()
       const targetName = String(args?.name || path.basename(targetPath)).trim()
 
       if (!targetPath) {
         return {
-          tool: 'open_program',
+          tool: 'open_local_item',
           instruction: 'Caminho do item nao fornecido.',
         }
       }
@@ -771,31 +750,41 @@ module.exports = {
       const result = await openItem(targetPath)
       if (result.ok) {
         return {
-          tool: 'open_program',
+          tool: 'open_local_item',
           structuredResponse: buildOpenedCardPayload(targetName, targetPath),
           instruction: JSON.stringify({ ok: true, message: `"${targetName}" aberto com sucesso.`, path: targetPath }),
         }
       }
       return {
-        tool: 'open_program',
+        tool: 'open_local_item',
         instruction: `Nao foi possivel abrir: ${result.error}`,
       }
     }
 
-    /* ── search_programs ── */
-    const query = toolName === 'search_programs' ? (String(args?.query || content || '')).trim() : text
+    /* ── search_local_items ── */
+    const rawQuery = toolName === 'search_local_items' ? (String(args?.query || content || '')).trim() : text
+    const searchTerms = extractSearchTerms(rawQuery)
+    await debugLog(`search: raw="${rawQuery.slice(0, 80)}" terms="${searchTerms.slice(0, 80)}"`, momai)
+
     const allItems = getOrRefreshIndex()
+    await debugLog(`scan: total=${allItems.length} items in index`, momai)
 
     const scored = allItems
-      .map((item) => ({ ...item, score: scoreItem(item, query) }))
+      .map((item) => ({ ...item, score: scoreItem(item, searchTerms) }))
       .filter((item) => item.score > 0.1)
       .sort((a, b) => b.score - a.score)
       .slice(0, 20)
 
+    await debugLog(`scored: ${scored.length} results after filtering (threshold=0.1)`, momai)
+    if (scored.length > 0) {
+      const top3 = scored.slice(0, 3).map(i => `${i.name}(${Math.round(i.score*100)}% ${i.type})`).join(', ')
+      await debugLog(`top: ${top3}`, momai)
+    }
+
     if (scored.length === 0) {
       return {
-        tool: 'search_programs',
-        instruction: `Nenhum resultado encontrado para "${query}".`,
+        tool: 'search_local_items',
+        instruction: `Nenhum resultado encontrado para "${rawQuery}".`,
       }
     }
 
@@ -803,13 +792,13 @@ module.exports = {
        1. User explicitly says "abra X" / "abrir X" (isExplicitOpenQuery)
        2. AND there is a PERFECT match (score === 1.0)
        Otherwise, show results and ask the user which one to open. */
-    if (isExplicitOpenQuery(query)) {
+    if (isExplicitOpenQuery(rawQuery)) {
       const perfectMatch = scored.find((item) => item.score >= 1.0)
       if (perfectMatch) {
         const result = await openItem(perfectMatch.path)
         if (result.ok) {
           return {
-            tool: 'search_programs',
+            tool: 'search_local_items',
             structuredResponse: buildOpenedCardPayload(perfectMatch.name, perfectMatch.path),
             instruction: JSON.stringify({ ok: true, message: `"${perfectMatch.name}" encontrado e aberto automaticamente.`, path: perfectMatch.path }),
           }
@@ -818,14 +807,14 @@ module.exports = {
     }
 
     return {
-      tool: 'search_programs',
-      structuredResponse: buildCardPayload(query, scored),
+      tool: 'search_local_items',
+      structuredResponse: buildCardPayload(rawQuery, scored),
       instruction: JSON.stringify({
         results: scored.map((item) => ({ name: item.name, path: item.path, type: item.type, category: item.category, score: Math.round(item.score * 100) / 100 })),
         total: scored.length,
         message: scored.length === 1
-          ? `Encontrado 1 resultado para "${query}". Deseja que eu abra?`
-          : `Encontrados ${scored.length} resultados para "${query}". Qual deles deseja abrir?`,
+          ? `Encontrado 1 resultado para "${rawQuery}". Deseja que eu abra?`
+          : `Encontrados ${scored.length} resultados para "${rawQuery}". Qual deles deseja abrir?`,
       }),
     }
   },

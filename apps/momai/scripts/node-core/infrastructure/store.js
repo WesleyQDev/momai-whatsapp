@@ -19,7 +19,7 @@ function defaultStore() {
   const promptDefaults = promptRegistry ? promptRegistry.getDefaults() : {}
   return {
     settings: {
-      user_name: 'Usuário',
+      user_name: '',
       assistant_persona: promptDefaults.assistant_persona || 'MomAI',
       ai_provider: 'local',
       ai_model: 'Qwen 3.5',

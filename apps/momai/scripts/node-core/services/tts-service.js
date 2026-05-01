@@ -62,8 +62,12 @@ async function ensurePython() {
   return promise
 }
 
-async function triggerAutoTts(text) {
-  const { stopGenerationRequested, stopVoiceRequested } = require('./chat-service')
+async function triggerAutoTts(text, capturedGen) {
+  const { stopGenerationRequested, stopVoiceRequested, generationId: currentGen } = require('./chat-service')
+  if (capturedGen !== undefined && capturedGen !== currentGen) {
+    debug('[NodeCore][Voice] Auto TTS cancelled: superseded by newer generation')
+    return
+  }
   if (stopGenerationRequested || stopVoiceRequested) {
     debug('[NodeCore][Voice] Auto TTS cancelled: stop flag is true')
     return

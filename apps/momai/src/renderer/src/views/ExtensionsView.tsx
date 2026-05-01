@@ -388,7 +388,8 @@ function SkillDetailView({
   onInstall,
   onToggle,
   onUninstall,
-  installing
+  installing,
+  installProgress
 }: {
   skill: Extension
   onBack: () => void

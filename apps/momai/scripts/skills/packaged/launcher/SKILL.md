@@ -21,7 +21,7 @@ intents:
   - launch
   - run
   - start
-allowed-tools: search_programs open_program
+allowed-tools: search_local_items open_local_item
 compatibility: MomAI Node Core
 ---
 

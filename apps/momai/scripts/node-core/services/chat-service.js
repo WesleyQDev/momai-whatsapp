@@ -29,6 +29,7 @@ const tiersConfig = loadTierConfig()
 
 let stopGenerationRequested = false
 let stopVoiceRequested = false
+let generationId = 0
 const activeChatControllers = new Set()
 
 function estimateTokenCount(text) {
@@ -626,6 +627,8 @@ async function streamLlamaChat(req, res, payload) {
   activeChatControllers.add(controller)
   stopGenerationRequested = false
   stopVoiceRequested = false
+  generationId += 1
+  const currentGen = generationId
 
   // Stop any ongoing TTS when starting a new message (only if TTS is enabled)
   const ttsEnabled = Boolean(store.settings.tts_enabled)
@@ -656,11 +659,11 @@ async function streamLlamaChat(req, res, payload) {
   const enqueueAutoTts = (chunk) => {
     const cleaned = String(chunk || '').trim()
     if (cleaned.length < 2) return
-    ttsChain = ttsChain.then(() => triggerAutoTts(cleaned)).catch(() => {})
+    ttsChain = ttsChain.then(() => triggerAutoTts(cleaned, currentGen)).catch(() => {})
   }
 
   const flushTtsChunks = (final = false) => {
-    if (!speakResponse || silentForCodeIntent || stopGenerationRequested || stopVoiceRequested || closed) return
+    if (!speakResponse || silentForCodeIntent || stopGenerationRequested || currentGen !== generationId || closed) return
     if (containsCodeLikeContent(assembled)) return
     const pending = assembled.slice(ttsCursor)
     if (!pending) return
@@ -1687,6 +1690,12 @@ Object.defineProperties(module.exports, {
   stopVoiceRequested: {
     get: () => stopVoiceRequested,
     set: (v) => { stopVoiceRequested = v; },
+    enumerable: true,
+    configurable: true
+  },
+  generationId: {
+    get: () => generationId,
+    set: (v) => { generationId = v; },
     enumerable: true,
     configurable: true
   }
