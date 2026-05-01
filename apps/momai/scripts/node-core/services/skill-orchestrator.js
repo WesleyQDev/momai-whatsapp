@@ -97,15 +97,22 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
   // Merge with community items that aren't installed yet
   const communityItems = community
     .filter(item => !installedIds.has(item.id))
-    .map(item => ({
-      ...item,
-      category: 'community',
-      enabled: false,
-      installed: false,
-      is_official: false,
-      stars: 0, 
-      readme: item.description 
-    }))
+    .map(item => {
+      const raw = { ...item }
+      const locales = raw.locales || {}
+      const localized = locales[lang] || {}
+      return {
+        ...raw,
+        name: localized.name || raw.name,
+        description: localized.description || raw.description,
+        category: 'community',
+        enabled: false,
+        installed: false,
+        is_official: false,
+        stars: 0,
+        readme: localized.description || raw.description
+      }
+    })
 
   return [...installed, ...communityItems]
 }
