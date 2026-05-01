@@ -171,6 +171,7 @@
   "extensions.store.unknownAuthor": "Desconhecido",
   "extensions.store.allInstalled": "Todas as skills do registro já estão instaladas.",
   "extensions.detail.noReadme": "Nenhuma documentação detalhada encontrada para esta skill.",
+  "extensions.errors.fetch": "Erro ao carregar extensões: {error}",
   "extensions.errors.install": "Erro ao instalar skill: {error}",
   "extensions.errors.toggle": "Erro ao alterar status: {error}",
   "extensions.errors.uninstall": "Erro ao desinstalar: {error}",

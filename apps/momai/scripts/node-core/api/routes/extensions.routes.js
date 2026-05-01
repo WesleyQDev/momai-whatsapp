@@ -2,10 +2,81 @@ const fs = require('node:fs')
 const path = require('node:path')
 const crypto = require('node:crypto')
 const os = require('node:os')
+const http = require('node:http')
+const https = require('node:https')
+const { exec } = require('node:child_process')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { createPermissionSchema } = require('../../permissions/schema')
 
 let _lastExtensionsRefresh = 0
+
+/* ── Helpers for downloading & extracting community extensions ── */
+
+function downloadFile(url, destPath) {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https') ? https : http
+    const file = fs.createWriteStream(destPath)
+    const request = client.get(url, (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        file.close()
+        try { fs.unlinkSync(destPath) } catch {}
+        return downloadFile(response.headers.location, destPath).then(resolve).catch(reject)
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        file.close()
+        try { fs.unlinkSync(destPath) } catch {}
+        return reject(new Error(`HTTP ${response.statusCode}`))
+      }
+      response.pipe(file)
+      file.on('finish', () => { file.close(); resolve() })
+    })
+    request.on('error', (err) => {
+      file.close()
+      try { fs.unlinkSync(destPath) } catch {}
+      reject(err)
+    })
+    request.setTimeout(30000, () => {
+      request.destroy()
+      file.close()
+      try { fs.unlinkSync(destPath) } catch {}
+      reject(new Error('Download timeout'))
+    })
+  })
+}
+
+function extractZip(zipPath, destDir) {
+  return new Promise((resolve, reject) => {
+    if (process.platform === 'win32') {
+      exec(
+        `powershell -NoProfile -Command "Expand-Archive -Path '${zipPath.replace(/'/g, "''")}' -DestinationPath '${destDir.replace(/'/g, "''")}' -Force"`,
+        { timeout: 30000 },
+        (err) => { if (err) reject(err); else resolve() }
+      )
+    } else {
+      exec(`unzip -o "${zipPath}" -d "${destDir}"`, { timeout: 30000 }, (err) => {
+        if (err) reject(err); else resolve()
+      })
+    }
+  })
+}
+
+function flattenExtractedDir(extractDir) {
+  const items = fs.readdirSync(extractDir)
+  if (items.length === 1) {
+    const subDir = path.join(extractDir, items[0])
+    try {
+      if (fs.statSync(subDir).isDirectory()) {
+        const files = fs.readdirSync(subDir)
+        for (const file of files) {
+          const src = path.join(subDir, file)
+          const dst = path.join(extractDir, file)
+          fs.renameSync(src, dst)
+        }
+        fs.rmdirSync(subDir)
+      }
+    } catch {}
+  }
+}
 
 function createExtensionsRoutes(context) {
   const {
@@ -55,32 +126,52 @@ function createExtensionsRoutes(context) {
       const id =
         requested.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '') || crypto.randomUUID()
       const extDir = path.join(skillRegistry.extensionsDir, id)
-      ensureDir(extDir)
-      const skillMdPath = path.join(extDir, 'SKILL.md')
-      if (!fs.existsSync(skillMdPath)) {
-        const description = String(payload.description || 'Extension skill for MomAI.')
-        fs.writeFileSync(
-          skillMdPath,
-          [
-            '---',
-            `name: ${id}`,
-            `description: ${description}`,
-            'compatibility: MomAI Node Core',
-            '---',
-            '',
-            '# Extension Skill',
-            '',
-            'Descreva aqui quando usar esta skill e como executar o fluxo.',
-            '',
-            '## Quando usar',
-            '-',
-            '',
-            '## Como executar',
-            '1.'
-          ].join('\n'),
-          'utf8'
-        )
+
+      const downloadUrl = String(payload.download_url || '').trim()
+      if (downloadUrl) {
+        ensureDir(extDir)
+        console.log(`[ExtensionsAPI] Downloading extension ${id} from ${downloadUrl}...`)
+        const zipPath = path.join(extDir, 'archive.zip')
+        try {
+          await downloadFile(downloadUrl, zipPath)
+          console.log(`[ExtensionsAPI] Extracting ${id}...`)
+          await extractZip(zipPath, extDir)
+          try { fs.unlinkSync(zipPath) } catch {}
+          flattenExtractedDir(extDir)
+        } catch (err) {
+          try { fs.rmSync(extDir, { recursive: true, force: true }) } catch {}
+          sendJson(res, 500, { ok: false, error: `Failed to download/extract: ${err.message}` })
+          return true
+        }
+      } else {
+        ensureDir(extDir)
+        const skillMdPath = path.join(extDir, 'SKILL.md')
+        if (!fs.existsSync(skillMdPath)) {
+          const description = String(payload.description || 'Extension skill for MomAI.')
+          fs.writeFileSync(
+            skillMdPath,
+            [
+              '---',
+              `name: ${id}`,
+              `description: ${description}`,
+              'compatibility: MomAI Node Core',
+              '---',
+              '',
+              '# Extension Skill',
+              '',
+              'Descreva aqui quando usar esta skill e como executar o fluxo.',
+              '',
+              '## Quando usar',
+              '-',
+              '',
+              '## Como executar',
+              '1.'
+            ].join('\n'),
+            'utf8'
+          )
+        }
       }
+
       if (!store.extensions.find((ext) => ext.id === id)) {
         store.extensions.push({
           id,

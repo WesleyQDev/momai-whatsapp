@@ -333,6 +333,7 @@ export interface Extension {
   description: string
   category: string
   enabled: boolean
+  installed?: boolean
   icon?: string
   version?: string
   error?: string

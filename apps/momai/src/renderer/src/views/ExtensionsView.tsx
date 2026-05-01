@@ -84,6 +84,7 @@ import {
 } from '../services/api'
 import {
   WrenchIcon,
+  StarIcon,
   CheckBadgeIcon,
   CloudArrowDownIcon,
   ArrowPathIcon,
@@ -105,7 +106,6 @@ import {
   ClockIcon,
   BookOpenIcon,
   RocketLaunchIcon,
-  StarIcon,
   UserIcon,
   TagIcon,
   BoltIcon,
@@ -398,8 +398,8 @@ function SkillDetailView({
   installing: string | null
 }) {
   const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece')
-  const isInstalled = skill.category !== 'builtin'
-  const isBuiltin = skill.category === 'builtin'
+  const isInstalled = skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
+  const isBuiltin = skill.category === 'core'
 
   return (
     <div className="animate-fade-in max-w-6xl mx-auto px-6 pb-20">
@@ -658,13 +658,14 @@ export default function ExtensionsView() {
   const [searchQuery, setSearchQuery] = useState('')
   const tagsDragScroll = useDragScroll()
 
-  const loadData = async () => {
-    setLoading(true)
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const data = await fetchExtensions(locale)
       setAllSkills(data)
     } catch (err) {
       console.error('Erro ao carregar skills:', err)
+      alert(t('extensions.errors.fetch', { error: String(err) }))
     } finally {
       setLoading(false)
     }
@@ -683,7 +684,7 @@ export default function ExtensionsView() {
     setInstalling(ext.id)
     try {
       await installExtension(ext.id, ext.download_url || '')
-      await loadData()
+      await loadData(true)
     } catch (err) {
       alert(t('extensions.errors.install', { error: String(err) }))
     } finally {
@@ -694,7 +695,7 @@ export default function ExtensionsView() {
   const handleToggle = async (ext: Extension) => {
     try {
       await toggleExtension(ext.id, !ext.enabled)
-      await loadData()
+      await loadData(true)
     } catch (err) {
       alert(t('extensions.errors.toggle', { error: String(err) }))
     }
@@ -705,22 +706,22 @@ export default function ExtensionsView() {
     try {
       await uninstallExtension(ext.id)
       setSelectedSkill(null)
-      await loadData()
+      await loadData(true)
     } catch (err) {
       alert(t('extensions.errors.uninstall', { error: String(err) }))
     }
   }
 
-  const installedSkills = useMemo(
-    () => allSkills.filter((s) => s.category !== 'builtin'),
+  const builtinSkills = useMemo(
+    () => allSkills.filter((s) => s.category === 'core'),
     [allSkills]
   )
-  const builtinSkills = useMemo(
-    () => allSkills.filter((s) => s.category === 'builtin'),
+  const installedSkills = useMemo(
+    () => allSkills.filter((s) => s.category === 'extension'),
     [allSkills]
   )
   const storeSkills = useMemo(
-    () => allSkills.filter((s) => s.category !== 'builtin'),
+    () => allSkills.filter((s) => s.category !== 'core'),
     [allSkills]
   )
 
@@ -797,7 +798,7 @@ export default function ExtensionsView() {
                 />
               </div>
               <button
-                onClick={loadData}
+                onClick={() => loadData()}
                 className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition-colors"
               >
                 <ArrowPathIcon className="w-4 h-4" />

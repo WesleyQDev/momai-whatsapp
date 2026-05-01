@@ -170,6 +170,7 @@
   "extensions.store.unknownAuthor": "Unknown",
   "extensions.store.allInstalled": "All skills from the registry are already installed.",
   "extensions.detail.noReadme": "No detailed documentation found for this skill.",
+  "extensions.errors.fetch": "Failed to load extensions: {error}",
   "extensions.errors.install": "Failed to install skill: {error}",
   "extensions.errors.toggle": "Failed to change status: {error}",
   "extensions.errors.uninstall": "Failed to uninstall: {error}",
