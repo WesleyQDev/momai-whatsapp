@@ -96,9 +96,9 @@
                     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
                 </svg>
             </button>
-            <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" class="btn-primary btn-download" style="padding: 0.45rem 0.9rem; font-size: 0.8rem; background: rgba(255,255,255,0.1); color: var(--text);">
-                <img src="assets/android.png" alt="Android" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 6px;">
-                <span>Baixar aplicativo</span>
+            <a href="https://play.google.com/store/apps/details?id=com.wesleyqdev.momaisaude&pcampaignid=web_share" class="btn-primary btn-download" style="padding: 0.45rem 0.9rem; font-size: 0.8rem; background: rgba(255,255,255,0.1); color: var(--text);">
+                <img src="assets/Google_Play_2022_logo.svg.png" alt="Google Play" style="height: 22px; vertical-align: middle;">
+                <span></span>
             </a>
             <button class="menu-toggle" aria-label="Menu" id="menuToggle">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -210,8 +210,8 @@
 
         function applyDownloadUrls(winExeUrl, linuxUrl, os, version) {
             const cleanVersion = version.replace(/^v/, '');
-            const androidApkUrl = "https://github.com/WesleyQDev/MomAI-App/releases/download/momaisaude-beta/app-release.apk";
-            const androidIcon = `<img src="assets/android.png" alt="Android" style="width: 28px; height: 28px; vertical-align: middle; transition: transform 0.3s ease;">`;
+            const androidApkUrl = "https://play.google.com/store/apps/details?id=com.wesleyqdev.momaisaude&pcampaignid=web_share";
+            const androidIcon = `<img src="assets/Google_Play_2022_logo.svg.png" alt="Google Play" style="height: 38px; vertical-align: middle; transition: transform 0.3s ease;">`;
             const winUrlStore = "https://github.com/WesleyQDev/MomAI-App/releases/latest";
 
             const heroBtn = document.getElementById('heroDownloadBtn');
@@ -222,7 +222,7 @@
                 
                 const span = heroBtn.querySelector('span:not(.hero-version)');
                 if (span) {
-                    span.textContent = 'Baixar para Android';
+                    span.textContent = '';
                 }
                 
                 const versionSpan = heroBtn.querySelector('.hero-version');
@@ -250,13 +250,18 @@
                 if (status) status.textContent = `AppImage (v${cleanVersion})`;
             }
 
-            // Navbar download buttons: Android APK
+            // Navbar download buttons: Google Play
             document.querySelectorAll('nav .btn-download').forEach(el => {
                 el.href = androidApkUrl;
                 const span = el.querySelector('span');
-                if (span) span.textContent = 'Baixar';
+                if (span) span.textContent = '';
                 if (!el.querySelector('img')) {
-                    span.insertAdjacentHTML('beforebegin', androidIcon.replace('width: 28px; height: 28px;', 'width: 18px; height: 18px; margin-right: 6px;'));
+                    span.insertAdjacentHTML('beforebegin', androidIcon.replace('height: 38px;', 'height: 22px;'));
+                } else {
+                    const img = el.querySelector('img');
+                    img.src = 'assets/Google_Play_2022_logo.svg.png';
+                    img.style.height = '22px';
+                    img.style.width = 'auto';
                 }
             });
         }
@@ -309,9 +314,9 @@
         
         <div class="btn-group">
             <div class="cta-wrapper">
-                <a href="https://github.com/WesleyQDev/MomAI-App/releases/latest" class="btn-primary btn-download" id="heroDownloadBtn">
-                    <img src="assets/android.png" alt="Android" style="width: 28px; height: 28px; vertical-align: middle; margin-right: 8px;">
-                    <span>Baixar aplicativo</span>
+                <a href="https://play.google.com/store/apps/details?id=com.wesleyqdev.momaisaude&pcampaignid=web_share" class="btn-primary btn-download" id="heroDownloadBtn">
+                    <img src="assets/Google_Play_2022_logo.svg.png" alt="Google Play" style="height: 38px; vertical-align: middle; margin-right: 8px;">
+                    <span></span>
                 </a>
                 <a href="como-usar.html" class="hero-promo-text">Dicas de saúde MomAI</a>
             </div>
