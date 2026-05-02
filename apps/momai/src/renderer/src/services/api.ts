@@ -213,12 +213,28 @@ export async function stopVoice(): Promise<void> {
 
 import { getTTSServiceRenderer } from './ttsService'
 
-function stripEmojis(text: string): string {
-  return text.replace(/\p{Extended_Pictographic}/gu, '')
+function stripEmojisAndMarkdown(text: string): string {
+  return text
+    .replace(/\p{Extended_Pictographic}/gu, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/_(.+?)_/g, '$1')
+    .replace(/~~(.+?)~~/g, '$1')
+    .replace(/!?\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/^>+\s?/gm, '')
+    .replace(/---+|\*\*\*+|___+/g, '')
+    .replace(/\n{3,}/g, '\n\n')
 }
 
 export async function speakText(text: string, engine?: string): Promise<void> {
-  const cleanText = stripEmojis(text)
+  const cleanText = stripEmojisAndMarkdown(text)
 
   if (engine && engine !== 'kokoro') {
     const ttsService = getTTSServiceRenderer()

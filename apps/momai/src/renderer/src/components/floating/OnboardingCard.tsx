@@ -147,7 +147,7 @@ const TierCard = ({ id, onSelect, t }: TierCardProps) => {
 export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   const { t, setLocale } = useI18n()
   const [step, setStep] = useState(1)
-  const [name, setName] = useState('')
+  const [name, setName] = useState(localStorage.getItem('momai_user_name') || '')
   const [theme, setTheme] = useState<Theme>(
     (localStorage.getItem('momai_theme') as Theme) || 'dark'
   )

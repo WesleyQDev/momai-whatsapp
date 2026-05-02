@@ -26,7 +26,8 @@ export function WelcomeHeader({
   settings: SettingsData | null
 }) {
   const { t } = useI18n()
-  const userName = settings?.user_name || ''
+  const cachedName = localStorage.getItem('momai_user_name')
+  const userName = settings?.user_name || cachedName || ''
   const showSeparator = userName && userName !== ''
   const tier =
     localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'

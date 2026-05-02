@@ -538,10 +538,6 @@ export default function ContainerChat({
   }, [isModeChanging])
 
   useEffect(() => {
-    setAnimationFinished(false)
-  }, [threadId])
-
-  useEffect(() => {
     const handleBriefing = (e: CustomEvent) => {
       if (e.detail && typeof onSendMessage === 'function') {
         onSendMessage(e.detail, false, true)
@@ -588,11 +584,12 @@ export default function ContainerChat({
   const loadingProgress = displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
   const hasMessages = messages.length > 0
+  const hasUserData = !!localStorage.getItem('momai_user_name') || !!settings?.user_name
   const showLoading =
-    (!animationFinished && !isSystemDone) ||
-    isModeChanging ||
-    isBooting ||
-    (isBrainLoading && !isBrainReady)
+    (!animationFinished && !hasUserData) ||
+    (isModeChanging && !hasUserData) ||
+    (isBooting && !hasUserData) ||
+    (isBrainLoading && !isBrainReady && !hasUserData)
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage =
@@ -623,7 +620,7 @@ export default function ContainerChat({
           isSpeaking={speakingMessageId !== null && speakingMessageId !== undefined}
         />
       ) : (
-        <>
+        <div className="flex flex-col flex-1 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-700 ease-out fill-mode-both">
           <div className="flex items-center justify-between gap-4 px-4 pt-4 pb-2 z-20">
             <span className="flex-1 text-[11px] font-bold text-text/40 uppercase tracking-wider truncate">
               {(() => {
@@ -743,7 +740,7 @@ export default function ContainerChat({
               />
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {statusInfo?.llama_runtime?.loaded_model_name && (

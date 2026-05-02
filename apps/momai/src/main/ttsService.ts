@@ -167,6 +167,7 @@ export class TTSService extends EventEmitter {
     } catch (error) {
       console.error('[TTSService] Erro ao falar:', error)
       this.emit('error', error)
+      throw error
     } finally {
       this.isSpeaking = false
       this.emit('speaking-end')

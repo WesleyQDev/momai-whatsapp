@@ -75,7 +75,24 @@ async function triggerAutoTts(text, capturedGen) {
 
   const aiTier = store.settings.ai_tier || 'pro'
   const ttsEnabled = Boolean(store.settings.tts_enabled)
-  const cleaned = String(text || '').trim().replace(/\p{Extended_Pictographic}/gu, '')
+  const cleaned = String(text || '')
+    .trim()
+    .replace(/\p{Extended_Pictographic}/gu, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/_(.+?)_/g, '$1')
+    .replace(/~~(.+?)~~/g, '$1')
+    .replace(/!?\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/^>+\s?/gm, '')
+    .replace(/---+|\*\*\*+|___+/g, '')
+    .replace(/\n{3,}/g, '\n\n')
 
   if (aiTier === 'lite') {
     debug('[NodeCore][Voice] Auto TTS skipped: ai_tier=lite')
@@ -98,38 +115,52 @@ async function triggerAutoTts(text, capturedGen) {
       warn('[NodeCore][Voice] Auto TTS skipped: no IPC available for engine', ttsEngine)
       return
     }
-    ttsSpeakMsgId += 1
-    const requestId = `tts-speak-${ttsSpeakMsgId}-${Date.now()}`
-    const promise = new Promise((resolve, reject) => {
-      ttsSpeakPending.set(requestId, { resolve, reject })
-    })
-    console.log(`[NodeCore][Voice] Sending IPC tts-speak engine=${ttsEngine}`)
-    process.send({
-      type: 'tts-speak',
-      requestId,
-      text: cleaned,
-      voice: store.settings.tts_voice,
-      engine: ttsEngine
-    })
-    const timeout = setTimeout(() => {
-      const p = ttsSpeakPending.get(requestId)
-      if (p) {
-        ttsSpeakPending.delete(requestId)
-        p.reject(new Error('TTS speak timeout'))
+
+    const maxAttempts = 20
+    let lastError = null
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      ttsSpeakMsgId += 1
+      const requestId = `tts-speak-${ttsSpeakMsgId}-${Date.now()}`
+      const promise = new Promise((resolve, reject) => {
+        ttsSpeakPending.set(requestId, { resolve, reject })
+      })
+      process.send({
+        type: 'tts-speak',
+        requestId,
+        text: cleaned,
+        voice: store.settings.tts_voice,
+        engine: ttsEngine
+      })
+      const timeout = setTimeout(() => {
+        const p = ttsSpeakPending.get(requestId)
+        if (p) {
+          ttsSpeakPending.delete(requestId)
+          p.reject(new Error('TTS speak timeout'))
+        }
+      }, 15000)
+      try {
+        await promise
+        if (attempt > 1) {
+          debug(`[NodeCore][Voice] Auto TTS via ${ttsEngine} (retry ${attempt}/${maxAttempts})`)
+        } else {
+          console.log(`[NodeCore][Voice] Auto TTS via ${ttsEngine} completed`)
+        }
+        return
+      } catch (err) {
+        lastError = err?.message || String(err)
+        warn(`[NodeCore][Voice] Auto TTS via ${ttsEngine} attempt ${attempt}/${maxAttempts} failed:`, lastError)
+      } finally {
+        clearTimeout(timeout)
       }
-    }, 30000)
-    try {
-      await promise
-      console.log(`[NodeCore][Voice] Auto TTS via ${ttsEngine} completed`)
-    } catch (err) {
-      warn(`[NodeCore][Voice] Auto TTS via ${ttsEngine} failed:`, err?.message || err)
-    } finally {
-      clearTimeout(timeout)
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+      }
     }
+    warn(`[NodeCore][Voice] Auto TTS via ${ttsEngine} failed after ${maxAttempts} retries: ${lastError}`)
     return
   }
 
-  const maxAttempts = 10
+  const maxAttempts = 45
   let lastError = null
   let announcedLoading = false
 
@@ -184,7 +215,7 @@ async function triggerAutoTts(text, capturedGen) {
     }
 
     if (attempt < maxAttempts) {
-      const waitMs = 300 * attempt
+      const waitMs = Math.min(500 + attempt * 100, 3000)
       await new Promise((resolve) => setTimeout(resolve, waitMs))
     }
   }
