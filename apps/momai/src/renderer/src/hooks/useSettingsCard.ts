@@ -196,28 +196,22 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   const handleTierChange = useCallback(async (_tier: 'lite' | 'pro' | 'ultra') => {
     // @ts-ignore
     window.api.resetWindowSize?.()
+
+    stopVoice().catch(() => {})
+    stopGeneration().catch(() => {})
+
+    // Show onboarding FIRST, before the backend model change
+    window.dispatchEvent(new CustomEvent('momai_settings_sync', {
+      detail: { ai_tier: _tier, onboarding_completed: false }
+    }))
+
+    // Save settings in background — don't await, as maybeRestartLlamaOnTierChange
+    // blocks until the model finishes switching. We want onboarding visible now.
+    api.patch('/settings', { ai_tier: _tier, onboarding_completed: false }).catch(err =>
+      console.error('Error saving tier change:', err)
+    )
+
     onClose()
-
-    // This flag helps AppInitialization show onboarding immediately after restart
-    localStorage.setItem('momai_mode_changing', 'true')
-
-    try {
-      stopVoice().catch(() => {})
-      stopGeneration().catch(() => {})
-
-      // Save the selected tier so onboarding pre-selects it, then reset onboarding
-      await api.patch('/settings', { ai_tier: _tier, onboarding_completed: false })
-
-      // Very small delay to ensure UI consistency before restarting
-      setTimeout(() => {
-        // @ts-ignore
-        window.api.restartApp()
-      }, 50)
-    } catch (error) {
-      console.error('Error triggering onboarding reset:', error)
-      // @ts-ignore
-      window.api.restartApp()
-    }
   }, [onClose])
 
   const loadSettings = useCallback(async () => {

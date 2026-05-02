@@ -143,10 +143,8 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
         if (e.detail.onboarding_completed === false) {
           setIsFirstLaunch(true)
           setShowWelcome(localStorage.getItem('momai_skip_intro') !== 'true')
-          setTimeout(() => {
-            setShowOnboarding(true)
-            setOnboardingAttempted(false)
-          }, 100)
+          setShowOnboarding(true)
+          setOnboardingAttempted(false)
         } else if (e.detail.onboarding_completed === true) {
           setShowOnboarding(false)
           setOnboardingAttempted(true)
