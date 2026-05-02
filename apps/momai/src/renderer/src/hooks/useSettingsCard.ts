@@ -200,6 +200,9 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     stopVoice().catch(() => {})
     stopGeneration().catch(() => {})
 
+    // Create a new chat session when changing tiers
+    window.dispatchEvent(new CustomEvent('momai_new_session'))
+
     // Show onboarding FIRST, before the backend model change
     window.dispatchEvent(new CustomEvent('momai_settings_sync', {
       detail: { ai_tier: _tier, onboarding_completed: false }

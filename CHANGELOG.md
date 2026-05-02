@@ -2,6 +2,8 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 1.3.0 - 2026-05-02
+
 ## 1.2.0 - 2026-04-22
 Estabilidade do Sistema, Melhorias de Áudio e Refinamento de Interface
 

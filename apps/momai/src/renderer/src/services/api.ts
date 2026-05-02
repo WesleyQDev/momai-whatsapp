@@ -231,6 +231,8 @@ function stripEmojisAndMarkdown(text: string): string {
     .replace(/^>+\s?/gm, '')
     .replace(/---+|\*\*\*+|___+/g, '')
     .replace(/\n{3,}/g, '\n\n')
+    .replace(/[*_~#]/g, ' ')
+    .replace(/["""''']/g, '')
 }
 
 export async function speakText(text: string, engine?: string): Promise<void> {

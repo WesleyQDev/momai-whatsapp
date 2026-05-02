@@ -658,16 +658,32 @@ async function streamLlamaChat(req, res, payload) {
 
   const enqueueAutoTts = (chunk) => {
     const cleaned = String(chunk || '').trim()
-    if (cleaned.length < 2) return
+    if (cleaned.length < 2) {
+      console.log(`[TTS-DEBUG] enqueueAutoTts SKIPPED: cleaned.length=${cleaned.length}`)
+      return
+    }
+    console.log(`[TTS-DEBUG] enqueueAutoTts CALLING triggerAutoTts: cleaned="${cleaned.slice(0, 60)}"`)
     ttsChain = ttsChain.then(() => triggerAutoTts(cleaned, currentGen)).catch(() => {})
   }
 
   const flushTtsChunks = (final = false) => {
-    if (!speakResponse || silentForCodeIntent || stopGenerationRequested || currentGen !== generationId || closed) return
-    if (containsCodeLikeContent(assembled)) return
+    if (!speakResponse || silentForCodeIntent || stopGenerationRequested || currentGen !== generationId || closed) {
+      console.log(`[TTS-DEBUG] flushTtsChunks(${final}) guard blocked: speakResponse=${speakResponse} silent=${silentForCodeIntent} stopGen=${stopGenerationRequested} genMatch=${currentGen === generationId} closed=${closed}`)
+      return
+    }
+    if (containsCodeLikeContent(assembled)) {
+      console.log(`[TTS-DEBUG] flushTtsChunks(${final}) blocked: containsCodeLikeContent=true assembled.length=${assembled.length}`)
+      return
+    }
     const pending = assembled.slice(ttsCursor)
-    if (!pending) return
-    if (!final && pending.length < prebufferChars) return
+    if (!pending) {
+      console.log(`[TTS-DEBUG] flushTtsChunks(${final}) blocked: pending empty, ttsCursor=${ttsCursor}`)
+      return
+    }
+    if (!final && pending.length < prebufferChars) {
+      console.log(`[TTS-DEBUG] flushTtsChunks(${final}) blocked: pending.length=${pending.length} < prebufferChars=${prebufferChars}`)
+      return
+    }
 
     let cut = -1
     for (let i = pending.length - 1; i >= 0; i -= 1) {
@@ -683,6 +699,7 @@ async function streamLlamaChat(req, res, payload) {
 
     const chunk = pending.slice(0, cut).trim()
     ttsCursor += cut
+    console.log(`[TTS-DEBUG] flushTtsChunks(${final}) ENQUEUING: cut=${cut} cursor=${ttsCursor} chunkLen=${chunk.length} chunk="${chunk.slice(0, 60)}"`)
     enqueueAutoTts(chunk)
   }
 
@@ -1570,6 +1587,7 @@ async function streamLlamaChat(req, res, payload) {
       Number(llamaState.contextTotalTokens || 8192),
       Math.max(0, estimatedPromptTokens + estimateTokenCount(assembled))
     )
+    stopVoiceRequested = false
     flushTtsChunks(true)
     if (bufferedStructuredResponse) {
       writeSse(res, { structured_response: bufferedStructuredResponse })
@@ -1598,6 +1616,7 @@ async function streamLlamaChat(req, res, payload) {
           ? { active_skill: activeSkill, tool_steps: toolSteps }
           : null
     })
+    stopVoiceRequested = false
     flushTtsChunks(true)
     writeSse(res, { done: true })
     res.end()

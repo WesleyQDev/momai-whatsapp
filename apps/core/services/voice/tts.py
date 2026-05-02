@@ -612,7 +612,10 @@ class TTSManager:
         # catching cases like ** Hello ** or single * decorators that failed pairing.
         s = re.sub(r"[*_~#]", " ", s)
         
-        # 8. Clean up whitespace
+        # 8. Remove quotation marks that TTS might read aloud ("", '', "", '', etc.)
+        s = re.sub(r'["""\'\']', '', s)
+        
+        # 9. Clean up whitespace
         s = re.sub(r" {2,}", " ", s)
         s = re.sub(r"\n{3,}", "\n\n", s)
         

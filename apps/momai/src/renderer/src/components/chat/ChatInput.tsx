@@ -184,15 +184,15 @@ export default function ChatInput({
     const handleSettingsSync = (e: any) => {
       const detail = e.detail
       if (detail) {
-        if (
-          typeof detail.wake_word_enabled === 'boolean' ||
-          typeof detail.tts_enabled === 'boolean'
-        ) {
-          setVoiceSettings({
-            wake_word_enabled: !!detail.wake_word_enabled,
-            tts_enabled: !!detail.tts_enabled
+        setVoiceSettings((prev) => ({
+          ...prev,
+          ...(typeof detail.wake_word_enabled === 'boolean' && {
+            wake_word_enabled: detail.wake_word_enabled
+          }),
+          ...(typeof detail.tts_enabled === 'boolean' && {
+            tts_enabled: detail.tts_enabled
           })
-        }
+        }))
         if (detail.ai_tier) setAiTier(detail.ai_tier)
       } else {
         reloadVoiceSettings()

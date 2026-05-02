@@ -252,6 +252,8 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
     // Ensure window becomes resizable right before going into the app
     window.api?.setResizable?.(true)
 
+    const ttsEnabled = selectedTier !== 'lite'
+
     try {
       const payload = {
         user_name: name,
@@ -259,6 +261,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         onboarding_completed: true,
         locale: selectedLang === 'p' ? 'pt-BR' : 'en-US',
         ai_tier: selectedTier,
+        tts_enabled: ttsEnabled,
         wake_word_enabled: selectedTier === 'ultra'
       }
       // Signal main process first (works offline - saves to local file)
@@ -279,14 +282,16 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       }
     } catch (error) {
       console.error('Erro ao salvar onboarding:', error)
-      onFinish({
+      const fallbackPayload = {
         user_name: name,
         tts_voice: selectedVoice,
         onboarding_completed: true,
         locale: selectedLang === 'p' ? 'pt-BR' : 'en-US',
         ai_tier: selectedTier,
+        tts_enabled: ttsEnabled,
         wake_word_enabled: selectedTier === 'ultra'
-      })
+      }
+      onFinish(fallbackPayload)
     } finally {
       setIsSaving(false)
     }

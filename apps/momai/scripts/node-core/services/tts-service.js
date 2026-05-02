@@ -65,11 +65,11 @@ async function ensurePython() {
 async function triggerAutoTts(text, capturedGen) {
   const { stopGenerationRequested, stopVoiceRequested, generationId: currentGen } = require('./chat-service')
   if (capturedGen !== undefined && capturedGen !== currentGen) {
-    debug('[NodeCore][Voice] Auto TTS cancelled: superseded by newer generation')
+    console.log(`[NodeCore][Voice] Auto TTS cancelled: superseded by newer generation (captured=${capturedGen} current=${currentGen})`)
     return
   }
   if (stopGenerationRequested || stopVoiceRequested) {
-    debug('[NodeCore][Voice] Auto TTS cancelled: stop flag is true')
+    console.log(`[NodeCore][Voice] Auto TTS cancelled: stop flag is true (stopGen=${stopGenerationRequested} stopVoice=${stopVoiceRequested})`)
     return
   }
 
@@ -93,17 +93,19 @@ async function triggerAutoTts(text, capturedGen) {
     .replace(/^>+\s?/gm, '')
     .replace(/---+|\*\*\*+|___+/g, '')
     .replace(/\n{3,}/g, '\n\n')
+    .replace(/[*_~#]/g, ' ')
+    .replace(/["""''']/g, '')
 
   if (aiTier === 'lite') {
-    debug('[NodeCore][Voice] Auto TTS skipped: ai_tier=lite')
+    console.log('[NodeCore][Voice] Auto TTS skipped: ai_tier=lite')
     return
   }
   if (!ttsEnabled) {
-    debug('[NodeCore][Voice] Auto TTS skipped: settings.tts_enabled=false')
+    console.log(`[NodeCore][Voice] Auto TTS skipped: settings.tts_enabled=${store.settings.tts_enabled}`)
     return
   }
   if (cleaned.length < 2) {
-    debug('[NodeCore][Voice] Auto TTS skipped: empty/short text')
+    console.log(`[NodeCore][Voice] Auto TTS skipped: empty/short text cleaned="${cleaned}"`)
     return
   }
 

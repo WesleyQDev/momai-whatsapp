@@ -174,6 +174,8 @@ export function useChat() {
   // Reset states on new session (e.g. tier change)
   useEffect(() => {
     const handleNewSession = () => {
+      setThreadId(`sessao_${Date.now()}`)
+      setMessages([])
       setIsLoading(false)
       setSpeakingMessageId(null)
       setVoiceStatus('idle')
@@ -181,7 +183,7 @@ export function useChat() {
     }
     window.addEventListener('momai_new_session', handleNewSession)
     return () => window.removeEventListener('momai_new_session', handleNewSession)
-  }, [setIsLoading, setSpeakingMessageId, setVoiceStatus])
+  }, [setThreadId, setMessages, setIsLoading, setSpeakingMessageId, setVoiceStatus])
 
   useEffect(() => {
     const handleDevExecTrace = (event: Event) => {
