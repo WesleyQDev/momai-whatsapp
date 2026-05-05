@@ -1,29 +1,32 @@
+import { useTranslation } from 'react-i18next'
 import { ScrollReveal } from './ScrollReveal'
 
-const STEPS = [
-  {
-    number: '1',
-    title: 'Baixe e instale',
-    description: 'Faça o download, execute o instalador e pronto. Sem configurações complexas, sem criar conta.',
-  },
-  {
-    number: '2',
-    title: 'Inicialização automática',
-    description: 'Na primeira vez, a MomAI configura o modelo de IA local automaticamente. Leva poucos minutos.',
-  },
-  {
-    number: '3',
-    title: 'Comece a conversar',
-    description: 'Use texto ou voz para pedir o que precisar. Crie lembretes, pesquise, organize suas notas e muito mais.',
-  },
-]
-
 export function HowItWorksSection() {
+  const { t } = useTranslation()
+
+  const STEPS = [
+    {
+      number: '1',
+      title: t('howItWorks.step1'),
+      description: t('howItWorks.step1Desc'),
+    },
+    {
+      number: '2',
+      title: t('howItWorks.step2'),
+      description: t('howItWorks.step2Desc'),
+    },
+    {
+      number: '3',
+      title: t('howItWorks.step3'),
+      description: t('howItWorks.step3Desc'),
+    },
+  ]
+
   return (
     <section id="how" className="how-section relative mx-auto max-w-[1100px] px-8 py-24">
       <div className="section-title mx-auto mb-16 max-w-[480px] text-center">
-        <h2 className="mb-3 font-flex text-3xl font-normal tracking-tight text-[var(--accent)]">Como funciona</h2>
-        <p className="text-base text-[var(--text-secondary)]">Em três passos simples, sua assistente pessoal estará pronta.</p>
+        <h2 className="mb-3 font-flex text-3xl font-normal tracking-tight text-[var(--accent)]">{t('howItWorks.title')}</h2>
+        <p className="text-base text-[var(--text-secondary)]">{t('howItWorks.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-8 md:grid-cols-3">

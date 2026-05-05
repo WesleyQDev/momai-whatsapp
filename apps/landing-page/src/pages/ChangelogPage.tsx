@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface ChangelogVersion {
   version: string
@@ -14,39 +15,34 @@ function parseChangelog(md: string): ChangelogVersion[] {
   let currentSection: { title: string; items: string[] } | null = null
 
   for (const line of lines) {
-    const versionMatch = line.match(/^## ([\d.]+) - (\d{4}-\d{2}-\d{2})$/)
+    const trimmed = line.trim()
+    if (!trimmed) continue
+
+    const versionMatch = trimmed.match(/^## ([\d.]+) - (\d{4}-\d{2}-\d{2})$/)
     if (versionMatch) {
       if (current) versions.push(current)
-      current = {
-        version: versionMatch[1],
-        date: versionMatch[2],
-        title: '',
-        sections: [],
-      }
+      current = { version: versionMatch[1], date: versionMatch[2], title: '', sections: [] }
       currentSection = null
       continue
     }
 
     if (!current) continue
 
-    if (line.startsWith('## ')) {
-      const sectionMatch = line.match(/^## (.+)$/)
-      if (sectionMatch) {
-        current.title = sectionMatch[1]
-      }
+    if (current.title === '' && !trimmed.startsWith('##') && !trimmed.startsWith('-')) {
+      current.title = trimmed
       continue
     }
 
-    const sectionHeader = line.match(/^## (.+)$/)
-    if (sectionHeader && current) {
-      const title = sectionHeader[1].replace(/[✨⚙️🐛🚀🗑️]/g, '').trim()
+    const sectionMatch = trimmed.match(/^## (.+)$/)
+    if (sectionMatch) {
+      const title = sectionMatch[1].replace(/[✨⚙️🐛🚀🗑️💄🔧📦]/g, '').trim()
       currentSection = { title, items: [] }
       current.sections.push(currentSection)
       continue
     }
 
-    if (line.startsWith('- ') && currentSection) {
-      currentSection.items.push(line.replace('- ', '').trim())
+    if (trimmed.startsWith('- ') && currentSection) {
+      currentSection.items.push(trimmed.slice(2).trim())
     }
   }
 
@@ -55,6 +51,7 @@ function parseChangelog(md: string): ChangelogVersion[] {
 }
 
 export function ChangelogPage() {
+  const { t } = useTranslation()
   const [versions, setVersions] = useState<ChangelogVersion[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -71,14 +68,14 @@ export function ChangelogPage() {
   return (
     <div className="mx-auto max-w-[900px] px-8 py-24">
       <div className="mb-20 text-center">
-        <h1 className="mb-3 font-flex text-5xl font-normal tracking-tight text-[var(--text)]">Registro de Atualizações</h1>
-        <p className="text-lg text-[var(--text-secondary)]">Acompanhe a evolução da MomAI</p>
+        <h1 className="mb-3 font-flex text-5xl font-normal tracking-tight text-[var(--text)]">{t('changelog.title')}</h1>
+        <p className="text-lg text-[var(--text-secondary)]">{t('changelog.subtitle')}</p>
       </div>
 
       {loading ? (
-        <p className="py-16 text-center text-[var(--text-tertiary)]">Sincronizando registros...</p>
+        <p className="py-16 text-center text-[var(--text-tertiary)]">{t('changelog.loading')}</p>
       ) : versions.length === 0 ? (
-        <p className="py-16 text-center text-[var(--text-tertiary)]">Nenhum registro encontrado</p>
+        <p className="py-16 text-center text-[var(--text-tertiary)]">{t('changelog.empty')}</p>
       ) : (
         <div className="relative pl-8">
           {/* Timeline line */}

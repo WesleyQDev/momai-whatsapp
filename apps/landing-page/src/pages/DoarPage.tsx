@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export function DoarPage() {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const pixKey = 'wesleyqueirozdeveloper@gmail.com'
   const pixName = 'Wesley Queiroz'
@@ -25,21 +27,20 @@ export function DoarPage() {
             backgroundClip: 'text',
           }}
         >
-          Apoie a MomAI
+          {t('doar.title')}
         </h1>
         <p className="mx-auto max-w-[600px] text-lg text-[var(--text-secondary)] leading-relaxed">
-          A MomAI é 100% gratuita e de código aberto. Seu apoio ajuda a manter o projeto vivo e a
-          trazer novas funcionalidades.
+          {t('doar.subtitle')}
         </p>
       </div>
 
       <div className="rounded-3xl border border-[var(--feature-border)] bg-[var(--bg-tertiary)] p-10 text-left">
-        <h2 className="mb-6 text-2xl font-medium text-[var(--text)]">Doar via PIX</h2>
+        <h2 className="mb-6 text-2xl font-medium text-[var(--text)]">{t('doar.doarViaPix')}</h2>
 
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between rounded-xl bg-[var(--bg-secondary)] p-4 border border-[var(--border-color)]">
             <div>
-              <div className="text-sm text-[var(--text-secondary)]">Chave PIX</div>
+              <div className="text-sm text-[var(--text-secondary)]">{t('doar.pixKey')}</div>
               <div className="font-medium text-[var(--text)]">{pixKey}</div>
             </div>
             <button
@@ -51,7 +52,7 @@ export function DoarPage() {
               }`}
               style={copied ? undefined : { boxShadow: '0 8px 20px rgba(147, 51, 234, 0.4)' }}
             >
-              {copied ? 'Copiado!' : 'Copiar'}
+              {copied ? t('doar.pixCopied') : t('doar.pixCopy')}
             </button>
           </div>
 
@@ -64,7 +65,7 @@ export function DoarPage() {
         </div>
 
         <p className="mt-6 text-sm leading-relaxed text-[var(--text-secondary)]">
-          Qualquer valor é bem-vindo e faz diferença. Obrigado por acreditar no projeto!
+          {t('doar.qualquerValor')}
         </p>
       </div>
 
@@ -72,7 +73,7 @@ export function DoarPage() {
         className="mt-8 rounded-xl border border-[rgba(197,138,249,0.2)] p-6"
         style={{ background: 'linear-gradient(135deg, rgba(197,138,249,0.1) 0%, rgba(249,129,211,0.1) 100%)' }}
       >
-        <p className="m-0 font-medium text-[var(--text)]">Obrigado pelo seu apoio! 🙏</p>
+        <p className="m-0 font-medium text-[var(--text)]">{t('doar.obrigado')}</p>
       </div>
 
       <style>{`

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { ScrollReveal } from './ScrollReveal'
 import { HeartIcon, WalletIcon, LinkIcon, ChevronRightIcon } from './Icons'
 
@@ -35,11 +36,12 @@ const MOBILE_APPS = [
 ]
 
 export function MobileAppsSection() {
+  const { t } = useTranslation()
   return (
     <section id="apps" className="relative mx-auto max-w-[1100px] px-8 py-24">
       <div className="section-title mx-auto mb-16 max-w-[480px] text-center">
-        <h2 className="mb-3 font-flex text-3xl font-normal tracking-tight text-[var(--accent)]">Ecossistema MomAI</h2>
-        <p className="text-base text-[var(--text-secondary)]">Além do desktop, a MomAI está presente no seu celular com apps focados no seu dia a dia.</p>
+        <h2 className="mb-3 font-flex text-3xl font-normal tracking-tight text-[var(--accent)]">{t('mobileApps.title')}</h2>
+        <p className="text-base text-[var(--text-secondary)]">{t('mobileApps.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">

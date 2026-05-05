@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'apps/landing-page/**'
+      - 'CHANGELOG.md'
   workflow_dispatch:
 
 concurrency:
@@ -40,10 +41,10 @@ jobs:
       - name: Prepare deploy folder
         run: |
           mkdir -p _site
-          cp -r apps/landing-page/dist/* _site/
-          cp -r v1 _site/v1
-          cp -r saude _site/saude
-          cp CNAME .nojekyll politicas-privacidade.html _site/ 2>/dev/null || true
+          cp -r apps/landing-page/dist/. _site/
+          cp -r v1 _site/
+          cp -r saude _site/
+          cp CNAME .nojekyll politicas-privacidade.html _site/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4

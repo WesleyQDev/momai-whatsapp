@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { WIN_STORE_URL } from '@/constants'
 import { useGitHubRelease } from '@/hooks/useGitHubRelease'
 import { useDownloadTracking } from '@/hooks/useDownloadTracking'
@@ -13,6 +14,7 @@ const PLATFORMS = [
 ]
 
 export function DownloadSection() {
+  const { t } = useTranslation()
   const { urls, loading } = useGitHubRelease()
   const { trackDownload } = useDownloadTracking()
   const cleanVersion = urls.version.replace(/^v/, '')
@@ -41,8 +43,8 @@ export function DownloadSection() {
   return (
     <section id="download" className="cta-section relative overflow-hidden bg-[var(--bg-secondary)] px-8 py-24 text-center">
       <div className="section-title mx-auto mb-12 max-w-[480px]">
-        <h2 className="relative mb-3 font-flex text-4xl font-normal tracking-tight text-[var(--accent)]">Pronto para experimentar?</h2>
-        <p className="relative text-base text-[var(--text-secondary)]">Escolha sua plataforma e veja os requisitos para rodar a MomAI 100% local no seu hardware.</p>
+        <h2 className="relative mb-3 font-flex text-4xl font-normal tracking-tight text-[var(--accent)]">{t('download.title')}</h2>
+        <p className="relative text-base text-[var(--text-secondary)]">{t('download.subtitle')}</p>
       </div>
 
       <ScrollReveal>

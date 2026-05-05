@@ -1,0 +1,131 @@
+{
+  "nav": {
+    "blog": "Blog",
+    "changelog": "Changelog",
+    "contato": "Contact",
+    "reportarErro": "Report Bug",
+    "doar": "Donate",
+    "extensoes": "Extensions",
+    "saude": "MomAI Health",
+    "download": "Download",
+    "microsoftStore": "Microsoft Store"
+  },
+  "hero": {
+    "badge": "100% Local & Private",
+    "title": "Your personal assistant,<br />right on your computer.",
+    "subtitle": "MomAI runs entirely on your machine. No subscriptions, no data collection, no accounts. Your data stays with you, and it only accesses the internet when you ask.",
+    "download": "Download MomAI",
+    "outrosDownloads": "Other downloads",
+    "saibaMais": "Learn more"
+  },
+  "features": {
+    "title": "Made for you",
+    "subtitle": "An assistant designed for those who value privacy, control and simplicity.",
+    "items": [
+      { "title": "100% Local", "desc": "Everything runs on your computer. Nothing goes to the cloud." },
+      { "title": "Total Privacy", "desc": "Your data never leaves your device." },
+      { "title": "Natural Voice", "desc": "Talk like you're speaking to a friend." },
+      { "title": "Extensible", "desc": "Add new abilities with community extensions." },
+      { "title": "Offline", "desc": "Works without internet. Always available." },
+      { "title": "Free", "desc": "100% free and open source. No subscriptions." }
+    ]
+  },
+  "howItWorks": {
+    "title": "How it works",
+    "subtitle": "In three simple steps, your personal assistant will be ready.",
+    "step1": "Download & Install",
+    "step1Desc": "In under 2 minutes you're ready.",
+    "step2": "Choose your mode",
+    "step2Desc": "Lite, Pro or Ultra \u2014 your choice.",
+    "step3": "Start using",
+    "step3Desc": "Type or talk. Your assistant is ready."
+  },
+  "socialProof": {
+    "stars": "stars on GitHub",
+    "instalacoes": "Installations",
+    "gratuito": "100% Free and Local"
+  },
+  "download": {
+    "title": "Download Now",
+    "subtitle": "Choose your platform and check the requirements to run MomAI 100% locally on your hardware.",
+    "windows": "Download for Windows",
+    "linux": "Download for Linux",
+    "microsoftStore": "Microsoft Store",
+    "outrosDownloads": "Other downloads",
+    "compatible": "Compatible with Windows 10/11 and Linux"
+  },
+  "video": {
+    "title": "See MomAI in action",
+    "subtitle": "Watch how easy it is to use your personal assistant"
+  },
+  "mobileApps": {
+    "title": "Also available on mobile",
+    "subtitle": "Try MomAI Sa\u00fade \u2014 your personal health assistant"
+  },
+  "footer": {
+    "direitos": "\u00a9 2026 MomAI",
+    "changelog": "Changelog",
+    "politica": "Privacy Policy",
+    "repositorio": "Repository",
+    "desenvolvido": "Built with privacy in mind"
+  },
+  "changelog": {
+    "title": "Changelog",
+    "subtitle": "Follow the evolution of MomAI",
+    "loading": "Syncing records...",
+    "empty": "No records found"
+  },
+  "contato": {
+    "title": "Contact Us",
+    "subtitle": "We're here to help",
+    "email": "Send Email",
+    "outrasDuvidas": "Other questions?",
+    "github": "Open Issue on GitHub",
+    "githubDesc": "For other questions, suggestions or bug reports, you can also open an issue on GitHub."
+  },
+  "doar": {
+    "title": "Support the Project",
+    "subtitle": "Your contribution keeps MomAI free for everyone",
+    "doarViaPix": "Donate via PIX",
+    "pixCopied": "Copied!",
+    "pixCopy": "Copy",
+    "pixKey": "PIX Key",
+    "qualquerValor": "Any amount is welcome and makes a difference. Thank you for believing in the project!",
+    "obrigado": "Thank you for your support! \ud83d\ude4f",
+    "github": "Support via GitHub Sponsors"
+  },
+  "reportarErro": {
+    "title": "Report Bug",
+    "subtitle": "Found a bug? Help us improve!",
+    "exemplos": "Examples: install error, unexpected crash, audio issue, etc.",
+    "enviado": "Report sent successfully!",
+    "enviar": "Send Report",
+    "tambemNo": "You can also report directly on"
+  },
+  "blog": {
+    "title": "Blog",
+    "subtitle": "News, tips and updates from MomAI",
+    "leiaMais": "Read more",
+    "featured": "Featured",
+    "voltar": "\u2190 Back to all posts",
+    "novidade": "What's New",
+    "desenvolvedor": "Developer",
+    "empty": "No posts found."
+  },
+  "extensoes": {
+    "title": "Extensions",
+    "subtitle": "Add new abilities to your MomAI",
+    "loading": "Loading extensions...",
+    "empty": "No extensions available at the moment",
+    "error": "Could not load the extensions list",
+    "readmeError": "README not available for this extension",
+    "readmeEmpty": "This extension did not provide a detailed README.",
+    "versao": "Version",
+    "categoria": "Category",
+    "autor": "Author",
+    "voltar": "← Back",
+    "todas": "All",
+    "github": "GitHub",
+    "sobre": "About this extension"
+  }
+}

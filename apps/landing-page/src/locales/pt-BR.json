@@ -1,0 +1,131 @@
+{
+  "nav": {
+    "blog": "Blog",
+    "changelog": "Changelog",
+    "contato": "Contato",
+    "reportarErro": "Reportar Erro",
+    "doar": "Doar",
+    "extensoes": "Extens\u00f5es",
+    "saude": "MomAI Sa\u00fade",
+    "download": "Download",
+    "microsoftStore": "Microsoft Store"
+  },
+  "hero": {
+    "badge": "100% Local & Privada",
+    "title": "Sua assistente pessoal,<br />direto no seu computador.",
+    "subtitle": "A MomAI roda inteiramente na sua m\u00e1quina. Sem assinaturas, sem coleta de dados, sem contas. Seus dados ficam com voc\u00ea, e ela s\u00f3 acessa a internet quando voc\u00ea pedir.",
+    "download": "Baixar MomAI",
+    "outrosDownloads": "Outros downloads",
+    "saibaMais": "Saiba mais"
+  },
+  "features": {
+    "title": "Feito para voc\u00ea",
+    "subtitle": "Uma assistente projetada para quem valoriza privacidade, controle e simplicidade.",
+    "items": [
+      { "title": "100% Local", "desc": "Tudo roda no seu computador. Nada vai para a nuvem." },
+      { "title": "Privacidade Total", "desc": "Seus dados nunca saem do seu dispositivo." },
+      { "title": "Voz Natural", "desc": "Converse como se estivesse falando com uma amiga." },
+      { "title": "Extens\u00edvel", "desc": "Adicione novas habilidades com extens\u00f5es da comunidade." },
+      { "title": "Offline", "desc": "Funciona sem internet. Sua assistente sempre dispon\u00edvel." },
+      { "title": "Gr\u00e1tis", "desc": "100% gratuito e open source. Sem assinaturas." }
+    ]
+  },
+  "howItWorks": {
+    "title": "Como funciona",
+    "subtitle": "Em tr\u00eas passos simples, sua assistente pessoal estar\u00e1 pronta.",
+    "step1": "Baixe e instale",
+    "step1Desc": "Em menos de 2 minutos voc\u00ea est\u00e1 pronto.",
+    "step2": "Escolha seu modo",
+    "step2Desc": "Lite, Pro ou Ultra \u2014 do seu jeito.",
+    "step3": "Comece a usar",
+    "step3Desc": "Digite ou fale. Sua assistente est\u00e1 pronta."
+  },
+  "socialProof": {
+    "stars": "stars no GitHub",
+    "instalacoes": "Instala\u00e7\u00f5es",
+    "gratuito": "100% Gratuito e Local"
+  },
+  "download": {
+    "title": "Baixe Agora",
+    "subtitle": "Escolha sua plataforma e veja os requisitos para rodar a MomAI 100% local no seu hardware.",
+    "windows": "Baixar para Windows",
+    "linux": "Baixar para Linux",
+    "microsoftStore": "Microsoft Store",
+    "outrosDownloads": "Outros downloads",
+    "compatible": "Compat\u00edvel com Windows 10/11 e Linux"
+  },
+  "video": {
+    "title": "Veja a MomAI em a\u00e7\u00e3o",
+    "subtitle": "Assista como \u00e9 f\u00e1cil usar sua assistente pessoal"
+  },
+  "mobileApps": {
+    "title": "Tamb\u00e9m dispon\u00edvel para celular",
+    "subtitle": "Experimente o MomAI Sa\u00fade \u2014 sua assistente de sa\u00fade pessoal"
+  },
+  "footer": {
+    "direitos": "\u00a9 2026 MomAI",
+    "changelog": "Changelog",
+    "politica": "Pol\u00edtica de Privacidade",
+    "repositorio": "Reposit\u00f3rio",
+    "desenvolvido": "Desenvolvido com foco em privacidade"
+  },
+  "changelog": {
+    "title": "Registro de Atualiza\u00e7\u00f5es",
+    "subtitle": "Acompanhe a evolu\u00e7\u00e3o da MomAI",
+    "loading": "Sincronizando registros...",
+    "empty": "Nenhum registro encontrado"
+  },
+  "contato": {
+    "title": "Entre em Contato",
+    "subtitle": "Estamos aqui para ajudar",
+    "email": "Enviar E-mail",
+    "outrasDuvidas": "Outras d\u00favidas?",
+    "github": "Abrir Issue no GitHub",
+    "githubDesc": "Para outras quest\u00f5es, sugest\u00f5es ou relat\u00f3rios de bugs, voc\u00ea tamb\u00e9m pode abrir uma issue no GitHub."
+  },
+  "doar": {
+    "title": "Apoie o Projeto",
+    "subtitle": "Sua contribui\u00e7\u00e3o mant\u00e9m a MomAI gratuita para todos",
+    "doarViaPix": "Doar via PIX",
+    "pixCopied": "Copiado!",
+    "pixCopy": "Copiar",
+    "pixKey": "Chave PIX",
+    "qualquerValor": "Qualquer valor \u00e9 bem-vindo e faz diferen\u00e7a. Obrigado por acreditar no projeto!",
+    "obrigado": "Obrigado pelo seu apoio! \ud83d\ude4f",
+    "github": "Apoiar via GitHub Sponsors"
+  },
+  "reportarErro": {
+    "title": "Reportar Erro",
+    "subtitle": "Encontrou um bug? Nos ajude a melhorar!",
+    "exemplos": "Exemplos: erro ao instalar, crash inesperado, problema de \u00e1udio, etc.",
+    "enviado": "Relat\u00f3rio enviado com sucesso!",
+    "enviar": "Enviar Relat\u00f3rio",
+    "tambemNo": "Voc\u00ea tamb\u00e9m pode reportar diretamente no"
+  },
+  "blog": {
+    "title": "Blog",
+    "subtitle": "Novidades, dicas e atualiza\u00e7\u00f5es da MomAI",
+    "leiaMais": "Leia mais",
+    "featured": "Destaque",
+    "voltar": "\u2190 Voltar para todos os posts",
+    "novidade": "Novidade",
+    "desenvolvedor": "Desenvolvedor",
+    "empty": "Nenhum post encontrado."
+  },
+  "extensoes": {
+    "title": "Extens\u00f5es",
+    "subtitle": "Adicione novas habilidades \u00e0 sua MomAI",
+    "loading": "Carregando extens\u00f5es...",
+    "empty": "Nenhuma extens\u00e3o dispon\u00edvel no momento",
+    "error": "N\u00e3o foi poss\u00edvel carregar a lista de extens\u00f5es",
+    "readmeError": "README n\u00e3o dispon\u00edvel para esta extens\u00e3o",
+    "readmeEmpty": "Esta extens\u00e3o n\u00e3o forneceu um README detalhado.",
+    "versao": "Vers\u00e3o",
+    "categoria": "Categoria",
+    "autor": "Autor",
+    "voltar": "\u2190 Voltar",
+    "todas": "Todas",
+    "github": "GitHub",
+    "sobre": "Sobre esta extens\u00e3o"
+  }
+}

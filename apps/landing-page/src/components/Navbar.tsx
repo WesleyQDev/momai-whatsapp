@@ -3,18 +3,22 @@ import { useTheme } from '@/hooks/useTheme'
 import { useOSDetection } from '@/hooks/useOSDetection'
 import { useGitHubRelease } from '@/hooks/useGitHubRelease'
 import { useDownloadTracking } from '@/hooks/useDownloadTracking'
+import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'react-router-dom'
 import { useState, useCallback } from 'react'
+import { LanguageSwitcher } from './LanguageSwitcher'
 import { SunIcon, MoonIcon, Bars3Icon, XMarkIcon } from './Icons'
 
 const NAV_LINKS = [
-  { to: '/blog', label: 'Blog' },
-  { to: '/changelog', label: 'Changelog' },
-  { to: '/contato', label: 'Contato' },
-  { to: '/reportar-erro', label: 'Reportar Erro' },
+  { to: '/blog', label: 'nav.blog' },
+  { to: '/changelog', label: 'nav.changelog' },
+  { to: '/extensoes', label: 'nav.extensoes' },
+  { to: '/contato', label: 'nav.contato' },
+  { to: '/reportar-erro', label: 'nav.reportarErro' },
 ]
 
 export function Navbar() {
+  const { t } = useTranslation()
   const { theme, toggleTheme } = useTheme()
   const { detectPlatform } = useOSDetection()
   const { urls } = useGitHubRelease()
@@ -26,7 +30,7 @@ export function Navbar() {
   const isLinux = os === 'linux'
 
   const navDownloadHref = isLinux ? urls.linuxUrl : WIN_STORE_URL
-  const navDownloadText = isLinux ? 'Download' : 'Microsoft Store'
+  const navDownloadText = isLinux ? t('nav.download') : t('nav.microsoftStore')
 
   const handleLinkClick = useCallback(() => {
     setMenuOpen(false)
@@ -66,7 +70,7 @@ export function Navbar() {
                   isActive(link.to) ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:text-[var(--text)]'
                 }`}
               >
-                {link.label}
+                {t(link.label)}
               </Link>
             </li>
           ))}
@@ -77,7 +81,7 @@ export function Navbar() {
               className="donate-link mx-4 my-2 block rounded-full px-4 py-2 text-center text-sm font-medium text-[#c58af9] no-underline transition-colors hover:bg-[rgba(197,138,249,0.25)] md:mx-0 md:my-0 md:px-4 md:py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c58af9]"
               style={{ animation: 'pulse-lilac 2s ease-in-out infinite', background: 'rgba(197,138,249,0.15)' }}
             >
-              Doar
+              {t('nav.doar')}
             </Link>
           </li>
           <li className="mobile-nav-link w-full md:hidden">
@@ -86,7 +90,7 @@ export function Navbar() {
               className="mx-4 mb-2 flex items-center gap-2 rounded-xl border-l-4 border-[#c58af9] bg-[rgba(197,138,249,0.1)] px-6 py-4 font-flex font-semibold text-[#c58af9] no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c58af9]"
             >
               <img src="/saude/icon.png" alt="Saúde" className="h-6 w-6 rounded-md" />
-              MomAI Saúde
+              {t('nav.saude')}
             </a>
           </li>
         </ul>
@@ -98,8 +102,10 @@ export function Navbar() {
           className="hidden items-center gap-2 rounded-full px-3 py-1 text-[1.1rem] font-semibold tracking-tight text-[var(--text)] no-underline transition-opacity hover:opacity-80 md:inline-flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         >
           <img src="/saude/icon.png" alt="Saúde" className="h-7 w-7 rounded-md" />
-          MomAI Saúde
+          {t('nav.saude')}
         </a>
+
+        <LanguageSwitcher />
 
         <button
           onClick={toggleTheme}

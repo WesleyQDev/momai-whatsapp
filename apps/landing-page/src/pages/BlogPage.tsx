@@ -3,8 +3,10 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { loadBlogPosts } from '../lib/blog'
 import type { BlogPost } from '../content/blog'
+import { useTranslation } from 'react-i18next'
 
 function BlogPostView({ post, onBack }: { post: BlogPost; onBack: () => void }) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
 
   const handleBack = () => {
@@ -21,12 +23,12 @@ function BlogPostView({ post, onBack }: { post: BlogPost; onBack: () => void }) 
           onClick={handleBack}
           className="mb-10 inline-flex items-center gap-2 text-sm text-[var(--accent)] transition-all hover:text-[var(--accent-hover)]"
         >
-          ← Voltar para todos os posts
+          {t('blog.voltar')}
         </button>
 
         <div className="mb-10">
           {post.featured && (
-            <span className="mb-4 inline-block rounded-full bg-[var(--gradient-primary)] px-4 py-1 text-xs font-semibold uppercase tracking-wider text-white">Novidade</span>
+            <span className="mb-4 inline-block rounded-full bg-[var(--gradient-primary)] px-4 py-1 text-xs font-semibold uppercase tracking-wider text-white">{t('blog.novidade')}</span>
           )}
           <div className="mb-3 text-sm text-[var(--text-tertiary)]">{post.date}</div>
           <h1 className="mb-5 font-flex text-3xl font-normal leading-[1.3] tracking-tight text-[var(--text)] md:text-4xl">{post.title}</h1>
@@ -39,7 +41,7 @@ function BlogPostView({ post, onBack }: { post: BlogPost; onBack: () => void }) 
               />
               <div>
                 <div className="text-sm font-medium text-[var(--text)]">{post.author}</div>
-                <div className="text-xs text-[var(--text-tertiary)]">Desenvolvedor</div>
+                <div className="text-xs text-[var(--text-tertiary)]">{t('blog.desenvolvedor')}</div>
               </div>
             </div>
           )}
@@ -55,6 +57,7 @@ function BlogPostView({ post, onBack }: { post: BlogPost; onBack: () => void }) 
 }
 
 function BlogListing({ posts, onSelect }: { posts: BlogPost[]; onSelect: (post: BlogPost) => void }) {
+  const { t } = useTranslation()
   const featuredPosts = posts.filter(p => p.featured)
   const regularPosts = posts.filter(p => !p.featured)
   const heroPost = featuredPosts.length > 0 ? featuredPosts[0] : null
@@ -64,8 +67,8 @@ function BlogListing({ posts, onSelect }: { posts: BlogPost[]; onSelect: (post: 
     <div className="blog-listing-container">
       <div className="mx-auto max-w-[1100px] px-8 py-24">
       <div className="mb-16 text-center">
-        <h1 className="mb-3 font-flex text-5xl font-normal tracking-tight" style={{ background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Blog</h1>
-        <p className="text-lg text-[var(--text-secondary)]">Fique por dentro das últimas novidades da MomAI</p>
+        <h1 className="mb-3 font-flex text-5xl font-normal tracking-tight" style={{ background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('blog.title')}</h1>
+        <p className="text-lg text-[var(--text-secondary)]">{t('blog.subtitle')}</p>
       </div>
 
       {heroPost && (
@@ -79,11 +82,11 @@ function BlogListing({ posts, onSelect }: { posts: BlogPost[]; onSelect: (post: 
             )}
           </div>
           <div className="flex w-1/2 flex-col justify-center p-10 max-md:w-full max-md:p-6">
-            <span className="mb-3 inline-block w-fit rounded bg-[var(--gradient-primary)] px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white">Em Destaque</span>
+            <span className="mb-3 inline-block w-fit rounded bg-[var(--gradient-primary)] px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white">{t('blog.featured')}</span>
             <div className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">{heroPost.date}</div>
             <h2 className="mb-3 font-flex text-3xl font-normal leading-[1.3] text-[var(--text)]">{heroPost.title}</h2>
             <p className="mb-4 line-clamp-4 text-base leading-relaxed text-[var(--text-secondary)]">{heroPost.excerpt}</p>
-            <div className="text-sm font-medium text-[var(--accent)]">Ler mais →</div>
+              <div className="text-sm font-medium text-[var(--accent)]">{t('blog.leiaMais')}</div>
           </div>
         </article>
       )}
@@ -102,19 +105,19 @@ function BlogListing({ posts, onSelect }: { posts: BlogPost[]; onSelect: (post: 
             </div>
             <div className="flex flex-col p-6">
               {post.featured && (
-                <span className="mb-2 inline-block w-fit rounded bg-[var(--gradient-primary)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">Destaque</span>
+                <span className="mb-2 inline-block w-fit rounded bg-[var(--gradient-primary)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">{t('blog.featured')}</span>
               )}
               <div className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-secondary)]">{post.date}</div>
               <h3 className="mb-2 text-lg font-medium leading-[1.4] text-[var(--text)]">{post.title}</h3>
               <p className="mb-4 line-clamp-3 flex-1 text-sm leading-relaxed text-[var(--text-secondary)]">{post.excerpt}</p>
-              <div className="text-sm font-medium text-[var(--accent)]">Ler mais →</div>
+            <div className="text-sm font-medium text-[var(--accent)]">{t('blog.leiaMais')}</div>
             </div>
           </article>
         ))}
       </div>
 
       {posts.length === 0 && (
-        <p className="py-16 text-center text-[var(--text-tertiary)]">Nenhum post encontrado.</p>
+        <p className="py-16 text-center text-[var(--text-tertiary)]">{t('blog.empty')}</p>
       )}
     </div>
     </div>
@@ -122,7 +125,8 @@ function BlogListing({ posts, onSelect }: { posts: BlogPost[]; onSelect: (post: 
 }
 
 export function BlogPage() {
-  const posts = loadBlogPosts()
+  const { t, i18n } = useTranslation()
+  const posts = loadBlogPosts(i18n.language)
   const { postId } = useParams<{ postId: string }>()
   const navigate = useNavigate()
 

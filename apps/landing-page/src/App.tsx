@@ -5,6 +5,7 @@ import { Footer } from './components/Footer'
 import { HomePage } from './pages/HomePage'
 import { BlogPage } from './pages/BlogPage'
 import { ChangelogPage } from './pages/ChangelogPage'
+import { ExtensionsPage } from './pages/ExtensionsPage'
 import { ContatoPage } from './pages/ContatoPage'
 import { ReportarErroPage } from './pages/ReportarErroPage'
 import { DoarPage } from './pages/DoarPage'
@@ -28,6 +29,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/blog" element={<BlogPage />} />
           <Route path="/blog/post/:postId" element={<BlogPage />} />
+          <Route path="/extensoes" element={<ExtensionsPage />} />
           <Route path="/changelog" element={<ChangelogPage />} />
           <Route path="/contato" element={<ContatoPage />} />
           <Route path="/reportar-erro" element={<ReportarErroPage />} />

@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 const CONTACTS = [
   {
     href: 'mailto:wesleyqueirozdeveloper@gmail.com',
@@ -43,13 +45,14 @@ const CONTACTS = [
 ]
 
 export function ContatoPage() {
+  const { t } = useTranslation()
   return (
     <div className="mx-auto max-w-[800px] px-8 py-24">
       <h1 className="mb-3 text-center font-flex text-5xl font-normal leading-[1.1] tracking-tight" style={{ background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-        Fale Conosco
+        {t('contato.title')}
       </h1>
       <p className="mb-12 text-center text-lg text-[var(--text-secondary)]">
-        Estamos aqui para ajudar! Entre em contato pela plataforma que preferir.
+        {t('contato.subtitle')}
       </p>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -71,9 +74,9 @@ export function ContatoPage() {
       </div>
 
       <div className="mt-12 rounded-2xl bg-[var(--bg-secondary)] p-10 text-center">
-        <h2 className="mb-3 font-flex text-2xl font-normal text-[var(--text)]">Outras dúvidas?</h2>
+        <h2 className="mb-3 font-flex text-2xl font-normal text-[var(--text)]">{t('contato.outrasDuvidas')}</h2>
         <p className="mb-6 text-[var(--text-secondary)]">
-          Para outras questões, sugestões ou relatórios de bugs, você também pode abrir uma issue no GitHub.
+          {t('contato.githubDesc')}
         </p>
         <a
           href="https://github.com/WesleyQDev/MomAI-App/issues"
@@ -86,7 +89,7 @@ export function ContatoPage() {
             <line x1={12} y1={16} x2={12} y2={12} />
             <line x1={12} y1={8} x2={12.01} y2={8} />
           </svg>
-          Abrir Issue no GitHub
+          {t('contato.github')}
         </a>
       </div>
     </div>

@@ -1,7 +1,7 @@
+import { useTranslation } from 'react-i18next'
 import { ScrollReveal } from './ScrollReveal'
 import { StarIcon } from './Icons'
 import { useGitHubStats } from '@/hooks/useGitHubStats'
-import { useGitHubRelease } from '@/hooks/useGitHubRelease'
 import { GITHUB_REPO_URL } from '@/constants'
 
 function formatNumber(num: number): string {
@@ -12,8 +12,8 @@ function formatNumber(num: number): string {
 }
 
 export function SocialProofSection() {
+  const { t } = useTranslation()
   const { stars, loading: starsLoading } = useGitHubStats()
-  const { totalDownloads, loading: releaseLoading } = useGitHubRelease()
 
   return (
     <section className="relative mx-auto max-w-[900px] px-8 py-12">
@@ -31,7 +31,7 @@ export function SocialProofSection() {
                 {starsLoading ? '...' : formatNumber(stars)}
               </span>
             </div>
-            <span className="text-sm">stars no GitHub</span>
+            <span className="text-sm">{t('socialProof.stars')}</span>
           </a>
 
           <div className="hidden h-8 w-px bg-[var(--feature-border)] sm:block" />
@@ -44,11 +44,11 @@ export function SocialProofSection() {
                 <line x1={12} y1={15} x2={12} y2={3} />
               </svg>
               <span className="text-sm font-semibold text-[var(--text)]">
-                {releaseLoading ? '...' : formatNumber(totalDownloads)}
+                +77
               </span>
             </div>
             <span className="text-sm text-[var(--text-secondary)]">
-              downloads
+              {t('socialProof.instalacoes')}
             </span>
           </div>
 
@@ -59,7 +59,7 @@ export function SocialProofSection() {
               <span className="absolute h-2.5 w-2.5 animate-ping rounded-full bg-green-400 opacity-75" />
               <span className="relative h-2 w-2 rounded-full bg-green-500" />
             </div>
-            <span className="text-sm text-[var(--text-secondary)]">100% Gratuito e Local</span>
+            <span className="text-sm text-[var(--text-secondary)]">{t('socialProof.gratuito')}</span>
           </div>
         </div>
       </ScrollReveal>

@@ -3,8 +3,10 @@ import { WIN_STORE_URL } from '@/constants'
 import { useOSDetection } from '@/hooks/useOSDetection'
 import { useGitHubRelease } from '@/hooks/useGitHubRelease'
 import { useDownloadTracking } from '@/hooks/useDownloadTracking'
+import { useTranslation } from 'react-i18next'
 
 export function HeroSection() {
+  const { t } = useTranslation()
   const { detectPlatform } = useOSDetection()
   const { urls } = useGitHubRelease()
   const { trackDownload } = useDownloadTracking()
@@ -13,7 +15,7 @@ export function HeroSection() {
   const cleanVersion = urls.version.replace(/^v/, '')
 
   const heroHref = isLinux ? urls.linuxUrl : WIN_STORE_URL
-  const heroText = isLinux ? 'Download para Linux' : 'Microsoft Store'
+  const heroText = isLinux ? t('hero.download') : t('download.microsoftStore')
   const heroVersion = isLinux ? `v${cleanVersion}` : ''
 
   const handleHeroDownload = () => {
@@ -39,15 +41,14 @@ export function HeroSection() {
       </div>
 
       <div className="badge mb-5 inline-block rounded-full border border-[rgba(138,180,248,0.2)] bg-[var(--gradient-subtle)] px-4 py-1 text-sm font-medium text-[var(--accent)]" style={{ animation: 'fadeInUp 0.8s ease-out forwards', opacity: 0 }}>
-        100% Local & Privada
+        {t('hero.badge')}
       </div>
 
-      <h1 className="mb-6 font-flex text-5xl font-normal leading-[1.1] tracking-tight md:text-[4rem]" style={{ background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', animation: 'fadeInUp 1s ease-out 0.1s forwards', opacity: 0 }}>
-        Sua assistente pessoal,<br />direto no seu computador.
+      <h1 className="mb-6 font-flex text-5xl font-normal leading-[1.1] tracking-tight md:text-[4rem]" style={{ background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', animation: 'fadeInUp 1s ease-out 0.1s forwards', opacity: 0 }} dangerouslySetInnerHTML={{ __html: t('hero.title') }}>
       </h1>
 
       <p className="subtitle mb-10 max-w-[700px] text-lg font-normal leading-relaxed text-[var(--text-secondary)]" style={{ animation: 'fadeInUp 1s ease-out 0.2s forwards', opacity: 0 }}>
-        A MomAI roda inteiramente na sua máquina. Sem assinaturas, sem coleta de dados, sem contas. Seus dados ficam com você, e ela só acessa a internet quando você pedir.
+        {t('hero.subtitle')}
       </p>
 
       <div className="btn-group flex items-start gap-3" style={{ animation: 'fadeInUp 1s ease-out 0.3s forwards', opacity: 0 }}>
@@ -72,11 +73,11 @@ export function HeroSection() {
             )}
           </a>
           <a href="#download" className="text-sm text-[var(--text-secondary)] no-underline opacity-70 transition-all hover:text-[var(--accent)] hover:opacity-100 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
-            Outros downloads
+            {t('hero.outrosDownloads')}
           </a>
         </div>
         <Link to="/blog/post/v1-2-0" className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(255,255,255,0.15)] bg-transparent px-6 py-[0.7rem] text-sm font-medium text-[var(--text-secondary)] no-underline transition-all hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--text)] hover:border-[rgba(255,255,255,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]">
-          Saiba mais
+          {t('hero.saibaMais')}
         </Link>
       </div>
 

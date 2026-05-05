@@ -19,6 +19,7 @@ export interface DownloadUrls {
 
 export interface BlogPost {
   id: string
+  locale: string
   title: string
   date: string
   excerpt: string
