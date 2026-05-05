@@ -35,7 +35,7 @@ function parseChangelog(md: string): ChangelogVersion[] {
 
     const sectionMatch = trimmed.match(/^## (.+)$/)
     if (sectionMatch) {
-      const title = sectionMatch[1].replace(/[✨⚙️🐛🚀🗑️💄🔧📦]/g, '').trim()
+      const title = sectionMatch[1].replace(/\p{Extended_Pictographic}/gu, '').trim()
       currentSection = { title, items: [] }
       current.sections.push(currentSection)
       continue
