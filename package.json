@@ -25,6 +25,7 @@
     "test": "turbo run test",
     "docs": "cd apps/docs && mint dev",
     "docs:internal": "pnpm --filter internal-docs start",
+    "deploy:ghpages": "node scripts/sync-gh-pages.js",
     "preinstall": "npx only-allow pnpm"
   },
   "keywords": [],
