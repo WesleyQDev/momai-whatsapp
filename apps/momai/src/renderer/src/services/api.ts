@@ -213,7 +213,7 @@ export async function stopVoice(): Promise<void> {
 
 import { getTTSServiceRenderer } from './ttsService'
 
-function stripEmojisAndMarkdown(text: string): string {
+export function stripEmojisAndMarkdown(text: string): string {
   return text
     .replace(/\p{Extended_Pictographic}/gu, '')
     .replace(/```[\s\S]*?```/g, '')
@@ -286,7 +286,7 @@ export async function updateMode(mode: string): Promise<void> {
   if (!response.ok) throw new Error('Erro ao atualizar modo')
 }
 
-function safeJsonParse(str: string | null | undefined): any {
+export function safeJsonParse(str: string | null | undefined): any {
   if (!str) return undefined
   try {
     return JSON.parse(str)
