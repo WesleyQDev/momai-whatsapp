@@ -26,6 +26,28 @@ logger = logging.getLogger("momai.tts")
 ONNX_PROVIDER = "CPUExecutionProvider"
 IS_LINUX = platform.system().lower() == "linux"
 
+_RE_EMOJI = re.compile(r'[\U00010000-\U0010ffff]')
+_RE_CODEBLOCK = re.compile(r"```[\s\S]*?```")
+_RE_INLINE_CODE = re.compile(r"`([^`]+)`")
+_RE_BOLD_TRIPLE = re.compile(r"\*\*\*(.+?)\*\*\*")
+_RE_BOLD = re.compile(r"\*\*(.+?)\*\*")
+_RE_UL_BOLD = re.compile(r"__(.+?)__")
+_RE_ITALIC = re.compile(r"\*(.+?)\*")
+_RE_UL_ITALIC = re.compile(r"_(.+?)_")
+_RE_STRIKETHROUGH = re.compile(r"~~(.+?)~~")
+_RE_HEADING = re.compile(r'^#{1,6}\s+', re.MULTILINE)
+_RE_LIST = re.compile(r'^\s*[-*+]\s+', re.MULTILINE)
+_RE_NUMBERED = re.compile(r'^\s*\d+\.\s+', re.MULTILINE)
+_RE_BLOCKQUOTE = re.compile(r'^>+\s?', re.MULTILINE)
+_RE_LINK = re.compile(r'!?\[([^\]]*)\]\([^)]+\)')
+_RE_SEPARATOR = re.compile(r"---+|\*\*\*+|___+")
+_RE_PIPE = re.compile(r"\|")
+_RE_LEFT = re.compile(r"[*_~#]")
+_RE_QUOTE = re.compile(r'["""\'\']')
+_RE_SPACES = re.compile(r" {2,}")
+_RE_MULTILINE = re.compile(r'\n{3,}')
+_RE_TRAILING = re.compile(r'\s+$', re.MULTILINE)
+
 VIRTUAL_DEVICE_KEYWORDS = [
     "elgato", "virtual", "voicemeeter", "cable", "vb-audio",
     "steelseries sonar", "nahimic", "sonic studio",
@@ -579,45 +601,27 @@ class TTSManager:
     def _strip_markdown(text: str) -> str:
         """Remove markdown formatting and emojis so TTS reads clean text."""
         s = text
-        # 1. Remove emojis
-        s = re.sub(r'[\U00010000-\U0010ffff]', '', s)
-        
-        # 2. Remove code blocks entirely (including contents)
-        s = re.sub(r"```[\s\S]*?```", "", s)
-        
-        # 3. Pair-based markdown (longer first to avoid partial matches)
-        s = re.sub(r"`([^`]+)`", r"\1", s)
-        s = re.sub(r"\*\*\*(.+?)\*\*\*", r"\1", s)
-        s = re.sub(r"\*\*(.+?)\*\*", r"\1", s)
-        s = re.sub(r"__(.+?)__", r"\1", s)
-        s = re.sub(r"\*(.+?)\*", r"\1", s)
-        s = re.sub(r"_(.+?)_", r"\1", s)
-        s = re.sub(r"~~(.+?)~~", r"\1", s)
-        
-        # 4. Headers, Lists, Blockquotes (Line-based)
-        s = re.sub(r"^#{1,6}\s+", "", s, flags=re.MULTILINE)
-        s = re.sub(r"^\s*[-*+]\s+", "", s, flags=re.MULTILINE)
-        s = re.sub(r"^\s*\d+\.\s+", "", s, flags=re.MULTILINE)
-        s = re.sub(r"^>+\s?", "", s, flags=re.MULTILINE)
-        
-        # 5. Links and Images: [text](url) -> text
-        s = re.sub(r"!?\[([^\]]*)\]\([^)]+\)", r"\1", s)
-        
-        # 6. Separators and Table pipes
-        s = re.sub(r"---+|\*\*\*+|___+", "", s)
-        s = re.sub(r"\|", " ", s)
-        
-        # 7. CRITICAL FALLBACK: Remove any remaining leftover markdown symbols
-        # catching cases like ** Hello ** or single * decorators that failed pairing.
-        s = re.sub(r"[*_~#]", " ", s)
-        
-        # 8. Remove quotation marks that TTS might read aloud ("", '', "", '', etc.)
-        s = re.sub(r'["""\'\']', '', s)
-        
-        # 9. Clean up whitespace
-        s = re.sub(r" {2,}", " ", s)
-        s = re.sub(r"\n{3,}", "\n\n", s)
-        
+        s = _RE_EMOJI.sub('', s)
+        s = _RE_CODEBLOCK.sub('', s)
+        s = _RE_INLINE_CODE.sub(r'\1', s)
+        s = _RE_BOLD_TRIPLE.sub(r'\1', s)
+        s = _RE_BOLD.sub(r'\1', s)
+        s = _RE_UL_BOLD.sub(r'\1', s)
+        s = _RE_ITALIC.sub(r'\1', s)
+        s = _RE_UL_ITALIC.sub(r'\1', s)
+        s = _RE_STRIKETHROUGH.sub(r'\1', s)
+        s = _RE_HEADING.sub('', s)
+        s = _RE_LIST.sub('', s)
+        s = _RE_NUMBERED.sub('', s)
+        s = _RE_BLOCKQUOTE.sub('', s)
+        s = _RE_LINK.sub(r'\1', s)
+        s = _RE_SEPARATOR.sub('', s)
+        s = _RE_PIPE.sub(' ', s)
+        s = _RE_LEFT.sub(' ', s)
+        s = _RE_QUOTE.sub('', s)
+        s = _RE_SPACES.sub(' ', s)
+        s = _RE_MULTILINE.sub('\n\n', s)
+        s = _RE_TRAILING.sub('', s)
         return s.strip()
 
     def speak(self, text: str):
