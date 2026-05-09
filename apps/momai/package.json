@@ -51,6 +51,7 @@
     "@lezer/highlight": "^1.2.3",
     "@uiw/react-codemirror": "^4.23.7",
     "axios": "^1.13.2",
+    "dotenv": "^17.4.2",
     "edge-tts-universal": "^1.4.0",
     "electron-log": "^5.4.3",
     "electron-updater": "6.8.3",
@@ -68,10 +69,14 @@
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
     "@tailwindcss/typography": "^0.5.19",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "@vitest/coverage-v8": "^4.1.5",
     "autoprefixer": "^10.4.23",
     "electron": "^39.2.6",
     "electron-builder": "^26.0.12",
@@ -80,6 +85,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
+    "jsdom": "^26.1.0",
     "postcss": "^8.5.6",
     "prettier": "^3.7.4",
     "rcedit": "^5.0.2",
@@ -89,11 +95,6 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.9.3",
     "vite": "^7.2.6",
-    "vitest": "^4.1.5",
-    "@vitest/coverage-v8": "^4.1.5",
-    "@testing-library/react": "^16.3.1",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/user-event": "^14.6.1",
-    "jsdom": "^26.1.0"
+    "vitest": "^4.1.5"
   }
 }

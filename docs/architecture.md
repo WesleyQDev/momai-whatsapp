@@ -1,141 +1,213 @@
-# Arquitetura
+# Arquitetura do MomAIOS
 
-## Visão Geral (C4 Nível 1 — Contexto)
+## Visão Geral
 
-MomAI é um assistente virtual de desktop que executa LLMs **localmente** no computador do usuário. O usuário interage via interface gráfica (Electron) ou comandos de voz, e o sistema orquestra múltiplos componentes para processar a requisição.
+MomAI é um assistente virtual de desktop que prioriza a privacidade do usuário executando LLMs **localmente** no computador. O sistema é construído como um monorepo gerenciado por pnpm workspaces + Turborepo, contendo cinco aplicações principais que se comunicam entre si para oferecer uma experiência completa de assistente inteligente.
+
+Diferente de assistentes como Alexa ou Google Assistant que enviam seus dados para a nuvem, o MomAI foi projetado para que tudo — desde a detecção da palavra de ativação até a geração de texto e fala — aconteça na sua própria máquina.
+
+## Diagrama de Contexto (C4 Nível 1)
 
 ```
-[Usuário] <--> [MomAI Desktop (Electron)]
-                    |
-        +-----------+-----------+
-        |                       |
-   [Node Core]          [Python Sidecar]
-   (LLM, Chat,          (STT, TTS,
-    Skills, RAG)         Wake Word)
++-------------+     +-------------------------------------------+
+|             |     |              MomAI Desktop                |
+|   Usuário   |<--->|  (Electron + React + TypeScript)          |
+|             |     |                                           |
++-------------+     |  +--------+  +----------+  +-----------+  |
+                    |  | Main   |  | Preload  |  | Renderer  |  |
+                    |  | Process|  | (Bridge) |  | (React)   |  |
+                    |  +--------+  +----------+  +-----------+  |
+                    |         |           |           |         |
+                    +---------|-----------|-----------|---------+
+                              |           |           |
+                     HTTP/WS  |     IPC   |    HTTP/WS|
+                              |           |           |
+                    +---------|-----------+-----------|---------+
+                    |         v                       v         |
+                    |  +--------------+     +--------------+     |
+                    |  |  Node Core   |     | Python       |     |
+                    |  |  (LLM, Chat, |     | Sidecar      |     |
+                    |  |   Skills,    |     | (STT, TTS,   |     |
+                    |  |   RAG)       |     |  Wake Word)   |     |
+                    |  +--------------+     +--------------+     |
+                    |        |                                    |
+                    |  +-----------                               |
+                    |  | llama-server  (subprocesso LLM)           |
+                    |  | (Qwen3.5 GGUF models)                     |
+                    |  +-----------                               |
+                    +-------------------------------------------+
 ```
 
-## Componentes (C4 Nível 2 — Containers)
+## Componentes (C4 Nível 2)
 
 ### 1. MomAI Desktop (Electron)
 
-Aplicação desktop que roda o Electron em 3 processos:
+A interface gráfica do assistente roda sobre Electron 39.x e é dividida em três processos, cada um com uma responsabilidade bem definida:
 
-- **Main Process:** Gerencia janelas, subprocessos (node-core, Python), IPC, Tray
-- **Preload:** Bridge segura entre main e renderer via `contextBridge`
-- **Renderer (React):** Interface do usuário (dashboard, chat, notas, configurações)
+**Main Process** (`apps/momai/src/main/`): É o processo principal do Electron. Ele gerencia o ciclo de vida da aplicação — criação de janelas, atalhos globais, bandeja do sistema (tray), e o mais importante: ele orquestra os subprocessos do Node Core e do Python Sidecar. É aqui que decisões críticas como "iniciar o servidor llama.cpp", "baixar modelos GGUF", e "gerenciar o ambiente Python" acontecem. Arquivos principais:
+- `index.ts`: Ponto de entrada, eventos de lifecycle
+- `windowManager.ts`: Criação e gerenciamento de janelas
+- `coreManager.ts`: Gerencia o subprocesso Node Core (inicia, monitora, reinicia)
+- `pythonManager.ts`: Gerencia o Python sidecar
+- `updater.ts`: Auto-update via electron-updater
+- `python/`: Bootstrap modular do Python (12 arquivos, refatorado de um monolito de 1.891 linhas)
 
-**Portas:**
-- HTTP: 8000 (node-core)
-- WebSocket: 8000 (node-core)
-- Python sidecar: 8001
+**Preload** (`apps/momai/src/preload/`): Uma camada fina de segurança que usa `contextBridge` do Electron para expor APIs limitadas do Node.js para o renderer. Isso segue as melhores práticas de segurança do Electron — o renderer nunca tem acesso direto ao Node.js.
+
+**Renderer** (`apps/momai/src/renderer/`): Uma SPA React 19 com TypeScript 5.9 e TailwindCSS 3.x. É o que o usuário vê e com o que interage. Contém:
+- **Views**: Chat, Notas, Lembretes, Extensões, Sobre, Overlay
+- **Componentes**: Barra lateral, cards de resposta estruturada (WeatherCard, RemindersCard, etc.), gráfico de agentes
+- **Hooks**: 27 custom hooks que encapsulam lógica de chat, áudio, TTS, status, inicialização
+- **Serviços**: Cliente API com SSE streaming, serviço de TTS
 
 ### 2. Node Core
 
-Backend Node.js responsável por toda a lógica de IA e orquestração:
+O "cérebro" da MomAI. Originalmente um monolito de 4.432 linhas (`scripts/node-core.js`), foi refatorado para uma estrutura modular em `scripts/node-core/`. Ele roda como um subprocesso do Electron e se comunica via HTTP + WebSocket.
 
-- **Chat Service:** Stream de respostas, histórico por sessão
-- **LLM Manager:** Gerencia processo `llama-server.exe`, seleção de modelo por tier
-- **Semantic Engine:** Busca vetorial via LanceDB, embeddings
-- **Skill Orchestrator:** Descoberta e execução de skills por intenção
-- **Extension Platform:** Runtime de extensões (tools, hooks, eventos, UI)
-- **Reminder Service:** Lembretes agendados
-- **TTS Service:** Bridge para TTS no Python sidecar
+**Serviços Principais:**
 
-### 3. Python Sidecar (MomAI Core)
+| Serviço | Arquivo | Função |
+|---------|---------|--------|
+| Chat | `services/chat-service.js` | Stream de respostas, histórico por sessão |
+| LLM | `services/llama-manager.js` | Gerencia subprocesso llama-server, seleção de modelo por tier (963 linhas) |
+| Embeddings | `services/embedding-manager.js` | Geração de embeddings via llama.cpp |
+| Semântico | `services/semantic-engine.js` | LanceDB, busca vetorial, RAG |
+| Skills | `services/skill-orchestrator.js` | Descoberta e execução de skills por intenção |
+| Extensões | `services/extension-platform.js` | Runtime de extensões v1 |
+| Lembretes | `services/reminder-service.js` | Lembretes agendados |
+| TTS | `services/tts-service.js` | Bridge para TTS no Python sidecar |
 
-Serviço FastAPI enxuto dedicado a operações de voz:
+**Infraestrutura:**
 
-- **Voice API:** Wake word, call mode, quick transcribe
-- **Chat Voice:** TTS bridge (Kokoro), stop voice
-- **Database:** SQLite com settings, migrações automáticas
+| Módulo | Função |
+|--------|--------|
+| `config/constants.js` | Constantes de configuração (portas, diretórios, timeouts) |
+| `config/tiers.js` | Configuração dos tiers de IA (Lite, Pro, Ultra) |
+| `infrastructure/logger.js` | Logging estruturado |
+| `infrastructure/store.js` | Persistência JSON (configurações, sessões) |
+| `infrastructure/process-manager.js` | Gerenciamento de processos (llama-server) |
+| `infrastructure/http-helpers.js` | Helpers HTTP |
 
-### 4. FortScript (opcional)
+### 3. Python Sidecar
 
-Ferramenta Python independente que pausa/retoma processos baseado em detecção de jogos ou uso de RAM.
+Um serviço FastAPI enxuto dedicado exclusivamente a operações de voz. Enquanto o Node Core cuida da lógica de IA e orquestração, o Python Sidecar lida com tarefas que exigem bibliotecas Python especializadas.
+
+**Rotas da API:**
+
+| Rota | Método | Função |
+|------|--------|--------|
+| `/voice/ws` | WebSocket | Conexão real-time para broadcast de estado |
+| `/voice/quick-transcribe` | POST | Grava áudio do microfone até silêncio, retorna texto transcrito |
+| `/voice/stop-quick-transcribe` | POST | Interrompe gravação manualmente |
+| `/voice/wake-word` | POST | Ativa/desativa wake word |
+| `/voice/call-mode` | POST | Alterna modo chamada (hands-free) |
+| `/chat/speak` | POST | Sintetiza texto em fala via Kokoro |
+| `/chat/stop-voice` | POST | Para toda síntese de fala |
+
+### 4. FortScript (Opcional)
+
+Uma biblioteca Python independente que monitora processos do sistema. Quando detecta que um jogo ou aplicação pesada está rodando, ela pausa automaticamente os processos gerenciados (como treinamento de modelos ou downloads), e os retoma quando a aplicação pesada é fechada. Útil para quem quer evitar que processos de IA consumam recursos durante gameplay.
+
+### 5. Landing Page
+
+Site institucional da MomAI, construído com Vite + React + TypeScript + TailwindCSS. Inclui blog com posts em markdown, páginas de funcionalidades, e deploy via GitHub Pages.
 
 ## Fluxo de Dados — Chat
 
+Quando o usuário envia uma mensagem, o caminho que ela percorre é:
+
 ```
-User Input (texto/voz)
-    |
-    v
-[Renderer] --> HTTP/WS --> [Node Core]
-    |                            |
-    |                     [Semantic Engine]
-    |                     (classifica intenção)
-    |                            |
-    |                     [Skill Orchestrator]
-    |                     (seleciona ferramentas)
-    |                            |
-    |                     [LLM Manager]
-    |                     (llama-server + modelo GGUF)
-    |                            |
-    |<-- SSE stream ------------+
-    |
-[Renderer] --> HTTP --> [Python Sidecar]
-                    (TTS, se ativo)
+Usuário digita mensagem no chat
+       |
+       v
+[Renderer] --HTTP POST--> [Node Core]
+       |
+       v
+[Semantic Engine] (classifica intenção em ms via LanceDB)
+       |
+       v
+[Skill Orchestrator] (seleciona ferramentas relevantes via Tool RAG)
+       |
+       v
+[LLM Manager] (envia prompt + contexto + ferramentas para llama-server)
+       |
+       v
+[llama-server] (processa com modelo Qwen3.5 GGUF, gera resposta)
+       |
+       v
+[Node Core] --SSE stream--> [Renderer]
+                                  |
+                                  v
+                         Usuário vê resposta aparecendo token por token
 ```
+
+Se o TTS estiver ativado, cada token também é enviado para o Python Sidecar sintetizar em áudio.
 
 ## Fluxo de Dados — Voz
 
+Para operação mãos-livres:
+
 ```
 [Microfone]
-    |
-    v
-[Wake Word Detector] (offline, OpenWakeWord)
-    |
-    v (palavra-chave detectada)
-[Quick Transcriber] (Whisper via faster-whisper)
-    |
-    v (texto transcrito)
-[Node Core] --> [LLM] --> [TTS (Kokoro)]
-    |                            |
-    v                            v
-[Resposta texto]          [Resposta áudio]
-```
-
-## Estrutura do Monorepo
-
-```
-momai/
-├── apps/
-│   ├── core/                 # Python sidecar (FastAPI)
-│   │   ├── api/routes/       # voice.py, chat_voice.py
-│   │   ├── database/         # SQLite models + migrations
-│   │   ├── services/voice/   # STT, TTS, wake word detector
-│   │   └── main.py           # Entry point FastAPI
-│   ├── momai/                # Electron desktop app
-│   │   ├── src/main/         # Electron main process
-│   │   ├── src/preload/      # Context bridge
-│   │   ├── src/renderer/     # React UI
-│   │   ├── scripts/node-core/# Node.js backend modular
-│   │   └── scripts/skills/   # Skills runtime
-│   ├── fortscript/           # Gaming mode process manager
-│   └── landing-page/         # Site institucional
-├── data/                     # Dados locais (extensões, notas, store)
-├── docs/                     # Documentação
-└── scripts/                  # Scripts root (sync_blog, etc.)
+       |
+       v
+[Wake Word Detector] (OpenWakeWord, offline, processamento local)
+       |
+       v  (palavra-chave "Sistema" detectada)
+[Quick Transcriber] (faster-whisper via CTranslate2)
+       |
+       v  (texto transcrito)
+[Node Core] --LLM--> [Resposta texto]
+       |                      |
+       v                      v
+[Python Sidecar]       [Renderer mostra texto]
+  (Kokoro TTS)
+       |
+       v
+[Resposta áudio nos alto-falantes]
 ```
 
 ## Decisões Arquiteturais (ADRs)
 
-| Decisão | Opção Escolhida | Alternativa | Motivo |
-|---------|----------------|-------------|--------|
-| LLM Runtime | llama-server (subprocess) | API externa | Privacidade, latência local |
-| Embeddings | LanceDB local | PostgreSQL pgvector | Zero-config, embedding-first |
-| TTS | Kokoro (ONNX) via Python | API cloud | Offline, qualidade alta |
-| Build system | pnpm + Turbo | Nx, Lerna | Simplicidade, workspaces nativos |
-| Agent orchestration | LangGraph | CrewAI, AutoGen | Controle fino de fluxo |
-| Skill runtime | Node.js | Python | Mesmo runtime do Electron |
+| Decisão | Escolha | Alternativa | Motivo |
+|---------|---------|-------------|--------|
+| LLM Runtime | llama-server via subprocesso | API externa (OpenAI) | Privacidade total dos dados, latência local |
+| Embeddings | LanceDB (local) | PostgreSQL pgvector | Zero-configuração, otimizado para busca vetorial |
+| TTS | Kokoro-82m (ONNX) via Python | API Cloud (Google, AWS) | Offline, qualidade alta comparável a soluções cloud |
+| Orquestração de Agentes | LangGraph | CrewAI, AutoGen | Controle fino de fluxo, suporte a grafos cíclicos |
+| Skill Runtime | Node.js | Python | Mesmo runtime do Electron, evita gargalo de IPC |
+| Build System | pnpm + Turborepo | Nx, Lerna | Simplicidade, workspaces nativos do npm |
+| Gerenciamento Python | uv | Poetry, pipenv | Velocidade (Rust), compatibilidade com pip |
+| Package Manager | pnpm | npm, yarn | Disk space eficiente (hard links), workspaces nativos |
 
 ## Tiers de IA
 
+O MomAI oferece três tiers que equilibram performance e qualidade:
+
 | Recurso | Lite | Pro | Ultra |
 |---------|------|-----|-------|
-| Modelo | Qwen3.5-0.8B | Qwen3.5-2B | Qwen3.5-4B |
-| Contexto | 8K | 8K | 8K |
-| Max tokens | 192 | 320 | 512 |
+| Modelo | Qwen3.5-0.8B (Q4_K_M) | Qwen3.5-2B (Q4_K_M) | Qwen3.5-4B (Q4_K_M) |
+| Contexto | 8K tokens | 8K tokens | 8K tokens |
+| Max tokens resposta | 192 | 320 | 512 |
 | TTS | ❌ | ✅ | ✅ |
 | Wake Word | ❌ | ❌ | ✅ |
 | Memória Vetorial | ❌ | ❌ | ✅ (LanceDB) |
 | Embeddings | ❌ | ❌ | ✅ |
+
+## Modelo de Concorrência
+
+- **Node Core**: Single-threaded (Node.js), processa uma requisição por vez via event loop
+- **llama-server**: Multi-slot (2 slots paralelos), permitindo concorrência limitada
+- **Python Sidecar**: Async (FastAPI/uvicorn), thread pool para operações bloqueantes (TTS, STT)
+- **Electron Main**: Single-threaded, usa workers para bootstrap Python
+
+## Dados Locais
+
+| Diretório | Conteúdo |
+|-----------|----------|
+| `%APPDATA%/MomAI/data/node-core-store.json` | Store principal (config, sessões, extensões) |
+| `%APPDATA%/MomAI/data/notes/` | Notas do usuário |
+| `%APPDATA%/MomAI/data/models/` | Modelos GGUF baixados |
+| `%APPDATA%/MomAI/data/semantic/` | LanceDB (memória vetorial) |
+| `%APPDATA%/MomAI/python_env/` | Virtualenv Python |
+| `apps/core/momai.db` | SQLite de settings (desenvolvimento) |

@@ -3,21 +3,21 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import React from 'react'
 
 vi.mock('../../../i18n', () => ({
-  useI18n: () => ({ t: (key: string) => key }),
+  useI18n: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('./hooks/useMessageState', () => ({
-  useMessageState: vi.fn(),
+  useMessageState: vi.fn()
 }))
 
 vi.mock('./hooks/useTtsPlayback', () => ({
-  useTtsPlayback: vi.fn(),
+  useTtsPlayback: vi.fn()
 }))
 
 vi.mock('./components/MarkdownRenderer', () => ({
   MarkdownRenderer: ({ children }: { children: string }) => (
     <div data-testid="markdown">{children}</div>
-  ),
+  )
 }))
 
 vi.mock('./components/MessageHeader', () => ({
@@ -29,13 +29,13 @@ vi.mock('./components/MessageHeader', () => ({
         </button>
       )}
     </div>
-  ),
+  )
 }))
 
 vi.mock('./components/StructuredResponse', () => ({
   StructuredResponse: ({ response }: any) => (
     <div data-testid="structured-response">{response.type}</div>
-  ),
+  )
 }))
 
 vi.mock('./components/MessageActions', () => ({
@@ -55,15 +55,15 @@ vi.mock('./components/MessageActions', () => ({
         </button>
       )}
     </div>
-  ),
+  )
 }))
 
 vi.mock('./components/ToolSteps', () => ({
-  ToolSteps: () => <div data-testid="tool-steps">Tool Steps</div>,
+  ToolSteps: () => <div data-testid="tool-steps">Tool Steps</div>
 }))
 
 vi.mock('../../../components/chat/ExtrasRenderer', () => ({
-  ExtrasRenderer: () => <div data-testid="extras-renderer">Extras</div>,
+  ExtrasRenderer: () => <div data-testid="extras-renderer">Extras</div>
 }))
 
 vi.mock('../../../components/chat/MessageContextMenu', () => ({
@@ -82,21 +82,21 @@ vi.mock('../../../components/chat/MessageContextMenu', () => ({
         </button>
       )}
     </div>
-  ),
+  )
 }))
 
 vi.mock('../../../components/DynamicRenderer', () => ({
-  DynamicRenderer: () => <div data-testid="dynamic-renderer">Dynamic</div>,
+  DynamicRenderer: () => <div data-testid="dynamic-renderer">Dynamic</div>
 }))
 
 vi.mock('../../../utils/text', () => ({
-  cleanMomaiActions: (text: string) => text,
+  cleanMomaiActions: (text: string) => text
 }))
 
 vi.mock('../../../assets/icon.png', () => ({ default: 'icon-mock.png' }))
 
 vi.mock('../../../components/chat/SkillResponseRegistry', () => ({
-  registerRenderer: vi.fn(),
+  registerRenderer: vi.fn()
 }))
 vi.mock('../../../components/chat/WeatherCard', () => ({ default: () => null }))
 vi.mock('../../../components/chat/RemindersCard', () => ({ default: () => null }))
@@ -148,12 +148,12 @@ describe('MessageItem', () => {
     toolsFinished: false,
     isChatCard: false,
     isSystemModelChange: false,
-    isDone: false,
+    isDone: false
   }
 
   const defaultTtsState = {
     hideStopButton: false,
-    handleStopVoiceClick: vi.fn(),
+    handleStopVoiceClick: vi.fn()
   }
 
   const defaultProps = {
@@ -161,7 +161,7 @@ describe('MessageItem', () => {
     onReopenGraph: vi.fn(),
     onGraphOption: vi.fn(),
     onSpeak: vi.fn(),
-    onRetry: vi.fn(),
+    onRetry: vi.fn()
   }
 
   beforeEach(() => {
@@ -175,14 +175,9 @@ describe('MessageItem', () => {
     vi.mocked(useMessageState).mockReturnValue({
       ...defaultMessageState,
       displayContent: content,
-      hasActualContent: true,
+      hasActualContent: true
     })
-    render(
-      <MessageItem
-        {...defaultProps}
-        message={{ role: 'user', content }}
-      />
-    )
+    render(<MessageItem {...defaultProps} message={{ role: 'user', content }} />)
 
     expect(screen.getByTestId('markdown')).toHaveTextContent(content)
     expect(screen.queryByTestId('message-actions')).not.toBeInTheDocument()
@@ -193,14 +188,9 @@ describe('MessageItem', () => {
     vi.mocked(useMessageState).mockReturnValue({
       ...defaultMessageState,
       displayContent: content,
-      hasActualContent: true,
+      hasActualContent: true
     })
-    render(
-      <MessageItem
-        {...defaultProps}
-        message={{ role: 'assistant', content }}
-      />
-    )
+    render(<MessageItem {...defaultProps} message={{ role: 'assistant', content }} />)
 
     expect(screen.getByTestId('markdown')).toHaveTextContent(content)
     expect(screen.getByTestId('message-actions')).toBeInTheDocument()
@@ -211,14 +201,9 @@ describe('MessageItem', () => {
     vi.mocked(useMessageState).mockReturnValue({
       ...defaultMessageState,
       displayContent: content,
-      hasActualContent: true,
+      hasActualContent: true
     })
-    render(
-      <MessageItem
-        {...defaultProps}
-        message={{ role: 'assistant', content }}
-      />
-    )
+    render(<MessageItem {...defaultProps} message={{ role: 'assistant', content }} />)
 
     expect(screen.getByTestId('markdown')).toHaveTextContent('Hello')
     expect(screen.getByTestId('markdown')).toHaveTextContent('world')
@@ -231,7 +216,7 @@ describe('MessageItem', () => {
     vi.mocked(useMessageState).mockReturnValue({
       ...defaultMessageState,
       displayContent: 'some text',
-      hasActualContent: true,
+      hasActualContent: true
     })
     render(
       <MessageItem
@@ -248,14 +233,14 @@ describe('MessageItem', () => {
       ...defaultMessageState,
       isToolTrace: true,
       displayContent: 'Tool trace output',
-      toolTraceText: 'Tool trace output',
+      toolTraceText: 'Tool trace output'
     })
     render(
       <MessageItem
         {...defaultProps}
         message={{
           role: 'assistant',
-          content: 'TOOL_TRACE::{"status":"ok"}\n\nTOOL_TEXT::\nTool trace output',
+          content: 'TOOL_TRACE::{"status":"ok"}\n\nTOOL_TEXT::\nTool trace output'
         }}
       />
     )
@@ -268,7 +253,7 @@ describe('MessageItem', () => {
     vi.mocked(useMessageState).mockReturnValue({
       ...defaultMessageState,
       displayContent: 'hello',
-      hasActualContent: true,
+      hasActualContent: true
     })
     render(
       <MessageItem
@@ -287,7 +272,7 @@ describe('MessageItem', () => {
     vi.mocked(useMessageState).mockReturnValue({
       ...defaultMessageState,
       displayContent: 'hello',
-      hasActualContent: true,
+      hasActualContent: true
     })
     render(
       <MessageItem

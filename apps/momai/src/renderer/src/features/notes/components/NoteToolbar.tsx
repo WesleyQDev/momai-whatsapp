@@ -1,12 +1,5 @@
 import React from 'react'
-import {
-  PanelLeftClose,
-  PanelLeftOpen,
-  Trash2,
-  Plus,
-  ChevronRight,
-  Network
-} from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, Trash2, Plus, ChevronRight, Network } from 'lucide-react'
 import { useI18n } from '../../../i18n'
 
 interface Tab {
@@ -56,7 +49,11 @@ export default function NoteToolbar({
         className={`p-1.5 transition-all rounded-md ${isSidebarCollapsed ? 'text-accent bg-accent/10' : 'text-text-muted hover:text-text hover:bg-white/5'}`}
         title="Toggle Sidebar"
       >
-        {isSidebarCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+        {isSidebarCollapsed ? (
+          <PanelLeftOpen className="w-4 h-4" />
+        ) : (
+          <PanelLeftClose className="w-4 h-4" />
+        )}
       </button>
 
       <div className="h-4 w-px bg-border/20 mx-1"></div>

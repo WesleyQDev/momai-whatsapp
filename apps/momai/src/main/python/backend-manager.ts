@@ -489,5 +489,3 @@ export function isPythonRunning(): boolean {
     state.pythonProcess.exitCode === null
   )
 }
-
-

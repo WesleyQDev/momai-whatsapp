@@ -4,12 +4,14 @@ import {
   minimizeText,
   humanizeActivity,
   processThinkTags,
-  createUnifiedSteps,
+  createUnifiedSteps
 } from './utils'
 
 describe('cleanUIMetadata', () => {
   it('removes markdown characters (# * ` _ ~ > [ ] ( ))', () => {
-    expect(cleanUIMetadata('# Hello *world* `code` _italic_ ~strike~ >quote')).toBe('Hello world code italic strike quote')
+    expect(cleanUIMetadata('# Hello *world* `code` _italic_ ~strike~ >quote')).toBe(
+      'Hello world code italic strike quote'
+    )
   })
 
   it('removes "Nota:" prefix', () => {
@@ -82,7 +84,9 @@ describe('humanizeActivity', () => {
   })
 
   it('strips "manager: delegando para especialista" prefix', () => {
-    expect(humanizeActivity('manager: delegando para especialista (buscar na web)')).toBe('buscar na web')
+    expect(humanizeActivity('manager: delegando para especialista (buscar na web)')).toBe(
+      'buscar na web'
+    )
   })
 
   it('strips "manager: chamando ferramenta" prefix', () => {
@@ -125,7 +129,7 @@ describe('createUnifiedSteps', () => {
   it('deduplicates consecutive tool steps with same name and segment', () => {
     const toolSteps = [
       { name: 'duckduckgo_search', segment: 0, status: 'done' },
-      { name: 'duckduckgo_search', segment: 0, status: 'done' },
+      { name: 'duckduckgo_search', segment: 0, status: 'done' }
     ]
     const steps = createUnifiedSteps([], toolSteps, (n) => n)
     expect(steps).toHaveLength(1)
@@ -135,7 +139,7 @@ describe('createUnifiedSteps', () => {
   it('separates different tool steps', () => {
     const toolSteps = [
       { name: 'duckduckgo_search', segment: 0, status: 'done' },
-      { name: 'web_search', segment: 0, status: 'done' },
+      { name: 'web_search', segment: 0, status: 'done' }
     ]
     const steps = createUnifiedSteps([], toolSteps, (n) => n)
     expect(steps).toHaveLength(2)
@@ -143,7 +147,7 @@ describe('createUnifiedSteps', () => {
 
   it('handles activate_skill steps correctly', () => {
     const toolSteps = [
-      { name: 'activate_skill', query: '{"skill_id":"test-skill"}', segment: 0, status: 'done' },
+      { name: 'activate_skill', query: '{"skill_id":"test-skill"}', segment: 0, status: 'done' }
     ]
     const steps = createUnifiedSteps([], toolSteps, (n) => n)
     expect(steps).toHaveLength(1)

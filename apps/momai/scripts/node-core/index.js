@@ -1,6 +1,8 @@
 // MomAI Node Core - Modular Composer
 // This file composes all modules together to provide the same API as the original monolithic node-core.js
 
+require('dotenv').config({ path: require('path').resolve(__dirname, '..', '..', '.env') })
+
 const http = require('node:http')
 const path = require('node:path')
 const { execSync } = require('node:child_process')
@@ -254,11 +256,13 @@ async function maybeRestartLlamaOnTierChange(prevTier, nextTier, prevBackend, ne
       .then((ok) => {
         if (ok) {
           setTimeout(() => {
-            syncSkillAndToolIndexes(false).catch(err => debug('[background]', err?.message || err))
+            syncSkillAndToolIndexes(false).catch((err) =>
+              debug('[background]', err?.message || err)
+            )
           }, 3000)
         }
       })
-      .catch(err => debug('[background]', err?.message || err))
+      .catch((err) => debug('[background]', err?.message || err))
   }
   return llamaReady
 }
@@ -542,12 +546,16 @@ async function startServer() {
         .then((ok) => {
           if (ok) {
             setTimeout(() => {
-              semanticEngine.syncSkillAndToolIndexes(true).catch(err => debug('[background]', err?.message || err))
-              semanticEngine.syncNoteIndex(true).catch(err => debug('[background]', err?.message || err))
+              semanticEngine
+                .syncSkillAndToolIndexes(true)
+                .catch((err) => debug('[background]', err?.message || err))
+              semanticEngine
+                .syncNoteIndex(true)
+                .catch((err) => debug('[background]', err?.message || err))
             }, 3000)
           }
         })
-        .catch(err => debug('[background]', err?.message || err))
+        .catch((err) => debug('[background]', err?.message || err))
     }
 
     if (typeof context.connectPythonSidecar === 'function') {

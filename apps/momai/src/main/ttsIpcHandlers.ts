@@ -86,7 +86,7 @@ export function setupTTSHandlers() {
   ttsService.on('speaking-start', (data) => {
     // Notificar todas as janelas
     const windows = require('electron').BrowserWindow.getAllWindows()
-    windows.forEach(win => {
+    windows.forEach((win) => {
       if (!win.isDestroyed()) {
         win.webContents.send('tts:speaking-start', data)
       }
@@ -95,7 +95,7 @@ export function setupTTSHandlers() {
 
   ttsService.on('speaking-end', () => {
     const windows = require('electron').BrowserWindow.getAllWindows()
-    windows.forEach(win => {
+    windows.forEach((win) => {
       if (!win.isDestroyed()) {
         win.webContents.send('tts:speaking-end')
       }
@@ -104,7 +104,7 @@ export function setupTTSHandlers() {
 
   ttsService.on('error', (error) => {
     const windows = require('electron').BrowserWindow.getAllWindows()
-    windows.forEach(win => {
+    windows.forEach((win) => {
       if (!win.isDestroyed()) {
         win.webContents.send('tts:error', error)
       }
@@ -114,11 +114,13 @@ export function setupTTSHandlers() {
   ttsService.on('play-audio-buffer', (buffer: Buffer) => {
     const windows = require('electron').BrowserWindow.getAllWindows()
     console.log(`[TTS IPC] play-audio-buffer: windows=${windows.length}, buf=${buffer.length}`)
-    windows.forEach(win => {
+    windows.forEach((win) => {
       if (!win.isDestroyed()) {
-        const isMp3 = buffer[0] === 0xFF && (buffer[1] & 0xE0) === 0xE0
+        const isMp3 = buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0
         const base64 = buffer.toString('base64')
-        console.log(`[TTS IPC] Sending tts:play-audio-buffer to window, base64 len=${base64.length}`)
+        console.log(
+          `[TTS IPC] Sending tts:play-audio-buffer to window, base64 len=${base64.length}`
+        )
         win.webContents.send('tts:play-audio-buffer', {
           data: base64,
           mimeType: isMp3 ? 'audio/mpeg' : 'audio/wav'
@@ -131,7 +133,7 @@ export function setupTTSHandlers() {
 
   ttsService.on('engine-changed', (engine) => {
     const windows = require('electron').BrowserWindow.getAllWindows()
-    windows.forEach(win => {
+    windows.forEach((win) => {
       if (!win.isDestroyed()) {
         win.webContents.send('tts:engine-changed', engine)
       }
@@ -140,7 +142,7 @@ export function setupTTSHandlers() {
 
   ttsService.on('voice-changed', (voice) => {
     const windows = require('electron').BrowserWindow.getAllWindows()
-    windows.forEach(win => {
+    windows.forEach((win) => {
       if (!win.isDestroyed()) {
         win.webContents.send('tts:voice-changed', voice)
       }
@@ -167,7 +169,7 @@ export function cleanupTTSHandlers() {
     'tts:is-speaking'
   ]
 
-  handlers.forEach(handler => {
+  handlers.forEach((handler) => {
     ipcMain.removeHandler(handler)
   })
 

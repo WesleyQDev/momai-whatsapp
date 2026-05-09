@@ -591,8 +591,8 @@ async function streamLlamaChat(req, res, payload) {
   let semanticPromise = null
   if (isUltra) {
     const { syncSkillAndToolIndexes, syncNoteIndex } = require('./semantic-engine')
-    syncSkillAndToolIndexes(false).catch(err => debug('[background]', err?.message || err))
-    syncNoteIndex(false).catch(err => debug('[background]', err?.message || err))
+    syncSkillAndToolIndexes(false).catch((err) => debug('[background]', err?.message || err))
+    syncNoteIndex(false).catch((err) => debug('[background]', err?.message || err))
     semanticPromise = runSemanticMemoryRetrieval(content, 6)
   }
 
@@ -832,63 +832,63 @@ async function streamLlamaChat(req, res, payload) {
           })
           activeSkill = activeSkill || skill.id
         }
-          if (hookResult.shortCircuit) {
-            if (activeSkill) {
-              {
-                const _sse = writeSse(res, { active_skill: activeSkill })
-                if (_sse instanceof Promise) await _sse
-              }
-            }
-            if (toolSteps.length > 0) {
-              {
-                const _sse = writeSse(res, { tool_steps: toolSteps })
-                if (_sse instanceof Promise) await _sse
-              }
-            }
-            const shortText = String(hookResult.replaceText || '').trim()
-            if (shortText) {
-              assembled = shortText
-              for (const token of splitTokens(shortText)) {
-                {
-                  const _sse = writeSse(res, { token })
-                  if (_sse instanceof Promise) await _sse
-                  else if (_sse === false) break
-                }
-              }
-            }
-            if (hookResult.structuredResponse) {
-              bufferedStructuredResponse = hookResult.structuredResponse
-            }
-            llamaState.contextUsedTokens = Math.min(
-              Number(llamaState.contextTotalTokens || 8192),
-              Math.max(
-                0,
-                estimateTokenCount(content) +
-                  estimateTokenCount(memoryContext) +
-                  extraSystemInstructions.reduce((acc, item) => acc + estimateTokenCount(item), 0)
-              )
-            )
-            appendMessage(threadId, 'assistant', assembled.trim(), {
-              sources: memorySources.length ? memorySources : undefined,
-              graph_data:
-                activeSkill || toolSteps.length
-                  ? { active_skill: activeSkill, tool_steps: toolSteps }
-                  : null,
-              structured_response: bufferedStructuredResponse || undefined
-            })
-            if (bufferedStructuredResponse) {
-              {
-                const _sse = writeSse(res, { structured_response: bufferedStructuredResponse })
-                if (_sse instanceof Promise) await _sse
-              }
-            }
+        if (hookResult.shortCircuit) {
+          if (activeSkill) {
             {
-              const _sse = writeSse(res, { done: true })
+              const _sse = writeSse(res, { active_skill: activeSkill })
               if (_sse instanceof Promise) await _sse
             }
-            endSse(res)
-            return
           }
+          if (toolSteps.length > 0) {
+            {
+              const _sse = writeSse(res, { tool_steps: toolSteps })
+              if (_sse instanceof Promise) await _sse
+            }
+          }
+          const shortText = String(hookResult.replaceText || '').trim()
+          if (shortText) {
+            assembled = shortText
+            for (const token of splitTokens(shortText)) {
+              {
+                const _sse = writeSse(res, { token })
+                if (_sse instanceof Promise) await _sse
+                else if (_sse === false) break
+              }
+            }
+          }
+          if (hookResult.structuredResponse) {
+            bufferedStructuredResponse = hookResult.structuredResponse
+          }
+          llamaState.contextUsedTokens = Math.min(
+            Number(llamaState.contextTotalTokens || 8192),
+            Math.max(
+              0,
+              estimateTokenCount(content) +
+                estimateTokenCount(memoryContext) +
+                extraSystemInstructions.reduce((acc, item) => acc + estimateTokenCount(item), 0)
+            )
+          )
+          appendMessage(threadId, 'assistant', assembled.trim(), {
+            sources: memorySources.length ? memorySources : undefined,
+            graph_data:
+              activeSkill || toolSteps.length
+                ? { active_skill: activeSkill, tool_steps: toolSteps }
+                : null,
+            structured_response: bufferedStructuredResponse || undefined
+          })
+          if (bufferedStructuredResponse) {
+            {
+              const _sse = writeSse(res, { structured_response: bufferedStructuredResponse })
+              if (_sse instanceof Promise) await _sse
+            }
+          }
+          {
+            const _sse = writeSse(res, { done: true })
+            if (_sse instanceof Promise) await _sse
+          }
+          endSse(res)
+          return
+        }
       } catch (err) {
         debug(`[chat] beforeModel hook failed for ${skill.id}: ${err.message}`)
       }
@@ -1138,7 +1138,7 @@ async function streamLlamaChat(req, res, payload) {
             estimatedPromptTokens = realTokens
           }
         })
-        .catch(err => debug('[background] tokenizePrompt failed:', err?.message || err))
+        .catch((err) => debug('[background] tokenizePrompt failed:', err?.message || err))
 
       {
         const _sse = writeSse(res, { status: 'responding' })

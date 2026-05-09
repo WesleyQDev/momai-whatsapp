@@ -22,12 +22,30 @@
     "title": "Hecho para ti",
     "subtitle": "Una asistente dise\u00f1ada para quienes valoran la privacidad, el control y la simplicidad.",
     "items": [
-      { "title": "100% Local", "desc": "Todo funciona en tu computadora. Nada va a la nube." },
-      { "title": "Privacidad Total", "desc": "Tus datos nunca salen de tu dispositivo." },
-      { "title": "Voz Natural", "desc": "Habla como si estuvieras hablando con una amiga." },
-      { "title": "Extensible", "desc": "A\u00f1ade nuevas habilidades con extensiones de la comunidad." },
-      { "title": "Sin Internet", "desc": "Funciona sin conexi\u00f3n. Siempre disponible." },
-      { "title": "Gratuito", "desc": "100% gratuito y open source. Sin suscripciones." }
+      {
+        "title": "100% Local",
+        "desc": "Todo funciona en tu computadora. Nada va a la nube."
+      },
+      {
+        "title": "Privacidad Total",
+        "desc": "Tus datos nunca salen de tu dispositivo."
+      },
+      {
+        "title": "Voz Natural",
+        "desc": "Habla como si estuvieras hablando con una amiga."
+      },
+      {
+        "title": "Extensible",
+        "desc": "A\u00f1ade nuevas habilidades con extensiones de la comunidad."
+      },
+      {
+        "title": "Sin Internet",
+        "desc": "Funciona sin conexi\u00f3n. Siempre disponible."
+      },
+      {
+        "title": "Gratuito",
+        "desc": "100% gratuito y open source. Sin suscripciones."
+      }
     ]
   },
   "howItWorks": {

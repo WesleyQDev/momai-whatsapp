@@ -24,11 +24,7 @@ export default defineConfig({
           setupFiles: [resolve(__dirname, 'src/main/test-setup.ts')],
           coverage: {
             include: ['src/main/**/*.ts'],
-            exclude: [
-              'src/main/**/*.test.ts',
-              'src/main/test-setup.ts',
-              'src/main/index.ts'
-            ]
+            exclude: ['src/main/**/*.test.ts', 'src/main/test-setup.ts', 'src/main/index.ts']
           }
         }
       },

@@ -7,8 +7,6 @@
  * Enable with the environment variable `TUI_LOGS=1`.
  */
 
-/* eslint-disable no-control-regex */
-
 const BOX = {
   tl: '┌',
   tr: '┐',

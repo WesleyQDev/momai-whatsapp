@@ -354,7 +354,7 @@ export async function searchNotes(query: string, limit = 6): Promise<MemorySearc
 
   const dataDir = getDataDir()
   const notesIndexFile = getIndexPath()
-  
+
   // Use shared lexical search module
   return runLexicalNoteSearchShared(term, limit, dataDir, notesIndexFile)
 }

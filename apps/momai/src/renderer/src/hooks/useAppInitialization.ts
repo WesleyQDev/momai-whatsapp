@@ -193,7 +193,15 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
         const now = new Date()
         const hour = now.getHours()
         const saudacao = hour < 12 ? 'bom dia' : hour < 18 ? 'boa tarde' : 'boa noite'
-        const dias = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
+        const dias = [
+          'domingo',
+          'segunda-feira',
+          'terça-feira',
+          'quarta-feira',
+          'quinta-feira',
+          'sexta-feira',
+          'sábado'
+        ]
         const mes = (now.getMonth() + 1).toString().padStart(2, '0')
         const dia = `${dias[now.getDay()]}`
         const data = `${now.getDate().toString().padStart(2, '0')}/${mes}/${now.getFullYear()}`

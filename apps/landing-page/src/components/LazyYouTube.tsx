@@ -1,19 +1,19 @@
-import { useState, useCallback } from 'react'
-import { PlayIcon } from './Icons'
+import { useState, useCallback } from "react";
+import { PlayIcon } from "./Icons";
 
 interface LazyYouTubeProps {
-  videoId: string
-  title?: string
+  videoId: string;
+  title?: string;
 }
 
-export function LazyYouTube({ videoId, title = 'Video' }: LazyYouTubeProps) {
-  const [loaded, setLoaded] = useState(false)
+export function LazyYouTube({ videoId, title = "Video" }: LazyYouTubeProps) {
+  const [loaded, setLoaded] = useState(false);
 
   const handleLoad = useCallback(() => {
-    setLoaded(true)
-  }, [])
+    setLoaded(true);
+  }, []);
 
-  const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
+  const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
 
   return (
     <div className="video-container relative overflow-hidden rounded-[20px] border border-[var(--feature-border)] bg-[var(--bg-tertiary)] shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
@@ -49,5 +49,5 @@ export function LazyYouTube({ videoId, title = 'Video' }: LazyYouTubeProps) {
         )}
       </div>
     </div>
-  )
+  );
 }

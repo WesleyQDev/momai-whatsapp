@@ -34,13 +34,13 @@ Escreva em markdown normalmente...
 
 ## Frontmatter
 
-| Campo      | Tipo    | Obrigatório | Descrição                            |
-|------------|---------|-------------|--------------------------------------|
-| `title`    | string  | Sim         | Título do post                       |
-| `date`     | string  | Sim         | Data: `DD de Mês, AAAA`              |
-| `excerpt`  | string  | Sim         | Resumo exibido no card               |
-| `image`    | string  | Não         | Caminho da imagem (ex: `/images/x`)  |
-| `featured` | boolean | Não         | `true` para destacar no hero         |
+| Campo      | Tipo    | Obrigatório | Descrição                           |
+| ---------- | ------- | ----------- | ----------------------------------- |
+| `title`    | string  | Sim         | Título do post                      |
+| `date`     | string  | Sim         | Data: `DD de Mês, AAAA`             |
+| `excerpt`  | string  | Sim         | Resumo exibido no card              |
+| `image`    | string  | Não         | Caminho da imagem (ex: `/images/x`) |
+| `featured` | boolean | Não         | `true` para destacar no hero        |
 
 ## Imagens
 
@@ -51,6 +51,7 @@ URLs externas também funcionam: `image: https://exemplo.com/img.png`
 ## Ordenação
 
 Posts são ordenados automaticamente:
+
 1. Featured primeiro (`featured: true`), mais recente primeiro
 2. Depois os demais, por data (mais recente primeiro)
 

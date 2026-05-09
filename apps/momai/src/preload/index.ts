@@ -69,8 +69,7 @@ const api = {
     electronAPI.ipcRenderer.invoke('restart-backend'),
   restartApp: (): void => electronAPI.ipcRenderer.send('restart-app'),
   resetWindowSize: (): void => electronAPI.ipcRenderer.send('window-reset-size'),
-  isWindowMaximized: (): Promise<boolean> =>
-    electronAPI.ipcRenderer.invoke('is-window-maximized'),
+  isWindowMaximized: (): Promise<boolean> => electronAPI.ipcRenderer.invoke('is-window-maximized'),
   onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => {
     const handler = (_: any, state: { maximized: boolean }) => callback(state)
     electronAPI.ipcRenderer.on('window-state-changed', handler)

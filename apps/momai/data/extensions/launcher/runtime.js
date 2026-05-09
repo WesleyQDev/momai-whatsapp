@@ -31,7 +31,7 @@ function normalizeAccents(str) {
 function scanWindowsStartMenu() {
   const dirs = [
     path.join(getEnv('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
-    path.join(getEnv('PROGRAMDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+    path.join(getEnv('PROGRAMDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs')
   ]
   const items = []
   const seen = new Set()
@@ -52,7 +52,7 @@ function scanDesktop() {
   const seen = new Set()
   const dirs = [
     path.join(getEnv('USERPROFILE'), 'Desktop'),
-    path.join(getEnv('PUBLIC'), 'Desktop'),
+    path.join(getEnv('PUBLIC'), 'Desktop')
   ].filter(Boolean)
 
   for (const desktop of dirs) {
@@ -70,7 +70,7 @@ function scanProgramFiles() {
   const dirs = [
     getEnv('LOCALAPPDATA') ? path.join(getEnv('LOCALAPPDATA'), 'Programs') : null,
     getEnv('PROGRAMFILES'),
-    getEnv('PROGRAMFILES(X86)'),
+    getEnv('PROGRAMFILES(X86)')
   ].filter(Boolean)
 
   const items = []
@@ -95,7 +95,7 @@ function scanProgramFiles() {
                 name: displayName,
                 path: fullPath,
                 type: sub.name.endsWith('.lnk') ? 'Atalho' : 'Programa',
-                category: inferCategory(displayName, dirPath),
+                category: inferCategory(displayName, dirPath)
               })
             }
           }
@@ -136,7 +136,7 @@ function scanAppDataPrograms() {
               name: sub.name,
               path: exePath,
               type: 'Programa',
-              category: inferCategory(sub.name, dirPath),
+              category: inferCategory(sub.name, dirPath)
             })
           }
         }
@@ -172,7 +172,7 @@ function scanPathExecutables() {
             name,
             path: path.join(dir, entry.name),
             type: 'CLI',
-            category: inferCategory(name, dir),
+            category: inferCategory(name, dir)
           })
         }
       }
@@ -190,8 +190,14 @@ function scanCommonFolders() {
   const items = []
   const seen = new Set()
   const common = [
-    'Desktop', 'Downloads', 'Documents', 'Pictures', 'Music', 'Videos',
-    'OneDrive', 'OneDrive - Personal',
+    'Desktop',
+    'Downloads',
+    'Documents',
+    'Pictures',
+    'Music',
+    'Videos',
+    'OneDrive',
+    'OneDrive - Personal'
   ]
 
   for (const folder of common) {
@@ -202,7 +208,7 @@ function scanCommonFolders() {
         name: folder,
         path: fullPath,
         type: 'Pasta',
-        category: 'Sistema',
+        category: 'Sistema'
       })
     }
   }
@@ -271,20 +277,26 @@ function walkDir(dirPath, items, seen, defaultType, maxDepth) {
       continue
     }
 
-    if (entry.name.endsWith('.exe') || entry.name.endsWith('.lnk') || entry.name.endsWith('.bat') || entry.name.endsWith('.cmd')) {
+    if (
+      entry.name.endsWith('.exe') ||
+      entry.name.endsWith('.lnk') ||
+      entry.name.endsWith('.bat') ||
+      entry.name.endsWith('.cmd')
+    ) {
       seen.add(fullPath)
       const displayName = entry.name.replace(/\.(exe|lnk|bat|cmd)$/i, '')
       items.push({
         name: displayName,
         path: fullPath,
         type: entry.name.endsWith('.lnk') ? 'Atalho' : 'Programa',
-        category: inferCategory(displayName, dirPath),
+        category: inferCategory(displayName, dirPath)
       })
     }
   }
 }
 
-const DOC_FILE_RE = /\.(docx?|xlsx?|pptx?|pdf|txt|md|csv|json|xml|jpg|jpeg|png|gif|mp4|mkv|mp3|wav|zip|rar|7z)$/i
+const DOC_FILE_RE =
+  /\.(docx?|xlsx?|pptx?|pdf|txt|md|csv|json|xml|jpg|jpeg|png|gif|mp4|mkv|mp3|wav|zip|rar|7z)$/i
 
 function walkUserFolder(dirPath, items, seen, category, maxDepth) {
   if (maxDepth <= 0) return
@@ -307,7 +319,7 @@ function walkUserFolder(dirPath, items, seen, category, maxDepth) {
         name: entry.name,
         path: fullPath,
         type: 'Pasta',
-        category,
+        category
       })
       walkUserFolder(fullPath, items, seen, category, maxDepth - 1)
     } else if (DOC_FILE_RE.test(entry.name)) {
@@ -317,7 +329,7 @@ function walkUserFolder(dirPath, items, seen, category, maxDepth) {
         name: displayName,
         path: fullPath,
         type: 'Arquivo',
-        category,
+        category
       })
     }
   }
@@ -331,16 +343,95 @@ function inferCategory(name, dirPath) {
   const lower = String(name || '').toLowerCase()
   const dirLower = String(dirPath || '').toLowerCase()
 
-  if (lower.includes('chrome') || lower.includes('firefox') || lower.includes('edge') || lower.includes('brave') || lower.includes('opera') || lower.includes('browser')) return 'Navegador'
-  if (lower.includes('code') || lower.includes('studio') || lower.includes('ide') || lower.includes('vscode') || lower.includes('visual studio') || lower.includes('notepad') || lower.includes('sublime') || lower.includes('webstorm') || lower.includes('cursor')) return 'Desenvolvimento'
-  if (lower.includes('word') || lower.includes('excel') || lower.includes('powerpoint') || lower.includes('outlook') || lower.includes('office') || lower.includes('onenote') || lower.includes('access')) return 'Escritorio'
-  if (lower.includes('spotify') || lower.includes('music') || lower.includes('media') || lower.includes('vlc') || lower.includes('player') || lower.includes('video')) return 'Midia'
-  if (lower.includes('discord') || lower.includes('slack') || lower.includes('teams') || lower.includes('zoom') || lower.includes('whatsapp') || lower.includes('telegram') || lower.includes('signal')) return 'Comunicacao'
-  if (dirLower.includes('accessories') || dirLower.includes('acessórios') || dirLower.includes('ferramentas')) return 'Ferramentas'
-  if (dirLower.includes('games') || dirLower.includes('jogos') || dirLower.includes('game') || lower.includes('steam') || lower.includes('epic') || lower.includes('unity') || lower.includes('unreal')) return 'Jogos'
-  if (dirLower.includes('adobe') || lower.includes('photoshop') || lower.includes('illustrator') || lower.includes('premiere') || lower.includes('after effects') || lower.includes('design') || lower.includes('figma')) return 'Design'
-  if (dirLower.includes('system32') || dirLower.includes('system') || dirLower.includes('windows') || lower.includes('calc') || lower.includes('cmd') || lower.includes('powershell') || lower.includes('terminal') || lower.includes('control')) return 'Sistema'
-  if (lower.includes('explorer') || lower.includes('file manager') || lower.includes('files')) return 'Arquivos'
+  if (
+    lower.includes('chrome') ||
+    lower.includes('firefox') ||
+    lower.includes('edge') ||
+    lower.includes('brave') ||
+    lower.includes('opera') ||
+    lower.includes('browser')
+  )
+    return 'Navegador'
+  if (
+    lower.includes('code') ||
+    lower.includes('studio') ||
+    lower.includes('ide') ||
+    lower.includes('vscode') ||
+    lower.includes('visual studio') ||
+    lower.includes('notepad') ||
+    lower.includes('sublime') ||
+    lower.includes('webstorm') ||
+    lower.includes('cursor')
+  )
+    return 'Desenvolvimento'
+  if (
+    lower.includes('word') ||
+    lower.includes('excel') ||
+    lower.includes('powerpoint') ||
+    lower.includes('outlook') ||
+    lower.includes('office') ||
+    lower.includes('onenote') ||
+    lower.includes('access')
+  )
+    return 'Escritorio'
+  if (
+    lower.includes('spotify') ||
+    lower.includes('music') ||
+    lower.includes('media') ||
+    lower.includes('vlc') ||
+    lower.includes('player') ||
+    lower.includes('video')
+  )
+    return 'Midia'
+  if (
+    lower.includes('discord') ||
+    lower.includes('slack') ||
+    lower.includes('teams') ||
+    lower.includes('zoom') ||
+    lower.includes('whatsapp') ||
+    lower.includes('telegram') ||
+    lower.includes('signal')
+  )
+    return 'Comunicacao'
+  if (
+    dirLower.includes('accessories') ||
+    dirLower.includes('acessórios') ||
+    dirLower.includes('ferramentas')
+  )
+    return 'Ferramentas'
+  if (
+    dirLower.includes('games') ||
+    dirLower.includes('jogos') ||
+    dirLower.includes('game') ||
+    lower.includes('steam') ||
+    lower.includes('epic') ||
+    lower.includes('unity') ||
+    lower.includes('unreal')
+  )
+    return 'Jogos'
+  if (
+    dirLower.includes('adobe') ||
+    lower.includes('photoshop') ||
+    lower.includes('illustrator') ||
+    lower.includes('premiere') ||
+    lower.includes('after effects') ||
+    lower.includes('design') ||
+    lower.includes('figma')
+  )
+    return 'Design'
+  if (
+    dirLower.includes('system32') ||
+    dirLower.includes('system') ||
+    dirLower.includes('windows') ||
+    lower.includes('calc') ||
+    lower.includes('cmd') ||
+    lower.includes('powershell') ||
+    lower.includes('terminal') ||
+    lower.includes('control')
+  )
+    return 'Sistema'
+  if (lower.includes('explorer') || lower.includes('file manager') || lower.includes('files'))
+    return 'Arquivos'
   if (dirLower.includes('documents') || dirLower.includes('documentos')) return 'Documentos'
   if (dirLower.includes('downloads')) return 'Downloads'
   if (dirLower.includes('desktop')) return 'Desktop'
@@ -374,7 +465,7 @@ function buildFullIndex() {
     ...desktop,
     ...programFiles,
     ...appData,
-    ...pathExes,
+    ...pathExes
   ]
 
   const seen = new Set()
@@ -389,7 +480,9 @@ function buildFullIndex() {
 function buildVocabulary(items) {
   const vocab = new Set()
   for (const item of items) {
-    const words = normalizeAccents(item.name).split(/[\s_-]+/).filter((w) => w.length >= 2)
+    const words = normalizeAccents(item.name)
+      .split(/[\s_-]+/)
+      .filter((w) => w.length >= 2)
     for (const w of words) vocab.add(w)
   }
   return vocab
@@ -438,7 +531,9 @@ function isFileQuery(query) {
 }
 
 function isExplicitOpenQuery(query) {
-  const q = String(query || '').toLowerCase().trim()
+  const q = String(query || '')
+    .toLowerCase()
+    .trim()
   return /^(abra|abrir|executar|iniciar|run|launch|open|start)\b/i.test(q)
 }
 
@@ -465,18 +560,16 @@ function scoreItem(item, query) {
     } else {
       score = scoreNameMatch(nameNorm, q, vocab) * 0.2
     }
-  }
-  /* ── File queries: prioritize files ── */
-  else if (fileQuery) {
+  } else if (fileQuery) {
+    /* ── File queries: prioritize files ── */
     if (isFile) {
       score = scoreNameMatch(nameNorm, q, vocab)
       score = Math.min(score + 0.15, 1.0)
     } else {
       score = scoreNameMatch(nameNorm, q, vocab) * 0.3
     }
-  }
-  /* ── Normal query ── */
-  else {
+  } else {
+    /* ── Normal query ── */
     score = scoreNameMatch(nameNorm, q, vocab)
 
     /* Category bonus */
@@ -544,11 +637,10 @@ function openItem(itemPath) {
   return new Promise((resolve) => {
     const normalized = path.resolve(String(itemPath || '').trim())
     if (!normalized) return resolve({ ok: false, error: 'Caminho vazio' })
-    if (!fs.existsSync(normalized)) return resolve({ ok: false, error: 'Caminho nao encontrado no disco' })
+    if (!fs.existsSync(normalized))
+      return resolve({ ok: false, error: 'Caminho nao encontrado no disco' })
 
-    const cmd = process.platform === 'win32'
-      ? `start "" "${normalized}"`
-      : `open "${normalized}"`
+    const cmd = process.platform === 'win32' ? `start "" "${normalized}"` : `open "${normalized}"`
 
     exec(cmd, (err) => {
       if (err) return resolve({ ok: false, error: err.message })
@@ -581,7 +673,7 @@ function buildCardPayload(query, scored) {
       Arquivo: 'Arquivos',
       Programa: 'Programas',
       Atalho: 'Atalhos',
-      CLI: 'Ferramentas CLI',
+      CLI: 'Ferramentas CLI'
     }
     sections.push({
       title: typeLabels[typeName] || typeName,
@@ -592,15 +684,15 @@ function buildCardPayload(query, scored) {
         description: item.path,
         badge: {
           text: `${Math.round(item.score * 100)}%`,
-          variant: item.score >= 0.9 ? 'success' : item.score >= 0.5 ? 'info' : 'default',
+          variant: item.score >= 0.9 ? 'success' : item.score >= 0.5 ? 'info' : 'default'
         },
         primaryAction: {
           type: 'primary',
           label: 'Abrir',
           endpoint: '/launcher/open',
-          payload: { path: item.path },
-        },
-      })),
+          payload: { path: item.path }
+        }
+      }))
     })
   }
 
@@ -614,15 +706,15 @@ function buildCardPayload(query, scored) {
         description: item.path,
         badge: {
           text: `${Math.round(item.score * 100)}%`,
-          variant: item.score >= 0.9 ? 'success' : item.score >= 0.5 ? 'info' : 'default',
+          variant: item.score >= 0.9 ? 'success' : item.score >= 0.5 ? 'info' : 'default'
         },
         primaryAction: {
           type: 'primary',
           label: 'Abrir',
           endpoint: '/launcher/open',
-          payload: { path: item.path },
-        },
-      })),
+          payload: { path: item.path }
+        }
+      }))
     })
   }
 
@@ -631,8 +723,10 @@ function buildCardPayload(query, scored) {
   const fileCount = scored.filter((i) => i.type === 'Arquivo').length
 
   let subtitle = `${scored.length} ${scored.length === 1 ? 'item encontrado' : 'itens encontrados'}`
-  if (folderQuery) subtitle = `${folderCount} pasta${folderCount !== 1 ? 's' : ''} encontrada${folderCount !== 1 ? 's' : ''}`
-  else if (fileQuery) subtitle = `${fileCount} arquivo${fileCount !== 1 ? 's' : ''} encontrado${fileCount !== 1 ? 's' : ''}`
+  if (folderQuery)
+    subtitle = `${folderCount} pasta${folderCount !== 1 ? 's' : ''} encontrada${folderCount !== 1 ? 's' : ''}`
+  else if (fileQuery)
+    subtitle = `${fileCount} arquivo${fileCount !== 1 ? 's' : ''} encontrado${fileCount !== 1 ? 's' : ''}`
 
   return {
     type: 'generic-extension',
@@ -642,11 +736,11 @@ function buildCardPayload(query, scored) {
       header: {
         icon: '',
         title: `Resultados para "${query}"`,
-        subtitle,
+        subtitle
       },
       sections,
-      footer: { text: 'MomAI Launcher' },
-    },
+      footer: { text: 'MomAI Launcher' }
+    }
   }
 }
 
@@ -658,11 +752,11 @@ function buildOpenedCardPayload(itemName, itemPath) {
       header: {
         icon: '',
         title: `${itemName} aberto`,
-        subtitle: itemPath,
+        subtitle: itemPath
       },
       status: { type: 'success', message: `${itemName} foi iniciado` },
-      footer: { text: 'MomAI Launcher' },
-    },
+      footer: { text: 'MomAI Launcher' }
+    }
   }
 }
 
@@ -684,7 +778,7 @@ function extractSearchTerms(raw) {
     /(?<!\w)(o|a|os|as|de|da|do|dos|das|em|no|na|nos|nas|um|uma|para|por|pelo|pela)\b\s*/gi,
     /\b(pasta|folder|diretorio|diretorio|arquivo|file|programa|aplicativo|app)\b\s*/gi,
     /\b(me|mim|eu|por favor|pfv|pf)\b\s*/gi,
-    /[\s,;:!?]+/g,
+    /[\s,;:!?]+/g
   ]
   let cleaned = q
   for (const pattern of removePatterns) {
@@ -708,27 +802,32 @@ module.exports = {
   tools: [
     {
       name: 'search_local_items',
-      description: 'Busca pastas, arquivos, programas e aplicativos no computador local por nome. Usar para abrir ou encontrar qualquer item no computador. Retorna caminhos absolutos com score de confianca.',
+      description:
+        'Busca pastas, arquivos, programas e aplicativos no computador local por nome. Usar para abrir ou encontrar qualquer item no computador. Retorna caminhos absolutos com score de confianca.',
       parameters: {
         type: 'object',
         required: ['query'],
         properties: {
-          query: { type: 'string', description: 'Nome ou termo do item a buscar (pasta, arquivo ou programa)' },
-        },
-      },
+          query: {
+            type: 'string',
+            description: 'Nome ou termo do item a buscar (pasta, arquivo ou programa)'
+          }
+        }
+      }
     },
     {
       name: 'open_local_item',
-      description: 'Abre pasta, arquivo ou programa pelo caminho absoluto. Use APENAS com caminho absoluto retornado pelo search_local_items.',
+      description:
+        'Abre pasta, arquivo ou programa pelo caminho absoluto. Use APENAS com caminho absoluto retornado pelo search_local_items.',
       parameters: {
         type: 'object',
         required: ['path'],
         properties: {
           path: { type: 'string', description: 'Caminho absoluto do item' },
-          name: { type: 'string', description: 'Nome do item para confirmacao' },
-        },
-      },
-    },
+          name: { type: 'string', description: 'Nome do item para confirmacao' }
+        }
+      }
+    }
   ],
 
   async execute({ content, args, toolName, momai }) {
@@ -743,7 +842,7 @@ module.exports = {
       if (!targetPath) {
         return {
           tool: 'open_local_item',
-          instruction: 'Caminho do item nao fornecido.',
+          instruction: 'Caminho do item nao fornecido.'
         }
       }
 
@@ -752,19 +851,27 @@ module.exports = {
         return {
           tool: 'open_local_item',
           structuredResponse: buildOpenedCardPayload(targetName, targetPath),
-          instruction: JSON.stringify({ ok: true, message: `"${targetName}" aberto com sucesso.`, path: targetPath }),
+          instruction: JSON.stringify({
+            ok: true,
+            message: `"${targetName}" aberto com sucesso.`,
+            path: targetPath
+          })
         }
       }
       return {
         tool: 'open_local_item',
-        instruction: `Nao foi possivel abrir: ${result.error}`,
+        instruction: `Nao foi possivel abrir: ${result.error}`
       }
     }
 
     /* ── search_local_items ── */
-    const rawQuery = toolName === 'search_local_items' ? (String(args?.query || content || '')).trim() : text
+    const rawQuery =
+      toolName === 'search_local_items' ? String(args?.query || content || '').trim() : text
     const searchTerms = extractSearchTerms(rawQuery)
-    await debugLog(`search: raw="${rawQuery.slice(0, 80)}" terms="${searchTerms.slice(0, 80)}"`, momai)
+    await debugLog(
+      `search: raw="${rawQuery.slice(0, 80)}" terms="${searchTerms.slice(0, 80)}"`,
+      momai
+    )
 
     const allItems = getOrRefreshIndex()
     await debugLog(`scan: total=${allItems.length} items in index`, momai)
@@ -777,14 +884,17 @@ module.exports = {
 
     await debugLog(`scored: ${scored.length} results after filtering (threshold=0.1)`, momai)
     if (scored.length > 0) {
-      const top3 = scored.slice(0, 3).map(i => `${i.name}(${Math.round(i.score*100)}% ${i.type})`).join(', ')
+      const top3 = scored
+        .slice(0, 3)
+        .map((i) => `${i.name}(${Math.round(i.score * 100)}% ${i.type})`)
+        .join(', ')
       await debugLog(`top: ${top3}`, momai)
     }
 
     if (scored.length === 0) {
       return {
         tool: 'search_local_items',
-        instruction: `Nenhum resultado encontrado para "${rawQuery}".`,
+        instruction: `Nenhum resultado encontrado para "${rawQuery}".`
       }
     }
 
@@ -800,7 +910,11 @@ module.exports = {
           return {
             tool: 'search_local_items',
             structuredResponse: buildOpenedCardPayload(perfectMatch.name, perfectMatch.path),
-            instruction: JSON.stringify({ ok: true, message: `"${perfectMatch.name}" encontrado e aberto automaticamente.`, path: perfectMatch.path }),
+            instruction: JSON.stringify({
+              ok: true,
+              message: `"${perfectMatch.name}" encontrado e aberto automaticamente.`,
+              path: perfectMatch.path
+            })
           }
         }
       }
@@ -810,12 +924,19 @@ module.exports = {
       tool: 'search_local_items',
       structuredResponse: buildCardPayload(rawQuery, scored),
       instruction: JSON.stringify({
-        results: scored.map((item) => ({ name: item.name, path: item.path, type: item.type, category: item.category, score: Math.round(item.score * 100) / 100 })),
+        results: scored.map((item) => ({
+          name: item.name,
+          path: item.path,
+          type: item.type,
+          category: item.category,
+          score: Math.round(item.score * 100) / 100
+        })),
         total: scored.length,
-        message: scored.length === 1
-          ? `Encontrado 1 resultado para "${rawQuery}". Deseja que eu abra?`
-          : `Encontrados ${scored.length} resultados para "${rawQuery}". Qual deles deseja abrir?`,
-      }),
+        message:
+          scored.length === 1
+            ? `Encontrado 1 resultado para "${rawQuery}". Deseja que eu abra?`
+            : `Encontrados ${scored.length} resultados para "${rawQuery}". Qual deles deseja abrir?`
+      })
     }
-  },
+  }
 }

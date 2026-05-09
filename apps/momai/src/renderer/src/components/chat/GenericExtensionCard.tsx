@@ -65,53 +65,117 @@ interface ExtensionData {
    ────────────────────────────────────────────── */
 
 const IconCheck = ({ className = '' }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M20 6L9 17l-5-5" />
   </svg>
 )
 
 const IconFolder = ({ className = '' }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
   </svg>
 )
 
 const IconFile = ({ className = '' }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
     <polyline points="14 2 14 8 20 8" />
   </svg>
 )
 
 const IconApp = ({ className = '' }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <rect x="4" y="4" width="16" height="16" rx="2" />
     <path d="M9 9h6v6H9z" />
   </svg>
 )
 
 const IconLink = ({ className = '' }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
   </svg>
 )
 
 const IconTerminal = ({ className = '' }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <polyline points="4 17 10 11 4 5" />
     <line x1="12" y1="19" x2="20" y2="19" />
   </svg>
 )
 
 const IconArrowRight = ({ className = '' }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <path d="M5 12h14M12 5l7 7-7 7" />
   </svg>
 )
 
 const IconSearch = ({ className = '' }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
     <circle cx="11" cy="11" r="8" />
     <line x1="21" y1="21" x2="16.65" y2="16.65" />
   </svg>
@@ -122,7 +186,7 @@ const TYPE_ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
   Arquivo: IconFile,
   Programa: IconApp,
   Atalho: IconLink,
-  CLI: IconTerminal,
+  CLI: IconTerminal
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -130,7 +194,7 @@ const TYPE_COLORS: Record<string, string> = {
   Arquivo: 'text-zinc-400',
   Programa: 'text-zinc-400',
   Atalho: 'text-zinc-400',
-  CLI: 'text-zinc-400',
+  CLI: 'text-zinc-400'
 }
 
 const TYPE_BG_COLORS: Record<string, string> = {
@@ -138,7 +202,7 @@ const TYPE_BG_COLORS: Record<string, string> = {
   Arquivo: 'bg-zinc-700/30',
   Programa: 'bg-zinc-700/30',
   Atalho: 'bg-zinc-700/30',
-  CLI: 'bg-zinc-700/30',
+  CLI: 'bg-zinc-700/30'
 }
 
 /* ──────────────────────────────────────────────
@@ -155,12 +219,15 @@ async function executeAction(
     const response = await fetch(`${API_URL}${action.endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(action.payload || {}),
+      body: JSON.stringify(action.payload || {})
     })
     const result = await response.json()
 
     if (result.ok) {
-      onStatus({ type: 'success', message: result.message || `${action.label} executado com sucesso` })
+      onStatus({
+        type: 'success',
+        message: result.message || `${action.label} executado com sucesso`
+      })
       return true
     }
     onStatus({ type: 'error', message: result.error || `Erro ao executar ${action.label}` })
@@ -171,7 +238,9 @@ async function executeAction(
   }
 }
 
-function resolveBadge(badge: BadgeVariant | string | undefined): { text: string; className: string } | null {
+function resolveBadge(
+  badge: BadgeVariant | string | undefined
+): { text: string; className: string } | null {
   if (!badge) return null
   if (typeof badge === 'string') return { text: badge, className: 'text-zinc-400 bg-zinc-700/30' }
   const map: Record<string, string> = {
@@ -179,11 +248,11 @@ function resolveBadge(badge: BadgeVariant | string | undefined): { text: string;
     warning: 'text-zinc-300 bg-zinc-700/30',
     error: 'text-zinc-300 bg-zinc-700/30',
     info: 'text-zinc-300 bg-zinc-700/30',
-    default: 'text-zinc-400 bg-zinc-700/30',
+    default: 'text-zinc-400 bg-zinc-700/30'
   }
   return {
     text: badge.text,
-    className: map[badge.variant || 'default'] || map.default,
+    className: map[badge.variant || 'default'] || map.default
   }
 }
 
@@ -199,13 +268,9 @@ const SuccessState = ({ header }: { header?: ExtensionData['header'] }) => {
         <IconCheck className="w-3.5 h-3.5 text-white/50" />
       </div>
       <div className="flex-1 min-w-0">
-        <h4 className="text-[13px] font-medium text-white/90 leading-snug">
-          {header.title}
-        </h4>
+        <h4 className="text-[13px] font-medium text-white/90 leading-snug">{header.title}</h4>
         {header.subtitle && (
-          <p className="mt-0.5 text-[11px] text-white/40 font-mono truncate">
-            {header.subtitle}
-          </p>
+          <p className="mt-0.5 text-[11px] text-white/40 font-mono truncate">{header.subtitle}</p>
         )}
       </div>
     </div>
@@ -219,7 +284,7 @@ const SuccessState = ({ header }: { header?: ExtensionData['header'] }) => {
 const ExtensionItemRow = ({
   item,
   loadingId,
-  onAction,
+  onAction
 }: {
   item: ExtensionItem
   loadingId: string | null
@@ -256,19 +321,17 @@ const ExtensionItemRow = ({
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-[13px] font-medium text-white/90 truncate">
-            {item.label}
-          </span>
+          <span className="text-[13px] font-medium text-white/90 truncate">{item.label}</span>
           {badgeInfo && (
-            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md shrink-0 ${badgeInfo.className}`}>
+            <span
+              className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md shrink-0 ${badgeInfo.className}`}
+            >
               {badgeInfo.text}
             </span>
           )}
         </div>
         {item.description && (
-          <p className="text-[11px] text-white/35 truncate mt-0.5 font-mono">
-            {item.description}
-          </p>
+          <p className="text-[11px] text-white/35 truncate mt-0.5 font-mono">{item.description}</p>
         )}
       </div>
 
@@ -289,7 +352,7 @@ const ExtensionItemRow = ({
 const SectionBlock = ({
   section,
   loadingId,
-  onAction,
+  onAction
 }: {
   section: ExtensionSection
   loadingId: string | null
@@ -328,18 +391,15 @@ const GenericExtensionCard = ({ data }: GenericExtensionCardProps) => {
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [actionStatus, setActionStatus] = useState<ExtensionStatus | null>(null)
 
-  const handleAction = useCallback(
-    async (action: ItemAction) => {
-      const key = `${action.label}-${Date.now()}`
-      setLoadingId(key)
-      try {
-        await executeAction(action, setActionStatus)
-      } finally {
-        setLoadingId(null)
-      }
-    },
-    []
-  )
+  const handleAction = useCallback(async (action: ItemAction) => {
+    const key = `${action.label}-${Date.now()}`
+    setLoadingId(key)
+    try {
+      await executeAction(action, setActionStatus)
+    } finally {
+      setLoadingId(null)
+    }
+  }, [])
 
   const header = data.header
   const sections = data.sections || []
@@ -370,13 +430,9 @@ const GenericExtensionCard = ({ data }: GenericExtensionCardProps) => {
               <IconSearch className="w-3.5 h-3.5 text-white/30" />
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="text-[13px] font-semibold text-white/90 truncate">
-                {header.title}
-              </h4>
+              <h4 className="text-[13px] font-semibold text-white/90 truncate">{header.title}</h4>
               {header.subtitle && (
-                <p className="text-[11px] text-white/40 mt-0.5">
-                  {header.subtitle}
-                </p>
+                <p className="text-[11px] text-white/40 mt-0.5">{header.subtitle}</p>
               )}
             </div>
           </div>
@@ -386,7 +442,9 @@ const GenericExtensionCard = ({ data }: GenericExtensionCardProps) => {
       {/* Status after action */}
       {actionStatus && (
         <div className="px-4 pb-2">
-          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-white/50 bg-white/[0.04]`}>
+          <div
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-white/50 bg-white/[0.04]`}
+          >
             {actionStatus.type === 'success' && <IconCheck className="w-3 h-3" />}
             {actionStatus.message}
           </div>

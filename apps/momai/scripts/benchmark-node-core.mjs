@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
+
 const API = process.env.MOMAI_BENCHMARK_API || 'http://127.0.0.1:8000'
 const THREAD_ID = process.env.MOMAI_BENCHMARK_THREAD || 'benchmark'
 const RUNS = Number(process.env.MOMAI_BENCHMARK_RUNS || 8)

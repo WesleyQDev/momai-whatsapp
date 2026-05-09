@@ -10,9 +10,7 @@ declare global {
       close: () => void
       getLogsPath: () => Promise<string>
       openLogsFolder: () => Promise<void>
-      readLogs: (
-        lines?: number
-      ) => Promise<{
+      readLogs: (lines?: number) => Promise<{
         success: boolean
         entries?: Array<{
           timestamp: string
@@ -44,6 +42,10 @@ declare global {
       onUpdateError: (callback: (error: string) => void) => () => void
       markFirstLaunchFinished: (settings: any) => void
       restartBackend: () => Promise<{ success: boolean; error?: string }>
+      restartApp: () => void
+      resetWindowSize: () => void
+      isWindowMaximized: () => Promise<boolean>
+      onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => () => void
       setResizable?: (resizable: boolean) => void
       notes: {
         list: () => Promise<any[]>

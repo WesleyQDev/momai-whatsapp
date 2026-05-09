@@ -3,7 +3,7 @@ import {
   registerRenderer,
   getRenderer,
   hasRenderer,
-  listRendererTypes,
+  listRendererTypes
 } from './SkillResponseRegistry'
 
 const FakeComponent = () => null

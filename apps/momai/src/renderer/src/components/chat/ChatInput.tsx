@@ -86,8 +86,14 @@ export default function ChatInput({
   const isBrainUnavailable = statusInfo ? !statusInfo.brain_ready || statusInfo.is_loading : false
   const pythonStatus = usePythonStatus()
 
-  const { suggestion, addToHistory, getSuggestion, clearSuggestion, acceptSuggestion, getRecentHistory } =
-    useAutocomplete()
+  const {
+    suggestion,
+    addToHistory,
+    getSuggestion,
+    clearSuggestion,
+    acceptSuggestion,
+    getRecentHistory
+  } = useAutocomplete()
 
   // Sync local text with external text
   useEffect(() => {
@@ -344,14 +350,7 @@ export default function ChatInput({
         })
       }
     },
-    [
-      suggestion,
-      localText,
-      handleSend,
-      acceptSuggestion,
-      clearSuggestion,
-      getRecentHistory
-    ]
+    [suggestion, localText, handleSend, acceptSuggestion, clearSuggestion, getRecentHistory]
   )
 
   const handleMicClick = async () => {

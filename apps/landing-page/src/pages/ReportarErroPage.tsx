@@ -1,37 +1,52 @@
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 export function ReportarErroPage() {
-  const { t } = useTranslation()
-  const [form, setForm] = useState({ name: '', email: '', error: '', os: 'Windows' })
-  const [submitted, setSubmitted] = useState(false)
+  const { t } = useTranslation();
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    error: "",
+    os: "Windows",
+  });
+  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     // Aqui poderia enviar para uma API
-    setSubmitted(true)
-    setTimeout(() => setSubmitted(false), 3000)
-  }
+    setSubmitted(true);
+    setTimeout(() => setSubmitted(false), 3000);
+  };
 
   return (
     <div className="mx-auto flex min-h-[calc(100vh-200px)] max-w-[600px] flex-col items-center justify-center px-8 py-24">
       <h1
         className="mb-2 text-center font-flex text-5xl font-normal leading-[1.1] tracking-tight"
-        style={{ background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}
+        style={{
+          background: "var(--gradient-primary)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          backgroundClip: "text",
+        }}
       >
-        {t('reportarErro.title')}
+        {t("reportarErro.title")}
       </h1>
       <p className="mb-8 text-center text-lg text-[var(--text-secondary)]">
-        {t('reportarErro.subtitle')}
+        {t("reportarErro.subtitle")}
       </p>
 
       <div className="mb-6 w-full rounded-lg border border-[var(--border-color)] bg-[var(--accent-glow)] px-4 py-3 text-center text-sm text-[var(--text-secondary)]">
-        {t('reportarErro.exemplos')}
+        {t("reportarErro.exemplos")}
       </div>
 
-      <form onSubmit={handleSubmit} className="w-full rounded-2xl border border-[var(--border-color)] bg-[var(--card-bg)] p-8 shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-lg">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full rounded-2xl border border-[var(--border-color)] bg-[var(--card-bg)] p-8 shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-lg"
+      >
         <div className="mb-6">
-          <label className="mb-2 block font-medium text-[var(--text)]">Nome</label>
+          <label className="mb-2 block font-medium text-[var(--text)]">
+            Nome
+          </label>
           <input
             type="text"
             required
@@ -43,7 +58,9 @@ export function ReportarErroPage() {
         </div>
 
         <div className="mb-6">
-          <label className="mb-2 block font-medium text-[var(--text)]">Email</label>
+          <label className="mb-2 block font-medium text-[var(--text)]">
+            Email
+          </label>
           <input
             type="email"
             required
@@ -55,7 +72,9 @@ export function ReportarErroPage() {
         </div>
 
         <div className="mb-6">
-          <label className="mb-2 block font-medium text-[var(--text)]">Sistema Operacional</label>
+          <label className="mb-2 block font-medium text-[var(--text)]">
+            Sistema Operacional
+          </label>
           <select
             value={form.os}
             onChange={(e) => setForm({ ...form, os: e.target.value })}
@@ -68,7 +87,9 @@ export function ReportarErroPage() {
         </div>
 
         <div className="mb-6">
-          <label className="mb-2 block font-medium text-[var(--text)]">Descrição do erro</label>
+          <label className="mb-2 block font-medium text-[var(--text)]">
+            Descrição do erro
+          </label>
           <textarea
             required
             value={form.error}
@@ -82,16 +103,21 @@ export function ReportarErroPage() {
           type="submit"
           className="w-full rounded-lg bg-white px-4 py-3 text-base font-medium text-black transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_12px_var(--accent-glow)] active:translate-y-0"
         >
-          {submitted ? t('reportarErro.enviado') : t('reportarErro.enviar')}
+          {submitted ? t("reportarErro.enviado") : t("reportarErro.enviar")}
         </button>
 
         <p className="mt-4 text-center text-sm text-[var(--text-secondary)]">
-          {t('reportarErro.tambemNo')}{' '}
-          <a href="https://github.com/WesleyQDev/MomAI-App/issues" target="_blank" rel="noreferrer" className="text-[var(--accent)] no-underline hover:underline">
+          {t("reportarErro.tambemNo")}{" "}
+          <a
+            href="https://github.com/WesleyQDev/MomAI-App/issues"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[var(--accent)] no-underline hover:underline"
+          >
             GitHub Issues
           </a>
         </p>
       </form>
     </div>
-  )
+  );
 }

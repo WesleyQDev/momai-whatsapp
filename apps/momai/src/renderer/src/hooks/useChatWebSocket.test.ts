@@ -3,8 +3,6 @@ import { renderHook, act } from '@testing-library/react'
 import { useChatWebSocket } from './useChatWebSocket'
 import { WS_URL } from '../constants'
 
-const OrigWS = globalThis.WebSocket
-
 describe('useChatWebSocket', () => {
   let wsConstructorSpy: ReturnType<typeof vi.fn>
 
@@ -13,10 +11,24 @@ describe('useChatWebSocket', () => {
     vi.useFakeTimers()
 
     wsConstructorSpy = vi.fn()
-    class TestWS extends (OrigWS as unknown as typeof MockWebSocket) {
+    class TestWS {
+      onopen: (() => void) | null = null
+      onclose: (() => void) | null = null
+      onmessage: ((event: { data: string }) => void) | null = null
+      onerror: ((event: any) => void) | null = null
+      readyState = 0
+      static CONNECTING = 0
+      static OPEN = 1
+      static CLOSING = 2
+      static CLOSED = 3
+      send = vi.fn()
+      close = vi.fn()
       constructor(url: string) {
-        super(url)
-        wsConstructorSpy(url)
+        ;(wsConstructorSpy as any)(url)
+        setTimeout(() => {
+          this.readyState = 1
+          this.onopen?.()
+        }, 0)
       }
     }
     vi.stubGlobal('WebSocket', TestWS)
@@ -44,7 +56,9 @@ describe('useChatWebSocket', () => {
     })
 
     act(() => {
-      result.current.wsRef.current!.onmessage!({ data: JSON.stringify({ type: 'test', content: 'hello' }) })
+      ;(result.current.wsRef.current!.onmessage as any)({
+        data: JSON.stringify({ type: 'test', content: 'hello' })
+      })
     })
 
     expect(handleWsMessage).toHaveBeenCalledWith({ type: 'test', content: 'hello' })
@@ -59,7 +73,7 @@ describe('useChatWebSocket', () => {
     })
 
     act(() => {
-      result.current.wsRef.current!.onclose!()
+      ;(result.current.wsRef.current!.onclose as any)()
     })
 
     await act(async () => {
@@ -71,7 +85,9 @@ describe('useChatWebSocket', () => {
 
   it('cleans up on unmount', () => {
     const handleWsMessage = vi.fn()
-    const { result, unmount } = renderHook(() => useChatWebSocket({ threadId: 'test', handleWsMessage }))
+    const { result, unmount } = renderHook(() =>
+      useChatWebSocket({ threadId: 'test', handleWsMessage })
+    )
 
     const closeSpy = result.current.wsRef.current!.close as ReturnType<typeof vi.fn>
 
@@ -91,9 +107,9 @@ describe('useChatWebSocket', () => {
     const ws = result.current.wsRef.current!
 
     act(() => {
-      ws.onmessage!({ data: JSON.stringify({ type: 'msg1' }) })
-      ws.onmessage!({ data: JSON.stringify({ type: 'msg2' }) })
-      ws.onmessage!({ data: JSON.stringify({ type: 'msg3' }) })
+      ;(ws.onmessage as any)({ data: JSON.stringify({ type: 'msg1' }) })
+      ;(ws.onmessage as any)({ data: JSON.stringify({ type: 'msg2' }) })
+      ;(ws.onmessage as any)({ data: JSON.stringify({ type: 'msg3' }) })
     })
 
     expect(handleWsMessage).toHaveBeenCalledTimes(3)

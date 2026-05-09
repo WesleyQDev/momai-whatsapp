@@ -30,7 +30,12 @@ export function useEditorExtensions() {
       { tag: tags.heading6, class: 'cm-h6' },
       { tag: tags.strong, fontWeight: '700', color: textColor },
       { tag: tags.emphasis, fontStyle: 'italic', color: textColor },
-      { tag: tags.strikethrough, textDecoration: 'line-through', color: mutedColor, opacity: '0.7' },
+      {
+        tag: tags.strikethrough,
+        textDecoration: 'line-through',
+        color: mutedColor,
+        opacity: '0.7'
+      },
       { tag: tags.quote, color: mutedColor, fontStyle: 'italic' },
       {
         tag: tags.monospace,
@@ -95,19 +100,56 @@ export function useEditorExtensions() {
           padding: '0 !important'
         },
         '.cm-line': { padding: '2px 0' },
-        '.cm-strong': { fontWeight: '700 !important', color: 'rgb(var(--text-primary)) !important' },
-        '.cm-emphasis': { fontStyle: 'italic !important', color: 'rgb(var(--text-primary)) !important' },
-        '.cm-strikethrough': { textDecoration: 'line-through !important', color: 'rgb(var(--text-muted)) !important', opacity: '0.7' },
-        '.cm-h1': { fontSize: '1.8em !important', fontWeight: '700 !important', fontFamily: "'Outfit', sans-serif" },
-        '.cm-h2': { fontSize: '1.5em !important', fontWeight: '600 !important', fontFamily: "'Outfit', sans-serif" },
-        '.cm-h3': { fontSize: '1.25em !important', fontWeight: '600 !important', fontFamily: "'Outfit', sans-serif" },
-        '.cm-h4': { fontSize: '1.1em !important', fontWeight: '500 !important', fontFamily: "'Outfit', sans-serif" },
-        '.cm-h5': { fontSize: '1em !important', fontWeight: '500 !important', fontFamily: "'Outfit', sans-serif", color: 'rgb(var(--text-muted))' },
-        '.cm-h6': { fontSize: '0.9em !important', fontWeight: '500 !important', fontFamily: "'Outfit', sans-serif", color: 'rgb(var(--text-muted))' },
-        '.cm-line:not(.cm-activeLine) .cm-h1, .cm-line:not(.cm-activeLine) .cm-h2, .cm-line:not(.cm-activeLine) .cm-h3, .cm-line:not(.cm-activeLine) .cm-h4': {
-          marginLeft: '-0.32em !important',
-          display: 'inline-block'
+        '.cm-strong': {
+          fontWeight: '700 !important',
+          color: 'rgb(var(--text-primary)) !important'
         },
+        '.cm-emphasis': {
+          fontStyle: 'italic !important',
+          color: 'rgb(var(--text-primary)) !important'
+        },
+        '.cm-strikethrough': {
+          textDecoration: 'line-through !important',
+          color: 'rgb(var(--text-muted)) !important',
+          opacity: '0.7'
+        },
+        '.cm-h1': {
+          fontSize: '1.8em !important',
+          fontWeight: '700 !important',
+          fontFamily: "'Outfit', sans-serif"
+        },
+        '.cm-h2': {
+          fontSize: '1.5em !important',
+          fontWeight: '600 !important',
+          fontFamily: "'Outfit', sans-serif"
+        },
+        '.cm-h3': {
+          fontSize: '1.25em !important',
+          fontWeight: '600 !important',
+          fontFamily: "'Outfit', sans-serif"
+        },
+        '.cm-h4': {
+          fontSize: '1.1em !important',
+          fontWeight: '500 !important',
+          fontFamily: "'Outfit', sans-serif"
+        },
+        '.cm-h5': {
+          fontSize: '1em !important',
+          fontWeight: '500 !important',
+          fontFamily: "'Outfit', sans-serif",
+          color: 'rgb(var(--text-muted))'
+        },
+        '.cm-h6': {
+          fontSize: '0.9em !important',
+          fontWeight: '500 !important',
+          fontFamily: "'Outfit', sans-serif",
+          color: 'rgb(var(--text-muted))'
+        },
+        '.cm-line:not(.cm-activeLine) .cm-h1, .cm-line:not(.cm-activeLine) .cm-h2, .cm-line:not(.cm-activeLine) .cm-h3, .cm-line:not(.cm-activeLine) .cm-h4':
+          {
+            marginLeft: '-0.32em !important',
+            display: 'inline-block'
+          },
         '.cm-quote': {
           borderLeft: '3px solid rgb(var(--accent) / 0.3)',
           paddingLeft: '1rem',
@@ -116,12 +158,21 @@ export function useEditorExtensions() {
           color: 'rgb(var(--text-muted))',
           fontStyle: 'italic'
         },
-        '.cm-hr': { borderTop: '1px solid rgb(var(--border) / 0.3)', margin: '1em 0', display: 'block' },
+        '.cm-hr': {
+          borderTop: '1px solid rgb(var(--border) / 0.3)',
+          margin: '1em 0',
+          display: 'block'
+        },
         '.cm-table': { borderCollapse: 'collapse', width: '100%', margin: '1em 0' },
         '.cm-table-cell': { border: '1px solid rgb(var(--border) / 0.2)', padding: '0.5em 0.75em' },
         '.cm-table-header': { fontWeight: '600', backgroundColor: 'rgb(var(--accent) / 0.05)' },
-        '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: 'rgb(var(--accent) / 0.2) !important' },
-        '.cm-cursor': { borderLeftColor: 'rgb(var(--text-primary)) !important', borderLeftWidth: '2px' },
+        '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
+          backgroundColor: 'rgb(var(--accent) / 0.2) !important'
+        },
+        '.cm-cursor': {
+          borderLeftColor: 'rgb(var(--text-primary)) !important',
+          borderLeftWidth: '2px'
+        },
         '.cm-activeLine': { backgroundColor: 'transparent' },
         '.cm-gutters': { display: 'none' },
         '.cm-wiki-link': {
@@ -134,8 +185,15 @@ export function useEditorExtensions() {
         },
         '.cm-wiki-link:hover': { backgroundColor: 'rgb(var(--accent) / 0.25)' },
         '.cm-bold-italic': { fontWeight: '700', fontStyle: 'italic', color: 'rgb(var(--accent))' },
-        '.cm-highlight': { backgroundColor: 'rgb(var(--accent) / 0.2)', padding: '1px 4px', borderRadius: '3px' },
-        '.cm-link': { color: 'rgb(var(--accent)) !important', textDecoration: 'underline !important' },
+        '.cm-highlight': {
+          backgroundColor: 'rgb(var(--accent) / 0.2)',
+          padding: '1px 4px',
+          borderRadius: '3px'
+        },
+        '.cm-link': {
+          color: 'rgb(var(--accent)) !important',
+          textDecoration: 'underline !important'
+        },
         '.cm-url': { color: 'rgb(var(--text-muted)) !important', opacity: '0.6' },
         '.cm-code': {
           color: 'rgb(var(--accent)) !important',
@@ -239,18 +297,27 @@ export function useEditorExtensions() {
 
               const hashes = text.match(/^(#{1,6})(\s)/)
               if (hashes) {
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from, from + hashes[1].length))
+                decos.push(
+                  Decoration.mark({ class: 'cm-md-hidden' }).range(from, from + hashes[1].length)
+                )
               }
 
               const quote = text.match(/^(\s*>)(\s)/)
               if (quote) {
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from, from + quote[1].length))
+                decos.push(
+                  Decoration.mark({ class: 'cm-md-hidden' }).range(from, from + quote[1].length)
+                )
               }
 
               const bullet = text.match(/^(\s*)([-*+])(\s)/)
               if (bullet) {
                 const markerStart = from + bullet[1].length
-                decos.push(Decoration.mark({ class: 'cm-bullet-conceal' }).range(markerStart, markerStart + bullet[2].length))
+                decos.push(
+                  Decoration.mark({ class: 'cm-bullet-conceal' }).range(
+                    markerStart,
+                    markerStart + bullet[2].length
+                  )
+                )
               }
 
               const checkbox = text.match(/^(\s*)([-*+])(\s)(\[[ xX]\])(\s)/)
@@ -258,8 +325,9 @@ export function useEditorExtensions() {
                 const cbStart = from + checkbox[1].length + checkbox[2].length + checkbox[3].length
                 const isChecked = checkbox[4].toLowerCase() === '[x]'
                 decos.push(
-                  Decoration.mark({ class: isChecked ? 'cm-checkbox cm-checkbox-checked' : 'cm-checkbox' })
-                    .range(cbStart, cbStart + checkbox[4].length)
+                  Decoration.mark({
+                    class: isChecked ? 'cm-checkbox cm-checkbox-checked' : 'cm-checkbox'
+                  }).range(cbStart, cbStart + checkbox[4].length)
                 )
               }
 
@@ -305,11 +373,17 @@ export function useEditorExtensions() {
                 const s = m.index!
                 decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 1))
                 const be = s + 1 + m[1].length
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + be, from + be + 1))
+                decos.push(
+                  Decoration.mark({ class: 'cm-md-hidden' }).range(from + be, from + be + 1)
+                )
                 const ps = be + 1
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + ps, from + ps + 1))
+                decos.push(
+                  Decoration.mark({ class: 'cm-md-hidden' }).range(from + ps, from + ps + 1)
+                )
                 const pe = s + m[0].length - 1
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + pe, from + pe + 1))
+                decos.push(
+                  Decoration.mark({ class: 'cm-md-hidden' }).range(from + pe, from + pe + 1)
+                )
               }
 
               const wikiMatches = [...text.matchAll(/\[\[([^\]]+)\]\]/g)]

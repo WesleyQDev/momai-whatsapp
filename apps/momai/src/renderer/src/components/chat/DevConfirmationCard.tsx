@@ -77,7 +77,10 @@ const DevConfirmationCard = ({ data }: { data?: DevConfirmationData }) => {
       })
       const result = await response.json().catch(() => ({}))
       const ok = Boolean(result?.ok ?? response.ok)
-      setStatus({ ok, message: String(result?.message || (ok ? 'Ação concluída.' : 'Falha na ação.')) })
+      setStatus({
+        ok,
+        message: String(result?.message || (ok ? 'Ação concluída.' : 'Falha na ação.'))
+      })
       setResultResponse(result?.structuredResponse || null)
       if (action === 'confirm_mutation') {
         window.dispatchEvent(
@@ -162,7 +165,8 @@ const DevConfirmationCard = ({ data }: { data?: DevConfirmationData }) => {
             </div>
             {Array.isArray(data.details.routes) && data.details.routes.length > 0 && (
               <p className="text-[11px] text-text-muted">
-                <span className="text-text font-medium">Rotas:</span> {data.details.routes.join(', ')}
+                <span className="text-text font-medium">Rotas:</span>{' '}
+                {data.details.routes.join(', ')}
               </p>
             )}
           </div>
@@ -174,7 +178,9 @@ const DevConfirmationCard = ({ data }: { data?: DevConfirmationData }) => {
         )}
 
         {status && (
-          <div className={`text-xs rounded-lg px-2.5 py-2 ${status.ok ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/10 text-rose-300'}`}>
+          <div
+            className={`text-xs rounded-lg px-2.5 py-2 ${status.ok ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/10 text-rose-300'}`}
+          >
             {status.message}
           </div>
         )}

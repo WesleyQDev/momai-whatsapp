@@ -13,14 +13,14 @@ interface VoiceTabProps {
 
 export const VoiceTab = React.memo(
   ({ t, settings, setActiveTab, expandedLang, setExpandedLang, updateField }: VoiceTabProps) => {
-    const { 
-      isReady, 
-      isSpeaking, 
-      currentEngine, 
-      availableVoices, 
-      setEngine, 
+    const {
+      isReady,
+      isSpeaking,
+      currentEngine,
+      availableVoices,
+      setEngine,
       setVoice,
-      refreshVoices 
+      refreshVoices
     } = useTTS()
 
     const [localEngine, setLocalEngine] = useState(currentEngine)
@@ -73,9 +73,21 @@ export const VoiceTab = React.memo(
     ]
 
     const engines = [
-      { id: 'kokoro' as const, name: 'Kokoro (Local)', description: 'Alta qualidade, requer Python' },
-      { id: 'edge-tts' as const, name: 'Edge TTS (Online)', description: 'Alta qualidade, requer internet' },
-      { id: 'say' as const, name: 'Say.js (Local)', description: 'Voz do sistema, sem dependências' }
+      {
+        id: 'kokoro' as const,
+        name: 'Kokoro (Local)',
+        description: 'Alta qualidade, requer Python'
+      },
+      {
+        id: 'edge-tts' as const,
+        name: 'Edge TTS (Online)',
+        description: 'Alta qualidade, requer internet'
+      },
+      {
+        id: 'say' as const,
+        name: 'Say.js (Local)',
+        description: 'Voz do sistema, sem dependências'
+      }
     ]
 
     // Carregar vozes quando a engine muda
@@ -102,7 +114,10 @@ export const VoiceTab = React.memo(
     }, [currentEngine])
 
     const handleEngineChange = async (engine: typeof localEngine) => {
-      try { const { stopVoice } = await import('../../../../services/api'); stopVoice().catch(() => {}) } catch {}
+      try {
+        const { stopVoice } = await import('../../../../services/api')
+        stopVoice().catch(() => {})
+      } catch {}
       setLocalEngine(engine)
       await updateField('tts_engine', engine, true)
       await setEngine(engine)
@@ -110,7 +125,10 @@ export const VoiceTab = React.memo(
     }
 
     const handleVoiceSelect = async (voiceId: string) => {
-      try { const { stopVoice } = await import('../../../../services/api'); stopVoice().catch(() => {}) } catch {}
+      try {
+        const { stopVoice } = await import('../../../../services/api')
+        stopVoice().catch(() => {})
+      } catch {}
       await updateField('tts_voice', voiceId, true)
       await setVoice(voiceId)
     }
@@ -178,9 +196,14 @@ export const VoiceTab = React.memo(
                     }`}
                   >
                     <svg
-                      width="16" height="16" viewBox="0 0 24 24"
-                      fill="none" stroke="currentColor" strokeWidth="2"
-                      strokeLinecap="round" strokeLinejoin="round"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     >
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                       <path d="M12 7v6" />
@@ -219,36 +242,56 @@ export const VoiceTab = React.memo(
               {settings.daily_briefing_enabled && (
                 <div className="border-t border-border/40">
                   <div className="px-4 py-2.5 border-b border-border/20 bg-white/[0.02]">
-                    <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wide">Componentes</span>
+                    <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wide">
+                      Componentes
+                    </span>
                   </div>
                   <div className="px-4 pb-3 pt-1 space-y-0 divide-y divide-border/10">
                     <div className="flex items-center justify-between py-2.5">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-xs font-semibold text-text">Saudação automática</span>
-                        <span className="text-[10px] text-text-muted/70">&quot;Bom dia!&quot; conforme o horário</span>
+                        <span className="text-[10px] text-text-muted/70">
+                          &quot;Bom dia!&quot; conforme o horário
+                        </span>
                       </div>
                       <button
-                        onClick={() => updateField('greeting_auto_saudacao', !settings.greeting_auto_saudacao, true)}
+                        onClick={() =>
+                          updateField(
+                            'greeting_auto_saudacao',
+                            !settings.greeting_auto_saudacao,
+                            true
+                          )
+                        }
                         className={`relative inline-flex h-4 w-7 shrink-0 rounded-full border transition-colors ${settings.greeting_auto_saudacao ? 'bg-accent border-accent' : 'bg-white/10 border-transparent'}`}
                       >
-                        <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition ${settings.greeting_auto_saudacao ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                        <span
+                          className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition ${settings.greeting_auto_saudacao ? 'translate-x-3.5' : 'translate-x-0.5'}`}
+                        />
                       </button>
                     </div>
                     <div className="flex items-center justify-between py-2.5">
                       <div className="flex flex-col gap-0.5">
                         <span className="text-xs font-semibold text-text">Resumo do dia</span>
-                        <span className="text-[10px] text-text-muted/70">Data, dia da semana e lembretes</span>
+                        <span className="text-[10px] text-text-muted/70">
+                          Data, dia da semana e lembretes
+                        </span>
                       </div>
                       <button
-                        onClick={() => updateField('greeting_resumo', !settings.greeting_resumo, true)}
+                        onClick={() =>
+                          updateField('greeting_resumo', !settings.greeting_resumo, true)
+                        }
                         className={`relative inline-flex h-4 w-7 shrink-0 rounded-full border transition-colors ${settings.greeting_resumo ? 'bg-accent border-accent' : 'bg-white/10 border-transparent'}`}
                       >
-                        <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition ${settings.greeting_resumo ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                        <span
+                          className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition ${settings.greeting_resumo ? 'translate-x-3.5' : 'translate-x-0.5'}`}
+                        />
                       </button>
                     </div>
                     <div className="py-2.5 space-y-1.5">
                       <span className="text-xs font-semibold text-text">Ação personalizada</span>
-                      <span className="text-[10px] text-text-muted/70">Instrução extra para a IA</span>
+                      <span className="text-[10px] text-text-muted/70">
+                        Instrução extra para a IA
+                      </span>
                       <input
                         value={settings.greeting_acao}
                         onChange={(e) => updateField('greeting_acao', e.target.value, true)}
@@ -258,7 +301,9 @@ export const VoiceTab = React.memo(
                     </div>
                     <div className="py-2.5 space-y-1.5">
                       <span className="text-xs font-semibold text-text">Mensagem fixa</span>
-                      <span className="text-[10px] text-text-muted/70">Usa este texto exato em vez de IA</span>
+                      <span className="text-[10px] text-text-muted/70">
+                        Usa este texto exato em vez de IA
+                      </span>
                       <input
                         value={settings.greeting_fixa}
                         onChange={(e) => updateField('greeting_fixa', e.target.value, true)}
@@ -301,7 +346,7 @@ export const VoiceTab = React.memo(
               <label className="text-xs font-semibold text-text-muted uppercase tracking-wide">
                 {t('settings.voice.catalogLabel')}
               </label>
-              
+
               {isLoadingVoices ? (
                 <div className="flex items-center justify-center h-[200px] rounded-xl bg-white/[0.03] border border-border/40">
                   <div className="text-xs text-text-muted">Carregando vozes...</div>
@@ -357,52 +402,74 @@ export const VoiceTab = React.memo(
                     </div>
                   </div>
                 </div>
-              ) : (() => {
-                const groups: Record<string, { code: string; langKey: string; voices: typeof availableVoices }> = {}
-                for (const v of availableVoices) {
-                  const lang = v.language.split('-')[0]
-                  if (!groups[lang]) groups[lang] = { code: lang, langKey: lang.toUpperCase(), voices: [] }
-                  groups[lang].voices.push(v)
-                }
-                const sorted = Object.values(groups).sort((a, b) => a.code === 'pt' ? -1 : b.code === 'pt' ? 1 : a.code.localeCompare(b.code))
-                const currentLang = (expandedLang && sorted.find(g => g.code === expandedLang)) ? expandedLang : (sorted[0]?.code || null)
-                return (
-                <div className="flex gap-3 h-[200px]">
-                  <div className="w-[160px] space-y-1 overflow-y-auto custom-scrollbar pr-2">
-                    {sorted.map((g) => (
-                      <button
-                        key={g.code}
-                        onClick={() => setExpandedLang(g.code)}
-                        className={`w-full flex items-center justify-between p-2 rounded-lg border text-[11px] font-semibold uppercase tracking-wide transition-all ${currentLang === g.code ? 'bg-accent/10 border-accent/40 text-accent' : 'bg-white/[0.03] border-transparent text-text-muted hover:bg-white/[0.05]'}`}
-                      >
-                        {g.langKey}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex-1 p-2 rounded-xl bg-white/[0.03] border border-border/40 overflow-y-auto custom-scrollbar">
-                    <div className="grid grid-cols-1 gap-1.5">
-                      {sorted.find((g) => g.code === currentLang)?.voices.map((v) => (
-                        <button
-                          key={v.id}
-                          onClick={() => handleVoiceSelect(v.id)}
-                          className={`flex items-center justify-between p-2 rounded-lg border text-xs font-medium transition-all ${settings.tts_voice === v.id ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20' : 'bg-input border-border/40 text-text-muted hover:bg-white/[0.05]'}`}
-                        >
-                          <div className="flex flex-col items-start gap-0">
-                            <span>{v.name}</span>
-                            <span className="text-[9px] uppercase font-semibold tracking-wide opacity-60">
-                              {v.language} • {v.gender || 'voz'}
-                            </span>
-                          </div>
-                          {settings.tts_voice === v.id && (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
-                          )}
-                        </button>
-                      ))}
+              ) : (
+                (() => {
+                  const groups: Record<
+                    string,
+                    { code: string; langKey: string; voices: typeof availableVoices }
+                  > = {}
+                  for (const v of availableVoices) {
+                    const lang = v.language.split('-')[0]
+                    if (!groups[lang])
+                      groups[lang] = { code: lang, langKey: lang.toUpperCase(), voices: [] }
+                    groups[lang].voices.push(v)
+                  }
+                  const sorted = Object.values(groups).sort((a, b) =>
+                    a.code === 'pt' ? -1 : b.code === 'pt' ? 1 : a.code.localeCompare(b.code)
+                  )
+                  const currentLang =
+                    expandedLang && sorted.find((g) => g.code === expandedLang)
+                      ? expandedLang
+                      : sorted[0]?.code || null
+                  return (
+                    <div className="flex gap-3 h-[200px]">
+                      <div className="w-[160px] space-y-1 overflow-y-auto custom-scrollbar pr-2">
+                        {sorted.map((g) => (
+                          <button
+                            key={g.code}
+                            onClick={() => setExpandedLang(g.code)}
+                            className={`w-full flex items-center justify-between p-2 rounded-lg border text-[11px] font-semibold uppercase tracking-wide transition-all ${currentLang === g.code ? 'bg-accent/10 border-accent/40 text-accent' : 'bg-white/[0.03] border-transparent text-text-muted hover:bg-white/[0.05]'}`}
+                          >
+                            {g.langKey}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex-1 p-2 rounded-xl bg-white/[0.03] border border-border/40 overflow-y-auto custom-scrollbar">
+                        <div className="grid grid-cols-1 gap-1.5">
+                          {sorted
+                            .find((g) => g.code === currentLang)
+                            ?.voices.map((v) => (
+                              <button
+                                key={v.id}
+                                onClick={() => handleVoiceSelect(v.id)}
+                                className={`flex items-center justify-between p-2 rounded-lg border text-xs font-medium transition-all ${settings.tts_voice === v.id ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20' : 'bg-input border-border/40 text-text-muted hover:bg-white/[0.05]'}`}
+                              >
+                                <div className="flex flex-col items-start gap-0">
+                                  <span>{v.name}</span>
+                                  <span className="text-[9px] uppercase font-semibold tracking-wide opacity-60">
+                                    {v.language} • {v.gender || 'voz'}
+                                  </span>
+                                </div>
+                                {settings.tts_voice === v.id && (
+                                  <svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="3"
+                                  >
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                )}
+                              </button>
+                            ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-                )
-              })()}
+                  )
+                })()
+              )}
             </div>
           </div>
         </div>

@@ -52,32 +52,38 @@ export function useTTS() {
     }
   }, [])
 
-  const loadVoicesForEngine = useCallback(async (engine: TTSEngine) => {
-    try {
-      const response = await ttsService.getVoices(engine)
-      if (response.success && response.data) {
-        setAvailableVoices(response.data)
+  const loadVoicesForEngine = useCallback(
+    async (engine: TTSEngine) => {
+      try {
+        const response = await ttsService.getVoices(engine)
+        if (response.success && response.data) {
+          setAvailableVoices(response.data)
+        }
+      } catch (err) {
+        console.error('[useTTS] Erro ao carregar vozes:', err)
+        setError(String(err))
       }
-    } catch (err) {
-      console.error('[useTTS] Erro ao carregar vozes:', err)
-      setError(String(err))
-    }
-  }, [ttsService])
+    },
+    [ttsService]
+  )
 
-  const speak = useCallback(async (text: string, engine?: TTSEngine) => {
-    try {
-      setError(null)
-      const response = await ttsService.speak(text, engine)
-      if (!response.success) {
-        setError(response.error || 'Erro ao falar')
+  const speak = useCallback(
+    async (text: string, engine?: TTSEngine) => {
+      try {
+        setError(null)
+        const response = await ttsService.speak(text, engine)
+        if (!response.success) {
+          setError(response.error || 'Erro ao falar')
+        }
+        return response.success
+      } catch (err) {
+        const errorMessage = String(err)
+        setError(errorMessage)
+        return false
       }
-      return response.success
-    } catch (err) {
-      const errorMessage = String(err)
-      setError(errorMessage)
-      return false
-    }
-  }, [ttsService])
+    },
+    [ttsService]
+  )
 
   const stop = useCallback(async () => {
     try {
@@ -89,67 +95,79 @@ export function useTTS() {
     }
   }, [ttsService])
 
-  const setEngine = useCallback(async (engine: TTSEngine) => {
-    try {
-      setError(null)
-      const response = await ttsService.setEngine(engine)
-      if (response.success) {
-        setCurrentEngine(engine)
-        await loadVoicesForEngine(engine)
-        
-        // Atualizar configuração local
-        if (config) {
-          setConfig({ ...config, engine })
+  const setEngine = useCallback(
+    async (engine: TTSEngine) => {
+      try {
+        setError(null)
+        const response = await ttsService.setEngine(engine)
+        if (response.success) {
+          setCurrentEngine(engine)
+          await loadVoicesForEngine(engine)
+
+          // Atualizar configuração local
+          if (config) {
+            setConfig({ ...config, engine })
+          }
         }
+        return response.success
+      } catch (err) {
+        setError(String(err))
+        return false
       }
-      return response.success
-    } catch (err) {
-      setError(String(err))
-      return false
-    }
-  }, [ttsService, loadVoicesForEngine, config])
+    },
+    [ttsService, loadVoicesForEngine, config]
+  )
 
-  const setVoice = useCallback(async (voice: string) => {
-    try {
-      setError(null)
-      const response = await ttsService.setVoice(voice)
-      if (response.success && config) {
-        setConfig({ ...config, voice })
+  const setVoice = useCallback(
+    async (voice: string) => {
+      try {
+        setError(null)
+        const response = await ttsService.setVoice(voice)
+        if (response.success && config) {
+          setConfig({ ...config, voice })
+        }
+        return response.success
+      } catch (err) {
+        setError(String(err))
+        return false
       }
-      return response.success
-    } catch (err) {
-      setError(String(err))
-      return false
-    }
-  }, [ttsService, config])
+    },
+    [ttsService, config]
+  )
 
-  const setSpeed = useCallback(async (speed: number) => {
-    try {
-      setError(null)
-      const response = await ttsService.setSpeed(speed)
-      if (response.success && config) {
-        setConfig({ ...config, speed })
+  const setSpeed = useCallback(
+    async (speed: number) => {
+      try {
+        setError(null)
+        const response = await ttsService.setSpeed(speed)
+        if (response.success && config) {
+          setConfig({ ...config, speed })
+        }
+        return response.success
+      } catch (err) {
+        setError(String(err))
+        return false
       }
-      return response.success
-    } catch (err) {
-      setError(String(err))
-      return false
-    }
-  }, [ttsService, config])
+    },
+    [ttsService, config]
+  )
 
-  const setEnabled = useCallback(async (enabled: boolean) => {
-    try {
-      setError(null)
-      const response = await ttsService.setEnabled(enabled)
-      if (response.success && config) {
-        setConfig({ ...config, enabled })
+  const setEnabled = useCallback(
+    async (enabled: boolean) => {
+      try {
+        setError(null)
+        const response = await ttsService.setEnabled(enabled)
+        if (response.success && config) {
+          setConfig({ ...config, enabled })
+        }
+        return response.success
+      } catch (err) {
+        setError(String(err))
+        return false
       }
-      return response.success
-    } catch (err) {
-      setError(String(err))
-      return false
-    }
-  }, [ttsService, config])
+    },
+    [ttsService, config]
+  )
 
   const getEngines = useCallback(async () => {
     try {
@@ -161,20 +179,26 @@ export function useTTS() {
     }
   }, [ttsService])
 
-  const getEngineInfo = useCallback(async (engine: TTSEngine) => {
-    try {
-      const response = await ttsService.getEngineInfo(engine)
-      return response.success ? response.data : null
-    } catch (err) {
-      console.error('[useTTS] Erro ao obter info da engine:', err)
-      return null
-    }
-  }, [ttsService])
+  const getEngineInfo = useCallback(
+    async (engine: TTSEngine) => {
+      try {
+        const response = await ttsService.getEngineInfo(engine)
+        return response.success ? response.data : null
+      } catch (err) {
+        console.error('[useTTS] Erro ao obter info da engine:', err)
+        return null
+      }
+    },
+    [ttsService]
+  )
 
-  const refreshVoices = useCallback(async (engine?: TTSEngine) => {
-    const targetEngine = engine || currentEngine
-    await loadVoicesForEngine(targetEngine)
-  }, [currentEngine, loadVoicesForEngine])
+  const refreshVoices = useCallback(
+    async (engine?: TTSEngine) => {
+      const targetEngine = engine || currentEngine
+      await loadVoicesForEngine(targetEngine)
+    },
+    [currentEngine, loadVoicesForEngine]
+  )
 
   return {
     // Estado

@@ -34,7 +34,7 @@ const COLORS = {
   nodeText: '#e5e5e8',
   link: '#3a3a45',
   linkHighlight: '#8b5cf6',
-  ring: '#8b5cf6',
+  ring: '#8b5cf6'
 }
 
 export default function NoteGraphView({ notes, onClose }: NoteGraphViewProps) {
@@ -47,7 +47,12 @@ export default function NoteGraphView({ notes, onClose }: NoteGraphViewProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
 
-  console.log('[Graph] Rendering NoteGraphView', { notesCount: notes.length, graphData, isLoading, dimensions })
+  console.log('[Graph] Rendering NoteGraphView', {
+    notesCount: notes.length,
+    graphData,
+    isLoading,
+    dimensions
+  })
 
   useLayoutEffect(() => {
     const updateDimensions = () => {
@@ -80,7 +85,7 @@ export default function NoteGraphView({ notes, onClose }: NoteGraphViewProps) {
       for (const note of notes) {
         try {
           if (window.api?.notes?.get) {
-            const detail = await window.api.notes.get(note.id) as NoteDetail
+            const detail = (await window.api.notes.get(note.id)) as NoteDetail
             contents[note.id] = detail?.content || ''
           }
         } catch (err) {
@@ -106,7 +111,7 @@ export default function NoteGraphView({ notes, onClose }: NoteGraphViewProps) {
           id: note.id,
           title: note.title || 'Untitled',
           group: note.path || 'root',
-          val: 1,
+          val: 1
         })
       })
 
@@ -118,7 +123,7 @@ export default function NoteGraphView({ notes, onClose }: NoteGraphViewProps) {
           if (targetNote && targetNote.id !== note.id) {
             links.push({
               source: note.id,
-              target: targetNote.id,
+              target: targetNote.id
             })
           }
         })
@@ -127,8 +132,9 @@ export default function NoteGraphView({ notes, onClose }: NoteGraphViewProps) {
       const nodes = Array.from(nodesMap.values())
       nodes.forEach((node) => {
         const connectionCount = links.filter(
-          (l) => (typeof l.source === 'string' ? l.source : l.source.id) === node.id ||
-                 (typeof l.target === 'string' ? l.target : l.target.id) === node.id
+          (l) =>
+            (typeof l.source === 'string' ? l.source : l.source.id) === node.id ||
+            (typeof l.target === 'string' ? l.target : l.target.id) === node.id
         ).length
         node.val = Math.max(1, Math.min(5, 1 + connectionCount * 0.5))
       })
@@ -143,8 +149,9 @@ export default function NoteGraphView({ notes, onClose }: NoteGraphViewProps) {
   const handleNodeClick = useCallback(
     (node: GraphNode) => {
       const connectedLinks = graphData.links.filter(
-        (l) => (typeof l.source === 'string' ? l.source : l.source.id) === node.id ||
-               (typeof l.target === 'string' ? l.target : l.target.id) === node.id
+        (l) =>
+          (typeof l.source === 'string' ? l.source : l.source.id) === node.id ||
+          (typeof l.target === 'string' ? l.target : l.target.id) === node.id
       )
       const connectedNodeIds = new Set<string>()
       connectedLinks.forEach((l) => {
@@ -196,15 +203,21 @@ export default function NoteGraphView({ notes, onClose }: NoteGraphViewProps) {
 
   const linkCanvasObject = useCallback(
     (link: GraphLink, ctx: CanvasRenderingContext2D, globalScale: number) => {
-      const start = typeof link.source === 'string' ? graphData.nodes.find((n) => n.id === link.source) : link.source
-      const end = typeof link.target === 'string' ? graphData.nodes.find((n) => n.id === link.target) : link.target
+      const start =
+        typeof link.source === 'string'
+          ? graphData.nodes.find((n) => n.id === link.source)
+          : link.source
+      const end =
+        typeof link.target === 'string'
+          ? graphData.nodes.find((n) => n.id === link.target)
+          : link.target
 
       if (!start || !end) return
 
-      const isHighlighted = highlightNode && (
-        (typeof link.source === 'string' ? link.source : link.source.id) === highlightNode ||
-        (typeof link.target === 'string' ? link.target : link.target.id) === highlightNode
-      )
+      const isHighlighted =
+        highlightNode &&
+        ((typeof link.source === 'string' ? link.source : link.source.id) === highlightNode ||
+          (typeof link.target === 'string' ? link.target : link.target.id) === highlightNode)
       const isDimmed = highlightNode && !isHighlighted
 
       ctx.beginPath()
@@ -241,7 +254,7 @@ export default function NoteGraphView({ notes, onClose }: NoteGraphViewProps) {
   return (
     <div className="fixed top-8 bottom-0 left-0 right-0 z-[210] bg-bg flex flex-col">
       {/* Header - fixed above canvas with solid background */}
-       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/20 bg-bg shrink-0 relative z-[20] pointer-events-auto shadow-lg">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/20 bg-bg shrink-0 relative z-[20] pointer-events-auto shadow-lg">
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}

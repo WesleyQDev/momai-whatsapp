@@ -117,7 +117,8 @@ function setInitStatus(stage, message, progress, error = null) {
 let llamaStartGeneration = 0
 let _modelWarmedUp = false
 
-const WARMUP_SYSTEM_PROMPT = 'You are MomAI.\n\nPersona: MomAI\nResponse style: balanced\nTarget max sentences: 6'
+const WARMUP_SYSTEM_PROMPT =
+  'You are MomAI.\n\nPersona: MomAI\nResponse style: balanced\nTarget max sentences: 6'
 
 async function warmUpModel() {
   if (_modelWarmedUp) return
@@ -139,7 +140,10 @@ async function warmUpModel() {
       signal: AbortSignal.timeout(10000)
     })
     if (resp.ok && typeof process.send === 'function') {
-      process.send({ type: 'node-core-log', message: '[llama] Model warm-up complete (hidden inference)' })
+      process.send({
+        type: 'node-core-log',
+        message: '[llama] Model warm-up complete (hidden inference)'
+      })
     }
   } catch {
     _modelWarmedUp = false
@@ -301,7 +305,10 @@ async function fetchLlamaRuntimeTelemetry(force = false) {
       ),
       kvTotalTokens: Math.max(
         0,
-        Number(metricsParsed?.kvTotalTokens || 0) || slotsParsed.totalTokens || llamaState.contextTotalTokens || 0
+        Number(metricsParsed?.kvTotalTokens || 0) ||
+          slotsParsed.totalTokens ||
+          llamaState.contextTotalTokens ||
+          0
       )
     }
 
@@ -485,8 +492,8 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
               '--cache-prompt',
               '-b',
               '2048',
-               '-ub',
-               '512',
+              '-ub',
+              '512',
               '--top-p',
               String(Number.isFinite(tierConfig.top_p) ? tierConfig.top_p : 1),
               '--top-k',
@@ -794,7 +801,12 @@ function backendReason(mode, backend, context = {}) {
 
 function normalizeContextWindowMode(mode) {
   const normalized = String(mode || '').toLowerCase()
-  if (normalized === 'min' || normalized === 'medium' || normalized === 'max' || normalized === 'custom') {
+  if (
+    normalized === 'min' ||
+    normalized === 'medium' ||
+    normalized === 'max' ||
+    normalized === 'custom'
+  ) {
     return normalized
   }
   return 'min'
@@ -829,7 +841,9 @@ function estimateContextTokensByHardware({
 
   const effectiveTotalVramGb = dynamicVramTotalGb > 0 ? dynamicVramTotalGb : totalVramGb
   const effectiveFreeVramGb =
-    dynamicVramTotalGb > 0 ? Math.max(0, dynamicVramTotalGb - dynamicVramUsedGb) : effectiveTotalVramGb
+    dynamicVramTotalGb > 0
+      ? Math.max(0, dynamicVramTotalGb - dynamicVramUsedGb)
+      : effectiveTotalVramGb
 
   const baseBudgetGb = gpuActive
     ? Math.max(1, Math.min(effectiveFreeVramGb * 0.65, effectiveTotalVramGb * 0.55 || 10))
@@ -860,7 +874,9 @@ function resolveContextWindowTokens({ settings, tierConfig, backendMode }) {
     vramUsedMb: llamaState.vramUsedMb || 0,
     vramTotalMb: llamaState.vramTotalMb || 0
   })
-  const tierRequest = clampContextTokens(tierConfig?.request_ctx_size || tierConfig?.ctx_size || 8192)
+  const tierRequest = clampContextTokens(
+    tierConfig?.request_ctx_size || tierConfig?.ctx_size || 8192
+  )
 
   if (mode === 'medium') return Math.max(estimated, Math.min(8192, tierRequest))
   if (mode === 'max') return Math.max(estimated, tierRequest)

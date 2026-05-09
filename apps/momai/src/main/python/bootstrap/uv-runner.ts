@@ -26,7 +26,8 @@ export async function ensureUvEnvironment(
   const userDataPath = getUserDataPath()
   if (!existsSync(userDataPath)) mkdirSync(userDataPath, { recursive: true })
   if (!existsSync(UV_CACHE_PATH())) mkdirSync(UV_CACHE_PATH(), { recursive: true })
-  if (!existsSync(UV_PYTHON_INSTALL_PATH())) mkdirSync(UV_PYTHON_INSTALL_PATH(), { recursive: true })
+  if (!existsSync(UV_PYTHON_INSTALL_PATH()))
+    mkdirSync(UV_PYTHON_INSTALL_PATH(), { recursive: true })
 
   // Migrate old TEMP-based Python installation to userData
   const oldTempPythonPath = join(process.env.TEMP || '', 'momai-uv-python')

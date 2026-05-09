@@ -47,7 +47,7 @@ function buildSnippet(content, query) {
 function runLexicalNoteSearch(query, limit = 6, dataDir, notesIndexFile) {
   const term = String(query || '').trim()
   if (!term) return []
-  
+
   // Read index
   let index = []
   try {
@@ -58,13 +58,13 @@ function runLexicalNoteSearch(query, limit = 6, dataDir, notesIndexFile) {
   } catch {
     return []
   }
-  
+
   if (!Array.isArray(index)) return []
-  
+
   const out = []
   for (const item of index) {
     if (!item || typeof item.id !== 'string' || typeof item.path !== 'string') continue
-    
+
     const absPath = path.join(dataDir, item.path)
     let content = ''
     try {
@@ -72,16 +72,16 @@ function runLexicalNoteSearch(query, limit = 6, dataDir, notesIndexFile) {
     } catch {
       continue
     }
-    
+
     const title = String(item.title || 'Nota')
     const titleScore = lexicalScore(title, term)
     const bodyScore = lexicalScore(content, term)
     const score = titleScore * 3 + bodyScore
-    
+
     if (score <= 0) continue
-    
+
     const snippet = buildSnippet(content, term)
-    
+
     out.push({
       note_id: item.id,
       chunk_id: `${item.id}:lexical`,
@@ -93,7 +93,7 @@ function runLexicalNoteSearch(query, limit = 6, dataDir, notesIndexFile) {
       vector_score: 0
     })
   }
-  
+
   return out.sort((a, b) => b.score - a.score).slice(0, Math.max(1, limit))
 }
 

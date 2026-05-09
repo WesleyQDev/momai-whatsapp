@@ -204,10 +204,9 @@ async function requestNodeCoreShutdown(host: string, port: number): Promise<bool
 async function waitForPortToClose(host: string, port: number, timeoutMs = 8000): Promise<boolean> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
-    // eslint-disable-next-line no-await-in-loop
     const open = await isPortReachable(port, host, 250)
     if (!open) return true
-    // eslint-disable-next-line no-await-in-loop
+
     await new Promise((resolve) => setTimeout(resolve, 200))
   }
   return false

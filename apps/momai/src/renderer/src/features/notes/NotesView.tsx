@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import {
-  Trash2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  ChevronRight,
-  Pencil,
-  Folder
-} from 'lucide-react'
+import { Trash2, PanelLeftClose, PanelLeftOpen, ChevronRight, Pencil, Folder } from 'lucide-react'
 import { useI18n } from '../../i18n'
 import ConfirmationCard from '../../components/floating/ConfirmationCard'
 import SlashCommandMenu from '../../components/notes/SlashCommandMenu'
@@ -619,12 +612,7 @@ export default function NotesView() {
       )}
 
       {/* Graph View */}
-      {showGraph && (
-        <NoteGraphView
-          notes={notes}
-          onClose={() => setShowGraph(false)}
-        />
-      )}
+      {showGraph && <NoteGraphView notes={notes} onClose={() => setShowGraph(false)} />}
     </div>
   )
 }

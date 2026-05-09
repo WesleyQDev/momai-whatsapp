@@ -174,7 +174,9 @@ function loadMessages() {
   if (fs.existsSync(msgPath)) {
     try {
       store.thread_messages = JSON.parse(fs.readFileSync(msgPath, 'utf8'))
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 }
 

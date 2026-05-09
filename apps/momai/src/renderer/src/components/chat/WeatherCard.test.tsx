@@ -3,9 +3,7 @@ import { render, screen } from '@testing-library/react'
 import WeatherCard from './WeatherCard'
 
 const getByTextContent = (container, text) => {
-  const el = [...container.querySelectorAll('*')].find(
-    (el) => el.textContent === text,
-  )
+  const el = [...container.querySelectorAll('*')].find((el) => el.textContent === text)
   if (!el) throw new Error(`Element with text "${text}" not found`)
   return el
 }
@@ -14,13 +12,13 @@ const mockForecast = [
   { day: 'Seg', emoji: '☀️', max: '32°C', min: '20°C', condition: 'Ensolarado' },
   { day: 'Ter', emoji: '⛅', max: '28°C', min: '18°C', condition: 'Parcialmente nublado' },
   { day: 'Qua', emoji: '🌧️', max: '22°C', min: '16°C', condition: 'Chuva leve' },
-  { day: 'Qui', emoji: '☁️', max: '25°C', min: '17°C', condition: 'Nublado' },
+  { day: 'Qui', emoji: '☁️', max: '25°C', min: '17°C', condition: 'Nublado' }
 ]
 
 const baseData = {
   location: 'São Paulo',
   current: { emoji: '☀️' },
-  forecast: mockForecast,
+  forecast: mockForecast
 }
 
 describe('WeatherCard', () => {

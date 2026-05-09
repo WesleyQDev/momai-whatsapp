@@ -27,8 +27,7 @@ export function killAllLlamaServers(): void {
       execSync('pkill -f llama-server', { stdio: 'ignore' })
       execSync('pkill -f llama-cli', { stdio: 'ignore' })
     }
-  } catch {
-  }
+  } catch {}
 }
 
 export function findVCLibsDirs(): string[] {

@@ -89,7 +89,7 @@ async function scanProgramFiles() {
           for (const sub of subEntries) {
             fileCount++
             if (fileCount % 50 === 0) {
-              await new Promise(r => setImmediate(r))
+              await new Promise((r) => setImmediate(r))
             }
             if (sub.name.endsWith('.exe') || sub.name.endsWith('.lnk')) {
               const fullPath = path.join(dirPath, sub.name)
@@ -135,7 +135,7 @@ async function scanAppDataPrograms() {
         for (const sub of subEntries) {
           fileCount++
           if (fileCount % 50 === 0) {
-            await new Promise(r => setImmediate(r))
+            await new Promise((r) => setImmediate(r))
           }
           if (!sub.isDirectory()) continue
           const exePath = path.join(dirPath, sub.name, `${sub.name}.exe`)
@@ -176,7 +176,7 @@ async function scanPathExecutables() {
       for (const entry of entries) {
         fileCount++
         if (fileCount % 50 === 0) {
-          await new Promise(r => setImmediate(r))
+          await new Promise((r) => setImmediate(r))
         }
         if (entry.isFile() && /\.(exe|bat|cmd|ps1)$/i.test(entry.name)) {
           const name = entry.name.replace(/\.(exe|bat|cmd|ps1)$/i, '')
@@ -284,7 +284,7 @@ async function walkDir(dirPath, items, seen, defaultType, maxDepth) {
   for (const entry of entries) {
     fileCount++
     if (fileCount % 50 === 0) {
-      await new Promise(r => setImmediate(r))
+      await new Promise((r) => setImmediate(r))
     }
     const fullPath = path.join(dirPath, entry.name)
     if (seen.has(fullPath)) continue
@@ -332,7 +332,7 @@ async function walkUserFolder(dirPath, items, seen, category, maxDepth) {
   for (const entry of entries) {
     fileCount++
     if (fileCount % 50 === 0) {
-      await new Promise(r => setImmediate(r))
+      await new Promise((r) => setImmediate(r))
     }
     const fullPath = path.join(dirPath, entry.name)
     if (seen.has(fullPath)) continue
@@ -469,7 +469,18 @@ function inferCategory(name, dirPath) {
    ────────────────────────────────────────────── */
 
 async function buildFullIndex() {
-  const [startMenu, desktop, programFiles, appData, pathExes, commonFolders, userSubfolders, userDocs, userDownloads, userDesktopFiles] = await Promise.all([
+  const [
+    startMenu,
+    desktop,
+    programFiles,
+    appData,
+    pathExes,
+    commonFolders,
+    userSubfolders,
+    userDocs,
+    userDownloads,
+    userDesktopFiles
+  ] = await Promise.all([
     scanWindowsStartMenu(),
     scanDesktop(),
     scanProgramFiles(),
@@ -588,7 +599,7 @@ async function scoreItem(item, query) {
       score = scoreNameMatch(nameNorm, q, vocab) * 0.2
     }
   } else if (fileQuery) {
-  /* ── File queries: prioritize files ── */
+    /* ── File queries: prioritize files ── */
     if (isFile) {
       score = scoreNameMatch(nameNorm, q, vocab)
       score = Math.min(score + 0.15, 1.0)
@@ -596,7 +607,7 @@ async function scoreItem(item, query) {
       score = scoreNameMatch(nameNorm, q, vocab) * 0.3
     }
   } else {
-  /* ── Normal query ── */
+    /* ── Normal query ── */
     score = scoreNameMatch(nameNorm, q, vocab)
 
     /* Category bonus */
@@ -903,9 +914,11 @@ module.exports = {
     const allItems = await getOrRefreshIndex()
     await debugLog(`scan: total=${allItems.length} items in index`, momai)
 
-    const scored = (await Promise.all(
-      allItems.map(async (item) => ({ ...item, score: await scoreItem(item, searchTerms) }))
-    ))
+    const scored = (
+      await Promise.all(
+        allItems.map(async (item) => ({ ...item, score: await scoreItem(item, searchTerms) }))
+      )
+    )
       .filter((item) => item.score > 0.1)
       .sort((a, b) => b.score - a.score)
       .slice(0, 20)

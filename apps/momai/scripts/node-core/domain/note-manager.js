@@ -1,7 +1,14 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const crypto = require('node:crypto')
-const { ensureDir, readSafeJson, isoNow, DATA_DIR, NOTES_DIR, NOTES_INDEX_FILE } = require('../config/constants')
+const {
+  ensureDir,
+  readSafeJson,
+  isoNow,
+  DATA_DIR,
+  NOTES_DIR,
+  NOTES_INDEX_FILE
+} = require('../config/constants')
 
 function ensureNotesIndexExists() {
   ensureDir(NOTES_DIR)

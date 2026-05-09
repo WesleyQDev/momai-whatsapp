@@ -30,17 +30,20 @@ function useDragScroll() {
     }
   }, [onMouseMove])
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    isDragging.current = true
-    hasDragged.current = false
-    initialX.current = e.pageX
-    initialScrollLeft.current = scrollRef.current?.scrollLeft || 0
-    scrollRef.current!.style.cursor = 'grabbing'
-    scrollRef.current!.style.userSelect = 'none'
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-  }, [onMouseMove, onMouseUp])
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      isDragging.current = true
+      hasDragged.current = false
+      initialX.current = e.pageX
+      initialScrollLeft.current = scrollRef.current?.scrollLeft || 0
+      scrollRef.current!.style.cursor = 'grabbing'
+      scrollRef.current!.style.userSelect = 'none'
+      window.addEventListener('mousemove', onMouseMove)
+      window.addEventListener('mouseup', onMouseUp)
+    },
+    [onMouseMove, onMouseUp]
+  )
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     hasDragged.current = false
@@ -123,7 +126,11 @@ import { useI18n } from '../i18n'
 /* ─── Icon Registry ─── */
 const GitHubIcon = ({ className }: { className?: string }) => (
   <svg fill="currentColor" viewBox="0 0 24 24" className={className} aria-hidden="true">
-    <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+    <path
+      fillRule="evenodd"
+      d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+      clipRule="evenodd"
+    />
   </svg>
 )
 
@@ -226,7 +233,10 @@ function FeaturedCarousel({
   }, [skills])
 
   const scroll = (dir: 'left' | 'right') => {
-    dragScroll.scrollRef.current?.scrollBy({ left: dir === 'left' ? -320 : 320, behavior: 'smooth' })
+    dragScroll.scrollRef.current?.scrollBy({
+      left: dir === 'left' ? -320 : 320,
+      behavior: 'smooth'
+    })
   }
 
   if (skills.length === 0) return null
@@ -312,7 +322,9 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
     >
       <div className="p-5">
         <div className="flex items-start justify-between mb-4">
-          <div className={`p-3 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name)} shadow-lg shadow-violet-500/10`}>
+          <div
+            className={`p-3 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name)} shadow-lg shadow-violet-500/10`}
+          >
             {React.createElement(IconComponent, { className: 'w-6 h-6 text-white' })}
           </div>
           <div className="flex flex-col items-end gap-1.5">
@@ -347,15 +359,15 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
         <div className="flex items-center justify-between pt-4 border-t border-zinc-700/30">
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-700/50">
-              {(skill.repo || (!skill.is_official && skill.author)) ? (
+              {skill.repo || (!skill.is_official && skill.author) ? (
                 <img
                   src={`https://avatars.githubusercontent.com/${encodeURIComponent((skill.repo?.split('/')[0] || skill.author || '').trim())}?s=32`}
                   alt="Avatar"
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    const target = e.target as HTMLImageElement;
+                    const target = e.target as HTMLImageElement
                     if (!target.src.includes('github.png')) {
-                      target.src = 'https://github.com/github.png?size=32';
+                      target.src = 'https://github.com/github.png?size=32'
                     }
                   }}
                 />
@@ -400,7 +412,8 @@ function SkillDetailView({
   installProgress?: { percent: number; speed: string; status: string } | null
 }) {
   const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece')
-  const isInstalled = skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
+  const isInstalled =
+    skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
   const isBuiltin = skill.category === 'core'
 
   return (
@@ -420,13 +433,17 @@ function SkillDetailView({
           className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name)} shadow-xl shadow-violet-500/10 flex items-center justify-center shrink-0 border-2 border-zinc-800 relative overflow-hidden`}
         >
           <div className="absolute inset-0 bg-white/5" />
-          {React.createElement(IconComponent, { className: 'w-10 h-10 md:w-12 md:h-12 text-white relative z-10 drop-shadow-lg' })}
+          {React.createElement(IconComponent, {
+            className: 'w-10 h-10 md:w-12 md:h-12 text-white relative z-10 drop-shadow-lg'
+          })}
         </div>
-        
+
         <div className="flex-1 text-center md:text-left pt-0">
           <div className="flex flex-col md:flex-row md:items-end gap-3 md:gap-4 mb-3">
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-none">{skill.name}</h1>
+              <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-none">
+                {skill.name}
+              </h1>
             </div>
             {skill.category === 'core' ? (
               <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-md text-[9px] text-blue-400 font-black uppercase tracking-wider h-fit mb-0.5">
@@ -440,14 +457,16 @@ function SkillDetailView({
               </div>
             ) : null}
           </div>
-          
+
           <p className="text-sm text-zinc-400 font-medium mb-6 max-w-2xl leading-relaxed">
             {skill.description}
           </p>
-          
+
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-5 mb-8">
             <div className="flex flex-col">
-              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter mb-1">Autor</span>
+              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter mb-1">
+                Autor
+              </span>
               <div className="flex items-center gap-2">
                 {(skill.repo || (!skill.is_official && skill.author)) && (
                   <img
@@ -455,9 +474,9 @@ function SkillDetailView({
                     alt="Author"
                     className="w-5 h-5 rounded-full border border-zinc-800 shadow-sm"
                     onError={(e) => {
-                      const target = e.target as HTMLImageElement;
+                      const target = e.target as HTMLImageElement
                       if (!target.src.includes('github.png')) {
-                        target.src = 'https://github.com/github.png?s=64';
+                        target.src = 'https://github.com/github.png?s=64'
                       }
                     }}
                   />
@@ -467,7 +486,9 @@ function SkillDetailView({
             </div>
             <div className="w-px h-6 bg-zinc-800" />
             <div className="flex flex-col">
-              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">Versão</span>
+              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">
+                Versão
+              </span>
               <span className="text-xs text-zinc-300 font-bold">{skill.version || '1.0.0'}</span>
             </div>
             <div className="w-px h-6 bg-zinc-800" />
@@ -506,15 +527,13 @@ function SkillDetailView({
                   className="px-8 py-2.5 bg-violet-600 text-white rounded-xl text-xs font-black hover:bg-violet-500 disabled:opacity-50 transition-all uppercase tracking-widest relative overflow-hidden"
                 >
                   {installing === skill.id && installProgress && (
-                    <div 
-                      className="absolute left-0 top-0 bottom-0 bg-violet-400/30 transition-all duration-300" 
-                      style={{ width: `${installProgress.percent}%` }} 
+                    <div
+                      className="absolute left-0 top-0 bottom-0 bg-violet-400/30 transition-all duration-300"
+                      style={{ width: `${installProgress.percent}%` }}
                     />
                   )}
                   <span className="relative z-10">
-                    {installing === skill.id 
-                      ? (installProgress?.status || 'Obtendo...')
-                      : 'Instalar'}
+                    {installing === skill.id ? installProgress?.status || 'Obtendo...' : 'Instalar'}
                   </span>
                 </button>
                 {installing === skill.id && installProgress && (
@@ -557,12 +576,14 @@ function SkillDetailView({
               <InformationCircleIcon className="w-4 h-4 text-violet-400" />
               Sobre esta extensão
             </h2>
-            <div className="prose prose-invert prose-zinc max-w-none 
+            <div
+              className="prose prose-invert prose-zinc max-w-none 
               prose-headings:text-zinc-50 prose-headings:font-bold prose-headings:mt-8 prose-headings:mb-4
               prose-p:text-zinc-200 prose-p:text-sm prose-p:leading-relaxed prose-p:mb-4
               prose-li:text-zinc-200 prose-li:text-sm prose-li:mb-2
-              prose-strong:text-white prose-code:text-violet-300 prose-code:bg-violet-500/20 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded">
-              {(skill.instructions || skill.readme) ? (
+              prose-strong:text-white prose-code:text-violet-300 prose-code:bg-violet-500/20 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded"
+            >
+              {skill.instructions || skill.readme ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {skill.instructions || skill.readme}
                 </ReactMarkdown>
@@ -571,7 +592,9 @@ function SkillDetailView({
                   <div className="w-16 h-16 rounded-full bg-zinc-800/50 flex items-center justify-center mb-4 border border-zinc-700/50">
                     <CommandLineIcon className="w-8 h-8 text-zinc-600" />
                   </div>
-                  <p className="text-zinc-500 text-xs italic font-medium">Esta extensão não forneceu um README detalhado.</p>
+                  <p className="text-zinc-500 text-xs italic font-medium">
+                    Esta extensão não forneceu um README detalhado.
+                  </p>
                 </div>
               )}
             </div>
@@ -589,7 +612,9 @@ function SkillDetailView({
                   <ShieldCheckIcon className="w-5 h-5 text-emerald-400/80" />
                 </div>
                 <div>
-                  <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-0.5">Arquitetura</p>
+                  <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-0.5">
+                    Arquitetura
+                  </p>
                   <p className="text-xs text-white font-bold">x64 / ARM64 / WSL2</p>
                 </div>
               </div>
@@ -598,7 +623,9 @@ function SkillDetailView({
                   <GlobeAltIcon className="w-5 h-5 text-sky-400/80" />
                 </div>
                 <div>
-                  <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-0.5">Internet</p>
+                  <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-0.5">
+                    Internet
+                  </p>
                   <p className="text-xs text-white font-bold">Recomendado para atualizações</p>
                 </div>
               </div>
@@ -609,11 +636,15 @@ function SkillDetailView({
         {/* Sidebar - Brighter and Elevated */}
         <div className="space-y-6 lg:mt-0">
           <section className="bg-zinc-800/40 border border-zinc-600/30 rounded-2xl p-6 shadow-2xl shadow-black/40 backdrop-blur-md">
-            <h3 className="text-[10px] font-black text-zinc-200 mb-6 uppercase tracking-widest">Informações</h3>
-            
+            <h3 className="text-[10px] font-black text-zinc-200 mb-6 uppercase tracking-widest">
+              Informações
+            </h3>
+
             <div className="space-y-5">
               <div>
-                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">Desenvolvedor</p>
+                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">
+                  Desenvolvedor
+                </p>
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-violet-600/20 flex items-center justify-center text-[9px] text-violet-400 font-black border border-violet-500/30 uppercase">
                     {(skill.author || 'M')[0]}
@@ -623,17 +654,27 @@ function SkillDetailView({
               </div>
 
               <div>
-                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">Categoria</p>
-                <p className="text-xs text-white font-bold capitalize">{skill.tags?.[0] || 'Utilitário'}</p>
+                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">
+                  Categoria
+                </p>
+                <p className="text-xs text-white font-bold capitalize">
+                  {skill.tags?.[0] || 'Utilitário'}
+                </p>
               </div>
 
               <div>
-                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">Nível de Risco</p>
+                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">
+                  Nível de Risco
+                </p>
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full shadow-[0_0_8px] ${skill.riskLevel === 'high' ? 'bg-red-500 shadow-red-500/50' : 'bg-emerald-400 shadow-emerald-400/50'}`} />
-                  <p className={`text-xs font-black ${
-                    skill.riskLevel === 'high' ? 'text-red-400' : 'text-emerald-400'
-                  }`}>
+                  <div
+                    className={`w-2 h-2 rounded-full shadow-[0_0_8px] ${skill.riskLevel === 'high' ? 'bg-red-500 shadow-red-500/50' : 'bg-emerald-400 shadow-emerald-400/50'}`}
+                  />
+                  <p
+                    className={`text-xs font-black ${
+                      skill.riskLevel === 'high' ? 'text-red-400' : 'text-emerald-400'
+                    }`}
+                  >
                     {skill.riskLevel === 'high' ? 'Acesso ao Sistema' : 'Sandbox Segura'}
                   </p>
                 </div>
@@ -647,9 +688,12 @@ function SkillDetailView({
               Permissões
             </h3>
             <ul className="space-y-3">
-              {(skill.permissionSummary && skill.permissionSummary.length > 0) ? (
+              {skill.permissionSummary && skill.permissionSummary.length > 0 ? (
                 skill.permissionSummary.map((perm, idx) => (
-                  <li key={idx} className="flex items-start gap-2.5 text-[10px] text-zinc-300 font-medium leading-snug">
+                  <li
+                    key={idx}
+                    className="flex items-start gap-2.5 text-[10px] text-zinc-300 font-medium leading-snug"
+                  >
                     <div className="w-1 h-1 rounded-full bg-violet-400 mt-1.5 shrink-0 shadow-[0_0_5px_rgba(167,139,250,0.5)]" />
                     {perm}
                   </li>
@@ -672,7 +716,11 @@ export default function ExtensionsView() {
   const [allSkills, setAllSkills] = useState<Extension[]>([])
   const [loading, setLoading] = useState(true)
   const [installing, setInstalling] = useState<string | null>(null)
-  const [installProgress, setInstallProgress] = useState<{percent: number, speed: string, status: string} | null>(null)
+  const [installProgress, setInstallProgress] = useState<{
+    percent: number
+    speed: string
+    status: string
+  } | null>(null)
   const [activeTab, setActiveTab] = useState<'installed' | 'store'>('store')
   const [selectedSkill, setSelectedSkill] = useState<Extension | null>(null)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
@@ -711,10 +759,10 @@ export default function ExtensionsView() {
         setInstallProgress(progress)
       })
       const freshData = await loadData(true)
-      
+
       // Update selectedSkill if it's the one we just installed
       if (selectedSkill?.id === ext.id) {
-        const updated = freshData.find(s => s.id === ext.id)
+        const updated = freshData.find((s) => s.id === ext.id)
         if (updated) setSelectedSkill(updated)
       }
     } catch (err) {
@@ -745,22 +793,15 @@ export default function ExtensionsView() {
     }
   }
 
-  const builtinSkills = useMemo(
-    () => allSkills.filter((s) => s.category === 'core'),
-    [allSkills]
-  )
+  const builtinSkills = useMemo(() => allSkills.filter((s) => s.category === 'core'), [allSkills])
   const installedSkills = useMemo(
     () => allSkills.filter((s) => s.category === 'extension'),
     [allSkills]
   )
-  const storeSkills = useMemo(
-    () => allSkills.filter((s) => s.category !== 'core'),
-    [allSkills]
-  )
+  const storeSkills = useMemo(() => allSkills.filter((s) => s.category !== 'core'), [allSkills])
 
-  const currentList = activeTab === 'installed' 
-    ? [...builtinSkills, ...installedSkills] 
-    : storeSkills
+  const currentList =
+    activeTab === 'installed' ? [...builtinSkills, ...installedSkills] : storeSkills
 
   const allTags = useMemo(() => {
     const tags = new Set<string>()

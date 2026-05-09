@@ -8,7 +8,8 @@ export function useWindowMaximized(): boolean {
     // @ts-ignore
     const api = window.api
     // @ts-ignore
-    api?.isWindowMaximized?.()
+    api
+      ?.isWindowMaximized?.()
       .then((maximized: boolean) => setIsMaximized(maximized))
       .catch(() => {})
 

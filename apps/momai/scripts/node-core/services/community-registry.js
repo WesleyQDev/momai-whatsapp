@@ -8,8 +8,17 @@ const https = require('node:https')
  * Manages fetching and caching the remote extensions registry.
  */
 
-const REGISTRY_URL = 'https://raw.githubusercontent.com/WesleyQDev/MomAI-App/main/community-extensions.json'
-const CACHE_FILE = path.join(process.env.APPDATA || (process.platform === 'darwin' ? process.env.HOME + '/Library/Preferences' : process.env.HOME + '/.local/share'), 'MomAI', 'cache', 'community_registry.json')
+const REGISTRY_URL =
+  'https://raw.githubusercontent.com/WesleyQDev/MomAI-App/main/community-extensions.json'
+const CACHE_FILE = path.join(
+  process.env.APPDATA ||
+    (process.platform === 'darwin'
+      ? process.env.HOME + '/Library/Preferences'
+      : process.env.HOME + '/.local/share'),
+  'MomAI',
+  'cache',
+  'community_registry.json'
+)
 const CACHE_TTL = 3600 * 1000 // 1 hour
 
 class CommunityRegistryService {
@@ -23,7 +32,7 @@ class CommunityRegistryService {
     const now = Date.now()
 
     // Use in-memory cache within TTL (avoids excessive remote requests in-session)
-    if (this.cache && (now - this.lastFetch < CACHE_TTL)) {
+    if (this.cache && now - this.lastFetch < CACHE_TTL) {
       return this.cache
     }
 
@@ -48,7 +57,8 @@ class CommunityRegistryService {
     try {
       if (fs.existsSync(CACHE_FILE)) {
         const stats = fs.statSync(CACHE_FILE)
-        if (now - stats.mtimeMs < CACHE_TTL * 24) { // stale cache ok for 24h
+        if (now - stats.mtimeMs < CACHE_TTL * 24) {
+          // stale cache ok for 24h
           this.cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'))
           this.lastFetch = now
           console.log('[CommunityRegistry] Using disk cache fallback')
@@ -79,7 +89,7 @@ class CommunityRegistryService {
       console.log(`[CommunityRegistry] Fetching stars for ${repo}...`)
       const response = await this._httpGet(url, {
         'User-Agent': 'MomAI-App',
-        'Accept': 'application/vnd.github.v3+json'
+        Accept: 'application/vnd.github.v3+json'
       })
       const data = JSON.parse(response)
       const stars = data.stargazers_count || 0
@@ -95,30 +105,38 @@ class CommunityRegistryService {
   _fetchStarsInBackground(repo) {
     const url = `https://api.github.com/repos/${repo}`
     const client = url.startsWith('https') ? https : http
-    client.get(url, { headers: { 'User-Agent': 'MomAI-App', 'Accept': 'application/vnd.github.v3+json' } }, (res) => {
-      let data = ''
-      res.on('data', (chunk) => data += chunk)
-      res.on('end', () => {
-        try {
-          const stars = JSON.parse(data).stargazers_count || 0
-          this.starsCache.set(repo, { stars, timestamp: Date.now() })
-          console.log(`[CommunityRegistry] Background update: ${repo} has ${stars} stars`)
-        } catch {}
-      })
-    }).on('error', () => {})
+    client
+      .get(
+        url,
+        { headers: { 'User-Agent': 'MomAI-App', Accept: 'application/vnd.github.v3+json' } },
+        (res) => {
+          let data = ''
+          res.on('data', (chunk) => (data += chunk))
+          res.on('end', () => {
+            try {
+              const stars = JSON.parse(data).stargazers_count || 0
+              this.starsCache.set(repo, { stars, timestamp: Date.now() })
+              console.log(`[CommunityRegistry] Background update: ${repo} has ${stars} stars`)
+            } catch {}
+          })
+        }
+      )
+      .on('error', () => {})
   }
 
   _httpGet(url, headers = {}) {
     return new Promise((resolve, reject) => {
       const client = url.startsWith('https') ? https : http
-      client.get(url, { headers }, (res) => {
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          return reject(new Error(`Status Code: ${res.statusCode}`))
-        }
-        let data = ''
-        res.on('data', (chunk) => data += chunk)
-        res.on('end', () => resolve(data))
-      }).on('error', reject)
+      client
+        .get(url, { headers }, (res) => {
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            return reject(new Error(`Status Code: ${res.statusCode}`))
+          }
+          let data = ''
+          res.on('data', (chunk) => (data += chunk))
+          res.on('end', () => resolve(data))
+        })
+        .on('error', reject)
     })
   }
 }

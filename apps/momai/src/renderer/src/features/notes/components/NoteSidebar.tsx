@@ -1,12 +1,5 @@
 import React from 'react'
-import {
-  FilePlus,
-  FolderPlus,
-  Search,
-  Folder,
-  FileText,
-  Pin
-} from 'lucide-react'
+import { FilePlus, FolderPlus, Search, Folder, FileText, Pin } from 'lucide-react'
 import { useI18n } from '../../../i18n'
 import ImportDropdown from './ImportDropdown'
 import { NoteSummary } from '../../../services/api'
@@ -56,7 +49,7 @@ const SYSTEM_FOLDERS = ['Lembretes', 'Reminders', 'System']
 
 function isSystemFolder(folderPath: string): boolean {
   const folderName = folderPath.split('/').pop() || ''
-  return SYSTEM_FOLDERS.some(sf => folderName.toLowerCase().includes(sf.toLowerCase()))
+  return SYSTEM_FOLDERS.some((sf) => folderName.toLowerCase().includes(sf.toLowerCase()))
 }
 
 export default function NoteSidebar({
@@ -103,7 +96,12 @@ export default function NoteSidebar({
 
   if (isCollapsed) return null
 
-  const allItems: Array<{ type: 'folder' | 'note'; path: string; note?: NoteSummary; folderNotes?: NoteSummary[] }> = []
+  const allItems: Array<{
+    type: 'folder' | 'note'
+    path: string
+    note?: NoteSummary
+    folderNotes?: NoteSummary[]
+  }> = []
 
   folders.forEach((folderPath) => {
     const folderNotes = notesByFolder[folderPath] || []
@@ -218,7 +216,9 @@ export default function NoteSidebar({
         )}
 
         {isLoading && notes.length === 0 ? (
-          <div className="px-3 py-4 text-center text-xs opacity-30 italic">{t('notes.loading')}</div>
+          <div className="px-3 py-4 text-center text-xs opacity-30 italic">
+            {t('notes.loading')}
+          </div>
         ) : (
           <div className="space-y-0.5">
             {filteredItems.map((item) => {
@@ -288,7 +288,9 @@ export default function NoteSidebar({
                             }`}
                           >
                             <FileText className="w-3 h-3 opacity-50 group-hover:opacity-80 shrink-0" />
-                            <span className="text-xs truncate flex-1">{note.title || t('notes.untitled')}</span>
+                            <span className="text-xs truncate flex-1">
+                              {note.title || t('notes.untitled')}
+                            </span>
                             {note.id === activeId && (
                               <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4/5 bg-accent rounded-r-full"></div>
                             )}
@@ -320,7 +322,9 @@ export default function NoteSidebar({
                     }`}
                   >
                     <FileText className="w-3.5 h-3.5 opacity-50 group-hover:opacity-80 shrink-0" />
-                    <span className="text-xs truncate flex-1">{note.title || t('notes.untitled')}</span>
+                    <span className="text-xs truncate flex-1">
+                      {note.title || t('notes.untitled')}
+                    </span>
                     {note.id === activeId && (
                       <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4/5 bg-accent rounded-r-full"></div>
                     )}

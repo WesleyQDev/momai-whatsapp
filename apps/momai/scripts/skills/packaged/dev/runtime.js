@@ -129,7 +129,7 @@ async function collectFiles(base, maxDepth = 4) {
     for (const ent of entries) {
       fileCount++
       if (fileCount % 100 === 0) {
-        await new Promise(r => setImmediate(r))
+        await new Promise((r) => setImmediate(r))
       }
       const full = path.join(cur, ent.name)
       if (ent.isDirectory()) {
@@ -159,7 +159,7 @@ async function simpleGrep(basePath, query, glob) {
     if (!info.exists || !info.isFile || info.size > MAX_GREP_FILE_SIZE) continue
 
     if (info.size > 100 * 1024) {
-      await new Promise(r => setImmediate(r))
+      await new Promise((r) => setImmediate(r))
     }
 
     let text = ''

@@ -1,7 +1,7 @@
 import React from 'react'
 import { getRenderer } from './SkillResponseRegistry'
 
-const StructuredResponseRenderer = ({ response }) => {
+const StructuredResponseRenderer = ({ response = null }: { response?: any }) => {
   if (!response || !response.type || !response.data) {
     return null
   }

@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
-import { REPO } from '@/constants'
+import { useEffect, useState } from "react";
+import { REPO } from "@/constants";
 
 interface GitHubStats {
-  stars: number
-  forks: number
-  loading: boolean
-  error: boolean
+  stars: number;
+  forks: number;
+  loading: boolean;
+  error: boolean;
 }
 
 export function useGitHubStats(): GitHubStats {
@@ -14,36 +14,36 @@ export function useGitHubStats(): GitHubStats {
     forks: 0,
     loading: true,
     error: false,
-  })
+  });
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
 
     async function fetchStats() {
       try {
-        const res = await fetch(`https://api.github.com/repos/${REPO}`)
-        if (!res.ok) throw new Error('Failed to fetch')
-        const data = await res.json()
+        const res = await fetch(`https://api.github.com/repos/${REPO}`);
+        if (!res.ok) throw new Error("Failed to fetch");
+        const data = await res.json();
         if (!cancelled) {
           setStats({
             stars: data.stargazers_count || 0,
             forks: data.forks_count || 0,
             loading: false,
             error: false,
-          })
+          });
         }
       } catch (err) {
         if (!cancelled) {
-          setStats((s) => ({ ...s, loading: false, error: true }))
+          setStats((s) => ({ ...s, loading: false, error: true }));
         }
       }
     }
 
-    fetchStats()
+    fetchStats();
     return () => {
-      cancelled = true
-    }
-  }, [])
+      cancelled = true;
+    };
+  }, []);
 
-  return stats
+  return stats;
 }

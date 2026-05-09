@@ -6,10 +6,18 @@ const localStorageMock = (() => {
   let store: Record<string, string> = {}
   return {
     getItem: vi.fn((key: string) => store[key] ?? null),
-    setItem: vi.fn((key: string, value: string) => { store[key] = value }),
-    removeItem: vi.fn((key: string) => { delete store[key] }),
-    clear: vi.fn(() => { store = {} }),
-    get length() { return Object.keys(store).length },
+    setItem: vi.fn((key: string, value: string) => {
+      store[key] = value
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete store[key]
+    }),
+    clear: vi.fn(() => {
+      store = {}
+    }),
+    get length() {
+      return Object.keys(store).length
+    },
     key: vi.fn((i: number) => Object.keys(store)[i] ?? null)
   }
 })()
@@ -94,9 +102,10 @@ describe('useAutocomplete', () => {
   })
 
   it('handles localStorage quota errors gracefully', () => {
-    localStorageMock.setItem('momai_autocomplete_history', JSON.stringify([
-      { text: 'hello', count: 999, lastUsed: 100 }
-    ]))
+    localStorageMock.setItem(
+      'momai_autocomplete_history',
+      JSON.stringify([{ text: 'hello', count: 999, lastUsed: 100 }])
+    )
 
     localStorageMock.setItem.mockImplementationOnce(() => {
       throw new Error('QuotaExceededError')
@@ -130,9 +139,7 @@ describe('useAutocomplete', () => {
   })
 
   it('does not suggest exact match', () => {
-    const entries = [
-      { text: 'hello', count: 3, lastUsed: 100 }
-    ]
+    const entries = [{ text: 'hello', count: 3, lastUsed: 100 }]
     localStorageMock.setItem('momai_autocomplete_history', JSON.stringify(entries))
 
     const { result } = renderHook(() => useAutocomplete())
@@ -144,9 +151,7 @@ describe('useAutocomplete', () => {
   })
 
   it('requires at least 2 characters for suggestions', () => {
-    const entries = [
-      { text: 'hello', count: 3, lastUsed: 100 }
-    ]
+    const entries = [{ text: 'hello', count: 3, lastUsed: 100 }]
     localStorageMock.setItem('momai_autocomplete_history', JSON.stringify(entries))
 
     const { result } = renderHook(() => useAutocomplete())
@@ -171,9 +176,7 @@ describe('useAutocomplete', () => {
   })
 
   it('acceptSuggestion appends suggestion to current text', () => {
-    const entries = [
-      { text: 'hello world', count: 3, lastUsed: 100 }
-    ]
+    const entries = [{ text: 'hello world', count: 3, lastUsed: 100 }]
     localStorageMock.setItem('momai_autocomplete_history', JSON.stringify(entries))
 
     const { result } = renderHook(() => useAutocomplete())
@@ -189,9 +192,7 @@ describe('useAutocomplete', () => {
   })
 
   it('clearSuggestion resets suggestion', () => {
-    const entries = [
-      { text: 'hello world', count: 3, lastUsed: 100 }
-    ]
+    const entries = [{ text: 'hello world', count: 3, lastUsed: 100 }]
     localStorageMock.setItem('momai_autocomplete_history', JSON.stringify(entries))
 
     const { result } = renderHook(() => useAutocomplete())

@@ -1,14 +1,14 @@
-import { HashRouter, Routes, Route, Outlet } from 'react-router-dom'
-import { BackgroundEffects } from './components/BackgroundEffects'
-import { Navbar } from './components/Navbar'
-import { Footer } from './components/Footer'
-import { HomePage } from './pages/HomePage'
-import { BlogPage } from './pages/BlogPage'
-import { ChangelogPage } from './pages/ChangelogPage'
-import { ExtensionsPage } from './pages/ExtensionsPage'
-import { ContatoPage } from './pages/ContatoPage'
-import { ReportarErroPage } from './pages/ReportarErroPage'
-import { DoarPage } from './pages/DoarPage'
+import { HashRouter, Routes, Route, Outlet } from "react-router-dom";
+import { BackgroundEffects } from "./components/BackgroundEffects";
+import { Navbar } from "./components/Navbar";
+import { Footer } from "./components/Footer";
+import { HomePage } from "./pages/HomePage";
+import { BlogPage } from "./pages/BlogPage";
+import { ChangelogPage } from "./pages/ChangelogPage";
+import { ExtensionsPage } from "./pages/ExtensionsPage";
+import { ContatoPage } from "./pages/ContatoPage";
+import { ReportarErroPage } from "./pages/ReportarErroPage";
+import { DoarPage } from "./pages/DoarPage";
 
 function Layout() {
   return (
@@ -18,7 +18,7 @@ function Layout() {
       <Outlet />
       <Footer />
     </div>
-  )
+  );
 }
 
 function App() {
@@ -37,7 +37,7 @@ function App() {
         </Route>
       </Routes>
     </HashRouter>
-  )
+  );
 }
 
-export default App
+export default App;

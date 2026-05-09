@@ -4,7 +4,12 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { state, setIsQuitting } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
 import { saveOnboardingCompleted, isOnboardingCompleted } from './python'
-import { startCoreBackend, shutdownCoreBackend, ensurePythonSidecar, forceKillAllSync } from './coreManager'
+import {
+  startCoreBackend,
+  shutdownCoreBackend,
+  ensurePythonSidecar,
+  forceKillAllSync
+} from './coreManager'
 import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
 import { setupTTSHandlers, cleanupTTSHandlers } from './ttsIpcHandlers'

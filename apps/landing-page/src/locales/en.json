@@ -22,12 +22,30 @@
     "title": "Made for you",
     "subtitle": "An assistant designed for those who value privacy, control and simplicity.",
     "items": [
-      { "title": "100% Local", "desc": "Everything runs on your computer. Nothing goes to the cloud." },
-      { "title": "Total Privacy", "desc": "Your data never leaves your device." },
-      { "title": "Natural Voice", "desc": "Talk like you're speaking to a friend." },
-      { "title": "Extensible", "desc": "Add new abilities with community extensions." },
-      { "title": "Offline", "desc": "Works without internet. Always available." },
-      { "title": "Free", "desc": "100% free and open source. No subscriptions." }
+      {
+        "title": "100% Local",
+        "desc": "Everything runs on your computer. Nothing goes to the cloud."
+      },
+      {
+        "title": "Total Privacy",
+        "desc": "Your data never leaves your device."
+      },
+      {
+        "title": "Natural Voice",
+        "desc": "Talk like you're speaking to a friend."
+      },
+      {
+        "title": "Extensible",
+        "desc": "Add new abilities with community extensions."
+      },
+      {
+        "title": "Offline",
+        "desc": "Works without internet. Always available."
+      },
+      {
+        "title": "Free",
+        "desc": "100% free and open source. No subscriptions."
+      }
     ]
   },
   "howItWorks": {

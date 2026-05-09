@@ -145,9 +145,14 @@ async function ensureEmbeddingReady() {
       const llamaManager = require('./llama-manager')
       const preferred = llamaManager.normalizeBackendMode(store.settings.local_backend || 'auto')
       const availableBackends = llamaManager.listAvailableBackends()
-      const backend = preferred === 'auto'
-        ? (availableBackends.includes('vulkan') ? 'vulkan' : availableBackends[0] || 'cpu')
-        : (availableBackends.includes(preferred) ? preferred : 'cpu')
+      const backend =
+        preferred === 'auto'
+          ? availableBackends.includes('vulkan')
+            ? 'vulkan'
+            : availableBackends[0] || 'cpu'
+          : availableBackends.includes(preferred)
+            ? preferred
+            : 'cpu'
       const exePath = llamaManager.llamaBackendExePath(backend)
 
       info(

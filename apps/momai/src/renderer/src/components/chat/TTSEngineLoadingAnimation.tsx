@@ -74,8 +74,7 @@ export default function TTSEngineLoadingAnimation({
           const envelope = Math.sin(normX * Math.PI)
           const amplitude = loading ? 12 + wave * 4 : 6 + wave * 2
           const y =
-            height / 2 +
-            Math.sin(normX * Math.PI * 4 + phase + wave * 0.5) * amplitude * envelope
+            height / 2 + Math.sin(normX * Math.PI * 4 + phase + wave * 0.5) * amplitude * envelope
 
           if (i === 0) ctx.moveTo(x, y)
           else ctx.lineTo(x, y)
@@ -103,12 +102,7 @@ export default function TTSEngineLoadingAnimation({
       >
         {/* Waveform Canvas */}
         <div className="relative h-16 overflow-hidden rounded-t-2xl">
-          <canvas
-            ref={canvasRef}
-            width={420}
-            height={64}
-            className="w-full h-full"
-          />
+          <canvas ref={canvasRef} width={420} height={64} className="w-full h-full" />
           {/* Subtle overlay gradient */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
         </div>

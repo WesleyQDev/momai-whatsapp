@@ -1,6 +1,6 @@
 ---
 name: launcher
-description: Abre programas, aplicativos e pastas no computador. Busca no menu iniciar, desktop, Program Files e PATH do sistema. Use quando o usuario pedir para abrir, executar ou iniciar qualquer programa ou pasta.
+description: Abre programas, aplicativos, pastas e arquivos no computador. Busca, navega e lista diretórios, arquivos e programas no sistema. Use quando o usuario pedir para abrir, executar, buscar, navegar, listar ou encontrar pastas, arquivos ou programas.
 icon: RocketLaunch
 tags:
   - sistema
@@ -15,12 +15,35 @@ intents:
   - abra o
   - abrir programa
   - abrir pasta
+  - abrir arquivo
   - executar
   - iniciar
   - open
   - launch
   - run
   - start
+  - pasta
+  - pastas
+  - diretório
+  - diretorio
+  - navegar
+  - listar pasta
+  - listar diretório
+  - explorar
+  - procurar
+  - buscar
+  - encontrar
+  - localizar
+  - achar
+  - caminho
+  - path
+  - folder
+  - directory
+  - browse
+  - navigate
+  - find
+  - search
+  - list
 allowed-tools: search_local_items open_local_item
 compatibility: MomAI Node Core
 ---

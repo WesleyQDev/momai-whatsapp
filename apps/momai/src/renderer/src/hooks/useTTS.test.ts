@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { TTSEngine } from '../services/ttsService'
 import { renderHook, act, waitFor } from '@testing-library/react'
 
 const mockTtsService = vi.hoisted(() => ({
@@ -13,11 +14,11 @@ const mockTtsService = vi.hoisted(() => ({
   getEngineInfo: vi.fn(),
   getConfig: vi.fn(),
   on: vi.fn(),
-  off: vi.fn(),
+  off: vi.fn()
 }))
 
 vi.mock('../services/ttsService', () => ({
-  getTTSServiceRenderer: vi.fn(() => mockTtsService),
+  getTTSServiceRenderer: vi.fn(() => mockTtsService)
 }))
 
 import { useTTS } from './useTTS'
@@ -27,7 +28,7 @@ beforeEach(() => {
 
   mockTtsService.getConfig.mockResolvedValue({
     success: true,
-    data: { engine: 'kokoro', voice: 'default', speed: 1, enabled: true },
+    data: { engine: 'kokoro', voice: 'default', speed: 1, enabled: true }
   })
   mockTtsService.getVoices.mockResolvedValue({ success: true, data: [] })
   mockTtsService.speak.mockResolvedValue({ success: true })
@@ -38,11 +39,11 @@ beforeEach(() => {
   mockTtsService.setEnabled.mockResolvedValue({ success: true })
   mockTtsService.getEngines.mockResolvedValue({
     success: true,
-    data: ['kokoro', 'edge-tts', 'say'],
+    data: ['kokoro', 'edge-tts', 'say']
   })
   mockTtsService.getEngineInfo.mockResolvedValue({
     success: true,
-    data: { name: 'Kokoro', description: '', requiresPython: true },
+    data: { name: 'Kokoro', description: '', requiresPython: true }
   })
 })
 
@@ -82,14 +83,14 @@ describe('useTTS', () => {
       engine: 'kokoro',
       voice: 'default',
       speed: 1,
-      enabled: true,
+      enabled: true
     })
   })
 
   it('engine switching updates voice list', async () => {
     mockTtsService.getVoices.mockResolvedValue({
       success: true,
-      data: [{ id: 'v1', name: 'English US', language: 'en' }],
+      data: [{ id: 'v1', name: 'English US', language: 'en' }]
     })
 
     const { result } = renderHook(() => useTTS())
@@ -103,14 +104,14 @@ describe('useTTS', () => {
     expect(mockTtsService.getVoices).toHaveBeenCalledWith('edge-tts')
     expect(result.current.currentEngine).toBe('edge-tts')
     expect(result.current.availableVoices).toEqual([
-      { id: 'v1', name: 'English US', language: 'en' },
+      { id: 'v1', name: 'English US', language: 'en' }
     ])
   })
 
   it('handles speak errors gracefully', async () => {
     mockTtsService.speak.mockResolvedValue({
       success: false,
-      error: 'TTS failed',
+      error: 'TTS failed'
     })
 
     const { result } = renderHook(() => useTTS())
@@ -142,19 +143,10 @@ describe('useTTS', () => {
     const { result } = renderHook(() => useTTS())
     await waitFor(() => expect(result.current.isReady).toBe(true))
 
-    expect(mockTtsService.on).toHaveBeenCalledWith(
-      'speaking-start',
-      expect.any(Function),
-    )
-    expect(mockTtsService.on).toHaveBeenCalledWith(
-      'speaking-end',
-      expect.any(Function),
-    )
+    expect(mockTtsService.on).toHaveBeenCalledWith('speaking-start', expect.any(Function))
+    expect(mockTtsService.on).toHaveBeenCalledWith('speaking-end', expect.any(Function))
     expect(mockTtsService.on).toHaveBeenCalledWith('error', expect.any(Function))
-    expect(mockTtsService.on).toHaveBeenCalledWith(
-      'engine-changed',
-      expect.any(Function),
-    )
+    expect(mockTtsService.on).toHaveBeenCalledWith('engine-changed', expect.any(Function))
   })
 
   it('cleans up event listeners on unmount', async () => {
@@ -162,28 +154,16 @@ describe('useTTS', () => {
     await waitFor(() => expect(result.current.isReady).toBe(true))
     unmount()
 
-    expect(mockTtsService.off).toHaveBeenCalledWith(
-      'speaking-start',
-      expect.any(Function),
-    )
-    expect(mockTtsService.off).toHaveBeenCalledWith(
-      'speaking-end',
-      expect.any(Function),
-    )
-    expect(mockTtsService.off).toHaveBeenCalledWith(
-      'error',
-      expect.any(Function),
-    )
-    expect(mockTtsService.off).toHaveBeenCalledWith(
-      'engine-changed',
-      expect.any(Function),
-    )
+    expect(mockTtsService.off).toHaveBeenCalledWith('speaking-start', expect.any(Function))
+    expect(mockTtsService.off).toHaveBeenCalledWith('speaking-end', expect.any(Function))
+    expect(mockTtsService.off).toHaveBeenCalledWith('error', expect.any(Function))
+    expect(mockTtsService.off).toHaveBeenCalledWith('engine-changed', expect.any(Function))
   })
 
   it('clearError resets error state', async () => {
     mockTtsService.speak.mockResolvedValue({
       success: false,
-      error: 'some error',
+      error: 'some error'
     })
 
     const { result } = renderHook(() => useTTS())
@@ -203,7 +183,7 @@ describe('useTTS', () => {
   it('refreshVoices loads voices for current engine', async () => {
     mockTtsService.getVoices.mockResolvedValue({
       success: true,
-      data: [{ id: 'v1', name: 'Voice 1', language: 'en' }],
+      data: [{ id: 'v1', name: 'Voice 1', language: 'en' }]
     })
 
     const { result } = renderHook(() => useTTS())
@@ -215,9 +195,7 @@ describe('useTTS', () => {
     })
 
     expect(mockTtsService.getVoices).toHaveBeenCalledWith('kokoro')
-    expect(result.current.availableVoices).toEqual([
-      { id: 'v1', name: 'Voice 1', language: 'en' },
-    ])
+    expect(result.current.availableVoices).toEqual([{ id: 'v1', name: 'Voice 1', language: 'en' }])
   })
 
   it('setVoice updates config', async () => {
@@ -260,9 +238,9 @@ describe('useTTS', () => {
     const { result } = renderHook(() => useTTS())
     await waitFor(() => expect(result.current.isReady).toBe(true))
 
-    let engines: string[] = []
+    let engines: TTSEngine[] = []
     await act(async () => {
-      engines = await result.current.getEngines()
+      engines = (await result.current.getEngines()) ?? []
     })
 
     expect(engines).toEqual(['kokoro', 'edge-tts', 'say'])
@@ -280,21 +258,19 @@ describe('useTTS', () => {
     expect(info).toEqual({
       name: 'Kokoro',
       description: '',
-      requiresPython: true,
+      requiresPython: true
     })
   })
 
   it('handles engine-changed event by loading voices', async () => {
     let engineChangedCb: Function = () => {}
-    mockTtsService.on.mockImplementation(
-      (_event: string, cb: Function) => {
-        if (_event === 'engine-changed') engineChangedCb = cb
-      },
-    )
+    mockTtsService.on.mockImplementation((_event: string, cb: Function) => {
+      if (_event === 'engine-changed') engineChangedCb = cb
+    })
 
     mockTtsService.getVoices.mockResolvedValue({
       success: true,
-      data: [{ id: 'v2', name: 'Edge Voice', language: 'en' }],
+      data: [{ id: 'v2', name: 'Edge Voice', language: 'en' }]
     })
 
     const { result } = renderHook(() => useTTS())
@@ -310,7 +286,7 @@ describe('useTTS', () => {
     })
     await waitFor(() => {
       expect(result.current.availableVoices).toEqual([
-        { id: 'v2', name: 'Edge Voice', language: 'en' },
+        { id: 'v2', name: 'Edge Voice', language: 'en' }
       ])
     })
   })
@@ -318,7 +294,7 @@ describe('useTTS', () => {
   it('handles getConfig failure on mount', async () => {
     mockTtsService.getConfig.mockResolvedValue({
       success: false,
-      error: 'config not found',
+      error: 'config not found'
     })
 
     const { result } = renderHook(() => useTTS())

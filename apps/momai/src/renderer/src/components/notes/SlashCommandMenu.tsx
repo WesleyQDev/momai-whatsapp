@@ -264,9 +264,10 @@ export default function SlashCommandMenu({
   const [selectedIndex, setSelectedIndex] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const filteredCommands = COMMANDS.filter((cmd) =>
-    cmd.label.toLowerCase().includes(query.toLowerCase()) ||
-    cmd.description.toLowerCase().includes(query.toLowerCase())
+  const filteredCommands = COMMANDS.filter(
+    (cmd) =>
+      cmd.label.toLowerCase().includes(query.toLowerCase()) ||
+      cmd.description.toLowerCase().includes(query.toLowerCase())
   )
 
   useEffect(() => {

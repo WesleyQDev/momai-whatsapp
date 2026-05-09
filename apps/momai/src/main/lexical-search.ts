@@ -3,7 +3,9 @@ import { join } from 'path'
 
 function lexicalScore(source: string | null | undefined, query: string): number {
   const src = String(source || '').toLowerCase()
-  const q = String(query || '').toLowerCase().trim()
+  const q = String(query || '')
+    .toLowerCase()
+    .trim()
   if (!src || !q) return 0
   let idx = 0
   let count = 0

@@ -382,8 +382,8 @@ async function runSemanticMemoryRetrieval(query, limit = 6) {
     return { hits: [], memoryContext: null, memorySources: [] }
   }
 
-  syncSkillAndToolIndexes(false).catch(err => debug('[background]', err?.message || err))
-  syncNoteIndex(false).catch(err => debug('[background]', err?.message || err))
+  syncSkillAndToolIndexes(false).catch((err) => debug('[background]', err?.message || err))
+  syncNoteIndex(false).catch((err) => debug('[background]', err?.message || err))
 
   const [vectorHits, lexicalHits] = await Promise.all([
     runVectorNoteSearch(query, limit),
@@ -393,7 +393,11 @@ async function runSemanticMemoryRetrieval(query, limit = 6) {
   const { memoryContext, memorySources } = buildMemoryContextAndSources(mergedHits)
   const { rollingPush } = require('./embedding-manager')
   rollingPush(semanticState.latency.retrievalMs, Date.now() - startedAt)
-  for (const arr of [semanticState.latency.embeddingMs, semanticState.latency.retrievalMs, semanticState.latency.toolExecMs]) {
+  for (const arr of [
+    semanticState.latency.embeddingMs,
+    semanticState.latency.retrievalMs,
+    semanticState.latency.toolExecMs
+  ]) {
     while (arr.length > MAX_LATENCY_HISTORY) arr.shift()
   }
   return {
@@ -434,7 +438,9 @@ async function getTop5SkillsSemantic(query) {
           if (results.length > 0) return results
         }
       }
-    } catch (e) { debug('[semantic] getTop5SkillsSemantic error:', e?.message || e) }
+    } catch (e) {
+      debug('[semantic] getTop5SkillsSemantic error:', e?.message || e)
+    }
   }
 
   return enabledSkills.slice(0, 5).map((s) => ({ id: s.id, score: 0 }))

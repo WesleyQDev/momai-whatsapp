@@ -1,15 +1,28 @@
-# Graphify
+# Graphify — Knowledge Graph do Projeto
 
-O projeto Mantém um **knowledge graph** do código e documentação em `graphify-out/`, gerado pela ferramenta `graphify`.
+## Visão Geral
 
-## O que é
+O projeto mantém um **grafo de conhecimento** (knowledge graph) do código e documentação em `graphify-out/`, gerado pela ferramenta `graphify`. Este grafo mapeia todo o código-fonte, documentação e suas relações em um grafo navegável.
 
-Graphify analisa todo o código-fonte e documentação para construir um grafo de conhecimento com:
-- **Nós:** Arquivos, classes, funções, conceitos, dependências
-- **Arestas:** Relações entre os nós (importa, estende, implementa, etc.)
-- **Comunidades:** Clusters de nós relacionados (268 comunidades detectadas)
+## O que o Graphify Cria
 
-## Como Usar
+- **Nós**: Arquivos, classes, funções, conceitos, dependências — tudo vira um nó no grafo
+- **Arestas**: Relações entre os nós (importa, estende, implementa, chama, etc.)
+- **Comunidades**: Clusters de nós relacionados — 268 comunidades foram detectadas na análise atual
+
+## Estrutura
+
+```
+graphify-out/
+├── GRAPH_REPORT.md       # Relatório completo do grafo
+├── graph.json            # Grafo em formato JSON
+├── manifest.json         # Metadados da análise
+├── cost.json             # Custo computacional da análise
+├── cache/                # Cache de chunks analisados
+└── wiki/                 # Wiki gerado automaticamente (se existir)
+```
+
+## Comandos
 
 ```bash
 # Atualizar o grafo após modificar código
@@ -25,21 +38,14 @@ graphify path "<Componente A>" "<Componente B>"
 graphify query "<pergunta>"
 ```
 
-## Estrutura
+## Quando Usar
 
-```
-graphify-out/
-├── GRAPH_REPORT.md       # Relatório completo do grafo
-├── graph.json            # Grafo em JSON
-├── manifest.json         # Metadados
-├── cost.json             # Custo da análise
-├── cache/                # Cache de chunks analisados
-└── wiki/                 # Wiki gerado (se existir)
-```
+1. **Antes de refatorar**: Entenda como módulos se relacionam
+2. **Para encontrar dependências não óbvias**: O grafo revela conexões que você não esperava
+3. **Para descobrir dead code**: Nós sem arestas = código não utilizado
+4. **Para entender o impacto de mudanças**: Quem depende de quem
+5. **Para onboarding**: Navegue pelo grafo para entender a arquitetura
 
-## Quando Consultar
+## Interface Visual
 
-- Antes de refatorar código de módulos diferentes
-- Para entender como dois componentes se relacionam
-- Para encontrar dependências não óbvias
-- Para descobrir dead code ou código legado
+O frontend do MomAI também inclui um visualizador de grafo interativo (via `react-force-graph-2d` em `GraphInterface.tsx`) que pode exibir o grafo de agentes LangGraph em tempo real durante conversas.

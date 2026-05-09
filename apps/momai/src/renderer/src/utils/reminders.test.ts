@@ -5,7 +5,7 @@ const makeReminder = (overrides = {}) => ({
   scheduled_time: '2026-05-08T10:00:00.000Z',
   repeat_interval: null,
   repeat_value: null,
-  ...overrides,
+  ...overrides
 })
 
 describe('getNextOccurrence', () => {

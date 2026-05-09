@@ -105,7 +105,9 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   const [isAdvancedHardwareOpen, setIsAdvancedHardwareOpen] = useState(false)
   const [tiersConfig, setTiersConfig] = useState<any>(null)
   const [expandedLang, setExpandedLang] = useState<string | null>('p')
-  const [isDevMode, setIsDevMode] = useState(() => localStorage.getItem('momai_dev_mode') === 'true')
+  const [isDevMode, setIsDevMode] = useState(
+    () => localStorage.getItem('momai_dev_mode') === 'true'
+  )
 
   useEffect(() => {
     const syncDevMode = (event: Event) => {
@@ -184,38 +186,46 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     }
   }, [newApp, loadGamingApps, t])
 
-  const handleDeleteGamingApp = useCallback(async (id: number) => {
-    try {
-      await api.delete(`/system/gaming-apps/${id}`)
-      loadGamingApps()
-    } catch (error) {
-      alert(t('settings.economy.removeAppError'))
-    }
-  }, [loadGamingApps, t])
+  const handleDeleteGamingApp = useCallback(
+    async (id: number) => {
+      try {
+        await api.delete(`/system/gaming-apps/${id}`)
+        loadGamingApps()
+      } catch (error) {
+        alert(t('settings.economy.removeAppError'))
+      }
+    },
+    [loadGamingApps, t]
+  )
 
-  const handleTierChange = useCallback(async (_tier: 'lite' | 'pro' | 'ultra') => {
-    // @ts-ignore
-    window.api.resetWindowSize?.()
+  const handleTierChange = useCallback(
+    async (_tier: 'lite' | 'pro' | 'ultra') => {
+      // @ts-ignore
+      window.api.resetWindowSize?.()
 
-    stopVoice().catch(() => {})
-    stopGeneration().catch(() => {})
+      stopVoice().catch(() => {})
+      stopGeneration().catch(() => {})
 
-    // Create a new chat session when changing tiers
-    window.dispatchEvent(new CustomEvent('momai_new_session'))
+      // Create a new chat session when changing tiers
+      window.dispatchEvent(new CustomEvent('momai_new_session'))
 
-    // Show onboarding FIRST, before the backend model change
-    window.dispatchEvent(new CustomEvent('momai_settings_sync', {
-      detail: { ai_tier: _tier, onboarding_completed: false }
-    }))
+      // Show onboarding FIRST, before the backend model change
+      window.dispatchEvent(
+        new CustomEvent('momai_settings_sync', {
+          detail: { ai_tier: _tier, onboarding_completed: false }
+        })
+      )
 
-    // Save settings in background — don't await, as maybeRestartLlamaOnTierChange
-    // blocks until the model finishes switching. We want onboarding visible now.
-    api.patch('/settings', { ai_tier: _tier, onboarding_completed: false }).catch(err =>
-      console.error('Error saving tier change:', err)
-    )
+      // Save settings in background — don't await, as maybeRestartLlamaOnTierChange
+      // blocks until the model finishes switching. We want onboarding visible now.
+      api
+        .patch('/settings', { ai_tier: _tier, onboarding_completed: false })
+        .catch((err) => console.error('Error saving tier change:', err))
 
-    onClose()
-  }, [onClose])
+      onClose()
+    },
+    [onClose]
+  )
 
   const loadSettings = useCallback(async () => {
     try {
@@ -247,22 +257,25 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     }
   }, [])
 
-  const updateField = useCallback(async (field: string, value: any, saveNow = false): Promise<void> => {
-    const prev = settingsRef.current
-    const newState = { ...prev, [field]: value }
-    setSettings(newState)
+  const updateField = useCallback(
+    async (field: string, value: any, saveNow = false): Promise<void> => {
+      const prev = settingsRef.current
+      const newState = { ...prev, [field]: value }
+      setSettings(newState)
 
-    if (field === 'locale') {
-      setLocale(value)
-    }
+      if (field === 'locale') {
+        setLocale(value)
+      }
 
-    if (saveNow) {
-      await api.patch('/settings', newState)
-      window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: newState }))
-      if (newState.ai_tier) localStorage.setItem('momai_ai_tier', newState.ai_tier)
-      if (newState.user_name) localStorage.setItem('momai_user_name', newState.user_name)
-    }
-  }, [setLocale])
+      if (saveNow) {
+        await api.patch('/settings', newState)
+        window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: newState }))
+        if (newState.ai_tier) localStorage.setItem('momai_ai_tier', newState.ai_tier)
+        if (newState.user_name) localStorage.setItem('momai_user_name', newState.user_name)
+      }
+    },
+    [setLocale]
+  )
 
   const handleDevMode = useCallback(() => {
     const current = localStorage.getItem('momai_dev_mode') === 'true'

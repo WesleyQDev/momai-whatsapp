@@ -105,13 +105,7 @@ describe('ContainerChat', () => {
   })
 
   it('renders loading state', async () => {
-    render(
-      <ContainerChat
-        {...defaultProps}
-        isBooting={true}
-        animationFinished={false}
-      />
-    )
+    render(<ContainerChat {...defaultProps} isBooting={true} animationFinished={false} />)
     await act(() => Promise.resolve())
     expect(screen.getByTestId('loading-animation')).toBeInTheDocument()
     expect(screen.queryByTestId('chat-input')).not.toBeInTheDocument()

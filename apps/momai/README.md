@@ -96,12 +96,12 @@ pnpm format
 
 Os seguintes arquivos monolíticos foram decompostos:
 
-| Arquivo Original | Linhas | Novo Local | Módulos |
-|------------------|--------|------------|---------|
-| `scripts/node-core.js` | 4,432 | `scripts/node-core/` | 29 arquivos |
-| `src/main/pythonManager.ts` | 1,891 | `src/main/python/` | 12 arquivos |
-| `src/renderer/views/NotesView.tsx` | 1,404 | `src/renderer/src/features/notes/` | 14 arquivos |
-| `src/renderer/components/chat/MessageItem.tsx` | 1,196 | `src/renderer/src/features/chat/message/` | 11 arquivos |
+| Arquivo Original                               | Linhas | Novo Local                                | Módulos     |
+| ---------------------------------------------- | ------ | ----------------------------------------- | ----------- |
+| `scripts/node-core.js`                         | 4,432  | `scripts/node-core/`                      | 29 arquivos |
+| `src/main/pythonManager.ts`                    | 1,891  | `src/main/python/`                        | 12 arquivos |
+| `src/renderer/views/NotesView.tsx`             | 1,404  | `src/renderer/src/features/notes/`        | 14 arquivos |
+| `src/renderer/components/chat/MessageItem.tsx` | 1,196  | `src/renderer/src/features/chat/message/` | 11 arquivos |
 
 Os arquivos originais permanecem como **thin wrappers** para compatibilidade com imports existentes.
 

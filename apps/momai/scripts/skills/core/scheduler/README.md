@@ -14,6 +14,7 @@ A Scheduler Skill é o seu assistente pessoal de produtividade. Ela gerencia tod
 ## Como agendar compromissos
 
 Você pode ser natural ao falar com a MomAI:
+
 - "Me lembre de beber água a cada 2 horas"
 - "Agende uma reunião com o time para amanhã às 10:00"
 - "O que eu tenho agendado para hoje?"

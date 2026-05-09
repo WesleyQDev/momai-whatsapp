@@ -22,12 +22,30 @@
     "title": "Feito para voc\u00ea",
     "subtitle": "Uma assistente projetada para quem valoriza privacidade, controle e simplicidade.",
     "items": [
-      { "title": "100% Local", "desc": "Tudo roda no seu computador. Nada vai para a nuvem." },
-      { "title": "Privacidade Total", "desc": "Seus dados nunca saem do seu dispositivo." },
-      { "title": "Voz Natural", "desc": "Converse como se estivesse falando com uma amiga." },
-      { "title": "Extens\u00edvel", "desc": "Adicione novas habilidades com extens\u00f5es da comunidade." },
-      { "title": "Offline", "desc": "Funciona sem internet. Sua assistente sempre dispon\u00edvel." },
-      { "title": "Gr\u00e1tis", "desc": "100% gratuito e open source. Sem assinaturas." }
+      {
+        "title": "100% Local",
+        "desc": "Tudo roda no seu computador. Nada vai para a nuvem."
+      },
+      {
+        "title": "Privacidade Total",
+        "desc": "Seus dados nunca saem do seu dispositivo."
+      },
+      {
+        "title": "Voz Natural",
+        "desc": "Converse como se estivesse falando com uma amiga."
+      },
+      {
+        "title": "Extens\u00edvel",
+        "desc": "Adicione novas habilidades com extens\u00f5es da comunidade."
+      },
+      {
+        "title": "Offline",
+        "desc": "Funciona sem internet. Sua assistente sempre dispon\u00edvel."
+      },
+      {
+        "title": "Gr\u00e1tis",
+        "desc": "100% gratuito e open source. Sem assinaturas."
+      }
     ]
   },
   "howItWorks": {

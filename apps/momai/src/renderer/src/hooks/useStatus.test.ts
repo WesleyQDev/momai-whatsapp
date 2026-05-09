@@ -7,14 +7,14 @@ const { mockFetchStatus, mockFetchInitStatus } = vi.hoisted(() => ({
   mockFetchInitStatus: vi.fn().mockResolvedValue({
     stage: 'loading',
     message: 'Loading...',
-    progress: 30,
-  }),
+    progress: 30
+  })
 }))
 
 vi.mock('../services/api', () => ({
   fetchStatus: mockFetchStatus,
   fetchInitStatus: mockFetchInitStatus,
-  updateMode: vi.fn(),
+  updateMode: vi.fn()
 }))
 
 describe('useStatus', () => {
@@ -46,7 +46,7 @@ describe('useStatus', () => {
       brain_ready: true,
       is_loading: false,
       setup: { local_installed: true, installed_version: '1.0', latest_version: '1.0' },
-      ai_tier: null,
+      ai_tier: null
     })
 
     const { result } = renderHook(() => useStatus())
@@ -74,7 +74,7 @@ describe('useStatus', () => {
       brain_ready: false,
       is_loading: true,
       setup: { local_installed: true },
-      ai_tier: null,
+      ai_tier: null
     })
 
     const { result } = renderHook(() => useStatus())
@@ -103,7 +103,7 @@ describe('useStatus', () => {
       brain_ready: true,
       is_loading: false,
       setup: { local_installed: true, installed_version: '1.0', latest_version: '1.0' },
-      ai_tier: null,
+      ai_tier: null
     })
 
     const { unmount } = renderHook(() => useStatus())
@@ -134,7 +134,7 @@ describe('useStatus', () => {
     act(() => {
       window.dispatchEvent(
         new CustomEvent('momai_init_progress', {
-          detail: { message: 'Downloading model (50%)', progress: 50 },
+          detail: { message: 'Downloading model (50%)', progress: 50 }
         })
       )
     })
@@ -145,7 +145,7 @@ describe('useStatus', () => {
     act(() => {
       window.dispatchEvent(
         new CustomEvent('momai_init_progress', {
-          detail: { message: 'System ready.', progress: 100 },
+          detail: { message: 'System ready.', progress: 100 }
         })
       )
     })
@@ -186,7 +186,7 @@ describe('useStatus', () => {
       brain_ready: true,
       is_loading: false,
       setup: { local_installed: true, installed_version: '1.0', latest_version: '1.0' },
-      ai_tier: null,
+      ai_tier: null
     })
 
     // Trigger the callback that was registered with window.api.onBackendOnline

@@ -8,7 +8,7 @@ import {
   createAssistantMessageId,
   toCompactJson,
   toolTracePrefix,
-  toolTraceTextDelimiter,
+  toolTraceTextDelimiter
 } from './chatUtils'
 import type { Message } from '../services/api'
 
@@ -17,7 +17,7 @@ describe('isToolTraceMessage', () => {
     const msg: Message = {
       role: 'assistant',
       content: `${toolTracePrefix}{"foo":"bar"}`,
-      id: '1',
+      id: '1'
     }
     expect(isToolTraceMessage(msg)).toBe(true)
   })
@@ -26,7 +26,7 @@ describe('isToolTraceMessage', () => {
     const msg: Message = {
       role: 'user',
       content: `${toolTracePrefix}{"foo":"bar"}`,
-      id: '2',
+      id: '2'
     }
     expect(isToolTraceMessage(msg)).toBe(false)
   })
@@ -35,7 +35,7 @@ describe('isToolTraceMessage', () => {
     const msg: Message = {
       role: 'assistant',
       content: 'hello world',
-      id: '3',
+      id: '3'
     }
     expect(isToolTraceMessage(msg)).toBe(false)
   })
@@ -71,17 +71,13 @@ describe('buildToolTraceContent', () => {
     const data = { result: 'done' }
     const text = 'hello'
     const result = buildToolTraceContent(data, text)
-    expect(result).toBe(
-      `${toolTracePrefix}${JSON.stringify(data)}${toolTraceTextDelimiter}${text}`,
-    )
+    expect(result).toBe(`${toolTracePrefix}${JSON.stringify(data)}${toolTraceTextDelimiter}${text}`)
   })
 
   it('handles empty text', () => {
     const data = { a: 1 }
     const result = buildToolTraceContent(data, '')
-    expect(result).toBe(
-      `${toolTracePrefix}${JSON.stringify(data)}${toolTraceTextDelimiter}`,
-    )
+    expect(result).toBe(`${toolTracePrefix}${JSON.stringify(data)}${toolTraceTextDelimiter}`)
   })
 })
 
@@ -104,11 +100,17 @@ describe('parseStructuredToolResult', () => {
   })
 
   it('handles plain string values', () => {
-    expect(parseStructuredToolResult('just a string')).toEqual({ result: 'just a string', error: '' })
+    expect(parseStructuredToolResult('just a string')).toEqual({
+      result: 'just a string',
+      error: ''
+    })
   })
 
   it('handles invalid JSON strings', () => {
-    expect(parseStructuredToolResult('not valid json')).toEqual({ result: 'not valid json', error: '' })
+    expect(parseStructuredToolResult('not valid json')).toEqual({
+      result: 'not valid json',
+      error: ''
+    })
   })
 })
 
@@ -144,15 +146,13 @@ describe('findLastAssistantIndex', () => {
       { role: 'user', content: 'hi', id: '1' },
       { role: 'assistant', content: 'hello', id: '2' },
       { role: 'user', content: 'how are you', id: '3' },
-      { role: 'assistant', content: 'good', id: '4' },
+      { role: 'assistant', content: 'good', id: '4' }
     ]
     expect(findLastAssistantIndex(list)).toBe(3)
   })
 
   it('returns -1 when no assistant messages', () => {
-    const list: Message[] = [
-      { role: 'user', content: 'hi', id: '1' },
-    ]
+    const list: Message[] = [{ role: 'user', content: 'hi', id: '1' }]
     expect(findLastAssistantIndex(list)).toBe(-1)
   })
 

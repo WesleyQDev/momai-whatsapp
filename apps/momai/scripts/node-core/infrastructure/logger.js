@@ -7,7 +7,7 @@ try {
 }
 
 function log(...args) {
-  const message = args.map(a => (a instanceof Error ? a.stack || a.message : String(a))).join(' ')
+  const message = args.map((a) => (a instanceof Error ? a.stack || a.message : String(a))).join(' ')
   if (typeof process.send === 'function') {
     process.send({ type: 'node-core-log', message })
   } else {

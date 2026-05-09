@@ -39,13 +39,15 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
   const BATCH_SIZE = 5
   for (let i = 0; i < all.length; i += BATCH_SIZE) {
     const batch = all.slice(i, i + BATCH_SIZE)
-    await Promise.all(batch.map(async (skill) => {
-      const repo = skill.manifest?.repo || null
-      if (repo) {
-        const stars = await communityRegistry.getGitHubStars(repo)
-        starsMap.set(skill.id, stars)
-      }
-    }))
+    await Promise.all(
+      batch.map(async (skill) => {
+        const repo = skill.manifest?.repo || null
+        if (repo) {
+          const stars = await communityRegistry.getGitHubStars(repo)
+          starsMap.set(skill.id, stars)
+        }
+      })
+    )
   }
 
   const payload = all.map(async (skill) => {

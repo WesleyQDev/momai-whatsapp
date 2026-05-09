@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { sanitizeFolderPath, extractTitleFromContent, makePreview, normalizeSlashes } from './notesService'
+import {
+  sanitizeFolderPath,
+  extractTitleFromContent,
+  makePreview,
+  normalizeSlashes
+} from './notesService'
 
 describe('normalizeSlashes', () => {
   it('replaces backslashes with forward slashes', () => {
@@ -79,7 +84,9 @@ describe('extractTitleFromContent', () => {
   })
 
   it('uses fallback when no heading found', () => {
-    expect(extractTitleFromContent('Just some text\nwithout heading', 'Fallback Title')).toBe('Fallback Title')
+    expect(extractTitleFromContent('Just some text\nwithout heading', 'Fallback Title')).toBe(
+      'Fallback Title'
+    )
   })
 
   it('uses fallback for empty content', () => {
@@ -87,7 +94,9 @@ describe('extractTitleFromContent', () => {
   })
 
   it('trims heading whitespace', () => {
-    expect(extractTitleFromContent('#   Spaced Out Title   \n\ncontent', 'fallback')).toBe('Spaced Out Title')
+    expect(extractTitleFromContent('#   Spaced Out Title   \n\ncontent', 'fallback')).toBe(
+      'Spaced Out Title'
+    )
   })
 
   it('ignores headings that are not level 1', () => {

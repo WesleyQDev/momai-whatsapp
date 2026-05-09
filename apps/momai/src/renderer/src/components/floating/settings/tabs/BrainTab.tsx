@@ -71,7 +71,8 @@ export const BrainTab = React.memo(
 
     const normalizeMode = (mode: unknown): 'min' | 'medium' | 'max' | 'custom' => {
       const value = String(mode || '').toLowerCase()
-      if (value === 'min' || value === 'medium' || value === 'max' || value === 'custom') return value
+      if (value === 'min' || value === 'medium' || value === 'max' || value === 'custom')
+        return value
       return 'min'
     }
 
@@ -110,7 +111,8 @@ export const BrainTab = React.memo(
       return (tokens / 1000) * (mbPer1k / 1024)
     }, [gpuBackend, currentMode, currentTokens, modeTokens])
 
-    const estimatedModelGb = settings.ai_tier === 'ultra' ? 3.8 : settings.ai_tier === 'pro' ? 2.2 : 1.3
+    const estimatedModelGb =
+      settings.ai_tier === 'ultra' ? 3.8 : settings.ai_tier === 'pro' ? 2.2 : 1.3
     const estimatedTotalGb = estimatedModelGb + estimatedCtxGb
 
     return (
@@ -371,7 +373,11 @@ export const BrainTab = React.memo(
                         { id: 'min', title: 'Mínimo', subtitle: `${modeTokens.min} tokens` },
                         { id: 'medium', title: 'Médio', subtitle: `${modeTokens.medium} tokens` },
                         { id: 'max', title: 'Máximo', subtitle: `${modeTokens.max} tokens` },
-                        { id: 'custom', title: 'Personalizado', subtitle: `${currentTokens} tokens` }
+                        {
+                          id: 'custom',
+                          title: 'Personalizado',
+                          subtitle: `${currentTokens} tokens`
+                        }
                       ].map((opt) => {
                         const selected = currentMode === opt.id
                         return (
@@ -398,7 +404,9 @@ export const BrainTab = React.memo(
 
                     <div className="pt-1 space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-semibold text-text">Tokens da Janela</span>
+                        <span className="text-[11px] font-semibold text-text">
+                          Tokens da Janela
+                        </span>
                         <input
                           type="number"
                           min={1024}
@@ -428,9 +436,12 @@ export const BrainTab = React.memo(
                       />
                       <div className="text-[11px] text-text-muted">
                         Estimativa LLM + janela:{' '}
-                        <span className="text-text font-semibold">{estimatedTotalGb.toFixed(2)} GB</span>
+                        <span className="text-text font-semibold">
+                          {estimatedTotalGb.toFixed(2)} GB
+                        </span>
                         <span className="ml-1 opacity-80">
-                          ({estimatedModelGb.toFixed(1)} GB modelo + {estimatedCtxGb.toFixed(2)} GB contexto)
+                          ({estimatedModelGb.toFixed(1)} GB modelo + {estimatedCtxGb.toFixed(2)} GB
+                          contexto)
                         </span>
                       </div>
                     </div>

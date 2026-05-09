@@ -4,7 +4,6 @@
  * Defines the structure and validation logic for extension permissions.
  */
 
-
 function createPermissionSchema() {
   const RISKS = {
     LOW: 'low',
@@ -14,15 +13,15 @@ function createPermissionSchema() {
   }
 
   const CAPABILITIES = {
-    'network': { risk: RISKS.HIGH, description: 'Acesso à rede' },
+    network: { risk: RISKS.HIGH, description: 'Acesso à rede' },
     'filesystem:read': { risk: RISKS.MEDIUM, description: 'Leitura de arquivos' },
     'filesystem:write': { risk: RISKS.HIGH, description: 'Escrita de arquivos' },
     'ui:sidebar': { risk: RISKS.LOW, description: 'Adicionar painéis na barra lateral' },
     'ui:commands': { risk: RISKS.LOW, description: 'Registrar comandos' },
     'chat:messages': { risk: RISKS.MEDIUM, description: 'Ler mensagens do chat' },
     'system:info': { risk: RISKS.LOW, description: 'Ver informações do sistema' },
-    'process': { risk: RISKS.CRITICAL, description: 'Acesso a processos do sistema' },
-    'shell': { risk: RISKS.CRITICAL, description: 'Execução de comandos shell' }
+    process: { risk: RISKS.CRITICAL, description: 'Acesso a processos do sistema' },
+    shell: { risk: RISKS.CRITICAL, description: 'Execução de comandos shell' }
   }
 
   /**
@@ -30,13 +29,12 @@ function createPermissionSchema() {
    */
   function mergeManifestPermissions(primary = [], secondary = []) {
     const merged = {}
-    
+
     // Normalize primary (array of strings)
     const primaryArray = Array.isArray(primary) ? primary : []
     for (const perm of primaryArray) {
       merged[perm] = { allowed: true }
     }
-
 
     // Merge secondary (array of strings or objects)
     const secondaryArray = Array.isArray(secondary) ? secondary : []
@@ -50,7 +48,6 @@ function createPermissionSchema() {
 
     return merged
   }
-
 
   /**
    * Calculates the overall risk level based on requested permissions
@@ -73,12 +70,11 @@ function createPermissionSchema() {
    * Returns a list of human-readable descriptions for permissions
    */
   function getPermissionSummary(permissions = {}) {
-    return Object.keys(permissions).map(id => {
+    return Object.keys(permissions).map((id) => {
       const cap = CAPABILITIES[id]
       return cap ? cap.description : id
     })
   }
-
 
   function needsAnyPermission(permissions = {}) {
     return Object.keys(permissions).length > 0

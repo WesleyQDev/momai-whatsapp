@@ -1,20 +1,57 @@
-# Plataforma de Extensões / Skills
+# Plataforma de Extensões e Skills
 
 ## Visão Geral
 
-MomAI possui uma plataforma de extensões que permite adicionar novas capacidades ao assistente. As extensões podem fornecer **ferramentas** (executadas pelo LLM), **hooks de lifecycle**, **eventos**, **UI na sidebar** e **configurações próprias**.
+O MomAI possui uma plataforma de extensões que permite adicionar novas capacidades ao assistente. Extensões podem fornecer ferramentas executadas pelo LLM, hooks de ciclo de vida, eventos personalizados, UI na barra lateral e configurações próprias. Existem três tipos de extensões:
 
-## Tipos de Extensão
+1. **Built-in (core)**: Skills nativas incluídas no app em `scripts/skills/core/`
+2. **Packaged**: Skills empacotadas pré-instaladas em `scripts/skills/packaged/`
+3. **Extension**: Extensões instaladas pelo usuário em `data/extensions/`
 
-| Tipo | Diretório | Descrição |
-|------|-----------|-----------|
-| **Built-in (core)** | `scripts/skills/core/` | Skills nativas incluídas no app |
-| **Packaged** | `scripts/skills/packaged/` | Skills empacotadas pré-instaladas |
-| **Extension** | `data/extensions/` | Extensões instaladas pelo usuário |
+## Como Funciona o Sistema de Skills
 
-## Manifest v1
+As skills são carregadas dinamicamente pelo **Skill Registry** (`scripts/skills/registry.js`, 621 linhas). Este registro:
 
-Toda extensão deve ter um `manifest.json` na raiz:
+1. **Escaneia** os diretórios de skills (core, packaged, extensions)
+2. **Parseia** o arquivo `SKILL.md` de cada skill (formato frontmatter YAML + markdown)
+3. **Carrega** o `runtime.js` (execução da skill) via import dinâmico
+4. **Registra** ferramentas (tools) que o LLM pode invocar
+5. **Expõe** as skills via API no formato OpenAI function calling
+
+### Skill Registry (registry.js)
+
+O arquivo `registry.js` exporta uma fábrica `createSkillRegistry()` que retorna um objeto com métodos:
+
+| Método | Função |
+|--------|--------|
+| `initialize()` | Carrega todas as skills (builtins, packaged, extensions) |
+| `refresh()` | Recarrega tudo |
+| `getAll()` | Retorna todas as skills |
+| `getEnabled()` | Retorna skills habilitadas |
+| `getById(id)` | Busca por ID (busca em builtins, packaged, extensions) |
+| `discover(query)` | Descoberta lexical de skill por texto |
+| `execute(id, input, context)` | Executa uma skill |
+| `executeHook(id, hookName, payload)` | Executa hook de ciclo de vida |
+| `toListPayload()` | Gera payload para API listar skills |
+| `toOpenAITools(ids?)` | Gera tools no formato OpenAI function calling |
+
+O registro mantém um **cache de tools** (`_toolsCache`) que é invalidado quando a geração de skills muda (`_skillsGeneration`), evitando recomputar a cada requisição.
+
+### Descoberta de Skills (discovery)
+
+Quando o usuário faz uma pergunta, o método `discover(query)` usa um algoritmo lexical simples para encontrar a skill mais relevante:
+
+1. Para cada skill habilitada, calcula um score baseado em:
+   - **+3 pontos** por intent correspondente (palavras-chave definidas no SKILL.md)
+   - **+1 ponto** por token da query que aparece na descrição
+2. Retorna a skill com maior score (mínimo > 0)
+3. Confiança = `min(0.95, score / 3)`
+
+Isso permite roteamento rápido sem depender de embeddings para descoberta, embora o **Semantic Engine** (LanceDB) também possa ser usado para intenções mais complexas em tiers superiores.
+
+## Manifesto de Extensão (manifest.json)
+
+Toda extensão instalada pelo usuário deve ter um `manifest.json` na raiz:
 
 ```json
 {
@@ -55,26 +92,55 @@ Toda extensão deve ter um `manifest.json` na raiz:
 |-------|-------------|-----------|
 | `manifest_version` | ✅ | Atualmente sempre `1` |
 | `id` | ✅ | Identificador único |
-| `name` | ✅ | Nome exibido |
+| `name` | ✅ | Nome exibido na UI |
 | `description` | ✅ | Descrição curta |
 | `runtime` | ✅ | `python` ou `node` |
 | `entrypoint` | ✅ | Arquivo principal |
-| `permissions` | ❌ | Permissões declarativas |
-| `settings_schema` | ❌ | Schema JSON de configurações |
+| `permissions` | ❌ | Permissões declarativas (network, filesystem, subprocess) |
+| `settings_schema` | ❌ | Schema JSON Schema para configurações da extensão |
 | `events` | ❌ | Eventos que a extensão escuta |
 | `ui.sidebar` | ❌ | Entrada na barra lateral |
 
-## Skills (Node.js)
+## Skills Node.js (runtime.js)
 
-Skills são extensões que rodam no runtime Node.js (dentro do Node Core) e expõem **ferramentas** que o LLM pode invocar.
+Skills que rodam no runtime Node.js (dentro do Node Core) expõem **ferramentas** que o LLM pode invocar.
 
-### Estrutura de uma Skill
+### Estrutura
 
 ```
 scripts/skills/core/my-skill/
-├── SKILL.md          # Documentação da skill
+├── SKILL.md          # Documentação da skill (frontmatter + instructions)
 ├── ABOUT.md          # Descrição para o usuário
-└── runtime.js        # Implementação
+├── runtime.js        # Implementação (tools + execute)
+├── locales/          # Traduções (opcional)
+│   ├── pt-BR.json
+│   └── en-US.json
+└── README.md         # READMEs em múltiplos idiomas
+├── README.en-US.md
+```
+
+### SKILL.md
+
+Arquivo com frontmatter YAML que define metadados da skill:
+
+```yaml
+---
+name: Weather
+description: Previsão do tempo para qualquer localidade
+intents:
+  - tempo
+  - clima
+  - previsão do tempo
+  - weather
+  - forecast
+allowed-tools:
+  - web_search
+icon: Cloud
+author: MomAI Team
+version: 1.0.0
+---
+
+Instruções detalhadas para o LLM sobre como usar esta skill...
 ```
 
 ### runtime.js
@@ -126,73 +192,121 @@ return {
 }
 ```
 
-O frontend registra renderizadores para cada tipo:
+O frontend registra um renderizador para cada tipo de resposta estruturada em `SkillResponseRegistry.ts`. O fluxo completo:
 
-```tsx
-import { registerRenderer } from './SkillResponseRegistry'
-import WeatherCard from './WeatherCard'
-
-registerRenderer('weather', WeatherCard)
 ```
+Skill runtime.js
+    |
+    v
+return { structuredResponse: { type: 'weather', data: {...} } }
+    |
+    v
+node-core.js streams { structured_response: {...} } via SSE
+    |
+    v
+Frontend recebe via callback onStructuredResponse
+    |
+    v
+StructuredResponseRenderer dispatche para o componente registrado
+    |
+    v
+WeatherCard (ou outro renderer) exibe a UI
+```
+
+### Renderizadores Disponíveis
+
+| Componente | Type | Propósito |
+|------------|------|-----------|
+| `WeatherCard.tsx` | `weather` | Previsão do tempo (77 linhas) |
+| `RemindersCard.tsx` | `reminders` | Lista de lembretes |
+| `DevResultCard.tsx` | `dev_result` | Resultados de execução de código |
+| `DevConfirmationCard.tsx` | `dev_confirmation` | Confirmação de ação de código |
+| `DevHtmlRenderCard.tsx` | `dev_html` | Preview HTML renderizado |
+| `HtmlPreviewCard.tsx` | `html_preview` | Preview HTML genérico |
+| `GenericExtensionCard.tsx` | `extension` | Output genérico de extensão |
+| `ExtensionRendererLoader.tsx` | dinâmico | Lazy-load de renderizadores de extensão |
+| `ExtrasRenderer.tsx` | extras | Output de ferramentas extras |
 
 ## APIs de Extensão
 
 | Rota | Método | Descrição |
 |------|--------|-----------|
-| `/extensions/:id/settings` | GET | Obtém configurações |
+| `/extensions/:id/settings` | GET | Obtém configurações da extensão |
 | `/extensions/:id/settings` | POST | Atualiza configurações |
-| `/extensions/sidebar-menu` | GET | Menu da sidebar das extensões |
+| `/extensions/sidebar-menu` | GET | Menu da sidebar de extensões |
 | `/extensions/events/emit` | POST | Emite evento para extensões |
 
-## Hooks de Lifecycle
+## Ciclo de Vida
 
-Extensões podem implementar hooks em seu `manifest.json` via events:
-
-| Evento | Disparado Quando |
-|--------|-----------------|
-| `app_started` | Aplicação inicializada |
-| `idle_tick` | Tick de idle (a cada N segundos) |
-| (custom) | Emitido via API `/extensions/events/emit` |
-
-### Lifecycle Hooks (runtime.js)
-
-Extensões Node.js podem implementar hooks de ciclo de vida no `module.exports.hooks`:
+Extensões Node.js podem implementar hooks no `module.exports.hooks`:
 
 | Hook | Disparado Quando |
 |------|-----------------|
-| `onInstall` | Extensão instalada via `/extensions/install` |
-| `onActivate` | Extensão ativada via `/extensions/toggle` |
-| `onDeactivate` | Extensão desativada via `/extensions/toggle` |
-| `onUninstall` | Extensão desinstalada via `/extensions/uninstall` |
-
-Exemplo:
+| `onInstall` | Extensão instalada |
+| `onActivate` | Extensão ativada |
+| `onDeactivate` | Extensão desativada |
+| `onUninstall` | Extensão desinstalada |
 
 ```javascript
 module.exports = {
   hooks: {
     async onInstall({ extId, extDir }) {
-      console.log(`Extensão ${extId} instalada em ${extDir}`)
-      // Inicialização: criar diretórios, configurar estado inicial
-    },
-    async onActivate({ extId }) {
-      console.log(`Extensão ${extId} ativada`)
-    },
-    async onDeactivate({ extId }) {
-      console.log(`Extensão ${extId} desativada`)
+      // Inicialização: criar diretórios, configurar estado
     },
     async onUninstall({ extId, extDir }) {
-      console.log(`Extensão ${extId} desinstalada de ${extDir}`)
-      // Limpeza: remover arquivos temporários, estados
+      // Limpeza: remover arquivos temporários
     }
   }
 }
 ```
 
+## Permissões
+
+O sistema de permissões usa um schema declarativo com níveis de risco:
+
+- **network.allowed**: Acesso à rede (domínios específicos)
+- **filesystem.allowed**: Leitura/escrita em diretórios específicos
+- **subprocess.allowed**: Execução de comandos
+- **shell.allowed**: Acesso ao shell
+- **process.allowed**: Gerenciamento de processos
+- **system_info.allowed**: Acesso a informações do sistema
+
+O `createPermissionSchema()` em `scripts/node-core/permissions/schema.js` permite:
+- Mesclar permissões do manifest com defaults
+- Calcular nível de risco (low, medium, high)
+- Resumir permissões para exibição ao usuário
+
 ## Skills Built-in
 
 | Skill | Diretório | Função |
 |-------|-----------|--------|
-| Weather | `scripts/skills/core/weather/` | Previsão do tempo via DuckDuckGo |
-| Search | `scripts/skills/core/search/` | Pesquisa web |
+| Weather | `scripts/skills/core/weather/` | Previsão do tempo via Open-Meteo API (246 linhas) |
+| Search | `scripts/skills/core/search/` | Pesquisa web via DuckDuckGo (22 linhas) |
 | Scheduler | `scripts/skills/core/scheduler/` | Lembretes agendados |
-| Memory | `scripts/skills/core/memory/` | Memória persistente |
+| Memory | `scripts/skills/core/memory/` | Memória persistente do usuário |
+
+### Weather Skill (Exemplo Detalhado)
+
+A skill de clima demonstra o padrão completo de resposta estruturada:
+
+1. Extrai localização do texto do usuário via regex (`extractLocation()`)
+2. Chama API de geocoding (Open-Meteo) para resolver coordenadas
+3. Busca previsão de 7 dias na API Open-Meteo
+4. Mapeia códigos WMO para condições legíveis em português
+5. Retorna `structuredResponse` com type `'weather'`
+6. O WeatherCard no frontend renderiza o card visual com emoji, temperatura e previsão
+
+## Skills Packaged
+
+| Skill | Diretório | Função |
+|-------|-----------|--------|
+| Dev | `scripts/skills/packaged/dev/` | Execução de código |
+| Launcher | `scripts/skills/packaged/launcher/` | Lançador de aplicativos |
+
+## Execution Isolada
+
+Extensões (não-builtins) são executadas em um **host isolado** via `extension-host-manager.js`. Isso significa que:
+
+- Skills built-in rodam no mesmo processo do Node Core (rápido, sem overhead)
+- Extensões e skills packaged rodam em processo separado (segurança, isolamento)
+- O sistema de permissões é verificado antes da execução

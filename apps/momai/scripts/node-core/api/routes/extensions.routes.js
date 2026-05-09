@@ -20,15 +20,21 @@ function downloadFile(url, destPath, onProgress) {
     const request = client.get(url, (response) => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         file.close()
-        try { fs.unlinkSync(destPath) } catch {}
-        return downloadFile(response.headers.location, destPath, onProgress).then(resolve).catch(reject)
+        try {
+          fs.unlinkSync(destPath)
+        } catch {}
+        return downloadFile(response.headers.location, destPath, onProgress)
+          .then(resolve)
+          .catch(reject)
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         file.close()
-        try { fs.unlinkSync(destPath) } catch {}
+        try {
+          fs.unlinkSync(destPath)
+        } catch {}
         return reject(new Error(`HTTP ${response.statusCode}`))
       }
-      
+
       const totalBytes = parseInt(response.headers['content-length'] || '0', 10)
       let receivedBytes = 0
       let lastTime = Date.now()
@@ -39,9 +45,10 @@ function downloadFile(url, destPath, onProgress) {
         const now = Date.now()
         if (now - lastTime >= 500) {
           const speedBps = ((receivedBytes - lastBytes) / (now - lastTime)) * 1000
-          const speedStr = speedBps > 1048576 
-            ? (speedBps / 1048576).toFixed(1) + ' MB/s' 
-            : (speedBps / 1024).toFixed(1) + ' KB/s'
+          const speedStr =
+            speedBps > 1048576
+              ? (speedBps / 1048576).toFixed(1) + ' MB/s'
+              : (speedBps / 1024).toFixed(1) + ' KB/s'
           const percent = totalBytes ? Math.round((receivedBytes / totalBytes) * 100) : 0
           if (onProgress) onProgress(percent, speedStr)
           lastTime = now
@@ -50,17 +57,24 @@ function downloadFile(url, destPath, onProgress) {
       })
 
       response.pipe(file)
-      file.on('finish', () => { file.close(); resolve() })
+      file.on('finish', () => {
+        file.close()
+        resolve()
+      })
     })
     request.on('error', (err) => {
       file.close()
-      try { fs.unlinkSync(destPath) } catch {}
+      try {
+        fs.unlinkSync(destPath)
+      } catch {}
       reject(err)
     })
     request.setTimeout(30000, () => {
       request.destroy()
       file.close()
-      try { fs.unlinkSync(destPath) } catch {}
+      try {
+        fs.unlinkSync(destPath)
+      } catch {}
       reject(new Error('Download timeout'))
     })
   })
@@ -72,11 +86,15 @@ function extractZip(zipPath, destDir) {
       exec(
         `powershell -NoProfile -Command "Expand-Archive -Path '${zipPath.replace(/'/g, "''")}' -DestinationPath '${destDir.replace(/'/g, "''")}' -Force"`,
         { timeout: 30000 },
-        (err) => { if (err) reject(err); else resolve() }
+        (err) => {
+          if (err) reject(err)
+          else resolve()
+        }
       )
     } else {
       exec(`unzip -o "${zipPath}" -d "${destDir}"`, { timeout: 30000 }, (err) => {
-        if (err) reject(err); else resolve()
+        if (err) reject(err)
+        else resolve()
       })
     }
   })
@@ -165,15 +183,24 @@ function createExtensionsRoutes(context) {
         const zipPath = path.join(extDir, 'archive.zip')
         try {
           sendStatus('Baixando...', 0, '0 KB/s')
-          await downloadFile(downloadUrl, zipPath, (percent, speed) => sendStatus('Baixando...', percent, speed))
+          await downloadFile(downloadUrl, zipPath, (percent, speed) =>
+            sendStatus('Baixando...', percent, speed)
+          )
           console.log(`[ExtensionsAPI] Extracting ${id}...`)
           sendStatus('Extraindo...', 100, '-')
           await extractZip(zipPath, extDir)
-          try { fs.unlinkSync(zipPath) } catch {}
+          try {
+            fs.unlinkSync(zipPath)
+          } catch {}
           flattenExtractedDir(extDir)
         } catch (err) {
-          try { fs.rmSync(extDir, { recursive: true, force: true }) } catch {}
-          res.write(JSON.stringify({ ok: false, error: `Failed to download/extract: ${err.message}` }) + '\n')
+          try {
+            fs.rmSync(extDir, { recursive: true, force: true })
+          } catch {}
+          res.write(
+            JSON.stringify({ ok: false, error: `Failed to download/extract: ${err.message}` }) +
+              '\n'
+          )
           res.end()
           return true
         }
@@ -220,13 +247,13 @@ function createExtensionsRoutes(context) {
       await skillRegistry.executeHook(id, 'onInstall', { extId: id, extDir }).catch((err) => {
         console.log(`[extensions] onInstall hook failed for ${id}: ${err.message}`)
       })
-      
+
       _cachedExtensionsPayload = null
       _lastExtensionsRefresh = 0
       if (context.syncSkillAndToolIndexes) {
         context.syncSkillAndToolIndexes(true).catch(() => {})
       }
-      
+
       sendStatus('Concluído', 100, '-')
       res.write(JSON.stringify({ ok: true }) + '\n')
       res.end()
@@ -250,13 +277,13 @@ function createExtensionsRoutes(context) {
       found.enabled = Boolean(payload.enabled)
       saveStore()
       await skillRegistry.loadExtensions()
-      
+
       _cachedExtensionsPayload = null
       _lastExtensionsRefresh = 0
       if (context.syncSkillAndToolIndexes) {
         context.syncSkillAndToolIndexes(true).catch(() => {})
       }
-      
+
       const hookName = found.enabled ? 'onActivate' : 'onDeactivate'
       await skillRegistry.executeHook(payload.id, hookName, { extId: payload.id }).catch((err) => {
         console.log(`[extensions] ${hookName} hook failed for ${payload.id}: ${err.message}`)
@@ -276,13 +303,13 @@ function createExtensionsRoutes(context) {
       if (fs.existsSync(extDir)) fs.rmSync(extDir, { recursive: true, force: true })
       saveStore()
       await skillRegistry.loadExtensions()
-      
+
       _cachedExtensionsPayload = null
       _lastExtensionsRefresh = 0
       if (context.syncSkillAndToolIndexes) {
         context.syncSkillAndToolIndexes(true).catch(() => {})
       }
-      
+
       sendJson(res, 200, { ok: true })
       return true
     }
@@ -305,11 +332,19 @@ function createExtensionsRoutes(context) {
       const perms = skill?.manifest?.permissions
       if (skill && perms && permSchema.needsAnyPermission(perms)) {
         if (perms.process?.allowed === false) {
-          sendJson(res, 403, { ok: false, error: 'permission_denied', reason: 'process access denied' })
+          sendJson(res, 403, {
+            ok: false,
+            error: 'permission_denied',
+            reason: 'process access denied'
+          })
           return true
         }
         if (perms.shell?.allowed === false) {
-          sendJson(res, 403, { ok: false, error: 'permission_denied', reason: 'shell access denied' })
+          sendJson(res, 403, {
+            ok: false,
+            error: 'permission_denied',
+            reason: 'shell access denied'
+          })
           return true
         }
       }
@@ -357,9 +392,7 @@ function createExtensionsRoutes(context) {
         return true
       }
 
-      const cmd = process.platform === 'win32'
-        ? `start "" "${targetPath}"`
-        : `open "${targetPath}"`
+      const cmd = process.platform === 'win32' ? `start "" "${targetPath}"` : `open "${targetPath}"`
 
       const { exec } = require('node:child_process')
       exec(cmd, (err) => {

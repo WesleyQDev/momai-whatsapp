@@ -1,59 +1,42 @@
 ---
-description: MomAIOS Project Context
+description: Contexto do Projeto MomAIOS
 globs:
 alwaysApply: true
 ---
 
-# MomAIOS Project Context
+# Contexto do Projeto MomAIOS
 
-## Architecture
-MomAI is a local-first, privacy-focused virtual assistant combining LLMs with real computer actions.
+MomAI é um assistente virtual local-first focado em privacidade, combinando LLMs com ações reais no computador. Monorepo gerenciado por pnpm workspaces + Turbo.
 
-### Apps
-- `apps/momai/` - Electron + React + TypeScript (GUI)
-- `apps/core/` - Python/FastAPI (backend AI engine)
-- `apps/internal-docs/` - Docusaurus documentation site
+## Apps
 
-### Key Technologies
-- **Desktop:** Electron 39.x, React 19, TypeScript 5.9, TailwindCSS 3.x, electron-vite
-- **Core:** FastAPI, uvicorn, LangGraph, LanceDB, SQLite
-- **Build:** pnpm workspaces, Turbo
+- `apps/momai/` - GUI desktop (Electron + React + TypeScript)
+- `apps/core/` - Runtime Python (STT/TTS/banco local/inferência ONNX)
+- `scripts/node-core/` - Motor de orquestração de agentes (Node.js)
+- `apps/fortscript/` - Biblioteca Python utilitária
+- `apps/landing-page/` - Landing page (Vite + TailwindCSS) Github pages
+- `apps/momai-promo-video/` - Vídeo promocional (Remotion)
+- `docs/` - Documentação interna em markdown
 
-## Important Patterns
+## Padrões Importantes
 
-### Structured Skill Responses
-Skills can return structured UI components. The flow:
-1. Skill `runtime.js` returns `{ structuredResponse: { type, data } }`
-2. `node-core.js` streams via SSE
-3. Frontend receives via `onStructuredResponse`
-4. `StructuredResponseRenderer` dispatches to registered component
+- **UI Registrada**: `src/renderer/src/components/chat/SkillResponseRegistry.ts` (mapeia tipo → componente)
+- **Extensões**: `community-extensions.json` (registro), `src/renderer/src/views/ExtensionsView.tsx` (loja)
+- **Skills core**: `scripts/skills/core/*/`
+- **Custom commands**: `.opencode/commands/*.md`
+- **Pipeline voz**: WakeWordDetector → STT → LLM → TTS
+- **Streaming SSE**: `scripts/node-core.js`
 
-### Voice Pipeline
-- WakeWordDetector → STT (Whisper) → LLM → TTS (Kokoro)
-- Call mode for hands-free operation
-- Pre-initialized TTS to reduce latency
+## Convenções
 
-### State Management
-- Python sidecar for AI operations
-- WebSocket for real-time frontend updates
-- Graph state for LangGraph orchestration
+- **TS/React:** PascalCase componentes, camelCase hooks/utils, kebab-case arquivos
+- **Python:** snake_case funções, PascalCase classes, PEP 8, type hints
+- **FastAPI:** Schemas Pydantic, rotas em `api/routes/*.py`, exception handlers em `main.py`
 
-## Code Style
-- **TS/React:** PascalCase components, camelCase hooks/utils, kebab-case files
-- **Python:** snake_case functions, PascalCase classes, PEP 8, type hints, async I/O
-- **FastAPI:** Depends() injection, Pydantic schemas, routes in `api/routes/*.py`
+## Ambiente
 
-## Environment
-- Desktop: `.env` in `apps/momai/`
-- Core: `.env` in `apps/core/`
+`.env` em `apps/momai/` e `apps/core/`.
 
-## Commands
-```bash
-pnpm dev              # Start desktop app in dev mode
-pnpm dev:core         # Start Python backend only
-pnpm dev:all          # Run both concurrently
-pnpm build            # Build all apps via Turbo
-pnpm lint             # Lint all apps
-pnpm typecheck        # Type-check all apps
-pnpm format           # Format all apps
-```
+## Comandos Raiz
+
+`package.json` raiz. Principais: `pnpm dev`, `pnpm dev:core`, `pnpm dev:all`, `pnpm build`, `pnpm build:win`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm format`.
