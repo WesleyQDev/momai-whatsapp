@@ -217,6 +217,8 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
         return
       }
 
+      localStorage.setItem('momai_ai_tier', _tier)
+
       const tierDefaults = TIER_DEFAULTS[_tier]
       const payload: Record<string, any> = {
         ai_tier: _tier,
