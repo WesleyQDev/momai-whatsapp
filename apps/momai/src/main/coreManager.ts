@@ -16,7 +16,7 @@ import {
   isOnboardingCompleted,
   type PythonBackendStartOptions
 } from './python'
-import { getTTSService } from './ttsService'
+import { getTTSService, type TTSEngine } from './ttsService'
 
 const PYTHON_SIDECAR_HOST = API_HOST
 const PYTHON_SIDECAR_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
@@ -369,48 +369,58 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
         return
       }
       const { requestId, text, voice, engine } = msg as any
-      logger.info(`[CoreManager] Received tts-speak IPC requestId=${requestId} engine=${engine} text="${text?.slice(0,40)}"`)
+      logger.info(
+        `[CoreManager] Received tts-speak IPC requestId=${requestId} engine=${engine} text="${text?.slice(0, 40)}"`
+      )
       if (!requestId || !text) {
         logger.warn('[CoreManager] tts-speak missing requestId or text')
         return
       }
 
-      try {
-        const ttsService = getTTSService()
-
-        if (voice) {
-          logger.info(`[CoreManager] Setting voice: ${voice}`)
-          ttsService.setVoice(voice)
-        }
-        if (engine) {
-          logger.info(`[CoreManager] Setting engine: ${engine}`)
-          ttsService.setEngine(engine)
-        }
-
-        logger.info('[CoreManager] Calling ttsService.speak()...')
-        await ttsService.speak(text, engine || 'edge-tts')
-        logger.info('[CoreManager] ttsService.speak() DONE')
-
-        if (child.connected) {
-          child.send({
-            type: 'tts-speak-result',
-            requestId,
-            ok: true
-          })
-        }
-      } catch (error: any) {
-        logger.error(`[CoreManager] TTS speak failed: ${error?.message || error}`)
-        if (child.connected) {
-          child.send({
-            type: 'tts-speak-result',
-            requestId,
-            ok: false,
-            error: error?.message || String(error)
-          })
-        }
-      }
+      // Don't await — let TTS run in background to avoid blocking IPC
+      handleTtsSpeak(requestId, text, voice, engine).catch((err) =>
+        logger.error('[CoreManager] Unhandled TTS error:', err)
+      )
+      return
     }
   })
+
+  async function handleTtsSpeak(requestId: string, text: string, voice: string, engine: TTSEngine) {
+    try {
+      const ttsService = getTTSService()
+
+      if (voice) {
+        logger.info(`[CoreManager] Setting voice: ${voice}`)
+        ttsService.setVoice(voice)
+      }
+      if (engine) {
+        logger.info(`[CoreManager] Setting engine: ${engine}`)
+        ttsService.setEngine(engine)
+      }
+
+      logger.info('[CoreManager] Calling ttsService.speak()...')
+      await ttsService.speak(text, engine || 'edge-tts')
+      logger.info('[CoreManager] ttsService.speak() DONE')
+
+      if (child.connected) {
+        child.send({
+          type: 'tts-speak-result',
+          requestId,
+          ok: true
+        })
+      }
+    } catch (error: any) {
+      logger.error(`[CoreManager] TTS speak failed: ${error?.message || error}`)
+      if (child.connected) {
+        child.send({
+          type: 'tts-speak-result',
+          requestId,
+          ok: false,
+          error: error?.message || String(error)
+        })
+      }
+    }
+  }
 }
 
 function spawnNodeCore(): ReturnType<typeof spawn> {
@@ -611,7 +621,9 @@ async function killNodeCore(): Promise<void> {
   } else {
     await new Promise<void>((resolve) => {
       const timer = setTimeout(() => {
-        try { child.kill('SIGKILL') } catch {}
+        try {
+          child.kill('SIGKILL')
+        } catch {}
         resolve()
       }, 3000)
 
@@ -620,7 +632,12 @@ async function killNodeCore(): Promise<void> {
         resolve()
       })
 
-      try { child.kill('SIGTERM') } catch { clearTimeout(timer); resolve() }
+      try {
+        child.kill('SIGTERM')
+      } catch {
+        clearTimeout(timer)
+        resolve()
+      }
     })
   }
 
@@ -632,10 +649,7 @@ export async function shutdownCoreBackend(): Promise<void> {
 
   logger.info('[CoreManager] Iniciando shutdown...')
 
-  await Promise.all([
-    killNodeCore(),
-    isPythonRunning() ? shutdownPython() : Promise.resolve(),
-  ])
+  await Promise.all([killNodeCore(), isPythonRunning() ? shutdownPython() : Promise.resolve()])
 
   killAllLlamaServers()
 
