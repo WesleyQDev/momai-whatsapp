@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import LateralBar from './components/LateralBar'
 import { useChat } from './hooks/useChat'
@@ -78,14 +78,24 @@ function App(): React.JSX.Element {
   const [isTierChanging, setIsTierChanging] = useState(false)
   const [changingTier, setChangingTier] = useState<string | null>(null)
 
+  const tierChangeChatRef = useRef(chat)
+  const tierChangeResetRef = useRef(resetVisualProgress)
+
   useEffect(() => {
+    tierChangeChatRef.current = chat
+    tierChangeResetRef.current = resetVisualProgress
+
     const handleStart = (e: any) => {
       setChangingTier(e.detail)
       setIsTierChanging(true)
     }
     const handleEnd = () => {
-      setIsTierChanging(false)
-      setChangingTier(null)
+      setTimeout(() => {
+        setIsTierChanging(false)
+        setChangingTier(null)
+        tierChangeChatRef.current.setAnimationFinished(false)
+        tierChangeResetRef.current()
+      }, 800)
     }
     window.addEventListener('momai_tier_change_start', handleStart)
     window.addEventListener('momai_tier_change_end', handleEnd)
@@ -93,7 +103,7 @@ function App(): React.JSX.Element {
       window.removeEventListener('momai_tier_change_start', handleStart)
       window.removeEventListener('momai_tier_change_end', handleEnd)
     }
-  }, [])
+  }, [chat, resetVisualProgress])
 
   const openSettings = useCallback(
     (tab: 'general' | 'brain' | 'voice' | 'economy' | 'updates' = 'general') => {

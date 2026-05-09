@@ -205,6 +205,7 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
       stopVoice().catch(() => {})
       stopGeneration().catch(() => {})
 
+      onClose()
       window.dispatchEvent(new CustomEvent('momai_new_session'))
       window.dispatchEvent(new CustomEvent('momai_tier_change_start', { detail: _tier }))
 
@@ -212,11 +213,6 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
         await api.post(`/setup/apply-tier?tier=${_tier}`)
       } catch (err) {
         console.error('Error applying tier:', err)
-        window.dispatchEvent(
-          new CustomEvent('momai_tier_change_error', {
-            detail: { tier: _tier, error: String(err) }
-          })
-        )
         window.dispatchEvent(new CustomEvent('momai_tier_change_end'))
         return
       }
@@ -236,7 +232,6 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
       }
 
       window.dispatchEvent(new CustomEvent('momai_tier_change_end'))
-      onClose()
     },
     [onClose]
   )

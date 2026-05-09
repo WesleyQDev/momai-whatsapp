@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react'
 import logo from '../assets/icon.gif'
 
 interface TierChangeOverlayProps {
@@ -6,14 +7,41 @@ interface TierChangeOverlayProps {
 }
 
 export default function TierChangeOverlay({ isChanging, tier }: TierChangeOverlayProps) {
-  if (!isChanging) return null
+  const [phase, setPhase] = useState<'hidden' | 'fade-in' | 'visible' | 'fade-out'>('hidden')
+  const wasChangingRef = useRef(false)
+  const startTimeRef = useRef(0)
+
+  useEffect(() => {
+    if (isChanging && !wasChangingRef.current) {
+      wasChangingRef.current = true
+      startTimeRef.current = Date.now()
+      setPhase('fade-in')
+      requestAnimationFrame(() => setPhase('visible'))
+    } else if (!isChanging && wasChangingRef.current) {
+      wasChangingRef.current = false
+      const elapsed = Date.now() - startTimeRef.current
+      const minShow = 800
+      const delay = elapsed < minShow ? minShow - elapsed : 0
+
+      setTimeout(() => {
+        setPhase('fade-out')
+        setTimeout(() => setPhase('hidden'), 600)
+      }, delay)
+    }
+  }, [isChanging])
+
+  if (phase === 'hidden') return null
+
+  const isVisible = phase === 'visible'
+  const opacity = phase === 'fade-in' ? 0 : phase === 'fade-out' ? 0 : 1
 
   return (
     <div
       className="fixed inset-0 z-[9999] bg-bg flex flex-col items-center justify-center p-6"
       style={{
-        transition: 'opacity 0.3s ease-out',
-        opacity: isChanging ? 1 : 0
+        opacity,
+        transition: 'opacity 0.6s ease-out',
+        pointerEvents: isVisible ? 'auto' : 'none'
       }}
     >
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
