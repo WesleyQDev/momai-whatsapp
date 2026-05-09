@@ -656,6 +656,8 @@ export interface Reminder {
   scheduled_time: string
   repeat_interval: string | null
   repeat_value: number | null
+  repeat_count: number | null
+  trigger_count: number
   is_active: boolean
   note_id?: string | null
   action_type?: 'reminder' | 'cron'
@@ -669,6 +671,8 @@ export interface ActiveReminder {
   scheduled_time: string
   repeat_interval: string | null
   repeat_value: number | null
+  repeat_count: number | null
+  trigger_count: number
   note_id?: string | null
   action_type?: 'reminder' | 'cron'
   voice_response?: boolean
@@ -692,6 +696,7 @@ export async function createReminder(payload: {
   scheduled_time: string
   repeat_interval: string | null
   repeat_value: number | null
+  repeat_count?: number | null
   note_id?: string | null
   action_type?: 'reminder' | 'cron'
   voice_response?: boolean
@@ -712,6 +717,7 @@ export async function updateReminder(
     scheduled_time?: string
     repeat_interval?: string | null
     repeat_value?: number | null
+    repeat_count?: number | null
     is_active?: boolean
     note_id?: string | null
     action_type?: 'reminder' | 'cron'

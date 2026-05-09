@@ -92,38 +92,49 @@ function createRouter(context, routeHandlers) {
       if (!reminder.is_active) continue
       if (parseTime(reminder.scheduled_time) > now) continue
 
-      const triggerData = {
-        id: reminder.id,
-        title: reminder.title,
-        content: reminder.content,
-        action_type: reminder.action_type || 'reminder',
-        voice_response: reminder.voice_response ?? true
-      }
+      try {
+        const triggerData = {
+          id: reminder.id,
+          title: reminder.title,
+          content: reminder.content,
+          action_type: reminder.action_type || 'reminder',
+          voice_response: reminder.voice_response ?? true
+        }
 
-      if (typeof context.broadcast === 'function') {
-        context.broadcast({
-          type: 'reminder_trigger',
-          data: triggerData
-        })
-      }
+        if (typeof context.broadcast === 'function') {
+          context.broadcast({
+            type: 'reminder_trigger',
+            data: triggerData
+          })
+        }
 
-      if (reminder.action_type === 'cron') {
-        context.debug(`[NodeCore][Reminders] Triggering cron action: ${reminder.title}`)
-        context.stopVoiceRequested = false
-        context.stopGenerationRequested = false
-        void runVoiceCommand({
-          content: reminder.content || reminder.title,
-          speak_response: reminder.voice_response !== false
-        })
-      } else if (reminder.voice_response !== false) {
-        context.debug(`[NodeCore][Reminders] Triggering voice response: ${reminder.title}`)
-        context.stopVoiceRequested = false
-        context.stopGenerationRequested = false
-        void triggerAutoTts(`${reminder.title}. ${reminder.content || ''}`)
-      }
+        if (reminder.action_type === 'cron') {
+          log(`[NodeCore][Reminders] Triggering cron action: ${reminder.title}`)
+          context.stopVoiceRequested = false
+          context.stopGenerationRequested = false
+          void runVoiceCommand({
+            content: reminder.content || reminder.title,
+            speak_response: reminder.voice_response !== false
+          })
+        } else if (reminder.voice_response !== false) {
+          log(`[NodeCore][Reminders] Triggering voice response: ${reminder.title}`)
+          context.stopVoiceRequested = false
+          context.stopGenerationRequested = false
+          void triggerAutoTts(`${reminder.title}. ${reminder.content || ''}`)
+        }
 
-      advanceReminder(reminder)
-      touched = true
+        advanceReminder(reminder)
+        touched = true
+
+        if (reminder.is_active && parseTime(reminder.scheduled_time) <= now) {
+          reminder.is_active = false
+          error(`[NodeCore][Reminders] Safety: deactivated reminder that failed to advance: ${reminder.title}`)
+        }
+      } catch (err) {
+        error(`[NodeCore][Reminders] Error processing reminder #${reminder.id} "${reminder.title}": ${err?.message || err}`)
+        reminder.is_active = false
+        touched = true
+      }
     }
 
     if (touched) {

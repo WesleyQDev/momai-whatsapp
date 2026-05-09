@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import {
   CalendarIcon,
   ClockIcon,
@@ -6,9 +7,10 @@ import {
   ChevronDownIcon,
   XMarkIcon,
   PlusIcon,
-  SpeakerWaveIcon
+  BellIcon,
+  PlayIcon,
+  InformationCircleIcon
 } from '@heroicons/react/24/outline'
-import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import { useI18n } from '../../i18n'
 import { createMemoryNote } from '../../services/api'
 import { DocumentTextIcon } from '@heroicons/react/24/outline'
@@ -24,6 +26,7 @@ export interface ReminderFormData {
   newTime: string
   repeat_interval: RepeatInterval
   repeat_value: number
+  repeat_count: number | null
   note_id?: string | null
   action_type: 'reminder' | 'cron'
   voice_response: boolean
@@ -43,6 +46,39 @@ const getInOneMinuteTime = () => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+function TooltipIcon({ label }: { label: string }) {
+  const [show, setShow] = useState(false)
+  const ref = useRef<HTMLSpanElement>(null)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+
+  useEffect(() => {
+    if (show && ref.current) {
+      const rect = ref.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 6, left: rect.left + rect.width / 2 })
+    }
+  }, [show])
+
+  return (
+    <span
+      ref={ref}
+      className="relative inline-flex items-center ml-1"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      <InformationCircleIcon className="w-3.5 h-3.5 text-text-muted/30 hover:text-text-muted/60 transition-colors cursor-help" />
+      {show && createPortal(
+        <span
+          className="fixed px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-white/10 text-[11px] text-text-muted whitespace-nowrap shadow-2xl z-[99999] pointer-events-none"
+          style={{ top: pos.top, left: pos.left, transform: 'translateX(-50%)' }}
+        >
+          {label}
+        </span>,
+        document.body
+      )}
+    </span>
+  )
+}
+
 export default function ReminderForm({
   initialData,
   onSubmit,
@@ -51,7 +87,7 @@ export default function ReminderForm({
   variant = 'modal'
 }: ReminderFormProps) {
   const { t } = useI18n()
-  const [isRepeatMenuOpen, setIsRepeatMenuOpen] = useState(false)
+  const [isRepeatOpen, setIsRepeatOpen] = useState(false)
 
   const [formData, setFormData] = useState<ReminderFormData>({
     title: initialData?.title || '',
@@ -61,6 +97,7 @@ export default function ReminderForm({
     newTime: initialData?.newTime || getInOneMinuteTime(),
     repeat_interval: initialData?.repeat_interval || null,
     repeat_value: initialData?.repeat_value || 1,
+    repeat_count: initialData?.repeat_count ?? null,
     id: initialData?.id,
     note_id: initialData?.note_id,
     action_type: initialData?.action_type || 'reminder',
@@ -130,26 +167,32 @@ export default function ReminderForm({
           onChange={(e) => setFormData({ ...formData, title: e.target.value })}
         />
 
-        {/* Type Selector - Moved to top */}
-        <div className="flex items-center gap-2.5">
-          <span className="text-[10px] text-text-muted/60 uppercase tracking-wider shrink-0">Tipo</span>
-          <div className="flex items-center bg-white/[0.03] rounded-lg p-0.5 flex-1">
+        {/* Type Selector */}
+        <div className="space-y-2">
+          <span className="block text-[10px] text-text-muted/60 font-medium">Tipo<TooltipIcon label={t('reminders.tooltips.type')} /></span>
+          <div className="flex gap-2 flex-wrap">
             <button
               type="button"
               onClick={() => setFormData({ ...formData, action_type: 'reminder' })}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-all ${formData.action_type === 'reminder' ? 'bg-accent/15 text-accent' : 'text-text-muted/60 hover:text-text-muted'}`}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                formData.action_type === 'reminder'
+                  ? 'bg-accent/15 text-accent border border-accent/20'
+                  : 'bg-white/[0.03] text-text-muted/60 hover:text-text-muted border border-white/10'
+              }`}
             >
-              <SpeakerWaveIcon className="w-3 h-3" />
+              <BellIcon className="w-3.5 h-3.5" />
               Notificação
             </button>
             <button
               type="button"
               onClick={() => setFormData({ ...formData, action_type: 'cron' })}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs transition-all ${formData.action_type === 'cron' ? 'bg-indigo-500/15 text-indigo-400' : 'text-text-muted/60 hover:text-text-muted'}`}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                formData.action_type === 'cron'
+                  ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
+                  : 'bg-white/[0.03] text-text-muted/60 hover:text-text-muted border border-white/10'
+              }`}
             >
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 002 2v12a2 2 0 002 2z" />
-              </svg>
+              <PlayIcon className="w-3.5 h-3.5" />
               Ação
             </button>
           </div>
@@ -163,7 +206,9 @@ export default function ReminderForm({
           >
             <CalendarIcon className="w-4 h-4 text-text-muted/60 group-hover:text-accent transition-colors shrink-0" />
             <div className="flex flex-col min-w-0">
-              <span className="text-[9px] text-text-muted/60 uppercase tracking-wider leading-none mb-0.5">Quando</span>
+              <span className="text-[9px] text-text-muted/60 font-medium leading-none mb-0.5">
+                Quando
+              </span>
               <input
                 required
                 type="date"
@@ -180,7 +225,9 @@ export default function ReminderForm({
           >
             <ClockIcon className="w-4 h-4 text-text-muted/60 group-hover:text-accent transition-colors shrink-0" />
             <div className="flex flex-col min-w-0">
-              <span className="text-[9px] text-text-muted/60 uppercase tracking-wider leading-none mb-0.5">Hora</span>
+              <span className="text-[9px] text-text-muted/60 font-medium leading-none mb-0.5">
+                Hora
+              </span>
               <input
                 required
                 type="time"
@@ -193,54 +240,101 @@ export default function ReminderForm({
         </div>
 
         {/* Repeat */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setIsRepeatMenuOpen(!isRepeatMenuOpen)}
-            className="flex items-center gap-2 text-sm text-text-muted/70 hover:text-text-muted transition-colors w-full"
-          >
-            <ArrowPathIcon className={`w-3.5 h-3.5 ${formData.repeat_interval ? 'text-emerald-500' : ''}`} />
-            <span className="truncate">
-              {formData.repeat_interval
-                ? `A cada ${formData.repeat_value} ${t(`reminders.repeat.${formData.repeat_interval}`) || formData.repeat_interval}`
-                : 'Sem repetição'}
-            </span>
-            <ChevronDownIcon className={`w-3 h-3 ml-auto shrink-0 transition-transform ${isRepeatMenuOpen ? 'rotate-180' : ''}`} />
-          </button>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <ArrowPathIcon
+              className={`w-3.5 h-3.5 shrink-0 ${formData.repeat_interval ? 'text-emerald-500' : 'text-text-muted/40'}`}
+            />
+            <span className="text-[10px] text-text-muted/60 font-medium font-medium">Repetição<TooltipIcon label={t('reminders.tooltips.repeat')} /></span>
+            {formData.repeat_interval && (
+              <button
+                type="button"
+                onClick={() => { setFormData({ ...formData, repeat_interval: null, repeat_count: null }); setIsRepeatOpen(false) }}
+                className="ml-auto p-1 text-text-muted/40 hover:text-text-muted transition-colors"
+              >
+                <XMarkIcon className="w-3 h-3" />
+              </button>
+            )}
+          </div>
 
-          {isRepeatMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setIsRepeatMenuOpen(false)} />
-              <div className="absolute top-full mt-1 left-0 w-full bg-zinc-900 border border-white/10 rounded-xl shadow-2xl py-1 z-20 animate-in fade-in slide-in-from-top-1">
-                {[
-                  { id: null, label: 'Sem repetição' },
-                  { id: 'minutes', label: 'Minutos' },
-                  { id: 'hours', label: 'Horas' },
-                  { id: 'days', label: 'Dias' },
-                  { id: 'weeks', label: 'Semanas' },
-                  { id: 'months', label: 'Meses' }
-                ].map((opt) => (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsRepeatOpen(!isRepeatOpen)}
+              className="w-full flex items-center justify-between gap-1 bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-text/70 hover:text-text transition-colors"
+            >
+              <span>{formData.repeat_interval
+                ? (formData.repeat_interval === 'minutes' ? 'Minutos' : formData.repeat_interval === 'hours' ? 'Horas' : formData.repeat_interval === 'days' ? 'Dias' : formData.repeat_interval === 'weeks' ? 'Semanas' : 'Meses')
+                : 'Nenhum'}
+              </span>
+              <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${isRepeatOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isRepeatOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setIsRepeatOpen(false)} />
+                <div className="absolute top-full mt-1 left-0 w-full bg-zinc-900 border border-white/10 rounded-xl shadow-2xl py-1 z-20 animate-in fade-in slide-in-from-top-1">
                   <button
-                    key={opt.id || 'none'}
                     type="button"
-                    className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between transition-colors ${formData.repeat_interval === opt.id ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text hover:bg-white/5'}`}
+                    className={`w-full px-3 py-2 text-left text-xs transition-colors ${!formData.repeat_interval ? 'text-accent' : 'text-text-muted hover:text-text'}`}
                     onClick={() => {
-                      setFormData({
-                        ...formData,
-                        repeat_interval: opt.id as any,
-                        repeat_value: opt.id ? formData.repeat_value || 1 : 1
-                      })
-                      setIsRepeatMenuOpen(false)
+                      setFormData({ ...formData, repeat_interval: null, repeat_count: null })
+                      setIsRepeatOpen(false)
                     }}
                   >
-                    <span>{opt.label}</span>
-                    {formData.repeat_interval === opt.id && (
-                      <CheckCircleSolid className="w-4 h-4" />
-                    )}
+                    Nenhum
                   </button>
-                ))}
+                  {(['minutes', 'hours', 'days', 'weeks', 'months'] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      className={`w-full px-3 py-2 text-left text-xs transition-colors ${formData.repeat_interval === opt ? 'text-accent' : 'text-text-muted hover:text-text'}`}
+                      onClick={() => {
+                        if (!formData.repeat_interval) {
+                          setFormData({ ...formData, repeat_interval: opt, repeat_value: 1, repeat_count: null })
+                        } else {
+                          setFormData({ ...formData, repeat_interval: opt })
+                        }
+                        setIsRepeatOpen(false)
+                      }}
+                    >
+                      {opt === 'minutes' ? 'Minutos' : opt === 'hours' ? 'Horas' : opt === 'days' ? 'Dias' : opt === 'weeks' ? 'Semanas' : 'Meses'}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {formData.repeat_interval && (
+            <div className="flex gap-3 flex-wrap">
+              <div className="flex-1">
+                <span className="block text-[10px] text-text-muted/60 mb-1.5">A cada<TooltipIcon label={t('reminders.tooltips.interval')} /></span>
+                <input
+                  type="number"
+                  min={1}
+                  max={999}
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-text/90 outline-none focus:ring-1 focus:ring-accent/20 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  value={formData.repeat_value}
+                  onChange={(e) => setFormData({ ...formData, repeat_value: Math.max(1, Number(e.target.value) || 1) })}
+                />
               </div>
-            </>
+              <div className="flex-1">
+                <span className="block text-[10px] text-text-muted/60 mb-1.5">Limitar<TooltipIcon label={t('reminders.tooltips.limit')} /></span>
+                <input
+                  type="number"
+                  min={1}
+                  max={9999}
+                  placeholder="..."
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-text/90 outline-none focus:ring-1 focus:ring-accent/20 placeholder:text-text-muted/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  value={formData.repeat_count ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setFormData({ ...formData, repeat_count: v === '' ? null : Math.max(1, Number(v)) })
+                  }}
+                />
+              </div>
+            </div>
           )}
         </div>
 
@@ -262,7 +356,11 @@ export default function ReminderForm({
                 <DocumentTextIcon className="w-3.5 h-3.5 text-text-muted/60" />
                 <span className="text-xs text-text-muted/70">Nota</span>
               </div>
-              <button type="button" onClick={() => setShowNoteSection(false)} className="text-text-muted/50 hover:text-text-muted">
+              <button
+                type="button"
+                onClick={() => setShowNoteSection(false)}
+                className="text-text-muted/50 hover:text-text-muted"
+              >
                 <XMarkIcon className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -278,13 +376,18 @@ export default function ReminderForm({
 
       {/* Voice toggle */}
       <div className="flex items-center justify-between py-2">
-        <span className="text-xs text-text-muted/70">Ler em voz alta</span>
+        <div>
+          <span className="block text-[10px] text-text-muted/60 font-medium">Ler em voz alta<TooltipIcon label={t('reminders.tooltips.voice')} /></span>
+          <span className="text-[11px] text-text-muted/40">Quando disparar, ler em voz alta</span>
+        </div>
         <button
           type="button"
           onClick={() => setFormData({ ...formData, voice_response: !formData.voice_response })}
           className={`relative inline-flex h-5 w-9 cursor-pointer rounded-full transition-colors ${formData.voice_response ? 'bg-accent' : 'bg-white/10'}`}
         >
-          <span className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${formData.voice_response ? 'translate-x-4' : ''}`} />
+          <span
+            className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${formData.voice_response ? 'translate-x-4' : ''}`}
+          />
         </button>
       </div>
 

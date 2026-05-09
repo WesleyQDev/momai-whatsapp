@@ -34,6 +34,7 @@ interface LegacyReminderFormData {
   newTime: string
   repeat_interval: RepeatInterval
   repeat_value: number
+  repeat_count: number | null
   note_id?: string | null
   action_type?: 'reminder' | 'cron'
   voice_response?: boolean
@@ -99,6 +100,7 @@ export default function RemindersView() {
     newTime: getInOneMinuteTime(),
     repeat_interval: null,
     repeat_value: 1,
+    repeat_count: null,
     action_type: 'reminder',
     voice_response: true
   })
@@ -143,6 +145,7 @@ export default function RemindersView() {
       newTime: getInOneMinuteTime(),
       repeat_interval: null,
       repeat_value: 1,
+      repeat_count: null,
       action_type: 'reminder',
       voice_response: true
     })
@@ -163,6 +166,7 @@ export default function RemindersView() {
       newTime: timeStr,
       repeat_interval: reminder.repeat_interval as RepeatInterval,
       repeat_value: reminder.repeat_value || 1,
+      repeat_count: reminder.repeat_count ?? null,
       action_type: (reminder.action_type as any) || 'reminder',
       voice_response: reminder.voice_response !== undefined ? reminder.voice_response : true
     })
@@ -181,6 +185,7 @@ export default function RemindersView() {
       scheduled_time: data.scheduled_time,
       repeat_interval: data.repeat_interval,
       repeat_value: data.repeat_interval ? data.repeat_value : null,
+      repeat_count: data.repeat_interval ? data.repeat_count : null,
       action_type: data.action_type || 'reminder',
       voice_response: data.voice_response
     }
@@ -256,7 +261,7 @@ export default function RemindersView() {
               <div className="flex items-center gap-1 text-[10px] uppercase font-black tracking-widest text-emerald-500/70">
                 <ArrowPathIcon className="w-3 h-3" />
                 <span>
-                  R:{r.repeat_value} {r.repeat_interval}
+                  R:{r.repeat_value} {r.repeat_interval}{r.repeat_count ? ` ${r.trigger_count}/${r.repeat_count}` : ''}
                 </span>
               </div>
             )}

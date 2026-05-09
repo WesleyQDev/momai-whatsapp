@@ -94,6 +94,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
         scheduled_time: r.scheduled_time,
         repeat_interval: r.repeat_interval as any,
         repeat_value: r.repeat_value,
+        repeat_count: r.repeat_count,
         action_type: r.action_type,
         voice_response: r.voice_response
       })
@@ -122,6 +123,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
         scheduled_time: data.scheduled_time,
         repeat_interval: data.repeat_interval as any,
         repeat_value: data.repeat_interval ? data.repeat_value : null,
+        repeat_count: data.repeat_interval ? data.repeat_count : null,
         action_type: data.action_type || 'reminder',
         voice_response: data.voice_response
       })
@@ -164,6 +166,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
         scheduled_time: data.scheduled_time,
         repeat_interval: data.repeat_interval as any,
         repeat_value: data.repeat_interval ? data.repeat_value : null,
+        repeat_count: data.repeat_interval ? data.repeat_count : null,
         action_type: data.action_type || 'reminder',
         voice_response: data.voice_response
       })
@@ -295,6 +298,7 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
                               newTime: editingReminder.scheduled_time.split('T')[1].slice(0, 5),
                               repeat_interval: editingReminder.repeat_interval as any,
                               repeat_value: editingReminder.repeat_value || 1,
+                              repeat_count: editingReminder.repeat_count ?? null,
                               action_type: (editingReminder.action_type as any) || 'reminder',
                               voice_response:
                                 editingReminder.voice_response !== undefined

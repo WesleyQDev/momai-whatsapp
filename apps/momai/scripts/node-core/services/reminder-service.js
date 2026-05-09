@@ -26,6 +26,8 @@ function normalizeReminder(input) {
     scheduled_time: input.scheduled_time || isoNow(),
     repeat_interval: input.repeat_interval ?? null,
     repeat_value: input.repeat_value ?? null,
+    repeat_count: input.repeat_count ?? null,
+    trigger_count: input.trigger_count ?? 0,
     is_active: input.is_active ?? true,
     note_id: input.note_id ?? null,
     action_type: input.action_type || 'reminder',
@@ -37,7 +39,19 @@ function advanceReminder(reminder) {
   const value = reminder.repeat_value || 1
   const current = new Date(reminder.scheduled_time)
 
+  if (!Number.isFinite(current.getTime())) {
+    reminder.is_active = false
+    return
+  }
+
   if (!reminder.repeat_interval) {
+    reminder.is_active = false
+    return
+  }
+
+  reminder.trigger_count = (reminder.trigger_count || 0) + 1
+
+  if (reminder.repeat_count != null && reminder.trigger_count >= reminder.repeat_count) {
     reminder.is_active = false
     return
   }

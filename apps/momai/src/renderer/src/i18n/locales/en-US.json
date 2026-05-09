@@ -429,5 +429,10 @@
   "loading.almostReady": "System is almost ready, hang tight — almost there! 😊",
   "loading.firstLaunchNote": "The first launch may take 1 to 3 minutes",
   "loading.welcome": "Welcome to MomAI",
-  "loading.initializingSystem": "Initializing System"
+  "loading.initializingSystem": "Initializing System",
+  "reminders.tooltips.type": "Sets whether the reminder plays a notification or runs a command",
+  "reminders.tooltips.repeat": "Makes the reminder repeat at a set interval",
+  "reminders.tooltips.interval": "How often the reminder should repeat",
+  "reminders.tooltips.limit": "How many times the reminder should fire before stopping (empty = infinite)",
+  "reminders.tooltips.voice": "When enabled, the reminder is read aloud when it fires"
 }

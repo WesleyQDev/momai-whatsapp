@@ -429,5 +429,10 @@
   "loading.almostReady": "O sistema está quase pronto, falta muito pouco 😊",
   "loading.firstLaunchNote": "A primeira inicialização pode levar de 1 a 3 minutos",
   "loading.welcome": "Bem-vinda à MomAI",
-  "loading.initializingSystem": "Inicializando Sistema"
+  "loading.initializingSystem": "Inicializando Sistema",
+  "reminders.tooltips.type": "Define se o lembrete toca uma notificação ou executa um comando",
+  "reminders.tooltips.repeat": "Faz o lembrete se repetir em intervalo",
+  "reminders.tooltips.interval": "De quanto em quanto tempo o lembrete deve repetir",
+  "reminders.tooltips.limit": "Quantas vezes o lembrete deve disparar antes de parar (vazio = infinito)",
+  "reminders.tooltips.voice": "Quando ativado, o lembrete é lido em voz alta ao disparar"
 }

@@ -69,6 +69,19 @@ module.exports = {
           voice_response: {
             type: 'boolean',
             description: 'Se o lembrete deve ser lido em voz alta quando disparar'
+          },
+          repeat_interval: {
+            type: 'string',
+            enum: ['minutes', 'hours', 'days', 'weeks', 'months'],
+            description: 'Intervalo de repeticao (opcional)'
+          },
+          repeat_value: {
+            type: 'number',
+            description: 'A cada quantos intervalos repetir. Ex: 30 (minutos) = a cada 30 minutos'
+          },
+          repeat_count: {
+            type: 'number',
+            description: 'Quantas vezes repetir no total (opcional, padrao = infinito se repeat_interval definido)'
           }
         }
       }
@@ -168,7 +181,10 @@ module.exports = {
           title: toolArgs.title,
           scheduled_time: toolArgs.scheduled_time,
           content: toolArgs.content || text,
-          voice_response: toolArgs.voice_response ?? true
+          voice_response: toolArgs.voice_response ?? true,
+          repeat_interval: toolArgs.repeat_interval || null,
+          repeat_value: toolArgs.repeat_value || null,
+          repeat_count: toolArgs.repeat_count ?? null
         })
         const detail = formatReminderDetail(reminder)
 
