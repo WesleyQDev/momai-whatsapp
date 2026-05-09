@@ -363,7 +363,6 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
   }
   if (llamaState.startingPromise) return llamaState.startingPromise
 
-  const myGeneration = llamaStartGeneration
   const preferred = normalizeBackendMode(store.settings.local_backend || 'auto')
   const backendAttempts = pickBackendAttempts(preferred)
   const tierName = store.settings.ai_tier || 'pro'
@@ -374,6 +373,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
       if (forceRestart) {
         await stopLlamaServer()
       }
+      const myGeneration = llamaStartGeneration
       debug(
         `[llama] ensuring llama ready. tier: ${tierName}, file: ${tierConfig.file}, generation: ${myGeneration}`
       )
