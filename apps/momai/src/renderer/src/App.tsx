@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import LateralBar from './components/LateralBar'
 import { useChat } from './hooks/useChat'
@@ -15,6 +15,7 @@ import TTSEngineLoadingAnimation from './components/chat/TTSEngineLoadingAnimati
 
 // New modular imports
 import WelcomeScreen from './components/WelcomeScreen'
+import TierChangeOverlay from './components/TierChangeOverlay'
 import BootstrapError from './components/BootstrapError'
 import InfoPanel from './components/InfoPanel'
 import { useAudioFallback } from './hooks/useAudioFallback'
@@ -77,30 +78,16 @@ function App(): React.JSX.Element {
   const [isTierChanging, setIsTierChanging] = useState(false)
   const [changingTier, setChangingTier] = useState<string | null>(null)
 
-  const tierChangeChatRef = useRef(chat)
-  const tierChangeResetRef = useRef(resetVisualProgress)
-
   useEffect(() => {
-    tierChangeChatRef.current = chat
-    tierChangeResetRef.current = resetVisualProgress
-
     const handleStart = (e: any) => {
       setChangingTier(e.detail)
       setIsTierChanging(true)
     }
-    const handleEnd = () => {
-      setIsTierChanging(false)
-      setChangingTier(null)
-      tierChangeChatRef.current.setAnimationFinished(false)
-      tierChangeResetRef.current()
-    }
     window.addEventListener('momai_tier_change_start', handleStart)
-    window.addEventListener('momai_tier_change_end', handleEnd)
     return () => {
       window.removeEventListener('momai_tier_change_start', handleStart)
-      window.removeEventListener('momai_tier_change_end', handleEnd)
     }
-  }, [chat, resetVisualProgress])
+  }, [])
 
   const openSettings = useCallback(
     (tab: 'general' | 'brain' | 'voice' | 'economy' | 'updates' = 'general') => {
@@ -268,6 +255,17 @@ function App(): React.JSX.Element {
           onOpenSettings={openSettings}
         />
       )}
+
+      <TierChangeOverlay
+        isChanging={isTierChanging}
+        tier={changingTier}
+        onFinish={() => {
+          setIsTierChanging(false)
+          setChangingTier(null)
+          chat.setAnimationFinished(false)
+          resetVisualProgress()
+        }}
+      />
 
       {showOnboarding && (
         <OnboardingCard

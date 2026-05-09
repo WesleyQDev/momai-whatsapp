@@ -4,35 +4,38 @@ import logo from '../assets/icon.gif'
 interface TierChangeOverlayProps {
   isChanging: boolean
   tier?: string | null
+  onFinish?: () => void
 }
 
-export default function TierChangeOverlay({ isChanging, tier }: TierChangeOverlayProps) {
+export default function TierChangeOverlay({ isChanging, tier, onFinish }: TierChangeOverlayProps) {
   const [phase, setPhase] = useState<'hidden' | 'fade-in' | 'visible' | 'fade-out'>('hidden')
-  const wasChangingRef = useRef(false)
-  const startTimeRef = useRef(0)
+  const prevRef = useRef(false)
 
   useEffect(() => {
-    if (isChanging && !wasChangingRef.current) {
-      wasChangingRef.current = true
-      startTimeRef.current = Date.now()
+    if (isChanging && !prevRef.current) {
+      prevRef.current = true
       setPhase('fade-in')
       requestAnimationFrame(() => setPhase('visible'))
-    } else if (!isChanging && wasChangingRef.current) {
-      wasChangingRef.current = false
-      const elapsed = Date.now() - startTimeRef.current
-      const minShow = 800
-      const delay = elapsed < minShow ? minShow - elapsed : 0
-
-      setTimeout(() => {
-        setPhase('fade-out')
-        setTimeout(() => setPhase('hidden'), 600)
-      }, delay)
+    } else if (!isChanging && prevRef.current) {
+      prevRef.current = false
     }
   }, [isChanging])
 
+  useEffect(() => {
+    if (phase !== 'visible') return
+    const fadeTimer = setTimeout(() => setPhase('fade-out'), 800)
+    const hideTimer = setTimeout(() => {
+      setPhase('hidden')
+      onFinish?.()
+    }, 1400)
+    return () => {
+      clearTimeout(fadeTimer)
+      clearTimeout(hideTimer)
+    }
+  }, [phase, onFinish])
+
   if (phase === 'hidden') return null
 
-  const isVisible = phase === 'visible'
   const opacity = phase === 'fade-in' ? 0 : phase === 'fade-out' ? 0 : 1
 
   return (
@@ -41,7 +44,7 @@ export default function TierChangeOverlay({ isChanging, tier }: TierChangeOverla
       style={{
         opacity,
         transition: 'opacity 0.6s ease-out',
-        pointerEvents: isVisible ? 'auto' : 'none'
+        pointerEvents: 'none'
       }}
     >
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
