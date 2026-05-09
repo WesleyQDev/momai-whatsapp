@@ -69,9 +69,9 @@ async def get_locale_async() -> str:
     if env_locale:
         return env_locale
     try:
-        from app_state import get_settings_async
+        from app_state import get_settings_cached
 
-        settings = await get_settings_async()
+        settings = await get_settings_cached()
         if settings and settings.locale:
             return settings.locale
     except Exception:

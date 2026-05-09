@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import time
 from typing import Any
 
 import httpx
@@ -9,6 +10,11 @@ from fastapi import WebSocket
 logger = logging.getLogger("momai.app_state")
 
 _http_client: httpx.AsyncClient | None = None
+
+_settings_cache: Settings | None = None
+_settings_cache_time: float = 0
+_settings_cache_ttl: float = 10.0
+_settings_lock = asyncio.Lock()
 
 active_websockets: list[WebSocket] = []
 main_loop: asyncio.AbstractEventLoop | None = None
@@ -43,6 +49,21 @@ async def get_settings_async() -> Settings | None:
     except asyncio.TimeoutError:
         logger.warning("Settings query timed out after 5s")
         return None
+
+
+async def get_settings_cached() -> Settings | None:
+    """Fetch settings with TTL caching to avoid repeated DB queries."""
+    global _settings_cache, _settings_cache_time
+    now = time.monotonic()
+    if _settings_cache is not None and (now - _settings_cache_time) < _settings_cache_ttl:
+        return _settings_cache
+    async with _settings_lock:
+        if _settings_cache is not None and (now - _settings_cache_time) < _settings_cache_ttl:
+            return _settings_cache
+        settings = await get_settings_async()
+        _settings_cache = settings
+        _settings_cache_time = now
+        return settings
 
 
 async def get_http_client() -> httpx.AsyncClient:

@@ -163,10 +163,10 @@ async def control_wake_word(control: WakeWordControl):
     """
     try:
         import app_state
-        from app_state import get_settings_async
+        from app_state import get_settings_cached
 
         # Prevent enabling if Lite tier
-        settings = await get_settings_async()
+        settings = await get_settings_cached()
         
         if not control.enabled or (settings and settings.ai_tier != "ultra"):
             if app_state.ww:
@@ -222,8 +222,8 @@ async def control_call_mode(control: CallModeControl):
                     app_state.ww.start()
             else:
                 # Keep running only if explicit wake-word setting is enabled.
-                from app_state import get_settings_async
-                settings = await get_settings_async()
+                from app_state import get_settings_cached
+                settings = await get_settings_cached()
 
                 keep_wake_word = bool(settings and settings.wake_word_enabled and settings.ai_tier == "ultra")
                 if not keep_wake_word:

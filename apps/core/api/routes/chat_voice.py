@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 import logging
 
 import app_state
-from app_state import get_settings_async
+from app_state import get_settings_cached
 
 router = APIRouter()
 logger = logging.getLogger("momai.api.chat_voice")
@@ -35,7 +35,7 @@ async def speak_text(data: dict):
             logger.debug("[ChatVoice] /chat/speak blocked: app_state.tts unavailable")
             raise HTTPException(status_code=503, detail="TTS unavailable")
 
-        settings = await get_settings_async()
+        settings = await get_settings_cached()
 
         if settings and settings.tts_enabled is False:
             logger.debug("[ChatVoice] /chat/speak blocked: settings.tts_enabled=false")
