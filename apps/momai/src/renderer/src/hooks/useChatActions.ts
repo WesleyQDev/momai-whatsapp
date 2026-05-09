@@ -19,19 +19,15 @@ import {
   buildToolTraceContent
 } from '../utils/chatUtils'
 import { cleanMomaiActions } from '../utils/text'
+import type { ChatAction } from './chatReducer'
 
 interface UseChatActionsProps {
   threadId: string
   currentThreadRef: React.MutableRefObject<string>
   messagesRef: React.MutableRefObject<Message[]>
-  setMessages: React.Dispatch<React.SetStateAction<Message[]>>
-  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>
-  setSpeakingMessageId: React.Dispatch<React.SetStateAction<string | null>>
-  setCallHistory: React.Dispatch<React.SetStateAction<any[]>>
+  dispatch: React.Dispatch<ChatAction>
   toolTraceRef: React.MutableRefObject<any>
-  setGraphState: React.Dispatch<React.SetStateAction<any>>
   isCallMode: boolean
-  setIsCallMode: React.Dispatch<React.SetStateAction<boolean>>
   isCallModeRef: React.MutableRefObject<boolean>
   setText: React.Dispatch<React.SetStateAction<string>>
 }
@@ -40,14 +36,9 @@ export function useChatActions({
   threadId,
   currentThreadRef,
   messagesRef,
-  setMessages,
-  setIsLoading,
-  setSpeakingMessageId,
-  setCallHistory,
+  dispatch,
   toolTraceRef,
-  setGraphState,
   isCallMode,
-  setIsCallMode,
   isCallModeRef,
   setText
 }: UseChatActionsProps) {
@@ -99,14 +90,13 @@ export function useChatActions({
   const stopGeneration = useCallback(async () => {
     try {
       await stopGenerationApi()
-      // Also stop TTS when stopping generation
       await stopVoiceApi().catch(() => {})
     } catch (err) {
       console.error('Erro ao parar geração:', err)
     } finally {
-      setIsLoading(false)
+      dispatch({ type: 'SET_LOADING', isLoading: false })
     }
-  }, [setIsLoading])
+  }, [dispatch])
 
   const stopVoice = useCallback(async () => {
     try {
@@ -114,26 +104,27 @@ export function useChatActions({
     } catch (err) {
       console.error('Erro ao parar voz:', err)
     } finally {
-      setSpeakingMessageId(null)
+      dispatch({ type: 'SET_SPEAKING', messageId: null })
     }
-  }, [setSpeakingMessageId])
+  }, [dispatch])
 
   const sendMessage = useCallback(
     async (content: string, isSilent: boolean = false, skipUserMessage: boolean = false) => {
       if (!content.trim()) return
 
-      // Fire-and-forget: stop any ongoing TTS without blocking the message flow
       stopVoiceApi().catch(() => {})
-      setSpeakingMessageId(null)
+      dispatch({ type: 'SET_SPEAKING', messageId: null })
 
       if (!isSilent && !skipUserMessage) {
         const userMessage: Message = { role: 'user', content }
-        setMessages((prev) => [...prev, userMessage])
+        dispatch({ type: 'UPDATE_MESSAGES', updater: (prev) => [...prev, userMessage] })
 
         if (isCallModeRef.current) {
-          setCallHistory((prev) =>
-            [...prev, { id: `user-${Date.now()}`, role: 'user' as const, content }].slice(-5)
-          )
+          dispatch({
+            type: 'SET_CALL_HISTORY',
+            updater: (prev) =>
+              [...prev, { id: `user-${Date.now()}`, role: 'user' as const, content }].slice(-5)
+          })
         }
       }
 
@@ -163,15 +154,17 @@ export function useChatActions({
         return
       }
 
-      setIsLoading(true)
+      dispatch({ type: 'SET_LOADING', isLoading: true })
       toolTraceRef.current = { activeMsgId: null, byToolId: {} }
 
-      // Start memory search early so it runs in parallel with UI updates
       const memoryPromise = buildInjectedMemory(content)
 
       const assistantMsgId = createAssistantMessageId()
       toolTraceRef.current.activeMsgId = assistantMsgId
-      setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '...' }])
+      dispatch({
+        type: 'UPDATE_MESSAGES',
+        updater: (prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '...' }]
+      })
 
       const messageThreadId = threadId
       const isFirstMessage = messagesRef.current.length <= 1
@@ -184,167 +177,194 @@ export function useChatActions({
           {
             onToken: (token) => {
               if (currentThreadRef.current !== messageThreadId) return
-              setMessages((prev) => {
-                const updated = [...prev]
-                const lastIdx = updated.length - 1
-                if (
-                  updated[lastIdx]?.role === 'assistant' &&
-                  !updated[lastIdx].content.startsWith('Cérebro alterado')
-                ) {
-                  const currentContent = updated[lastIdx].content
-                  const newBase = currentContent === '...' ? '' : currentContent
+              dispatch({
+                type: 'UPDATE_MESSAGES',
+                updater: (prev) => {
+                  const updated = [...prev]
+                  const lastIdx = updated.length - 1
+                  if (
+                    updated[lastIdx]?.role === 'assistant' &&
+                    !updated[lastIdx].content.startsWith('Cérebro alterado')
+                  ) {
+                    const currentContent = updated[lastIdx].content
+                    const newBase = currentContent === '...' ? '' : currentContent
 
-                  if (isToolTraceMessage(updated[lastIdx])) {
-                    const parsed = splitToolTraceContent(updated[lastIdx].content)
-                    let traceData: any = null
-                    const textPart = parsed?.textPart || ''
-                    try {
-                      traceData = parsed?.jsonPart ? JSON.parse(parsed.jsonPart) : null
-                    } catch {
-                      traceData = null
+                    if (isToolTraceMessage(updated[lastIdx])) {
+                      const parsed = splitToolTraceContent(updated[lastIdx].content)
+                      let traceData: any = null
+                      const textPart = parsed?.textPart || ''
+                      try {
+                        traceData = parsed?.jsonPart ? JSON.parse(parsed.jsonPart) : null
+                      } catch {
+                        traceData = null
+                      }
+                      updated[lastIdx] = {
+                        ...updated[lastIdx],
+                        content: buildToolTraceContent(traceData || {}, textPart + token)
+                      }
+                    } else {
+                      updated[lastIdx] = {
+                        ...updated[lastIdx],
+                        content: newBase + token
+                      }
                     }
-                    updated[lastIdx] = {
-                      ...updated[lastIdx],
-                      content: buildToolTraceContent(traceData || {}, textPart + token)
-                    }
-                  } else {
-                    updated[lastIdx] = {
-                      ...updated[lastIdx],
-                      content: newBase + token
-                    }
+                    return updated
                   }
                   return updated
                 }
-                return updated
               })
 
               if (isCallModeRef.current) {
                 const cleanTokenForCall = token.split('__MOMAI_ACTIONS__')[0]
                 if (cleanTokenForCall !== undefined) {
-                  setCallHistory((prevHistory) => {
-                    const last = prevHistory[prevHistory.length - 1]
-                    if (last && last.role === 'assistant') {
-                      const history = [...prevHistory]
-                      const prevContent = history[history.length - 1].content
-                      let nextToken = cleanTokenForCall
-                      if (prevContent === '...' || prevContent === '') {
-                        nextToken = nextToken.replace(/^\s+/, '')
-                      }
-                      history[history.length - 1] = {
-                        ...last,
-                        content: (prevContent === '...' ? '' : prevContent) + nextToken
-                      }
-                      return history
-                    }
-                    const trimmed = cleanTokenForCall.replace(/^\s+/, '')
-                    if (trimmed) {
-                      return [
-                        ...prevHistory,
-                        {
-                          id: `assistant-${Date.now()}`,
-                          role: 'assistant' as const,
-                          content: trimmed
+                  dispatch({
+                    type: 'SET_CALL_HISTORY',
+                    updater: (prevHistory) => {
+                      const last = prevHistory[prevHistory.length - 1]
+                      if (last && last.role === 'assistant') {
+                        const history = [...prevHistory]
+                        const prevContent = history[history.length - 1].content
+                        let nextToken = cleanTokenForCall
+                        if (prevContent === '...' || prevContent === '') {
+                          nextToken = nextToken.replace(/^\s+/, '')
                         }
-                      ].slice(-5)
+                        history[history.length - 1] = {
+                          ...last,
+                          content: (prevContent === '...' ? '' : prevContent) + nextToken
+                        }
+                        return history
+                      }
+                      const trimmed = cleanTokenForCall.replace(/^\s+/, '')
+                      if (trimmed) {
+                        return [
+                          ...prevHistory,
+                          {
+                            id: `assistant-${Date.now()}`,
+                            role: 'assistant' as const,
+                            content: trimmed
+                          }
+                        ].slice(-5)
+                      }
+                      return prevHistory
                     }
-                    return prevHistory
                   })
                 }
               }
             },
             onStatus: (status) => {
               if (currentThreadRef.current !== messageThreadId) return
-              setMessages((prev) => {
-                const updated = [...prev]
-                const lastIdx = updated.length - 1
-                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                  const currentActivities = updated[lastIdx].activities || []
-                  const buscandoIdx = currentActivities.findIndex((a: string) =>
-                    a.startsWith('Buscando')
-                  )
-                  if (buscandoIdx !== -1 && status.startsWith('Buscando')) {
-                    const updatedActivities = [...currentActivities]
-                    updatedActivities[buscandoIdx] = status
-                    updated[lastIdx] = { ...updated[lastIdx], activities: updatedActivities }
-                  } else if (!currentActivities.includes(status)) {
-                    updated[lastIdx] = {
-                      ...updated[lastIdx],
-                      activities: [...currentActivities, status]
+              dispatch({
+                type: 'UPDATE_MESSAGES',
+                updater: (prev) => {
+                  const updated = [...prev]
+                  const lastIdx = updated.length - 1
+                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                    const currentActivities = updated[lastIdx].activities || []
+                    const buscandoIdx = currentActivities.findIndex((a: string) =>
+                      a.startsWith('Buscando')
+                    )
+                    if (buscandoIdx !== -1 && status.startsWith('Buscando')) {
+                      const updatedActivities = [...currentActivities]
+                      updatedActivities[buscandoIdx] = status
+                      updated[lastIdx] = { ...updated[lastIdx], activities: updatedActivities }
+                    } else if (!currentActivities.includes(status)) {
+                      updated[lastIdx] = {
+                        ...updated[lastIdx],
+                        activities: [...currentActivities, status]
+                      }
                     }
                   }
+                  return updated
                 }
-                return updated
               })
             },
             onSources: (sources) => {
               if (currentThreadRef.current !== messageThreadId) return
-              setMessages((prev) => {
-                const updated = [...prev]
-                const lastIdx = updated.length - 1
-                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                  updated[lastIdx] = { ...updated[lastIdx], sources }
+              dispatch({
+                type: 'UPDATE_MESSAGES',
+                updater: (prev) => {
+                  const updated = [...prev]
+                  const lastIdx = updated.length - 1
+                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                    updated[lastIdx] = { ...updated[lastIdx], sources }
+                  }
+                  return updated
                 }
-                return updated
               })
             },
             onSnippets: (snippets) => {
               if (currentThreadRef.current !== messageThreadId) return
-              setMessages((prev) => {
-                const updated = [...prev]
-                const lastIdx = updated.length - 1
-                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                  updated[lastIdx] = { ...updated[lastIdx], snippets }
+              dispatch({
+                type: 'UPDATE_MESSAGES',
+                updater: (prev) => {
+                  const updated = [...prev]
+                  const lastIdx = updated.length - 1
+                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                    updated[lastIdx] = { ...updated[lastIdx], snippets }
+                  }
+                  return updated
                 }
-                return updated
               })
             },
             onCards: (cards) => {
               if (currentThreadRef.current !== messageThreadId) return
-              setMessages((prev) => {
-                const updated = [...prev]
-                const lastIdx = updated.length - 1
-                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                  updated[lastIdx] = { ...updated[lastIdx], cards }
+              dispatch({
+                type: 'UPDATE_MESSAGES',
+                updater: (prev) => {
+                  const updated = [...prev]
+                  const lastIdx = updated.length - 1
+                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                    updated[lastIdx] = { ...updated[lastIdx], cards }
+                  }
+                  return updated
                 }
-                return updated
               })
             },
             onToolSteps: (toolSteps) => {
               if (currentThreadRef.current !== messageThreadId) return
-              setMessages((prev) => {
-                const updated = [...prev]
-                const lastIdx = updated.length - 1
-                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                  updated[lastIdx] = { ...updated[lastIdx], toolSteps }
+              dispatch({
+                type: 'UPDATE_MESSAGES',
+                updater: (prev) => {
+                  const updated = [...prev]
+                  const lastIdx = updated.length - 1
+                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                    updated[lastIdx] = { ...updated[lastIdx], toolSteps }
+                  }
+                  return updated
                 }
-                return updated
               })
             },
             onActiveSkill: (skillName) => {
               if (currentThreadRef.current !== messageThreadId) return
-              setMessages((prev) => {
-                const updated = [...prev]
-                const lastIdx = updated.length - 1
-                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                  updated[lastIdx] = { ...updated[lastIdx], activeSkill: skillName }
+              dispatch({
+                type: 'UPDATE_MESSAGES',
+                updater: (prev) => {
+                  const updated = [...prev]
+                  const lastIdx = updated.length - 1
+                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                    updated[lastIdx] = { ...updated[lastIdx], activeSkill: skillName }
+                  }
+                  return updated
                 }
-                return updated
               })
             },
             onStructuredResponse: (response) => {
               if (currentThreadRef.current !== messageThreadId) return
-              setMessages((prev) => {
-                const updated = [...prev]
-                const lastIdx = updated.length - 1
-                if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                  updated[lastIdx] = { ...updated[lastIdx], structuredResponse: response }
+              dispatch({
+                type: 'UPDATE_MESSAGES',
+                updater: (prev) => {
+                  const updated = [...prev]
+                  const lastIdx = updated.length - 1
+                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
+                    updated[lastIdx] = { ...updated[lastIdx], structuredResponse: response }
+                  }
+                  return updated
                 }
-                return updated
               })
             },
             onDone: () => {
               if (currentThreadRef.current !== messageThreadId) return
-              setIsLoading(false)
+              dispatch({ type: 'SET_LOADING', isLoading: false })
               if (isFirstMessage) {
                 const lastMsgs = messagesRef.current
                 const assistantReply = lastMsgs[lastMsgs.length - 1]?.content || ''
@@ -363,41 +383,34 @@ export function useChatActions({
             },
             onError: (err) => {
               if (currentThreadRef.current !== messageThreadId) return
-              setIsLoading(false)
-              setMessages((prev) => {
-                const updated = [...prev]
-                const lastIdx = updated.length - 1
-                if (lastIdx >= 0) {
-                  updated[lastIdx].content = `Erro: ${err}`
+              dispatch({ type: 'SET_LOADING', isLoading: false })
+              dispatch({
+                type: 'UPDATE_MESSAGES',
+                updater: (prev) => {
+                  const updated = [...prev]
+                  const lastIdx = updated.length - 1
+                  if (lastIdx >= 0) {
+                    updated[lastIdx].content = `Erro: ${err}`
+                  }
+                  return updated
                 }
-                return updated
               })
             }
           },
           memoryPayload
         )
       } catch (err) {
-        setIsLoading(false)
+        dispatch({ type: 'SET_LOADING', isLoading: false })
         console.error('Erro ao enviar mensagem:', err)
       }
     },
-    [
-      threadId,
-      currentThreadRef,
-      messagesRef,
-      setMessages,
-      setIsLoading,
-      toolTraceRef,
-      setCallHistory,
-      isCallModeRef,
-      setText
-    ]
+    [threadId, currentThreadRef, messagesRef, dispatch, toolTraceRef, isCallModeRef, setText]
   )
 
   const handleClear = useCallback(async () => {
-    setMessages([])
-    setSpeakingMessageId(null)
-    setCallHistory([])
+    dispatch({ type: 'SET_MESSAGES', messages: [] })
+    dispatch({ type: 'SET_SPEAKING', messageId: null })
+    dispatch({ type: 'SET_CALL_HISTORY', updater: () => [] })
     toolTraceRef.current = { activeMsgId: null, byToolId: {} }
     window.dispatchEvent(new CustomEvent('momai_clear_history'))
     try {
@@ -405,7 +418,7 @@ export function useChatActions({
     } catch (err) {
       console.error('Erro ao limpar histórico:', err)
     }
-  }, [threadId, setMessages, setSpeakingMessageId, setCallHistory, toolTraceRef])
+  }, [threadId, dispatch, toolTraceRef])
 
   const removeMessage = useCallback(
     async (index: number) => {
@@ -417,9 +430,9 @@ export function useChatActions({
           console.error('Erro ao deletar mensagem:', err)
         }
       }
-      setMessages((prev) => prev.filter((_, i) => i !== index))
+      dispatch({ type: 'UPDATE_MESSAGES', updater: (prev) => prev.filter((_, i) => i !== index) })
     },
-    [threadId, setMessages, messagesRef]
+    [threadId, dispatch, messagesRef]
   )
 
   const regenerateMessage = useCallback(
@@ -428,9 +441,8 @@ export function useChatActions({
       const assistantMsg = msgs[index]
       if (!assistantMsg || assistantMsg.role !== 'assistant') return
 
-      // Stop any ongoing TTS and clear speaking state before regenerating
       await stopVoiceApi().catch(() => {})
-      setSpeakingMessageId(null)
+      dispatch({ type: 'SET_SPEAKING', messageId: null })
 
       let userPrompt = ''
       for (let i = index - 1; i >= 0; i--) {
@@ -445,7 +457,7 @@ export function useChatActions({
       await removeMessage(index)
       await sendMessage(userPrompt, false, true)
     },
-    [messagesRef, removeMessage, sendMessage, setSpeakingMessageId]
+    [messagesRef, removeMessage, sendMessage, dispatch]
   )
 
   const speakMessage = useCallback(
@@ -456,13 +468,10 @@ export function useChatActions({
       const cleanText = cleanMomaiActions(content)
       if (!cleanText || cleanText === '...') return
       try {
-        // Stop any ongoing TTS before starting a new one
         await stopVoiceApi().catch(() => {})
-        // Small delay to ensure backend TTS worker has fully stopped
         await new Promise((resolve) => setTimeout(resolve, 150))
-        setSpeakingMessageId(msg.id)
-        
-        // Obter engine TTS atual
+        dispatch({ type: 'SET_SPEAKING', messageId: msg.id })
+
         let engine: string | undefined
         try {
           const { getTTSServiceRenderer } = await import('../services/ttsService')
@@ -472,25 +481,25 @@ export function useChatActions({
             engine = configResponse.data.engine
           }
         } catch {}
-        
+
         await speakTextApi(cleanText, engine)
       } catch (err) {
         console.error('Erro ao sintetizar voz:', err)
-        setSpeakingMessageId(null)
+        dispatch({ type: 'SET_SPEAKING', messageId: null })
       }
     },
-    [setSpeakingMessageId, messagesRef]
+    [dispatch, messagesRef]
   )
 
   const toggleCallMode = useCallback(async () => {
     const newState = !isCallMode
     if (newState) {
       await Promise.allSettled([stopGenerationApi(), stopVoiceApi()])
-      setIsLoading(false)
-      setSpeakingMessageId(null)
+      dispatch({ type: 'SET_LOADING', isLoading: false })
+      dispatch({ type: 'SET_SPEAKING', messageId: null })
     }
-    setIsCallMode(newState)
-    setCallHistory([])
+    dispatch({ type: 'SET_CALL_MODE', enabled: newState })
+    dispatch({ type: 'SET_CALL_HISTORY', updater: () => [] })
     if (!newState) {
       await stopVoice()
     }
@@ -499,11 +508,11 @@ export function useChatActions({
     } catch (err) {
       console.error('Erro ao alterar modo chamada:', err)
     }
-  }, [isCallMode, setIsCallMode, setCallHistory, stopVoice, setIsLoading, setSpeakingMessageId])
+  }, [isCallMode, dispatch, stopVoice])
 
   const handleGraphOption = useCallback(
     (option: string) => {
-      setGraphState((prev: any) => ({ ...prev, view: null }))
+      dispatch({ type: 'SET_GRAPH_STATE', state: { view: null } })
       if (option.toUpperCase() === 'OK') return
       if (option === 'open_extensions_store') {
         window.dispatchEvent(new CustomEvent('momai_open_extensions'))
@@ -516,7 +525,7 @@ export function useChatActions({
       if (option === 'dismiss') return
       sendMessage(option, option.startsWith('__TOOL__:'))
     },
-    [setGraphState, sendMessage]
+    [dispatch, sendMessage]
   )
 
   return {

@@ -8,46 +8,31 @@ function setupHook(initialMessages: Message[] = []) {
 
   const messagesRef = { current: messages }
   const toolTraceRef = {
-    current: { activeMsgId: null as string | null, byToolId: {} as Record<string, { msgId: string; stepIndex: number }> }
+    current: {
+      activeMsgId: null as string | null,
+      byToolId: {} as Record<string, { msgId: string; stepIndex: number }>
+    }
   }
   const isCallModeRef = { current: false }
   const isGraphOpenRef = { current: false }
   const currentGraphOptionsRef = { current: [] as string[] }
 
-  const setMessages = vi.fn((updater: any) => {
-    if (typeof updater === 'function') {
-      messages = updater(messages)
-    } else {
-      messages = updater
+  const dispatch = vi.fn((action: any) => {
+    if (action.type === 'UPDATE_MESSAGES' && typeof action.updater === 'function') {
+      messages = action.updater(messages)
+      messagesRef.current = messages
+    } else if (action.type === 'SET_MESSAGES') {
+      messages = action.messages
+      messagesRef.current = messages
     }
-    messagesRef.current = messages
   })
 
-  const setSpeakingMessageId = vi.fn()
-  const setVoiceStatus = vi.fn()
-  const setVoiceEngineLoading = vi.fn()
-  const setCallHistory = vi.fn()
-  let graphState = { view: null as string | null, content: '', options: [] as string[], optionsMap: {} as Record<string, string>, bypass_wake_word: false, uiSchema: undefined as any }
-  const setGraphState = vi.fn((updater: any) => {
-    if (typeof updater === 'function') {
-      graphState = updater(graphState)
-    } else {
-      graphState = updater
-    }
-  })
-  const setIsLoading = vi.fn()
   const handleGraphOption = vi.fn()
 
   const { result } = renderHook(() =>
     useChatHandlers({
       messagesRef,
-      setMessages,
-      setSpeakingMessageId,
-      setVoiceStatus,
-      setVoiceEngineLoading,
-      setCallHistory,
-      setGraphState,
-      setIsLoading,
+      dispatch,
       toolTraceRef,
       isCallModeRef,
       isGraphOpenRef,
@@ -59,13 +44,7 @@ function setupHook(initialMessages: Message[] = []) {
   return {
     handleWsMessage: result.current.handleWsMessage,
     getMessages: () => messages,
-    setMessages,
-    setSpeakingMessageId,
-    setVoiceStatus,
-    setVoiceEngineLoading,
-    setCallHistory,
-    setGraphState,
-    setIsLoading,
+    dispatch,
     messagesRef,
     toolTraceRef,
     isCallModeRef,
@@ -85,9 +64,14 @@ describe('useChatHandlers', () => {
       const hook = setupHook()
       hook.toolTraceRef.current.activeMsgId = 'active-trace-id'
 
-      act(() => { hook.handleWsMessage({ type: 'tts_start' }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'tts_start' })
+      })
 
-      expect(hook.setSpeakingMessageId).toHaveBeenCalledWith('active-trace-id')
+      expect(hook.dispatch).toHaveBeenCalledWith({
+        type: 'SET_SPEAKING',
+        messageId: 'active-trace-id'
+      })
     })
 
     it('handles tts_start without activeMsgId - uses last assistant id', () => {
@@ -96,21 +80,27 @@ describe('useChatHandlers', () => {
         { id: 'assistant-1', role: 'assistant', content: 'hi' }
       ])
 
-      act(() => { hook.handleWsMessage({ type: 'tts_start' }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'tts_start' })
+      })
 
-      expect(hook.setSpeakingMessageId).toHaveBeenCalledWith('assistant-1')
+      expect(hook.dispatch).toHaveBeenCalledWith({ type: 'SET_SPEAKING', messageId: 'assistant-1' })
     })
 
     it('handles tts_stop', () => {
       const hook = setupHook()
-      act(() => { hook.handleWsMessage({ type: 'tts_stop' }) })
-      expect(hook.setSpeakingMessageId).toHaveBeenCalledWith(null)
+      act(() => {
+        hook.handleWsMessage({ type: 'tts_stop' })
+      })
+      expect(hook.dispatch).toHaveBeenCalledWith({ type: 'SET_SPEAKING', messageId: null })
     })
 
     it('handles voice_status', () => {
       const hook = setupHook()
-      act(() => { hook.handleWsMessage({ type: 'voice_status', status: 'listening' }) })
-      expect(hook.setVoiceStatus).toHaveBeenCalledWith('listening')
+      act(() => {
+        hook.handleWsMessage({ type: 'voice_status', status: 'listening' })
+      })
+      expect(hook.dispatch).toHaveBeenCalledWith({ type: 'SET_VOICE_STATUS', status: 'listening' })
     })
 
     it('handles voice_engine_loading', () => {
@@ -124,10 +114,13 @@ describe('useChatHandlers', () => {
         })
       })
 
-      expect(hook.setVoiceEngineLoading).toHaveBeenCalledWith({
-        loading: true,
-        pendingAutoTts: true,
-        message: 'carregando...'
+      expect(hook.dispatch).toHaveBeenCalledWith({
+        type: 'SET_VOICE_ENGINE_LOADING',
+        data: {
+          loading: true,
+          pendingAutoTts: true,
+          message: 'carregando...'
+        }
       })
 
       vi.useRealTimers()
@@ -144,15 +137,24 @@ describe('useChatHandlers', () => {
         })
       })
 
-      expect(hook.setVoiceEngineLoading).toHaveBeenNthCalledWith(1, {
-        loading: false,
-        pendingAutoTts: false,
-        message: 'Motor de voz carregando... vou reproduzir automaticamente quando estiver pronto.'
+      expect(hook.dispatch).toHaveBeenNthCalledWith(1, {
+        type: 'SET_VOICE_ENGINE_LOADING',
+        data: {
+          loading: false,
+          pendingAutoTts: false,
+          message:
+            'Motor de voz carregando... vou reproduzir automaticamente quando estiver pronto.'
+        }
       })
 
-      act(() => { vi.advanceTimersByTime(3500) })
+      act(() => {
+        vi.advanceTimersByTime(3500)
+      })
 
-      expect(hook.setVoiceEngineLoading).toHaveBeenNthCalledWith(2, null)
+      expect(hook.dispatch).toHaveBeenNthCalledWith(2, {
+        type: 'SET_VOICE_ENGINE_LOADING',
+        data: null
+      })
 
       vi.useRealTimers()
     })
@@ -207,7 +209,11 @@ describe('useChatHandlers', () => {
       act(() => {
         hook.handleWsMessage({
           type: 'tool_result',
-          data: { id: 'tool-err', status: 'error', result: { status: 'error', error: { message: 'Failed' } } }
+          data: {
+            id: 'tool-err',
+            status: 'error',
+            result: { status: 'error', error: { message: 'Failed' } }
+          }
         })
       })
 
@@ -240,13 +246,19 @@ describe('useChatHandlers', () => {
         { id: 'a1', role: 'assistant', content: '...' }
       ])
 
-      act(() => { hook.handleWsMessage({ type: 'assistant', data: { token: 'Hello' } }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'assistant', data: { token: 'Hello' } })
+      })
       expect(hook.getMessages()[1].content).toBe('Hello')
 
-      act(() => { hook.handleWsMessage({ type: 'assistant', data: { token: ' world' } }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'assistant', data: { token: ' world' } })
+      })
       expect(hook.getMessages()[1].content).toBe('Hello world')
 
-      act(() => { hook.handleWsMessage({ type: 'assistant', data: { token: '!' } }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'assistant', data: { token: '!' } })
+      })
       expect(hook.getMessages()[1].content).toBe('Hello world!')
     })
 
@@ -263,8 +275,12 @@ describe('useChatHandlers', () => {
         })
       })
 
-      act(() => { hook.handleWsMessage({ type: 'assistant', data: { token: 'Found: ' } }) })
-      act(() => { hook.handleWsMessage({ type: 'assistant', data: { token: 'result A' } }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'assistant', data: { token: 'Found: ' } })
+      })
+      act(() => {
+        hook.handleWsMessage({ type: 'assistant', data: { token: 'result A' } })
+      })
 
       const messages = hook.getMessages()
       expect(messages[1].content).toContain('TOOL_TEXT::')
@@ -275,8 +291,10 @@ describe('useChatHandlers', () => {
   describe('assistant messages - metadata', () => {
     it('handles assistant done - sets isLoading false', () => {
       const hook = setupHook()
-      act(() => { hook.handleWsMessage({ type: 'assistant', data: { done: true } }) })
-      expect(hook.setIsLoading).toHaveBeenCalledWith(false)
+      act(() => {
+        hook.handleWsMessage({ type: 'assistant', data: { done: true } })
+      })
+      expect(hook.dispatch).toHaveBeenCalledWith({ type: 'SET_LOADING', isLoading: false })
     })
 
     it('handles assistant with active_skill', () => {
@@ -285,7 +303,9 @@ describe('useChatHandlers', () => {
         { id: 'a1', role: 'assistant', content: '...' }
       ])
 
-      act(() => { hook.handleWsMessage({ type: 'assistant', data: { active_skill: 'web_search' } }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'assistant', data: { active_skill: 'web_search' } })
+      })
       expect(hook.getMessages()[1].activeSkill).toBe('web_search')
     })
 
@@ -330,7 +350,9 @@ describe('useChatHandlers', () => {
         { id: 'a1', role: 'assistant', content: '...' }
       ])
 
-      act(() => { hook.handleWsMessage({ type: 'assistant', data: { status: 'thinking' } }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'assistant', data: { status: 'thinking' } })
+      })
       expect(hook.getMessages()[1].activities).toContain('Pensando...')
     })
 
@@ -340,8 +362,12 @@ describe('useChatHandlers', () => {
         { id: 'a1', role: 'assistant', content: '...' }
       ])
 
-      act(() => { hook.handleWsMessage({ type: 'assistant', data: { status: 'thinking' } }) })
-      act(() => { hook.handleWsMessage({ type: 'assistant', data: { status: 'thinking' } }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'assistant', data: { status: 'thinking' } })
+      })
+      act(() => {
+        hook.handleWsMessage({ type: 'assistant', data: { status: 'thinking' } })
+      })
 
       expect(hook.getMessages()[1].activities).toHaveLength(1)
     })
@@ -351,28 +377,34 @@ describe('useChatHandlers', () => {
     it('adds user message and assistant placeholder', () => {
       const hook = setupHook()
 
-      act(() => { hook.handleWsMessage({ type: 'user', content: 'hello world' }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'user', content: 'hello world' })
+      })
 
       const messages = hook.getMessages()
       expect(messages).toHaveLength(2)
       expect(messages[0]).toEqual({ role: 'user', content: 'hello world' })
       expect(messages[1].role).toBe('assistant')
       expect(messages[1].content).toBe('...')
-      expect(hook.setIsLoading).toHaveBeenCalledWith(true)
+      expect(hook.dispatch).toHaveBeenCalledWith({ type: 'SET_LOADING', isLoading: true })
     })
 
     it('sets activeMsgId for subsequent token streaming', () => {
       const hook = setupHook()
 
-      act(() => { hook.handleWsMessage({ type: 'user', content: 'hi' }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'user', content: 'hi' })
+      })
       const msgId = hook.toolTraceRef.current.activeMsgId
       expect(msgId).toBeTruthy()
       expect(typeof msgId).toBe('string')
 
-      act(() => { hook.handleWsMessage({ type: 'assistant', data: { token: 'Hello back' } }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'assistant', data: { token: 'Hello back' } })
+      })
 
       const messages = hook.getMessages()
-      const assistantMsg = messages.find(m => m.role === 'assistant')
+      const assistantMsg = messages.find((m) => m.role === 'assistant')
       expect(assistantMsg?.content).toContain('Hello back')
     })
 
@@ -380,9 +412,13 @@ describe('useChatHandlers', () => {
       const hook = setupHook()
       hook.isCallModeRef.current = true
 
-      act(() => { hook.handleWsMessage({ type: 'user', content: 'hello in call' }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'user', content: 'hello in call' })
+      })
 
-      expect(hook.setCallHistory).toHaveBeenCalled()
+      expect(hook.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'SET_CALL_HISTORY' })
+      )
     })
   })
 
@@ -406,12 +442,15 @@ describe('useChatHandlers', () => {
         })
       })
 
-      expect(hook.setGraphState).toHaveBeenCalledWith({
-        view: 'center',
-        content: 'graph content',
-        options: ['opt1'],
-        optionsMap: { opt1: 'Option 1' },
-        uiSchema: null
+      expect(hook.dispatch).toHaveBeenCalledWith({
+        type: 'SET_GRAPH_STATE',
+        state: {
+          view: 'center',
+          content: 'graph content',
+          options: ['opt1'],
+          optionsMap: { opt1: 'Option 1' },
+          uiSchema: null
+        }
       })
 
       const messages = hook.getMessages()
@@ -428,21 +467,29 @@ describe('useChatHandlers', () => {
         })
       })
 
-      expect(hook.setGraphState).toHaveBeenCalledWith({
-        view: null,
-        content: '',
-        options: [],
-        optionsMap: {},
-        bypass_wake_word: false
+      expect(hook.dispatch).toHaveBeenCalledWith({
+        type: 'SET_GRAPH_STATE',
+        state: {
+          view: null,
+          content: '',
+          options: [],
+          optionsMap: {},
+          bypass_wake_word: false
+        }
       })
     })
 
     it('handles graph_close', () => {
       const hook = setupHook()
 
-      act(() => { hook.handleWsMessage({ type: 'graph_close' }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'graph_close' })
+      })
 
-      expect(hook.setGraphState).toHaveBeenCalled()
+      expect(hook.dispatch).toHaveBeenCalledWith({
+        type: 'SET_GRAPH_STATE',
+        state: { view: null }
+      })
     })
   })
 
@@ -451,17 +498,23 @@ describe('useChatHandlers', () => {
       const hook = setupHook()
       hook.isCallModeRef.current = true
 
-      act(() => { hook.handleWsMessage({ type: 'voice_partial', text: 'partial speech' }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'voice_partial', text: 'partial speech' })
+      })
 
-      expect(hook.setCallHistory).toHaveBeenCalled()
+      expect(hook.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'SET_CALL_HISTORY' })
+      )
     })
 
     it('ignores voice_partial outside call mode', () => {
       const hook = setupHook()
 
-      act(() => { hook.handleWsMessage({ type: 'voice_partial', text: 'partial speech' }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'voice_partial', text: 'partial speech' })
+      })
 
-      expect(hook.setCallHistory).not.toHaveBeenCalled()
+      expect(hook.dispatch).not.toHaveBeenCalled()
     })
   })
 
@@ -469,21 +522,27 @@ describe('useChatHandlers', () => {
     it('handles init_progress without crashing', () => {
       const hook = setupHook()
       expect(() => {
-        act(() => { hook.handleWsMessage({ type: 'init_progress', data: { stage: 'loading', progress: 50 } }) })
+        act(() => {
+          hook.handleWsMessage({ type: 'init_progress', data: { stage: 'loading', progress: 50 } })
+        })
       }).not.toThrow()
     })
 
     it('handles forscript_event without crashing', () => {
       const hook = setupHook()
       expect(() => {
-        act(() => { hook.handleWsMessage({ type: 'fortscript_event', data: { event: 'test' } }) })
+        act(() => {
+          hook.handleWsMessage({ type: 'fortscript_event', data: { event: 'test' } })
+        })
       }).not.toThrow()
     })
 
     it('handles model_changed without crashing', () => {
       const hook = setupHook()
       expect(() => {
-        act(() => { hook.handleWsMessage({ type: 'model_changed', data: { new_mode: 'fast' } }) })
+        act(() => {
+          hook.handleWsMessage({ type: 'model_changed', data: { new_mode: 'fast' } })
+        })
       }).not.toThrow()
     })
   })
@@ -492,14 +551,18 @@ describe('useChatHandlers', () => {
     it('handles unknown message types gracefully', () => {
       const hook = setupHook()
       expect(() => {
-        act(() => { hook.handleWsMessage({ type: 'unknown_type', data: { foo: 'bar' } }) })
+        act(() => {
+          hook.handleWsMessage({ type: 'unknown_type', data: { foo: 'bar' } })
+        })
       }).not.toThrow()
     })
 
     it('handles assistant token when no assistant message exists', () => {
       const hook = setupHook([{ role: 'user', content: 'hello' }])
 
-      act(() => { hook.handleWsMessage({ type: 'assistant', data: { token: 'orphan token' } }) })
+      act(() => {
+        hook.handleWsMessage({ type: 'assistant', data: { token: 'orphan token' } })
+      })
 
       const messages = hook.getMessages()
       expect(messages).toHaveLength(1)

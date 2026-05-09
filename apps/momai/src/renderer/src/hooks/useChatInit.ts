@@ -1,20 +1,13 @@
 import { useEffect } from 'react'
 import { fetchChatHistory } from '../services/api'
-import { Message } from '../services/api'
+import type { ChatAction } from './chatReducer'
 
 interface UseChatInitProps {
   threadId: string
-  setMessages: React.Dispatch<React.SetStateAction<Message[]>>
-  setIsHistoryLoaded: React.Dispatch<React.SetStateAction<boolean>>
-  setThreadId: React.Dispatch<React.SetStateAction<string>>
+  dispatch: React.Dispatch<ChatAction>
 }
 
-export function useChatInit({
-  threadId,
-  setMessages,
-  setIsHistoryLoaded,
-  setThreadId
-}: UseChatInitProps) {
+export function useChatInit({ threadId, dispatch }: UseChatInitProps) {
   useEffect(() => {
     let retries = 0
     const maxRetries = 5
@@ -26,8 +19,8 @@ export function useChatInit({
           ...msg,
           isGraph: msg.role === 'assistant' && !!msg.graphData
         }))
-        setMessages(processedHistory)
-        setIsHistoryLoaded(true)
+        dispatch({ type: 'SET_MESSAGES', messages: processedHistory })
+        dispatch({ type: 'SET_HISTORY_LOADED', loaded: true })
       } catch (err) {
         retries++
         if (retries < maxRetries) {
@@ -35,18 +28,18 @@ export function useChatInit({
           setTimeout(loadHistory, delay)
         } else {
           console.error('Erro ao carregar histórico:', err)
-          setIsHistoryLoaded(true)
+          dispatch({ type: 'SET_HISTORY_LOADED', loaded: true })
         }
       }
     }
 
     loadHistory()
-  }, [threadId, setMessages, setIsHistoryLoaded])
+  }, [threadId, dispatch])
 
   useEffect(() => {
-    const handleClear = () => setMessages([])
+    const handleClear = () => dispatch({ type: 'SET_MESSAGES', messages: [] })
     const handleNewSession = () => {
-      setThreadId(`sessao_${Date.now()}`)
+      dispatch({ type: 'SET_THREAD_ID', threadId: `sessao_${Date.now()}` })
     }
 
     window.addEventListener('momai_clear_history', handleClear)
@@ -56,5 +49,5 @@ export function useChatInit({
       window.removeEventListener('momai_clear_history', handleClear)
       window.removeEventListener('momai_new_session', handleNewSession)
     }
-  }, [setMessages, setThreadId])
+  }, [dispatch])
 }

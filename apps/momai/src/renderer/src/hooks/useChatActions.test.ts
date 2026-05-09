@@ -11,18 +11,18 @@ vi.mock('../services/api', () => ({
   deleteMessage: vi.fn(),
   speakText: vi.fn(),
   setCallMode: vi.fn(),
-  generateSessionTitle: vi.fn(),
+  generateSessionTitle: vi.fn()
 }))
 
 vi.mock('../utils/chatUtils', () => ({
   createAssistantMessageId: vi.fn(),
   isToolTraceMessage: vi.fn(),
   splitToolTraceContent: vi.fn(),
-  buildToolTraceContent: vi.fn(),
+  buildToolTraceContent: vi.fn()
 }))
 
 vi.mock('../utils/text', () => ({
-  cleanMomaiActions: vi.fn(),
+  cleanMomaiActions: vi.fn()
 }))
 
 import { useChatActions } from './useChatActions'
@@ -32,13 +32,11 @@ import {
   clearChatHistory,
   stopVoice,
   stopGeneration,
-  generateSessionTitle,
+  generateSessionTitle
 } from '../services/api'
-import {
-  createAssistantMessageId,
-  isToolTraceMessage,
-} from '../utils/chatUtils'
+import { createAssistantMessageId, isToolTraceMessage } from '../utils/chatUtils'
 import { cleanMomaiActions } from '../utils/text'
+import type { Message } from '../services/api'
 
 function createMockRef<T>(initial: T) {
   return { current: initial }
@@ -48,17 +46,12 @@ function createDefaultProps() {
   return {
     threadId: 'test-thread-id',
     currentThreadRef: createMockRef('test-thread-id'),
-    messagesRef: createMockRef([]),
-    setMessages: vi.fn(),
-    setIsLoading: vi.fn(),
-    setSpeakingMessageId: vi.fn(),
-    setCallHistory: vi.fn(),
+    messagesRef: createMockRef<Message[]>([]),
+    dispatch: vi.fn(),
     toolTraceRef: createMockRef({ activeMsgId: null, byToolId: {} }),
-    setGraphState: vi.fn(),
     isCallMode: false,
-    setIsCallMode: vi.fn(),
     isCallModeRef: createMockRef(false),
-    setText: vi.fn(),
+    setText: vi.fn()
   }
 }
 
@@ -89,8 +82,10 @@ describe('useChatActions', () => {
         await result.current.sendMessage('hello')
       })
 
-      expect(props.setMessages).toHaveBeenCalledWith(expect.any(Function))
-      expect(props.setIsLoading).toHaveBeenCalledWith(true)
+      expect(props.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'UPDATE_MESSAGES' })
+      )
+      expect(props.dispatch).toHaveBeenCalledWith({ type: 'SET_LOADING', isLoading: true })
       expect(props.setText).toHaveBeenCalledWith('')
       expect(sendChatMessage).toHaveBeenCalled()
       expect(createAssistantMessageId).toHaveBeenCalled()
@@ -133,8 +128,8 @@ describe('useChatActions', () => {
           title: 'Test Note',
           path: '/test',
           text: 'Relevant content about the query',
-          score: 0.95,
-        },
+          score: 0.95
+        }
       ])
 
       const { result } = renderHook(() => useChatActions(props))
@@ -149,7 +144,7 @@ describe('useChatActions', () => {
         expect.any(String),
         expect.any(Object),
         expect.objectContaining({
-          memory_context: expect.stringContaining('CONHECIMENTO (NOTAS LOCAIS)'),
+          memory_context: expect.stringContaining('CONHECIMENTO (NOTAS LOCAIS)')
         })
       )
     })
@@ -162,7 +157,7 @@ describe('useChatActions', () => {
         title: `Note ${i % 3}`,
         path: '/test',
         text: `Content ${i}`,
-        score: 0.9 - i * 0.1,
+        score: 0.9 - i * 0.1
       }))
 
       ;(searchMemory as Mock).mockResolvedValue(hits)
@@ -201,10 +196,11 @@ describe('useChatActions', () => {
         await result.current.sendMessage('hello', false, true)
       })
 
-      const setMessagesCalls = (props.setMessages as Mock).mock.calls
-      const addUserMessageCall = setMessagesCalls.find(([arg]) => {
-        if (typeof arg === 'function') {
-          const result = arg([])
+      const dispatchCalls = (props.dispatch as Mock).mock.calls
+      const addUserMessageCall = dispatchCalls.find((args: any[]) => {
+        const action = args[0]
+        if (action.type === 'UPDATE_MESSAGES' && typeof action.updater === 'function') {
+          const result = action.updater([])
           return result.length > 0 && result[0].role === 'user'
         }
         return false
@@ -221,11 +217,11 @@ describe('useChatActions', () => {
         await result.current.sendMessage('silent command', true)
       })
 
-      expect(props.setIsLoading).not.toHaveBeenCalled()
+      expect(props.dispatch).not.toHaveBeenCalledWith({ type: 'SET_LOADING', isLoading: true })
       expect(sendChatMessage).toHaveBeenCalled()
     })
 
-    it('sets setIsLoading true on send and false on done', async () => {
+    it('sets SET_LOADING true on send and false on done', async () => {
       const props = createDefaultProps()
       const { result } = renderHook(() => useChatActions(props))
 
@@ -233,8 +229,8 @@ describe('useChatActions', () => {
         await result.current.sendMessage('hello')
       })
 
-      expect(props.setIsLoading).toHaveBeenNthCalledWith(1, true)
-      expect(props.setIsLoading).toHaveBeenLastCalledWith(false)
+      expect(props.dispatch).toHaveBeenCalledWith({ type: 'SET_LOADING', isLoading: true })
+      expect(props.dispatch).toHaveBeenCalledWith({ type: 'SET_LOADING', isLoading: false })
     })
 
     it('handles API errors gracefully', async () => {
@@ -247,7 +243,7 @@ describe('useChatActions', () => {
         await result.current.sendMessage('hello')
       })
 
-      expect(props.setIsLoading).toHaveBeenLastCalledWith(false)
+      expect(props.dispatch).toHaveBeenCalledWith({ type: 'SET_LOADING', isLoading: false })
     })
   })
 
@@ -262,7 +258,9 @@ describe('useChatActions', () => {
         await result.current.sendMessage('hello in call mode')
       })
 
-      expect(props.setCallHistory).toHaveBeenCalled()
+      expect(props.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'SET_CALL_HISTORY' })
+      )
     })
 
     it('trims callHistory to last 5 entries', async () => {
@@ -274,13 +272,16 @@ describe('useChatActions', () => {
         await result.current.sendMessage('hello')
       })
 
-      const lastCall = (props.setCallHistory as Mock).mock.calls.at(-1)
+      const lastCall = (props.dispatch as Mock).mock.calls
+        .filter((args: any[]) => args[0]?.type === 'SET_CALL_HISTORY')
+        .pop()
       expect(lastCall).toBeDefined()
-      const updater = lastCall![0] as (prev: any[]) => any[]
+      const action = lastCall![0]
+      const updater = action.updater as (prev: any[]) => any[]
       const longHistory = Array.from({ length: 7 }, (_, i) => ({
         id: `u${i}`,
         role: 'user' as const,
-        content: `msg ${i}`,
+        content: `msg ${i}`
       }))
       const trimmed = updater(longHistory)
       expect(trimmed.length).toBe(5)
@@ -293,7 +294,7 @@ describe('useChatActions', () => {
       const props = createDefaultProps()
       props.messagesRef.current = [
         { role: 'user', content: 'original question' },
-        { role: 'assistant', content: 'original answer' },
+        { role: 'assistant', content: 'original answer' }
       ]
 
       const { result } = renderHook(() => useChatActions(props))
@@ -303,7 +304,7 @@ describe('useChatActions', () => {
       })
 
       expect(stopVoice).toHaveBeenCalled()
-      expect(props.setSpeakingMessageId).toHaveBeenCalledWith(null)
+      expect(props.dispatch).toHaveBeenCalledWith({ type: 'SET_SPEAKING', messageId: null })
       expect(sendChatMessage).toHaveBeenCalledWith(
         'original question',
         expect.any(String),
@@ -316,7 +317,7 @@ describe('useChatActions', () => {
       const props = createDefaultProps()
       props.messagesRef.current = [
         { role: 'user', content: 'question' },
-        { role: 'assistant', content: 'answer' },
+        { role: 'assistant', content: 'answer' }
       ]
 
       const { result } = renderHook(() => useChatActions(props))
@@ -352,12 +353,15 @@ describe('useChatActions', () => {
         await result.current.handleClear()
       })
 
-      expect(props.setMessages).toHaveBeenCalledWith([])
-      expect(props.setSpeakingMessageId).toHaveBeenCalledWith(null)
-      expect(props.setCallHistory).toHaveBeenCalledWith([])
+      expect(props.dispatch).toHaveBeenCalledWith({ type: 'SET_MESSAGES', messages: [] })
+      expect(props.dispatch).toHaveBeenCalledWith({ type: 'SET_SPEAKING', messageId: null })
+      expect(props.dispatch).toHaveBeenCalledWith({
+        type: 'SET_CALL_HISTORY',
+        updater: expect.any(Function)
+      })
       expect(props.toolTraceRef.current).toEqual({
         activeMsgId: null,
-        byToolId: {},
+        byToolId: {}
       })
       expect(clearChatHistory).toHaveBeenCalledWith('test-thread-id')
       expect(stopVoice).toHaveBeenCalled()
@@ -376,7 +380,7 @@ describe('useChatActions', () => {
 
       expect(stopGeneration).toHaveBeenCalled()
       expect(stopVoice).toHaveBeenCalled()
-      expect(props.setIsLoading).toHaveBeenCalledWith(false)
+      expect(props.dispatch).toHaveBeenCalledWith({ type: 'SET_LOADING', isLoading: false })
     })
 
     it('handles errors without throwing', async () => {
@@ -389,7 +393,7 @@ describe('useChatActions', () => {
         await result.current.stopGeneration()
       })
 
-      expect(props.setIsLoading).toHaveBeenCalledWith(false)
+      expect(props.dispatch).toHaveBeenCalledWith({ type: 'SET_LOADING', isLoading: false })
     })
   })
 
@@ -404,8 +408,11 @@ describe('useChatActions', () => {
         await result.current.toggleCallMode()
       })
 
-      expect(props.setIsCallMode).toHaveBeenCalledWith(true)
-      expect(props.setCallHistory).toHaveBeenCalledWith([])
+      expect(props.dispatch).toHaveBeenCalledWith({ type: 'SET_CALL_MODE', enabled: true })
+      expect(props.dispatch).toHaveBeenCalledWith({
+        type: 'SET_CALL_HISTORY',
+        updater: expect.any(Function)
+      })
     })
 
     it('toggles call mode off and stops voice', async () => {
@@ -418,8 +425,11 @@ describe('useChatActions', () => {
         await result.current.toggleCallMode()
       })
 
-      expect(props.setIsCallMode).toHaveBeenCalledWith(false)
-      expect(props.setCallHistory).toHaveBeenCalledWith([])
+      expect(props.dispatch).toHaveBeenCalledWith({ type: 'SET_CALL_MODE', enabled: false })
+      expect(props.dispatch).toHaveBeenCalledWith({
+        type: 'SET_CALL_HISTORY',
+        updater: expect.any(Function)
+      })
       expect(stopVoice).toHaveBeenCalled()
     })
   })
@@ -434,7 +444,10 @@ describe('useChatActions', () => {
         await result.current.handleGraphOption('tell me more')
       })
 
-      expect(props.setGraphState).toHaveBeenCalled()
+      expect(props.dispatch).toHaveBeenCalledWith({
+        type: 'SET_GRAPH_STATE',
+        state: { view: null }
+      })
       expect(sendChatMessage).toHaveBeenCalledWith(
         'tell me more',
         expect.any(String),
@@ -476,9 +489,7 @@ describe('useChatActions', () => {
   describe('removeMessage', () => {
     it('removes a message by index', async () => {
       const props = createDefaultProps()
-      props.messagesRef.current = [
-        { id: '1', role: 'user', content: 'hi' },
-      ]
+      props.messagesRef.current = [{ id: '1', role: 'user', content: 'hi' }]
 
       const { result } = renderHook(() => useChatActions(props))
 
@@ -486,15 +497,14 @@ describe('useChatActions', () => {
         await result.current.removeMessage(0)
       })
 
-      expect(props.setMessages).toHaveBeenCalledWith(expect.any(Function))
+      expect(props.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'UPDATE_MESSAGES' })
+      )
     })
 
     it('does nothing for out-of-bounds index', async () => {
       const props = createDefaultProps()
-      props.messagesRef.current = [
-        { id: '1', role: 'user', content: 'hi' },
-      ]
-      const originalSetMessages = props.setMessages
+      props.messagesRef.current = [{ id: '1', role: 'user', content: 'hi' }]
 
       const { result } = renderHook(() => useChatActions(props))
 
@@ -502,7 +512,9 @@ describe('useChatActions', () => {
         await result.current.removeMessage(99)
       })
 
-      expect(originalSetMessages).toHaveBeenCalledWith(expect.any(Function))
+      expect(props.dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'UPDATE_MESSAGES' })
+      )
     })
   })
 })

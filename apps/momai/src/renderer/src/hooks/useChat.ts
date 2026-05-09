@@ -14,25 +14,15 @@ export function useChat() {
   const chatState = useChatState()
   const {
     messages,
-    setMessages,
     isLoading,
-    setIsLoading,
     threadId,
-    setThreadId,
     isHistoryLoaded,
-    setIsHistoryLoaded,
     speakingMessageId,
-    setSpeakingMessageId,
     isCallMode,
-    setIsCallMode,
     voiceStatus,
-    setVoiceStatus,
     voiceEngineLoading,
-    setVoiceEngineLoading,
     callHistory,
-    setCallHistory,
     graphState,
-    setGraphState,
     messagesRef,
     currentThreadRef,
     isCallModeRef,
@@ -40,22 +30,31 @@ export function useChat() {
     isGraphOpenRef,
     toolTraceRef,
     animationFinished,
-    setAnimationFinished
+    dispatch
   } = chatState
+
+  const setThreadId = useCallback(
+    (id: string) => {
+      dispatch({ type: 'SET_THREAD_ID', threadId: id })
+    },
+    [dispatch]
+  )
+
+  const setAnimationFinished = useCallback(
+    (finished: boolean) => {
+      dispatch({ type: 'SET_ANIMATION_FINISHED', finished })
+    },
+    [dispatch]
+  )
 
   // 1. Actions Hook
   const actions = useChatActions({
     threadId,
     currentThreadRef,
     messagesRef,
-    setMessages,
-    setIsLoading,
-    setSpeakingMessageId,
-    setCallHistory,
+    dispatch,
     toolTraceRef,
-    setGraphState,
     isCallMode,
-    setIsCallMode,
     isCallModeRef,
     setText
   })
@@ -63,13 +62,7 @@ export function useChat() {
   // 2. Handlers Hook
   const { handleWsMessage } = useChatHandlers({
     messagesRef,
-    setMessages,
-    setSpeakingMessageId,
-    setVoiceStatus,
-    setVoiceEngineLoading,
-    setCallHistory,
-    setGraphState,
-    setIsLoading,
+    dispatch,
     toolTraceRef,
     isCallModeRef,
     isGraphOpenRef,
@@ -86,9 +79,7 @@ export function useChat() {
   // 4. Initialization Hook
   useChatInit({
     threadId,
-    setMessages,
-    setIsHistoryLoaded,
-    setThreadId
+    dispatch
   })
 
   // Listen for backend online to connect WS if not connected
@@ -121,14 +112,14 @@ export function useChat() {
 
   const reopenGraph = useCallback(
     (data: any) => {
-      setGraphState(data)
+      dispatch({ type: 'SET_GRAPH_STATE', state: data })
     },
-    [setGraphState]
+    [dispatch]
   )
 
   const closeGraph = useCallback(() => {
-    setGraphState((prev: any) => ({ ...prev, view: null }))
-  }, [setGraphState])
+    dispatch({ type: 'SET_GRAPH_STATE', state: { view: null } })
+  }, [dispatch])
 
   // ESC to close graph
   useEffect(() => {
@@ -145,21 +136,19 @@ export function useChat() {
     const tts = getTTSServiceRenderer()
 
     const handleSpeakingStart = () => {
-      setSpeakingMessageId((prev) => {
-        if (prev !== null) return prev
-        const msgs = messagesRef.current
-        for (let i = msgs.length - 1; i >= 0; i--) {
-          const msg = msgs[i]
-          if (msg.role === 'assistant' && msg.id) {
-            return msg.id
-          }
+      const msgs = messagesRef.current
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const msg = msgs[i]
+        if (msg.role === 'assistant' && msg.id) {
+          dispatch({ type: 'SET_SPEAKING', messageId: msg.id })
+          return
         }
-        return 'tts-active'
-      })
+      }
+      dispatch({ type: 'SET_SPEAKING', messageId: 'tts-active' })
     }
 
     const handleSpeakingEnd = () => {
-      setSpeakingMessageId(null)
+      dispatch({ type: 'SET_SPEAKING', messageId: null })
     }
 
     tts.on('speaking-start', handleSpeakingStart)
@@ -169,21 +158,26 @@ export function useChat() {
       tts.off('speaking-start', handleSpeakingStart)
       tts.off('speaking-end', handleSpeakingEnd)
     }
-  }, [setSpeakingMessageId])
+  }, [dispatch, messagesRef])
 
   // Reset states on new session (e.g. tier change)
   useEffect(() => {
     const handleNewSession = () => {
-      setThreadId(`sessao_${Date.now()}`)
-      setMessages([])
-      setIsLoading(false)
-      setSpeakingMessageId(null)
-      setVoiceStatus('idle')
-      setVoiceEngineLoading(null)
+      dispatch({
+        type: 'BATCH_UPDATE',
+        updates: {
+          threadId: `sessao_${Date.now()}`,
+          messages: [],
+          isLoading: false,
+          speakingMessageId: null,
+          voiceStatus: 'idle',
+          voiceEngineLoading: null
+        }
+      })
     }
     window.addEventListener('momai_new_session', handleNewSession)
     return () => window.removeEventListener('momai_new_session', handleNewSession)
-  }, [setThreadId, setMessages, setIsLoading, setSpeakingMessageId, setVoiceStatus])
+  }, [dispatch])
 
   useEffect(() => {
     const handleDevExecTrace = (event: Event) => {
@@ -193,59 +187,64 @@ export function useChat() {
 
       if (detail.phase === 'start') {
         const summary = String(detail.summary || 'Aplicando alteracao solicitada')
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: traceId,
-            role: 'assistant',
-            content: '',
-            toolSteps: [
-              {
-                tool: 'confirm_mutation',
-                name: 'confirm_mutation',
-                description: summary,
-                status: 'running',
-                started_at: new Date().toISOString()
-              }
-            ]
-          }
-        ])
+        dispatch({
+          type: 'UPDATE_MESSAGES',
+          updater: (prev) => [
+            ...prev,
+            {
+              id: traceId,
+              role: 'assistant',
+              content: '',
+              toolSteps: [
+                {
+                  tool: 'confirm_mutation',
+                  name: 'confirm_mutation',
+                  description: summary,
+                  status: 'running',
+                  started_at: new Date().toISOString()
+                }
+              ]
+            }
+          ]
+        })
         return
       }
 
       if (detail.phase === 'done' || detail.phase === 'error') {
         const doneStatus = detail.phase === 'done' ? 'success' : 'error'
         const message = String(detail.message || '')
-        setMessages((prev) =>
-          prev.map((msg) => {
-            if (msg.id !== traceId) return msg
-            const prevSteps = Array.isArray(msg.toolSteps) ? msg.toolSteps : []
-            const nextSteps = prevSteps.length
-              ? prevSteps.map((step: any) => ({ ...step, status: doneStatus }))
-              : [
-                  {
-                    tool: 'confirm_mutation',
-                    name: 'confirm_mutation',
-                    description: 'Confirmacao de alteracao',
-                    status: doneStatus,
-                    started_at: new Date().toISOString()
-                  }
-                ]
-            return {
-              ...msg,
-              content: message,
-              toolSteps: nextSteps,
-              structuredResponse: detail.structuredResponse || msg.structuredResponse
-            }
-          })
-        )
+        dispatch({
+          type: 'UPDATE_MESSAGES',
+          updater: (prev) =>
+            prev.map((msg) => {
+              if (msg.id !== traceId) return msg
+              const prevSteps = Array.isArray(msg.toolSteps) ? msg.toolSteps : []
+              const nextSteps = prevSteps.length
+                ? prevSteps.map((step: any) => ({ ...step, status: doneStatus }))
+                : [
+                    {
+                      tool: 'confirm_mutation',
+                      name: 'confirm_mutation',
+                      description: 'Confirmacao de alteracao',
+                      status: doneStatus,
+                      started_at: new Date().toISOString()
+                    }
+                  ]
+              return {
+                ...msg,
+                content: message,
+                toolSteps: nextSteps,
+                structuredResponse: detail.structuredResponse || msg.structuredResponse
+              }
+            })
+        })
       }
     }
 
     window.addEventListener('momai_dev_exec_trace', handleDevExecTrace as EventListener)
     return () =>
       window.removeEventListener('momai_dev_exec_trace', handleDevExecTrace as EventListener)
-  }, [setMessages])
+  }, [dispatch])
 
   return {
     text,

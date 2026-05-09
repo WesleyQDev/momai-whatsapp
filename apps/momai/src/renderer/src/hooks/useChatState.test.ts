@@ -34,7 +34,7 @@ describe('useChatState', () => {
     expect(result.current.threadId).toMatch(/^sessao_\d{13,}$/)
   })
 
-  it('setMessages replaces messages', () => {
+  it('dispatches SET_MESSAGES to replace messages', () => {
     const { result } = renderHook(() => useChatState())
     const msgs: Message[] = [
       { role: 'user', content: 'hello' },
@@ -42,7 +42,7 @@ describe('useChatState', () => {
     ]
 
     act(() => {
-      result.current.setMessages(msgs)
+      result.current.dispatch({ type: 'SET_MESSAGES', messages: msgs })
     })
 
     expect(result.current.messages).toHaveLength(2)
@@ -50,16 +50,19 @@ describe('useChatState', () => {
     expect(result.current.messages[1]).toEqual({ role: 'assistant', content: 'hi there' })
   })
 
-  it('adds a message via setMessages callback', () => {
+  it('dispatches APPEND_MESSAGE to add a message', () => {
     const { result } = renderHook(() => useChatState())
     const msg: Message = { role: 'user', content: 'first' }
 
     act(() => {
-      result.current.setMessages([msg])
+      result.current.dispatch({ type: 'APPEND_MESSAGE', message: msg })
     })
 
     act(() => {
-      result.current.setMessages((prev) => [...prev, { role: 'assistant', content: 'response' }])
+      result.current.dispatch({
+        type: 'UPDATE_MESSAGES',
+        updater: (prev) => [...prev, { role: 'assistant', content: 'response' }]
+      })
     })
 
     expect(result.current.messages).toHaveLength(2)
@@ -67,124 +70,130 @@ describe('useChatState', () => {
     expect(result.current.messages[1].content).toBe('response')
   })
 
-  it('clearMessages empties messages', () => {
+  it('dispatches SET_MESSAGES with empty array to clear', () => {
     const { result } = renderHook(() => useChatState())
 
     act(() => {
-      result.current.setMessages([
-        { role: 'user', content: 'a' },
-        { role: 'assistant', content: 'b' }
-      ])
+      result.current.dispatch({
+        type: 'SET_MESSAGES',
+        messages: [
+          { role: 'user', content: 'a' },
+          { role: 'assistant', content: 'b' }
+        ]
+      })
     })
 
     act(() => {
-      result.current.setMessages([])
+      result.current.dispatch({ type: 'SET_MESSAGES', messages: [] })
     })
 
     expect(result.current.messages).toEqual([])
   })
 
-  it('setLoading changes loading state', () => {
+  it('dispatches SET_LOADING changes loading state', () => {
     const { result } = renderHook(() => useChatState())
 
     act(() => {
-      result.current.setIsLoading(true)
+      result.current.dispatch({ type: 'SET_LOADING', isLoading: true })
     })
     expect(result.current.isLoading).toBe(true)
 
     act(() => {
-      result.current.setIsLoading(false)
+      result.current.dispatch({ type: 'SET_LOADING', isLoading: false })
     })
     expect(result.current.isLoading).toBe(false)
   })
 
-  it('toggles isCallMode', () => {
+  it('dispatches SET_CALL_MODE toggles isCallMode', () => {
     const { result } = renderHook(() => useChatState())
 
     act(() => {
-      result.current.setIsCallMode(true)
+      result.current.dispatch({ type: 'SET_CALL_MODE', enabled: true })
     })
     expect(result.current.isCallMode).toBe(true)
 
     act(() => {
-      result.current.setIsCallMode(false)
+      result.current.dispatch({ type: 'SET_CALL_MODE', enabled: false })
     })
     expect(result.current.isCallMode).toBe(false)
   })
 
-  it('toggles isHistoryLoaded', () => {
+  it('dispatches SET_HISTORY_LOADED toggles isHistoryLoaded', () => {
     const { result } = renderHook(() => useChatState())
 
     act(() => {
-      result.current.setIsHistoryLoaded(true)
+      result.current.dispatch({ type: 'SET_HISTORY_LOADED', loaded: true })
     })
     expect(result.current.isHistoryLoaded).toBe(true)
   })
 
-  it('updates speakingMessageId', () => {
+  it('dispatches SET_SPEAKING updates speakingMessageId', () => {
     const { result } = renderHook(() => useChatState())
 
     act(() => {
-      result.current.setSpeakingMessageId('msg-123')
+      result.current.dispatch({ type: 'SET_SPEAKING', messageId: 'msg-123' })
     })
     expect(result.current.speakingMessageId).toBe('msg-123')
   })
 
-  it('updates voiceStatus', () => {
+  it('dispatches SET_VOICE_STATUS updates voiceStatus', () => {
     const { result } = renderHook(() => useChatState())
 
     act(() => {
-      result.current.setVoiceStatus('listening')
+      result.current.dispatch({ type: 'SET_VOICE_STATUS', status: 'listening' })
     })
     expect(result.current.voiceStatus).toBe('listening')
 
     act(() => {
-      result.current.setVoiceStatus('processing')
+      result.current.dispatch({ type: 'SET_VOICE_STATUS', status: 'processing' })
     })
     expect(result.current.voiceStatus).toBe('processing')
 
     act(() => {
-      result.current.setVoiceStatus('idle')
+      result.current.dispatch({ type: 'SET_VOICE_STATUS', status: 'idle' })
     })
     expect(result.current.voiceStatus).toBe('idle')
   })
 
-  it('updates voiceEngineLoading', () => {
+  it('dispatches SET_VOICE_ENGINE_LOADING updates voiceEngineLoading', () => {
     const { result } = renderHook(() => useChatState())
     const state = { loading: true, pendingAutoTts: false, message: 'loading engine' }
 
     act(() => {
-      result.current.setVoiceEngineLoading(state)
+      result.current.dispatch({ type: 'SET_VOICE_ENGINE_LOADING', data: state })
     })
     expect(result.current.voiceEngineLoading).toEqual(state)
 
     act(() => {
-      result.current.setVoiceEngineLoading(null)
+      result.current.dispatch({ type: 'SET_VOICE_ENGINE_LOADING', data: null })
     })
     expect(result.current.voiceEngineLoading).toBeNull()
   })
 
-  it('updates callHistory', () => {
+  it('dispatches SET_CALL_HISTORY updates callHistory', () => {
     const { result } = renderHook(() => useChatState())
     const entry = { id: '1', role: 'user' as const, content: 'hello' }
 
     act(() => {
-      result.current.setCallHistory([entry])
+      result.current.dispatch({ type: 'SET_CALL_HISTORY', updater: () => [entry] })
     })
     expect(result.current.callHistory).toHaveLength(1)
     expect(result.current.callHistory[0]).toEqual(entry)
   })
 
-  it('updates graphState', () => {
+  it('dispatches SET_GRAPH_STATE updates graphState', () => {
     const { result } = renderHook(() => useChatState())
 
     act(() => {
-      result.current.setGraphState({
-        view: 'center',
-        content: 'test',
-        options: ['opt1'],
-        optionsMap: { opt1: 'Option 1' },
-        bypass_wake_word: true
+      result.current.dispatch({
+        type: 'SET_GRAPH_STATE',
+        state: {
+          view: 'center',
+          content: 'test',
+          options: ['opt1'],
+          optionsMap: { opt1: 'Option 1' },
+          bypass_wake_word: true
+        }
       })
     })
 
@@ -194,11 +203,11 @@ describe('useChatState', () => {
     expect(result.current.graphState.bypass_wake_word).toBe(true)
   })
 
-  it('updates animationFinished', () => {
+  it('dispatches SET_ANIMATION_FINISHED updates animationFinished', () => {
     const { result } = renderHook(() => useChatState())
 
     act(() => {
-      result.current.setAnimationFinished(true)
+      result.current.dispatch({ type: 'SET_ANIMATION_FINISHED', finished: true })
     })
     expect(result.current.animationFinished).toBe(true)
   })

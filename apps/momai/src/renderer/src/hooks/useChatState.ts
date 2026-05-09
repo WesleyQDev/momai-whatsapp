@@ -1,43 +1,15 @@
-import { useState, useRef, useEffect } from 'react'
-import { Message } from '../services/api'
+import { useReducer, useRef, useEffect } from 'react'
+import type { Message } from '../services/api'
+import { chatReducer, initialChatState, type GraphState } from './chatReducer'
 
-export interface GraphState {
-  view: 'center' | 'side' | null
-  content: string
-  options: string[]
-  optionsMap?: Record<string, string>
-  uiSchema?: any
-  bypass_wake_word?: boolean
-}
+export type { GraphState }
 
 export function useChatState() {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [threadId, setThreadId] = useState(() => `sessao_${Date.now()}`)
-  const [isHistoryLoaded, setIsHistoryLoaded] = useState(false)
-  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null)
-  const [isCallMode, setIsCallMode] = useState(false)
-  const [voiceStatus, setVoiceStatus] = useState<'idle' | 'listening' | 'processing'>('idle')
-  const [voiceEngineLoading, setVoiceEngineLoading] = useState<{
-    loading: boolean
-    pendingAutoTts: boolean
-    message: string
-  } | null>(null)
-  const [callHistory, setCallHistory] = useState<
-    { id: string; role: 'user' | 'assistant'; content: string }[]
-  >([])
-
-  const [graphState, setGraphState] = useState<GraphState>({
-    view: null,
-    content: '',
-    options: [],
-    optionsMap: {},
-    bypass_wake_word: false
-  })
+  const [chat, dispatch] = useReducer(chatReducer, initialChatState)
 
   const messagesRef = useRef<Message[]>([])
-  const currentThreadRef = useRef(threadId)
-  const isCallModeRef = useRef(isCallMode)
+  const currentThreadRef = useRef(chat.threadId)
+  const isCallModeRef = useRef(chat.isCallMode)
   const currentGraphOptionsRef = useRef<string[]>([])
   const isGraphOpenRef = useRef<boolean>(false)
   const toolTraceRef = useRef<{
@@ -46,52 +18,27 @@ export function useChatState() {
   }>({ activeMsgId: null, byToolId: {} })
 
   useEffect(() => {
-    messagesRef.current = messages
-  }, [messages])
-
+    messagesRef.current = chat.messages
+  }, [chat.messages])
   useEffect(() => {
-    currentThreadRef.current = threadId
-  }, [threadId])
-
+    currentThreadRef.current = chat.threadId
+  }, [chat.threadId])
   useEffect(() => {
-    isCallModeRef.current = isCallMode
-  }, [isCallMode])
-
+    isCallModeRef.current = chat.isCallMode
+  }, [chat.isCallMode])
   useEffect(() => {
-    currentGraphOptionsRef.current = graphState.options
-    isGraphOpenRef.current = graphState.view !== null
-  }, [graphState])
-
-  const [animationFinished, setAnimationFinished] = useState(false)
+    currentGraphOptionsRef.current = chat.graphState.options
+    isGraphOpenRef.current = chat.graphState.view !== null
+  }, [chat.graphState])
 
   return {
-    messages,
-    setMessages,
-    isLoading,
-    setIsLoading,
-    threadId,
-    setThreadId,
-    isHistoryLoaded,
-    setIsHistoryLoaded,
-    speakingMessageId,
-    setSpeakingMessageId,
-    isCallMode,
-    setIsCallMode,
-    voiceStatus,
-    setVoiceStatus,
-    voiceEngineLoading,
-    setVoiceEngineLoading,
-    callHistory,
-    setCallHistory,
-    graphState,
-    setGraphState,
+    ...chat,
+    dispatch,
     messagesRef,
     currentThreadRef,
     isCallModeRef,
     currentGraphOptionsRef,
     isGraphOpenRef,
-    toolTraceRef,
-    animationFinished,
-    setAnimationFinished
+    toolTraceRef
   }
 }
