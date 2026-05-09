@@ -3,9 +3,12 @@ import logging
 import os
 from typing import Any
 
+import httpx
 from fastapi import WebSocket
 
 logger = logging.getLogger("momai.app_state")
+
+_http_client: httpx.AsyncClient | None = None
 
 active_websockets: list[WebSocket] = []
 main_loop: asyncio.AbstractEventLoop | None = None
@@ -40,6 +43,17 @@ async def get_settings_async() -> Settings | None:
     except asyncio.TimeoutError:
         logger.warning("Settings query timed out after 5s")
         return None
+
+
+async def get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
+        _http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=5.0, read=60.0, write=15.0, pool=5.0),
+            limits=limits
+        )
+    return _http_client
 
 
 def is_call_mode() -> bool:
@@ -178,8 +192,6 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
     node_port = int(os.getenv("MOMAI_NODE_CORE_PORT", "8000"))
     node_url = f"http://{node_host}:{node_port}/chat/voice-command"
     try:
-        import httpx
-
         logger.debug("[Voice] Calling node voice-command: %s", node_url)
 
         payload = {
@@ -188,14 +200,20 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
             "speak_response": bool(speak_response),
         }
 
-        timeout = httpx.Timeout(connect=5.0, read=30.0, write=15.0, pool=5.0)
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(node_url, json=payload)
-            if response.status_code >= 400:
-                detail = response.text
-                raise RuntimeError(
-                    f"Node voice-command failed: HTTP {response.status_code} {detail[:240]!r}"
-                )
+        client = await get_http_client()
+        response = await client.post(node_url, json=payload)
+        if response.status_code >= 400:
+            detail = response.text
+            raise RuntimeError(
+                f"Node voice-command failed: HTTP {response.status_code} {detail[:240]!r}"
+            )
         logger.debug("[Voice] Node voice-command completed")
     except Exception as exc:
         logger.error("Error processing voice: %s", exc)
+
+
+async def close_http_client() -> None:
+    global _http_client
+    if _http_client is not None and not _http_client.is_closed:
+        await _http_client.aclose()
+        _http_client = None
