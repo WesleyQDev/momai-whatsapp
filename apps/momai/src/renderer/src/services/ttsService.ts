@@ -58,13 +58,19 @@ class TTSServiceRenderer {
   private stopCurrentAudio() {
     const hadAudio = this.currentSources.size > 0 || !!this.currentHtmlAudio
     for (const src of this.currentSources) {
-      try { src.stop() } catch {}
-      try { src.disconnect() } catch {}
+      try {
+        src.stop()
+      } catch {}
+      try {
+        src.disconnect()
+      } catch {}
     }
     this.currentSources.clear()
     this.nextScheduleTime = 0
     if (this.currentHtmlAudio) {
-      try { this.currentHtmlAudio.pause() } catch {}
+      try {
+        this.currentHtmlAudio.pause()
+      } catch {}
       this.currentHtmlAudio = null
     }
     if (hadAudio) {
@@ -75,19 +81,23 @@ class TTSServiceRenderer {
 
   private setupEventListeners() {
     this.cleanupFns.push(on('tts:speaking-start', (data) => this.emit('speaking-start', data)))
-    this.cleanupFns.push(on('tts:speaking-end', () => {
-      if (this.hasLocalAudio) {
-        this.checkAllAudioEnded()
-      } else {
-        this.emit('speaking-end')
-      }
-    }))
+    this.cleanupFns.push(
+      on('tts:speaking-end', () => {
+        if (this.hasLocalAudio) {
+          this.checkAllAudioEnded()
+        } else {
+          this.emit('speaking-end')
+        }
+      })
+    )
     this.cleanupFns.push(on('tts:error', (error) => this.emit('error', error)))
     this.cleanupFns.push(on('tts:engine-changed', (engine) => this.emit('engine-changed', engine)))
     this.cleanupFns.push(on('tts:voice-changed', (voice) => this.emit('voice-changed', voice)))
-    this.cleanupFns.push(on('tts:play-audio-buffer', (payload: { data: string; mimeType: string }) => {
-      this.playAudioBuffer(payload)
-    }))
+    this.cleanupFns.push(
+      on('tts:play-audio-buffer', (payload: { data: string; mimeType: string }) => {
+        this.playAudioBuffer(payload)
+      })
+    )
   }
 
   private async playAudioBuffer(payload: { data: string; mimeType: string }) {
@@ -134,7 +144,9 @@ class TTSServiceRenderer {
           if (this.currentHtmlAudio === audio) this.currentHtmlAudio = null
           this.checkAllAudioEnded()
         }
-        audio.onerror = () => { URL.revokeObjectURL(url) }
+        audio.onerror = () => {
+          URL.revokeObjectURL(url)
+        }
         await audio.play()
         this.currentHtmlAudio = audio
       } catch (fallbackErr) {
@@ -151,7 +163,7 @@ class TTSServiceRenderer {
     }
     const listeners = this.listeners.get(event)
     if (listeners) {
-      listeners.forEach(callback => callback(...args))
+      listeners.forEach((callback) => callback(...args))
     }
   }
 
@@ -291,8 +303,13 @@ class TTSServiceRenderer {
   }
 
   cleanup() {
+    this.stopCurrentAudio()
+    if (this.audioCtx && this.audioCtx.state !== 'closed') {
+      this.audioCtx.close()
+      this.audioCtx = null
+    }
     this.listeners.clear()
-    this.cleanupFns.forEach(fn => fn())
+    this.cleanupFns.forEach((fn) => fn())
     this.cleanupFns = []
   }
 }
