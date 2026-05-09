@@ -8,26 +8,6 @@ interface OnboardingCardProps {
   onFinish: (savedSettings?: Record<string, any>) => void
 }
 
-const ONBOARDING_SAVE_TIMEOUT_MS = 4500
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(() => {
-      reject(new Error(`Onboarding save timeout after ${timeoutMs}ms`))
-    }, timeoutMs)
-
-    promise
-      .then((value) => {
-        window.clearTimeout(timer)
-        resolve(value)
-      })
-      .catch((error) => {
-        window.clearTimeout(timer)
-        reject(error)
-      })
-  })
-}
-
 type Theme = 'dark' | 'light'
 
 interface Voice {
@@ -209,10 +189,61 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
     }
   }, [])
 
+  const changeTheme = (newTheme: Theme) => {
+    setTheme(newTheme)
+    document.documentElement.setAttribute('data-theme', newTheme)
+    localStorage.setItem('momai_theme', newTheme)
+  }
+
+  const handleSelectTier = async (tier: string) => {
+    setSelectedTier(tier)
+    localStorage.setItem('momai_ai_tier', tier)
+    setStep(2)
+    try {
+      await api.post(`/setup/apply-tier?tier=${tier}`)
+    } catch (err) {
+      console.debug('[Onboarding] Failed to pre-apply tier:', err)
+    }
+  }
+
+  const handleFinish = () => {
+    if (!name.trim()) return
+    setIsSaving(true)
+
+    window.api?.setResizable?.(true)
+
+    const ttsEnabled = selectedTier !== 'lite'
+
+    const payload = {
+      user_name: name,
+      tts_voice: selectedVoice,
+      onboarding_completed: true,
+      locale: selectedLang === 'p' ? 'pt-BR' : 'en-US',
+      ai_tier: selectedTier,
+      tts_enabled: ttsEnabled,
+      wake_word_enabled: selectedTier === 'ultra'
+    }
+
+    window.api?.markFirstLaunchFinished?.(payload)
+
+    onFinish(payload)
+
+    api
+      .patch('/settings', payload)
+      .then(() => {
+        window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: payload }))
+      })
+      .catch(() => {
+        console.debug('[Onboarding] Backend not ready, settings will be queued by App.tsx')
+      })
+      .finally(() => {
+        setIsSaving(false)
+      })
+  }
+
   // 3. Global Shortcuts / Enter to Finish
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Only trigger on Enter, if name is present, and we are in step 2 (Personality Setup)
       if (e.key === 'Enter' && step === 2 && name.trim() && !isSaving) {
         handleFinish()
       }
@@ -226,76 +257,6 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       window.removeEventListener('keydown', handleGlobalKeyDown)
     }
   }, [step, name, isSaving])
-
-  const changeTheme = (newTheme: Theme) => {
-    setTheme(newTheme)
-    document.documentElement.setAttribute('data-theme', newTheme)
-    localStorage.setItem('momai_theme', newTheme)
-  }
-
-  const handleSelectTier = async (tier: string) => {
-    setSelectedTier(tier)
-    localStorage.setItem('momai_ai_tier', tier)
-    setStep(2)
-    // Silently trigger tier application
-    try {
-      await api.post(`/setup/apply-tier?tier=${tier}`)
-    } catch (err) {
-      console.debug('[Onboarding] Failed to pre-apply tier:', err)
-    }
-  }
-
-  const handleFinish = async () => {
-    if (!name.trim()) return
-    setIsSaving(true)
-
-    // Ensure window becomes resizable right before going into the app
-    window.api?.setResizable?.(true)
-
-    const ttsEnabled = selectedTier !== 'lite'
-
-    try {
-      const payload = {
-        user_name: name,
-        tts_voice: selectedVoice,
-        onboarding_completed: true,
-        locale: selectedLang === 'p' ? 'pt-BR' : 'en-US',
-        ai_tier: selectedTier,
-        tts_enabled: ttsEnabled,
-        wake_word_enabled: selectedTier === 'ultra'
-      }
-      // Signal main process first (works offline - saves to local file)
-      try {
-        window.api?.markFirstLaunchFinished?.(payload)
-      } catch (error) {
-        console.debug('[Onboarding] Failed to mark first launch as finished:', error)
-      }
-
-      // Try to sync with backend directly
-      try {
-        await withTimeout(api.patch('/settings', payload), ONBOARDING_SAVE_TIMEOUT_MS)
-        window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: payload }))
-        onFinish()
-      } catch (apiError) {
-        console.debug('[Onboarding] Backend not ready, settings will be queued by App.tsx')
-        onFinish(payload)
-      }
-    } catch (error) {
-      console.error('Erro ao salvar onboarding:', error)
-      const fallbackPayload = {
-        user_name: name,
-        tts_voice: selectedVoice,
-        onboarding_completed: true,
-        locale: selectedLang === 'p' ? 'pt-BR' : 'en-US',
-        ai_tier: selectedTier,
-        tts_enabled: ttsEnabled,
-        wake_word_enabled: selectedTier === 'ultra'
-      }
-      onFinish(fallbackPayload)
-    } finally {
-      setIsSaving(false)
-    }
-  }
 
   return (
     <div
