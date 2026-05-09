@@ -217,16 +217,6 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
         return
       }
 
-      for (let i = 0; i < 120; i++) {
-        try {
-          const status = await api.get('/status')
-          if (status.data?.brain_ready && status.data?.ai_tier === _tier) {
-            break
-          }
-        } catch {}
-        await new Promise((r) => setTimeout(r, 1000))
-      }
-
       const tierDefaults = TIER_DEFAULTS[_tier]
       const payload: Record<string, any> = {
         ai_tier: _tier,
@@ -234,12 +224,12 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
         wake_word_enabled: tierDefaults.wake_word_enabled
       }
 
-      try {
-        await api.patch('/settings', payload)
-        window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: payload }))
-      } catch (err) {
-        console.error('Error saving tier settings:', err)
-      }
+      api
+        .patch('/settings', payload)
+        .then(() => {
+          window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: payload }))
+        })
+        .catch((err) => console.error('Error saving tier settings:', err))
 
       window.dispatchEvent(new CustomEvent('momai_tier_change_end'))
     },

@@ -90,12 +90,10 @@ function App(): React.JSX.Element {
       setIsTierChanging(true)
     }
     const handleEnd = () => {
-      setTimeout(() => {
-        setIsTierChanging(false)
-        setChangingTier(null)
-        tierChangeChatRef.current.setAnimationFinished(false)
-        tierChangeResetRef.current()
-      }, 800)
+      setIsTierChanging(false)
+      setChangingTier(null)
+      tierChangeChatRef.current.setAnimationFinished(false)
+      tierChangeResetRef.current()
     }
     window.addEventListener('momai_tier_change_start', handleStart)
     window.addEventListener('momai_tier_change_end', handleEnd)
