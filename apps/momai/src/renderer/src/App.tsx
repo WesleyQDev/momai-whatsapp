@@ -75,20 +75,28 @@ function App(): React.JSX.Element {
     'general' | 'brain' | 'voice' | 'economy' | 'updates'
   >('general')
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [showOverlay, setShowOverlay] = useState(false)
+  const [overlayTier, setOverlayTier] = useState<string | null>(null)
   const [isTierChanging, setIsTierChanging] = useState(false)
-  const [changingTier, setChangingTier] = useState<string | null>(null)
 
-  const tierEndedRef = useRef(false)
+  const tierChatRef = useRef(chat)
+  const tierResetRef = useRef(resetVisualProgress)
 
   useEffect(() => {
+    tierChatRef.current = chat
+    tierResetRef.current = resetVisualProgress
+
     const handleStart = (e: any) => {
-      tierEndedRef.current = false
-      setChangingTier(e.detail)
+      setOverlayTier(e.detail)
+      setShowOverlay(true)
       setIsTierChanging(true)
     }
     const handleEnd = () => {
-      tierEndedRef.current = true
-      setChangingTier(null)
+      setOverlayTier(null)
+      setShowOverlay(false)
+      tierChatRef.current.setAnimationFinished(false)
+      tierResetRef.current()
+      setTimeout(() => setIsTierChanging(false), 2000)
     }
     window.addEventListener('momai_tier_change_start', handleStart)
     window.addEventListener('momai_tier_change_end', handleEnd)
@@ -96,7 +104,7 @@ function App(): React.JSX.Element {
       window.removeEventListener('momai_tier_change_start', handleStart)
       window.removeEventListener('momai_tier_change_end', handleEnd)
     }
-  }, [])
+  }, [chat, resetVisualProgress])
 
   const openSettings = useCallback(
     (tab: 'general' | 'brain' | 'voice' | 'economy' | 'updates' = 'general') => {
@@ -265,17 +273,7 @@ function App(): React.JSX.Element {
         />
       )}
 
-      <TierChangeOverlay
-        isChanging={isTierChanging}
-        tier={changingTier}
-        onFinish={() => {
-          chat.setAnimationFinished(false)
-          resetVisualProgress()
-          if (tierEndedRef.current) {
-            setIsTierChanging(false)
-          }
-        }}
-      />
+      <TierChangeOverlay isChanging={showOverlay} tier={overlayTier} />
 
       {showOnboarding && (
         <OnboardingCard

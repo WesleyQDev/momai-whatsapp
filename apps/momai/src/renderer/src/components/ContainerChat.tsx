@@ -603,10 +603,12 @@ export default function ContainerChat({
   }, [threadId])
 
   const displayProgress = isSystemDone ? 100 : Math.min(96, visualProgress || initProgress || 0)
-  const loadingProgress = displayProgress
+  const loadingProgress = isTierChanging ? Math.max(5, displayProgress) : displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
   const hasMessages = messages.length > 0
   const hasUserData = !!localStorage.getItem('momai_user_name') || !!settings?.user_name
+  const tier =
+    localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'
   const showLoading =
     isTierChanging ||
     isBooting ||
@@ -614,16 +616,18 @@ export default function ContainerChat({
     (isModeChanging && !hasUserData) ||
     (isBrainLoading && !isBrainReady && !hasUserData)
 
-  const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
-  const displayMessage =
-    initProgress >= 100 && isBrainLoading
+  const defaultWaitingMessage = isTierChanging
+    ? 'Alterando modo...'
+    : isBrainLoading
+      ? 'Loading AI Model...'
+      : 'Waiting for AI Model...'
+  const displayMessage = isTierChanging
+    ? `Configurando modo ${tier?.toUpperCase() || 'PRO'}...`
+    : initProgress >= 100 && isBrainLoading
       ? !initMessage || initMessage === 'Sistema pronto.'
         ? defaultWaitingMessage
         : initMessage
       : initMessage
-
-  const tier =
-    localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'
 
   return (
     <div className="bg-transparent w-full h-full flex flex-col overflow-hidden relative">

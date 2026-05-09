@@ -4,17 +4,11 @@ import logo from '../assets/icon.gif'
 interface TierChangeOverlayProps {
   isChanging: boolean
   tier?: string | null
-  onFinish?: () => void
 }
 
-export default function TierChangeOverlay({ isChanging, tier, onFinish }: TierChangeOverlayProps) {
+export default function TierChangeOverlay({ isChanging, tier }: TierChangeOverlayProps) {
   const [phase, setPhase] = useState<'hidden' | 'fade-in' | 'visible' | 'fade-out'>('hidden')
   const prevRef = useRef(false)
-  const onFinishRef = useRef(onFinish)
-
-  useEffect(() => {
-    onFinishRef.current = onFinish
-  })
 
   useEffect(() => {
     if (isChanging && !prevRef.current) {
@@ -23,21 +17,10 @@ export default function TierChangeOverlay({ isChanging, tier, onFinish }: TierCh
       requestAnimationFrame(() => setPhase('visible'))
     } else if (!isChanging && prevRef.current) {
       prevRef.current = false
+      setPhase('fade-out')
+      setTimeout(() => setPhase('hidden'), 600)
     }
   }, [isChanging])
-
-  useEffect(() => {
-    if (phase !== 'visible') return
-    const fadeTimer = setTimeout(() => setPhase('fade-out'), 800)
-    const hideTimer = setTimeout(() => {
-      setPhase('hidden')
-      onFinishRef.current?.()
-    }, 1400)
-    return () => {
-      clearTimeout(fadeTimer)
-      clearTimeout(hideTimer)
-    }
-  }, [phase])
 
   if (phase === 'hidden') return null
 
@@ -76,13 +59,12 @@ export default function TierChangeOverlay({ isChanging, tier, onFinish }: TierCh
 
         <div className="flex flex-col items-center space-y-4 animate-in fade-in slide-in-from-bottom-10 duration-[1500ms] delay-500">
           <h1 className="text-4xl font-bold text-text tracking-tight leading-tight">
-            Configurando <span className="text-accent uppercase">{tier || 'nova modalidade'}</span>
+            <span className="text-accent uppercase">{tier || 'Pro'}</span>
           </h1>
 
           <div className="bg-white/5 backdrop-blur-sm px-6 py-3 rounded-2xl border border-white/10 mt-2">
             <p className="text-sm font-medium text-text-muted leading-relaxed max-w-sm">
-              Aplicando as configurações do modo{' '}
-              <span className="text-accent font-bold">{tier || 'selecionado'}</span>...
+              Alterando modo...
             </p>
           </div>
         </div>
