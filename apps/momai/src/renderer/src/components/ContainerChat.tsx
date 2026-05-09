@@ -22,6 +22,7 @@ interface ContainerChatProps {
   messagesEndRef: RefObject<HTMLDivElement | null>
   scrollPositionRef?: RefObject<number>
   isModeChanging?: boolean
+  isTierChanging?: boolean
   onReopenGraph: (data: any) => void
   onGraphOption: (option: string) => void
   statusInfo: StatusData | null
@@ -469,6 +470,7 @@ export default function ContainerChat({
   messagesEndRef,
   scrollPositionRef,
   isModeChanging = false,
+  isTierChanging = false,
   onReopenGraph,
   onGraphOption,
   statusInfo,
@@ -607,6 +609,7 @@ export default function ContainerChat({
   const hasUserData = !!localStorage.getItem('momai_user_name') || !!settings?.user_name
   const showLoading =
     (!animationFinished && !hasUserData) ||
+    isTierChanging ||
     (isModeChanging && !hasUserData) ||
     (isBooting && !hasUserData) ||
     (isBrainLoading && !isBrainReady && !hasUserData)
