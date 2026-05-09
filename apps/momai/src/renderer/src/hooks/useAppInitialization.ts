@@ -35,18 +35,6 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
   }, [settingsLoaded, settings?.skip_intro])
 
   useEffect(() => {
-    if (localStorage.getItem('momai_mode_changing') === 'true') {
-      localStorage.removeItem('momai_mode_changing')
-    }
-
-    const handleModeChangeStart = () => {
-      setIsFirstLaunch(true)
-      setShowWelcome(localStorage.getItem('momai_skip_intro') !== 'true')
-      // @ts-ignore
-      window.api.resetWindowSize?.()
-    }
-    window.addEventListener('momai_tier_change_start', handleModeChangeStart)
-
     window.api
       .getAppVersion?.()
       .then(setAppVersion)
@@ -67,7 +55,6 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
     window.addEventListener('momai_bootstrap_error', handleBootstrapError)
 
     return () => {
-      window.removeEventListener('momai_tier_change_start', handleModeChangeStart)
       window.removeEventListener('momai_bootstrap_error', handleBootstrapError)
       removeBootError()
     }

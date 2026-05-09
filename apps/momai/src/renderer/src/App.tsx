@@ -15,6 +15,7 @@ import TTSEngineLoadingAnimation from './components/chat/TTSEngineLoadingAnimati
 
 // New modular imports
 import WelcomeScreen from './components/WelcomeScreen'
+import TierChangeOverlay from './components/TierChangeOverlay'
 import BootstrapError from './components/BootstrapError'
 import InfoPanel from './components/InfoPanel'
 import { useAudioFallback } from './hooks/useAudioFallback'
@@ -74,6 +75,25 @@ function App(): React.JSX.Element {
     'general' | 'brain' | 'voice' | 'economy' | 'updates'
   >('general')
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [isTierChanging, setIsTierChanging] = useState(false)
+  const [changingTier, setChangingTier] = useState<string | null>(null)
+
+  useEffect(() => {
+    const handleStart = (e: any) => {
+      setChangingTier(e.detail)
+      setIsTierChanging(true)
+    }
+    const handleEnd = () => {
+      setIsTierChanging(false)
+      setChangingTier(null)
+    }
+    window.addEventListener('momai_tier_change_start', handleStart)
+    window.addEventListener('momai_tier_change_end', handleEnd)
+    return () => {
+      window.removeEventListener('momai_tier_change_start', handleStart)
+      window.removeEventListener('momai_tier_change_end', handleEnd)
+    }
+  }, [])
 
   const openSettings = useCallback(
     (tab: 'general' | 'brain' | 'voice' | 'economy' | 'updates' = 'general') => {
@@ -100,7 +120,8 @@ function App(): React.JSX.Element {
   // Reset loading animation when the app UI becomes visible while still booting.
   // This prevents the loading screen from being skipped if the animation completed
   // while the app was invisible (during welcome/onboarding screens).
-  const isAppVisible = !showWelcome && !showOnboarding && !bootstrapError && firstLaunchChecked
+  const isAppVisible =
+    !showWelcome && !showOnboarding && !isTierChanging && !bootstrapError && firstLaunchChecked
   useEffect(() => {
     if (isAppVisible && isBooting) {
       chat.setAnimationFinished(false)
@@ -145,9 +166,20 @@ function App(): React.JSX.Element {
         className="h-full flex flex-col overflow-hidden bg-bg"
         style={{
           transition: 'opacity 0.6s ease-in',
-          opacity: showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked ? 0 : 1,
+          opacity:
+            showWelcome ||
+            showOnboarding ||
+            isTierChanging ||
+            !!bootstrapError ||
+            !firstLaunchChecked
+              ? 0
+              : 1,
           pointerEvents:
-            showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked
+            showWelcome ||
+            showOnboarding ||
+            isTierChanging ||
+            !!bootstrapError ||
+            !firstLaunchChecked
               ? 'none'
               : 'auto'
         }}
@@ -240,6 +272,8 @@ function App(): React.JSX.Element {
           onOpenSettings={openSettings}
         />
       )}
+
+      <TierChangeOverlay isChanging={isTierChanging} tier={changingTier} />
 
       {showOnboarding && (
         <OnboardingCard

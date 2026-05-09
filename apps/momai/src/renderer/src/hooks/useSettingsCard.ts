@@ -200,28 +200,42 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
 
   const handleTierChange = useCallback(
     async (_tier: 'lite' | 'pro' | 'ultra') => {
-      // @ts-ignore
       window.api.resetWindowSize?.()
 
       stopVoice().catch(() => {})
       stopGeneration().catch(() => {})
 
-      // Create a new chat session when changing tiers
       window.dispatchEvent(new CustomEvent('momai_new_session'))
+      window.dispatchEvent(new CustomEvent('momai_tier_change_start', { detail: _tier }))
 
-      // Show onboarding FIRST, before the backend model change
-      window.dispatchEvent(
-        new CustomEvent('momai_settings_sync', {
-          detail: { ai_tier: _tier, onboarding_completed: false }
-        })
-      )
+      try {
+        await api.post(`/setup/apply-tier?tier=${_tier}`)
+      } catch (err) {
+        console.error('Error applying tier:', err)
+        window.dispatchEvent(
+          new CustomEvent('momai_tier_change_error', {
+            detail: { tier: _tier, error: String(err) }
+          })
+        )
+        window.dispatchEvent(new CustomEvent('momai_tier_change_end'))
+        return
+      }
 
-      // Save settings in background — don't await, as maybeRestartLlamaOnTierChange
-      // blocks until the model finishes switching. We want onboarding visible now.
-      api
-        .patch('/settings', { ai_tier: _tier, onboarding_completed: false })
-        .catch((err) => console.error('Error saving tier change:', err))
+      const tierDefaults = TIER_DEFAULTS[_tier]
+      const payload: Record<string, any> = {
+        ai_tier: _tier,
+        tts_enabled: tierDefaults.tts_enabled,
+        wake_word_enabled: tierDefaults.wake_word_enabled
+      }
 
+      try {
+        await api.patch('/settings', payload)
+        window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: payload }))
+      } catch (err) {
+        console.error('Error saving tier settings:', err)
+      }
+
+      window.dispatchEvent(new CustomEvent('momai_tier_change_end'))
       onClose()
     },
     [onClose]
