@@ -101,7 +101,7 @@ def set_external_tts_speaking(speaking: bool) -> None:
             import time
             ww._tts_stop_time = time.time()
         except Exception:
-            pass
+            logger.debug("[Main] Failed to set TTS stop time", exc_info=True)
 
 def _bind_tts_callbacks(tts_module) -> None:
     """Attach TTS lifecycle callbacks to websocket events."""

@@ -136,6 +136,7 @@ def _find_output_device() -> tuple[Optional[int], int]:
     try:
         devices = sd.query_devices()
     except Exception:
+        logger.debug("[TTS] Failed to query audio devices", exc_info=True)
         return None, 24000
 
     default_idx = sd.default.device[1]
@@ -432,7 +433,7 @@ class TTSManager:
                                                 app_state.main_loop
                                             )
                                     except Exception:
-                                        pass
+                                        logger.debug("[TTS] FFT bands error", exc_info=True)
                                     
                                 sd.wait() 
                             
@@ -456,7 +457,7 @@ class TTSManager:
             try:
                 loop.close()
             except Exception:
-                pass
+                logger.debug("[TTS] Failed to close event loop", exc_info=True)
             self.active_stream = None
             logger.debug("[TTS Worker] Thread finished.")
 
@@ -533,7 +534,7 @@ class TTSManager:
                 try:
                     sd.stop()
                 except Exception:
-                    pass
+                    logger.debug("[TTS] Failed to stop sounddevice", exc_info=True)
 
             if self.worker_thread and self.worker_thread.is_alive():
                 self.worker_thread.join(timeout=2)

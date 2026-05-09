@@ -15,8 +15,7 @@ async def stop_chat_voice():
 
         tts.stop_all()
     except Exception:
-        # TTS might not be loaded yet
-        pass
+        logger.debug("[ChatVoice] TTS stop failed: module not ready", exc_info=True)
 
     return {"status": "ok"}
 
@@ -27,6 +26,9 @@ async def speak_text(data: dict):
     if not text:
         logger.debug("[ChatVoice] /chat/speak blocked: empty text")
         raise HTTPException(status_code=400, detail="No text provided")
+    if len(text) > 10000:
+        logger.debug("[ChatVoice] /chat/speak blocked: text too long (%d chars)", len(text))
+        raise HTTPException(status_code=413, detail="Text too long")
 
     try:
         # Load only voice runtime here (avoid full AI stack load on first TTS).

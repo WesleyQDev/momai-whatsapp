@@ -4,7 +4,7 @@ import threading
 import logging
 import time
 import re
-from difflib import SequenceMatcher
+from rapidfuzz import fuzz
 
 # Heavy imports are deferred to __init__ for faster startup
 sd = None
@@ -604,8 +604,7 @@ class WakeWordDetector:
                 audio = tone.astype(np.float32)
                 sd.play(audio, samplerate=sr)
         except Exception:
-            # Feedback sound playback failed, not critical
-            pass
+            logger.debug("[WakeWord] Feedback sound playback failed", exc_info=True)
 
     def _stop_tts(self):
         """Stop any ongoing TTS playback."""
@@ -614,8 +613,7 @@ class WakeWordDetector:
                 logger.debug("[WakeWord] Interruption! Stopping TTS.")
                 tts.stop_all()
         except Exception:
-            # Stop tts check failed
-            pass
+            logger.debug("[WakeWord] Failed to stop TTS", exc_info=True)
 
     def _check_wake_word_fuzzy(self, text: str) -> bool:
         """Quick check if text contains a wake word (exact or fuzzy)."""
@@ -628,7 +626,7 @@ class WakeWordDetector:
             if len(word) < 2 or len(word) > 8:
                 continue
             for kw in self.variants:
-                ratio = SequenceMatcher(None, word, kw).ratio()
+                ratio = fuzz.ratio(word, kw) / 100.0
                 if ratio >= 0.70:
                     return True
         return False
@@ -669,7 +667,7 @@ class WakeWordDetector:
                 # Increased threshold to 0.88 and min length 4 to avoid "lula", "tuna", etc.
                 if len(word) >= 4 and len(word) <= 8:
                     for kw in self.variants:
-                        ratio = SequenceMatcher(None, word, kw).ratio()
+                        ratio = fuzz.ratio(word, kw) / 100.0
                         # Strict matching: 0.88 ensures for 4-letter words it must be a 100% match
                         if ratio >= 0.88:
                             detected_variation = word
