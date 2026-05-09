@@ -77,15 +77,18 @@ function App(): React.JSX.Element {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [showOverlay, setShowOverlay] = useState(false)
   const [overlayTier, setOverlayTier] = useState<string | null>(null)
+  const [isTierChanging, setIsTierChanging] = useState(false)
 
   useEffect(() => {
     const handleStart = (e: any) => {
       setOverlayTier(e.detail)
       setShowOverlay(true)
+      setIsTierChanging(true)
     }
     const handleEnd = () => {
       setShowOverlay(false)
       setOverlayTier(null)
+      setTimeout(() => setIsTierChanging(false), 3000)
     }
     window.addEventListener('momai_tier_change_start', handleStart)
     window.addEventListener('momai_tier_change_end', handleEnd)
@@ -203,6 +206,7 @@ function App(): React.JSX.Element {
                   initMessage={initMessage}
                   isBooting={isBooting}
                   isUpdating={isUpdating}
+                  isTierChanging={isTierChanging}
                   setHistoryOpen={setHistoryOpen}
                   isFirstLaunch={isFirstLaunch}
                 />
