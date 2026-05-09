@@ -608,10 +608,10 @@ export default function ContainerChat({
   const hasMessages = messages.length > 0
   const hasUserData = !!localStorage.getItem('momai_user_name') || !!settings?.user_name
   const showLoading =
-    (!animationFinished && !hasUserData) ||
     isTierChanging ||
+    isBooting ||
+    (!animationFinished && !hasUserData) ||
     (isModeChanging && !hasUserData) ||
-    (isBooting && !hasUserData) ||
     (isBrainLoading && !isBrainReady && !hasUserData)
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
