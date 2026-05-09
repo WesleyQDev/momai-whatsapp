@@ -53,20 +53,40 @@ function ContextUsageRing() {
   const [total, setTotal] = useState(0)
 
   useEffect(() => {
+    let closed = false
     let ws: WebSocket | null = null
-    try {
-      ws = new WebSocket(WS_URL)
+
+    const connect = () => {
+      try {
+        ws = new WebSocket(WS_URL)
+      } catch {
+        return
+      }
+
       ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data)
-        if (msg.type === 'resource_usage') {
-          const nextUsed = Number(msg.data?.context_used_tokens || 0)
-          const nextTotal = Number(msg.data?.context_total_tokens || 0)
-          if (Number.isFinite(nextUsed)) setUsed(Math.max(0, nextUsed))
-          if (Number.isFinite(nextTotal)) setTotal(Math.max(0, nextTotal))
+        try {
+          const msg = JSON.parse(event.data as string)
+          if (msg?.type === 'resource_usage' && msg?.data) {
+            const nextUsed = Number(msg.data.context_used_tokens ?? 0)
+            const nextTotal = Number(msg.data.context_total_tokens ?? 0)
+            if (Number.isFinite(nextUsed)) setUsed(Math.max(0, nextUsed))
+            if (Number.isFinite(nextTotal)) setTotal(Math.max(0, nextTotal))
+          }
+        } catch {
+          // ignore malformed messages
         }
       }
-    } catch {}
-    return () => ws?.close()
+
+      ws.onerror = () => {
+        // Connection error — will be cleaned up on unmount
+      }
+    }
+
+    connect()
+    return () => {
+      closed = true
+      ws?.close()
+    }
   }, [])
 
   const percent = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0
