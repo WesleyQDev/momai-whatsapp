@@ -5,7 +5,9 @@ import ContainerChat from './ContainerChat'
 vi.mock('./chat', () => ({
   MessageList: () => <div data-testid="message-list">MessageList</div>,
   ChatInput: () => <div data-testid="chat-input">ChatInput</div>,
-  LoadingAnimation: () => <div data-testid="loading-animation">LoadingAnimation</div>
+  LoadingAnimation: ({ message }: { message?: string }) => (
+    <div data-testid="loading-animation">{message || 'LoadingAnimation'}</div>
+  )
 }))
 
 vi.mock('./chat/WelcomeTips', () => ({
@@ -109,6 +111,30 @@ describe('ContainerChat', () => {
     await act(() => Promise.resolve())
     expect(screen.getByTestId('loading-animation')).toBeInTheDocument()
     expect(screen.queryByTestId('chat-input')).not.toBeInTheDocument()
+  })
+
+  it('renders loading when isTierChanging is true', async () => {
+    render(<ContainerChat {...defaultProps} isTierChanging={true} />)
+    await act(() => Promise.resolve())
+    expect(screen.getByTestId('loading-animation')).toBeInTheDocument()
+    expect(screen.queryByTestId('chat-input')).not.toBeInTheDocument()
+  })
+
+  it('passes tier-changing message to LoadingAnimation', async () => {
+    localStorage.setItem('momai_ai_tier', 'ultra')
+    render(<ContainerChat {...defaultProps} isTierChanging={true} />)
+    await act(() => Promise.resolve())
+    expect(screen.getByText(/ultra/i)).toBeInTheDocument()
+  })
+
+  it('hides loading when isTierChanging becomes false', async () => {
+    const { rerender } = render(<ContainerChat {...defaultProps} isTierChanging={true} />)
+    await act(() => Promise.resolve())
+    expect(screen.getByTestId('loading-animation')).toBeInTheDocument()
+    rerender(<ContainerChat {...defaultProps} isTierChanging={false} />)
+    await act(() => Promise.resolve())
+    expect(screen.queryByTestId('loading-animation')).not.toBeInTheDocument()
+    expect(screen.getByTestId('chat-input')).toBeInTheDocument()
   })
 
   it('renders ContextUsageRing when dev mode and context ring enabled', async () => {

@@ -13,13 +13,13 @@ describe('TierChangeOverlay', () => {
     expect(screen.getByAltText('MomAI')).toBeInTheDocument()
   })
 
-  it('shows configuring message with tier name', () => {
+  it('shows tier name', () => {
     render(<TierChangeOverlay isChanging={true} tier="pro" />)
-    expect(screen.getAllByText(/pro/i)).toHaveLength(2)
+    expect(screen.getByText(/pro/i)).toBeInTheDocument()
   })
 
-  it('shows sem alteração when no tier provided', () => {
+  it('shows default Pro when no tier provided', () => {
     render(<TierChangeOverlay isChanging={true} />)
-    expect(screen.getByText(/configurando/i)).toBeInTheDocument()
+    expect(screen.getByText(/pro/i)).toBeInTheDocument()
   })
 })
