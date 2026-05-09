@@ -395,23 +395,22 @@ class TTSManager:
                                 
                                 sd.play(play_data, samplerate=play_sr)
                                 
-                                # Send frequency bands to UI for "mountainous" visualization
-                                try:
-                                    sub_chunks = np.array_split(play_data, 4)
-                                    all_bands = []
-                                    for sc in sub_chunks:
-                                        fft_res = np.abs(np.fft.rfft(sc))
-                                        bands = np.array_split(fft_res, 16)
-                                        # Scale for UI visibility
-                                        all_bands.append([float(np.mean(b)) * 20 for b in bands])
-                                    
-                                    if app_state.main_loop:
-                                        asyncio.run_coroutine_threadsafe(
-                                            app_state.broadcast_to_sockets({"type": "voice_bands", "bands": all_bands}),
-                                            app_state.main_loop
-                                        )
-                                except Exception:
-                                    pass
+                                if app_state.active_websockets:
+                                    try:
+                                        sub_chunks = np.array_split(play_data, 4)
+                                        all_bands = []
+                                        for sc in sub_chunks:
+                                            fft_res = np.abs(np.fft.rfft(sc))
+                                            bands = np.array_split(fft_res, 16)
+                                            all_bands.append([float(np.mean(b)) * 20 for b in bands])
+                                        
+                                        if app_state.main_loop:
+                                            asyncio.run_coroutine_threadsafe(
+                                                app_state.broadcast_to_sockets({"type": "voice_bands", "bands": all_bands}),
+                                                app_state.main_loop
+                                            )
+                                    except Exception:
+                                        pass
                                     
                                 sd.wait() 
                             
