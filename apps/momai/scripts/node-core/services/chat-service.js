@@ -558,6 +558,8 @@ async function streamLlamaChat(req, res, payload) {
   let toolSteps = []
   let activeSkill = null
   const t0 = Date.now()
+  let lastTtsFlushTime = 0
+  const TTS_FLUSH_INTERVAL = 200
 
   debug(
     `[chat] streamLlamaChat called: tier=${tierName}, content="${content.slice(0, 60)}", thread=${threadId}`
@@ -1336,7 +1338,11 @@ async function streamLlamaChat(req, res, payload) {
               if (_sse instanceof Promise) await _sse
               else if (_sse === false) break
             }
-            flushTtsChunks(false)
+            const now = Date.now()
+            if (now - lastTtsFlushTime >= TTS_FLUSH_INTERVAL) {
+              flushTtsChunks(false)
+              lastTtsFlushTime = now
+            }
           }
         }
       }
@@ -1651,7 +1657,11 @@ async function streamLlamaChat(req, res, payload) {
                 if (_sse instanceof Promise) await _sse
                 else if (_sse === false) break
               }
-              flushTtsChunks(false)
+              const now = Date.now()
+              if (now - lastTtsFlushTime >= TTS_FLUSH_INTERVAL) {
+                flushTtsChunks(false)
+                lastTtsFlushTime = now
+              }
             }
           }
         }
@@ -1672,7 +1682,11 @@ async function streamLlamaChat(req, res, payload) {
           if (_sse instanceof Promise) await _sse
           else if (_sse === false) break
         }
-        flushTtsChunks(false)
+        const now = Date.now()
+        if (now - lastTtsFlushTime >= TTS_FLUSH_INTERVAL) {
+          flushTtsChunks(false)
+          lastTtsFlushTime = now
+        }
       }
       flushTtsChunks(true)
     }
