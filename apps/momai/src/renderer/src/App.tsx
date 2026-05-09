@@ -78,24 +78,17 @@ function App(): React.JSX.Element {
   const [isTierChanging, setIsTierChanging] = useState(false)
   const [changingTier, setChangingTier] = useState<string | null>(null)
 
-  const chatRef = useRef(chat)
-  const resetVisualRef = useRef(resetVisualProgress)
+  const tierEndedRef = useRef(false)
 
   useEffect(() => {
-    chatRef.current = chat
-    resetVisualRef.current = resetVisualProgress
-
     const handleStart = (e: any) => {
+      tierEndedRef.current = false
       setChangingTier(e.detail)
       setIsTierChanging(true)
     }
     const handleEnd = () => {
+      tierEndedRef.current = true
       setChangingTier(null)
-      chatRef.current.setAnimationFinished(false)
-      resetVisualRef.current()
-      setTimeout(() => {
-        setIsTierChanging(false)
-      }, 500)
     }
     window.addEventListener('momai_tier_change_start', handleStart)
     window.addEventListener('momai_tier_change_end', handleEnd)
@@ -103,7 +96,7 @@ function App(): React.JSX.Element {
       window.removeEventListener('momai_tier_change_start', handleStart)
       window.removeEventListener('momai_tier_change_end', handleEnd)
     }
-  }, [chat, resetVisualProgress])
+  }, [])
 
   const openSettings = useCallback(
     (tab: 'general' | 'brain' | 'voice' | 'economy' | 'updates' = 'general') => {
@@ -272,7 +265,17 @@ function App(): React.JSX.Element {
         />
       )}
 
-      <TierChangeOverlay isChanging={isTierChanging} tier={changingTier} />
+      <TierChangeOverlay
+        isChanging={isTierChanging}
+        tier={changingTier}
+        onFinish={() => {
+          chat.setAnimationFinished(false)
+          resetVisualProgress()
+          if (tierEndedRef.current) {
+            setIsTierChanging(false)
+          }
+        }}
+      />
 
       {showOnboarding && (
         <OnboardingCard
