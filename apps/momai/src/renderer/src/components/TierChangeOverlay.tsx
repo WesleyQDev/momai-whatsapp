@@ -10,6 +10,11 @@ interface TierChangeOverlayProps {
 export default function TierChangeOverlay({ isChanging, tier, onFinish }: TierChangeOverlayProps) {
   const [phase, setPhase] = useState<'hidden' | 'fade-in' | 'visible' | 'fade-out'>('hidden')
   const prevRef = useRef(false)
+  const onFinishRef = useRef(onFinish)
+
+  useEffect(() => {
+    onFinishRef.current = onFinish
+  })
 
   useEffect(() => {
     if (isChanging && !prevRef.current) {
@@ -26,13 +31,13 @@ export default function TierChangeOverlay({ isChanging, tier, onFinish }: TierCh
     const fadeTimer = setTimeout(() => setPhase('fade-out'), 800)
     const hideTimer = setTimeout(() => {
       setPhase('hidden')
-      onFinish?.()
+      onFinishRef.current?.()
     }, 1400)
     return () => {
       clearTimeout(fadeTimer)
       clearTimeout(hideTimer)
     }
-  }, [phase, onFinish])
+  }, [phase])
 
   if (phase === 'hidden') return null
 
