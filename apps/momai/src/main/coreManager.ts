@@ -72,7 +72,15 @@ const LLAMA_LOG_NOISE_PATTERNS = [
 
 const logDedupCache = new Map<string, number>()
 const LOG_DEDUP_WINDOW_MS = 1500
-const LOG_DEDUP_CACHE_LIMIT = 400
+
+function pruneLogDedupCache() {
+  const now = Date.now()
+  for (const [key, ts] of logDedupCache) {
+    if (now - ts > LOG_DEDUP_WINDOW_MS * 3) {
+      logDedupCache.delete(key)
+    }
+  }
+}
 
 function shouldIgnoreLlamaNoise(line: string): boolean {
   const lower = String(line || '').toLowerCase()
@@ -92,14 +100,7 @@ function shouldLogNodeCoreLine(rawLine: string): boolean {
   }
   logDedupCache.set(key, now)
 
-  if (logDedupCache.size > LOG_DEDUP_CACHE_LIMIT) {
-    for (const [cachedLine, ts] of logDedupCache) {
-      if (now - ts > LOG_DEDUP_WINDOW_MS * 2) {
-        logDedupCache.delete(cachedLine)
-      }
-      if (logDedupCache.size <= LOG_DEDUP_CACHE_LIMIT) break
-    }
-  }
+  pruneLogDedupCache()
 
   return true
 }

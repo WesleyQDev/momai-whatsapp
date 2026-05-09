@@ -3,7 +3,6 @@ const path = require('node:path')
 const { createPermissionSchema } = require('../node-core/permissions/schema')
 const extensionHostManager = require('../node-core/services/extension-host-manager')
 
-
 function parseListValue(value) {
   const raw = String(value || '').trim()
   if (!raw) return []
@@ -122,7 +121,9 @@ function normalizeSkillRecord({ id, kind, parsed, runtime, dir }) {
             }
           }
           return readmes
-        } catch { return {} }
+        } catch {
+          return {}
+        }
       })(),
       locales: (() => {
         try {
@@ -137,7 +138,9 @@ function normalizeSkillRecord({ id, kind, parsed, runtime, dir }) {
             }
           }
           return locales
-        } catch { return {} }
+        } catch {
+          return {}
+        }
       })(),
       permissions: parsed.frontmatter.permissions || [],
       contributions: parsed.frontmatter.contributions || {}
@@ -151,9 +154,6 @@ function normalizeSkillRecord({ id, kind, parsed, runtime, dir }) {
   }
   return record
 }
-
-
-
 
 async function loadSkillFromDir({ dir, kind, expectedId }) {
   const log = (msg) => {
@@ -194,10 +194,10 @@ async function loadSkillFromDir({ dir, kind, expectedId }) {
   return normalizeSkillRecord({ id: expectedId || parsed.name, kind, parsed, runtime, dir })
 }
 
-
 function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   const extensionsDir = path.join(dataDir, 'extensions')
   const packagedSkillsDir = path.resolve(__dirname, 'packaged')
+  let _skillsGeneration = 0
   const state = {
     builtins: new Map(),
     packaged: new Map(),
@@ -238,6 +238,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       if (previousCount === 0 || newCount !== previousCount) {
         log(`[skills] Successfully loaded ${newCount} builtin skills.`)
       }
+      _skillsGeneration++
     } catch (err) {
       log(`[skills] FATAL: Failed to read builtinSkillsDir: ${err.message}`)
     }
@@ -293,21 +294,30 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
           }
         }
 
-        const skill = normalizeSkillRecord({ id: name || parsed.name, kind: 'packaged', parsed, runtime, dir })
+        const skill = normalizeSkillRecord({
+          id: name || parsed.name,
+          kind: 'packaged',
+          parsed,
+          runtime,
+          dir
+        })
         const permSchema = createPermissionSchema()
-        const mergedPerms = permSchema.mergeManifestPermissions(skill.manifest.permissions, manifestExtra?.permissions)
+        const mergedPerms = permSchema.mergeManifestPermissions(
+          skill.manifest.permissions,
+          manifestExtra?.permissions
+        )
         const riskLevel = permSchema.calculateRiskLevel(mergedPerms)
-        skill.manifest = { 
-          ...skill.manifest, 
-          ...manifestExtra, 
-          permissions: mergedPerms, 
-          _permSummary: permSchema.getPermissionSummary(mergedPerms), 
-          _riskLevel: riskLevel 
+        skill.manifest = {
+          ...skill.manifest,
+          ...manifestExtra,
+          permissions: mergedPerms,
+          _permSummary: permSchema.getPermissionSummary(mergedPerms),
+          _riskLevel: riskLevel
         }
         state.packaged.set(skill.id, skill)
-
       }
       log(`[skills] Loaded ${state.packaged.size} packaged extension skills.`)
+      _skillsGeneration++
     } catch (err) {
       log(`[skills] Error loading packaged skills: ${err.message}`)
     }
@@ -333,19 +343,22 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
         } catch {}
       }
 
-      const mergedPerms = permSchema.mergeManifestPermissions(skill.manifest.permissions, manifestExtra?.permissions)
+      const mergedPerms = permSchema.mergeManifestPermissions(
+        skill.manifest.permissions,
+        manifestExtra?.permissions
+      )
       const riskLevel = permSchema.calculateRiskLevel(mergedPerms)
-      skill.manifest = { 
-        ...skill.manifest, 
-        ...manifestExtra, 
-        permissions: mergedPerms, 
-        _permSummary: permSchema.getPermissionSummary(mergedPerms), 
-        _riskLevel: riskLevel 
+      skill.manifest = {
+        ...skill.manifest,
+        ...manifestExtra,
+        permissions: mergedPerms,
+        _permSummary: permSchema.getPermissionSummary(mergedPerms),
+        _riskLevel: riskLevel
       }
 
       state.extensions.set(skill.id, skill)
-
     }
+    _skillsGeneration++
   }
 
   async function refresh() {
@@ -363,7 +376,12 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   }
 
   function getById(skillId) {
-    return state.builtins.get(skillId) || state.packaged.get(skillId) || state.extensions.get(skillId) || null
+    return (
+      state.builtins.get(skillId) ||
+      state.packaged.get(skillId) ||
+      state.extensions.get(skillId) ||
+      null
+    )
   }
 
   function discover(query) {
@@ -414,22 +432,52 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
 
     if (perms && permSchema.needsAnyPermission(perms)) {
       if (perms.process?.allowed === false) {
-        return { ok: false, error: 'permission_denied', reason: 'process access denied', capability: 'process' }
+        return {
+          ok: false,
+          error: 'permission_denied',
+          reason: 'process access denied',
+          capability: 'process'
+        }
       }
       if (perms.shell?.allowed === false) {
-        return { ok: false, error: 'permission_denied', reason: 'shell access denied', capability: 'shell' }
+        return {
+          ok: false,
+          error: 'permission_denied',
+          reason: 'shell access denied',
+          capability: 'shell'
+        }
       }
       if (perms.subprocess?.allowed === false) {
-        return { ok: false, error: 'permission_denied', reason: 'subprocess execution denied', capability: 'subprocess' }
+        return {
+          ok: false,
+          error: 'permission_denied',
+          reason: 'subprocess execution denied',
+          capability: 'subprocess'
+        }
       }
       if (perms.network?.allowed === false) {
-        return { ok: false, error: 'permission_denied', reason: 'network access denied', capability: 'network' }
+        return {
+          ok: false,
+          error: 'permission_denied',
+          reason: 'network access denied',
+          capability: 'network'
+        }
       }
       if (perms.filesystem?.allowed === false) {
-        return { ok: false, error: 'permission_denied', reason: 'filesystem access denied', capability: 'filesystem' }
+        return {
+          ok: false,
+          error: 'permission_denied',
+          reason: 'filesystem access denied',
+          capability: 'filesystem'
+        }
       }
       if (perms.system_info?.allowed === false) {
-        return { ok: false, error: 'permission_denied', reason: 'system info access denied', capability: 'system_info' }
+        return {
+          ok: false,
+          error: 'permission_denied',
+          reason: 'system info access denied',
+          capability: 'system_info'
+        }
       }
     }
 
@@ -447,9 +495,6 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
 
     return skill.execute({ content: input, context, manifest: skill.manifest, args, toolName })
   }
-
-
-
 
   async function executeHook(skillId, hookName, payload) {
     const skill = getById(skillId)
@@ -492,7 +537,14 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     }))
   }
 
+  let _toolsCache = null
+  let _toolsCacheGeneration = 0
+
   function toOpenAITools(skillIds) {
+    if (_toolsCache && _toolsCacheGeneration === _skillsGeneration && skillIds === undefined) {
+      return _toolsCache
+    }
+
     const skills = skillIds ? getEnabled().filter((s) => skillIds.includes(s.id)) : getEnabled()
     const functions = []
 
@@ -540,6 +592,8 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       }
     }
 
+    _toolsCache = functions
+    _toolsCacheGeneration = _skillsGeneration
     return functions
   }
 

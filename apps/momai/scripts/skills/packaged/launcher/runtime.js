@@ -7,7 +7,7 @@ const { exec } = require('node:child_process')
    ────────────────────────────────────────────── */
 
 const SCAN_CACHE = { items: null, vocab: null, timestamp: 0 }
-const CACHE_TTL_MS = 60_000
+const CACHE_TTL_MS = 300_000
 
 function getEnv(key) {
   return String(process.env[key] || '').trim()
@@ -28,10 +28,10 @@ function normalizeAccents(str) {
    Windows Indexing (PowerToys/Raycast style)
    ────────────────────────────────────────────── */
 
-function scanWindowsStartMenu() {
+async function scanWindowsStartMenu() {
   const dirs = [
     path.join(getEnv('APPDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
-    path.join(getEnv('PROGRAMDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+    path.join(getEnv('PROGRAMDATA'), 'Microsoft', 'Windows', 'Start Menu', 'Programs')
   ]
   const items = []
   const seen = new Set()
@@ -39,7 +39,7 @@ function scanWindowsStartMenu() {
   for (const base of dirs) {
     if (!fs.existsSync(base)) continue
     try {
-      walkDir(base, items, seen, 'Programa', 2)
+      await walkDir(base, items, seen, 'Programa', 2)
     } catch {
       /* skip inaccessible */
     }
@@ -47,18 +47,18 @@ function scanWindowsStartMenu() {
   return items
 }
 
-function scanDesktop() {
+async function scanDesktop() {
   const items = []
   const seen = new Set()
   const dirs = [
     path.join(getEnv('USERPROFILE'), 'Desktop'),
-    path.join(getEnv('PUBLIC'), 'Desktop'),
+    path.join(getEnv('PUBLIC'), 'Desktop')
   ].filter(Boolean)
 
   for (const desktop of dirs) {
     if (!fs.existsSync(desktop)) continue
     try {
-      walkDir(desktop, items, seen, 'Atalho', 2)
+      await walkDir(desktop, items, seen, 'Atalho', 2)
     } catch {
       /* skip */
     }
@@ -66,26 +66,31 @@ function scanDesktop() {
   return items
 }
 
-function scanProgramFiles() {
+async function scanProgramFiles() {
   const dirs = [
     getEnv('LOCALAPPDATA') ? path.join(getEnv('LOCALAPPDATA'), 'Programs') : null,
     getEnv('PROGRAMFILES'),
-    getEnv('PROGRAMFILES(X86)'),
+    getEnv('PROGRAMFILES(X86)')
   ].filter(Boolean)
 
   const items = []
   const seen = new Set()
+  let fileCount = 0
 
   for (const base of dirs) {
     if (!fs.existsSync(base)) continue
     try {
-      const entries = fs.readdirSync(base, { withFileTypes: true })
+      const entries = await fs.promises.readdir(base, { withFileTypes: true })
       for (const entry of entries) {
         if (!entry.isDirectory()) continue
         const dirPath = path.join(base, entry.name)
         try {
-          const subEntries = fs.readdirSync(dirPath, { withFileTypes: true })
+          const subEntries = await fs.promises.readdir(dirPath, { withFileTypes: true })
           for (const sub of subEntries) {
+            fileCount++
+            if (fileCount % 50 === 0) {
+              await new Promise(r => setImmediate(r))
+            }
             if (sub.name.endsWith('.exe') || sub.name.endsWith('.lnk')) {
               const fullPath = path.join(dirPath, sub.name)
               if (seen.has(fullPath)) continue
@@ -95,7 +100,7 @@ function scanProgramFiles() {
                 name: displayName,
                 path: fullPath,
                 type: sub.name.endsWith('.lnk') ? 'Atalho' : 'Programa',
-                category: inferCategory(displayName, dirPath),
+                category: inferCategory(displayName, dirPath)
               })
             }
           }
@@ -110,23 +115,28 @@ function scanProgramFiles() {
   return items
 }
 
-function scanAppDataPrograms() {
+async function scanAppDataPrograms() {
   const localAppData = getEnv('LOCALAPPDATA')
   if (!localAppData) return []
 
   const items = []
   const seen = new Set()
   const base = path.join(localAppData)
+  let fileCount = 0
 
   try {
-    const entries = fs.readdirSync(base, { withFileTypes: true })
+    const entries = await fs.promises.readdir(base, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
       if (entry.name.startsWith('.')) continue
       const dirPath = path.join(base, entry.name)
       try {
-        const subEntries = fs.readdirSync(dirPath, { withFileTypes: true })
+        const subEntries = await fs.promises.readdir(dirPath, { withFileTypes: true })
         for (const sub of subEntries) {
+          fileCount++
+          if (fileCount % 50 === 0) {
+            await new Promise(r => setImmediate(r))
+          }
           if (!sub.isDirectory()) continue
           const exePath = path.join(dirPath, sub.name, `${sub.name}.exe`)
           if (seen.has(exePath)) continue
@@ -136,7 +146,7 @@ function scanAppDataPrograms() {
               name: sub.name,
               path: exePath,
               type: 'Programa',
-              category: inferCategory(sub.name, dirPath),
+              category: inferCategory(sub.name, dirPath)
             })
           }
         }
@@ -150,19 +160,24 @@ function scanAppDataPrograms() {
   return items
 }
 
-function scanPathExecutables() {
+async function scanPathExecutables() {
   const pathEnv = getEnv('PATH')
   if (!pathEnv) return []
 
   const items = []
   const seen = new Set()
   const dirs = pathEnv.split(';').filter(Boolean)
+  let fileCount = 0
 
   for (const dir of dirs) {
     if (!fs.existsSync(dir)) continue
     try {
-      const entries = fs.readdirSync(dir, { withFileTypes: true })
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true })
       for (const entry of entries) {
+        fileCount++
+        if (fileCount % 50 === 0) {
+          await new Promise(r => setImmediate(r))
+        }
         if (entry.isFile() && /\.(exe|bat|cmd|ps1)$/i.test(entry.name)) {
           const name = entry.name.replace(/\.(exe|bat|cmd|ps1)$/i, '')
           const key = `path:${name}`
@@ -172,7 +187,7 @@ function scanPathExecutables() {
             name,
             path: path.join(dir, entry.name),
             type: 'CLI',
-            category: inferCategory(name, dir),
+            category: inferCategory(name, dir)
           })
         }
       }
@@ -190,8 +205,14 @@ function scanCommonFolders() {
   const items = []
   const seen = new Set()
   const common = [
-    'Desktop', 'Downloads', 'Documents', 'Pictures', 'Music', 'Videos',
-    'OneDrive', 'OneDrive - Personal',
+    'Desktop',
+    'Downloads',
+    'Documents',
+    'Pictures',
+    'Music',
+    'Videos',
+    'OneDrive',
+    'OneDrive - Personal'
   ]
 
   for (const folder of common) {
@@ -202,101 +223,117 @@ function scanCommonFolders() {
         name: folder,
         path: fullPath,
         type: 'Pasta',
-        category: 'Sistema',
+        category: 'Sistema'
       })
     }
   }
   return items
 }
 
-function scanUserSubfolders() {
+async function scanUserSubfolders() {
   const userDir = getEnv('USERPROFILE')
   if (!userDir) return []
 
   const items = []
   const seen = new Set()
-  walkUserFolder(userDir, items, seen, 'Sistema', 2)
+  await walkUserFolder(userDir, items, seen, 'Sistema', 2)
   return items
 }
 
-function scanUserDocuments() {
+async function scanUserDocuments() {
   const docsDir = path.join(getEnv('USERPROFILE'), 'Documents')
   if (!fs.existsSync(docsDir)) return []
 
   const items = []
   const seen = new Set()
-  walkUserFolder(docsDir, items, seen, 'Documentos', 3)
+  await walkUserFolder(docsDir, items, seen, 'Documentos', 3)
   return items
 }
 
-function scanUserDownloads() {
+async function scanUserDownloads() {
   const dlDir = path.join(getEnv('USERPROFILE'), 'Downloads')
   if (!fs.existsSync(dlDir)) return []
 
   const items = []
   const seen = new Set()
-  walkUserFolder(dlDir, items, seen, 'Downloads', 3)
+  await walkUserFolder(dlDir, items, seen, 'Downloads', 3)
   return items
 }
 
-function scanUserDesktopFiles() {
+async function scanUserDesktopFiles() {
   const deskDir = path.join(getEnv('USERPROFILE'), 'Desktop')
   if (!fs.existsSync(deskDir)) return []
 
   const items = []
   const seen = new Set()
-  walkUserFolder(deskDir, items, seen, 'Desktop', 3)
+  await walkUserFolder(deskDir, items, seen, 'Desktop', 3)
   return items
 }
 
-function walkDir(dirPath, items, seen, defaultType, maxDepth) {
+async function walkDir(dirPath, items, seen, defaultType, maxDepth) {
   if (maxDepth <= 0) return
 
   let entries
   try {
-    entries = fs.readdirSync(dirPath, { withFileTypes: true })
+    entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
   } catch {
     return
   }
 
+  let fileCount = 0
   for (const entry of entries) {
+    fileCount++
+    if (fileCount % 50 === 0) {
+      await new Promise(r => setImmediate(r))
+    }
     const fullPath = path.join(dirPath, entry.name)
     if (seen.has(fullPath)) continue
 
     if (entry.isDirectory()) {
       seen.add(fullPath)
       if (!entry.name.startsWith('.')) {
-        walkDir(fullPath, items, seen, defaultType, maxDepth - 1)
+        await walkDir(fullPath, items, seen, defaultType, maxDepth - 1)
       }
       continue
     }
 
-    if (entry.name.endsWith('.exe') || entry.name.endsWith('.lnk') || entry.name.endsWith('.bat') || entry.name.endsWith('.cmd')) {
+    if (
+      entry.name.endsWith('.exe') ||
+      entry.name.endsWith('.lnk') ||
+      entry.name.endsWith('.bat') ||
+      entry.name.endsWith('.cmd')
+    ) {
       seen.add(fullPath)
       const displayName = entry.name.replace(/\.(exe|lnk|bat|cmd)$/i, '')
       items.push({
         name: displayName,
         path: fullPath,
         type: entry.name.endsWith('.lnk') ? 'Atalho' : 'Programa',
-        category: inferCategory(displayName, dirPath),
+        category: inferCategory(displayName, dirPath)
       })
     }
   }
 }
 
-const DOC_FILE_RE = /\.(docx?|xlsx?|pptx?|pdf|txt|md|csv|json|xml|jpg|jpeg|png|gif|mp4|mkv|mp3|wav|zip|rar|7z)$/i
+const DOC_FILE_RE =
+  /\.(docx?|xlsx?|pptx?|pdf|txt|md|csv|json|xml|jpg|jpeg|png|gif|mp4|mkv|mp3|wav|zip|rar|7z)$/i
 
-function walkUserFolder(dirPath, items, seen, category, maxDepth) {
+async function walkUserFolder(dirPath, items, seen, category, maxDepth) {
   if (maxDepth <= 0) return
 
   let entries
   try {
-    entries = fs.readdirSync(dirPath, { withFileTypes: true })
+    entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
   } catch {
     return
   }
 
+  let fileCount = 0
   for (const entry of entries) {
+    fileCount++
+    if (fileCount % 50 === 0) {
+      await new Promise(r => setImmediate(r))
+    }
     const fullPath = path.join(dirPath, entry.name)
     if (seen.has(fullPath)) continue
 
@@ -307,9 +344,9 @@ function walkUserFolder(dirPath, items, seen, category, maxDepth) {
         name: entry.name,
         path: fullPath,
         type: 'Pasta',
-        category,
+        category
       })
-      walkUserFolder(fullPath, items, seen, category, maxDepth - 1)
+      await walkUserFolder(fullPath, items, seen, category, maxDepth - 1)
     } else if (DOC_FILE_RE.test(entry.name)) {
       seen.add(fullPath)
       const displayName = entry.name.replace(/\.[^.]+$/, '')
@@ -317,7 +354,7 @@ function walkUserFolder(dirPath, items, seen, category, maxDepth) {
         name: displayName,
         path: fullPath,
         type: 'Arquivo',
-        category,
+        category
       })
     }
   }
@@ -331,16 +368,95 @@ function inferCategory(name, dirPath) {
   const lower = String(name || '').toLowerCase()
   const dirLower = String(dirPath || '').toLowerCase()
 
-  if (lower.includes('chrome') || lower.includes('firefox') || lower.includes('edge') || lower.includes('brave') || lower.includes('opera') || lower.includes('browser')) return 'Navegador'
-  if (lower.includes('code') || lower.includes('studio') || lower.includes('ide') || lower.includes('vscode') || lower.includes('visual studio') || lower.includes('notepad') || lower.includes('sublime') || lower.includes('webstorm') || lower.includes('cursor')) return 'Desenvolvimento'
-  if (lower.includes('word') || lower.includes('excel') || lower.includes('powerpoint') || lower.includes('outlook') || lower.includes('office') || lower.includes('onenote') || lower.includes('access')) return 'Escritorio'
-  if (lower.includes('spotify') || lower.includes('music') || lower.includes('media') || lower.includes('vlc') || lower.includes('player') || lower.includes('video')) return 'Midia'
-  if (lower.includes('discord') || lower.includes('slack') || lower.includes('teams') || lower.includes('zoom') || lower.includes('whatsapp') || lower.includes('telegram') || lower.includes('signal')) return 'Comunicacao'
-  if (dirLower.includes('accessories') || dirLower.includes('acessórios') || dirLower.includes('ferramentas')) return 'Ferramentas'
-  if (dirLower.includes('games') || dirLower.includes('jogos') || dirLower.includes('game') || lower.includes('steam') || lower.includes('epic') || lower.includes('unity') || lower.includes('unreal')) return 'Jogos'
-  if (dirLower.includes('adobe') || lower.includes('photoshop') || lower.includes('illustrator') || lower.includes('premiere') || lower.includes('after effects') || lower.includes('design') || lower.includes('figma')) return 'Design'
-  if (dirLower.includes('system32') || dirLower.includes('system') || dirLower.includes('windows') || lower.includes('calc') || lower.includes('cmd') || lower.includes('powershell') || lower.includes('terminal') || lower.includes('control')) return 'Sistema'
-  if (lower.includes('explorer') || lower.includes('file manager') || lower.includes('files')) return 'Arquivos'
+  if (
+    lower.includes('chrome') ||
+    lower.includes('firefox') ||
+    lower.includes('edge') ||
+    lower.includes('brave') ||
+    lower.includes('opera') ||
+    lower.includes('browser')
+  )
+    return 'Navegador'
+  if (
+    lower.includes('code') ||
+    lower.includes('studio') ||
+    lower.includes('ide') ||
+    lower.includes('vscode') ||
+    lower.includes('visual studio') ||
+    lower.includes('notepad') ||
+    lower.includes('sublime') ||
+    lower.includes('webstorm') ||
+    lower.includes('cursor')
+  )
+    return 'Desenvolvimento'
+  if (
+    lower.includes('word') ||
+    lower.includes('excel') ||
+    lower.includes('powerpoint') ||
+    lower.includes('outlook') ||
+    lower.includes('office') ||
+    lower.includes('onenote') ||
+    lower.includes('access')
+  )
+    return 'Escritorio'
+  if (
+    lower.includes('spotify') ||
+    lower.includes('music') ||
+    lower.includes('media') ||
+    lower.includes('vlc') ||
+    lower.includes('player') ||
+    lower.includes('video')
+  )
+    return 'Midia'
+  if (
+    lower.includes('discord') ||
+    lower.includes('slack') ||
+    lower.includes('teams') ||
+    lower.includes('zoom') ||
+    lower.includes('whatsapp') ||
+    lower.includes('telegram') ||
+    lower.includes('signal')
+  )
+    return 'Comunicacao'
+  if (
+    dirLower.includes('accessories') ||
+    dirLower.includes('acessórios') ||
+    dirLower.includes('ferramentas')
+  )
+    return 'Ferramentas'
+  if (
+    dirLower.includes('games') ||
+    dirLower.includes('jogos') ||
+    dirLower.includes('game') ||
+    lower.includes('steam') ||
+    lower.includes('epic') ||
+    lower.includes('unity') ||
+    lower.includes('unreal')
+  )
+    return 'Jogos'
+  if (
+    dirLower.includes('adobe') ||
+    lower.includes('photoshop') ||
+    lower.includes('illustrator') ||
+    lower.includes('premiere') ||
+    lower.includes('after effects') ||
+    lower.includes('design') ||
+    lower.includes('figma')
+  )
+    return 'Design'
+  if (
+    dirLower.includes('system32') ||
+    dirLower.includes('system') ||
+    dirLower.includes('windows') ||
+    lower.includes('calc') ||
+    lower.includes('cmd') ||
+    lower.includes('powershell') ||
+    lower.includes('terminal') ||
+    lower.includes('control')
+  )
+    return 'Sistema'
+  if (lower.includes('explorer') || lower.includes('file manager') || lower.includes('files'))
+    return 'Arquivos'
   if (dirLower.includes('documents') || dirLower.includes('documentos')) return 'Documentos'
   if (dirLower.includes('downloads')) return 'Downloads'
   if (dirLower.includes('desktop')) return 'Desktop'
@@ -352,17 +468,19 @@ function inferCategory(name, dirPath) {
    Build Full Index
    ────────────────────────────────────────────── */
 
-function buildFullIndex() {
-  const startMenu = scanWindowsStartMenu()
-  const desktop = scanDesktop()
-  const programFiles = scanProgramFiles()
-  const appData = scanAppDataPrograms()
-  const pathExes = scanPathExecutables()
-  const commonFolders = scanCommonFolders()
-  const userSubfolders = scanUserSubfolders()
-  const userDocs = scanUserDocuments()
-  const userDownloads = scanUserDownloads()
-  const userDesktopFiles = scanUserDesktopFiles()
+async function buildFullIndex() {
+  const [startMenu, desktop, programFiles, appData, pathExes, commonFolders, userSubfolders, userDocs, userDownloads, userDesktopFiles] = await Promise.all([
+    scanWindowsStartMenu(),
+    scanDesktop(),
+    scanProgramFiles(),
+    scanAppDataPrograms(),
+    scanPathExecutables(),
+    Promise.resolve(scanCommonFolders()),
+    scanUserSubfolders(),
+    scanUserDocuments(),
+    scanUserDownloads(),
+    scanUserDesktopFiles()
+  ])
 
   const all = [
     ...userSubfolders,
@@ -374,7 +492,7 @@ function buildFullIndex() {
     ...desktop,
     ...programFiles,
     ...appData,
-    ...pathExes,
+    ...pathExes
   ]
 
   const seen = new Set()
@@ -389,7 +507,9 @@ function buildFullIndex() {
 function buildVocabulary(items) {
   const vocab = new Set()
   for (const item of items) {
-    const words = normalizeAccents(item.name).split(/[\s_-]+/).filter((w) => w.length >= 2)
+    const words = normalizeAccents(item.name)
+      .split(/[\s_-]+/)
+      .filter((w) => w.length >= 2)
     for (const w of words) vocab.add(w)
   }
   return vocab
@@ -407,19 +527,19 @@ function filterQueryWords(qWords, vocab) {
   })
 }
 
-function getOrRefreshIndex() {
+async function getOrRefreshIndex() {
   const now = Date.now()
   if (SCAN_CACHE.items && now - SCAN_CACHE.timestamp < CACHE_TTL_MS) {
     return SCAN_CACHE.items
   }
-  SCAN_CACHE.items = buildFullIndex()
+  SCAN_CACHE.items = await buildFullIndex()
   SCAN_CACHE.vocab = buildVocabulary(SCAN_CACHE.items)
   SCAN_CACHE.timestamp = now
   return SCAN_CACHE.items
 }
 
-function getVocabulary() {
-  getOrRefreshIndex()
+async function getVocabulary() {
+  await getOrRefreshIndex()
   return SCAN_CACHE.vocab || new Set()
 }
 
@@ -438,15 +558,17 @@ function isFileQuery(query) {
 }
 
 function isExplicitOpenQuery(query) {
-  const q = String(query || '').toLowerCase().trim()
+  const q = String(query || '')
+    .toLowerCase()
+    .trim()
   return /^(abra|abrir|executar|iniciar|run|launch|open|start)\b/i.test(q)
 }
 
-function scoreItem(item, query) {
+async function scoreItem(item, query) {
   const q = normalizeAccents(query).trim()
   if (!q) return 0
 
-  const vocab = getVocabulary()
+  const vocab = await getVocabulary()
   const nameNorm = normalizeAccents(item.name)
   const catNorm = normalizeAccents(item.category || '')
   const pathNorm = normalizeAccents(item.path || '')
@@ -465,18 +587,16 @@ function scoreItem(item, query) {
     } else {
       score = scoreNameMatch(nameNorm, q, vocab) * 0.2
     }
-  }
+  } else if (fileQuery) {
   /* ── File queries: prioritize files ── */
-  else if (fileQuery) {
     if (isFile) {
       score = scoreNameMatch(nameNorm, q, vocab)
       score = Math.min(score + 0.15, 1.0)
     } else {
       score = scoreNameMatch(nameNorm, q, vocab) * 0.3
     }
-  }
+  } else {
   /* ── Normal query ── */
-  else {
     score = scoreNameMatch(nameNorm, q, vocab)
 
     /* Category bonus */
@@ -544,11 +664,10 @@ function openItem(itemPath) {
   return new Promise((resolve) => {
     const normalized = path.resolve(String(itemPath || '').trim())
     if (!normalized) return resolve({ ok: false, error: 'Caminho vazio' })
-    if (!fs.existsSync(normalized)) return resolve({ ok: false, error: 'Caminho nao encontrado no disco' })
+    if (!fs.existsSync(normalized))
+      return resolve({ ok: false, error: 'Caminho nao encontrado no disco' })
 
-    const cmd = process.platform === 'win32'
-      ? `start "" "${normalized}"`
-      : `open "${normalized}"`
+    const cmd = process.platform === 'win32' ? `start "" "${normalized}"` : `open "${normalized}"`
 
     exec(cmd, (err) => {
       if (err) return resolve({ ok: false, error: err.message })
@@ -581,7 +700,7 @@ function buildCardPayload(query, scored) {
       Arquivo: 'Arquivos',
       Programa: 'Programas',
       Atalho: 'Atalhos',
-      CLI: 'Ferramentas CLI',
+      CLI: 'Ferramentas CLI'
     }
     sections.push({
       title: typeLabels[typeName] || typeName,
@@ -592,15 +711,15 @@ function buildCardPayload(query, scored) {
         description: item.path,
         badge: {
           text: `${Math.round(item.score * 100)}%`,
-          variant: item.score >= 0.9 ? 'success' : item.score >= 0.5 ? 'info' : 'default',
+          variant: item.score >= 0.9 ? 'success' : item.score >= 0.5 ? 'info' : 'default'
         },
         primaryAction: {
           type: 'primary',
           label: 'Abrir',
           endpoint: '/launcher/open',
-          payload: { path: item.path },
-        },
-      })),
+          payload: { path: item.path }
+        }
+      }))
     })
   }
 
@@ -614,15 +733,15 @@ function buildCardPayload(query, scored) {
         description: item.path,
         badge: {
           text: `${Math.round(item.score * 100)}%`,
-          variant: item.score >= 0.9 ? 'success' : item.score >= 0.5 ? 'info' : 'default',
+          variant: item.score >= 0.9 ? 'success' : item.score >= 0.5 ? 'info' : 'default'
         },
         primaryAction: {
           type: 'primary',
           label: 'Abrir',
           endpoint: '/launcher/open',
-          payload: { path: item.path },
-        },
-      })),
+          payload: { path: item.path }
+        }
+      }))
     })
   }
 
@@ -631,8 +750,10 @@ function buildCardPayload(query, scored) {
   const fileCount = scored.filter((i) => i.type === 'Arquivo').length
 
   let subtitle = `${scored.length} ${scored.length === 1 ? 'item encontrado' : 'itens encontrados'}`
-  if (folderQuery) subtitle = `${folderCount} pasta${folderCount !== 1 ? 's' : ''} encontrada${folderCount !== 1 ? 's' : ''}`
-  else if (fileQuery) subtitle = `${fileCount} arquivo${fileCount !== 1 ? 's' : ''} encontrado${fileCount !== 1 ? 's' : ''}`
+  if (folderQuery)
+    subtitle = `${folderCount} pasta${folderCount !== 1 ? 's' : ''} encontrada${folderCount !== 1 ? 's' : ''}`
+  else if (fileQuery)
+    subtitle = `${fileCount} arquivo${fileCount !== 1 ? 's' : ''} encontrado${fileCount !== 1 ? 's' : ''}`
 
   return {
     type: 'generic-extension',
@@ -642,11 +763,11 @@ function buildCardPayload(query, scored) {
       header: {
         icon: '',
         title: `Resultados para "${query}"`,
-        subtitle,
+        subtitle
       },
       sections,
-      footer: { text: 'MomAI Launcher' },
-    },
+      footer: { text: 'MomAI Launcher' }
+    }
   }
 }
 
@@ -658,11 +779,11 @@ function buildOpenedCardPayload(itemName, itemPath) {
       header: {
         icon: '',
         title: `${itemName} aberto`,
-        subtitle: itemPath,
+        subtitle: itemPath
       },
       status: { type: 'success', message: `${itemName} foi iniciado` },
-      footer: { text: 'MomAI Launcher' },
-    },
+      footer: { text: 'MomAI Launcher' }
+    }
   }
 }
 
@@ -684,7 +805,7 @@ function extractSearchTerms(raw) {
     /(?<!\w)(o|a|os|as|de|da|do|dos|das|em|no|na|nos|nas|um|uma|para|por|pelo|pela)\b\s*/gi,
     /\b(pasta|folder|diretorio|diretorio|arquivo|file|programa|aplicativo|app)\b\s*/gi,
     /\b(me|mim|eu|por favor|pfv|pf)\b\s*/gi,
-    /[\s,;:!?]+/g,
+    /[\s,;:!?]+/g
   ]
   let cleaned = q
   for (const pattern of removePatterns) {
@@ -708,27 +829,32 @@ module.exports = {
   tools: [
     {
       name: 'search_local_items',
-      description: 'Busca pastas, arquivos, programas e aplicativos no computador local por nome. Usar para abrir ou encontrar qualquer item no computador. Retorna caminhos absolutos com score de confianca.',
+      description:
+        'Busca pastas, arquivos, programas e aplicativos no computador local por nome. Usar para abrir ou encontrar qualquer item no computador. Retorna caminhos absolutos com score de confianca.',
       parameters: {
         type: 'object',
         required: ['query'],
         properties: {
-          query: { type: 'string', description: 'Nome ou termo do item a buscar (pasta, arquivo ou programa)' },
-        },
-      },
+          query: {
+            type: 'string',
+            description: 'Nome ou termo do item a buscar (pasta, arquivo ou programa)'
+          }
+        }
+      }
     },
     {
       name: 'open_local_item',
-      description: 'Abre pasta, arquivo ou programa pelo caminho absoluto. Use APENAS com caminho absoluto retornado pelo search_local_items.',
+      description:
+        'Abre pasta, arquivo ou programa pelo caminho absoluto. Use APENAS com caminho absoluto retornado pelo search_local_items.',
       parameters: {
         type: 'object',
         required: ['path'],
         properties: {
           path: { type: 'string', description: 'Caminho absoluto do item' },
-          name: { type: 'string', description: 'Nome do item para confirmacao' },
-        },
-      },
-    },
+          name: { type: 'string', description: 'Nome do item para confirmacao' }
+        }
+      }
+    }
   ],
 
   async execute({ content, args, toolName, momai }) {
@@ -743,7 +869,7 @@ module.exports = {
       if (!targetPath) {
         return {
           tool: 'open_local_item',
-          instruction: 'Caminho do item nao fornecido.',
+          instruction: 'Caminho do item nao fornecido.'
         }
       }
 
@@ -752,39 +878,51 @@ module.exports = {
         return {
           tool: 'open_local_item',
           structuredResponse: buildOpenedCardPayload(targetName, targetPath),
-          instruction: JSON.stringify({ ok: true, message: `"${targetName}" aberto com sucesso.`, path: targetPath }),
+          instruction: JSON.stringify({
+            ok: true,
+            message: `"${targetName}" aberto com sucesso.`,
+            path: targetPath
+          })
         }
       }
       return {
         tool: 'open_local_item',
-        instruction: `Nao foi possivel abrir: ${result.error}`,
+        instruction: `Nao foi possivel abrir: ${result.error}`
       }
     }
 
     /* ── search_local_items ── */
-    const rawQuery = toolName === 'search_local_items' ? (String(args?.query || content || '')).trim() : text
+    const rawQuery =
+      toolName === 'search_local_items' ? String(args?.query || content || '').trim() : text
     const searchTerms = extractSearchTerms(rawQuery)
-    await debugLog(`search: raw="${rawQuery.slice(0, 80)}" terms="${searchTerms.slice(0, 80)}"`, momai)
+    await debugLog(
+      `search: raw="${rawQuery.slice(0, 80)}" terms="${searchTerms.slice(0, 80)}"`,
+      momai
+    )
 
-    const allItems = getOrRefreshIndex()
+    const allItems = await getOrRefreshIndex()
     await debugLog(`scan: total=${allItems.length} items in index`, momai)
 
-    const scored = allItems
-      .map((item) => ({ ...item, score: scoreItem(item, searchTerms) }))
+    const scored = (await Promise.all(
+      allItems.map(async (item) => ({ ...item, score: await scoreItem(item, searchTerms) }))
+    ))
       .filter((item) => item.score > 0.1)
       .sort((a, b) => b.score - a.score)
       .slice(0, 20)
 
     await debugLog(`scored: ${scored.length} results after filtering (threshold=0.1)`, momai)
     if (scored.length > 0) {
-      const top3 = scored.slice(0, 3).map(i => `${i.name}(${Math.round(i.score*100)}% ${i.type})`).join(', ')
+      const top3 = scored
+        .slice(0, 3)
+        .map((i) => `${i.name}(${Math.round(i.score * 100)}% ${i.type})`)
+        .join(', ')
       await debugLog(`top: ${top3}`, momai)
     }
 
     if (scored.length === 0) {
       return {
         tool: 'search_local_items',
-        instruction: `Nenhum resultado encontrado para "${rawQuery}".`,
+        instruction: `Nenhum resultado encontrado para "${rawQuery}".`
       }
     }
 
@@ -800,7 +938,11 @@ module.exports = {
           return {
             tool: 'search_local_items',
             structuredResponse: buildOpenedCardPayload(perfectMatch.name, perfectMatch.path),
-            instruction: JSON.stringify({ ok: true, message: `"${perfectMatch.name}" encontrado e aberto automaticamente.`, path: perfectMatch.path }),
+            instruction: JSON.stringify({
+              ok: true,
+              message: `"${perfectMatch.name}" encontrado e aberto automaticamente.`,
+              path: perfectMatch.path
+            })
           }
         }
       }
@@ -810,12 +952,19 @@ module.exports = {
       tool: 'search_local_items',
       structuredResponse: buildCardPayload(rawQuery, scored),
       instruction: JSON.stringify({
-        results: scored.map((item) => ({ name: item.name, path: item.path, type: item.type, category: item.category, score: Math.round(item.score * 100) / 100 })),
+        results: scored.map((item) => ({
+          name: item.name,
+          path: item.path,
+          type: item.type,
+          category: item.category,
+          score: Math.round(item.score * 100) / 100
+        })),
         total: scored.length,
-        message: scored.length === 1
-          ? `Encontrado 1 resultado para "${rawQuery}". Deseja que eu abra?`
-          : `Encontrados ${scored.length} resultados para "${rawQuery}". Qual deles deseja abrir?`,
-      }),
+        message:
+          scored.length === 1
+            ? `Encontrado 1 resultado para "${rawQuery}". Deseja que eu abra?`
+            : `Encontrados ${scored.length} resultados para "${rawQuery}". Qual deles deseja abrir?`
+      })
     }
-  },
+  }
 }

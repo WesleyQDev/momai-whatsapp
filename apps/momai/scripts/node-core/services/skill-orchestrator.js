@@ -29,11 +29,24 @@ function getEnabledSkillManifests() {
 async function buildExtensionsPayload(lang = 'pt-BR') {
   const skillRegistry = getSkillRegistry()
   if (!skillRegistry || typeof skillRegistry.getAll !== 'function') return []
-  
+
   const all = skillRegistry.getAll()
   const community = await communityRegistry.fetchRegistry()
-  
+
   console.log(`[SkillOrchestrator] Building payload for ${all.length} skills (lang: ${lang})`)
+
+  const starsMap = new Map()
+  const BATCH_SIZE = 5
+  for (let i = 0; i < all.length; i += BATCH_SIZE) {
+    const batch = all.slice(i, i + BATCH_SIZE)
+    await Promise.all(batch.map(async (skill) => {
+      const repo = skill.manifest?.repo || null
+      if (repo) {
+        const stars = await communityRegistry.getGitHubStars(repo)
+        starsMap.set(skill.id, stars)
+      }
+    }))
+  }
 
   const payload = all.map(async (skill) => {
     try {
@@ -45,19 +58,16 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
       const name = localized.name || manifest.name || skill.id
       const description = localized.description || manifest.description || ''
 
-      // Fetch dynamic stats if repo is available
-      let stars = 0
+      // Use pre-fetched stars
+      const stars = starsMap.get(skill.id) || 0
       const repo = manifest.repo || null
-      if (repo) {
-        stars = await communityRegistry.getGitHubStars(repo)
-      }
 
       // Determine the best documentation content based on language
-      const readmes = (typeof manifest.readme === 'object' && manifest.readme !== null) 
-        ? manifest.readme 
-        : {}
-      
-      const docContent = readmes[lang] || readmes['pt-BR'] || readmes['default'] || manifest.instructions || ''
+      const readmes =
+        typeof manifest.readme === 'object' && manifest.readme !== null ? manifest.readme : {}
+
+      const docContent =
+        readmes[lang] || readmes['pt-BR'] || readmes['default'] || manifest.instructions || ''
 
       return {
         id: manifest.id || skill.id,
@@ -71,7 +81,8 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         author: manifest.author || null,
         repo: repo,
         stars: stars,
-        is_official: skill.kind === 'builtin' || skill.kind === 'packaged' || manifest.author === 'WesleyQDev',
+        is_official:
+          skill.kind === 'builtin' || skill.kind === 'packaged' || manifest.author === 'WesleyQDev',
         version: manifest.version || null,
         tools: (manifest.tools || []).map((t) => t.name),
 
@@ -92,12 +103,12 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
   })
 
   const installed = (await Promise.all(payload)).filter(Boolean)
-  const installedIds = new Set(installed.map(ext => ext.id))
+  const installedIds = new Set(installed.map((ext) => ext.id))
 
   // Merge with community items that aren't installed yet
   const communityItems = community
-    .filter(item => !installedIds.has(item.id))
-    .map(item => {
+    .filter((item) => !installedIds.has(item.id))
+    .map((item) => {
       const raw = { ...item }
       const locales = raw.locales || {}
       const localized = locales[lang] || {}
@@ -116,7 +127,6 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
 
   return [...installed, ...communityItems]
 }
-
 
 function getToolCatalogRows() {
   const out = []

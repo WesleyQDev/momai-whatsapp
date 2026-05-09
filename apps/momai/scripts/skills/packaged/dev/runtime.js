@@ -114,37 +114,42 @@ function shouldSkipBinary(filePath) {
   return /\.(png|jpg|jpeg|gif|webp|ico|mp4|mp3|wav|zip|rar|7z|exe|dll|bin|pdf|woff2?)$/.test(lower)
 }
 
-function collectFiles(base, maxDepth = 4) {
+async function collectFiles(base, maxDepth = 4) {
   const files = []
-  function walk(cur, depth) {
+  async function walk(cur, depth) {
     if (depth < 0) return
     let entries = []
     try {
-      entries = fs.readdirSync(cur, { withFileTypes: true })
+      entries = await fs.promises.readdir(cur, { withFileTypes: true })
     } catch {
       return
     }
 
+    let fileCount = 0
     for (const ent of entries) {
+      fileCount++
+      if (fileCount % 100 === 0) {
+        await new Promise(r => setImmediate(r))
+      }
       const full = path.join(cur, ent.name)
       if (ent.isDirectory()) {
         if (ent.name.startsWith('.') && ent.name !== '.github') continue
-        walk(full, depth - 1)
+        await walk(full, depth - 1)
       } else if (ent.isFile()) {
         files.push(full)
       }
       if (files.length >= 2000) return
     }
   }
-  walk(base, maxDepth)
+  await walk(base, maxDepth)
   return files
 }
 
-function simpleGrep(basePath, query, glob) {
+async function simpleGrep(basePath, query, glob) {
   const q = String(query || '').trim()
   if (!q) return []
   const needle = q.toLowerCase()
-  const files = collectFiles(basePath, 5)
+  const files = await collectFiles(basePath, 5)
   const results = []
 
   for (const f of files) {
@@ -152,6 +157,10 @@ function simpleGrep(basePath, query, glob) {
     if (glob && !minimatchSimple(path.basename(f), glob)) continue
     const info = safeFileInfo(f)
     if (!info.exists || !info.isFile || info.size > MAX_GREP_FILE_SIZE) continue
+
+    if (info.size > 100 * 1024) {
+      await new Promise(r => setImmediate(r))
+    }
 
     let text = ''
     try {
@@ -427,14 +436,13 @@ function ensureValidHtmlDocument(html) {
     const second = raw.toLowerCase().indexOf('<!doctype html>', first + 1)
     if (second > 0) {
       const secondDoc = raw.slice(second).trim()
-      const secondDocClosed = /<\/html>\s*$/i.test(secondDoc)
-        ? secondDoc
-        : `${secondDoc}\n</html>`
+      const secondDocClosed = /<\/html>\s*$/i.test(secondDoc) ? secondDoc : `${secondDoc}\n</html>`
       return secondDocClosed
     }
   }
 
-  const nestedDocMatch = raw.match(/<!doctype html>[\s\S]*<\/html>/i) || raw.match(/<html[\s\S]*<\/html>/i)
+  const nestedDocMatch =
+    raw.match(/<!doctype html>[\s\S]*<\/html>/i) || raw.match(/<html[\s\S]*<\/html>/i)
   if (nestedDocMatch?.[0]) {
     raw = nestedDocMatch[0].trim()
   }
@@ -447,8 +455,13 @@ function ensureValidHtmlDocument(html) {
   if (hasHtmlTag && hasDoctype && hasHead && hasBody) return raw
   if (hasHtmlTag && /<\/html>/i.test(raw)) {
     let wrapped = raw
-    if (!hasHead) wrapped = wrapped.replace(/<html([^>]*)>/i, '<html$1><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>')
-    if (!hasBody) wrapped = wrapped.replace(/<\/head>/i, '$&<body>').replace(/<\/html>/i, '</body></html>')
+    if (!hasHead)
+      wrapped = wrapped.replace(
+        /<html([^>]*)>/i,
+        '<html$1><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>'
+      )
+    if (!hasBody)
+      wrapped = wrapped.replace(/<\/head>/i, '$&<body>').replace(/<\/html>/i, '</body></html>')
     if (!/<\/body>/i.test(wrapped)) wrapped = wrapped.replace(/<\/html>/i, '</body></html>')
     if (!/<!doctype html>/i.test(wrapped)) wrapped = `<!DOCTYPE html>\n${wrapped}`
 
@@ -660,7 +673,8 @@ function readFileContent(targetPath) {
   }
   try {
     const raw = fs.readFileSync(targetPath, 'utf8')
-    const content = raw.length > MAX_READ_CHARS ? `${raw.slice(0, MAX_READ_CHARS)}\n\n... [truncado]` : raw
+    const content =
+      raw.length > MAX_READ_CHARS ? `${raw.slice(0, MAX_READ_CHARS)}\n\n... [truncado]` : raw
     return { ok: true, content }
   } catch {
     return { ok: false, error: 'Falha ao ler arquivo.' }
@@ -695,11 +709,13 @@ function getHtmlTopic(prompt) {
 function summarizeHtmlIntent(query) {
   const topic = getHtmlTopic(query)
   const lower = String(query || '').toLowerCase()
-  const kind =
-    /landing/.test(lower) ? 'landing page'
-    : /site de vendas|loja|e-commerce|ecommerce/.test(lower) ? 'site comercial'
-    : /saude|saúde|clinica|clínica|medic/.test(lower) ? 'site institucional de saúde'
-    : 'página HTML'
+  const kind = /landing/.test(lower)
+    ? 'landing page'
+    : /site de vendas|loja|e-commerce|ecommerce/.test(lower)
+      ? 'site comercial'
+      : /saude|saúde|clinica|clínica|medic/.test(lower)
+        ? 'site institucional de saúde'
+        : 'página HTML'
 
   const hints = getKnowledgeHints(query)
   const routes = [...new Set(hints.map((h) => h.route))]
@@ -721,8 +737,9 @@ function executeMutation(state, mutation) {
   if (mutation.action === 'dev_write') {
     ensureDir(path.dirname(targetPath))
     const rawContent = String(mutation.payload.content || '')
-    const content =
-      /\.html?$/i.test(String(targetPath || '')) ? sanitizeHtmlBeforeWrite(rawContent) : rawContent
+    const content = /\.html?$/i.test(String(targetPath || ''))
+      ? sanitizeHtmlBeforeWrite(rawContent)
+      : rawContent
     fs.writeFileSync(targetPath, content, 'utf8')
     return { ok: true, message: `Arquivo salvo: ${targetPath}` }
   }
@@ -853,7 +870,8 @@ module.exports = {
     },
     {
       name: 'dev_patch',
-      description: 'Substitui trecho de um arquivo (ação mutante com confirmação humana obrigatória).',
+      description:
+        'Substitui trecho de um arquivo (ação mutante com confirmação humana obrigatória).',
       parameters: {
         type: 'object',
         required: ['path', 'find', 'replace'],
@@ -1072,7 +1090,9 @@ module.exports = {
         message: result.ok ? result.message : result.error,
         structuredResponse: result.ok
           ? successResponse
-          : buildDevResultCard('Falha ao aplicar alteração', mutation.path, [result.error || 'Erro'])
+          : buildDevResultCard('Falha ao aplicar alteração', mutation.path, [
+              result.error || 'Erro'
+            ])
       }
     }
 
@@ -1115,7 +1135,9 @@ module.exports = {
       }
       const depth = Math.max(0, Math.min(6, Number(args?.depth || 2)))
       const items = listDir(target, depth)
-      const lines = items.slice(0, 80).map((it) => `${it.type === 'dir' ? '[DIR]' : '[FILE]'} ${it.relative}`)
+      const lines = items
+        .slice(0, 80)
+        .map((it) => `${it.type === 'dir' ? '[DIR]' : '[FILE]'} ${it.relative}`)
       return {
         tool: 'dev_list',
         structuredResponse: buildDevResultCard('Listagem de arquivos', target, lines),
@@ -1160,11 +1182,15 @@ module.exports = {
       if (!info.exists || !info.isDirectory) {
         return { tool: 'dev_grep', instruction: 'Pasta base de grep não encontrada.' }
       }
-      const matches = simpleGrep(target, q, args?.glob)
+      const matches = await simpleGrep(target, q, args?.glob)
       const lines = matches.map((m) => `${m.file}:${m.line} | ${m.text}`)
       return {
         tool: 'dev_grep',
-        structuredResponse: buildDevResultCard('Resultado do grep', `${matches.length} ocorrência(s)`, lines.slice(0, 120)),
+        structuredResponse: buildDevResultCard(
+          'Resultado do grep',
+          `${matches.length} ocorrência(s)`,
+          lines.slice(0, 120)
+        ),
         instruction:
           `${knowledgeText}\n\nResultado de dev_grep (${q}) em ${target}:\n${lines.join('\n') || 'Sem ocorrências.'}`.trim()
       }
