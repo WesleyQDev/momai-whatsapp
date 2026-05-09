@@ -135,6 +135,7 @@ class WakeWordDetector:
 
         # Gate keyword detection (call mode bypass always works)
         self.wake_word_active = True
+        self._stop_event = threading.Event()
     
     def _load_model(self, retries=0):
         """Lazy load heavy dependencies and model."""
@@ -146,7 +147,9 @@ class WakeWordDetector:
         if ctranslate2 is None or WhisperModel is None:
             if retries < 3:
                 logger.debug(f"[WakeWord] Dependencies not ready, retrying in 5s... (attempt {retries+1}/3)")
-                time.sleep(5)
+                if self._stop_event.wait(timeout=5):
+                    logger.debug("[WakeWord] Stop requested during model load retry")
+                    return False
                 return self._load_model(retries + 1)
             
             logger.warning("[WakeWord] Dependencies (ctranslate2/faster-whisper) not ready. Skipping model load.")
@@ -766,10 +769,11 @@ class WakeWordDetector:
     def stop(self):
         """Stop the detector."""
         self.running = False
+        self._stop_event.set()
         if self.thread:
-            self.thread.join(timeout=2)
+            self.thread.join(timeout=1)
         if self.processing_thread:
-            self.processing_thread.join(timeout=2)
+            self.processing_thread.join(timeout=1)
 
 
 if __name__ == "__main__":
