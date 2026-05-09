@@ -88,7 +88,7 @@ function App(): React.JSX.Element {
     const handleEnd = () => {
       setShowOverlay(false)
       setOverlayTier(null)
-      setTimeout(() => setIsTierChanging(false), 3000)
+      setTimeout(() => setIsTierChanging(false), 2000)
     }
     window.addEventListener('momai_tier_change_start', handleStart)
     window.addEventListener('momai_tier_change_end', handleEnd)

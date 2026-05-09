@@ -602,8 +602,20 @@ export default function ContainerChat({
       )
   }, [threadId])
 
+  const [tierProgress, setTierProgress] = useState(0)
+
+  useEffect(() => {
+    if (!isTierChanging) {
+      setTierProgress(0)
+      return
+    }
+    setTierProgress(20)
+    const id = setInterval(() => setTierProgress((p) => Math.min(95, p + 4)), 80)
+    return () => clearInterval(id)
+  }, [isTierChanging])
+
   const displayProgress = isSystemDone ? 100 : Math.min(96, visualProgress || initProgress || 0)
-  const loadingProgress = isTierChanging ? 20 : displayProgress
+  const loadingProgress = isTierChanging ? tierProgress : displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
   const hasMessages = messages.length > 0
   const hasUserData = !!localStorage.getItem('momai_user_name') || !!settings?.user_name
