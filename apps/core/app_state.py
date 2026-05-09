@@ -11,11 +11,6 @@ logger = logging.getLogger("momai.app_state")
 
 _http_client: httpx.AsyncClient | None = None
 
-_settings_cache: Settings | None = None
-_settings_cache_time: float = 0
-_settings_cache_ttl: float = 10.0
-_settings_lock = asyncio.Lock()
-
 active_websockets: list[WebSocket] = []
 main_loop: asyncio.AbstractEventLoop | None = None
 ww = None
@@ -34,6 +29,11 @@ last_thread_id = "default"
 
 
 from database.models import SessionLocal, Settings
+
+_settings_cache: Settings | None = None
+_settings_cache_time: float = 0
+_settings_cache_ttl: float = 10.0
+_settings_lock = asyncio.Lock()
 
 
 async def get_settings_async() -> Settings | None:
