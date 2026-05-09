@@ -7,13 +7,18 @@ export interface UIComponent {
 interface DynamicRendererProps {
   schema: UIComponent
   onAction: (actionId: string, value?: any) => void
+  depth?: number
 }
 
-export function DynamicRenderer({ schema, onAction }: DynamicRendererProps) {
+export function DynamicRenderer({ schema, onAction, depth = 0 }: DynamicRendererProps) {
+  if (depth > 20) {
+    return <div className="text-xs text-muted-foreground">Nesting depth exceeded</div>
+  }
+
   const { type, props = {}, children = [] } = schema
 
   const renderChild = (child: UIComponent, index: number) => (
-    <DynamicRenderer key={index} schema={child} onAction={onAction} />
+    <DynamicRenderer key={index} schema={child} onAction={onAction} depth={depth + 1} />
   )
 
   switch (type) {

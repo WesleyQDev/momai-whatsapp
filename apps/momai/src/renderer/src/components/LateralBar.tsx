@@ -72,7 +72,10 @@ export default function LateralBar({
   }, [])
 
   useEffect(() => {
-    loadExtensions()
+    let loaded = false
+    loadExtensions().then(() => {
+      loaded = true
+    })
 
     const handleSync = (e: any) => {
       const allExts = e.detail as ExtensionItem[]
@@ -92,7 +95,9 @@ export default function LateralBar({
     window.addEventListener('momai_backend_ready', handleReady)
 
     // Fallback retry
-    const timer = setTimeout(loadExtensions, 3000)
+    const timer = setTimeout(() => {
+      if (!loaded) loadExtensions()
+    }, 3000)
 
     return () => {
       window.removeEventListener('momai_extensions_sync', handleSync)

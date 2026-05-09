@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { cleanMomaiActions } from '../utils/text'
+import { cleanMomaiActions, stripEmojisAndMarkdown } from '../utils/text'
 import { API_URL } from '../constants'
 
 export const api = axios.create({
@@ -213,28 +213,6 @@ export async function stopVoice(): Promise<void> {
 
 import { getTTSServiceRenderer } from './ttsService'
 
-export function stripEmojisAndMarkdown(text: string): string {
-  return text
-    .replace(/\p{Extended_Pictographic}/gu, '')
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/`([^`]+)`/g, '$1')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
-    .replace(/\*\*(.+?)\*\*/g, '$1')
-    .replace(/__(.+?)__/g, '$1')
-    .replace(/\*(.+?)\*/g, '$1')
-    .replace(/_(.+?)_/g, '$1')
-    .replace(/~~(.+?)~~/g, '$1')
-    .replace(/!?\[([^\]]*)\]\([^)]+\)/g, '$1')
-    .replace(/^\s*[-*+]\s+/gm, '')
-    .replace(/^\s*\d+\.\s+/gm, '')
-    .replace(/^>+\s?/gm, '')
-    .replace(/---+|\*\*\*+|___+/g, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[*_~#]/g, ' ')
-    .replace(/["""''']/g, '')
-}
-
 export async function speakText(text: string, engine?: string): Promise<void> {
   const cleanText = stripEmojisAndMarkdown(text)
 
@@ -440,7 +418,11 @@ export async function installExtension(
               throw new Error(data.error)
             }
           } catch (e) {
-            if (e instanceof Error && e.message !== 'Unexpected end of JSON input' && e.message !== 'Unexpected token o in JSON at position 1') {
+            if (
+              e instanceof Error &&
+              e.message !== 'Unexpected end of JSON input' &&
+              e.message !== 'Unexpected token o in JSON at position 1'
+            ) {
               throw e
             }
           }

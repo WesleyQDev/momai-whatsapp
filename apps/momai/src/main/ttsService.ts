@@ -42,7 +42,7 @@ export class TTSService extends EventEmitter {
       // Lazy load para evitar problemas de bundling
       this.sayInstance = require('say')
       this.edgeTTSInstance = require('edge-tts-universal')
-      
+
       this.emit('ready')
     } catch (error) {
       console.error('[TTSService] Erro ao inicializar engines:', error)
@@ -97,12 +97,32 @@ export class TTSService extends EventEmitter {
       // edge-tts-universal não tem método direto para listar vozes
       // Vamos retornar vozes comuns do Microsoft Edge
       const commonVoices: TTSVoice[] = [
-        { id: 'en-US-JennyNeural', name: 'Jenny (US English)', language: 'en-US', gender: 'female' },
+        {
+          id: 'en-US-JennyNeural',
+          name: 'Jenny (US English)',
+          language: 'en-US',
+          gender: 'female'
+        },
         { id: 'en-US-GuyNeural', name: 'Guy (US English)', language: 'en-US', gender: 'male' },
-        { id: 'en-GB-SoniaNeural', name: 'Sonia (UK English)', language: 'en-GB', gender: 'female' },
+        {
+          id: 'en-GB-SoniaNeural',
+          name: 'Sonia (UK English)',
+          language: 'en-GB',
+          gender: 'female'
+        },
         { id: 'en-GB-RyanNeural', name: 'Ryan (UK English)', language: 'en-GB', gender: 'male' },
-        { id: 'pt-BR-FranciscaNeural', name: 'Juliana (Portuguese)', language: 'pt-BR', gender: 'female' },
-        { id: 'pt-BR-AntonioNeural', name: 'Fernando (Portuguese)', language: 'pt-BR', gender: 'male' },
+        {
+          id: 'pt-BR-FranciscaNeural',
+          name: 'Juliana (Portuguese)',
+          language: 'pt-BR',
+          gender: 'female'
+        },
+        {
+          id: 'pt-BR-AntonioNeural',
+          name: 'Fernando (Portuguese)',
+          language: 'pt-BR',
+          gender: 'male'
+        },
         { id: 'es-ES-ElviraNeural', name: 'Elvira (Spanish)', language: 'es-ES', gender: 'female' },
         { id: 'es-ES-AlvaroNeural', name: 'Alvaro (Spanish)', language: 'es-ES', gender: 'male' },
         { id: 'it-IT-ElsaNeural', name: 'Elsa (Italian)', language: 'it-IT', gender: 'female' },
@@ -138,7 +158,9 @@ export class TTSService extends EventEmitter {
   }
 
   async speak(text: string, engine?: TTSEngine): Promise<void> {
-    console.log(`[TTSService] speak() called engine=${engine} current=${this.currentEngine} enabled=${this.config.enabled}`)
+    console.log(
+      `[TTSService] speak() called engine=${engine} current=${this.currentEngine} enabled=${this.config.enabled}`
+    )
     if (!this.config.enabled || !text || text.trim().length < 3) {
       console.log('[TTSService] speak() early return: disabled or too short')
       return
@@ -209,6 +231,8 @@ export class TTSService extends EventEmitter {
     })
   }
 
+  // NOTE: Duplicates stripEmojisAndMarkdown in src/renderer/src/utils/text.ts
+  // Main process cannot import renderer code; keep in sync manually.
   private sanitizeForTTS(text: string): string {
     return text
       .replace(/\p{Extended_Pictographic}/gu, '')
@@ -272,8 +296,6 @@ export class TTSService extends EventEmitter {
     }
   }
 
-
-
   private async speakWithKokoro(text: string): Promise<void> {
     // Kokoro ainda depende do Python
     // Vamos emitir um evento para o processo Python
@@ -283,18 +305,18 @@ export class TTSService extends EventEmitter {
   private mapKokoroToEdgeVoice(kokoroVoice: string): string {
     // Mapeamento de vozes Kokoro para vozes do Edge TTS
     const voiceMap: Record<string, string> = {
-      'pf_dora': 'pt-BR-FranciscaNeural',
-      'pm_alex': 'pt-BR-AntonioNeural',
-      'af_heart': 'en-US-JennyNeural',
-      'af_bella': 'en-US-JennyNeural',
-      'am_adam': 'en-US-GuyNeural',
-      'am_fenrir': 'en-US-GuyNeural',
-      'bf_alice': 'en-GB-SoniaNeural',
-      'bm_george': 'en-GB-RyanNeural',
-      'ef_dora': 'es-ES-ElviraNeural',
-      'em_alex': 'es-ES-AlvaroNeural',
-      'if_sara': 'it-IT-ElsaNeural',
-      'im_nicola': 'it-IT-DiegoNeural'
+      pf_dora: 'pt-BR-FranciscaNeural',
+      pm_alex: 'pt-BR-AntonioNeural',
+      af_heart: 'en-US-JennyNeural',
+      af_bella: 'en-US-JennyNeural',
+      am_adam: 'en-US-GuyNeural',
+      am_fenrir: 'en-US-GuyNeural',
+      bf_alice: 'en-GB-SoniaNeural',
+      bm_george: 'en-GB-RyanNeural',
+      ef_dora: 'es-ES-ElviraNeural',
+      em_alex: 'es-ES-AlvaroNeural',
+      if_sara: 'it-IT-ElsaNeural',
+      im_nicola: 'it-IT-DiegoNeural'
     }
 
     // Se já for uma voz Edge (contém 'Neural'), usar diretamente
@@ -366,7 +388,7 @@ export class TTSService extends EventEmitter {
 
   getEngineInfo(engine: TTSEngine): { name: string; description: string; requiresPython: boolean } {
     const info = {
-      'kokoro': {
+      kokoro: {
         name: 'Kokoro (Local)',
         description: 'Alta qualidade, requer Python',
         requiresPython: true
@@ -376,7 +398,7 @@ export class TTSService extends EventEmitter {
         description: 'Alta qualidade, requer internet',
         requiresPython: false
       },
-      'say': {
+      say: {
         name: 'Say.js (Local)',
         description: 'Voz do sistema, sem dependências',
         requiresPython: false

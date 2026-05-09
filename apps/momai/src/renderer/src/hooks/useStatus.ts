@@ -101,6 +101,56 @@ export function useStatus() {
       setIsOnline(false)
       setRetryCount((prev) => prev + 1)
     }
+
+    if (isBooting && initProgress < 100 && !isStalled && !isRetrying) {
+      const timeSinceLastProgress = Date.now() - lastProgressTime
+
+      if (timeSinceLastProgress >= STALLED_TIMEOUT_MS) {
+        if (!backendOnline) {
+          setIsStalled(true)
+          setInitMessage('Isso está demorando mais que o normal...')
+          return
+        }
+
+        try {
+          const data = await fetchInitStatus()
+
+          if (data.error) {
+            setIsStalled(true)
+            window.dispatchEvent(
+              new CustomEvent('momai_bootstrap_error', {
+                detail: {
+                  type: 'startup_failed',
+                  message: 'Backend initialization failed',
+                  details: data.error
+                }
+              })
+            )
+            return
+          }
+
+          if (data.stage === 'error') {
+            setIsStalled(true)
+            window.dispatchEvent(
+              new CustomEvent('momai_bootstrap_error', {
+                detail: {
+                  type: 'startup_failed',
+                  message: data.message || 'Backend initialization failed',
+                  details: data.message
+                }
+              })
+            )
+            return
+          }
+
+          setIsStalled(true)
+          setInitMessage('Isso está demorando mais que o normal...')
+        } catch {
+          setIsStalled(true)
+          setInitMessage('Isso está demorando mais que o normal...')
+        }
+      }
+    }
   }, [isBooting, isUpdating])
 
   useEffect(() => {
@@ -231,64 +281,6 @@ export function useStatus() {
     }
   }, [checkStatus, checkInitProgress, isBooting, backendOnline])
 
-  // Watchdog: detect stalled progress and check /init-status for errors
-  useEffect(() => {
-    if (!isBooting || initProgress >= 100 || isStalled || isRetrying) return undefined
-
-    const interval = setInterval(async () => {
-      const timeSinceLastProgress = Date.now() - lastProgressTime
-
-      if (timeSinceLastProgress < STALLED_TIMEOUT_MS) return
-
-      // Only check init-status if backend HTTP is reachable
-      if (!backendOnline) {
-        setIsStalled(true)
-        setInitMessage('Isso está demorando mais que o normal...')
-        return
-      }
-
-      try {
-        const data = await fetchInitStatus()
-
-        if (data.error) {
-          setIsStalled(true)
-          window.dispatchEvent(
-            new CustomEvent('momai_bootstrap_error', {
-              detail: {
-                type: 'startup_failed',
-                message: 'Backend initialization failed',
-                details: data.error
-              }
-            })
-          )
-          return
-        }
-
-        if (data.stage === 'error') {
-          setIsStalled(true)
-          window.dispatchEvent(
-            new CustomEvent('momai_bootstrap_error', {
-              detail: {
-                type: 'startup_failed',
-                message: data.message || 'Backend initialization failed',
-                details: data.message
-              }
-            })
-          )
-          return
-        }
-
-        setIsStalled(true)
-        setInitMessage('Isso está demorando mais que o normal...')
-      } catch {
-        setIsStalled(true)
-        setInitMessage('Isso está demorando mais que o normal...')
-      }
-    }, 5000)
-
-    return () => clearInterval(interval)
-  }, [isBooting, initProgress, lastProgressTime, isStalled, isRetrying, backendOnline])
-
   // Visual progress simulation — animação autônoma lenta (ignora pulos do initProgress)
   // Timing targets: 0-30% em ~20s, 30-70% em ~30s, 70-96% em ~60s (~110s total)
   useEffect(() => {
@@ -300,18 +292,18 @@ export function useStatus() {
           return Math.min(100, prev + Math.max(2.5, remaining * 0.18))
         }
         if (initProgress < 100 || isBooting) {
-          if (prev >= 96.4) return prev
+          if (prev >= 95) return prev
           let step: number
           if (prev < 30) step = 0.3
           else if (prev < 70) step = 0.267
           else if (prev < 85) step = 0.087
           else if (prev < 92) step = 0.05
           else step = 0.02
-          return Math.min(96.4, prev + step)
+          return Math.min(95, prev + step)
         }
         return prev
       })
-    }, 200)
+    }, 500)
     return () => clearInterval(interval)
   }, [isBooting, initProgress])
 

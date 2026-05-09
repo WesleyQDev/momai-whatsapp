@@ -9,7 +9,8 @@ vi.mock('./ttsService', () => ({
   }))
 }))
 
-vi.mock('../utils/text', () => ({
+vi.mock('../utils/text', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils/text')>()),
   cleanMomaiActions: vi.fn((s: string) => s)
 }))
 
@@ -17,7 +18,8 @@ vi.mock('../constants', () => ({
   API_URL: 'http://localhost:8000'
 }))
 
-import { stripEmojisAndMarkdown, safeJsonParse } from './api'
+import { stripEmojisAndMarkdown } from '../utils/text'
+import { safeJsonParse } from './api'
 
 describe('stripEmojisAndMarkdown', () => {
   it('removes emojis', () => {

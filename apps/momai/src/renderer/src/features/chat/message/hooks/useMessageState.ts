@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Message } from '../../../../services/api'
 import { createUnifiedSteps, UnifiedStep, humanizeToolName } from '../utils'
 
@@ -217,7 +217,10 @@ export const useMessageState = ({ message, isLoading }: UseMessageStateProps): M
   const hasActualContent = message.content !== '...' && message.content.length > 0 && !isToolTrace
   const toolsFinished = hasActualContent
 
-  const unifiedSteps = createUnifiedSteps(displayActivities, toolSteps, humanizeToolName)
+  const unifiedSteps = useMemo(
+    () => createUnifiedSteps(displayActivities, toolSteps, humanizeToolName),
+    [displayActivities, toolSteps]
+  )
 
   return {
     openToolIndex,
