@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import LateralBar from './components/LateralBar'
 import { useChat } from './hooks/useChat'
@@ -78,16 +78,30 @@ function App(): React.JSX.Element {
   const [isTierChanging, setIsTierChanging] = useState(false)
   const [changingTier, setChangingTier] = useState<string | null>(null)
 
+  const chatRef = useRef(chat)
+  const resetVisualRef = useRef(resetVisualProgress)
+
   useEffect(() => {
+    chatRef.current = chat
+    resetVisualRef.current = resetVisualProgress
+
     const handleStart = (e: any) => {
       setChangingTier(e.detail)
       setIsTierChanging(true)
     }
+    const handleEnd = () => {
+      setIsTierChanging(false)
+      setChangingTier(null)
+      chatRef.current.setAnimationFinished(false)
+      resetVisualRef.current()
+    }
     window.addEventListener('momai_tier_change_start', handleStart)
+    window.addEventListener('momai_tier_change_end', handleEnd)
     return () => {
       window.removeEventListener('momai_tier_change_start', handleStart)
+      window.removeEventListener('momai_tier_change_end', handleEnd)
     }
-  }, [])
+  }, [chat, resetVisualProgress])
 
   const openSettings = useCallback(
     (tab: 'general' | 'brain' | 'voice' | 'economy' | 'updates' = 'general') => {
@@ -256,16 +270,7 @@ function App(): React.JSX.Element {
         />
       )}
 
-      <TierChangeOverlay
-        isChanging={isTierChanging}
-        tier={changingTier}
-        onFinish={() => {
-          setIsTierChanging(false)
-          setChangingTier(null)
-          chat.setAnimationFinished(false)
-          resetVisualProgress()
-        }}
-      />
+      <TierChangeOverlay isChanging={isTierChanging} tier={changingTier} />
 
       {showOnboarding && (
         <OnboardingCard
