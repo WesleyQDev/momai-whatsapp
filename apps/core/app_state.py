@@ -138,18 +138,21 @@ def get_wake_word_detector_class():
 
 
 async def broadcast_to_sockets(message: dict) -> None:
-    """Broadcasts a JSON message to all connected WebSockets."""
-    # iterate over a copy of the list to avoid collection-has-changed errors
-    for ws in list(active_websockets):
+    """Broadcasts a JSON message to all connected WebSockets concurrently."""
+    if not active_websockets:
+        return
+
+    async def _safe_send(ws):
         try:
-            await ws.send_json(message)
-        except Exception as exc:
-            logger.warning("[WebSocket] Broadcast error: %s", exc)
-            if ws in active_websockets:
-                try:
-                    active_websockets.remove(ws)
-                except ValueError:
-                    pass
+            await asyncio.wait_for(ws.send_json(message), timeout=2.0)
+        except Exception:
+            try:
+                active_websockets.remove(ws)
+            except (ValueError, KeyError):
+                pass
+
+    tasks = [asyncio.create_task(_safe_send(ws)) for ws in list(active_websockets)]
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def send_init_event(stage: str, message: str, progress: int | None = None) -> None:
