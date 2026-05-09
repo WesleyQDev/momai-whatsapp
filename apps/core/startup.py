@@ -7,18 +7,19 @@ import logging
 import psutil
 
 import app_state
-from database.models import init_db, SessionLocal, Settings
+from app_state import get_settings_async
+from database.models import init_db
 
 logger = logging.getLogger("momai.startup")
 
 
 async def prewarm_tts_if_needed() -> None:
     """Pre-initialize TTS in background to reduce first-response latency."""
-    db = SessionLocal()
     try:
-        settings = db.query(Settings).first()
-    finally:
-        db.close()
+        settings = await get_settings_async()
+    except Exception as exc:
+        logger.warning("Failed to fetch settings during prewarm: %s", exc)
+        return
 
     ai_tier = (settings.ai_tier if settings else None) or "pro"
     tts_enabled = True if not settings else bool(settings.tts_enabled)

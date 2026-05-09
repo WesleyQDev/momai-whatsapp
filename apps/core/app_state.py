@@ -24,6 +24,24 @@ call_mode = False
 last_thread_id = "default"
 
 
+from database.models import SessionLocal, Settings
+
+
+async def get_settings_async() -> Settings | None:
+    """Fetch settings from DB in a thread pool to avoid blocking the event loop."""
+    def _query():
+        db = SessionLocal()
+        try:
+            return db.query(Settings).first()
+        finally:
+            db.close()
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(_query), timeout=5.0)
+    except asyncio.TimeoutError:
+        logger.warning("Settings query timed out after 5s")
+        return None
+
+
 def is_call_mode() -> bool:
     """Returns whether call mode is active."""
     return call_mode

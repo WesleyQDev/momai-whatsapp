@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 DEFAULT_LOCALE = os.getenv("MOMAI_LOCALE", "pt-BR")
@@ -59,21 +60,22 @@ def get_locale() -> str:
     env_locale = os.getenv("MOMAI_LOCALE")
     if env_locale:
         return env_locale
+    # For sync contexts, skip DB query - use default
+    return DEFAULT_LOCALE
 
+
+async def get_locale_async() -> str:
+    env_locale = os.getenv("MOMAI_LOCALE")
+    if env_locale:
+        return env_locale
     try:
-        from database.models import SessionLocal, Settings
+        from app_state import get_settings_async
 
-        db = SessionLocal()
-        try:
-            settings = db.query(Settings).first()
-            if settings and settings.locale:
-                return settings.locale
-        finally:
-            db.close()
+        settings = await get_settings_async()
+        if settings and settings.locale:
+            return settings.locale
     except Exception:
-        # DB might not be ready during bootstrap
         pass
-
     return DEFAULT_LOCALE
 
 
