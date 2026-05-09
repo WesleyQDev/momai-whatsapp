@@ -217,6 +217,16 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
         return
       }
 
+      for (let i = 0; i < 120; i++) {
+        try {
+          const status = await api.get('/status')
+          if (status.data?.brain_ready && status.data?.ai_tier === _tier) {
+            break
+          }
+        } catch {}
+        await new Promise((r) => setTimeout(r, 1000))
+      }
+
       const tierDefaults = TIER_DEFAULTS[_tier]
       const payload: Record<string, any> = {
         ai_tier: _tier,
