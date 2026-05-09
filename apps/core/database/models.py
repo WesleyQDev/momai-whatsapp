@@ -56,7 +56,11 @@ if data_dir:
 else:
     # Points to the core folder (one level up from database/)
     DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "momai.db")
-engine = create_engine(f"sqlite:///{DB_PATH}")
+engine = create_engine(
+    f"sqlite:///{DB_PATH}",
+    pool_pre_ping=True,
+    connect_args={"timeout": 10},
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
