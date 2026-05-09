@@ -227,7 +227,8 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
       api
         .patch('/settings', payload)
         .then(() => {
-          window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: payload }))
+          const merged = { ...settingsRef.current, ...payload }
+          window.dispatchEvent(new CustomEvent('momai_settings_sync', { detail: merged }))
         })
         .catch((err) => console.error('Error saving tier settings:', err))
 
