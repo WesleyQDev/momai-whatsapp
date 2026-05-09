@@ -27,7 +27,21 @@ function sendSseHeaders(res) {
 }
 
 function writeSse(res, payload) {
-  res.write(`data: ${JSON.stringify(payload)}\n\n`)
+  if (res.destroyed || res.writableEnded) return false
+  const chunk = `data: ${JSON.stringify(payload)}\n\n`
+  const canContinue = res.write(chunk)
+  if (!canContinue) {
+    return new Promise((resolve) => {
+      res.once('drain', () => resolve(true))
+    })
+  }
+  return true
+}
+
+function endSse(res) {
+  if (!res.destroyed && !res.writableEnded) {
+    res.end()
+  }
 }
 
 function readJsonBody(req) {
@@ -57,5 +71,6 @@ module.exports = {
   sendNoContent,
   sendSseHeaders,
   writeSse,
+  endSse,
   readJsonBody
 }

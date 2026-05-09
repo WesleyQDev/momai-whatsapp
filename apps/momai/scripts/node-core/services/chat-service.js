@@ -14,7 +14,7 @@ function getPromptRegistry() {
   return shared.promptRegistry
 }
 const { debug, info, warn } = require('../infrastructure/logger')
-const { sendSseHeaders, writeSse } = require('../infrastructure/http-helpers')
+const { sendSseHeaders, writeSse, endSse } = require('../infrastructure/http-helpers')
 const { splitTokens, sanitizePromptText } = require('../utils/text')
 const { isoNow } = require('../utils/time')
 const { ensureLlamaReady, getLlamaBaseUrl, saveStore } = require('./llama-manager')
@@ -395,9 +395,11 @@ function computeDynamicMaxTokens(tierMaxTokens, estimatedPromptTokens, contextTo
   const available = Math.max(64, total - prompt - reserve)
   const hardCap = Math.max(256, Math.min(3072, Math.floor(total * 0.35)))
   const desired =
-    total >= 12000 ? Math.max(Number(tierMaxTokens || 0), 1200)
-      : total >= 8000 ? Math.max(Number(tierMaxTokens || 0), 900)
-      : Math.max(Number(tierMaxTokens || 0), 600)
+    total >= 12000
+      ? Math.max(Number(tierMaxTokens || 0), 1200)
+      : total >= 8000
+        ? Math.max(Number(tierMaxTokens || 0), 900)
+        : Math.max(Number(tierMaxTokens || 0), 600)
 
   const candidate = Math.min(available, hardCap)
   if (candidate >= desired) return desired
@@ -463,7 +465,8 @@ async function streamFallbackResponse(
   appendMessage(threadId, 'user', content, { sources: memorySources })
   const reply = generateFallbackReply(content, memoryContext, reason, responseLanguage)
   const tokens = splitTokens(reply)
-  const fallbackUsed = estimateTokenCount(content) + estimateTokenCount(memoryContext) + estimateTokenCount(reply)
+  const fallbackUsed =
+    estimateTokenCount(content) + estimateTokenCount(memoryContext) + estimateTokenCount(reply)
   llamaState.contextUsedTokens = Math.min(
     Number(llamaState.contextTotalTokens || 8192),
     Math.max(0, fallbackUsed)
@@ -471,8 +474,14 @@ async function streamFallbackResponse(
 
   stopGenerationRequested = false
   sendSseHeaders(res)
-  writeSse(res, { status: 'thinking' })
-  writeSse(res, { status: 'responding' })
+  {
+    const _sse = writeSse(res, { status: 'thinking' })
+    if (_sse instanceof Promise) await _sse
+  }
+  {
+    const _sse = writeSse(res, { status: 'responding' })
+    if (_sse instanceof Promise) await _sse
+  }
 
   let assembled = ''
   let closed = false
@@ -481,15 +490,22 @@ async function streamFallbackResponse(
   })
 
   for (const token of tokens) {
-    if (closed || stopGenerationRequested) break
+    if (closed || stopGenerationRequested || res.destroyed) break
     assembled += token
-    writeSse(res, { token })
+    {
+      const _sse = writeSse(res, { token })
+      if (_sse instanceof Promise) await _sse
+      else if (_sse === false) break
+    }
     await new Promise((r) => setTimeout(r, 15))
   }
 
   appendMessage(threadId, 'assistant', assembled.trim() || 'Interrompido.')
-  writeSse(res, { done: true })
-  res.end()
+  {
+    const _sse = writeSse(res, { done: true })
+    if (_sse instanceof Promise) await _sse
+  }
+  endSse(res)
 }
 
 function parseLlamaDataLine(line) {
@@ -582,10 +598,19 @@ async function streamLlamaChat(req, res, payload) {
   })
 
   sendSseHeaders(res)
-  writeSse(res, { status: 'thinking' })
+  {
+    const _sse = writeSse(res, { status: 'thinking' })
+    if (_sse instanceof Promise) await _sse
+  }
   if (memorySources.length) {
-    writeSse(res, { sources: memorySources })
-    writeSse(res, { memory_sources: memorySources })
+    {
+      const _sse = writeSse(res, { sources: memorySources })
+      if (_sse instanceof Promise) await _sse
+    }
+    {
+      const _sse = writeSse(res, { memory_sources: memorySources })
+      if (_sse instanceof Promise) await _sse
+    }
   }
 
   const baseCtx = Number(llamaState.contextTotalTokens || 2048)
@@ -662,26 +687,42 @@ async function streamLlamaChat(req, res, payload) {
       console.log(`[TTS-DEBUG] enqueueAutoTts SKIPPED: cleaned.length=${cleaned.length}`)
       return
     }
-    console.log(`[TTS-DEBUG] enqueueAutoTts CALLING triggerAutoTts: cleaned="${cleaned.slice(0, 60)}"`)
+    console.log(
+      `[TTS-DEBUG] enqueueAutoTts CALLING triggerAutoTts: cleaned="${cleaned.slice(0, 60)}"`
+    )
     ttsChain = ttsChain.then(() => triggerAutoTts(cleaned, currentGen)).catch(() => {})
   }
 
   const flushTtsChunks = (final = false) => {
-    if (!speakResponse || silentForCodeIntent || stopGenerationRequested || currentGen !== generationId || closed) {
-      console.log(`[TTS-DEBUG] flushTtsChunks(${final}) guard blocked: speakResponse=${speakResponse} silent=${silentForCodeIntent} stopGen=${stopGenerationRequested} genMatch=${currentGen === generationId} closed=${closed}`)
+    if (
+      !speakResponse ||
+      silentForCodeIntent ||
+      stopGenerationRequested ||
+      currentGen !== generationId ||
+      closed
+    ) {
+      console.log(
+        `[TTS-DEBUG] flushTtsChunks(${final}) guard blocked: speakResponse=${speakResponse} silent=${silentForCodeIntent} stopGen=${stopGenerationRequested} genMatch=${currentGen === generationId} closed=${closed}`
+      )
       return
     }
     if (containsCodeLikeContent(assembled)) {
-      console.log(`[TTS-DEBUG] flushTtsChunks(${final}) blocked: containsCodeLikeContent=true assembled.length=${assembled.length}`)
+      console.log(
+        `[TTS-DEBUG] flushTtsChunks(${final}) blocked: containsCodeLikeContent=true assembled.length=${assembled.length}`
+      )
       return
     }
     const pending = assembled.slice(ttsCursor)
     if (!pending) {
-      console.log(`[TTS-DEBUG] flushTtsChunks(${final}) blocked: pending empty, ttsCursor=${ttsCursor}`)
+      console.log(
+        `[TTS-DEBUG] flushTtsChunks(${final}) blocked: pending empty, ttsCursor=${ttsCursor}`
+      )
       return
     }
     if (!final && pending.length < prebufferChars) {
-      console.log(`[TTS-DEBUG] flushTtsChunks(${final}) blocked: pending.length=${pending.length} < prebufferChars=${prebufferChars}`)
+      console.log(
+        `[TTS-DEBUG] flushTtsChunks(${final}) blocked: pending.length=${pending.length} < prebufferChars=${prebufferChars}`
+      )
       return
     }
 
@@ -699,7 +740,9 @@ async function streamLlamaChat(req, res, payload) {
 
     const chunk = pending.slice(0, cut).trim()
     ttsCursor += cut
-    console.log(`[TTS-DEBUG] flushTtsChunks(${final}) ENQUEUING: cut=${cut} cursor=${ttsCursor} chunkLen=${chunk.length} chunk="${chunk.slice(0, 60)}"`)
+    console.log(
+      `[TTS-DEBUG] flushTtsChunks(${final}) ENQUEUING: cut=${cut} cursor=${ttsCursor} chunkLen=${chunk.length} chunk="${chunk.slice(0, 60)}"`
+    )
     enqueueAutoTts(chunk)
   }
 
@@ -761,47 +804,63 @@ async function streamLlamaChat(req, res, payload) {
           })
           activeSkill = activeSkill || skill.id
         }
-        if (hookResult.shortCircuit) {
-          if (activeSkill) {
-            writeSse(res, { active_skill: activeSkill })
-          }
-          if (toolSteps.length > 0) {
-            writeSse(res, { tool_steps: toolSteps })
-          }
-          const shortText = String(hookResult.replaceText || '').trim()
-          if (shortText) {
-            assembled = shortText
-            for (const token of splitTokens(shortText)) {
-              writeSse(res, { token })
+          if (hookResult.shortCircuit) {
+            if (activeSkill) {
+              {
+                const _sse = writeSse(res, { active_skill: activeSkill })
+                if (_sse instanceof Promise) await _sse
+              }
             }
-          }
-          if (hookResult.structuredResponse) {
-            bufferedStructuredResponse = hookResult.structuredResponse
-          }
-          llamaState.contextUsedTokens = Math.min(
-            Number(llamaState.contextTotalTokens || 8192),
-            Math.max(
-              0,
-              estimateTokenCount(content) +
-                estimateTokenCount(memoryContext) +
-                extraSystemInstructions.reduce((acc, item) => acc + estimateTokenCount(item), 0)
+            if (toolSteps.length > 0) {
+              {
+                const _sse = writeSse(res, { tool_steps: toolSteps })
+                if (_sse instanceof Promise) await _sse
+              }
+            }
+            const shortText = String(hookResult.replaceText || '').trim()
+            if (shortText) {
+              assembled = shortText
+              for (const token of splitTokens(shortText)) {
+                {
+                  const _sse = writeSse(res, { token })
+                  if (_sse instanceof Promise) await _sse
+                  else if (_sse === false) break
+                }
+              }
+            }
+            if (hookResult.structuredResponse) {
+              bufferedStructuredResponse = hookResult.structuredResponse
+            }
+            llamaState.contextUsedTokens = Math.min(
+              Number(llamaState.contextTotalTokens || 8192),
+              Math.max(
+                0,
+                estimateTokenCount(content) +
+                  estimateTokenCount(memoryContext) +
+                  extraSystemInstructions.reduce((acc, item) => acc + estimateTokenCount(item), 0)
+              )
             )
-          )
-          appendMessage(threadId, 'assistant', assembled.trim(), {
-            sources: memorySources.length ? memorySources : undefined,
-            graph_data:
-              activeSkill || toolSteps.length
-                ? { active_skill: activeSkill, tool_steps: toolSteps }
-                : null,
-            structured_response: bufferedStructuredResponse || undefined
-          })
-          if (bufferedStructuredResponse) {
-            writeSse(res, { structured_response: bufferedStructuredResponse })
+            appendMessage(threadId, 'assistant', assembled.trim(), {
+              sources: memorySources.length ? memorySources : undefined,
+              graph_data:
+                activeSkill || toolSteps.length
+                  ? { active_skill: activeSkill, tool_steps: toolSteps }
+                  : null,
+              structured_response: bufferedStructuredResponse || undefined
+            })
+            if (bufferedStructuredResponse) {
+              {
+                const _sse = writeSse(res, { structured_response: bufferedStructuredResponse })
+                if (_sse instanceof Promise) await _sse
+              }
+            }
+            {
+              const _sse = writeSse(res, { done: true })
+              if (_sse instanceof Promise) await _sse
+            }
+            endSse(res)
+            return
           }
-          writeSse(res, { done: true })
-          res.end()
-          return
-        }
       } catch (err) {
         debug(`[chat] beforeModel hook failed for ${skill.id}: ${err.message}`)
       }
@@ -826,10 +885,16 @@ async function streamLlamaChat(req, res, payload) {
 
         /* Fallback: if semantic search returned no skills (embedding not ready or non-ultra),
            use lexical discovery from the skill registry */
-        if (top5SkillIds.length === 0 && skillRegistry && typeof skillRegistry.discover === 'function') {
+        if (
+          top5SkillIds.length === 0 &&
+          skillRegistry &&
+          typeof skillRegistry.discover === 'function'
+        ) {
           const discovered = skillRegistry.discover(content)
           if (discovered) {
-            debug(`[chat] Lexical discovery found "${discovered.id}" (confidence=${discovered.confidence})`)
+            debug(
+              `[chat] Lexical discovery found "${discovered.id}" (confidence=${discovered.confidence})`
+            )
             top5SkillIds.push(discovered.id)
 
             /* High-confidence direct execution: if confidence is very high,
@@ -844,7 +909,8 @@ async function streamLlamaChat(req, res, payload) {
                       .filter((r) => r.is_active)
                       .sort(
                         (a, b) =>
-                          new Date(a.scheduled_time).getTime() - new Date(b.scheduled_time).getTime()
+                          new Date(a.scheduled_time).getTime() -
+                          new Date(b.scheduled_time).getTime()
                       )
                       .slice(0, limit)
                   },
@@ -892,7 +958,9 @@ async function streamLlamaChat(req, res, payload) {
                   { query: content },
                   null
                 )
-                debug(`[chat] Direct skill execution result: hasStructured=${!!directSkillResult?.structuredResponse}`)
+                debug(
+                  `[chat] Direct skill execution result: hasStructured=${!!directSkillResult?.structuredResponse}`
+                )
                 if (directSkillResult?.structuredResponse) {
                   bufferedStructuredResponse = directSkillResult.structuredResponse
                 }
@@ -911,8 +979,14 @@ async function streamLlamaChat(req, res, payload) {
                 }
                 toolSteps.push(directStep)
                 activeSkill = discovered.id
-                writeSse(res, { active_skill: activeSkill })
-                writeSse(res, { tool_steps: toolSteps })
+                {
+                  const _sse = writeSse(res, { active_skill: activeSkill })
+                  if (_sse instanceof Promise) await _sse
+                }
+                {
+                  const _sse = writeSse(res, { tool_steps: toolSteps })
+                  if (_sse instanceof Promise) await _sse
+                }
               } catch (execErr) {
                 debug(`[chat] Direct skill execution failed: ${execErr.message}`)
               }
@@ -925,16 +999,19 @@ async function streamLlamaChat(req, res, payload) {
            If embedding returned all zeros (table not synced yet) or all below
            threshold, fall back to the top 1 skill so the system still works. */
         const SIMILARITY_THRESHOLD = 0.15
-        const toolSkillIds = disableToolsForTurn ? [] : (isUltra
-          ? (() => {
-              const highScore = top5SkillIds.filter((id) => (scoreMap[id] || 0) >= SIMILARITY_THRESHOLD)
-              if (highScore.length > 0) return highScore
-              // Fallback: no skill reached threshold → use top 1 skill anyway
-              if (top5SkillIds.length > 0) return top5SkillIds.slice(0, 1)
-              return []
-            })()
-          : top5SkillIds
-        )
+        const toolSkillIds = disableToolsForTurn
+          ? []
+          : isUltra
+            ? (() => {
+                const highScore = top5SkillIds.filter(
+                  (id) => (scoreMap[id] || 0) >= SIMILARITY_THRESHOLD
+                )
+                if (highScore.length > 0) return highScore
+                // Fallback: no skill reached threshold → use top 1 skill anyway
+                if (top5SkillIds.length > 0) return top5SkillIds.slice(0, 1)
+                return []
+              })()
+            : top5SkillIds
 
         // Build lightweight skill descriptions for the system prompt (name + description only)
         const allSelectedSkills = top5SkillIds
@@ -969,7 +1046,9 @@ async function streamLlamaChat(req, res, payload) {
       if (promptRegistry && typeof promptRegistry.buildSystemPrompt === 'function') {
         promptText = promptRegistry.buildSystemPrompt({
           tier: tierName,
-          persona: store.settings.assistant_persona || (promptRegistry.getDefaults ? promptRegistry.getDefaults().assistant_persona : 'MomAI'),
+          persona:
+            store.settings.assistant_persona ||
+            (promptRegistry.getDefaults ? promptRegistry.getDefaults().assistant_persona : 'MomAI'),
           memoryContext,
           toolInstruction,
           responseStyle,
@@ -1020,19 +1099,32 @@ async function streamLlamaChat(req, res, payload) {
         requestBody.tools = toolsPayload
       }
 
-      debug(`[chat] Request: tools=${toolsPayload.length}, sys_prompt_len=${systemMessage.content.length}, msg_count=${requestBody.messages.length}`)
+      debug(
+        `[chat] Request: tools=${toolsPayload.length}, sys_prompt_len=${systemMessage.content.length}, msg_count=${requestBody.messages.length}`
+      )
       debug(`[chat] Tools: ${toolsPayload.map((t) => t.function?.name || t.name).join(', ')}`)
 
-      tokenizePromise.then((realTokens) => {
-        if (Number.isFinite(realTokens) && realTokens > 0) {
-          estimatedPromptTokens = realTokens
-        }
-      }).catch(() => {})
+      tokenizePromise
+        .then((realTokens) => {
+          if (Number.isFinite(realTokens) && realTokens > 0) {
+            estimatedPromptTokens = realTokens
+          }
+        })
+        .catch(() => {})
 
-      writeSse(res, { status: 'responding' })
+      {
+        const _sse = writeSse(res, { status: 'responding' })
+        if (_sse instanceof Promise) await _sse
+      }
       const tPreFetch = Date.now()
-      const scoresSummary = Object.keys(scoreMap).length ? `scores=${Object.entries(scoreMap).map(([k,v]) => `${k}=${v.toFixed(2)}`).join(',')}` : ''
-      info(`[timing] pre-llama overhead: ${tPreFetch - t0}ms (tier=${tierName}, tools=${toolsPayload.length}, sysPromptLen=${systemMessage.content.length}, historyLen=${currentMessages.length}${scoresSummary ? ', '+scoresSummary : ''})`)
+      const scoresSummary = Object.keys(scoreMap).length
+        ? `scores=${Object.entries(scoreMap)
+            .map(([k, v]) => `${k}=${v.toFixed(2)}`)
+            .join(',')}`
+        : ''
+      info(
+        `[timing] pre-llama overhead: ${tPreFetch - t0}ms (tier=${tierName}, tools=${toolsPayload.length}, sysPromptLen=${systemMessage.content.length}, historyLen=${currentMessages.length}${scoresSummary ? ', ' + scoresSummary : ''})`
+      )
       let llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1085,7 +1177,9 @@ async function streamLlamaChat(req, res, payload) {
               Number(llamaState.contextTotalTokens || 8192),
               Math.max(0, estimatedPromptTokens)
             )
-            debug(`[chat] Context overflow detected. Retrying with compacted payload (level ${i + 1}).`)
+            debug(
+              `[chat] Context overflow detected. Retrying with compacted payload (level ${i + 1}).`
+            )
 
             llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
               method: 'POST',
@@ -1160,7 +1254,7 @@ async function streamLlamaChat(req, res, payload) {
       let roundFinishReason = null
 
       while (true) {
-        if (stopGenerationRequested || closed) {
+        if (stopGenerationRequested || closed || res.destroyed) {
           controller.abort()
           break
         }
@@ -1179,7 +1273,11 @@ async function streamLlamaChat(req, res, payload) {
           if (parsed.finish_reason) roundFinishReason = parsed.finish_reason
           if (parsed.type === 'done') break
           if (parsed.type === 'error') {
-            writeSse(res, { error: parsed.error })
+            {
+              const _sse = writeSse(res, { error: parsed.error })
+              if (_sse instanceof Promise) await _sse
+              else if (_sse === false) break
+            }
             continue
           }
           if (parsed.type === 'tool_calls') {
@@ -1202,7 +1300,9 @@ async function streamLlamaChat(req, res, payload) {
           }
           if (parsed.type === 'token') {
             if (!roundText) {
-              info(`[timing] first token received: ${Date.now() - t0}ms total (llama prefill+first=${Date.now() - tPreFetch}ms)`)
+              info(
+                `[timing] first token received: ${Date.now() - t0}ms total (llama prefill+first=${Date.now() - tPreFetch}ms)`
+              )
             }
             roundText += parsed.token
             assembled += parsed.token
@@ -1211,13 +1311,19 @@ async function streamLlamaChat(req, res, payload) {
               Number(llamaState.contextTotalTokens || 8192),
               Math.max(0, estimatedPromptTokens + generatedTokensEstimate)
             )
-            writeSse(res, { token: parsed.token })
+            {
+              const _sse = writeSse(res, { token: parsed.token })
+              if (_sse instanceof Promise) await _sse
+              else if (_sse === false) break
+            }
             flushTtsChunks(false)
           }
         }
       }
 
-      debug(`[chat] Round ${round} result: text_len=${roundText.length}, tool_calls=${toolCallsAccum.length}`)
+      debug(
+        `[chat] Round ${round} result: text_len=${roundText.length}, tool_calls=${toolCallsAccum.length}`
+      )
       lastFinishReason = roundFinishReason || lastFinishReason
       if (roundText.length > 0) {
         debug(`[chat] Round ${round} text preview: "${roundText.slice(0, 120)}"`)
@@ -1380,7 +1486,11 @@ async function streamLlamaChat(req, res, payload) {
               } else if (result?.directResponse) {
                 assembled += `\n${result.directResponse}`
                 for (const token of splitTokens(result.directResponse)) {
-                  writeSse(res, { token })
+                  {
+                    const _sse = writeSse(res, { token })
+                    if (_sse instanceof Promise) await _sse
+                    else if (_sse === false) break
+                  }
                 }
               }
 
@@ -1398,8 +1508,14 @@ async function streamLlamaChat(req, res, payload) {
               }
               toolSteps.push(toolStep)
               activeSkill = skillId
-              writeSse(res, { active_skill: activeSkill })
-              writeSse(res, { tool_steps: toolSteps })
+              {
+                const _sse = writeSse(res, { active_skill: activeSkill })
+                if (_sse instanceof Promise) await _sse
+              }
+              {
+                const _sse = writeSse(res, { tool_steps: toolSteps })
+                if (_sse instanceof Promise) await _sse
+              }
 
               if (Array.isArray(result?.webSources) && result.webSources.length) {
                 memorySources = [...memorySources, ...result.webSources].slice(0, 12)
@@ -1494,7 +1610,7 @@ async function streamLlamaChat(req, res, payload) {
         const decoder = new TextDecoder()
         let buffer = ''
         while (true) {
-          if (stopGenerationRequested || closed) {
+          if (stopGenerationRequested || closed || res.destroyed) {
             controller.abort()
             break
           }
@@ -1510,7 +1626,11 @@ async function streamLlamaChat(req, res, payload) {
             if (parsed.type === 'done') break
             if (parsed.type === 'token') {
               assembled += parsed.token
-              writeSse(res, { token: parsed.token })
+              {
+                const _sse = writeSse(res, { token: parsed.token })
+                if (_sse instanceof Promise) await _sse
+                else if (_sse === false) break
+              }
               flushTtsChunks(false)
             }
           }
@@ -1525,9 +1645,13 @@ async function streamLlamaChat(req, res, payload) {
       debug('[chat] LLM returned empty/think-only response, generating fallback')
       const fallbackMsg = generateFallbackReply(content, memoryContext, null, fallbackLanguage)
       for (const token of splitTokens(fallbackMsg)) {
-        if (closed || stopGenerationRequested) break
+        if (closed || stopGenerationRequested || res.destroyed) break
         assembled += token
-        writeSse(res, { token })
+        {
+          const _sse = writeSse(res, { token })
+          if (_sse instanceof Promise) await _sse
+          else if (_sse === false) break
+        }
         flushTtsChunks(false)
       }
       flushTtsChunks(true)
@@ -1559,7 +1683,8 @@ async function streamLlamaChat(req, res, payload) {
           if (hookResult.step) {
             toolSteps.push({
               skill_id: session.skillId,
-              skill_name: getSkillRegistry()?.getById?.(session.skillId)?.manifest?.name || session.skillId,
+              skill_name:
+                getSkillRegistry()?.getById?.(session.skillId)?.manifest?.name || session.skillId,
               tool: hookResult.step.tool || 'hook',
               name: hookResult.step.name || 'afterModel',
               description: String(hookResult.step.description || ''),
@@ -1590,10 +1715,16 @@ async function streamLlamaChat(req, res, payload) {
     stopVoiceRequested = false
     flushTtsChunks(true)
     if (bufferedStructuredResponse) {
-      writeSse(res, { structured_response: bufferedStructuredResponse })
+      {
+        const _sse = writeSse(res, { structured_response: bufferedStructuredResponse })
+        if (_sse instanceof Promise) await _sse
+      }
     }
-    writeSse(res, { done: true })
-    res.end()
+    {
+      const _sse = writeSse(res, { done: true })
+      if (_sse instanceof Promise) await _sse
+    }
+    endSse(res)
   } catch (error) {
     const fallbackMsg = generateFallbackReply(
       content,
@@ -1605,7 +1736,11 @@ async function streamLlamaChat(req, res, payload) {
     if (tail) {
       for (const token of splitTokens(tail)) {
         assembled += token
-        writeSse(res, { token })
+        {
+          const _sse = writeSse(res, { token })
+          if (_sse instanceof Promise) await _sse
+          else if (_sse === false) break
+        }
       }
     }
 
@@ -1618,8 +1753,11 @@ async function streamLlamaChat(req, res, payload) {
     })
     stopVoiceRequested = false
     flushTtsChunks(true)
-    writeSse(res, { done: true })
-    res.end()
+    {
+      const _sse = writeSse(res, { done: true })
+      if (_sse instanceof Promise) await _sse
+    }
+    endSse(res)
   } finally {
     activeChatControllers.delete(controller)
   }
@@ -1702,19 +1840,25 @@ module.exports = {
 Object.defineProperties(module.exports, {
   stopGenerationRequested: {
     get: () => stopGenerationRequested,
-    set: (v) => { stopGenerationRequested = v; },
+    set: (v) => {
+      stopGenerationRequested = v
+    },
     enumerable: true,
     configurable: true
   },
   stopVoiceRequested: {
     get: () => stopVoiceRequested,
-    set: (v) => { stopVoiceRequested = v; },
+    set: (v) => {
+      stopVoiceRequested = v
+    },
     enumerable: true,
     configurable: true
   },
   generationId: {
     get: () => generationId,
-    set: (v) => { generationId = v; },
+    set: (v) => {
+      generationId = v
+    },
     enumerable: true,
     configurable: true
   }
