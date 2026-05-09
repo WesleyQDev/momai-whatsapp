@@ -77,26 +77,15 @@ function App(): React.JSX.Element {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [showOverlay, setShowOverlay] = useState(false)
   const [overlayTier, setOverlayTier] = useState<string | null>(null)
-  const [isTierChanging, setIsTierChanging] = useState(false)
-
-  const tierChatRef = useRef(chat)
-  const tierResetRef = useRef(resetVisualProgress)
 
   useEffect(() => {
-    tierChatRef.current = chat
-    tierResetRef.current = resetVisualProgress
-
     const handleStart = (e: any) => {
       setOverlayTier(e.detail)
       setShowOverlay(true)
-      setIsTierChanging(true)
     }
     const handleEnd = () => {
-      setOverlayTier(null)
       setShowOverlay(false)
-      tierChatRef.current.setAnimationFinished(false)
-      tierResetRef.current()
-      setTimeout(() => setIsTierChanging(false), 2000)
+      setOverlayTier(null)
     }
     window.addEventListener('momai_tier_change_start', handleStart)
     window.addEventListener('momai_tier_change_end', handleEnd)
@@ -104,7 +93,7 @@ function App(): React.JSX.Element {
       window.removeEventListener('momai_tier_change_start', handleStart)
       window.removeEventListener('momai_tier_change_end', handleEnd)
     }
-  }, [chat, resetVisualProgress])
+  }, [])
 
   const openSettings = useCallback(
     (tab: 'general' | 'brain' | 'voice' | 'economy' | 'updates' = 'general') => {
@@ -214,7 +203,6 @@ function App(): React.JSX.Element {
                   initMessage={initMessage}
                   isBooting={isBooting}
                   isUpdating={isUpdating}
-                  isTierChanging={isTierChanging}
                   setHistoryOpen={setHistoryOpen}
                   isFirstLaunch={isFirstLaunch}
                 />

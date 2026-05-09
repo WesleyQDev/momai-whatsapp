@@ -22,7 +22,6 @@ interface ContainerChatProps {
   messagesEndRef: RefObject<HTMLDivElement | null>
   scrollPositionRef?: RefObject<number>
   isModeChanging?: boolean
-  isTierChanging?: boolean
   onReopenGraph: (data: any) => void
   onGraphOption: (option: string) => void
   statusInfo: StatusData | null
@@ -470,7 +469,6 @@ export default function ContainerChat({
   messagesEndRef,
   scrollPositionRef,
   isModeChanging = false,
-  isTierChanging = false,
   onReopenGraph,
   onGraphOption,
   statusInfo,
@@ -603,27 +601,21 @@ export default function ContainerChat({
   }, [threadId])
 
   const displayProgress = isSystemDone ? 100 : Math.min(96, visualProgress || initProgress || 0)
-  const loadingProgress = isTierChanging ? Math.max(5, displayProgress) : displayProgress
+  const loadingProgress = displayProgress
   const shouldSkipIntro = settings?.skip_intro === true
   const hasMessages = messages.length > 0
   const hasUserData = !!localStorage.getItem('momai_user_name') || !!settings?.user_name
   const tier =
     localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'
   const showLoading =
-    isTierChanging ||
     isBooting ||
     (!animationFinished && !hasUserData) ||
     (isModeChanging && !hasUserData) ||
     (isBrainLoading && !isBrainReady && !hasUserData)
 
-  const defaultWaitingMessage = isTierChanging
-    ? 'Alterando modo...'
-    : isBrainLoading
-      ? 'Loading AI Model...'
-      : 'Waiting for AI Model...'
-  const displayMessage = isTierChanging
-    ? `Configurando modo ${tier?.toUpperCase() || 'PRO'}...`
-    : initProgress >= 100 && isBrainLoading
+  const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
+  const displayMessage =
+    initProgress >= 100 && isBrainLoading
       ? !initMessage || initMessage === 'Sistema pronto.'
         ? defaultWaitingMessage
         : initMessage

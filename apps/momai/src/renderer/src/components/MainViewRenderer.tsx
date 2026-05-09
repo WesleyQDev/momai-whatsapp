@@ -21,7 +21,6 @@ interface MainViewRendererProps {
   setHistoryOpen?: (open: boolean) => void
   isFirstLaunch?: boolean
   isUpdating?: boolean
-  isTierChanging?: boolean
 }
 
 const ChatView = (props: any) => {
@@ -30,7 +29,6 @@ const ChatView = (props: any) => {
       messages={props.chat.messages}
       isLoading={props.chat.isLoading}
       isModeChanging={props.isUpdating}
-      isTierChanging={props.isTierChanging}
       text={props.chat.text}
       onSendMessage={props.chat.sendMessage}
       onClearHistory={props.chat.clearHistory}
@@ -86,8 +84,7 @@ export default function MainViewRenderer({
   isBooting,
   setHistoryOpen,
   isFirstLaunch,
-  isUpdating,
-  isTierChanging
+  isUpdating
 }: MainViewRendererProps) {
   const Component = VIEW_MAP[viewName] || (extensionData ? DynamicDashboard : null)
 
@@ -117,7 +114,6 @@ export default function MainViewRenderer({
         initMessage={initMessage}
         isBooting={isBooting}
         isUpdating={isUpdating}
-        isTierChanging={isTierChanging}
         setHistoryOpen={setHistoryOpen}
         isFirstLaunch={isFirstLaunch}
       />
