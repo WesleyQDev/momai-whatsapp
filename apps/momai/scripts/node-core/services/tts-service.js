@@ -63,13 +63,21 @@ async function ensurePython() {
 }
 
 async function triggerAutoTts(text, capturedGen) {
-  const { stopGenerationRequested, stopVoiceRequested, generationId: currentGen } = require('./chat-service')
+  const {
+    stopGenerationRequested,
+    stopVoiceRequested,
+    generationId: currentGen
+  } = require('./chat-service')
   if (capturedGen !== undefined && capturedGen !== currentGen) {
-    console.log(`[NodeCore][Voice] Auto TTS cancelled: superseded by newer generation (captured=${capturedGen} current=${currentGen})`)
+    console.log(
+      `[NodeCore][Voice] Auto TTS cancelled: superseded by newer generation (captured=${capturedGen} current=${currentGen})`
+    )
     return
   }
   if (stopGenerationRequested || stopVoiceRequested) {
-    console.log(`[NodeCore][Voice] Auto TTS cancelled: stop flag is true (stopGen=${stopGenerationRequested} stopVoice=${stopVoiceRequested})`)
+    console.log(
+      `[NodeCore][Voice] Auto TTS cancelled: stop flag is true (stopGen=${stopGenerationRequested} stopVoice=${stopVoiceRequested})`
+    )
     return
   }
 
@@ -101,7 +109,9 @@ async function triggerAutoTts(text, capturedGen) {
     return
   }
   if (!ttsEnabled) {
-    console.log(`[NodeCore][Voice] Auto TTS skipped: settings.tts_enabled=${store.settings.tts_enabled}`)
+    console.log(
+      `[NodeCore][Voice] Auto TTS skipped: settings.tts_enabled=${store.settings.tts_enabled}`
+    )
     return
   }
   if (cleaned.length < 2) {
@@ -111,14 +121,15 @@ async function triggerAutoTts(text, capturedGen) {
 
   // Use main process TTSService for non-kokoro engines (edge-tts, say)
   const ttsEngine = store.settings.tts_engine || 'kokoro'
-  console.log(`[NodeCore][Voice] triggerAutoTts engine=${ttsEngine} text="${cleaned.slice(0,40)}"`)
+  console.log(`[NodeCore][Voice] triggerAutoTts engine=${ttsEngine} text="${cleaned.slice(0, 40)}"`)
   if (ttsEngine !== 'kokoro') {
     if (typeof process.send !== 'function') {
       warn('[NodeCore][Voice] Auto TTS skipped: no IPC available for engine', ttsEngine)
       return
     }
 
-    const maxAttempts = 20
+    const MAX_NON_KOKORO_RETRIES = 5
+    const maxAttempts = MAX_NON_KOKORO_RETRIES
     let lastError = null
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       ttsSpeakMsgId += 1
@@ -150,7 +161,10 @@ async function triggerAutoTts(text, capturedGen) {
         return
       } catch (err) {
         lastError = err?.message || String(err)
-        warn(`[NodeCore][Voice] Auto TTS via ${ttsEngine} attempt ${attempt}/${maxAttempts} failed:`, lastError)
+        warn(
+          `[NodeCore][Voice] Auto TTS via ${ttsEngine} attempt ${attempt}/${maxAttempts} failed:`,
+          lastError
+        )
       } finally {
         clearTimeout(timeout)
       }
@@ -158,11 +172,14 @@ async function triggerAutoTts(text, capturedGen) {
         await new Promise((resolve) => setTimeout(resolve, 1000))
       }
     }
-    warn(`[NodeCore][Voice] Auto TTS via ${ttsEngine} failed after ${maxAttempts} retries: ${lastError}`)
+    warn(
+      `[NodeCore][Voice] Auto TTS via ${ttsEngine} failed after ${maxAttempts} retries: ${lastError}`
+    )
     return
   }
 
-  const maxAttempts = 45
+  const MAX_KOKORO_RETRIES = 8
+  const maxAttempts = MAX_KOKORO_RETRIES
   let lastError = null
   let announcedLoading = false
 

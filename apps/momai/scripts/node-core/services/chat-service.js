@@ -678,8 +678,10 @@ async function streamLlamaChat(req, res, payload) {
   let assembled = ''
   let bufferedStructuredResponse = null
   let ttsCursor = 0
-  let ttsChain = Promise.resolve()
   const prebufferChars = Math.max(40, Number(store.settings.prebuffer_chars || 90))
+  const TTS_QUEUE_MAX = 3
+  let ttsProcessing = false
+  const ttsQueue = []
 
   const enqueueAutoTts = (chunk) => {
     const cleaned = String(chunk || '').trim()
@@ -690,7 +692,25 @@ async function streamLlamaChat(req, res, payload) {
     console.log(
       `[TTS-DEBUG] enqueueAutoTts CALLING triggerAutoTts: cleaned="${cleaned.slice(0, 60)}"`
     )
-    ttsChain = ttsChain.then(() => triggerAutoTts(cleaned, currentGen)).catch(() => {})
+    ttsQueue.push(cleaned)
+    if (ttsQueue.length > TTS_QUEUE_MAX) {
+      ttsQueue.shift()
+    }
+    processTtsQueue()
+  }
+
+  async function processTtsQueue() {
+    if (ttsProcessing) return
+    ttsProcessing = true
+    while (ttsQueue.length > 0) {
+      const chunk = ttsQueue.shift()
+      try {
+        await triggerAutoTts(chunk, currentGen)
+      } catch (err) {
+        warn('[TTS] Chunk failed:', err.message)
+      }
+    }
+    ttsProcessing = false
   }
 
   const flushTtsChunks = (final = false) => {
