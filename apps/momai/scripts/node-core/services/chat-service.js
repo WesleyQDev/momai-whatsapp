@@ -15,6 +15,7 @@ function getPromptRegistry() {
 }
 const { debug, info, warn } = require('../infrastructure/logger')
 const { sendSseHeaders, writeSse, endSse } = require('../infrastructure/http-helpers')
+const { pruneThread } = require('../infrastructure/store')
 const { splitTokens, sanitizePromptText } = require('../utils/text')
 const { isoNow } = require('../utils/time')
 const { ensureLlamaReady, getLlamaBaseUrl, saveStore } = require('./llama-manager')
@@ -79,6 +80,7 @@ function appendMessage(threadId, role, content, extras = {}) {
   }
   messages.push(item)
   saveStore()
+  pruneThread(threadId)
   return item
 }
 

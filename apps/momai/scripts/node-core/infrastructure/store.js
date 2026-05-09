@@ -1,6 +1,6 @@
 const fs = require('node:fs')
 const path = require('node:path')
-const { info, error } = require('./logger')
+const { info, error, warn } = require('./logger')
 
 const DATA_DIR = process.env.MOMAI_NODE_CORE_DATA_DIR || path.join(process.cwd(), 'data')
 const STORE_FILE = path.join(DATA_DIR, 'node-core-store.json')
@@ -94,9 +94,16 @@ function saveStore(store) {
   _saveTimer = setTimeout(() => {
     _saveTimer = null
     try {
+      const start = Date.now()
       const tmp = STORE_FILE + '.tmp.' + Date.now()
-      fs.writeFileSync(tmp, JSON.stringify(store, null, 2), 'utf8')
+      const data = JSON.stringify(store)
+      fs.writeFileSync(tmp, data, 'utf8')
       fs.renameSync(tmp, STORE_FILE)
+      // hot path: debounced save on every message append
+      if (Date.now() - start > 100) {
+        warn(`[Store] saveStore took ${Date.now() - start}ms (${data.length} bytes)`)
+      }
+      saveMessages()
     } catch (err) {
       error('[Store] Failed to save store:', err)
     }
@@ -109,9 +116,15 @@ function saveStoreNow(store) {
     _saveTimer = null
   }
   try {
+    const start = Date.now()
     const tmp = STORE_FILE + '.tmp.' + Date.now()
-    fs.writeFileSync(tmp, JSON.stringify(store, null, 2), 'utf8')
+    const data = JSON.stringify(store)
+    fs.writeFileSync(tmp, data, 'utf8')
     fs.renameSync(tmp, STORE_FILE)
+    if (Date.now() - start > 100) {
+      warn(`[Store] saveStoreNow took ${Date.now() - start}ms (${data.length} bytes)`)
+    }
+    saveMessages()
   } catch (err) {
     error('[Store] Failed to save store:', err)
   }
@@ -128,12 +141,41 @@ function appendMessage(store, threadId, role, content, extras = {}) {
     snippets: extras.snippets ? JSON.stringify(extras.snippets) : null,
     cards: extras.cards ? JSON.stringify(extras.cards) : null,
     graph_data: extras.graph_data || null,
-    structured_response: extras.structured_response ? JSON.stringify(extras.structured_response) : null
+    structured_response: extras.structured_response
+      ? JSON.stringify(extras.structured_response)
+      : null
   }
   messages.push(item)
   store.thread_messages[threadId] = messages
   saveStore(store)
   return item
+}
+
+const MAX_MESSAGES_PER_THREAD = 500
+
+function pruneThread(threadId) {
+  const msgs = store.thread_messages[threadId]
+  if (msgs && msgs.length > MAX_MESSAGES_PER_THREAD) {
+    const excess = msgs.length - MAX_MESSAGES_PER_THREAD
+    store.thread_messages[threadId] = msgs.slice(excess)
+  }
+}
+
+function saveMessages() {
+  const msgData = {}
+  for (const threadId of Object.keys(store.thread_messages || {})) {
+    msgData[threadId] = store.thread_messages[threadId]
+  }
+  fs.writeFileSync(path.join(DATA_DIR, 'messages.json'), JSON.stringify(msgData))
+}
+
+function loadMessages() {
+  const msgPath = path.join(DATA_DIR, 'messages.json')
+  if (fs.existsSync(msgPath)) {
+    try {
+      store.thread_messages = JSON.parse(fs.readFileSync(msgPath, 'utf8'))
+    } catch { /* ignore */ }
+  }
 }
 
 function getThreadMessages(store, threadId) {
@@ -166,6 +208,7 @@ function listSessions(store) {
 
 // Initialize store on module load
 const store = loadStore()
+loadMessages()
 
 // Sync with shared-state so service modules see the loaded store
 try {
@@ -183,5 +226,8 @@ module.exports = {
   saveStoreNow,
   appendMessage,
   getThreadMessages,
-  listSessions
+  listSessions,
+  pruneThread,
+  saveMessages,
+  loadMessages
 }
