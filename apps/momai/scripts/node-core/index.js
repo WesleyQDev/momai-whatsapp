@@ -35,7 +35,14 @@ const {
   registerManagedLlama,
   killOrphanLlamaServers
 } = require('./infrastructure/process-manager')
-const { store, saveStore, saveStoreNow, appendMessage, getThreadMessages, listSessions } = require('./infrastructure/store')
+const {
+  store,
+  saveStore,
+  saveStoreNow,
+  appendMessage,
+  getThreadMessages,
+  listSessions
+} = require('./infrastructure/store')
 
 // Initialize registries (actual loading happens in initializeRegistries)
 const { DATA_DIR, PROMPTS_DIR } = constants
@@ -170,7 +177,11 @@ function buildSemanticRuntimeStatus() {
 }
 
 function getSetupInfo() {
-  const { hasBackendBinary, normalizeBackendMode, pickBackend } = require('./services/llama-manager')
+  const {
+    hasBackendBinary,
+    normalizeBackendMode,
+    pickBackend
+  } = require('./services/llama-manager')
   const { llamaState } = require('./services/shared-state')
   const { store } = require('./infrastructure/store')
   const installedBackends = ['cuda', 'vulkan', 'cpu'].filter((backend) => hasBackendBinary(backend))
@@ -190,8 +201,8 @@ function getSetupInfo() {
   const detectedHardware = installedBackends.includes('cuda')
     ? 'GPU NVIDIA detectada (CUDA)'
     : installedBackends.includes('vulkan')
-    ? 'GPU com suporte a Vulkan detectada'
-    : 'GPU dedicada não detectada (modo CPU)'
+      ? 'GPU com suporte a Vulkan detectada'
+      : 'GPU dedicada não detectada (modo CPU)'
   const preferred = normalizeBackendMode(store.settings.local_backend || 'auto')
   const currentLocalBackend = llamaState.backend || pickBackend(preferred) || 'cpu'
   store.settings.hardware_total_ram_gb = totalRamGb
@@ -243,11 +254,11 @@ async function maybeRestartLlamaOnTierChange(prevTier, nextTier, prevBackend, ne
       .then((ok) => {
         if (ok) {
           setTimeout(() => {
-            syncSkillAndToolIndexes(false).catch(() => {})
+            syncSkillAndToolIndexes(false).catch(err => debug('[background]', err?.message || err))
           }, 3000)
         }
       })
-      .catch(() => {})
+      .catch(err => debug('[background]', err?.message || err))
   }
   return llamaReady
 }
@@ -344,8 +355,18 @@ async function startServer() {
   // Initialize shared state
   const _skillRegistry = skillRegistry || shared.skillRegistry
   const _promptRegistry = promptRegistry || shared.promptRegistry
-  shared.skillRegistry = _skillRegistry || { listSkills: () => [], getSkill: () => null, getAll: () => [], refresh: () => {}, loadExtensions: () => {}, extensionsDir: path.join(DATA_DIR, 'extensions') }
-  shared.promptRegistry = _promptRegistry || { getRuntimeStatus: () => ({}), getDefaults: () => ({}) }
+  shared.skillRegistry = _skillRegistry || {
+    listSkills: () => [],
+    getSkill: () => null,
+    getAll: () => [],
+    refresh: () => {},
+    loadExtensions: () => {},
+    extensionsDir: path.join(DATA_DIR, 'extensions')
+  }
+  shared.promptRegistry = _promptRegistry || {
+    getRuntimeStatus: () => ({}),
+    getDefaults: () => ({})
+  }
 
   // Create router context with all dependencies
   const context = {
@@ -355,7 +376,14 @@ async function startServer() {
     llamaState: llamaManager.llamaState || {},
     semanticState: embeddingManager.semanticState || {},
     modelDownloadState: modelDownloader.modelDownloadState || {},
-    skillRegistry: _skillRegistry || { listSkills: () => [], getSkill: () => null, getAll: () => [], refresh: () => {}, loadExtensions: () => {}, extensionsDir: path.join(DATA_DIR, 'extensions') },
+    skillRegistry: _skillRegistry || {
+      listSkills: () => [],
+      getSkill: () => null,
+      getAll: () => [],
+      refresh: () => {},
+      loadExtensions: () => {},
+      extensionsDir: path.join(DATA_DIR, 'extensions')
+    },
     promptRegistry: _promptRegistry || { getRuntimeStatus: () => ({}), getDefaults: () => ({}) },
     tiersConfig: llamaManager.tiersConfig,
     sendJson,
@@ -380,10 +408,18 @@ async function startServer() {
     listSessions: () => listSessions(store),
     runVoiceCommand: chatService.runVoiceCommand || (() => {}),
     triggerAutoTts: ttsService.triggerAutoTts || (() => {}),
-    get stopVoiceRequested() { return chatService.stopVoiceRequested; },
-    set stopVoiceRequested(v) { chatService.stopVoiceRequested = v; },
-    get stopGenerationRequested() { return chatService.stopGenerationRequested; },
-    set stopGenerationRequested(v) { chatService.stopGenerationRequested = v; },
+    get stopVoiceRequested() {
+      return chatService.stopVoiceRequested
+    },
+    set stopVoiceRequested(v) {
+      chatService.stopVoiceRequested = v
+    },
+    get stopGenerationRequested() {
+      return chatService.stopGenerationRequested
+    },
+    set stopGenerationRequested(v) {
+      chatService.stopGenerationRequested = v
+    },
     activeChatControllers: chatService.activeChatControllers || new Set(),
     setInitStatus: llamaManager.setInitStatus || (() => {}),
     ensureLlamaReady: llamaManager.ensureLlamaReady || (() => Promise.resolve(false)),
@@ -430,7 +466,14 @@ async function startServer() {
 
   // Setup WebSocket and update context with real functions
   if (websocket.setupWebSocket) {
-    const wsResult = websocket.setupWebSocket({ server, store, llamaState: llamaManager.llamaState || {}, info, HOST, PORT })
+    const wsResult = websocket.setupWebSocket({
+      server,
+      store,
+      llamaState: llamaManager.llamaState || {},
+      info,
+      HOST,
+      PORT
+    })
     if (wsResult) {
       context.broadcast = wsResult.broadcast
       context.sendResourceUsage = wsResult.sendResourceUsage
@@ -460,7 +503,12 @@ async function startServer() {
           info('[NodeCore] Skipping auto-start LLM: AI Tier not selected yet (onboarding).')
           llamaManager.setInitStatus('ready', 'Aguardando seleção do modo...', 40, null)
         } else {
-          llamaManager.setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 75, null)
+          llamaManager.setInitStatus(
+            'loading',
+            `Loading local model (${tierName.toUpperCase()})...`,
+            75,
+            null
+          )
           try {
             await llamaManager.ensureLlamaReady(false, true)
           } catch (err) {
@@ -475,7 +523,8 @@ async function startServer() {
         process.send({
           type: 'node-core-ready',
           brainReady: autoStartLlm ? llamaManager.llamaState.ready : true,
-          isLoading: llamaManager.llamaState.starting || modelDownloader.modelDownloadState.in_progress
+          isLoading:
+            llamaManager.llamaState.starting || modelDownloader.modelDownloadState.in_progress
         })
       }
     }
@@ -488,16 +537,17 @@ async function startServer() {
     const startupTier = store.settings.ai_tier || 'pro'
     if (startupTier === 'ultra') {
       void ttsService.syncWakeWordState('startup')
-      embeddingManager.ensureEmbeddingReady()
+      embeddingManager
+        .ensureEmbeddingReady()
         .then((ok) => {
           if (ok) {
             setTimeout(() => {
-              semanticEngine.syncSkillAndToolIndexes(true).catch(() => {})
-              semanticEngine.syncNoteIndex(true).catch(() => {})
+              semanticEngine.syncSkillAndToolIndexes(true).catch(err => debug('[background]', err?.message || err))
+              semanticEngine.syncNoteIndex(true).catch(err => debug('[background]', err?.message || err))
             }, 3000)
           }
         })
-        .catch(() => {})
+        .catch(err => debug('[background]', err?.message || err))
     }
 
     if (typeof context.connectPythonSidecar === 'function') {

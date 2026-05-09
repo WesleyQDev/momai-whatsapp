@@ -21,6 +21,7 @@ const {
 const { sha1, promiseAllStep } = require('../utils/text')
 const { isoNow } = require('../utils/time')
 const { debug, info, warn } = require('../infrastructure/logger')
+const MAX_LATENCY_HISTORY = 1000
 const { embedText } = require('./embedding-manager')
 const { getSkillCatalogRows, getToolCatalogRows } = require('./skill-orchestrator')
 const { runLexicalNoteSearch: runLexicalNoteSearchShared } = require('./lexical-search')
@@ -363,9 +364,10 @@ function buildMemoryContextAndSources(hits) {
   }
   const promptRegistry = getPromptRegistry()
   return {
-    memoryContext: sections.length && promptRegistry && typeof promptRegistry.formatMemoryContext === 'function'
-      ? promptRegistry.formatMemoryContext(sections.join('\n'))
-      : sections.join('\n\n'),
+    memoryContext:
+      sections.length && promptRegistry && typeof promptRegistry.formatMemoryContext === 'function'
+        ? promptRegistry.formatMemoryContext(sections.join('\n'))
+        : sections.join('\n\n'),
     memorySources
   }
 }
@@ -380,8 +382,8 @@ async function runSemanticMemoryRetrieval(query, limit = 6) {
     return { hits: [], memoryContext: null, memorySources: [] }
   }
 
-  syncSkillAndToolIndexes(false).catch(() => {})
-  syncNoteIndex(false).catch(() => {})
+  syncSkillAndToolIndexes(false).catch(err => debug('[background]', err?.message || err))
+  syncNoteIndex(false).catch(err => debug('[background]', err?.message || err))
 
   const [vectorHits, lexicalHits] = await Promise.all([
     runVectorNoteSearch(query, limit),
@@ -391,6 +393,9 @@ async function runSemanticMemoryRetrieval(query, limit = 6) {
   const { memoryContext, memorySources } = buildMemoryContextAndSources(mergedHits)
   const { rollingPush } = require('./embedding-manager')
   rollingPush(semanticState.latency.retrievalMs, Date.now() - startedAt)
+  for (const arr of [semanticState.latency.embeddingMs, semanticState.latency.retrievalMs, semanticState.latency.toolExecMs]) {
+    while (arr.length > MAX_LATENCY_HISTORY) arr.shift()
+  }
   return {
     hits: mergedHits,
     memoryContext,
@@ -417,9 +422,10 @@ async function getTop5SkillsSemantic(query) {
           const results = []
           for (const row of rows) {
             const skillRegistry = getSkillRegistry()
-            const candidate = skillRegistry && typeof skillRegistry.getById === 'function'
-              ? skillRegistry.getById(row.id)
-              : null
+            const candidate =
+              skillRegistry && typeof skillRegistry.getById === 'function'
+                ? skillRegistry.getById(row.id)
+                : null
             const score = Number.isFinite(row._distance) ? Math.max(0, 1 - row._distance) : 0
             if (candidate && require('./skill-orchestrator').isSkillEnabledByStore(candidate)) {
               results.push({ id: candidate.id, score })
@@ -428,7 +434,7 @@ async function getTop5SkillsSemantic(query) {
           if (results.length > 0) return results
         }
       }
-    } catch {}
+    } catch (e) { debug('[semantic] getTop5SkillsSemantic error:', e?.message || e) }
   }
 
   return enabledSkills.slice(0, 5).map((s) => ({ id: s.id, score: 0 }))

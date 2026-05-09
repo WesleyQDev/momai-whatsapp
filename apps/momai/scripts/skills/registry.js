@@ -90,6 +90,14 @@ function normalizeSkillRecord({ id, kind, parsed, runtime, dir }) {
         }))
     : []
 
+  let entries
+  try {
+    entries = fs.readdirSync(dir)
+  } catch {
+    return null
+  }
+  const entrySet = new Set(entries)
+
   const record = {
     kind,
     id,
@@ -109,29 +117,24 @@ function normalizeSkillRecord({ id, kind, parsed, runtime, dir }) {
       compatibility: parsed.compatibility,
       instructions: parsed.body || '',
       readme: (() => {
-        try {
-          const files = fs.readdirSync(dir)
-          const readmes = {}
-          for (const file of files) {
-            if (file === 'README.md') {
-              readmes['default'] = fs.readFileSync(path.join(dir, file), 'utf8')
-            } else if (file.startsWith('README.') && file.endsWith('.md')) {
-              const lang = file.split('.')[1]
-              readmes[lang] = fs.readFileSync(path.join(dir, file), 'utf8')
-            }
+        const readmes = {}
+        for (const file of entries) {
+          if (file === 'README.md') {
+            readmes['default'] = fs.readFileSync(path.join(dir, file), 'utf8')
+          } else if (file.startsWith('README.') && file.endsWith('.md')) {
+            const lang = file.split('.')[1]
+            readmes[lang] = fs.readFileSync(path.join(dir, file), 'utf8')
           }
-          return readmes
-        } catch {
-          return {}
         }
+        return readmes
       })(),
       locales: (() => {
+        if (!entrySet.has('locales')) return {}
         try {
           const localesDir = path.join(dir, 'locales')
-          if (!fs.existsSync(localesDir)) return {}
-          const files = fs.readdirSync(localesDir)
+          const localeFiles = fs.readdirSync(localesDir)
           const locales = {}
-          for (const file of files) {
+          for (const file of localeFiles) {
             if (file.endsWith('.json')) {
               const lang = file.replace('.json', '')
               locales[lang] = JSON.parse(fs.readFileSync(path.join(localesDir, file), 'utf8'))

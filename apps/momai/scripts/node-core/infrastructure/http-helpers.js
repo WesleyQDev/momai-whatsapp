@@ -46,12 +46,19 @@ function endSse(res) {
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
-    let body = ''
+    const chunks = []
+    let total = 0
     req.on('data', (chunk) => {
-      body += chunk
-      if (body.length > 3 * 1024 * 1024) reject(new Error('Payload too large'))
+      total += chunk.length
+      if (total > 3 * 1024 * 1024) {
+        reject(new Error('Payload too large'))
+        req.destroy()
+        return
+      }
+      chunks.push(chunk)
     })
     req.on('end', () => {
+      const body = Buffer.concat(chunks).toString('utf8')
       if (!body) {
         resolve({})
         return

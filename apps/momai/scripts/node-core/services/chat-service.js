@@ -591,8 +591,8 @@ async function streamLlamaChat(req, res, payload) {
   let semanticPromise = null
   if (isUltra) {
     const { syncSkillAndToolIndexes, syncNoteIndex } = require('./semantic-engine')
-    syncSkillAndToolIndexes(false).catch(() => {})
-    syncNoteIndex(false).catch(() => {})
+    syncSkillAndToolIndexes(false).catch(err => debug('[background]', err?.message || err))
+    syncNoteIndex(false).catch(err => debug('[background]', err?.message || err))
     semanticPromise = runSemanticMemoryRetrieval(content, 6)
   }
 
@@ -640,7 +640,11 @@ async function streamLlamaChat(req, res, payload) {
           if (!source || !source.url) continue
           byUrl.set(source.url, source)
         }
-        memorySources = [...byUrl.values()].slice(0, 10)
+        memorySources = [...byUrl.values()].slice(0, 20)
+      }
+      const MAX_SOURCES = 20
+      if (memorySources.length > MAX_SOURCES) {
+        memorySources = memorySources.slice(-MAX_SOURCES)
       }
     } catch (e) {
       console.error('[ChatService] Semantic memory failed, continuing without it:', e)
@@ -1134,7 +1138,7 @@ async function streamLlamaChat(req, res, payload) {
             estimatedPromptTokens = realTokens
           }
         })
-        .catch(() => {})
+        .catch(err => debug('[background] tokenizePrompt failed:', err?.message || err))
 
       {
         const _sse = writeSse(res, { status: 'responding' })

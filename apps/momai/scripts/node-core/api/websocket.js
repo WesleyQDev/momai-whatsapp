@@ -43,18 +43,15 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
       type: 'resource_usage',
       data: {
         ram_mb: ramMb,
-        vram_used_mb: Math.max(
-          0,
-          Number(runtime?.vramUsedMb || llamaState.vramUsedMb || 0)
-        ),
-        vram_total_mb: Math.max(
-          0,
-          Number(runtime?.vramTotalMb || llamaState.vramTotalMb || 0)
-        ),
+        vram_used_mb: Math.max(0, Number(runtime?.vramUsedMb || llamaState.vramUsedMb || 0)),
+        vram_total_mb: Math.max(0, Number(runtime?.vramTotalMb || llamaState.vramTotalMb || 0)),
         context_used_tokens: Math.max(
           0,
           Number(
-            runtime?.kvUsedTokens || llamaState.kvCacheUsedTokens || llamaState.contextUsedTokens || 0
+            runtime?.kvUsedTokens ||
+              llamaState.kvCacheUsedTokens ||
+              llamaState.contextUsedTokens ||
+              0
           )
         ),
         context_total_tokens: Math.max(
@@ -73,6 +70,13 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
   const PYTHON_HOST = process.env.MOMAI_PYTHON_SIDECAR_HOST || '127.0.0.1'
   const PYTHON_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
 
+  let reconnectDelay = 5000
+  const MAX_RECONNECT_DELAY = 60000
+
+  function resetReconnectDelay() {
+    reconnectDelay = 5000
+  }
+
   function connectPythonSidecar() {
     if (!WebSocketServer) return
     const WebSocket = require('ws')
@@ -90,6 +94,7 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
 
     pythonWs.on('open', () => {
       info(`[NodeCore] Connected to Python sidecar WebSocket at ${url}`)
+      resetReconnectDelay()
     })
 
     pythonWs.on('message', (data) => {
@@ -113,7 +118,10 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
 
     pythonWs.on('close', () => {
       pythonWs = null
-      setTimeout(connectPythonSidecar, 5000)
+      setTimeout(() => {
+        connectPythonSidecar()
+        reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY)
+      }, reconnectDelay)
     })
   }
 
