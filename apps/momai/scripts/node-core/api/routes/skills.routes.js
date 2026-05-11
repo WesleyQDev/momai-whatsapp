@@ -1,15 +1,28 @@
-function createSkillsRoutes(context) {
-  const { sendJson, readJsonBody, store, saveStore } = context
+const { routeByKeyword } = require('../services/keyword-router')
 
-  return async function handleSkillsRoutes(req, res, pathname) {
+function createSkillsRoutes(context) {
+  const { sendJson, readJsonBody, store, saveStore, skillRegistry } = context
+
+  return async function handleSkillsRoutes(req, res, pathname, parsedUrl) {
     if (pathname === '/skills/keywords' && req.method === 'GET') {
       sendJson(res, 200, store.skillKeywords || {})
       return true
     }
 
-    const match = pathname.match(/^\/skills\/keywords\/([^/]+)$/)
-    if (match && req.method === 'PUT') {
-      const skillId = match[1]
+    if (pathname === '/skills/keywords/check' && req.method === 'GET') {
+      const text = parsedUrl.searchParams?.get('text') || ''
+      if (!text.trim() || !skillRegistry) {
+        sendJson(res, 200, { matched: false })
+        return true
+      }
+      const match = routeByKeyword(text, skillRegistry)
+      sendJson(res, 200, { matched: !!match, skillId: match?.skillId || null })
+      return true
+    }
+
+    const routeMatch = pathname.match(/^\/skills\/keywords\/([^/]+)$/)
+    if (routeMatch && req.method === 'PUT') {
+      const skillId = routeMatch[1]
       const body = await readJsonBody(req).catch(() => ({}))
       const keywords = Array.isArray(body.keywords) ? body.keywords : []
       const normalized = keywords.map((k) => String(k).trim()).filter(Boolean)
