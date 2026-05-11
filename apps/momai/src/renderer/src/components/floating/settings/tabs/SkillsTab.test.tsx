@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { SkillsTab } from './SkillsTab'
 
@@ -13,11 +13,9 @@ const mockKeywords = {
 }
 
 vi.mock('../../../../services/api', () => ({
-  api: {
-    fetchExtensions: vi.fn(() => Promise.resolve(mockExtensions)),
-    fetchSkillKeywords: vi.fn(() => Promise.resolve(mockKeywords)),
-    updateSkillKeywords: vi.fn(() => Promise.resolve())
-  }
+  fetchExtensions: vi.fn(() => Promise.resolve(mockExtensions)),
+  fetchSkillKeywords: vi.fn(() => Promise.resolve(mockKeywords)),
+  updateSkillKeywords: vi.fn(() => Promise.resolve())
 }))
 
 vi.mock('../../../../i18n', () => ({

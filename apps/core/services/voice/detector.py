@@ -138,6 +138,7 @@ class WakeWordDetector:
         # Gate keyword detection (call mode bypass always works)
         self.wake_word_active = True
         self._stop_event = threading.Event()
+        self._last_keyword_time = 0
     
     def _load_model(self, retries=0):
         """Lazy load heavy dependencies and model."""
@@ -717,29 +718,36 @@ class WakeWordDetector:
             return
 
         # 1.5. Keyword check: if text matches a skill keyword, route as command
-        if self.keyword_check_url and (now - self.last_trigger_time) >= self.trigger_cooldown:
-            try:
-                import httpx
-                with httpx.Client() as client:
-                    resp = client.get(
-                        self.keyword_check_url,
-                        params={"text": raw_text},
-                        timeout=2.0,
-                    )
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        if data.get("matched"):
-                            logger.info(
-                                "[WakeWord] Keyword matched skill '%s': '%s'",
-                                data.get("skillId"), raw_text,
-                            )
-                            self._stop_tts()
-                            self.last_trigger_time = now
-                            if self.callback:
-                                self.callback(raw_text)
-                            return
-            except Exception as exc:
-                logger.debug("[WakeWord] Keyword check failed: %s", exc)
+        if self.keyword_check_url:
+            if (now - self._last_keyword_time) < self.trigger_cooldown:
+                logger.debug("[WakeWord] Keyword check skipped (cooldown)")
+            else:
+                logger.debug("[WakeWord] Keyword check URL=%s text='%s'", self.keyword_check_url, raw_text)
+                try:
+                    import httpx
+                    with httpx.Client() as client:
+                        resp = client.get(
+                            self.keyword_check_url,
+                            params={"text": raw_text},
+                            timeout=2.0,
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            if data.get("matched"):
+                                logger.info(
+                                    "[WakeWord] Keyword matched skill '%s': '%s'",
+                                    data.get("skillId"), raw_text,
+                                )
+                                self._stop_tts()
+                                self._last_keyword_time = now
+                                self.last_trigger_time = now
+                                if self.callback:
+                                    self.callback(raw_text)
+                                return
+                except Exception as exc:
+                    logger.debug("[WakeWord] Keyword check failed: %s", exc)
+        else:
+            logger.debug("[WakeWord] No keyword_check_url configured, skipping keyword check")
 
         # 2. Bypass Mode (Only if keyword NOT detected)
         if self.bypass_condition and self.bypass_condition():
