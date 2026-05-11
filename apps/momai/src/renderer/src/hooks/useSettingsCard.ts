@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { api, stopVoice, stopGeneration } from '../services/api'
 import { useI18n } from '../i18n'
 
-export type Tab = 'general' | 'brain' | 'updates' | 'economy' | 'voice' | 'logs' | 'developer'
+export type Tab = 'general' | 'brain' | 'updates' | 'economy' | 'voice' | 'logs' | 'developer' | 'skills'
 export type Theme = 'dark' | 'light'
 
 export interface Settings {
