@@ -1829,10 +1829,19 @@ async function runVoiceCommand(payload = {}) {
           timeoutPromise
         ])
         const responseText = result?.directResponse || result?.instruction || 'Feito.'
-        broadcast({ type: 'assistant', data: { content: responseText, webSources: result?.webSources } })
+        broadcast({ type: 'assistant', data: { status: 'responding' } })
+        for (const token of splitTokens(responseText)) {
+          broadcast({ type: 'assistant', data: { token } })
+        }
+        if (result?.webSources) {
+          broadcast({ type: 'assistant', data: { webSources: result.webSources } })
+        }
       } catch (err) {
         debug(`[voice-cmd] Skill execution error: ${err.message}`)
-        broadcast({ type: 'assistant', data: { content: 'Feito.' } })
+        broadcast({ type: 'assistant', data: { status: 'responding' } })
+        for (const token of splitTokens('Feito.')) {
+          broadcast({ type: 'assistant', data: { token } })
+        }
       }
       return
     }
