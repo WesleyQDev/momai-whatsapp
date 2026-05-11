@@ -1,4 +1,4 @@
-const { routeByKeyword } = require('../services/keyword-router')
+const { routeByKeyword } = require('../../services/keyword-router')
 
 function createSkillsRoutes(context) {
   const { sendJson, readJsonBody, store, saveStore, skillRegistry } = context
