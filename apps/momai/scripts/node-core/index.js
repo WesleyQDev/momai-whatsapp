@@ -457,6 +457,7 @@ async function startServer() {
   const { createRemindersRoutes } = require('./api/routes/reminders.routes')
   const { createStatusRoutes } = require('./api/routes/status.routes')
   const { createSystemRoutes } = require('./api/routes/system.routes')
+  const { createSkillsRoutes } = require('./api/routes/skills.routes')
 
   // Compose router
   const { handleRequest, server, shutdownAll } = createRouter(context, [
@@ -465,7 +466,8 @@ async function startServer() {
     createExtensionsRoutes(context),
     createRemindersRoutes(context),
     createStatusRoutes(context),
-    createSystemRoutes(context)
+    createSystemRoutes(context),
+    createSkillsRoutes(context)
   ])
 
   // Setup WebSocket and update context with real functions
