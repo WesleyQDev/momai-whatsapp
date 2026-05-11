@@ -244,6 +244,17 @@ function createExtensionsRoutes(context) {
         saveStore()
       }
       await skillRegistry.loadExtensions()
+
+      // Seed keywords from SKILL.md intents
+      const installedSkill = skillRegistry.getById(id)
+      if (installedSkill && installedSkill.manifest?.intents?.length) {
+        if (!store.skillKeywords) store.skillKeywords = {}
+        if (!store.skillKeywords[id] || store.skillKeywords[id].length === 0) {
+          store.skillKeywords[id] = installedSkill.manifest.intents
+          saveStore()
+        }
+      }
+
       await skillRegistry.executeHook(id, 'onInstall', { extId: id, extDir }).catch((err) => {
         console.log(`[extensions] onInstall hook failed for ${id}: ${err.message}`)
       })
@@ -299,6 +310,10 @@ function createExtensionsRoutes(context) {
       await skillRegistry.executeHook(extId, 'onUninstall', { extId, extDir }).catch((err) => {
         console.log(`[extensions] onUninstall hook failed for ${extId}: ${err.message}`)
       })
+      // Clean up keywords
+      if (store.skillKeywords) {
+        delete store.skillKeywords[extId]
+      }
       store.extensions = store.extensions.filter((item) => item.id !== extId)
       if (fs.existsSync(extDir)) fs.rmSync(extDir, { recursive: true, force: true })
       saveStore()
