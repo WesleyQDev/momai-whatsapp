@@ -565,8 +565,8 @@ export const VoiceTab = React.memo(
               </div>
 
               {showAddForm && (
-                <div className="border-t border-border/40 px-4 py-3 space-y-2">
-                  <div className="flex gap-2">
+                <div className="border-t border-border/40 px-4 py-3">
+                  <div className="flex gap-2 items-center">
                     <select
                       value={selectedSkill}
                       onChange={(e) => setSelectedSkill(e.target.value)}
@@ -587,17 +587,12 @@ export const VoiceTab = React.memo(
                       className="w-36 px-3 py-2 text-xs rounded-lg bg-white/5 border border-border/40 text-text placeholder:text-text-muted/50 outline-none focus:border-accent/50"
                     />
                     <button
-                      onClick={handleAddTrigger}
-                      disabled={!selectedSkill || !newKeyword.trim()}
-                      className="px-3 py-2 text-xs font-semibold rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-40 transition-colors shrink-0"
-                    >
-                      OK
-                    </button>
-                    <button
                       onClick={() => { setShowAddForm(false); setNewKeyword(''); setSelectedSkill('') }}
-                      className="px-3 py-2 text-xs font-semibold rounded-lg bg-white/5 text-text-muted hover:bg-white/10 transition-colors shrink-0"
+                      className="text-text-muted/30 hover:text-text-muted transition-colors shrink-0 p-1"
                     >
-                      Cancelar
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
                     </button>
                   </div>
                 </div>
