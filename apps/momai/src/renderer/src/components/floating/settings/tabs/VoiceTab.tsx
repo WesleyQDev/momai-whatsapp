@@ -538,37 +538,34 @@ export const VoiceTab = React.memo(
             </div>
 
             {/* ─── Gatilhos de voz personalizados ─── */}
-            <div className="space-y-3">
-              <label className="text-xs font-semibold text-text-muted uppercase tracking-wide">
-                Gatilhos de voz personalizados
-              </label>
-              <p className="text-[11px] text-text-muted/70 -mt-2">
-                Defina palavras-chave para ativar skills sem dizer &quot;Luna&quot;
-              </p>
-
-              {triggers.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {triggers.map((tr) => (
-                    <span
-                      key={`${tr.skillId}:${tr.keyword}`}
-                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-accent/10 text-accent group"
-                    >
-                      <span className="font-medium">{tr.keyword}</span>
-                      <span className="opacity-50">→</span>
-                      <span className="opacity-80">{tr.skillName}</span>
-                      <button
-                        onClick={() => handleRemoveTrigger(tr.skillId, tr.keyword)}
-                        className="ml-0.5 hover:text-red-400 transition-colors"
-                      >
-                        ×
-                      </button>
+            <div className="rounded-xl border border-border/40 bg-white/[0.03] group transition-all duration-300 hover:border-border/60">
+              <div className="flex items-center justify-between gap-2 p-4">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/[0.05] text-text-muted/50">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                    </svg>
+                  </div>
+                  <div className="flex flex-col gap-0">
+                    <span className="text-xs font-semibold text-text">Gatilhos de voz</span>
+                    <span className="text-[11px] text-text-muted/70">
+                      Palavras-chave para ativar skills sem &quot;Luna&quot;
                     </span>
-                  ))}
+                  </div>
                 </div>
-              )}
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors shrink-0"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  Adicionar
+                </button>
+              </div>
 
-              {showAddForm ? (
-                <div className="p-3 rounded-xl bg-white/[0.03] border border-border/40 space-y-3">
+              {showAddForm && (
+                <div className="border-t border-border/40 px-4 py-3 space-y-3">
                   <select
                     value={selectedSkill}
                     onChange={(e) => setSelectedSkill(e.target.value)}
@@ -600,21 +597,32 @@ export const VoiceTab = React.memo(
                       disabled={!selectedSkill || !newKeyword.trim()}
                       className="px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-40 transition-colors"
                     >
-                      Adicionar
+                      OK
                     </button>
                   </div>
                 </div>
-              ) : (
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-accent hover:text-accent/80 transition-colors"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  Adicionar gatilho de voz
-                </button>
+              )}
+
+              {triggers.length > 0 && (
+                <div className="border-t border-border/40 divide-y divide-border/10">
+                  {triggers.map((tr) => (
+                    <div key={`${tr.skillId}:${tr.keyword}`} className="flex items-center justify-between px-4 py-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-xs font-semibold text-text">{tr.keyword}</span>
+                        <span className="text-[10px] text-text-muted/40">→</span>
+                        <span className="text-xs text-text-muted">{tr.skillName}</span>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveTrigger(tr.skillId, tr.keyword)}
+                        className="text-text-muted/30 hover:text-red-400 transition-colors shrink-0"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
