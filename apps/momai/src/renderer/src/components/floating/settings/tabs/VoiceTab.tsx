@@ -554,13 +554,13 @@ export const VoiceTab = React.memo(
                   </div>
                 </div>
                 <button
-                  onClick={() => setShowAddForm(true)}
+                  onClick={() => setShowAddForm(!showAddForm)}
                   className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors shrink-0"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
-                  Adicionar
+                  {showAddForm ? 'Fechar' : 'Adicionar'}
                 </button>
               </div>
 
@@ -586,14 +586,6 @@ export const VoiceTab = React.memo(
                       placeholder="Palavra"
                       className="w-36 px-3 py-2 text-xs rounded-lg bg-white/5 border border-border/40 text-text placeholder:text-text-muted/50 outline-none focus:border-accent/50"
                     />
-                    <button
-                      onClick={() => { setShowAddForm(false); setNewKeyword(''); setSelectedSkill('') }}
-                      className="text-text-muted/30 hover:text-text-muted transition-colors shrink-0 p-1"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
                   </div>
                 </div>
               )}
