@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { fetchExtensions, fetchSkillKeywords, updateSkillKeywords } from '../../../../services/api'
 import { useI18n } from '../../../../i18n'
 
@@ -19,6 +19,7 @@ export function SkillsTab() {
   const [editing, setEditing] = useState<string | null>(null)
   const [editBuffer, setEditBuffer] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   async function loadData() {
     try {
@@ -40,7 +41,12 @@ export function SkillsTab() {
   }, [])
 
   async function handleSave(skillId: string) {
-    const normalized = editBuffer.map((k) => k.trim()).filter((k) => k.length > 0)
+    // Flush any text still in the input
+    const pending = inputRef.current?.value?.trim()
+    const allKeywords = pending && !editBuffer.includes(pending)
+      ? [...editBuffer, pending]
+      : editBuffer
+    const normalized = allKeywords.map((k) => k.trim()).filter((k) => k.length > 0)
 
     const conflictMap: Record<string, string[]> = {}
     for (const kw of normalized) {
@@ -72,6 +78,7 @@ export function SkillsTab() {
   function startEdit(skillId: string) {
     setEditBuffer([...(keywordsMap[skillId] || [])])
     setEditing(skillId)
+    if (inputRef.current) inputRef.current.value = ''
   }
 
   if (loading) {
@@ -157,6 +164,7 @@ export function SkillsTab() {
             </div>
             <div className="flex gap-2 mb-4">
               <input
+                ref={inputRef}
                 type="text"
                 className="flex-1 px-3 py-1.5 text-sm rounded-lg bg-white/5 border border-border/40 text-text placeholder:text-text-muted/40 outline-none focus:border-accent/50 transition-colors"
                 placeholder={t('settings.skills.addKeyword')}
@@ -173,7 +181,7 @@ export function SkillsTab() {
             </div>
             <div className="flex justify-end gap-2">
               <button
-                onClick={() => setEditing(null)}
+                onClick={() => { setEditing(null); if (inputRef.current) inputRef.current.value = '' }}
                 className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-white/5 text-text-muted hover:bg-white/10 transition-colors"
               >
                 {t('settings.skills.cancel')}
