@@ -17,6 +17,18 @@ export default defineConfig({
     projects: [
       {
         test: {
+          name: 'scripts',
+          root: resolve(__dirname, 'scripts/node-core'),
+          environment: 'node',
+          include: ['**/*.test.js'],
+          coverage: {
+            include: ['scripts/node-core/**/*.js'],
+            exclude: ['scripts/node-core/**/*.test.js']
+          }
+        }
+      },
+      {
+        test: {
           name: 'main',
           root: resolve(__dirname, 'src/main'),
           environment: 'node',
