@@ -1810,6 +1810,8 @@ async function runVoiceCommand(payload = {}) {
   const speakResponse = payload.speak_response !== false
   debug(`[voice-cmd] runVoiceCommand called: content="${content.slice(0, 80)}", thread=${threadId}`)
 
+  broadcast({ type: 'user', content })
+
   // Keyword routing: bypass LLM if a skill keyword matches
   const { routeByKeyword } = require('./keyword-router')
   const skillRegistry = shared.skillRegistry
@@ -1828,7 +1830,6 @@ async function runVoiceCommand(payload = {}) {
     }
   }
 
-  broadcast({ type: 'user', content })
   broadcast({ type: 'assistant', data: { status: 'Pensando...' } })
 
   let closed = false
