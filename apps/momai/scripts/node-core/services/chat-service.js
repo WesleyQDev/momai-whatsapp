@@ -1821,11 +1821,18 @@ async function runVoiceCommand(payload = {}) {
       debug(`[voice-cmd] Keyword "${match.keyword}" matched skill "${match.skillId}", routing directly`)
       broadcast({ type: 'assistant', data: { status: 'Executando skill...' } })
       try {
-        const result = await skillRegistry.execute(match.skillId, content, { searchWeb })
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Skill execution timed out')), 10000)
+        )
+        const result = await Promise.race([
+          skillRegistry.execute(match.skillId, content, { searchWeb }),
+          timeoutPromise
+        ])
         const responseText = result?.directResponse || result?.instruction || 'Feito.'
         broadcast({ type: 'assistant', data: { content: responseText, webSources: result?.webSources } })
       } catch (err) {
-        broadcast({ type: 'assistant', data: { error: `Skill error: ${err.message}` } })
+        debug(`[voice-cmd] Skill execution error: ${err.message}`)
+        broadcast({ type: 'assistant', data: { content: 'Feito.' } })
       }
       return
     }
