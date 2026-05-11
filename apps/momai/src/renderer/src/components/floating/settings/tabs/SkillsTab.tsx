@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { api } from '../../../../services/api'
+import { fetchExtensions, fetchSkillKeywords, updateSkillKeywords } from '../../../../services/api'
 import { useI18n } from '../../../../i18n'
 
 interface SkillEntry {
@@ -23,8 +23,8 @@ export function SkillsTab() {
   async function loadData() {
     try {
       const [extensions, keywords] = await Promise.all([
-        api.fetchExtensions(),
-        api.fetchSkillKeywords()
+        fetchExtensions(),
+        fetchSkillKeywords()
       ])
       setSkills(extensions.filter((s: any) => s.category !== 'community'))
       setKeywordsMap(keywords)
@@ -59,9 +59,14 @@ export function SkillsTab() {
       return
     }
 
-    await api.updateSkillKeywords(skillId, normalized)
-    setKeywordsMap((prev) => ({ ...prev, [skillId]: normalized }))
-    setEditing(null)
+    try {
+      await updateSkillKeywords(skillId, normalized)
+      setKeywordsMap((prev) => ({ ...prev, [skillId]: normalized }))
+      setEditing(null)
+    } catch (err) {
+      console.error('Failed to save keywords:', err)
+      alert('Erro ao salvar palavras-chave. Verifique o console para detalhes.')
+    }
   }
 
   function startEdit(skillId: string) {
