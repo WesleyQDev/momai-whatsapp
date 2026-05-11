@@ -565,39 +565,39 @@ export const VoiceTab = React.memo(
               </div>
 
               {showAddForm && (
-                <div className="border-t border-border/40 px-4 py-3 space-y-3">
-                  <select
-                    value={selectedSkill}
-                    onChange={(e) => setSelectedSkill(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-lg bg-white/5 border border-border/40 text-text outline-none focus:border-accent/50"
-                  >
-                    <option value="">Selecionar skill...</option>
-                    {extList.map((s) => (
-                      <option key={s.id} value={s.id} disabled={!s.enabled}>
-                        {s.name} {!s.enabled ? '(desativada)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    value={newKeyword}
-                    onChange={(e) => setNewKeyword(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddTrigger() }}
-                    placeholder="Palavra-chave (ex: abrir)"
-                    className="w-full px-3 py-2 text-xs rounded-lg bg-white/5 border border-border/40 text-text placeholder:text-text-muted/50 outline-none focus:border-accent/50"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => { setShowAddForm(false); setNewKeyword(''); setSelectedSkill('') }}
-                      className="px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-white/5 text-text-muted hover:bg-white/10 transition-colors"
+                <div className="border-t border-border/40 px-4 py-3 space-y-2">
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedSkill}
+                      onChange={(e) => setSelectedSkill(e.target.value)}
+                      className="flex-1 px-3 py-2 text-xs rounded-lg bg-white/5 border border-border/40 text-text outline-none focus:border-accent/50 appearance-none"
                     >
-                      Cancelar
-                    </button>
+                      <option value="" className="bg-zinc-900">Skill...</option>
+                      {extList.map((s) => (
+                        <option key={s.id} value={s.id} disabled={!s.enabled} className="bg-zinc-900">
+                          {s.name}{!s.enabled ? ' (off)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={newKeyword}
+                      onChange={(e) => setNewKeyword(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddTrigger() }}
+                      placeholder="Palavra"
+                      className="w-36 px-3 py-2 text-xs rounded-lg bg-white/5 border border-border/40 text-text placeholder:text-text-muted/50 outline-none focus:border-accent/50"
+                    />
                     <button
                       onClick={handleAddTrigger}
                       disabled={!selectedSkill || !newKeyword.trim()}
-                      className="px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-40 transition-colors"
+                      className="px-3 py-2 text-xs font-semibold rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-40 transition-colors shrink-0"
                     >
                       OK
+                    </button>
+                    <button
+                      onClick={() => { setShowAddForm(false); setNewKeyword(''); setSelectedSkill('') }}
+                      className="px-3 py-2 text-xs font-semibold rounded-lg bg-white/5 text-text-muted hover:bg-white/10 transition-colors shrink-0"
+                    >
+                      Cancelar
                     </button>
                   </div>
                 </div>
