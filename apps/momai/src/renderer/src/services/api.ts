@@ -460,6 +460,24 @@ export async function sendExtensionAction(id: string, action: string, payload: a
   return response.json()
 }
 
+export async function fetchSkillKeywords(): Promise<Record<string, string[]>> {
+  const response = await fetch(`${API_URL}/skills/keywords`)
+  if (!response.ok) throw new Error('Erro ao buscar palavras-chave')
+  return response.json()
+}
+
+export async function updateSkillKeywords(
+  skillId: string,
+  keywords: string[]
+): Promise<void> {
+  const response = await fetch(`${API_URL}/skills/keywords/${skillId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keywords })
+  })
+  if (!response.ok) throw new Error('Erro ao salvar palavras-chave')
+}
+
 // --- GAMING MODE ---
 
 export interface GamingApp {
