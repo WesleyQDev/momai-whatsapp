@@ -47,6 +47,7 @@ function defaultStore() {
     extensions: [],
     gaming_apps: [],
     next_gaming_app_id: 1,
+    skillKeywords: {},
     thread_messages: {},
     session_titles: {},
     next_message_id: 1,

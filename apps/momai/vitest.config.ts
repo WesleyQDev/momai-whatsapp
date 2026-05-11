@@ -21,6 +21,7 @@ export default defineConfig({
           root: resolve(__dirname, 'scripts/node-core'),
           environment: 'node',
           include: ['**/*.test.js'],
+          globals: true,
           coverage: {
             include: ['scripts/node-core/**/*.js'],
             exclude: ['scripts/node-core/**/*.test.js']
