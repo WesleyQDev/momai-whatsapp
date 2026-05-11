@@ -96,7 +96,8 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         features: {
           sidebar: manifest.sidebar === true,
           agent_name: manifest.id
-        }
+        },
+        keywords: store.skillKeywords?.[manifest.id || skill.id] || [],
       }
     } catch (err) {
       console.error(`[SkillOrchestrator] Error mapping skill ${skill?.id}:`, err)
