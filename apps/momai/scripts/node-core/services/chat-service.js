@@ -1836,12 +1836,14 @@ async function runVoiceCommand(payload = {}) {
         if (result?.webSources) {
           broadcast({ type: 'assistant', data: { webSources: result.webSources } })
         }
+        broadcast({ type: 'assistant', data: { done: true } })
       } catch (err) {
         debug(`[voice-cmd] Skill execution error: ${err.message}`)
         broadcast({ type: 'assistant', data: { status: 'responding' } })
         for (const token of splitTokens('Feito.')) {
           broadcast({ type: 'assistant', data: { token } })
         }
+        broadcast({ type: 'assistant', data: { done: true } })
       }
       return
     }
