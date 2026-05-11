@@ -538,6 +538,9 @@ export const VoiceTab = React.memo(
             </div>
 
             {/* ─── Gatilhos de voz personalizados ─── */}
+            <label className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+              Atalhos de voz
+            </label>
             <div className="rounded-xl border border-border/40 bg-white/[0.03] group transition-all duration-300 hover:border-border/60">
               <div className="flex items-center justify-between gap-2 p-4">
                 <div className="flex items-center gap-2.5 min-w-0">
