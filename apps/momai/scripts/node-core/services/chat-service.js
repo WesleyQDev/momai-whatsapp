@@ -1821,8 +1821,9 @@ async function runVoiceCommand(payload = {}) {
       debug(`[voice-cmd] Keyword "${match.keyword}" matched skill "${match.skillId}", routing directly`)
       broadcast({ type: 'assistant', data: { status: 'Executando skill...' } })
       try {
-        const result = await skillRegistry.execute(match.skillId, { content })
-        broadcast({ type: 'assistant', data: { content: result?.directResponse || 'Feito.' } })
+        const result = await skillRegistry.execute(match.skillId, content, { searchWeb })
+        const responseText = result?.directResponse || result?.instruction || 'Feito.'
+        broadcast({ type: 'assistant', data: { content: responseText, webSources: result?.webSources } })
       } catch (err) {
         broadcast({ type: 'assistant', data: { error: `Skill error: ${err.message}` } })
       }
