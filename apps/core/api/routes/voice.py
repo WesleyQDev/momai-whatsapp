@@ -71,6 +71,11 @@ async def ensure_wake_word_detector():
                 app_state.main_loop,
             )
 
+    import os
+    node_host = os.getenv("MOMAI_NODE_CORE_HOST", "127.0.0.1")
+    node_port = os.getenv("MOMAI_NODE_CORE_PORT", "8000")
+    keyword_check_url = f"http://{node_host}:{node_port}/skills/keywords/check"
+
     app_state.ww = detector_cls(
         keyword="luna",
         variants=["luna", "computador"],
@@ -78,6 +83,7 @@ async def ensure_wake_word_detector():
         status_callback=_on_status,
         partial_callback=_on_partial,
         bypass_condition=app_state.is_call_mode,
+        keyword_check_url=keyword_check_url,
     )
     return app_state.ww
 

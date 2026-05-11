@@ -83,6 +83,7 @@ class WakeWordDetector:
         partial_callback=None,
         bypass_condition=None,
         variants=None,
+        keyword_check_url=None,
     ):
         """
         Initializes the Wake Word detector using Faster-Whisper.
@@ -95,6 +96,7 @@ class WakeWordDetector:
         self.status_callback = status_callback
         self.partial_callback = partial_callback
         self.bypass_condition = bypass_condition
+        self.keyword_check_url = keyword_check_url
         self.running = False
         self.thread = None
         self.processing_thread = None
@@ -713,6 +715,31 @@ class WakeWordDetector:
                 time.sleep(0.1)
                 self.callback(final_cmd)
             return
+
+        # 1.5. Keyword check: if text matches a skill keyword, route as command
+        if self.keyword_check_url and (now - self.last_trigger_time) >= self.trigger_cooldown:
+            try:
+                import httpx
+                with httpx.Client() as client:
+                    resp = client.get(
+                        self.keyword_check_url,
+                        params={"text": raw_text},
+                        timeout=2.0,
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if data.get("matched"):
+                            logger.info(
+                                "[WakeWord] Keyword matched skill '%s': '%s'",
+                                data.get("skillId"), raw_text,
+                            )
+                            self._stop_tts()
+                            self.last_trigger_time = now
+                            if self.callback:
+                                self.callback(raw_text)
+                            return
+            except Exception as exc:
+                logger.debug("[WakeWord] Keyword check failed: %s", exc)
 
         # 2. Bypass Mode (Only if keyword NOT detected)
         if self.bypass_condition and self.bypass_condition():
