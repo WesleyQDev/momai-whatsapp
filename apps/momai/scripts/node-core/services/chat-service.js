@@ -1810,6 +1810,24 @@ async function runVoiceCommand(payload = {}) {
   const speakResponse = payload.speak_response !== false
   debug(`[voice-cmd] runVoiceCommand called: content="${content.slice(0, 80)}", thread=${threadId}`)
 
+  // Keyword routing: bypass LLM if a skill keyword matches
+  const { routeByKeyword } = require('./keyword-router')
+  const skillRegistry = shared.skillRegistry
+  if (skillRegistry) {
+    const match = routeByKeyword(content, skillRegistry)
+    if (match) {
+      debug(`[voice-cmd] Keyword "${match.keyword}" matched skill "${match.skillId}", routing directly`)
+      broadcast({ type: 'assistant', data: { status: 'Executando skill...' } })
+      try {
+        const result = await skillRegistry.execute(match.skillId, { content })
+        broadcast({ type: 'assistant', data: { content: result?.directResponse || 'Feito.' } })
+      } catch (err) {
+        broadcast({ type: 'assistant', data: { error: `Skill error: ${err.message}` } })
+      }
+      return
+    }
+  }
+
   broadcast({ type: 'user', content })
   broadcast({ type: 'assistant', data: { status: 'Pensando...' } })
 
