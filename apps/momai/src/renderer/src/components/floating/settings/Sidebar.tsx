@@ -116,11 +116,6 @@ export const Sidebar = ({
         <line x1="8" y1="23" x2="16" y2="23"></line>
       </svg>
     ),
-    skills: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-      </svg>
-    ),
   }
 
   const tabs = [
@@ -142,7 +137,6 @@ export const Sidebar = ({
     { id: 'economy', label: t('settings.tabs.economy'), icon: icons.economy },
     { id: 'updates', label: t('settings.tabs.updates'), icon: icons.updates },
     { id: 'developer', label: 'Dev', icon: icons.developer },
-    { id: 'skills', label: t('settings.tabs.skills'), icon: icons.skills },
   ]
 
   return (

@@ -1,6 +1,11 @@
 import { Settings, Tab } from '../../../../hooks/useSettingsCard'
 import React, { useState, useEffect } from 'react'
 import { useTTS } from '../../../../hooks/useTTS'
+import {
+  fetchExtensions,
+  fetchSkillKeywords,
+  updateSkillKeywords
+} from '../../../../services/api'
 
 interface VoiceTabProps {
   t: any
@@ -131,6 +136,66 @@ export const VoiceTab = React.memo(
       } catch {}
       await updateField('tts_voice', voiceId, true)
       await setVoice(voiceId)
+    }
+
+    const [extList, setExtList] = useState<any[]>([])
+    const [keywordsMap, setKeywordsMap] = useState<Record<string, string[]>>({})
+    const [showAddForm, setShowAddForm] = useState(false)
+    const [selectedSkill, setSelectedSkill] = useState('')
+    const [newKeyword, setNewKeyword] = useState('')
+
+    useEffect(() => {
+      Promise.all([
+        fetchExtensions(),
+        fetchSkillKeywords()
+      ]).then(([exts, kws]) => {
+        setExtList(exts.filter((s: any) => s.category !== 'community'))
+        setKeywordsMap(kws)
+      }).catch(() => {})
+    }, [])
+
+    async function handleRemoveTrigger(skillId: string, keyword: string) {
+      const current = keywordsMap[skillId] || []
+      const updated = current.filter((k) => k !== keyword)
+      try {
+        await updateSkillKeywords(skillId, updated)
+        setKeywordsMap((prev) => ({ ...prev, [skillId]: updated }))
+      } catch (err) {
+        console.error('Failed to remove trigger:', err)
+      }
+    }
+
+    async function handleAddTrigger() {
+      const kw = newKeyword.trim()
+      if (!kw || !selectedSkill) return
+
+      const current = keywordsMap[selectedSkill] || []
+      if (current.includes(kw)) {
+        setShowAddForm(false)
+        setNewKeyword('')
+        setSelectedSkill('')
+        return
+      }
+
+      const updated = [...current, kw]
+      try {
+        await updateSkillKeywords(selectedSkill, updated)
+        setKeywordsMap((prev) => ({ ...prev, [selectedSkill]: updated }))
+        setShowAddForm(false)
+        setNewKeyword('')
+        setSelectedSkill('')
+      } catch (err) {
+        console.error('Failed to add trigger:', err)
+      }
+    }
+
+    // Build trigger list: flatten { skillId, skillName, keyword }[]
+    const triggers: { skillId: string; skillName: string; keyword: string }[] = []
+    for (const skill of extList) {
+      const kws = keywordsMap[skill.id] || []
+      for (const kw of kws) {
+        triggers.push({ skillId: skill.id, skillName: skill.name, keyword: kw })
+      }
     }
 
     return (
@@ -469,6 +534,87 @@ export const VoiceTab = React.memo(
                     </div>
                   )
                 })()
+              )}
+            </div>
+
+            {/* ─── Gatilhos de voz personalizados ─── */}
+            <div className="space-y-3">
+              <label className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+                Gatilhos de voz personalizados
+              </label>
+              <p className="text-[11px] text-text-muted/70 -mt-2">
+                Defina palavras-chave para ativar skills sem dizer &quot;Luna&quot;
+              </p>
+
+              {triggers.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {triggers.map((tr) => (
+                    <span
+                      key={`${tr.skillId}:${tr.keyword}`}
+                      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-accent/10 text-accent group"
+                    >
+                      <span className="font-medium">{tr.keyword}</span>
+                      <span className="opacity-50">→</span>
+                      <span className="opacity-80">{tr.skillName}</span>
+                      <button
+                        onClick={() => handleRemoveTrigger(tr.skillId, tr.keyword)}
+                        className="ml-0.5 hover:text-red-400 transition-colors"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {showAddForm ? (
+                <div className="p-3 rounded-xl bg-white/[0.03] border border-border/40 space-y-3">
+                  <select
+                    value={selectedSkill}
+                    onChange={(e) => setSelectedSkill(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-lg bg-white/5 border border-border/40 text-text outline-none focus:border-accent/50"
+                  >
+                    <option value="">Selecionar skill...</option>
+                    {extList.map((s) => (
+                      <option key={s.id} value={s.id} disabled={!s.enabled}>
+                        {s.name} {!s.enabled ? '(desativada)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={newKeyword}
+                    onChange={(e) => setNewKeyword(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddTrigger() }}
+                    placeholder="Palavra-chave (ex: abrir)"
+                    className="w-full px-3 py-2 text-xs rounded-lg bg-white/5 border border-border/40 text-text placeholder:text-text-muted/50 outline-none focus:border-accent/50"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => { setShowAddForm(false); setNewKeyword(''); setSelectedSkill('') }}
+                      className="px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-white/5 text-text-muted hover:bg-white/10 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleAddTrigger}
+                      disabled={!selectedSkill || !newKeyword.trim()}
+                      className="px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-40 transition-colors"
+                    >
+                      Adicionar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-accent hover:text-accent/80 transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  Adicionar gatilho de voz
+                </button>
               )}
             </div>
           </div>

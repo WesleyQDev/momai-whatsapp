@@ -9,7 +9,6 @@ import { VoiceTab } from './settings/tabs/VoiceTab'
 import { EconomyTab } from './settings/tabs/EconomyTab'
 import { UpdatesTab } from './settings/tabs/UpdatesTab'
 import DeveloperTab from './settings/tabs/DeveloperTab'
-import { SkillsTab } from './settings/tabs/SkillsTab'
 import LogsCard from './LogsCard'
 
 function SettingsSkeleton({ fullScreen }: { fullScreen: boolean }) {
@@ -185,8 +184,6 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
       )}
 
       {activeTab === 'developer' && <DeveloperTab t={t} handleDevMode={handleDevMode} />}
-
-      {activeTab === 'skills' && <SkillsTab />}
 
       {activeTab === 'logs' && <LogsCard onClose={() => setActiveTab('general')} />}
     </div>
