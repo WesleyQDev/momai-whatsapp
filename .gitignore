@@ -155,3 +155,6 @@ nul
 .dev-data/
 
 
+
+# Worktrees
+.worktrees/
