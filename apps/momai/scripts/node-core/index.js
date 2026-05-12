@@ -459,8 +459,19 @@ async function startServer() {
   const { createSystemRoutes } = require('./api/routes/system.routes')
   const { createSkillsRoutes } = require('./api/routes/skills.routes')
 
+  // Inline observability route
+  async function handleObservabilityRoute(req, res, pathname) {
+    if (pathname === '/observability/traces' && req.method === 'GET') {
+      const shared = require('./services/shared-state')
+      context.sendJson(res, 200, { traces: shared.observabilityBuffer || [] })
+      return true
+    }
+    return false
+  }
+
   // Compose router
   const { handleRequest, server, shutdownAll } = createRouter(context, [
+    handleObservabilityRoute,
     createChatRoutes(context),
     createSettingsRoutes(context),
     createExtensionsRoutes(context),

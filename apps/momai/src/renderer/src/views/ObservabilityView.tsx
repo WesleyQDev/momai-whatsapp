@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getTraces, subscribe } from '../stores/observabilityStore'
+import { API_URL } from '../constants'
 
 interface ToolCall {
   tool_name: string
@@ -202,6 +203,29 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
 
   useEffect(() => {
     console.debug('[observability] Component mounted, store has', getTraces().length, 'traces')
+
+    // Poll traces from HTTP endpoint (fallback when WS is down)
+    let pollTimer: ReturnType<typeof setTimeout> | null = null
+    let cancelled = false
+
+    const fetchTraces = async () => {
+      try {
+        const res = await fetch(`${API_URL}/observability/traces`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.traces?.length && !cancelled) {
+            setTraces(data.traces)
+            // Sync into store so other components see them
+            data.traces.forEach((t: any) => getTraces().push(t))
+            if (getTraces().length > 50) getTraces().length = 50
+          }
+        }
+      } catch (_) { /* server not ready yet */ }
+    }
+
+    fetchTraces()
+    pollTimer = setInterval(fetchTraces, 2000)
+
     const handler = (event: Event) => {
       const trace = (event as CustomEvent<Trace>).detail
       console.debug('[observability] CustomEvent received:', trace?.id, trace?.status)
@@ -214,6 +238,8 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
     })
 
     return () => {
+      cancelled = true
+      if (pollTimer) clearInterval(pollTimer)
       window.removeEventListener('momai_observability_trace', handler as EventListener)
       unsub()
     }
