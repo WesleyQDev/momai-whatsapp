@@ -1821,6 +1821,7 @@ async function streamLlamaChat(req, res, payload) {
         activeSkillId: activeSkill,
         status: 'success'
       })
+      info(`[OBS] Trace saved! id=${trace.id} type=${trace.type} tps=${trace.tokens_per_second}`)
       shared.observabilityBuffer = shared.observabilityBuffer || []
       shared.observabilityBuffer.unshift(trace)
       if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
@@ -1894,6 +1895,7 @@ async function streamLlamaChat(req, res, payload) {
         status: 'error',
         errorMsg: error?.message || 'Unknown error'
       })
+      info(`[OBS] Trace saved to buffer! id=${errTrace.id} status=${errTrace.status} duration=${errTrace.total_duration}ms`)
       shared.observabilityBuffer = shared.observabilityBuffer || []
       shared.observabilityBuffer.unshift(errTrace)
       if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50

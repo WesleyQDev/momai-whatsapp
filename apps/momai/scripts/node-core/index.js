@@ -463,7 +463,9 @@ async function startServer() {
   async function handleObservabilityRoute(req, res, pathname) {
     if (pathname === '/observability/traces' && req.method === 'GET') {
       const shared = require('./services/shared-state')
-      context.sendJson(res, 200, { traces: shared.observabilityBuffer || [] })
+      const buffer = shared.observabilityBuffer || []
+      info(`[OBS] GET /observability/traces returning ${buffer.length} traces`)
+      context.sendJson(res, 200, { traces: buffer })
       return true
     }
     return false
