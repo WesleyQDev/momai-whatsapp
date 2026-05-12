@@ -52,6 +52,9 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
   const [showContextRing, setShowContextRing] = useState(
     () => localStorage.getItem('momai_show_context_ring') === 'true'
   )
+  const [observabilityEnabled, setObservabilityEnabled] = useState(
+    () => localStorage.getItem('momai_observability_enabled') === 'true'
+  )
 
   useEffect(() => {
     const syncDevMode = (event: Event) => {
@@ -64,8 +67,18 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
       setShowContextRing(localStorage.getItem('momai_show_context_ring') === 'true')
     }
 
+    const handleObservabilitySync = (event: Event) => {
+      const detail = (event as CustomEvent<boolean>).detail
+      if (typeof detail === 'boolean') setObservabilityEnabled(detail)
+      else setObservabilityEnabled(localStorage.getItem('momai_observability_enabled') === 'true')
+    }
+
     window.addEventListener('momai_dev_mode_sync', syncDevMode as EventListener)
-    return () => window.removeEventListener('momai_dev_mode_sync', syncDevMode as EventListener)
+    window.addEventListener('momai_observability_sync', handleObservabilitySync as EventListener)
+    return () => {
+      window.removeEventListener('momai_dev_mode_sync', syncDevMode as EventListener)
+      window.removeEventListener('momai_observability_sync', handleObservabilitySync as EventListener)
+    }
   }, [])
 
   const features: DevFeature[] = [
@@ -113,6 +126,18 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
           <circle cx="12" cy="12" r="10" />
           <line x1="12" y1="16" x2="12" y2="12" />
           <line x1="12" y1="8" x2="12.01" y2="8" />
+        </svg>
+      ),
+      active: isDevMode
+    },
+    {
+      id: 'observability',
+      title: 'Observabilidade de IA',
+      description:
+        'Monitore chamadas ao LLM em tempo real: prompts, velocidade de tokens, execução de tools e latência.',
+      icon: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 20V10M18 20V4M6 20v-4" />
         </svg>
       ),
       active: isDevMode
@@ -211,6 +236,24 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
                 <span className="text-[11px] text-text-muted leading-relaxed">
                   {feature.description}
                 </span>
+                {feature.id === 'observability' && isDevMode && (
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-sm text-text-muted">Ativar Observabilidade</span>
+                    <button
+                      data-testid="observability-toggle"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const next = !observabilityEnabled
+                        setObservabilityEnabled(next)
+                        localStorage.setItem('momai_observability_enabled', String(next))
+                        window.dispatchEvent(new CustomEvent('momai_observability_sync', { detail: next }))
+                      }}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${observabilityEnabled ? 'bg-accent/80' : 'bg-white/10'}`}
+                    >
+                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${observabilityEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
