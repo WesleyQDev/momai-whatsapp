@@ -358,6 +358,8 @@ export function useChatHandlers({
             voice_response: msg.data.voice_response
           })
         }
+      } else if (msg.type === 'observability_trace') {
+        window.dispatchEvent(new CustomEvent('momai_observability_trace', { detail: msg.data }))
       } else if (msg.type === 'user') {
         const content = msg.content.toLowerCase()
 

@@ -547,6 +547,49 @@ describe('useChatHandlers', () => {
     })
   })
 
+  describe('observability_trace handling', () => {
+    it('dispatches momai_observability_trace event with trace data', () => {
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+      const hook = setupHook()
+
+      const traceData = {
+        id: 'trace-1',
+        type: 'llm_call',
+        total_duration: 12300,
+        tokens_per_second: 45.2,
+        total_tokens: 558,
+        messages: [{ role: 'user', content: 'hello' }],
+        response: 'Hi there!',
+        tool_calls: [],
+        status: 'success'
+      }
+
+      act(() => {
+        hook.handleWsMessage({ type: 'observability_trace', data: traceData })
+      })
+
+      const events = dispatchSpy.mock.calls.filter(
+        ([e]) => e.type === 'momai_observability_trace'
+      )
+      expect(events.length).toBe(1)
+      expect((events[0][0] as CustomEvent).detail).toEqual(traceData)
+    })
+
+    it('ignores non-observability messages', () => {
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+      const hook = setupHook()
+
+      act(() => {
+        hook.handleWsMessage({ type: 'init_progress', data: { progress: 50 } })
+      })
+
+      const events = dispatchSpy.mock.calls.filter(
+        ([e]) => e.type === 'momai_observability_trace'
+      )
+      expect(events.length).toBe(0)
+    })
+  })
+
   describe('edge cases', () => {
     it('handles unknown message types gracefully', () => {
       const hook = setupHook()
