@@ -56,6 +56,47 @@ async function tokenizePrompt(messages) {
   }
 }
 
+function buildObservabilityTrace({
+  traceId, threadId, traceType, totalDuration, preLlamaDuration,
+  firstTokenDuration, genDuration, systemPrompt, chatMessages,
+  response, tps, promptTokens, genTokens, modelName, tier,
+  toolCount, toolStepsList, activeSkillId, status, errorMsg,
+  content, fallbackMsg, assembledText
+}) {
+  return {
+    id: traceId,
+    timestamp: Date.now(),
+    type: traceType,
+    total_duration: totalDuration,
+    pre_llm_duration: preLlamaDuration,
+    first_token_duration: firstTokenDuration,
+    generation_duration: genDuration,
+    system_prompt: systemPrompt || '',
+    messages: (chatMessages || []).filter(m => m.role !== 'system').slice(-10).map(m => ({
+      role: m.role,
+      content: (m.content || '').slice(0, 1000)
+    })),
+    response: (response || '').slice(0, 5000),
+    tokens_per_second: tps,
+    total_tokens: promptTokens + genTokens,
+    estimated_prompt_tokens: promptTokens,
+    generated_tokens: genTokens,
+    model: modelName || 'unknown',
+    tier: tier || 'unknown',
+    tools_count: toolCount || 0,
+    tool_calls: (toolStepsList || []).length ? toolStepsList.map(ts => ({
+      tool_name: ts.name || ts.tool_name || 'unknown',
+      args: ts.args || ts.input || {},
+      result: ts.result ? String(ts.result).slice(0, 500) : undefined,
+      duration_ms: ts.duration_ms || 0
+    })) : undefined,
+    active_skill: activeSkillId || undefined,
+    thread_id: threadId || 'default',
+    status,
+    ...(errorMsg ? { error: errorMsg } : {})
+  }
+}
+
 function getThreadMessages(threadId) {
   if (!store.thread_messages[threadId]) {
     store.thread_messages[threadId] = []
@@ -1145,6 +1186,7 @@ async function streamLlamaChat(req, res, payload) {
         if (_sse instanceof Promise) await _sse
       }
       const tPreFetch = Date.now()
+      let tFirstToken = 0
       const scoresSummary = Object.keys(scoreMap).length
         ? `scores=${Object.entries(scoreMap)
             .map(([k, v]) => `${k}=${v.toFixed(2)}`)
@@ -1328,6 +1370,7 @@ async function streamLlamaChat(req, res, payload) {
           }
           if (parsed.type === 'token') {
             if (!roundText) {
+              tFirstToken = Date.now()
               info(
                 `[timing] first token received: ${Date.now() - t0}ms total (llama prefill+first=${Date.now() - tPreFetch}ms)`
               )
@@ -1752,6 +1795,37 @@ async function streamLlamaChat(req, res, payload) {
       Number(llamaState.contextTotalTokens || 8192),
       Math.max(0, estimatedPromptTokens + estimateTokenCount(assembled))
     )
+    {
+      const totalMs = Date.now() - t0
+      const genTokens = estimateTokenCount(assembled || '')
+      const tps = totalMs > 0 ? Math.round((genTokens / totalMs) * 1000 * 10) / 10 : 0
+      const genMs = tFirstToken > 0 ? Date.now() - tFirstToken : (totalMs - (typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0))
+      const trace = buildObservabilityTrace({
+        traceId: `${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        threadId,
+        traceType: toolSteps?.length ? 'llm_call' : (activeSkill ? 'skill' : 'llm_call'),
+        totalDuration: totalMs,
+        preLlamaDuration: typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0,
+        firstTokenDuration: tFirstToken > 0 ? tFirstToken - t0 : 0,
+        genDuration: genMs,
+        systemPrompt: systemMessage?.content,
+        chatMessages: currentMessages,
+        response: assembled,
+        tps,
+        promptTokens: estimatedPromptTokens || 0,
+        genTokens,
+        modelName: tierName,
+        tier: tierName,
+        toolCount: typeof toolsPayload !== 'undefined' ? toolsPayload.length : 0,
+        toolStepsList: toolSteps,
+        activeSkillId: activeSkill,
+        status: 'success'
+      })
+      shared.observabilityBuffer = shared.observabilityBuffer || []
+      shared.observabilityBuffer.unshift(trace)
+      if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
+      try { broadcast({ type: 'observability_trace', data: trace }) } catch (_) {}
+    }
     stopVoiceRequested = false
     flushTtsChunks(true)
     if (bufferedStructuredResponse) {
@@ -1763,46 +1837,6 @@ async function streamLlamaChat(req, res, payload) {
     {
       const _sse = writeSse(res, { done: true })
       if (_sse instanceof Promise) await _sse
-    }
-    {
-      const tEnd = Date.now()
-      const totalMs = tEnd - t0
-      const genTokens = estimateTokenCount(assembled || '')
-      const fTokenMs = typeof tPreFetch !== 'undefined' ? tEnd - tPreFetch : 0
-      const trace = {
-        id: `${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        timestamp: Date.now(),
-        type: toolSteps?.length ? 'llm_call' : (activeSkill ? 'skill' : 'llm_call'),
-        total_duration: totalMs,
-        pre_llm_duration: typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0,
-        first_token_duration: typeof tPreFetch !== 'undefined' ? 0 : 0,
-        generation_duration: genTokens > 0 && totalMs > 0 ? totalMs - (typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0) : 0,
-        system_prompt: systemMessage?.content || '',
-        messages: currentMessages?.filter(m => m.role !== 'system').slice(-10).map(m => ({ role: m.role, content: (m.content || '').slice(0, 1000) })) || [],
-        response: (assembled || '').slice(0, 5000),
-        tokens_per_second: totalMs > 0 ? Math.round((genTokens / totalMs) * 1000 * 10) / 10 : 0,
-        total_tokens: (estimatedPromptTokens || 0) + genTokens,
-        estimated_prompt_tokens: estimatedPromptTokens || 0,
-        generated_tokens: genTokens,
-        model: tierName || 'unknown',
-        tier: tierName || 'unknown',
-        tools_count: (typeof toolsPayload !== 'undefined' ? toolsPayload.length : 0),
-        tool_calls: toolSteps?.length ? toolSteps.map(ts => ({
-          tool_name: ts.tool_name || ts.name || 'unknown',
-          args: ts.args || ts.input || {},
-          result: ts.result ? String(ts.result).slice(0, 500) : undefined,
-          duration_ms: ts.duration_ms || 0
-        })) : undefined,
-        active_skill: activeSkill || undefined,
-        thread_id: threadId || 'default',
-        status: 'success'
-      }
-      shared.observabilityBuffer = shared.observabilityBuffer || []
-      shared.observabilityBuffer.unshift(trace)
-      if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
-      try {
-        broadcast({ type: 'observability_trace', data: trace })
-      } catch (_) { /* ignore broadcast errors */ }
     }
     endSse(res)
   } catch (error) {
@@ -1831,48 +1865,40 @@ async function streamLlamaChat(req, res, payload) {
           ? { active_skill: activeSkill, tool_steps: toolSteps }
           : null
     })
+    {
+      const errTotalMs = Date.now() - t0
+      const errTrace = buildObservabilityTrace({
+        traceId: `${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        threadId,
+        traceType: 'llm_call',
+        totalDuration: errTotalMs,
+        preLlamaDuration: typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0,
+        firstTokenDuration: tFirstToken > 0 ? tFirstToken - t0 : 0,
+        genDuration: tFirstToken > 0 ? Date.now() - tFirstToken : 0,
+        systemPrompt: typeof systemMessage !== 'undefined' ? systemMessage?.content : undefined,
+        chatMessages: typeof currentMessages !== 'undefined' ? currentMessages : undefined,
+        response: assembled || fallbackMsg || '',
+        tps: 0,
+        promptTokens: typeof estimatedPromptTokens !== 'undefined' ? (estimatedPromptTokens || 0) : 0,
+        genTokens: 0,
+        modelName: tierName,
+        tier: tierName,
+        toolCount: typeof toolsPayload !== 'undefined' ? toolsPayload.length : 0,
+        toolStepsList: typeof toolSteps !== 'undefined' ? toolSteps : [],
+        activeSkillId: typeof activeSkill !== 'undefined' ? activeSkill : undefined,
+        status: 'error',
+        errorMsg: error?.message || 'Unknown error'
+      })
+      shared.observabilityBuffer = shared.observabilityBuffer || []
+      shared.observabilityBuffer.unshift(errTrace)
+      if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
+      try { broadcast({ type: 'observability_trace', data: errTrace }) } catch (_) {}
+    }
     stopVoiceRequested = false
     flushTtsChunks(true)
     {
       const _sse = writeSse(res, { done: true })
       if (_sse instanceof Promise) await _sse
-    }
-    {
-      try {
-        const errTrace = {
-          id: `${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          timestamp: Date.now(),
-          type: 'llm_call',
-          total_duration: Date.now() - t0,
-          pre_llm_duration: typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0,
-          first_token_duration: 0,
-          generation_duration: 0,
-          system_prompt: systemMessage?.content || '',
-          messages: currentMessages?.filter(m => m.role !== 'system').slice(-10).map(m => ({ role: m.role, content: (m.content || '').slice(0, 1000) })) || [],
-          response: (assembled || fallbackMsg || '').slice(0, 5000),
-          tokens_per_second: 0,
-          total_tokens: estimatedPromptTokens || 0,
-          estimated_prompt_tokens: estimatedPromptTokens || 0,
-          generated_tokens: 0,
-          model: tierName || 'unknown',
-          tier: tierName || 'unknown',
-          tools_count: (typeof toolsPayload !== 'undefined' ? toolsPayload.length : 0),
-          tool_calls: toolSteps?.length ? toolSteps.map(ts => ({
-            tool_name: ts.tool_name || ts.name || 'unknown',
-            args: ts.args || ts.input || {},
-            result: ts.result ? String(ts.result).slice(0, 500) : undefined,
-            duration_ms: ts.duration_ms || 0
-          })) : undefined,
-          active_skill: activeSkill || undefined,
-          thread_id: threadId || 'default',
-          status: 'error',
-          error: error?.message || 'Unknown error'
-        }
-        shared.observabilityBuffer = shared.observabilityBuffer || []
-        shared.observabilityBuffer.unshift(errTrace)
-        if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
-        broadcast({ type: 'observability_trace', data: errTrace })
-      } catch (_) { /* ignore broadcast errors */ }
     }
     endSse(res)
   } finally {
@@ -1996,6 +2022,7 @@ module.exports = {
   streamFallbackResponse,
   parseLlamaDataLine,
   runVoiceCommand,
+  buildObservabilityTrace,
   stopGenerationRequested,
   stopVoiceRequested,
   activeChatControllers
