@@ -1795,7 +1795,50 @@ async function streamLlamaChat(req, res, payload) {
       Number(llamaState.contextTotalTokens || 8192),
       Math.max(0, estimatedPromptTokens + estimateTokenCount(assembled))
     )
-    const respondedOk = true
+    // Record observability trace (before anything that could fail: tts, sse done)
+    try {
+      const duration = Date.now() - t0
+      const genTokens = estimateTokenCount(assembled || '')
+      const promptTokens = estimatedPromptTokens || estimateTokenCount(systemMessage?.content || '')
+      const trace = {
+        id: `${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: Date.now(),
+        type: toolSteps?.length ? 'llm_call' : (activeSkill ? 'skill' : 'llm_call'),
+        total_duration: duration,
+        pre_llm_duration: typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0,
+        first_token_duration: tFirstToken > 0 ? tFirstToken - t0 : 0,
+        generation_duration: tFirstToken > 0 ? duration - (tFirstToken - t0) : duration,
+        system_prompt: systemMessage?.content?.slice(0, 3000),
+        messages: (currentMessages || []).filter(m => m.role !== 'system').slice(-5).map(m => ({
+          role: m.role || 'user',
+          content: String(m.content || '').slice(0, 1000)
+        })),
+        response: (assembled || '').slice(0, 10000),
+        tokens_per_second: duration > 0 && genTokens > 0 ? Math.round((genTokens / duration) * 1000 * 10) / 10 : 0,
+        total_tokens: promptTokens + genTokens,
+        estimated_prompt_tokens: promptTokens,
+        generated_tokens: genTokens,
+        model: tierName || 'unknown',
+        tier: tierName || 'unknown',
+        tools_count: typeof toolsPayload !== 'undefined' ? (toolsPayload?.length || 0) : 0,
+        tool_calls: toolSteps?.length ? toolSteps.slice(0, 10).map(ts => ({
+          tool_name: ts.name || ts.tool_name || 'unknown',
+          args: ts.args || ts.input || {},
+          result: ts.result ? String(ts.result).slice(0, 500) : undefined,
+          duration_ms: ts.duration_ms || 0
+        })) : undefined,
+        active_skill: activeSkill || undefined,
+        thread_id: threadId || 'default',
+        status: 'success'
+      }
+      shared.observabilityBuffer = shared.observabilityBuffer || []
+      shared.observabilityBuffer.unshift(trace)
+      if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
+      broadcast({ type: 'observability_trace', data: trace })
+      info('[OBS] Trace recorded id=' + trace.id + ' tps=' + trace.tokens_per_second + ' tokens=' + trace.total_tokens)
+    } catch (_) {
+      warn('[OBS] Failed to record trace: ' + (_?.message || String(_)))
+    }
     stopVoiceRequested = false
     flushTtsChunks(true)
     if (bufferedStructuredResponse) {
