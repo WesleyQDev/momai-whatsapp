@@ -53,7 +53,43 @@ function createChatRoutes(context) {
 
     if (pathname === '/chat/stream' && req.method === 'POST') {
       const payload = await context.readJsonBody(req).catch(() => ({}))
-      await streamLlamaChat(req, res, payload)
+      const t0 = Date.now()
+      try {
+        await streamLlamaChat(req, res, payload)
+      } catch (err) {
+        context.error('[OBS] streamLlamaChat threw:', err?.message)
+      }
+      // Record observability trace from thread messages
+      try {
+        const shared = require('../services/shared-state')
+        const threadId = String(payload.thread_id || 'default')
+        const messages = context.getThreadMessages(threadId)
+        const lastMsg = messages?.[messages.length - 1]
+        const userMsg = messages?.filter(m => m.role === 'user')?.pop()
+        if (lastMsg && lastMsg.role === 'assistant') {
+          const duration = Date.now() - t0
+          const text = String(lastMsg.content || '')
+          const trace = {
+            id: `${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            timestamp: Date.now(),
+            type: 'llm_call',
+            total_duration: duration,
+            tokens_per_second: duration > 0 ? Math.round((text.length / duration) * 1000 * 10) / 10 : 0,
+            total_tokens: Math.ceil(text.length / 4),
+            generated_tokens: Math.ceil(text.length / 4),
+            messages: userMsg ? [{ role: 'user', content: String(userMsg.content || '').slice(0, 1000) }] : [],
+            response: text.slice(0, 5000),
+            status: 'success'
+          }
+          shared.observabilityBuffer = shared.observabilityBuffer || []
+          shared.observabilityBuffer.unshift(trace)
+          if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
+          try { context.broadcast?.({ type: 'observability_trace', data: trace }) } catch (_) {}
+          context.info(`[OBS] Trace recorded from route handler: id=${trace.id} duration=${duration}ms`)
+        }
+      } catch (_) {
+        context.error('[OBS] Failed to record trace:', _?.message || _)
+      }
       return true
     }
 

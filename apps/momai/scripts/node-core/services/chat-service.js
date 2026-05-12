@@ -1795,43 +1795,7 @@ async function streamLlamaChat(req, res, payload) {
       Number(llamaState.contextTotalTokens || 8192),
       Math.max(0, estimatedPromptTokens + estimateTokenCount(assembled))
     )
-    {
-      const totalMs = Date.now() - t0
-      const genTokens = estimateTokenCount(assembled || '')
-      const tps = totalMs > 0 ? Math.round((genTokens / totalMs) * 1000 * 10) / 10 : 0
-      const genMs = tFirstToken > 0 ? Date.now() - tFirstToken : (totalMs - (typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0))
-      const trace = buildObservabilityTrace({
-        traceId: `${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        threadId,
-        traceType: toolSteps?.length ? 'llm_call' : (activeSkill ? 'skill' : 'llm_call'),
-        totalDuration: totalMs,
-        preLlamaDuration: typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0,
-        firstTokenDuration: tFirstToken > 0 ? tFirstToken - t0 : 0,
-        genDuration: genMs,
-        systemPrompt: systemMessage?.content,
-        chatMessages: currentMessages,
-        response: assembled,
-        tps,
-        promptTokens: estimatedPromptTokens || 0,
-        genTokens,
-        modelName: tierName,
-        tier: tierName,
-        toolCount: typeof toolsPayload !== 'undefined' ? toolsPayload.length : 0,
-        toolStepsList: toolSteps,
-        activeSkillId: activeSkill,
-        status: 'success'
-      })
-      info(`[OBS] Trace saved! id=${trace.id} type=${trace.type} tps=${trace.tokens_per_second}`)
-      shared.observabilityBuffer = shared.observabilityBuffer || []
-      shared.observabilityBuffer.unshift(trace)
-      if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
-      try {
-        debug(`[observability] Broadcasting trace id=${trace.id} type=${trace.type}`)
-        broadcast({ type: 'observability_trace', data: trace })
-      } catch (_) {
-        warn(`[observability] Broadcast failed: ${_?.message || _}`)
-      }
-    }
+    const respondedOk = true
     stopVoiceRequested = false
     flushTtsChunks(true)
     if (bufferedStructuredResponse) {
@@ -1871,41 +1835,7 @@ async function streamLlamaChat(req, res, payload) {
           ? { active_skill: activeSkill, tool_steps: toolSteps }
           : null
     })
-    {
-      const errTotalMs = Date.now() - t0
-      const errTrace = buildObservabilityTrace({
-        traceId: `${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        threadId,
-        traceType: 'llm_call',
-        totalDuration: errTotalMs,
-        preLlamaDuration: typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0,
-        firstTokenDuration: tFirstToken > 0 ? tFirstToken - t0 : 0,
-        genDuration: tFirstToken > 0 ? Date.now() - tFirstToken : 0,
-        systemPrompt: typeof systemMessage !== 'undefined' ? systemMessage?.content : undefined,
-        chatMessages: typeof currentMessages !== 'undefined' ? currentMessages : undefined,
-        response: assembled || fallbackMsg || '',
-        tps: 0,
-        promptTokens: typeof estimatedPromptTokens !== 'undefined' ? (estimatedPromptTokens || 0) : 0,
-        genTokens: 0,
-        modelName: tierName,
-        tier: tierName,
-        toolCount: typeof toolsPayload !== 'undefined' ? toolsPayload.length : 0,
-        toolStepsList: typeof toolSteps !== 'undefined' ? toolSteps : [],
-        activeSkillId: typeof activeSkill !== 'undefined' ? activeSkill : undefined,
-        status: 'error',
-        errorMsg: error?.message || 'Unknown error'
-      })
-      info(`[OBS] Trace saved to buffer! id=${errTrace.id} status=${errTrace.status} duration=${errTrace.total_duration}ms`)
-      shared.observabilityBuffer = shared.observabilityBuffer || []
-      shared.observabilityBuffer.unshift(errTrace)
-      if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
-      try {
-        debug(`[observability] Broadcasting error trace id=${errTrace.id}`)
-        broadcast({ type: 'observability_trace', data: errTrace })
-      } catch (_) {
-        warn(`[observability] Error broadcast failed: ${_?.message || _}`)
-      }
-    }
+    const respondedOk = true
     stopVoiceRequested = false
     flushTtsChunks(true)
     {
