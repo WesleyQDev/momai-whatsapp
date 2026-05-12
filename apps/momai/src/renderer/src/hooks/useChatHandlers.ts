@@ -360,6 +360,7 @@ export function useChatHandlers({
           })
         }
       } else if (msg.type === 'observability_trace') {
+        console.debug('[observability] WS trace received:', msg.data?.id, msg.data?.status)
         pushTrace(msg.data)
         window.dispatchEvent(new CustomEvent('momai_observability_trace', { detail: msg.data }))
       } else if (msg.type === 'user') {

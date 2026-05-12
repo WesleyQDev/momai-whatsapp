@@ -1824,7 +1824,12 @@ async function streamLlamaChat(req, res, payload) {
       shared.observabilityBuffer = shared.observabilityBuffer || []
       shared.observabilityBuffer.unshift(trace)
       if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
-      try { broadcast({ type: 'observability_trace', data: trace }) } catch (_) {}
+      try {
+        debug(`[observability] Broadcasting trace id=${trace.id} type=${trace.type}`)
+        broadcast({ type: 'observability_trace', data: trace })
+      } catch (_) {
+        warn(`[observability] Broadcast failed: ${_?.message || _}`)
+      }
     }
     stopVoiceRequested = false
     flushTtsChunks(true)
@@ -1892,7 +1897,12 @@ async function streamLlamaChat(req, res, payload) {
       shared.observabilityBuffer = shared.observabilityBuffer || []
       shared.observabilityBuffer.unshift(errTrace)
       if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
-      try { broadcast({ type: 'observability_trace', data: errTrace }) } catch (_) {}
+      try {
+        debug(`[observability] Broadcasting error trace id=${errTrace.id}`)
+        broadcast({ type: 'observability_trace', data: errTrace })
+      } catch (_) {
+        warn(`[observability] Error broadcast failed: ${_?.message || _}`)
+      }
     }
     stopVoiceRequested = false
     flushTtsChunks(true)

@@ -201,8 +201,10 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
   const [search, setSearch] = useState('')
 
   useEffect(() => {
+    console.debug('[observability] Component mounted, store has', getTraces().length, 'traces')
     const handler = (event: Event) => {
       const trace = (event as CustomEvent<Trace>).detail
+      console.debug('[observability] CustomEvent received:', trace?.id, trace?.status)
       setTraces(prev => [trace, ...prev].slice(0, 50))
     }
     window.addEventListener('momai_observability_trace', handler as EventListener)
