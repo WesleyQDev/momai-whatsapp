@@ -11,7 +11,8 @@ import {
   DocumentTextIcon,
   HomeIcon,
   QuestionMarkCircleIcon,
-  Square3Stack3DIcon
+  Square3Stack3DIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/outline'
 import { useI18n } from '../i18n'
 
@@ -55,6 +56,17 @@ export default function LateralBar({
 }: LateralBarProps) {
   const { t } = useI18n()
   const [extensions, setExtensions] = useState<ExtensionItem[]>([])
+  const [observabilityEnabled, setObservabilityEnabled] = useState(
+    () => localStorage.getItem('momai_observability_enabled') === 'true'
+  )
+
+  useEffect(() => {
+    const handler = () => {
+      setObservabilityEnabled(localStorage.getItem('momai_observability_enabled') === 'true')
+    }
+    window.addEventListener('momai_observability_sync', handler)
+    return () => window.removeEventListener('momai_observability_sync', handler)
+  }, [])
 
   const loadExtensions = useCallback(async () => {
     try {
@@ -213,6 +225,24 @@ export default function LateralBar({
             className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
           />
         </button>
+
+        {/* Observability Icon */}
+        {observabilityEnabled && (
+          <button
+            onClick={() => onNavigate('/observability')}
+            title="Observabilidade"
+            className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 ${activeRoute === '/observability' ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
+          >
+            {activeRoute === '/observability' && (
+              <div
+                className={`absolute ${isCompact ? '-left-2 h-4' : '-left-3 h-6'} w-1 bg-accent rounded-r-full animate-fade-in`}
+              />
+            )}
+            <ChartBarIcon
+              className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
+            />
+          </button>
+        )}
 
         {/* About Icon */}
         <button
