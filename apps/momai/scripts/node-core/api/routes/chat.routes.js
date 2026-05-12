@@ -60,8 +60,8 @@ function createChatRoutes(context) {
         context.error('[OBS] streamLlamaChat threw:', err?.message)
       }
       // Record observability trace from thread messages
+      const shared = require('../../services/shared-state')
       try {
-        const shared = require('../services/shared-state')
         const threadId = String(payload.thread_id || 'default')
         const messages = context.getThreadMessages(threadId)
         const lastMsg = messages?.[messages.length - 1]
@@ -85,10 +85,21 @@ function createChatRoutes(context) {
           shared.observabilityBuffer.unshift(trace)
           if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
           try { context.broadcast?.({ type: 'observability_trace', data: trace }) } catch (_) {}
+          context.info('[OBS] Trace recorded from route handler: id=' + trace.id + ' duration=' + duration + 'ms')
+        } else {
+          context.info('[OBS] No assistant message found for thread ' + threadId)
+        }
+      } catch (_) {
+        context.error('[OBS] Failed to record trace: ' + (_.message || String(_)))
+      }
+          shared.observabilityBuffer = shared.observabilityBuffer || []
+          shared.observabilityBuffer.unshift(trace)
+          if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
+          try { context.broadcast?.({ type: 'observability_trace', data: trace }) } catch (_) {}
           context.info(`[OBS] Trace recorded from route handler: id=${trace.id} duration=${duration}ms`)
         }
       } catch (_) {
-        context.error('[OBS] Failed to record trace:', _?.message || _)
+        context.error('[OBS] Failed to record trace: ' + (_.message || String(_)))
       }
       return true
     }
