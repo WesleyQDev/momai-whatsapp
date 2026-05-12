@@ -1764,6 +1764,46 @@ async function streamLlamaChat(req, res, payload) {
       const _sse = writeSse(res, { done: true })
       if (_sse instanceof Promise) await _sse
     }
+    {
+      const tEnd = Date.now()
+      const totalMs = tEnd - t0
+      const genTokens = estimateTokenCount(assembled || '')
+      const fTokenMs = typeof tPreFetch !== 'undefined' ? tEnd - tPreFetch : 0
+      const trace = {
+        id: `${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: Date.now(),
+        type: toolSteps?.length ? 'llm_call' : (activeSkill ? 'skill' : 'llm_call'),
+        total_duration: totalMs,
+        pre_llm_duration: typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0,
+        first_token_duration: typeof tPreFetch !== 'undefined' ? 0 : 0,
+        generation_duration: genTokens > 0 && totalMs > 0 ? totalMs - (typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0) : 0,
+        system_prompt: systemMessage?.content || '',
+        messages: currentMessages?.filter(m => m.role !== 'system').slice(-10).map(m => ({ role: m.role, content: (m.content || '').slice(0, 1000) })) || [],
+        response: (assembled || '').slice(0, 5000),
+        tokens_per_second: totalMs > 0 ? Math.round((genTokens / totalMs) * 1000 * 10) / 10 : 0,
+        total_tokens: (estimatedPromptTokens || 0) + genTokens,
+        estimated_prompt_tokens: estimatedPromptTokens || 0,
+        generated_tokens: genTokens,
+        model: tierName || 'unknown',
+        tier: tierName || 'unknown',
+        tools_count: (typeof toolsPayload !== 'undefined' ? toolsPayload.length : 0),
+        tool_calls: toolSteps?.length ? toolSteps.map(ts => ({
+          tool_name: ts.tool_name || ts.name || 'unknown',
+          args: ts.args || ts.input || {},
+          result: ts.result ? String(ts.result).slice(0, 500) : undefined,
+          duration_ms: ts.duration_ms || 0
+        })) : undefined,
+        active_skill: activeSkill || undefined,
+        thread_id: threadId || 'default',
+        status: 'success'
+      }
+      shared.observabilityBuffer = shared.observabilityBuffer || []
+      shared.observabilityBuffer.unshift(trace)
+      if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
+      try {
+        broadcast({ type: 'observability_trace', data: trace })
+      } catch (_) { /* ignore broadcast errors */ }
+    }
     endSse(res)
   } catch (error) {
     const fallbackMsg = generateFallbackReply(
@@ -1796,6 +1836,43 @@ async function streamLlamaChat(req, res, payload) {
     {
       const _sse = writeSse(res, { done: true })
       if (_sse instanceof Promise) await _sse
+    }
+    {
+      try {
+        const errTrace = {
+          id: `${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          timestamp: Date.now(),
+          type: 'llm_call',
+          total_duration: Date.now() - t0,
+          pre_llm_duration: typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0,
+          first_token_duration: 0,
+          generation_duration: 0,
+          system_prompt: systemMessage?.content || '',
+          messages: currentMessages?.filter(m => m.role !== 'system').slice(-10).map(m => ({ role: m.role, content: (m.content || '').slice(0, 1000) })) || [],
+          response: (assembled || fallbackMsg || '').slice(0, 5000),
+          tokens_per_second: 0,
+          total_tokens: estimatedPromptTokens || 0,
+          estimated_prompt_tokens: estimatedPromptTokens || 0,
+          generated_tokens: 0,
+          model: tierName || 'unknown',
+          tier: tierName || 'unknown',
+          tools_count: (typeof toolsPayload !== 'undefined' ? toolsPayload.length : 0),
+          tool_calls: toolSteps?.length ? toolSteps.map(ts => ({
+            tool_name: ts.tool_name || ts.name || 'unknown',
+            args: ts.args || ts.input || {},
+            result: ts.result ? String(ts.result).slice(0, 500) : undefined,
+            duration_ms: ts.duration_ms || 0
+          })) : undefined,
+          active_skill: activeSkill || undefined,
+          thread_id: threadId || 'default',
+          status: 'error',
+          error: error?.message || 'Unknown error'
+        }
+        shared.observabilityBuffer = shared.observabilityBuffer || []
+        shared.observabilityBuffer.unshift(errTrace)
+        if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
+        broadcast({ type: 'observability_trace', data: errTrace })
+      } catch (_) { /* ignore broadcast errors */ }
     }
     endSse(res)
   } finally {

@@ -7,6 +7,8 @@ let skillRegistry = null
 let promptRegistry = null
 let broadcast = null
 
+const observabilityBuffer = []
+
 module.exports = {
   store,
   llamaState,
@@ -14,5 +16,6 @@ module.exports = {
   modelDownloadState,
   skillRegistry,
   promptRegistry,
-  broadcast
+  broadcast,
+  observabilityBuffer
 }
