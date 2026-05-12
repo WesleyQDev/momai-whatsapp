@@ -1804,17 +1804,21 @@ async function streamLlamaChat(req, res, payload) {
 }
 
 async function runVoiceCommand(payload = {}) {
-  const content = String(payload.content || '').trim()
+  let content = String(payload.content || '').trim()
   if (!content) return
   const threadId = String(payload.thread_id || 'default')
   const speakResponse = payload.speak_response !== false
+  const originalContent = content
   debug(`[voice-cmd] runVoiceCommand called: content="${content.slice(0, 80)}", thread=${threadId}`)
 
-  broadcast({ type: 'user', content })
+  broadcast({ type: 'user', content: originalContent })
 
-  // Keyword routing: bypass LLM if a skill keyword matches
+  // Keyword routing: try direct skill execution, but fall through to LLM if
+  // the skill doesn't provide a user-facing directResponse
   const { routeByKeyword } = require('./keyword-router')
   const skillRegistry = shared.skillRegistry
+  let keywordWebSources = null
+
   if (skillRegistry) {
     const match = routeByKeyword(content, skillRegistry)
     if (match) {
@@ -1828,24 +1832,30 @@ async function runVoiceCommand(payload = {}) {
           skillRegistry.execute(match.skillId, content, { searchWeb }),
           timeoutPromise
         ])
-        const responseText = result?.directResponse || result?.instruction || 'Feito.'
-        broadcast({ type: 'assistant', data: { status: 'responding' } })
-        for (const token of splitTokens(responseText)) {
-          broadcast({ type: 'assistant', data: { token } })
+
+        // Fast path: if the skill returned a user-facing directResponse, stream it directly
+        if (result?.directResponse) {
+          broadcast({ type: 'assistant', data: { status: 'responding' } })
+          for (const token of splitTokens(result.directResponse)) {
+            broadcast({ type: 'assistant', data: { token } })
+          }
+          if (result?.webSources) {
+            broadcast({ type: 'assistant', data: { webSources: result.webSources } })
+          }
+          broadcast({ type: 'assistant', data: { done: true } })
+          return
         }
-        if (result?.webSources) {
-          broadcast({ type: 'assistant', data: { webSources: result.webSources } })
+
+        // No directResponse — prepend instruction to content so LLM can
+        // generate a natural language response from the pre-executed result
+        if (result?.instruction) {
+          content = `${content}\n\n[Resultado de skill já executada]\n${result.instruction}`
         }
-        broadcast({ type: 'assistant', data: { done: true } })
+        keywordWebSources = result?.webSources || null
       } catch (err) {
         debug(`[voice-cmd] Skill execution error: ${err.message}`)
-        broadcast({ type: 'assistant', data: { status: 'responding' } })
-        for (const token of splitTokens('Feito.')) {
-          broadcast({ type: 'assistant', data: { token } })
-        }
-        broadcast({ type: 'assistant', data: { done: true } })
+        // Fall through to LLM path
       }
-      return
     }
   }
 
@@ -1895,7 +1905,8 @@ async function runVoiceCommand(payload = {}) {
   await streamLlamaChat(reqMock, resMock, {
     content,
     thread_id: threadId,
-    speak_response: speakResponse
+    speak_response: speakResponse,
+    memory_sources: keywordWebSources?.length ? keywordWebSources : undefined
   })
 
   if (!closed && typeof reqMock._onClose === 'function') {
