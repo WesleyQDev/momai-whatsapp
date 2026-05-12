@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { pushTrace } from '../stores/observabilityStore'
 import type { Message } from '../services/api'
 import type { ChatAction } from './chatReducer'
 import {
@@ -359,6 +360,7 @@ export function useChatHandlers({
           })
         }
       } else if (msg.type === 'observability_trace') {
+        pushTrace(msg.data)
         window.dispatchEvent(new CustomEvent('momai_observability_trace', { detail: msg.data }))
       } else if (msg.type === 'user') {
         const content = msg.content.toLowerCase()

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import ObservabilityView from './ObservabilityView'
+import { getTraces } from '../stores/observabilityStore'
 
 const mockTraces = [
   {
@@ -48,7 +49,8 @@ const mockTraces = [
 
 describe('ObservabilityView', () => {
   beforeEach(() => {
-    localStorage.clear()
+    // Clear module-level store between tests
+    while (getTraces().length) getTraces().pop()
   })
 
   it('renders empty state when no traces', () => {

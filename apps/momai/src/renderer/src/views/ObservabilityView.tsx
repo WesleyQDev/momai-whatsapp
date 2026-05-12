@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
+import { getTraces, subscribe } from '../stores/observabilityStore'
 
 interface ToolCall {
   tool_name: string
-  args: any
+  args: Record<string, unknown>
   result?: string
   duration_ms?: number
 }
@@ -84,7 +85,7 @@ function TrendGraph({ traces }: { traces: Trace[] }) {
   )
 }
 
-function TraceDetail({ trace }: { trace: Trace }) {
+function TraceDetail({ trace, maxTps }: { trace: Trace; maxTps: number }) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
@@ -100,7 +101,7 @@ function TraceDetail({ trace }: { trace: Trace }) {
         <span className="text-xs text-text-muted w-16">{formatDuration(trace.total_duration)}</span>
         {trace.type === 'llm_call' && (
           <div className="flex-1">
-            <TokenSpeedBar speed={trace.tokens_per_second} maxSpeed={Math.max(trace.tokens_per_second * 1.3, 1)} />
+            <TokenSpeedBar speed={trace.tokens_per_second} maxSpeed={maxTps} />
           </div>
         )}
         <span className="text-xs text-text-muted w-14 tabular-nums">{trace.total_tokens || '-'}</span>
@@ -192,7 +193,10 @@ function TraceDetail({ trace }: { trace: Trace }) {
 }
 
 export default function ObservabilityView({ initialTraces }: ObservabilityViewProps) {
-  const [traces, setTraces] = useState<Trace[]>(initialTraces || [])
+  const [traces, setTraces] = useState<Trace[]>(() => {
+    const stored = getTraces()
+    return stored.length ? stored : (initialTraces || [])
+  })
   const [filter, setFilter] = useState<'all' | 'llm_call' | 'skill' | 'error'>('all')
   const [search, setSearch] = useState('')
 
@@ -202,7 +206,15 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
       setTraces(prev => [trace, ...prev].slice(0, 50))
     }
     window.addEventListener('momai_observability_trace', handler as EventListener)
-    return () => window.removeEventListener('momai_observability_trace', handler as EventListener)
+
+    const unsub = subscribe((trace: any) => {
+      setTraces(prev => [trace, ...prev].slice(0, 50))
+    })
+
+    return () => {
+      window.removeEventListener('momai_observability_trace', handler as EventListener)
+      unsub()
+    }
   }, [])
 
   const filteredTraces = traces.filter(t => {
@@ -222,9 +234,10 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
   })
 
   const llmTraces = traces.filter(t => t.type === 'llm_call' && t.tokens_per_second > 0)
+  const maxDisplayTps = Math.max(...filteredTraces.filter(t => t.type === 'llm_call' && t.tokens_per_second > 0).map(t => t.tokens_per_second), 1)
 
   return (
-    <div className="h-full flex flex-col bg-bg text-text">
+    <div className="w-full h-full flex flex-col bg-bg text-text">
       <div className="p-4 border-b border-white/5">
         <h2 className="text-lg font-semibold mb-1">Observabilidade</h2>
         <p className="text-xs text-text-muted">Monitoramento de chamadas ao LLM em tempo real</p>
@@ -260,7 +273,7 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
         ) : (
           <div>
             {filteredTraces.map(trace => (
-              <TraceDetail key={trace.id} trace={trace} />
+              <TraceDetail key={trace.id} trace={trace} maxTps={maxDisplayTps} />
             ))}
           </div>
         )}
