@@ -122,13 +122,9 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
               <circle cx="6" cy="14" r="0.5" fill="currentColor" />
             </svg>
           </div>
-          <div className="flex flex-col gap-1 flex-1">
-            <span className="text-xs font-bold text-text">Logs do Sistema</span>
-            <span className="text-[11px] text-text-muted leading-relaxed">
-              Visualize logs detalhados de todos os componentes em tempo real para debug e monitoramento.
-            </span>
-            <div className="mt-3 flex items-center justify-between">
-              <span className="text-sm text-text-muted">Ativar Logs</span>
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-text">Logs do Sistema</span>
               <button
                 data-testid="logs-toggle"
                 onClick={(e) => {
@@ -142,6 +138,9 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
                 <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${logsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
               </button>
             </div>
+            <span className="text-[11px] text-text-muted leading-relaxed">
+              Visualize logs detalhados de todos os componentes em tempo real para debug e monitoramento.
+            </span>
           </div>
         </div>
       )}
@@ -153,13 +152,9 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
               <path d="M12 20V10M18 20V4M6 20v-4" />
             </svg>
           </div>
-          <div className="flex flex-col gap-1 flex-1">
-            <span className="text-xs font-bold text-text">Observabilidade de IA</span>
-            <span className="text-[11px] text-text-muted leading-relaxed">
-              Monitore chamadas ao LLM em tempo real: prompts, velocidade de tokens, execução de tools e latência.
-            </span>
-            <div className="mt-3 flex items-center justify-between">
-              <span className="text-sm text-text-muted">Ativar Observabilidade</span>
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-text">Observabilidade de IA</span>
               <button
                 data-testid="observability-toggle"
                 onClick={(e) => {
@@ -174,6 +169,9 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
                 <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${observabilityEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
               </button>
             </div>
+            <span className="text-[11px] text-text-muted leading-relaxed">
+              Monitore chamadas ao LLM em tempo real: prompts, velocidade de tokens, execução de tools e latência.
+            </span>
           </div>
         </div>
       )}
