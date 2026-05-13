@@ -458,6 +458,7 @@ async function startServer() {
   const { createStatusRoutes } = require('./api/routes/status.routes')
   const { createSystemRoutes } = require('./api/routes/system.routes')
   const { createSkillsRoutes } = require('./api/routes/skills.routes')
+  const { createEconomyRoutes } = require('./api/routes/economy.routes')
 
   // Inline observability route
   async function handleObservabilityRoute(req, res, pathname) {
@@ -486,7 +487,8 @@ async function startServer() {
     createRemindersRoutes(context),
     createStatusRoutes(context),
     createSystemRoutes(context),
-    createSkillsRoutes(context)
+    createSkillsRoutes(context),
+    createEconomyRoutes(context)
   ])
 
   // Setup WebSocket and update context with real functions

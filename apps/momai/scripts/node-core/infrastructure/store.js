@@ -57,7 +57,15 @@ function defaultStore() {
       progress: 100,
       error: null,
       updated_at: now
-    }
+    },
+    economy: {
+      gaming_mode_enabled: false,
+      idle_timeout_app_open: 5,
+      idle_timeout_minimized: 1,
+      auto_detect_known_games: true,
+      gaming_apps: [],
+      next_gaming_app_id: 1,
+    },
   }
 }
 
