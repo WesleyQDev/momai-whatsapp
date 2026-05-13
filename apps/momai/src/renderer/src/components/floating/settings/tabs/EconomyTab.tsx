@@ -342,9 +342,6 @@ export const EconomyTab = React.memo(
 
           {/* Game grid */}
           <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wide">Biblioteca de Jogos</h4>
-          <p className="text-[11px] text-text-muted leading-relaxed">
-            Clique em qualquer jogo para ativar ou desativar a economia. Com a economia ativa, a IA libera recursos (RAM/GPU) automaticamente quando o jogo estiver rodando.
-          </p>
           {autoDetectOn && (
             <p className="text-[11px] text-text-muted/60 leading-relaxed">
               Jogos ativos têm borda verde. Desativados ficam opacos.
