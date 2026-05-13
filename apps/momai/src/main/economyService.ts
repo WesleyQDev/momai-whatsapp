@@ -28,7 +28,7 @@ export interface EconomyState {
 export interface KnownGame {
   name: string
   processNames: string[]
-  steamGridId: number | null
+  steamGridId?: number | null
 }
 
 export class EconomyService {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.hoisted(() => {
-  process.resourcesPath = '/mock/resources'
+  ;(process as any).resourcesPath = '/mock/resources'
 })
 
 vi.mock('@electron-toolkit/utils', () => ({
