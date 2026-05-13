@@ -126,7 +126,8 @@ export const GeneralTab = React.memo(
               <select
                 value={settings.locale}
                 onChange={(e) => updateField('locale', e.target.value, true)}
-                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-xs font-medium text-text outline-none"
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 pr-8 text-xs font-medium text-text outline-none appearance-none"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff44' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundPosition: 'right 8px center', backgroundRepeat: 'no-repeat', backgroundSize: '14px' }}
               >
                 <option value="pt-BR">{t('settings.language.ptBR')}</option>
                 <option value="en-US">{t('settings.language.enUS')}</option>

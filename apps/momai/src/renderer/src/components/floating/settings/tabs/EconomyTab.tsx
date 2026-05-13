@@ -132,7 +132,8 @@ export const EconomyTab = React.memo(
               <select
                 value={economyConfig?.idle_timeout_app_open ?? 5}
                 onChange={(e) => onUpdateConfig?.({ idle_timeout_app_open: Number(e.target.value) })}
-                className="bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-text outline-none"
+                className="bg-input border border-border rounded-lg px-3 py-1.5 pr-8 text-sm text-text outline-none appearance-none"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff44' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundPosition: 'right 8px center', backgroundRepeat: 'no-repeat', backgroundSize: '14px' }}
               >
                 <option value={0}>Desligado</option>
                 <option value={1}>1 min</option>
@@ -146,7 +147,8 @@ export const EconomyTab = React.memo(
               <select
                 value={economyConfig?.idle_timeout_minimized ?? 1}
                 onChange={(e) => onUpdateConfig?.({ idle_timeout_minimized: Number(e.target.value) })}
-                className="bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-text outline-none"
+                className="bg-input border border-border rounded-lg px-3 py-1.5 pr-8 text-sm text-text outline-none appearance-none"
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff44' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundPosition: 'right 8px center', backgroundRepeat: 'no-repeat', backgroundSize: '14px' }}
               >
                 <option value={0}>Desligado</option>
                 <option value={1}>1 min</option>
