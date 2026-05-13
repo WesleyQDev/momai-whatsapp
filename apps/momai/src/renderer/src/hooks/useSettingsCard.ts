@@ -347,6 +347,11 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     loadGamingApps()
     loadEconomyConfig()
 
+    // Fetch current economy state on mount (covers race condition with IPC)
+    ;(window as any).api?.getEconomyState?.().then((state: any) => {
+      if (state) setEconomyState(state)
+    }).catch(() => {})
+
     const cleanup = (window as any).api?.onEconomyStateChange?.((
       state: { active: boolean; reason: string | null; detectedGames: { name: string; processName: string }[] }
     ) => {

@@ -65,15 +65,22 @@ function getMainWindow(): BrowserWindow | null {
   return state.mainWindow && !state.mainWindow.isDestroyed() ? state.mainWindow : null
 }
 
+let lastEconomyState: any = { active: false, reason: null, detectedGames: [] }
+
 export function broadcastEconomyState(state: {
   active: boolean
   reason: string | null
-  detectedGames: { name: string; processName: string }[]
+  detectedGames: { name: string; processName: string; steamGridId?: number | null; coverUrl?: string | null }[]
 }): void {
+  lastEconomyState = state
   const win = getMainWindow()
   if (win) {
     win.webContents.send('economy:state-change', state)
   }
+}
+
+export function getLastEconomyState(): any {
+  return lastEconomyState
 }
 
 export function registerIpcHandlers(): void {
@@ -179,6 +186,10 @@ export function registerIpcHandlers(): void {
     logger.info('[WindowManager] Reiniciando backend Node via IPC...')
     setIsQuitting(false)
     return restartCoreBackend()
+  })
+
+  ipcMain.handle('economy:get-state', () => {
+    return getLastEconomyState()
   })
 
   ipcMain.on('window-reset-size', () => {
