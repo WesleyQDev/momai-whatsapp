@@ -175,9 +175,9 @@ export class EconomyService {
         game.processNames.some((pn) => this.matchProcess(p, pn))
       )
       if (match) {
-        checked.add(game.name)
-        detected.push({ name: game.name, processName: match, steamGridId: game.steamGridId, coverUrl: this.resolveCoverUrl(game) })
-        console.log(`[Economy] DETECTED: ${game.name} (process: ${match})`)
+        const coverUrl = this.resolveCoverUrl(game)
+        detected.push({ name: game.name, processName: match, steamGridId: game.steamGridId, coverUrl })
+        console.log(`[Economy] DETECTED: ${game.name} (cover: ${coverUrl})`)
       }
     }
 
