@@ -15,6 +15,7 @@ export interface DetectedGame {
   name: string
   processName: string
   steamGridId?: number | null
+  coverUrl?: string | null
 }
 
 export interface GamingApp {
@@ -41,6 +42,7 @@ export interface KnownGame {
   name: string
   processNames: string[]
   steamGridId?: number | null
+  coverUrl?: string | null
 }
 
 export class EconomyService {
@@ -52,6 +54,7 @@ export class EconomyService {
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private appOpenTimer: ReturnType<typeof setTimeout> | null = null
   private appMinimizedTimer: ReturnType<typeof setTimeout> | null = null
+  private coverCache = new Map<string, string>()
 
   private currentState: EconomyState = {
     active: false,
@@ -139,6 +142,12 @@ export class EconomyService {
     return a === b || a === b + '.exe' || a.replace(/\.exe$/, '') === b
   }
 
+  private resolveCoverUrl(game: KnownGame): string | null {
+    if (game.coverUrl) return game.coverUrl
+    if (game.steamGridId) return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.steamGridId}/header.jpg`
+    return null
+  }
+
   async checkForGames(processOverrides?: string[]): Promise<DetectedGame[]> {
     if (!this.gamingModeEnabled) return []
 
@@ -167,7 +176,7 @@ export class EconomyService {
       )
       if (match) {
         checked.add(game.name)
-        detected.push({ name: game.name, processName: match, steamGridId: game.steamGridId })
+        detected.push({ name: game.name, processName: match, steamGridId: game.steamGridId, coverUrl: this.resolveCoverUrl(game) })
         console.log(`[Economy] DETECTED: ${game.name} (process: ${match})`)
       }
     }

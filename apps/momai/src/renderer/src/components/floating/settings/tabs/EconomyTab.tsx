@@ -17,7 +17,7 @@ interface EconomyTabProps {
   economyState?: {
     active: boolean
     reason: string | null
-    detectedGames: { name: string; processName: string; steamGridId?: number | null }[]
+    detectedGames: { name: string; processName: string; steamGridId?: number | null; coverUrl?: string | null }[]
   }
 }
 
@@ -172,14 +172,25 @@ export const EconomyTab = React.memo(
                 className="flex items-center justify-between gap-2 p-4 rounded-xl bg-accent/5 border border-accent/30"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <img
-                    src={`https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${(game as any).steamGridId || 0}/header.jpg`}
-                    alt={game.name}
-                    className="w-12 h-7 rounded object-cover bg-white/5"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none'
-                    }}
-                  />
+                  {(game as any).coverUrl ? (
+                    <img
+                      src={(game as any).coverUrl}
+                      alt={game.name}
+                      className="w-12 h-7 rounded object-cover bg-white/5"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none'
+                      }}
+                    />
+                  ) : (
+                    <div className="w-12 h-7 rounded bg-white/5 flex items-center justify-center">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text-muted">
+                        <path d="M6 12h4M8 10v4" />
+                        <path d="M15.5 12a.5.5 0 0 1 0 1 .5.5 0 0 1 0-1Z" />
+                        <path d="M18.5 10a.5.5 0 0 1 0 1 .5.5 0 0 1 0-1Z" />
+                        <path d="M7.5 5c-1.5 0-3 .4-4.2 1.3A5 5 0 0 0 2 12v2a5 5 0 0 0 5 5c1.2 0 2.4-.4 3.3-1l1.5-1.2c.7-.6 1.7-.6 2.4 0l1.5 1.2c.9.6 2.1 1 3.3 1a5 5 0 0 0 5-5v-2a5 5 0 0 0-1.3-3.7C19.5 5.4 18 5 16.5 5h-9Z" />
+                      </svg>
+                    </div>
+                  )}
                   <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
                   <div className="flex flex-col">
                     <span className="text-sm font-semibold text-text">{game.name}</span>
