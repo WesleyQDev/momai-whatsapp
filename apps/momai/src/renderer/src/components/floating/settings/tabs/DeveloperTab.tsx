@@ -48,7 +48,7 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
     () => localStorage.getItem('momai_observability_enabled') === 'true'
   )
   const [logsEnabled, setLogsEnabled] = useState(
-    () => localStorage.getItem('momai_logs_enabled') !== 'false'
+    () => localStorage.getItem('momai_logs_enabled') === 'true'
   )
 
   useEffect(() => {
@@ -129,6 +129,7 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
             </div>
             <button
               data-testid="logs-toggle"
+              aria-label={logsEnabled ? 'Desativar Logs do Sistema' : 'Ativar Logs do Sistema'}
               onClick={() => { const next = !logsEnabled; setLogsEnabled(next); localStorage.setItem('momai_logs_enabled', String(next)) }}
               className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${logsEnabled ? 'bg-accent/80' : 'bg-white/10'}`}
             >
@@ -148,6 +149,7 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
             </div>
             <button
               data-testid="observability-toggle"
+              aria-label={observabilityEnabled ? 'Desativar Observabilidade de IA' : 'Ativar Observabilidade de IA'}
               onClick={() => { const next = !observabilityEnabled; setObservabilityEnabled(next); localStorage.setItem('momai_observability_enabled', String(next)); window.dispatchEvent(new CustomEvent('momai_observability_sync', { detail: next })) }}
               className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${observabilityEnabled ? 'bg-accent/80' : 'bg-white/10'}`}
             >
@@ -167,6 +169,7 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
               </div>
             </div>
             <button
+              aria-label={showContextRing ? 'Desativar indicador de contexto' : 'Ativar indicador de contexto'}
               onClick={() => { const next = !showContextRing; localStorage.setItem('momai_show_context_ring', String(next)); window.dispatchEvent(new CustomEvent('momai_context_ring_sync', { detail: next })); setShowContextRing(next) }}
               className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${showContextRing ? 'bg-accent/80' : 'bg-white/10'}`}
             >
