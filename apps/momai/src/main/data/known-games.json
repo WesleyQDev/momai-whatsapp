@@ -556,7 +556,12 @@
     "coverUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1013320/header.jpg"
   },
   {
-    "name": "Firestone Online Idle",
+    "name": "Firestone Online Idle RPG",
+    "processNames": ["firestone"],
+    "coverUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1013320/header.jpg"
+  },
+  {
+    "name": "Firestone Idle RPG",
     "processNames": ["firestone"],
     "coverUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1013320/header.jpg"
   }
