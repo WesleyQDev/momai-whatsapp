@@ -49,6 +49,17 @@ export class EconomyService {
 
   private broadcastCallback: ((state: EconomyState) => void) | null = null
 
+  // Allow tests to inject a mock HTTP client
+  httpGet: (url: string) => Promise<any> = async (url: string) => {
+    const res = await fetch(url)
+    return res.json()
+  }
+
+  httpPost: (url: string) => Promise<any> = async (url: string) => {
+    const res = await fetch(url, { method: 'POST' })
+    return { ok: res.ok, status: res.status }
+  }
+
   onStateChange(callback: (state: EconomyState) => void): void {
     this.broadcastCallback = callback
   }
@@ -79,6 +90,8 @@ export class EconomyService {
 
   async start(): Promise<void> {
     this.running = true
+    console.log('[Economy] Service started')
+    this.poll().catch(() => {})
     this.pollTimer = setInterval(() => {
       this.poll().catch(() => {})
     }, 5000)
@@ -98,7 +111,14 @@ export class EconomyService {
   async checkForGames(): Promise<DetectedGame[]> {
     if (!this.gamingModeEnabled) return []
 
-    const processes = await psList()
+    let processes: any[] = []
+    try {
+      processes = await psList()
+    } catch (err) {
+      console.log('[Economy] ps-list error:', (err as Error).message)
+      return []
+    }
+
     const detected: DetectedGame[] = []
     const checked = new Set<string>()
 
@@ -122,6 +142,7 @@ export class EconomyService {
       if (match) {
         checked.add(game.name)
         detected.push({ name: game.name, processName: match.name || '' })
+        console.log(`[Economy] DETECTED: ${game.name}`)
       }
     }
 
@@ -129,44 +150,34 @@ export class EconomyService {
   }
 
   async poll(): Promise<void> {
-    // Re-fetch config on each poll so toggles take effect within 5s
     try {
-      const configRes = await fetch(`${this.economyHost}/economy/config`)
-      if (configRes.ok) {
-        const config = await configRes.json()
-        this.gamingModeEnabled = !!config.gaming_mode_enabled
-      }
+      const config = await this.httpGet(`${this.economyHost}/economy/config`)
+      this.gamingModeEnabled = !!(config as any).gaming_mode_enabled
     } catch {
-      // Node Core not available yet
+      // Will retry on next interval
     }
 
-    const detected = await this.checkForGames()
-    const hasGames = detected.length > 0
+    if (this.gamingModeEnabled) {
+      const detected = await this.checkForGames()
+      const hasGames = detected.length > 0
 
-    if (hasGames && !this.currentState.active) {
-      await this.activateEconomy('gaming', detected)
-    } else if (!hasGames && this.currentState.active && this.currentState.reason === 'gaming') {
-      await this.deactivateEconomy()
+      if (hasGames && !this.currentState.active) {
+        await this.activateEconomy('gaming', detected)
+      } else if (!hasGames && this.currentState.active && this.currentState.reason === 'gaming') {
+        await this.deactivateEconomy()
+      }
     }
   }
 
   private async activateEconomy(reason: EconomyState['reason'], detected: DetectedGame[]): Promise<void> {
     this.currentState = { active: true, reason, detectedGames: detected }
-    try {
-      await fetch(`${this.economyHost}/llama/stop`, { method: 'POST' })
-    } catch {
-      // Node Core may not be available
-    }
+    await this.httpPost(`${this.economyHost}/llama/stop`)
     this.broadcast()
   }
 
   private async deactivateEconomy(): Promise<void> {
     this.currentState = { active: false, reason: null, detectedGames: [] }
-    try {
-      await fetch(`${this.economyHost}/llama/start`, { method: 'POST' })
-    } catch {
-      // Node Core may not be available
-    }
+    await this.httpPost(`${this.economyHost}/llama/start`)
     this.broadcast()
   }
 

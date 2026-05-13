@@ -11,6 +11,8 @@ describe('EconomyService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     service = new EconomyService()
+    service.httpGet = vi.fn().mockResolvedValue({ gaming_mode_enabled: true })
+    service.httpPost = vi.fn().mockResolvedValue({ ok: true })
   })
 
   afterEach(async () => {
@@ -86,23 +88,10 @@ describe('EconomyService', () => {
       { name: 'FortniteClient-Win64-Shipping.exe', pid: 789 },
     ])
 
-    let callCount = 0
-    const mockFetch = vi.fn().mockImplementation(async (url: string) => {
-      callCount++
-      if (callCount === 1) {
-        // First call: poll() refreshes config
-        return { ok: true, json: async () => ({ gaming_mode_enabled: true }) }
-      }
-      // Second call: activate economy
-      return { ok: true, json: async () => ({ stopped: true }) }
-    })
-    vi.stubGlobal('fetch', mockFetch)
-
     await service.poll()
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      `${economyHost}/llama/stop`,
-      expect.objectContaining({ method: 'POST' })
+    expect(service.httpPost).toHaveBeenCalledWith(
+      `${economyHost}/llama/stop`
     )
     expect(service.getState().active).toBe(true)
     expect(service.getState().reason).toBe('gaming')
@@ -115,13 +104,6 @@ describe('EconomyService', () => {
       { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
     ])
 
-    const mockFetch = vi.fn(async (url: string) => {
-      if (url.includes('/llama/stop')) return { ok: true, json: async () => ({ stopped: true }) }
-      if (url.includes('/llama/start')) return { ok: true, json: async () => ({ ready: true }) }
-      return { ok: true, json: async () => ({ gaming_mode_enabled: true }) }
-    })
-    vi.stubGlobal('fetch', mockFetch)
-
     mockPsList.mockResolvedValue([
       { name: 'FortniteClient-Win64-Shipping.exe', pid: 789 },
     ])
@@ -133,9 +115,8 @@ describe('EconomyService', () => {
     ])
     await service.poll()
     expect(service.getState().active).toBe(false)
-    expect(mockFetch).toHaveBeenLastCalledWith(
-      `${economyHost}/llama/start`,
-      expect.objectContaining({ method: 'POST' })
+    expect(service.httpPost).toHaveBeenLastCalledWith(
+      `${economyHost}/llama/start`
     )
   })
 
