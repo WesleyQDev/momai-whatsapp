@@ -502,6 +502,7 @@ export default function ContainerChat({
     active: boolean
     detectedGames: { name: string; coverUrl?: string | null }[]
     freedMemoryMb?: number
+    freedVramMb?: number
   } | null>(null)
 
   const [localDismissed, setLocalDismissed] = useState(false)
@@ -687,9 +688,12 @@ export default function ContainerChat({
             </div>
             <h2 className="text-lg font-bold text-text">{econGame.name}</h2>
             <p className="text-xs text-text-muted">
-              {economyState.freedMemoryMb
-                ? `${economyState.freedMemoryMb} MB de RAM liberados`
-                : 'Recursos liberados para o jogo rodar sem interferência'}
+              {(() => {
+                const parts: string[] = []
+                if (economyState.freedMemoryMb) parts.push(`${economyState.freedMemoryMb} MB RAM`)
+                if (economyState.freedVramMb) parts.push(`${economyState.freedVramMb} MB VRAM`)
+                return parts.length > 0 ? parts.join(' + ') + ' liberados' : 'Recursos liberados para o jogo rodar sem interferência'
+              })()}
             </p>
           </div>
           <button

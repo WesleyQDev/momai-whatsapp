@@ -37,6 +37,7 @@ export interface EconomyState {
   reason: 'gaming' | 'idle' | 'manual' | null
   detectedGames: DetectedGame[]
   freedMemoryMb?: number
+  freedVramMb?: number
 }
 
 export interface KnownGame {
@@ -259,11 +260,24 @@ export class EconomyService {
     }
   }
 
+  private getVramUsage(): number {
+    if (process.platform !== 'win32') return 0
+    try {
+      const out = this.execCmd('nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>nul')
+      const mb = parseInt(out?.trim(), 10)
+      return isNaN(mb) ? 0 : mb
+    } catch {
+      return 0
+    }
+  }
+
   private async activateEconomy(reason: EconomyState['reason'], detected: DetectedGame[]): Promise<void> {
-    const before = this.getProcessMemory('python.exe')
+    const beforeRam = this.getProcessMemory('python.exe')
+    const beforeVram = this.getVramUsage()
     await this.httpPost(`${this.economyHost}/llama/stop`)
-    const freedMemoryMb = before > 0 ? before : undefined
-    this.currentState = { active: true, reason, detectedGames: detected, freedMemoryMb }
+    const freedMemoryMb = beforeRam > 0 ? beforeRam : undefined
+    const freedVramMb = beforeVram > 0 ? beforeVram : undefined
+    this.currentState = { active: true, reason, detectedGames: detected, freedMemoryMb, freedVramMb }
     this.broadcast()
   }
 
