@@ -18,11 +18,13 @@ describe('EconomyService', () => {
   })
 
   it('starts and stops without error', async () => {
+    vi.useFakeTimers()
     mockPsList.mockResolvedValue([])
     await service.start()
     expect(service.isRunning()).toBe(true)
     await service.stop()
     expect(service.isRunning()).toBe(false)
+    vi.useRealTimers()
   })
 
   it('detects a gaming app from process list', async () => {

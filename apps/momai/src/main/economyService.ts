@@ -63,6 +63,9 @@ export class EconomyService {
 
   async start(): Promise<void> {
     this.running = true
+    this.pollTimer = setInterval(() => {
+      this.poll().catch(() => {})
+    }, 5000)
   }
 
   async stop(): Promise<void> {
