@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { api, stopVoice, stopGeneration } from '../services/api'
+import { api, stopVoice, stopGeneration, fetchEconomyConfig, updateEconomyConfig } from '../services/api'
 import { useI18n } from '../i18n'
 
 export type Tab = 'general' | 'brain' | 'updates' | 'economy' | 'voice' | 'logs' | 'developer'
@@ -101,6 +101,12 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   const [localDetails, setLocalDetails] = useState<LocalDetails>({})
   const [gamingApps, setGamingApps] = useState<any[]>([])
   const [newApp, setNewApp] = useState({ name: '', executable: '' })
+  const [economyConfig, setEconomyConfig] = useState<any>(null)
+  const [economyState, setEconomyState] = useState<{ active: boolean; reason: string | null; detectedGames: { name: string; processName: string }[] }>({
+    active: false,
+    reason: null,
+    detectedGames: [],
+  })
   const [appVersion, setAppVersion] = useState('1.0.0')
   const [isAdvancedHardwareOpen, setIsAdvancedHardwareOpen] = useState(false)
   const [tiersConfig, setTiersConfig] = useState<any>(null)
@@ -174,6 +180,24 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
       console.error('Error loading gaming apps:', error)
     }
   }, [])
+
+  const loadEconomyConfig = useCallback(async () => {
+    try {
+      const config = await fetchEconomyConfig()
+      setEconomyConfig(config)
+    } catch {
+      console.error('Error loading economy config')
+    }
+  }, [])
+
+  const handleUpdateEconomyConfig = useCallback(async (patch: Record<string, any>) => {
+    try {
+      await updateEconomyConfig(patch)
+      await loadEconomyConfig()
+    } catch {
+      console.error('Error updating economy config')
+    }
+  }, [loadEconomyConfig])
 
   const handleAddGamingApp = useCallback(async () => {
     if (!newApp.name || !newApp.executable) return
@@ -321,6 +345,13 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     loadSettings()
     checkLocalStatus()
     loadGamingApps()
+    loadEconomyConfig()
+
+    const cleanup = (window as any).api?.onEconomyStateChange?.((
+      state: { active: boolean; reason: string | null; detectedGames: { name: string; processName: string }[] }
+    ) => {
+      setEconomyState(state)
+    })
 
     const handleModelChange = (e: any) => {
       const detail = e.detail
@@ -343,11 +374,12 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     window.addEventListener('momai_setup_progress', handleSetupProgress)
     window.addEventListener('momai_setup_complete', handleSetupComplete)
     return () => {
+      cleanup?.()
       window.removeEventListener('ai_model_changed', handleModelChange)
       window.removeEventListener('momai_setup_progress', handleSetupProgress)
       window.removeEventListener('momai_setup_complete', handleSetupComplete)
     }
-  }, [loadSettings, checkLocalStatus, loadGamingApps])
+  }, [loadSettings, checkLocalStatus, loadGamingApps, loadEconomyConfig])
 
   return {
     t,
@@ -382,6 +414,9 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     saveSettings,
     updateField,
     handleDevMode,
-    resetOnboarding
+    resetOnboarding,
+    economyConfig,
+    handleUpdateEconomyConfig,
+    economyState,
   }
 }

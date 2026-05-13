@@ -509,6 +509,21 @@ export async function deleteGamingApp(id: number): Promise<void> {
   if (!response.ok) throw new Error('Erro ao remover app de jogo')
 }
 
+export async function fetchEconomyConfig(): Promise<any> {
+  const response = await fetch(`${API_URL}/economy/config`)
+  if (!response.ok) throw new Error('Erro ao buscar config economia')
+  return response.json()
+}
+
+export async function updateEconomyConfig(config: Record<string, any>): Promise<void> {
+  const response = await fetch(`${API_URL}/economy/config`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  })
+  if (!response.ok) throw new Error('Erro ao atualizar config economia')
+}
+
 // --- SETTINGS ---
 
 export interface SettingsData {

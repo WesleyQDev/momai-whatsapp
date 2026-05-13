@@ -103,7 +103,10 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
     saveSettings,
     updateField,
     handleDevMode,
-    resetOnboarding
+    resetOnboarding,
+    economyConfig,
+    handleUpdateEconomyConfig,
+    economyState,
   } = useSettingsCard(initialTab, onClose)
 
   const sidebar = (
@@ -180,6 +183,9 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
           handleAddGamingApp={handleAddGamingApp}
           handleDeleteGamingApp={handleDeleteGamingApp}
           gamingApps={gamingApps}
+          economyConfig={economyConfig}
+          onUpdateConfig={handleUpdateEconomyConfig}
+          economyState={economyState}
         />
       )}
 
