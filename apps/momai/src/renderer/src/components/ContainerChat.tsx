@@ -503,11 +503,14 @@ export default function ContainerChat({
     detectedGames: { name: string; coverUrl?: string | null }[]
   } | null>(null)
 
+  const [localDismissed, setLocalDismissed] = useState(false)
+
   useEffect(() => {
     const cleanup = (window as any).api?.onEconomyStateChange?.((
       newState: { active: boolean; detectedGames: { name: string; coverUrl?: string | null }[] }
     ) => {
       setEconomyState(newState)
+      if (!newState.active) setLocalDismissed(false)
     })
     return () => cleanup?.()
   }, [])
@@ -642,13 +645,11 @@ export default function ContainerChat({
     (isModeChanging && !hasUserData) ||
     (isBrainLoading && !isBrainReady && !hasUserData)
 
-  const econActive = economyState?.active && economyState.detectedGames.length > 0
+  const econActive = economyState?.active && economyState.detectedGames.length > 0 && !localDismissed
   const econGame = econActive ? economyState!.detectedGames[0] : null
 
-  const dismissEconomy = async () => {
-    for (const g of economyState?.detectedGames || []) {
-      try { await (window as any).api?.setEconomyGamePreference?.(g.name, false) } catch {}
-    }
+  const dismissEconomy = () => {
+    setLocalDismissed(true)
   }
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
