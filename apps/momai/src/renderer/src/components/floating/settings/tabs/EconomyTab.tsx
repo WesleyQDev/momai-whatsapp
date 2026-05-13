@@ -2,8 +2,8 @@ import React from 'react'
 
 interface EconomyTabProps {
   t: (key: string) => string
-  newApp: { name: string; executable: string }
-  setNewApp: (app: { name: string; executable: string }) => void
+  newApp: { name: string; executable: string; path?: string }
+  setNewApp: (app: { name: string; executable: string; path?: string }) => void
   handleAddGamingApp: () => Promise<void>
   handleDeleteGamingApp: (id: number) => Promise<void>
   gamingApps: any[]
@@ -79,16 +79,13 @@ export const EconomyTab = React.memo(
             <div className="flex gap-2">
               <input
                 type="text"
-                placeholder={t('settings.economy.appNamePlaceholder')}
-                value={newApp.name}
-                onChange={(e) => setNewApp({ ...newApp, name: e.target.value })}
-                className="flex-1 bg-input border border-border rounded-lg px-3 py-2.5 text-sm font-medium text-text outline-none focus:border-accent/40"
-              />
-              <input
-                type="text"
                 placeholder={t('settings.economy.appExePlaceholder')}
-                value={newApp.executable}
-                onChange={(e) => setNewApp({ ...newApp, executable: e.target.value })}
+                value={newApp.path || newApp.executable}
+                onChange={(e) => {
+                  const path = e.target.value
+                  const name = path.split(/[\\/]/).pop() || path
+                  setNewApp({ name, executable: path })
+                }}
                 className="flex-1 bg-input border border-border rounded-lg px-3 py-2.5 text-sm font-medium text-text outline-none focus:border-accent/40"
               />
               <button
@@ -119,20 +116,13 @@ export const EconomyTab = React.memo(
                   >
                     <div className="flex flex-col gap-0.5 min-w-0">
                       <span className="text-sm font-semibold text-text">{app.name}</span>
-                      <span className="text-xs text-accent font-mono">{app.executable}</span>
+                      <span className="text-xs text-text-muted font-mono truncate">{app.executable}</span>
                     </div>
                     <button
                       onClick={() => handleDeleteGamingApp(app.id)}
-                      className="p-2 text-text-muted hover:text-red-500 transition-colors"
+                      className="p-2 text-text-muted hover:text-red-500 transition-colors shrink-0"
                     >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                       </svg>
                     </button>
