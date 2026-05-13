@@ -117,18 +117,18 @@ export const EconomyTab = React.memo(
           </label>
           <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-border/40">
             <div className="flex flex-col">
-              <span className="text-sm text-text">Auto-detect games</span>
-              <span className="text-xs text-text-muted">Save resources when gaming</span>
+              <span className="text-xs font-semibold text-text">Auto-detect games</span>
+              <span className="text-[11px] text-text-muted font-medium">Save resources when gaming</span>
             </div>
             <button
               onClick={() => onUpdateConfig?.({ gaming_mode_enabled: !economyConfig?.gaming_mode_enabled })}
-              className={`w-12 h-6 rounded-full transition-colors relative ${
-                economyConfig?.gaming_mode_enabled ? 'bg-accent' : 'bg-white/10'
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                economyConfig?.gaming_mode_enabled ? 'bg-accent/80' : 'bg-white/10'
               }`}
             >
               <span
-                className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                  economyConfig?.gaming_mode_enabled ? 'translate-x-6' : 'translate-x-0.5'
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  economyConfig?.gaming_mode_enabled ? 'translate-x-4' : 'translate-x-0'
                 }`}
               />
             </button>
@@ -165,49 +165,53 @@ export const EconomyTab = React.memo(
             {t('settings.economy.monitoredApps')}
           </label>
           <div className="grid grid-cols-1 gap-2">
-            {gamingApps.length === 0 ? (
+            {/* Currently running detected games */}
+            {economyState?.detectedGames.map((game, idx) => (
+              <div
+                key={`detected-${idx}`}
+                className="flex items-center justify-between gap-2 p-4 rounded-xl bg-accent/5 border border-accent/30"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-text">{game.name}</span>
+                    <span className="text-xs text-green-500 font-medium">Rodando agora</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Custom added games */}
+            {gamingApps.map((app) => (
+              <div
+                key={app.id}
+                className="flex items-center justify-between gap-2 p-4 rounded-xl bg-white/[0.03] border border-border/40"
+              >
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-sm font-semibold text-text">{app.name}</span>
+                  <span className="text-xs text-text-muted font-mono truncate">{app.executable}</span>
+                </div>
+                <button
+                  onClick={() => handleDeleteGamingApp(app.id)}
+                  className="p-2 text-text-muted hover:text-red-500 transition-colors shrink-0"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+
+            {/* Empty state */}
+            {gamingApps.length === 0 && (!economyState?.detectedGames || economyState.detectedGames.length === 0) && (
               <div className="py-8 text-center border border-dashed border-border rounded-xl">
                 <span className="text-sm text-text-muted font-medium italic">
                   {t('settings.economy.emptyApps')}
                 </span>
               </div>
-            ) : (
-              gamingApps.map((app) => (
-                <div
-                  key={app.id}
-                  className="flex items-center justify-between gap-2 p-4 rounded-xl bg-white/[0.03] border border-border/40"
-                >
-                  <div className="flex flex-col gap-0.5 min-w-0">
-                    <span className="text-sm font-semibold text-text">{app.name}</span>
-                    <span className="text-xs text-text-muted font-mono truncate">{app.executable}</span>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteGamingApp(app.id)}
-                    className="p-2 text-text-muted hover:text-red-500 transition-colors shrink-0"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                  </button>
-                </div>
-              ))
             )}
           </div>
         </div>
-
-        {/* Active Status */}
-        {economyState?.active && (
-          <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/30">
-            <span className="text-sm text-green-400 font-medium">
-              Economy active — {economyState.reason === 'gaming' ? 'Game detected' : 'Idle timeout'}
-            </span>
-            {economyState.detectedGames.length > 0 && (
-              <div className="mt-1 text-xs text-green-400/70">
-                {economyState.detectedGames.map(g => g.name).join(', ')}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     )
   }
