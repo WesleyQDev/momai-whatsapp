@@ -61,6 +61,15 @@ export const EconomyTab = React.memo(
     const [showAddGame, setShowAddGame] = useState(false)
     const [showTimeout, setShowTimeout] = useState(false)
     const [gamePrefs, setGamePrefs] = useState<Record<string, boolean>>({})
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; gameName: string; isRunning: boolean } | null>(null)
+
+    // Close context menu on click outside
+    useEffect(() => {
+      if (!contextMenu) return
+      const close = () => setContextMenu(null)
+      window.addEventListener('click', close)
+      return () => window.removeEventListener('click', close)
+    }, [contextMenu])
 
     useEffect(() => {
       console.log('[EconomyTab] Mounting, api present:', !!(window as any).api)
@@ -95,12 +104,12 @@ export const EconomyTab = React.memo(
       const newState = !currentState
       setGamePrefs((prev: any) => ({ ...prev, [gameName.toLowerCase()]: newState }))
       await (window as any).api?.setEconomyGamePreference?.(gameName, newState)
+      setContextMenu(null)
     }
 
-    const handleContextMenu = (e: React.MouseEvent, gameName: string) => {
+    const handleContextMenu = (e: React.MouseEvent, gameName: string, isRunning: boolean) => {
       e.preventDefault()
-      const isEnabled = gamePrefs[gameName.toLowerCase()] !== false
-      toggleGameEconomy(gameName, isEnabled)
+      setContextMenu({ x: e.clientX, y: e.clientY, gameName, isRunning })
     }
 
     // Merge scanned games with catalog covers
@@ -288,7 +297,7 @@ export const EconomyTab = React.memo(
                 .map((app) => (
                   <div
                     key={app.id}
-                    onContextMenu={(e) => handleContextMenu(e, app.name)}
+                    onContextMenu={(e) => handleContextMenu(e, app.name, runningNames.has(app.name))}
                     title={
                       gamePrefs[app.name.toLowerCase()] !== false
                         ? 'Clique direito para desativar economia'
@@ -336,7 +345,7 @@ export const EconomyTab = React.memo(
                 return (
                   <div
                     key={idx}
-                    onContextMenu={(e) => handleContextMenu(e, game.name)}
+                    onContextMenu={(e) => handleContextMenu(e, game.name, runningNames.has(game.name))}
                     title={economyEnabled ? 'Clique direito para desativar economia' : 'Clique direito para ativar economia'}
                     className={`relative rounded-xl overflow-hidden border cursor-context-menu transition-all ${
                       isRunning
@@ -378,6 +387,25 @@ export const EconomyTab = React.memo(
             </div>
           )}
         </div>
+
+        {/* Context Menu */}
+        {contextMenu && (
+          <div
+            className="fixed z-50 min-w-[180px] bg-card border border-border/40 rounded-xl shadow-2xl py-1 backdrop-blur-xl"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+          >
+            <div className="px-3 py-2 text-xs font-semibold text-text-muted border-b border-border/20">
+              {contextMenu.gameName}
+            </div>
+            <button
+              onClick={() => toggleGameEconomy(contextMenu.gameName, gamePrefs[contextMenu.gameName.toLowerCase()] !== false)}
+              className="w-full text-left px-3 py-2 text-sm text-text hover:bg-white/5 transition-colors flex items-center gap-2"
+            >
+              <span className={`w-3 h-3 rounded-full border ${gamePrefs[contextMenu.gameName.toLowerCase()] !== false ? 'bg-green-500 border-green-500' : 'border-text-muted'}`} />
+              Modo Economia
+            </button>
+          </div>
+        )}
       </div>
     )
   }
