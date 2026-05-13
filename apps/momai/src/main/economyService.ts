@@ -194,9 +194,9 @@ export class EconomyService {
     return null
   }
 
-  async checkForGames(processOverrides?: string[]): Promise<DetectedGame[]> {
+  async checkForGames(processOverrides?: string[], ignoreDismissed = false): Promise<DetectedGame[]> {
     if (!this.gamingModeEnabled) return []
-    if (this.dismissed) return []
+    if (!ignoreDismissed && this.dismissed) return []
     this.reloadPreferences()
 
     const processes = processOverrides ?? this.getProcessList()
@@ -255,8 +255,12 @@ export class EconomyService {
         await this.activateEconomy('gaming', detected)
       } else if (!hasGames && this.currentState.active && this.currentState.reason === 'gaming') {
         await this.deactivateEconomy()
-      } else if (!hasGames && this.dismissed) {
-        this.dismissed = false
+      }
+
+      // When dismissed: check if games truly stopped before clearing the flag
+      if (this.dismissed) {
+        const stillRunning = await this.checkForGames(processOverrides, true)
+        if (stillRunning.length === 0) this.dismissed = false
       }
     }
   }

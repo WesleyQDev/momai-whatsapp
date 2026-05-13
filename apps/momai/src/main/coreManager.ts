@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, ipcMain } from 'electron'
 import { existsSync, mkdirSync, readFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { spawn, execSync } from 'child_process'
