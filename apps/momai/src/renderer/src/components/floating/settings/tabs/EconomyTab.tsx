@@ -60,6 +60,7 @@ export const EconomyTab = React.memo(
     const [scanning, setScanning] = useState(false)
     const [showAddGame, setShowAddGame] = useState(false)
     const [showTimeout, setShowTimeout] = useState(false)
+    const [gamePrefs, setGamePrefs] = useState<Record<string, boolean>>({})
 
     useEffect(() => {
       console.log('[EconomyTab] Mounting, api present:', !!(window as any).api)
@@ -75,6 +76,9 @@ export const EconomyTab = React.memo(
           setScanned(data || [])
         })
         .catch((err: any) => console.error('[EconomyTab] Scan error:', err))
+      ;(window as any).api?.getEconomyPreferences?.().then((prefs: any) => {
+        if (prefs) setGamePrefs(prefs)
+      }).catch(() => {})
     }, [])
 
     const handleScan = async () => {
@@ -85,6 +89,18 @@ export const EconomyTab = React.memo(
       } finally {
         setScanning(false)
       }
+    }
+
+    const toggleGameEconomy = async (gameName: string, currentState: boolean) => {
+      const newState = !currentState
+      setGamePrefs((prev: any) => ({ ...prev, [gameName.toLowerCase()]: newState }))
+      await (window as any).api?.setEconomyGamePreference?.(gameName, newState)
+    }
+
+    const handleContextMenu = (e: React.MouseEvent, gameName: string) => {
+      e.preventDefault()
+      const isEnabled = gamePrefs[gameName.toLowerCase()] !== false
+      toggleGameEconomy(gameName, isEnabled)
     }
 
     // Merge scanned games with catalog covers
@@ -272,8 +288,18 @@ export const EconomyTab = React.memo(
                 .map((app) => (
                   <div
                     key={app.id}
-                    className={`relative rounded-xl overflow-hidden border ${
-                      runningNames.has(app.name) ? 'border-accent/50 ring-1 ring-accent/30' : 'border-border/20'
+                    onContextMenu={(e) => handleContextMenu(e, app.name)}
+                    title={
+                      gamePrefs[app.name.toLowerCase()] !== false
+                        ? 'Clique direito para desativar economia'
+                        : 'Clique direito para ativar economia'
+                    }
+                    className={`relative rounded-xl overflow-hidden border cursor-context-menu transition-all ${
+                      runningNames.has(app.name)
+                        ? 'border-accent/50 ring-1 ring-accent/30'
+                        : gamePrefs[app.name.toLowerCase()] !== false
+                          ? 'border-green-500/30'
+                          : 'border-border/20 opacity-60'
                     } bg-white/[0.02] group`}
                   >
                     <div className="w-full aspect-[3/4] bg-white/5 flex items-center justify-center">
@@ -306,12 +332,19 @@ export const EconomyTab = React.memo(
               {mergedCatalog.map((game: any, idx: number) => {
                 const coverUrl = getCoverUrl(game)
                 const isRunning = runningNames.has(game.name)
+                const economyEnabled = gamePrefs[game.name.toLowerCase()] !== false
                 return (
                   <div
                     key={idx}
-                    className={`relative rounded-xl overflow-hidden border ${
-                      isRunning ? 'border-accent/50 ring-1 ring-accent/30' : 'border-border/10'
-                    } bg-white/[0.02] transition-all hover:border-border/30 hover:bg-white/[0.04]`}
+                    onContextMenu={(e) => handleContextMenu(e, game.name)}
+                    title={economyEnabled ? 'Clique direito para desativar economia' : 'Clique direito para ativar economia'}
+                    className={`relative rounded-xl overflow-hidden border cursor-context-menu transition-all ${
+                      isRunning
+                        ? 'border-accent/50 ring-1 ring-accent/30'
+                        : economyEnabled
+                          ? 'border-green-500/30'
+                          : 'border-border/10 opacity-60'
+                    } bg-white/[0.02] hover:border-border/30 hover:bg-white/[0.04]`}
                   >
                     <div className="w-full aspect-[3/4] bg-white/5 overflow-hidden">
                       {coverUrl ? (
