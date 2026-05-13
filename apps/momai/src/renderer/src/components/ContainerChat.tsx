@@ -497,6 +497,20 @@ export default function ContainerChat({
   setAnimationFinished
 }: ContainerChatProps): JSX.Element {
   const { t } = useI18n()
+
+  const [economyState, setEconomyState] = useState<{
+    active: boolean
+    detectedGames: { name: string; coverUrl?: string | null }[]
+  } | null>(null)
+
+  useEffect(() => {
+    const cleanup = (window as any).api?.onEconomyStateChange?.((
+      newState: { active: boolean; detectedGames: { name: string; coverUrl?: string | null }[] }
+    ) => {
+      setEconomyState(newState)
+    })
+    return () => cleanup?.()
+  }, [])
   const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
   const isBrainReady = statusInfo?.brain_ready ?? false
   const isBrainLoading = statusInfo?.is_loading ?? false
@@ -628,6 +642,15 @@ export default function ContainerChat({
     (isModeChanging && !hasUserData) ||
     (isBrainLoading && !isBrainReady && !hasUserData)
 
+  const econActive = economyState?.active && economyState.detectedGames.length > 0
+  const econGame = econActive ? economyState!.detectedGames[0] : null
+
+  const dismissEconomy = async () => {
+    for (const g of economyState?.detectedGames || []) {
+      try { await (window as any).api?.setEconomyGamePreference?.(g.name, false) } catch {}
+    }
+  }
+
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
   const displayMessage = isTierChanging
     ? `Configurando modo ${tier?.toUpperCase() || 'PRO'}...`
@@ -654,6 +677,37 @@ export default function ContainerChat({
           status={voiceStatus}
           isSpeaking={speakingMessageId !== null && speakingMessageId !== undefined}
         />
+      ) : econGame ? (
+        <div className="flex flex-col flex-1 items-center justify-center p-8 animate-in fade-in duration-500 gap-8">
+          <div className="w-56 aspect-[4/5] rounded-2xl overflow-hidden bg-white/5 shadow-2xl ring-1 ring-white/10">
+            {econGame.coverUrl ? (
+              <img src={econGame.coverUrl} alt={econGame.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-text-muted/20">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M6 12h4M8 10v4" />
+                  <path d="M15.5 12a.5.5 0 0 1 0 1 .5.5 0 0 1 0-1Z" />
+                  <path d="M18.5 10a.5.5 0 0 1 0 1 .5.5 0 0 1 0-1Z" />
+                  <path d="M7.5 5c-1.5 0-3 .4-4.2 1.3A5 5 0 0 0 2 12v2a5 5 0 0 0 5 5c1.2 0 2.4-.4 3.3-1l1.5-1.2c.7-.6 1.7-.6 2.4 0l1.5 1.2c.9.6 2.1 1 3.3 1a5 5 0 0 0 5-5v-2a5 5 0 0 0-1.3-3.7C19.5 5.4 18 5 16.5 5h-9Z" />
+                </svg>
+              </div>
+            )}
+          </div>
+          <div className="text-center space-y-2 max-w-xs">
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-green-400">Economia</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            </div>
+            <h2 className="text-lg font-bold text-text">{econGame.name}</h2>
+            <p className="text-xs text-text-muted">Recursos liberados para o jogo rodar sem interferência</p>
+          </div>
+          <button
+            onClick={dismissEconomy}
+            className="px-5 py-2 rounded-xl text-xs font-semibold border border-accent/40 text-accent bg-accent/5 hover:bg-accent/10 transition-all"
+          >
+            Sair do modo economia
+          </button>
+        </div>
       ) : (
         <div className="flex flex-col flex-1 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-700 ease-out fill-mode-both">
           <div className="flex items-center justify-between gap-4 px-4 pt-4 pb-2 z-20">
