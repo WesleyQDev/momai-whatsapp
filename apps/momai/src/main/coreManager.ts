@@ -17,6 +17,8 @@ import {
   type PythonBackendStartOptions
 } from './python'
 import { getTTSService, type TTSEngine } from './ttsService'
+import { EconomyService } from './economyService'
+import { broadcastEconomyState } from './windowManager'
 
 const PYTHON_SIDECAR_HOST = API_HOST
 const PYTHON_SIDECAR_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
@@ -38,6 +40,34 @@ function getCurrentTier(): string | null {
   return null
 }
 
+function loadKnownGames(): { name: string; processNames: string[] }[] {
+  try {
+    const knownGamesPath = join(app.getAppPath(), 'src', 'main', 'data', 'known-games.json')
+    const data = readFileSync(knownGamesPath, 'utf-8')
+    return JSON.parse(data)
+  } catch {
+    logger.warn('[Economy] Failed to load known-games.json')
+    return []
+  }
+}
+
+async function startEconomyService(apiHost: string, apiPort: number): Promise<void> {
+  try {
+    economyService = new EconomyService()
+    economyService.onStateChange(broadcastEconomyState)
+    economyService.setEconomyHost(`http://${apiHost}:${apiPort}`)
+
+    const response = await fetch(`http://${apiHost}:${apiPort}/system/gaming-apps`)
+    const gamingApps = await response.json()
+    economyService.setGamingApps(gamingApps)
+
+    await economyService.start()
+    logger.info('[Economy] EconomyService started successfully')
+  } catch (err) {
+    logger.error('[Economy] Failed to start EconomyService:', err)
+  }
+}
+
 type EnsurePythonRequest = {
   type: 'ensure-python'
   requestId: string
@@ -48,6 +78,7 @@ let coreReadyReject: ((error: Error) => void) | null = null
 let coreReadyPromise: Promise<void> | null = null
 let restartAttempts = 0
 let isStoppingCore = false
+let economyService: EconomyService | null = null
 
 const LLAMA_LOG_NOISE_PATTERNS = [
   'slot update_slots:',
@@ -513,6 +544,7 @@ export async function startCoreBackend(): Promise<void> {
 
         void ensureNodeCoreLlamaWarmup(API_HOST, API_PORT)
         void ensurePythonSidecar()
+        void startEconomyService(API_HOST, API_PORT)
         return
       }
 
@@ -599,6 +631,7 @@ export async function startCoreBackend(): Promise<void> {
   try {
     if (coreReadyPromise) await coreReadyPromise
     restartAttempts = 0
+    void startEconomyService(API_HOST, API_PORT)
   } finally {
     clearTimeout(timeout)
     coreReadyPromise = null
@@ -646,6 +679,11 @@ async function killNodeCore(): Promise<void> {
 
 export async function shutdownCoreBackend(): Promise<void> {
   isStoppingCore = true
+
+  if (economyService) {
+    await economyService.stop()
+    economyService = null
+  }
 
   logger.info('[CoreManager] Iniciando shutdown...')
 
