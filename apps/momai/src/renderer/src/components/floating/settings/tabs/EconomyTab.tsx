@@ -62,9 +62,19 @@ export const EconomyTab = React.memo(
     const [showTimeout, setShowTimeout] = useState(false)
 
     useEffect(() => {
-      ;(window as any).api?.getEconomyCatalog?.().then(setCatalog).catch(() => {})
-      // Auto-scan on mount
-      ;(window as any).api?.scanEconomyLibraries?.().then(setScanned).catch(() => {})
+      console.log('[EconomyTab] Mounting, api present:', !!(window as any).api)
+      ;(window as any).api?.getEconomyCatalog?.()
+        .then((data: any) => {
+          console.log('[EconomyTab] Catalog loaded:', data?.length, 'games')
+          setCatalog(data || [])
+        })
+        .catch((err: any) => console.error('[EconomyTab] Catalog error:', err))
+      ;(window as any).api?.scanEconomyLibraries?.()
+        .then((data: any) => {
+          console.log('[EconomyTab] Scanned:', data?.length, 'games')
+          setScanned(data || [])
+        })
+        .catch((err: any) => console.error('[EconomyTab] Scan error:', err))
     }, [])
 
     const handleScan = async () => {

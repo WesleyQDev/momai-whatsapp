@@ -9,102 +9,105 @@ export interface ScannedGame {
   coverUrl: string
 }
 
-function getSteamPath(): string | null {
+function findSteamPath(): string | null {
+  const candidates: string[] = [
+    'C:\\Program Files (x86)\\Steam',
+    'C:\\Program Files\\Steam',
+    'D:\\Steam',
+    'D:\\Program Files (x86)\\Steam',
+    'D:\\Program Files\\Steam',
+  ]
   try {
     const reg = execSync(
       'reg query "HKCU\\Software\\Valve\\Steam" /v SteamPath 2>nul',
       { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'ignore'] }
     )
-    const match = reg.match(/SteamPath\s+REG_SZ\s+(.+)/)
-    if (match) return match[1].trim().replace(/\\\\/g, '\\')
+    const match = reg.match(/SteamPath\s+REG_\w+\s+(.+)/)
+    if (match) {
+      const p = match[1].trim().replace(/\\\\/g, '\\')
+      if (existsSync(p)) candidates.unshift(p)
+    }
   } catch {}
-  const defaultPath = 'C:\\Program Files (x86)\\Steam'
-  return existsSync(defaultPath) ? defaultPath : null
+  for (const p of candidates) {
+    if (existsSync(join(p, 'steam.exe')) || existsSync(join(p, 'config', 'libraryfolders.vdf'))) {
+      return p
+    }
+  }
+  return null
 }
 
-function readLibraryFolders(steamPath: string): string[] {
+function readLibraryPaths(steamPath: string): string[] {
+  const paths: string[] = [steamPath]
   const vdfPath = join(steamPath, 'config', 'libraryfolders.vdf')
-  if (!existsSync(vdfPath)) return [steamPath]
+  if (!existsSync(vdfPath)) return paths
   try {
     const content = readFileSync(vdfPath, 'utf-8')
-    const paths: string[] = [steamPath]
-    const regex = /"path"\s+"([^"]+)"/
-    let match: RegExpExecArray | null
-    const re = new RegExp(regex.source, 'g')
-    while ((match = re.exec(content)) !== null) {
-      const p = match[1].replace(/\\\\/g, '\\')
-      if (!paths.includes(p)) paths.push(p)
+    let idx = 0
+    while (true) {
+      const keyQuote = content.indexOf('"path"', idx)
+      if (keyQuote === -1) break
+      const valQuote = content.indexOf('"', keyQuote + 6)
+      if (valQuote === -1) break
+      const endQuote = content.indexOf('"', valQuote + 1)
+      if (endQuote === -1) break
+      const p = content.slice(valQuote + 1, endQuote).replace(/\\\\/g, '\\')
+      if (!paths.includes(p) && existsSync(join(p, 'steamapps'))) paths.push(p)
+      idx = endQuote + 1
     }
-    return paths
-  } catch {
-    return [steamPath]
-  }
+  } catch {}
+  return paths
 }
 
-function parseAcfValue(content: string, key: string): string | null {
-  const re = new RegExp(`"${key}"\\s+"([^"]+)"`)
-  const match = re.exec(content)
-  return match ? match[1] : null
-}
-
-function scanSteamGames(libraryPaths: string[]): ScannedGame[] {
+function scanSteamFolder(appsDir: string, seen: Set<string>): ScannedGame[] {
   const games: ScannedGame[] = []
-  const seen = new Set<string>()
-
-  for (const libPath of libraryPaths) {
-    const appsDir = join(libPath, 'steamapps')
-    if (!existsSync(appsDir)) continue
-
-    let files: string[]
+  if (!existsSync(appsDir)) return games
+  let files: string[]
+  try { files = readdirSync(appsDir) } catch { return games }
+  for (const file of files) {
+    if (!file.startsWith('appmanifest_') || !file.endsWith('.acf')) continue
     try {
-      files = readdirSync(appsDir)
-    } catch { continue }
-
-    for (const file of files) {
-      if (!file.startsWith('appmanifest_') || !file.endsWith('.acf')) continue
-      try {
-        const content = readFileSync(join(appsDir, file), 'utf-8')
-        const appId = parseAcfValue(content, 'appid')
-        const name = parseAcfValue(content, 'name')
-        if (!appId || !name) continue
-        const key = name.toLowerCase()
-        if (seen.has(key)) continue
-        seen.add(key)
-        games.push({
-          name,
-          appId: parseInt(appId, 10),
-          launcher: 'steam',
-          coverUrl: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`,
-        })
-      } catch {}
-    }
+      const content = readFileSync(join(appsDir, file), 'utf-8')
+      const appId = content.match(/"appid"\s+"(\d+)"/)?.[1]
+      const name = content.match(/"name"\s+"([^"]+)"/)?.[1]
+      if (!appId || !name) continue
+      const key = name.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      games.push({
+        name,
+        appId: parseInt(appId, 10),
+        launcher: 'steam',
+        coverUrl: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`,
+      })
+    } catch {}
   }
-
   return games
 }
 
-function scanEpicGames(): ScannedGame[] {
-  try {
-    const dataPath = join(
-      process.env.PROGRAMDATA || 'C:\\ProgramData',
-      'Epic',
-      'UnrealEngineLauncher',
-      'LauncherInstalled.dat'
-    )
-    if (!existsSync(dataPath)) return []
-    const data = JSON.parse(readFileSync(dataPath, 'utf-8'))
-    const apps: any[] = data?.InstallationList || []
-    return apps
-      .filter((a: any) => a.AppName && a.DisplayName)
-      .map((a: any) => ({
-        name: a.DisplayName,
-        appId: 0,
-        launcher: 'epic' as const,
-        coverUrl: '',
-      }))
-  } catch {
-    return []
+function scanEpicGames(seen: Set<string>): ScannedGame[] {
+  const dataPaths = [
+    join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'Epic', 'UnrealEngineLauncher', 'LauncherInstalled.dat'),
+    join(process.env.LOCALAPPDATA || '', 'Epic', 'UnrealEngineLauncher', 'LauncherInstalled.dat'),
+  ]
+  for (const dataPath of dataPaths) {
+    if (!existsSync(dataPath)) continue
+    try {
+      const data = JSON.parse(readFileSync(dataPath, 'utf-8'))
+      const apps: any[] = data?.InstallationList || []
+      return apps
+        .filter((a: any) => a.AppName && a.DisplayName && !seen.has(a.DisplayName.toLowerCase()))
+        .map((a: any) => {
+          seen.add(a.DisplayName.toLowerCase())
+          return {
+            name: a.DisplayName,
+            appId: 0,
+            launcher: 'epic' as const,
+            coverUrl: '',
+          }
+        })
+    } catch {}
   }
+  return []
 }
 
 export function scanInstalledGames(): ScannedGame[] {
@@ -112,30 +115,33 @@ export function scanInstalledGames(): ScannedGame[] {
   const seen = new Set<string>()
 
   try {
-    const steamPath = getSteamPath()
+    const steamPath = findSteamPath()
     if (steamPath) {
-      const libraries = readLibraryFolders(steamPath)
-      const steamGames = scanSteamGames(libraries)
-      for (const g of steamGames) {
-        const key = g.name.toLowerCase()
-        if (!seen.has(key)) {
-          seen.add(key)
-          games.push(g)
+      console.log(`[EconomyScanner] Steam found at: ${steamPath}`)
+      const libraries = readLibraryPaths(steamPath)
+      console.log(`[EconomyScanner] Steam libraries: ${libraries.join(', ')}`)
+      for (const lib of libraries) {
+        const folder = join(lib, 'steamapps')
+        if (existsSync(folder)) {
+          const found = scanSteamFolder(folder, seen)
+          console.log(`[EconomyScanner] Found ${found.length} games in ${folder}`)
+          games.push(...found)
         }
       }
+    } else {
+      console.log('[EconomyScanner] Steam not found')
     }
-  } catch {}
+  } catch (err) {
+    console.log('[EconomyScanner] Steam scan error:', err)
+  }
 
   try {
-    const epicGames = scanEpicGames()
-    for (const g of epicGames) {
-      const key = g.name.toLowerCase()
-      if (!seen.has(key)) {
-        seen.add(key)
-        games.push(g)
-      }
-    }
-  } catch {}
+    const epicGames = scanEpicGames(seen)
+    console.log(`[EconomyScanner] Found ${epicGames.length} Epic games`)
+    games.push(...epicGames)
+  } catch (err) {
+    console.log('[EconomyScanner] Epic scan error:', err)
+  }
 
   return games
 }

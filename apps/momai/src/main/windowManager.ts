@@ -197,7 +197,7 @@ export function registerIpcHandlers(): void {
     try {
       const { readFileSync } = require('fs')
       const { join } = require('path')
-      const catalogPath = join(__dirname, '../src/main/data/known-games.json')
+      const catalogPath = join(__dirname, '../../src/main/data/known-games.json')
       const data = readFileSync(catalogPath, 'utf-8')
       return JSON.parse(data)
     } catch {
