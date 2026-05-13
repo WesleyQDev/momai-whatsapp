@@ -216,7 +216,7 @@
   },
   {
     "name": "Fortnite",
-    "processNames": ["fortnite", "fortniteclient-win64-shipping"],
+    "processNames": ["fortnite", "fortniteclient-win64-shipping", "fortnitelauncher", "fortniteclient-win64-shipping_eac_eos"],
     "steamGridId": null
   },
   {
