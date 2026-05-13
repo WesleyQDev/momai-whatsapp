@@ -85,29 +85,46 @@ function scanSteamFolder(appsDir: string, seen: Set<string>): ScannedGame[] {
 }
 
 function scanEpicGames(seen: Set<string>): ScannedGame[] {
+  const games: ScannedGame[] = []
   const dataPaths = [
     join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'Epic', 'UnrealEngineLauncher', 'LauncherInstalled.dat'),
     join(process.env.LOCALAPPDATA || '', 'Epic', 'UnrealEngineLauncher', 'LauncherInstalled.dat'),
+    join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'Epic', 'EpicGamesLauncher', 'Data', 'Manifests'),
   ]
   for (const dataPath of dataPaths) {
-    if (!existsSync(dataPath)) continue
-    try {
-      const data = JSON.parse(readFileSync(dataPath, 'utf-8'))
-      const apps: any[] = data?.InstallationList || []
-      return apps
-        .filter((a: any) => a.AppName && a.DisplayName && !seen.has(a.DisplayName.toLowerCase()))
-        .map((a: any) => {
-          seen.add(a.DisplayName.toLowerCase())
-          return {
-            name: a.DisplayName,
-            appId: 0,
-            launcher: 'epic' as const,
-            coverUrl: '',
-          }
-        })
-    } catch {}
+    if (dataPath.endsWith('.dat')) {
+      if (!existsSync(dataPath)) continue
+      try {
+        const data = JSON.parse(readFileSync(dataPath, 'utf-8'))
+        const apps: any[] = data?.InstallationList || []
+        for (const a of apps) {
+          if (!a.AppName || !a.DisplayName) continue
+          const key = a.DisplayName.toLowerCase()
+          if (seen.has(key)) continue
+          seen.add(key)
+          games.push({ name: a.DisplayName, appId: 0, launcher: 'epic', coverUrl: '' })
+        }
+      } catch {}
+    } else {
+      if (!existsSync(dataPath)) continue
+      try {
+        const files = readdirSync(dataPath)
+        for (const f of files) {
+          if (!f.endsWith('.item')) continue
+          try {
+            const item = JSON.parse(readFileSync(join(dataPath, f), 'utf-8'))
+            const name = item.DisplayName || item.AppName || item.CatalogItemId
+            if (!name) continue
+            const key = name.toLowerCase()
+            if (seen.has(key)) continue
+            seen.add(key)
+            games.push({ name, appId: 0, launcher: 'epic', coverUrl: '' })
+          } catch {}
+        }
+      } catch {}
+    }
   }
-  return []
+  return games
 }
 
 export function scanInstalledGames(): ScannedGame[] {

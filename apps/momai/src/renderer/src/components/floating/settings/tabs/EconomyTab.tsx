@@ -87,13 +87,13 @@ export const EconomyTab = React.memo(
       }
     }
 
-    const allGames = [...scanned, ...catalog]
-    const seenNames = new Set<string>()
-    const mergedCatalog = allGames.filter(g => {
-      const key = g.name?.toLowerCase()
-      if (seenNames.has(key)) return false
-      seenNames.add(key)
-      return true
+    // Merge scanned games with catalog covers
+    const mergedCatalog = scanned.map((s: any) => {
+      const match = catalog.find((c: any) => c.name.toLowerCase() === s.name?.toLowerCase())
+      if (match && (match.coverUrl || match.steamGridId)) {
+        return { ...s, coverUrl: match.coverUrl || getCoverUrl(match), steamGridId: match.steamGridId }
+      }
+      return s
     })
 
     const runningGames = economyState?.detectedGames || []
