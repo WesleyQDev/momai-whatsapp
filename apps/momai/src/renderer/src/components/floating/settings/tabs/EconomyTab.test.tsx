@@ -46,22 +46,24 @@ describe('EconomyTab', () => {
 
   it('renders title', () => {
     render(<EconomyTab {...baseProps} />)
-    expect(screen.getByText(/economy/i)).toBeTruthy()
+    expect(screen.getByText(/soneca da ia/i)).toBeTruthy()
   })
 
   it('renders auto-detect toggle', () => {
     render(<EconomyTab {...baseProps} />)
-    expect(screen.getByText(/auto-detect/i)).toBeTruthy()
+    const els = screen.getAllByText(/auto-detectar/i)
+    expect(els.length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders add button', () => {
     render(<EconomyTab {...baseProps} />)
-    expect(screen.getByText(/add/i)).toBeTruthy()
+    expect(screen.getByText(/adicionar jogo/i)).toBeTruthy()
   })
 
   it('shows catalog section', () => {
     render(<EconomyTab {...baseProps} />)
-    expect(screen.getByText(/biblioteca/i)).toBeTruthy()
+    const els = screen.getAllByText(/biblioteca/i)
+    expect(els.length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows agora jogando section when games detected', () => {

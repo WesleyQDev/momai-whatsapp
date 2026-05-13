@@ -61,15 +61,6 @@ export const EconomyTab = React.memo(
     const [showAddGame, setShowAddGame] = useState(false)
     const [showTimeout, setShowTimeout] = useState(false)
     const [gamePrefs, setGamePrefs] = useState<Record<string, boolean>>({})
-    const [contextMenu, setContextMenu] = useState<{ x: number; y: number; gameName: string; isRunning: boolean } | null>(null)
-
-    // Close context menu on click outside
-    useEffect(() => {
-      if (!contextMenu) return
-      const close = () => setContextMenu(null)
-      window.addEventListener('click', close)
-      return () => window.removeEventListener('click', close)
-    }, [contextMenu])
 
     useEffect(() => {
       console.log('[EconomyTab] Mounting, api present:', !!(window as any).api)
@@ -100,30 +91,30 @@ export const EconomyTab = React.memo(
       }
     }
 
-    const toggleGameEconomy = async (gameName: string, currentState: boolean) => {
-      const newState = !currentState
+    const toggleGameEconomy = async (gameName: string) => {
+      const current = gamePrefs[gameName.toLowerCase()] !== false
+      const newState = !current
       setGamePrefs((prev: any) => ({ ...prev, [gameName.toLowerCase()]: newState }))
       await (window as any).api?.setEconomyGamePreference?.(gameName, newState)
-      setContextMenu(null)
     }
 
-    const handleContextMenu = (e: React.MouseEvent, gameName: string, isRunning: boolean) => {
-      e.preventDefault()
-      setContextMenu({ x: e.clientX, y: e.clientY, gameName, isRunning })
-    }
+    const autoDetectOn = economyConfig?.gaming_mode_enabled ?? false
 
-    const mergedCatalog = scanned.map((s: any) => {
-      const match = catalog.find((c: any) => c.name.toLowerCase() === s.name?.toLowerCase())
-      if (match) {
-        console.log(`[EconomyTab] Match: "${s.name}" → catalog coverUrl="${match.coverUrl}", steamGridId=${match.steamGridId}`)
-      } else {
-        console.log(`[EconomyTab] No catalog match for: "${s.name}"`)
-      }
-      if (match && (match.coverUrl || match.steamGridId)) {
-        return { ...s, coverUrl: match.coverUrl || getCoverUrl(match), steamGridId: match.steamGridId }
-      }
-      return s
-    })
+    // When auto-detect is off, hide scanned games; when on, show them with covers from catalog
+    const mergedCatalog = autoDetectOn
+      ? scanned.map((s: any) => {
+          const match = catalog.find((c: any) => c.name.toLowerCase() === s.name?.toLowerCase())
+          if (match) {
+            console.log(`[EconomyTab] Match: "${s.name}" → catalog coverUrl="${match.coverUrl}", steamGridId=${match.steamGridId}`)
+          } else {
+            console.log(`[EconomyTab] No catalog match for: "${s.name}"`)
+          }
+          if (match && (match.coverUrl || match.steamGridId)) {
+            return { ...s, coverUrl: match.coverUrl || getCoverUrl(match), steamGridId: match.steamGridId }
+          }
+          return s
+        })
+      : []
 
     const runningGames = economyState?.detectedGames || []
     const runningNames = new Set(runningGames.map(g => g.name))
@@ -174,7 +165,11 @@ export const EconomyTab = React.memo(
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <button
-                onClick={() => onUpdateConfig?.({ gaming_mode_enabled: !economyConfig?.gaming_mode_enabled })}
+                onClick={async () => {
+                const newVal = !economyConfig?.gaming_mode_enabled
+                await onUpdateConfig?.({ gaming_mode_enabled: newVal })
+                if (newVal) await handleScan()
+              }}
                 className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   economyConfig?.gaming_mode_enabled ? 'bg-accent/80' : 'bg-white/10'
                 }`}
@@ -282,22 +277,29 @@ export const EconomyTab = React.memo(
                 .map((app) => (
                   <div
                     key={app.id}
-                    onContextMenu={(e) => handleContextMenu(e, app.name, runningNames.has(app.name))}
-                    title={
-                      gamePrefs[app.name.toLowerCase()] !== false
-                        ? 'Clique direito para desativar economia'
-                        : 'Clique direito para ativar economia'
-                    }
-                    className={`relative rounded-xl overflow-hidden border border-border/20 cursor-context-menu transition-all ${
+                    className={`relative rounded-xl overflow-hidden border transition-all ${
                       runningNames.has(app.name)
                         ? 'border-accent/50 ring-1 ring-accent/30'
                         : gamePrefs[app.name.toLowerCase()] !== false
-                          ? 'bg-white/[0.03]'
-                          : 'opacity-50 bg-white/[0.01]'
-                    } group`}
+                          ? 'border-green-500/30 bg-white/[0.03]'
+                          : 'border-border/10 opacity-50 bg-white/[0.01]'
+                    }`}
                   >
-                    <div className="w-full aspect-[4/5] bg-white/5 flex items-center justify-center">
-                      <div className="text-text-muted opacity-50">{GAME_ICON}</div>
+                    <div className="w-full aspect-[4/5] bg-white/5 flex items-center justify-center relative">
+                      <div className="text-text-muted opacity-30">{GAME_ICON}</div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleGameEconomy(app.name) }}
+                        className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center transition-all hover:scale-110 ${
+                          gamePrefs[app.name.toLowerCase()] !== false
+                            ? 'bg-green-500 text-white'
+                            : 'bg-white/10 text-text-muted'
+                        }`}
+                        title={gamePrefs[app.name.toLowerCase()] !== false ? 'Desativar economia' : 'Ativar economia'}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                        </svg>
+                      </button>
                     </div>
                     <div className="p-1.5">
                       <p className="text-[10px] font-semibold text-text truncate">{app.name}</p>
@@ -388,23 +390,9 @@ export const EconomyTab = React.memo(
           )}
         </div>
 
-        {contextMenu && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
-            <div
-              className="fixed z-50 bg-card border border-border/20 rounded-lg shadow-xl overflow-hidden"
-              style={{ left: contextMenu.x, top: contextMenu.y, minWidth: 140 }}
-            >
-              <button
-                onClick={() => toggleGameEconomy(contextMenu.gameName, gamePrefs[contextMenu.gameName.toLowerCase()] !== false)}
-                className="w-full text-left px-3 py-2 text-xs text-text hover:bg-white/5 transition-colors flex items-center gap-2"
-              >
-                <span className={`w-2.5 h-2.5 rounded-full ${gamePrefs[contextMenu.gameName.toLowerCase()] !== false ? 'bg-green-500' : 'bg-text-muted'}`} />
-                {gamePrefs[contextMenu.gameName.toLowerCase()] !== false ? 'Desativar economia' : 'Ativar economia'}
-              </button>
-            </div>
-          </>
-        )}
+        <p className="text-[10px] text-text-muted text-center">
+          {autoDetectOn ? 'Clique no ⚡ em cada jogo para ativar/desativar a economia' : 'Ative "Auto-detectar jogos" para ver sua biblioteca'}
+        </p>
       </div>
     )
   }
