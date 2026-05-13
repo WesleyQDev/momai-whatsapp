@@ -22,6 +22,7 @@ import {
 } from './state'
 import { logger } from './logger'
 import { restartCoreBackend } from './coreManager'
+import { scanInstalledGames } from './economyScanner'
 import { API_BASE_URL } from './constants'
 
 async function controlWakeWord(enabled: boolean): Promise<void> {
@@ -205,7 +206,6 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('economy:scan-libraries', () => {
-    const { scanInstalledGames } = require('./economyScanner')
     return scanInstalledGames()
   })
 
