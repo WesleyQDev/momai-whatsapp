@@ -44,13 +44,38 @@ describe('EconomyTab', () => {
     expect(() => render(<EconomyTab {...baseProps} />)).not.toThrow()
   })
 
-  it('renders timeout sections', () => {
+  it('renders title', () => {
     render(<EconomyTab {...baseProps} />)
-    expect(screen.getByText(/timeout/i)).toBeTruthy()
+    expect(screen.getByText(/economy/i)).toBeTruthy()
   })
 
-  it('renders gaming mode toggle', () => {
+  it('renders auto-detect toggle', () => {
     render(<EconomyTab {...baseProps} />)
-    expect(screen.getByText(/gaming mode/i)).toBeTruthy()
+    expect(screen.getByText(/auto-detect/i)).toBeTruthy()
+  })
+
+  it('renders add button', () => {
+    render(<EconomyTab {...baseProps} />)
+    expect(screen.getByText(/add/i)).toBeTruthy()
+  })
+
+  it('shows loading catalog state', () => {
+    render(<EconomyTab {...baseProps} />)
+    expect(screen.getByText(/carregando catálogo/i)).toBeTruthy()
+  })
+
+  it('shows agora jogando section when games detected', () => {
+    render(
+      <EconomyTab
+        {...baseProps}
+        economyState={{
+          active: true,
+          reason: null,
+          detectedGames: [{ name: 'Game1', processName: 'game1.exe', coverUrl: null }],
+        }}
+      />
+    )
+    expect(screen.getByText(/agora jogando/i)).toBeTruthy()
+    expect(screen.getByText(/game1/i)).toBeTruthy()
   })
 })
