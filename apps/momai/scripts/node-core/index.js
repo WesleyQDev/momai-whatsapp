@@ -464,12 +464,18 @@ async function startServer() {
     if (pathname === '/observability/traces' && req.method === 'GET') {
       const shared = require('./services/shared-state')
       const buffer = shared.observabilityBuffer || []
-      info(`[OBS] GET /observability/traces returning ${buffer.length} traces`)
       context.sendJson(res, 200, { traces: buffer })
+      return true
+    }
+    if (pathname === '/observability/stats' && req.method === 'GET') {
+      const { computeStats } = require('./services/observability-service')
+      const stats = computeStats()
+      context.sendJson(res, 200, stats)
       return true
     }
     return false
   }
+
 
   // Compose router
   const { handleRequest, server, shutdownAll } = createRouter(context, [

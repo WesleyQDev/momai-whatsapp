@@ -22,6 +22,7 @@ const { ensureLlamaReady, getLlamaBaseUrl, saveStore } = require('./llama-manage
 const { runSemanticMemoryRetrieval, getTop5SkillsSemantic } = require('./semantic-engine')
 const { isSkillEnabledByStore, getEnabledSkills } = require('./skill-orchestrator')
 const { triggerAutoTts, ensurePython, broadcast } = require('./tts-service')
+const { recordMetric } = require('./observability-service')
 const { DEFAULT_TIERS, loadTierConfig } = require('../config/tiers')
 const { DATA_DIR, NOTES_DIR, NOTES_INDEX_FILE } = require('../config/constants')
 const { saveMemoryNoteFromContent, ensureNotesIndexExists } = require('../domain/note-manager')
@@ -1841,6 +1842,7 @@ async function streamLlamaChat(req, res, payload) {
       if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
       broadcast({ type: 'observability_trace', data: trace })
       info('[OBS] Trace recorded id=' + trace.id + ' tps=' + trace.tokens_per_second + ' tokens=' + trace.total_tokens)
+      recordMetric(trace)
     } catch (_) {
       warn('[OBS] Failed to record trace: ' + (_?.message || String(_)))
     }

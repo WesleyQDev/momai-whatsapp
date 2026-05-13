@@ -200,6 +200,20 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
   })
   const [filter, setFilter] = useState<'all' | 'llm_call' | 'skill' | 'error'>('all')
   const [search, setSearch] = useState('')
+  const [stats, setStats] = useState<any>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const fetchStats = async () => {
+      try {
+        const res = await fetch(`${API_URL}/observability/stats`)
+        if (res.ok && !cancelled) setStats(await res.json())
+      } catch (_) {}
+    }
+    fetchStats()
+    const interval = setInterval(fetchStats, 5000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [])
 
   useEffect(() => {
     console.debug('[observability] Component mounted, store has', getTraces().length, 'traces')
@@ -272,6 +286,47 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
       </div>
 
       {llmTraces.length >= 2 && <TrendGraph traces={llmTraces} />}
+
+      {stats && stats.total > 0 && (
+        <div className="mx-4 mt-3 p-3 bg-white/5 rounded-xl">
+          <div className="flex items-center gap-4 text-xs">
+            <span className="text-text-muted">{stats.total} chamadas</span>
+            <span className="text-text-muted">·</span>
+            <span className="text-text">Média: <strong>{stats.avg_tps}</strong> tok/s</span>
+            <span className="text-text-muted">·</span>
+            <span className="text-text">{stats.avg_duration}ms / chamada</span>
+            <span className="text-text-muted">·</span>
+            <span className="text-text">{stats.avg_tokens} tokens / chamada</span>
+          </div>
+          {stats.trend && (
+            <div className="flex items-center gap-2 mt-2 text-xs">
+              <span className="text-text-muted">Tendência (últimos 10 vs anteriores):</span>
+              <span className={stats.trend.improving ? 'text-green-400' : 'text-red-400'}>
+                {stats.trend.recent_avg_tps} vs {stats.trend.previous_avg_tps} tok/s
+                ({stats.trend.change_pct > 0 ? '+' : ''}{stats.trend.change_pct}%)
+                {stats.trend.improving ? ' ↑' : ' ↓'}
+              </span>
+            </div>
+          )}
+          {stats.by_hour && stats.by_hour.length > 0 && (
+            <div className="mt-2">
+              <div className="text-xs text-text-muted mb-1">Últimas horas</div>
+              <div className="flex items-end gap-1 h-8">
+                {stats.by_hour.slice(-12).map((h: any, i: number) => {
+                  const maxTps = Math.max(...stats.by_hour.map((x: any) => x.avg_tps), 1)
+                  const pct = (h.avg_tps / maxTps) * 100
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-0.5" title={`${h.hour}h: ${h.avg_tps} tok/s (${h.count} chamadas)`}>
+                      <div className="w-full bg-accent/20 rounded-t" style={{ height: `${Math.max(pct, 5)}%` }} />
+                      <span className="text-[9px] text-text-muted">{h.hour}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="px-4 py-3 flex items-center gap-2 border-b border-white/5">
         {(['all', 'llm_call', 'skill', 'error'] as const).map(f => (
