@@ -56,6 +56,7 @@ export class EconomyService {
   private appOpenTimer: ReturnType<typeof setTimeout> | null = null
   private appMinimizedTimer: ReturnType<typeof setTimeout> | null = null
   private coverCache = new Map<string, string>()
+  private preferencesPath: string | null = null
 
   private currentState: EconomyState = {
     active: false,
@@ -111,6 +112,20 @@ export class EconomyService {
     this.gamePreferences = prefs
   }
 
+  setPreferencesPath(path: string): void {
+    this.preferencesPath = path
+  }
+
+  reloadPreferences(): void {
+    if (!this.preferencesPath) return
+    try {
+      const { readFileSync, existsSync } = require('fs')
+      if (existsSync(this.preferencesPath)) {
+        this.gamePreferences = JSON.parse(readFileSync(this.preferencesPath, 'utf-8'))
+      }
+    } catch {}
+  }
+
   private isEconomyEnabledFor(gameName: string): boolean {
     return this.gamePreferences[gameName.toLowerCase()] !== false
   }
@@ -159,6 +174,7 @@ export class EconomyService {
 
   async checkForGames(processOverrides?: string[]): Promise<DetectedGame[]> {
     if (!this.gamingModeEnabled) return []
+    this.reloadPreferences()
 
     const processes = processOverrides ?? this.getProcessList()
     if (processes.length === 0) {

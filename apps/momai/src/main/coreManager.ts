@@ -78,6 +78,7 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
         const prefs = JSON.parse(readFileSync(prefsPath, 'utf-8'))
         economyService.setGamePreferences(prefs)
       }
+      economyService.setPreferencesPath(prefsPath)
     } catch {}
 
     await economyService.start()
