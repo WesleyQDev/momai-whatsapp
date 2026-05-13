@@ -28,6 +28,7 @@ describe('EconomyService', () => {
   })
 
   it('detects a gaming app from process list', async () => {
+    service.setGamingModeEnabled(true)
     service.setGamingApps([
       { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
     ])
@@ -43,9 +44,10 @@ describe('EconomyService', () => {
   })
 
   it('detects a known game from process list', async () => {
+    service.setGamingModeEnabled(true)
     service.setKnownGames([
-      { name: 'Fortnite', processNames: ['FortniteClient-Win64-Shipping.exe', 'FortniteLauncher.exe'], steamGridId: null },
-      { name: 'CS2', processNames: ['cs2.exe'], steamGridId: null },
+      { name: 'Fortnite', processNames: ['FortniteClient-Win64-Shipping.exe', 'FortniteLauncher.exe'] },
+      { name: 'CS2', processNames: ['cs2.exe'] },
     ])
 
     mockPsList.mockResolvedValue([
@@ -58,7 +60,23 @@ describe('EconomyService', () => {
     expect(detected[0].name).toBe('CS2')
   })
 
+  it('matches process names with or without .exe', async () => {
+    service.setGamingModeEnabled(true)
+    service.setKnownGames([
+      { name: 'Fortnite', processNames: ['fortniteclient-win64-shipping'] },
+    ])
+
+    mockPsList.mockResolvedValue([
+      { name: 'FortniteClient-Win64-Shipping.exe', pid: 789 },
+    ])
+
+    const detected = await service.checkForGames()
+    expect(detected).toHaveLength(1)
+    expect(detected[0].name).toBe('Fortnite')
+  })
+
   it('activates economy when a game is detected', async () => {
+    service.setGamingModeEnabled(true)
     const economyHost = 'http://localhost:12345'
     service.setEconomyHost(economyHost)
     service.setGamingApps([
@@ -86,6 +104,7 @@ describe('EconomyService', () => {
   })
 
   it('deactivates economy when game closes', async () => {
+    service.setGamingModeEnabled(true)
     const economyHost = 'http://localhost:12345'
     service.setEconomyHost(economyHost)
     service.setGamingApps([
@@ -114,5 +133,17 @@ describe('EconomyService', () => {
       `${economyHost}/llama/start`,
       expect.objectContaining({ method: 'POST' })
     )
+  })
+
+  it('returns empty when gaming mode is disabled', async () => {
+    service.setGamingModeEnabled(false)
+    service.setGamingApps([
+      { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
+    ])
+    mockPsList.mockResolvedValue([
+      { name: 'FortniteClient-Win64-Shipping.exe', pid: 789 },
+    ])
+    const detected = await service.checkForGames()
+    expect(detected).toHaveLength(0)
   })
 })

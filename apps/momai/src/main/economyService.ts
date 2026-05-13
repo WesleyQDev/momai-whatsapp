@@ -36,6 +36,7 @@ export class EconomyService {
   private gamingApps: GamingApp[] = []
   private knownGames: KnownGame[] = []
   private economyHost = 'http://localhost:8080'
+  private gamingModeEnabled = false
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private appOpenTimer: ReturnType<typeof setTimeout> | null = null
   private appMinimizedTimer: ReturnType<typeof setTimeout> | null = null
@@ -68,6 +69,10 @@ export class EconomyService {
     this.knownGames = games
   }
 
+  setGamingModeEnabled(enabled: boolean): void {
+    this.gamingModeEnabled = enabled
+  }
+
   setEconomyHost(host: string): void {
     this.economyHost = host
   }
@@ -84,15 +89,22 @@ export class EconomyService {
     this.clearTimers()
   }
 
+  private matchProcess(processName: string, target: string): boolean {
+    const a = processName.toLowerCase()
+    const b = target.toLowerCase()
+    return a === b || a === b + '.exe' || a.replace(/\.exe$/, '') === b
+  }
+
   async checkForGames(): Promise<DetectedGame[]> {
+    if (!this.gamingModeEnabled) return []
+
     const processes = await psList()
     const detected: DetectedGame[] = []
     const checked = new Set<string>()
 
-    // Check custom gaming apps (added by user)
     for (const app of this.gamingApps) {
-      const match = processes.find(
-        (p) => p.name?.toLowerCase() === app.executable.toLowerCase()
+      const match = processes.find((p) =>
+        p.name ? this.matchProcess(p.name, app.executable) : false
       )
       if (match && !checked.has(app.name)) {
         checked.add(app.name)
@@ -100,11 +112,12 @@ export class EconomyService {
       }
     }
 
-    // Check known games list
     for (const game of this.knownGames) {
       if (checked.has(game.name)) continue
       const match = processes.find((p) =>
-        game.processNames.some((pn) => p.name?.toLowerCase() === pn.toLowerCase())
+        p.name
+          ? game.processNames.some((pn) => this.matchProcess(p.name!, pn))
+          : false
       )
       if (match) {
         checked.add(game.name)
