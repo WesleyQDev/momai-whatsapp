@@ -11,14 +11,14 @@ describe('EconomyToast', () => {
     vi.useRealTimers()
   })
 
-  it('renders when active with detected game', () => {
+  it('renders when active with detected game and cover', () => {
     render(
       <EconomyToast
-        economyState={{ active: true, reason: 'gaming', detectedGames: [{ name: 'Fortnite', processName: 'FortniteClient.exe' }] }}
+        economyState={{ active: true, reason: 'gaming', detectedGames: [{ name: 'Fortnite', processName: 'FortniteClient.exe', coverUrl: 'https://example.com/cover.jpg' }] }}
       />
     )
-    expect(screen.getByText(/economia ativado/i)).toBeTruthy()
     expect(screen.getByText(/fortnite/i)).toBeTruthy()
+    expect(screen.getByText(/economia de recursos/i)).toBeTruthy()
   })
 
   it('renders when inactive', () => {
@@ -30,15 +30,15 @@ describe('EconomyToast', () => {
     expect(screen.getByText(/sistemas restaurados/i)).toBeTruthy()
   })
 
-  it('auto-hides after 5 seconds', () => {
+  it('stays visible until dismissed', () => {
     const { container } = render(
       <EconomyToast
-        economyState={{ active: true, reason: 'gaming', detectedGames: [] }}
+        economyState={{ active: true, reason: 'gaming', detectedGames: [{ name: 'Fortnite', processName: 'FortniteClient.exe' }] }}
       />
     )
     expect(container.children.length).toBeGreaterThan(0)
-    act(() => { vi.advanceTimersByTime(5001) })
-    expect(container.children.length).toBe(0)
+    act(() => { vi.advanceTimersByTime(10000) })
+    expect(container.children.length).toBeGreaterThan(0)
   })
 
   it('dismisses on close button click', () => {
@@ -49,6 +49,6 @@ describe('EconomyToast', () => {
     )
     const closeBtn = screen.getByRole('button')
     act(() => { closeBtn.click() })
-    expect(screen.queryByText(/economia ativado/i)).toBeNull()
+    expect(screen.queryByText(/modo economia ativado/i)).toBeNull()
   })
 })
