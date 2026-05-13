@@ -652,6 +652,7 @@ export default function ContainerChat({
 
   const dismissEconomy = () => {
     setLocalDismissed(true)
+    ;(window as any).api?.dismissEconomy?.().catch(() => {})
   }
 
   const defaultWaitingMessage = isBrainLoading ? 'Loading AI Model...' : 'Waiting for AI Model...'
@@ -669,7 +670,7 @@ export default function ContainerChat({
         <div className="flex flex-col flex-1 items-center justify-center p-8 animate-in fade-in duration-500 gap-8">
           <div className="w-56 aspect-[4/5] rounded-2xl overflow-hidden bg-white/5 shadow-2xl ring-1 ring-white/10">
             {econGame.coverUrl ? (
-              <img src={econGame.coverUrl} alt={econGame.name} className="w-full h-full object-cover" />
+              <img src={econGame.coverUrl} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-text-muted/20">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">

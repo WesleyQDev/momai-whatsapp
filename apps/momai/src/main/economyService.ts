@@ -59,6 +59,7 @@ export class EconomyService {
   private appMinimizedTimer: ReturnType<typeof setTimeout> | null = null
   private coverCache = new Map<string, string>()
   private preferencesPath: string | null = null
+  private dismissed = false
 
   private currentState: EconomyState = {
     active: false,
@@ -116,6 +117,11 @@ export class EconomyService {
 
   setPreferencesPath(path: string): void {
     this.preferencesPath = path
+  }
+
+  async dismiss(): Promise<void> {
+    this.dismissed = true
+    await this.deactivateEconomy()
   }
 
   reloadPreferences(): void {
@@ -190,6 +196,7 @@ export class EconomyService {
 
   async checkForGames(processOverrides?: string[]): Promise<DetectedGame[]> {
     if (!this.gamingModeEnabled) return []
+    if (this.dismissed) return []
     this.reloadPreferences()
 
     const processes = processOverrides ?? this.getProcessList()
@@ -244,9 +251,12 @@ export class EconomyService {
       const hasGames = detected.length > 0
 
       if (hasGames && !this.currentState.active) {
+        this.dismissed = false
         await this.activateEconomy('gaming', detected)
       } else if (!hasGames && this.currentState.active && this.currentState.reason === 'gaming') {
         await this.deactivateEconomy()
+      } else if (!hasGames && this.dismissed) {
+        this.dismissed = false
       }
     }
   }

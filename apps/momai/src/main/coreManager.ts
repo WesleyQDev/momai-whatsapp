@@ -81,6 +81,11 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
       economyService.setPreferencesPath(prefsPath)
     } catch {}
 
+    ipcMain.handle('economy:dismiss', async () => {
+      await economyService!.dismiss()
+      return true
+    })
+
     await economyService.start()
     logger.info('[Economy] EconomyService started (polling every 5s)')
   } catch (err) {
