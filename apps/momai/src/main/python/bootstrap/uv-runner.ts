@@ -325,13 +325,13 @@ export async function syncDependencies(
     logger.info(
       `[Bootstrap] Modo ${tier.toUpperCase()}: Instalando dependências de Voz (TTS${isUltra ? ' + STT' : ''}).`
     )
-    // Remove core package install and use individual packages instead
-    const coreIdx = installArgs.indexOf(writableCorePath)
-    if (coreIdx !== -1) installArgs.splice(coreIdx, 1)
-    // Also remove editable install if present
+    // Remove core package install (with or without -e flag) before adding individual packages
     const editIdx = installArgs.indexOf('-e')
     if (editIdx !== -1 && installArgs[editIdx + 1] === writableCorePath) {
       installArgs.splice(editIdx, 2)
+    } else {
+      const coreIdx = installArgs.indexOf(writableCorePath)
+      if (coreIdx !== -1) installArgs.splice(coreIdx, 1)
     }
     installArgs.push(
       'fastapi[standard]',
