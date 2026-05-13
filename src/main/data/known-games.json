@@ -1,0 +1,552 @@
+[
+  {
+    "name": "7 Days to Die",
+    "processNames": ["7daystodie"],
+    "steamGridId": null
+  },
+  {
+    "name": "Age of Empires",
+    "processNames": ["ageofempires"],
+    "steamGridId": null
+  },
+  {
+    "name": "Age of Empires IV",
+    "processNames": ["aoe4"],
+    "steamGridId": null
+  },
+  {
+    "name": "Among Us",
+    "processNames": ["among us", "amongus"],
+    "steamGridId": null
+  },
+  {
+    "name": "Apex Legends",
+    "processNames": ["r5apex"],
+    "steamGridId": null
+  },
+  {
+    "name": "ARK",
+    "processNames": ["ark"],
+    "steamGridId": null
+  },
+  {
+    "name": "ARK: Survival Evolved",
+    "processNames": ["shootergame"],
+    "steamGridId": null
+  },
+  {
+    "name": "Assassin's Creed",
+    "processNames": ["assassinscreed"],
+    "steamGridId": null
+  },
+  {
+    "name": "Assetto Corsa",
+    "processNames": ["assetocorsa"],
+    "steamGridId": null
+  },
+  {
+    "name": "Black Desert Online",
+    "processNames": ["blackdesert", "blackdesert64"],
+    "steamGridId": null
+  },
+  {
+    "name": "Call of Duty: Black Ops",
+    "processNames": ["blackops"],
+    "steamGridId": null
+  },
+  {
+    "name": "Call of Duty: Modern Warfare",
+    "processNames": ["codmw"],
+    "steamGridId": null
+  },
+  {
+    "name": "Call of Duty: Warzone",
+    "processNames": ["modernwarfare", "warzone"],
+    "steamGridId": null
+  },
+  {
+    "name": "Celeste",
+    "processNames": ["celeste"],
+    "steamGridId": null
+  },
+  {
+    "name": "Civilization VI",
+    "processNames": ["civilizationvi", "civ6"],
+    "steamGridId": null
+  },
+  {
+    "name": "Counter-Strike 2",
+    "processNames": ["cs2"],
+    "steamGridId": null
+  },
+  {
+    "name": "CS:GO",
+    "processNames": ["csgo"],
+    "steamGridId": null
+  },
+  {
+    "name": "Cuphead",
+    "processNames": ["cuphead"],
+    "steamGridId": null
+  },
+  {
+    "name": "Cyberpunk 2077",
+    "processNames": ["cyberpunk2077"],
+    "steamGridId": null
+  },
+  {
+    "name": "Dark Souls 3",
+    "processNames": ["darksouls3"],
+    "steamGridId": null
+  },
+  {
+    "name": "Dead by Daylight",
+    "processNames": ["deadbydaylight"],
+    "steamGridId": null
+  },
+  {
+    "name": "Dead Cells",
+    "processNames": ["deadcells"],
+    "steamGridId": null
+  },
+  {
+    "name": "Deep Rock Galactic",
+    "processNames": ["deeprockgalactic"],
+    "steamGridId": null
+  },
+  {
+    "name": "Deltarune",
+    "processNames": ["deltarune"],
+    "steamGridId": null
+  },
+  {
+    "name": "DiRT",
+    "processNames": ["dirt"],
+    "steamGridId": null
+  },
+  {
+    "name": "Don't Starve",
+    "processNames": ["dont starve"],
+    "steamGridId": null
+  },
+  {
+    "name": "Dota 2",
+    "processNames": ["dota2"],
+    "steamGridId": null
+  },
+  {
+    "name": "Elder Scrolls Online",
+    "processNames": ["elderscrollsonline"],
+    "steamGridId": null
+  },
+  {
+    "name": "Elden Ring",
+    "processNames": ["eldenring"],
+    "steamGridId": null
+  },
+  {
+    "name": "Enshrouded",
+    "processNames": ["enshrouded"],
+    "steamGridId": null
+  },
+  {
+    "name": "Euro Truck Simulator 2",
+    "processNames": ["eurotrucks2"],
+    "steamGridId": null
+  },
+  {
+    "name": "F1",
+    "processNames": ["f1"],
+    "steamGridId": null
+  },
+  {
+    "name": "Fall Guys",
+    "processNames": ["fallguys"],
+    "steamGridId": null
+  },
+  {
+    "name": "Fallout 4",
+    "processNames": ["fallout4"],
+    "steamGridId": null
+  },
+  {
+    "name": "Fallout 76",
+    "processNames": ["fallout76"],
+    "steamGridId": null
+  },
+  {
+    "name": "Farming Simulator",
+    "processNames": ["farming simulator"],
+    "steamGridId": null
+  },
+  {
+    "name": "FC 24",
+    "processNames": ["fc24"],
+    "steamGridId": null
+  },
+  {
+    "name": "FIFA",
+    "processNames": ["fifa"],
+    "steamGridId": null
+  },
+  {
+    "name": "FIFA 23",
+    "processNames": ["fifa23"],
+    "steamGridId": null
+  },
+  {
+    "name": "FIFA 24",
+    "processNames": ["fifa24"],
+    "steamGridId": null
+  },
+  {
+    "name": "Final Fantasy XIV",
+    "processNames": ["ffxiv", "ffxiv_dx11"],
+    "steamGridId": null
+  },
+  {
+    "name": "Forza Horizon",
+    "processNames": ["forzahorizon"],
+    "steamGridId": null
+  },
+  {
+    "name": "Forza Horizon 5",
+    "processNames": ["forzahorizon5"],
+    "steamGridId": null
+  },
+  {
+    "name": "Fortnite",
+    "processNames": ["fortnite", "fortniteclient-win64-shipping"],
+    "steamGridId": null
+  },
+  {
+    "name": "GRID",
+    "processNames": ["grid"],
+    "steamGridId": null
+  },
+  {
+    "name": "Grounded",
+    "processNames": ["grounded"],
+    "steamGridId": null
+  },
+  {
+    "name": "GTA V",
+    "processNames": ["gta5", "gtav"],
+    "steamGridId": null
+  },
+  {
+    "name": "Guild Wars 2",
+    "processNames": ["guildwars2"],
+    "steamGridId": null
+  },
+  {
+    "name": "Guilty Gear",
+    "processNames": ["guilty gear"],
+    "steamGridId": null
+  },
+  {
+    "name": "Gwent",
+    "processNames": ["gwent"],
+    "steamGridId": null
+  },
+  {
+    "name": "Hades",
+    "processNames": ["hades"],
+    "steamGridId": null
+  },
+  {
+    "name": "Hearthstone",
+    "processNames": ["hearthstone"],
+    "steamGridId": null
+  },
+  {
+    "name": "Hogwarts Legacy",
+    "processNames": ["hogwartslegacy"],
+    "steamGridId": null
+  },
+  {
+    "name": "Hollow Knight",
+    "processNames": ["hollowknight"],
+    "steamGridId": null
+  },
+  {
+    "name": "Human Fall Flat",
+    "processNames": ["humanfallflat"],
+    "steamGridId": null
+  },
+  {
+    "name": "League of Legends",
+    "processNames": ["league of legends", "leagueclient"],
+    "steamGridId": null
+  },
+  {
+    "name": "Lethal Company",
+    "processNames": ["lethalcompany"],
+    "steamGridId": null
+  },
+  {
+    "name": "Lost Ark",
+    "processNames": ["lostark"],
+    "steamGridId": null
+  },
+  {
+    "name": "Madden NFL",
+    "processNames": ["madden"],
+    "steamGridId": null
+  },
+  {
+    "name": "Magic: The Gathering Arena",
+    "processNames": ["mtga"],
+    "steamGridId": null
+  },
+  {
+    "name": "Microsoft Flight Simulator",
+    "processNames": ["flightsimulator", "msfs"],
+    "steamGridId": null
+  },
+  {
+    "name": "Minecraft",
+    "processNames": ["minecraft"],
+    "steamGridId": null
+  },
+  {
+    "name": "Minecraft Java",
+    "processNames": ["javaw"],
+    "steamGridId": null
+  },
+  {
+    "name": "Mortal Kombat",
+    "processNames": ["mortalkombat"],
+    "steamGridId": null
+  },
+  {
+    "name": "Mortal Kombat 11",
+    "processNames": ["mk11"],
+    "steamGridId": null
+  },
+  {
+    "name": "NBA 2K",
+    "processNames": ["nba2k"],
+    "steamGridId": null
+  },
+  {
+    "name": "Need for Speed",
+    "processNames": ["needforspeed"],
+    "steamGridId": null
+  },
+  {
+    "name": "New World",
+    "processNames": ["newworld"],
+    "steamGridId": null
+  },
+  {
+    "name": "Outlast",
+    "processNames": ["outlast"],
+    "steamGridId": null
+  },
+  {
+    "name": "Overcooked",
+    "processNames": ["overcooked"],
+    "steamGridId": null
+  },
+  {
+    "name": "Overwatch",
+    "processNames": ["overwatch"],
+    "steamGridId": null
+  },
+  {
+    "name": "Overwatch 2",
+    "processNames": ["overwatch2"],
+    "steamGridId": null
+  },
+  {
+    "name": "Palworld",
+    "processNames": ["palworld"],
+    "steamGridId": null
+  },
+  {
+    "name": "Phasmophobia",
+    "processNames": ["phasmophobia"],
+    "steamGridId": null
+  },
+  {
+    "name": "Project Cars",
+    "processNames": ["projectcars"],
+    "steamGridId": null
+  },
+  {
+    "name": "PUBG",
+    "processNames": ["tslgame"],
+    "steamGridId": null
+  },
+  {
+    "name": "Raft",
+    "processNames": ["raftgame", "raft"],
+    "steamGridId": null
+  },
+  {
+    "name": "Rainbow Six Siege",
+    "processNames": ["rainbowsix", "rainbowsix_vulkan"],
+    "steamGridId": null
+  },
+  {
+    "name": "Red Dead Redemption 2",
+    "processNames": ["rdr2"],
+    "steamGridId": null
+  },
+  {
+    "name": "Resident Evil 4",
+    "processNames": ["re4"],
+    "steamGridId": null
+  },
+  {
+    "name": "Resident Evil Village",
+    "processNames": ["re8"],
+    "steamGridId": null
+  },
+  {
+    "name": "Risk of Rain 2",
+    "processNames": ["riskofrain2"],
+    "steamGridId": null
+  },
+  {
+    "name": "Roblox",
+    "processNames": ["robloxplayerbeta"],
+    "steamGridId": null
+  },
+  {
+    "name": "Roblox Studio",
+    "processNames": ["robloxstudiobeta"],
+    "steamGridId": null
+  },
+  {
+    "name": "Rocket League",
+    "processNames": ["rocketleague"],
+    "steamGridId": null
+  },
+  {
+    "name": "Rust",
+    "processNames": ["rustclient", "rust"],
+    "steamGridId": null
+  },
+  {
+    "name": "Satisfactory",
+    "processNames": ["satisfactory"],
+    "steamGridId": null
+  },
+  {
+    "name": "Sea of Thieves",
+    "processNames": ["seaofthieves"],
+    "steamGridId": null
+  },
+  {
+    "name": "Sekiro",
+    "processNames": ["sekiro"],
+    "steamGridId": null
+  },
+  {
+    "name": "Skyrim",
+    "processNames": ["tesv"],
+    "steamGridId": null
+  },
+  {
+    "name": "Skyrim Special Edition",
+    "processNames": ["skyrimse"],
+    "steamGridId": null
+  },
+  {
+    "name": "StarCraft",
+    "processNames": ["starcraft"],
+    "steamGridId": null
+  },
+  {
+    "name": "StarCraft II",
+    "processNames": ["sc2"],
+    "steamGridId": null
+  },
+  {
+    "name": "Stardew Valley",
+    "processNames": ["stardewvalley"],
+    "steamGridId": null
+  },
+  {
+    "name": "Starfield",
+    "processNames": ["starfield"],
+    "steamGridId": null
+  },
+  {
+    "name": "Street Fighter",
+    "processNames": ["streetfighter"],
+    "steamGridId": null
+  },
+  {
+    "name": "Street Fighter 6",
+    "processNames": ["sf6"],
+    "steamGridId": null
+  },
+  {
+    "name": "Super Smash Bros",
+    "processNames": ["smashbros"],
+    "steamGridId": null
+  },
+  {
+    "name": "Tekken",
+    "processNames": ["tekken"],
+    "steamGridId": null
+  },
+  {
+    "name": "Terraria",
+    "processNames": ["terraria"],
+    "steamGridId": null
+  },
+  {
+    "name": "The Binding of Isaac",
+    "processNames": ["isaac"],
+    "steamGridId": null
+  },
+  {
+    "name": "The Sims 4",
+    "processNames": ["thesims4"],
+    "steamGridId": null
+  },
+  {
+    "name": "The Witcher 3",
+    "processNames": ["witcher3"],
+    "steamGridId": null
+  },
+  {
+    "name": "Total War",
+    "processNames": ["totalwar"],
+    "steamGridId": null
+  },
+  {
+    "name": "Truck Simulator",
+    "processNames": ["trucksimulator"],
+    "steamGridId": null
+  },
+  {
+    "name": "Undertale",
+    "processNames": ["undertale"],
+    "steamGridId": null
+  },
+  {
+    "name": "Valheim",
+    "processNames": ["valheim"],
+    "steamGridId": null
+  },
+  {
+    "name": "Valorant",
+    "processNames": ["valorant", "valorant-win64-shipping"],
+    "steamGridId": null
+  },
+  {
+    "name": "World of Warcraft",
+    "processNames": ["wow", "worldofwarcraft"],
+    "steamGridId": null
+  },
+  {
+    "name": "XCOM 2",
+    "processNames": ["xcom2"],
+    "steamGridId": null
+  }
+]
