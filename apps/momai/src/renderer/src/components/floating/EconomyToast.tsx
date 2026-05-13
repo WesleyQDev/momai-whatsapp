@@ -1,31 +1,43 @@
 import { useState, useEffect } from 'react'
 
-export default function FortScriptToast() {
-  const [event, setEvent] = useState<{ status: 'active' | 'inactive'; timestamp: string } | null>(
-    null
-  )
+interface EconomyToastProps {
+  economyState?: {
+    active: boolean
+    reason: string | null
+    detectedGames: { name: string; processName: string }[]
+  }
+}
+
+export default function EconomyToast({ economyState }: EconomyToastProps) {
   const [isVisible, setIsVisible] = useState(false)
+  const [state, setState] = useState(economyState || null)
 
   useEffect(() => {
-    const handleEvent = (e: any) => {
-      setEvent(e.detail)
+    if (!economyState) {
+      const cleanup = (window as any).api?.onEconomyStateChange?.((
+        newState: { active: boolean; reason: string | null; detectedGames: { name: string; processName: string }[] }
+      ) => {
+        setState(newState)
+        setIsVisible(true)
+        const timer = setTimeout(() => setIsVisible(false), 5000)
+        return () => clearTimeout(timer)
+      })
+      return () => cleanup?.()
+    }
+  }, [economyState])
+
+  useEffect(() => {
+    if (economyState) {
+      setState(economyState)
       setIsVisible(true)
-
-      // Auto-hide after 5 seconds
-      const timer = setTimeout(() => {
-        setIsVisible(false)
-      }, 5000)
-
+      const timer = setTimeout(() => setIsVisible(false), 5000)
       return () => clearTimeout(timer)
     }
+  }, [economyState])
 
-    window.addEventListener('momai_fortscript_event', handleEvent)
-    return () => window.removeEventListener('momai_fortscript_event', handleEvent)
-  }, [])
+  if (!state || !isVisible) return null
 
-  if (!event || !isVisible) return null
-
-  const isActive = event.status === 'active'
+  const isActive = state.active
 
   return (
     <div className="fixed bottom-24 right-6 z-[100] animate-in slide-in-from-bottom-4 fade-in duration-500">
@@ -57,7 +69,7 @@ export default function FortScriptToast() {
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-black uppercase tracking-widest">
-              FortScript Engine
+              Economia
             </span>
             <div
               className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-accent animate-pulse' : 'bg-text-muted'}`}
@@ -68,8 +80,10 @@ export default function FortScriptToast() {
           </span>
           <p className="text-[10px] opacity-70 mt-1 leading-relaxed">
             {isActive
-              ? 'Processos pesados detectados. IA e Voz suspensos para performance.'
-              : 'Monitoramento em espera. IA e Voz prontos para uso.'}
+              ? state.detectedGames.length > 0
+                ? `Jogo detectado: ${state.detectedGames.map(g => g.name).join(', ')}`
+                : 'Processos pesados detectados. IA suspensa.'
+              : 'Monitoramento em espera. IA pronta para uso.'}
           </p>
         </div>
 

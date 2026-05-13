@@ -10,6 +10,7 @@ import TitleBar from './components/TitleBar'
 import ConfirmationCard from './components/floating/ConfirmationCard'
 import OnboardingCard from './components/floating/OnboardingCard'
 import AutoUpdateCard from './components/floating/AutoUpdateCard'
+import EconomyToast from './components/floating/EconomyToast'
 import MainViewRenderer from './components/MainViewRenderer'
 import TTSEngineLoadingAnimation from './components/chat/TTSEngineLoadingAnimation'
 
@@ -265,6 +266,8 @@ function App(): React.JSX.Element {
           onOpenSettings={openSettings}
         />
       )}
+
+      <EconomyToast />
 
       <TierChangeOverlay isChanging={showOverlay} tier={overlayTier} />
 
