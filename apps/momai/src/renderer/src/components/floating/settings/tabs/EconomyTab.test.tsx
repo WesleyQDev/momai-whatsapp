@@ -59,9 +59,9 @@ describe('EconomyTab', () => {
     expect(screen.getByText(/add/i)).toBeTruthy()
   })
 
-  it('shows loading catalog state', () => {
+  it('shows catalog section', () => {
     render(<EconomyTab {...baseProps} />)
-    expect(screen.getByText(/carregando catálogo/i)).toBeTruthy()
+    expect(screen.getByText(/biblioteca/i)).toBeTruthy()
   })
 
   it('shows agora jogando section when games detected', () => {

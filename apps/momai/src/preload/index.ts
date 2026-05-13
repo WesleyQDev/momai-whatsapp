@@ -72,6 +72,7 @@ const api = {
   isWindowMaximized: (): Promise<boolean> => electronAPI.ipcRenderer.invoke('is-window-maximized'),
   getEconomyState: (): Promise<any> => electronAPI.ipcRenderer.invoke('economy:get-state'),
   getEconomyCatalog: (): Promise<any[]> => electronAPI.ipcRenderer.invoke('economy:get-catalog'),
+  scanEconomyLibraries: (): Promise<any[]> => electronAPI.ipcRenderer.invoke('economy:scan-libraries'),
   onEconomyStateChange: (
     callback: (state: { active: boolean; reason: string | null; detectedGames: { name: string; processName: string }[] }) => void
   ) => {

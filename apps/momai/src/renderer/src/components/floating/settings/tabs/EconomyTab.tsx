@@ -56,12 +56,35 @@ export const EconomyTab = React.memo(
     economyState
   }: EconomyTabProps) => {
     const [catalog, setCatalog] = useState<CatalogGame[]>([])
+    const [scanned, setScanned] = useState<any[]>([])
+    const [scanning, setScanning] = useState(false)
     const [showAddGame, setShowAddGame] = useState(false)
     const [showTimeout, setShowTimeout] = useState(false)
 
     useEffect(() => {
       ;(window as any).api?.getEconomyCatalog?.().then(setCatalog).catch(() => {})
+      // Auto-scan on mount
+      ;(window as any).api?.scanEconomyLibraries?.().then(setScanned).catch(() => {})
     }, [])
+
+    const handleScan = async () => {
+      setScanning(true)
+      try {
+        const result = await (window as any).api?.scanEconomyLibraries?.()
+        if (result) setScanned(result)
+      } finally {
+        setScanning(false)
+      }
+    }
+
+    const allGames = [...scanned, ...catalog]
+    const seenNames = new Set<string>()
+    const mergedCatalog = allGames.filter(g => {
+      const key = g.name?.toLowerCase()
+      if (seenNames.has(key)) return false
+      seenNames.add(key)
+      return true
+    })
 
     const runningGames = economyState?.detectedGames || []
     const runningNames = new Set(runningGames.map(g => g.name))
@@ -114,6 +137,15 @@ export const EconomyTab = React.memo(
             className="text-xs font-semibold text-accent hover:text-accent/80 transition-colors"
           >
             + Add Game
+          </button>
+
+          {/* Scan libraries */}
+          <button
+            onClick={handleScan}
+            disabled={scanning}
+            className="text-xs font-semibold text-text-muted hover:text-text transition-colors"
+          >
+            {scanning ? 'Scanning...' : 'Scan PC'}
           </button>
         </div>
 
@@ -223,10 +255,10 @@ export const EconomyTab = React.memo(
           <h3 className="text-sm font-bold text-text mb-3">Biblioteca de Jogos</h3>
 
           {/* Custom user-added games (not in catalog) */}
-          {gamingApps.filter(a => !catalog.some(c => c.name === a.name)).length > 0 && (
+          {gamingApps.filter(a => !mergedCatalog.some((c: any) => c.name === a.name)).length > 0 && (
             <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3 mb-4">
               {gamingApps
-                .filter(a => !catalog.some(c => c.name === a.name))
+                .filter(a => !mergedCatalog.some((c: any) => c.name === a.name))
                 .map((app) => (
                   <div
                     key={app.id}
@@ -254,14 +286,14 @@ export const EconomyTab = React.memo(
             </div>
           )}
 
-          {/* Catalog games grid */}
-          {catalog.length === 0 ? (
+          {/* Game grid */}
+          {mergedCatalog.length === 0 ? (
             <div className="py-8 text-center border border-dashed border-border rounded-xl">
-              <span className="text-sm text-text-muted font-medium italic">Carregando catálogo...</span>
+              <span className="text-sm text-text-muted font-medium italic">{scanning ? 'Scanning...' : 'Nenhum jogo encontrado'}</span>
             </div>
           ) : (
             <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3">
-              {catalog.map((game, idx) => {
+              {mergedCatalog.map((game: any, idx: number) => {
                 const coverUrl = getCoverUrl(game)
                 const isRunning = runningNames.has(game.name)
                 return (

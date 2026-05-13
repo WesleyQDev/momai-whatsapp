@@ -204,6 +204,11 @@ export function registerIpcHandlers(): void {
     }
   })
 
+  ipcMain.handle('economy:scan-libraries', () => {
+    const { scanInstalledGames } = require('./economyScanner')
+    return scanInstalledGames()
+  })
+
   ipcMain.on('window-reset-size', () => {
     const win = getMainWindow()
     if (win) {
