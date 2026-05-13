@@ -3,6 +3,7 @@ import psList from 'ps-list'
 export interface DetectedGame {
   name: string
   processName: string
+  steamGridId?: number | null
 }
 
 export interface GamingApp {
@@ -128,7 +129,7 @@ export class EconomyService {
       )
       if (match && !checked.has(app.name)) {
         checked.add(app.name)
-        detected.push({ name: app.name, processName: app.executable })
+        detected.push({ name: app.name, processName: app.executable, steamGridId: null })
       }
     }
 
@@ -141,7 +142,7 @@ export class EconomyService {
       )
       if (match) {
         checked.add(game.name)
-        detected.push({ name: game.name, processName: match.name || '' })
+        detected.push({ name: game.name, processName: match.name || '', steamGridId: game.steamGridId })
         console.log(`[Economy] DETECTED: ${game.name}`)
       }
     }

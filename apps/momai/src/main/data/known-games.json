@@ -17,7 +17,7 @@
   {
     "name": "Among Us",
     "processNames": ["among us", "amongus"],
-    "steamGridId": null
+    "steamGridId": 945360
   },
   {
     "name": "Apex Legends",
@@ -32,7 +32,7 @@
   {
     "name": "ARK: Survival Evolved",
     "processNames": ["shootergame"],
-    "steamGridId": null
+    "steamGridId": 346110
   },
   {
     "name": "Assassin's Creed",
@@ -67,17 +67,17 @@
   {
     "name": "Celeste",
     "processNames": ["celeste"],
-    "steamGridId": null
+    "steamGridId": 504230
   },
   {
     "name": "Civilization VI",
     "processNames": ["civilizationvi", "civ6"],
-    "steamGridId": null
+    "steamGridId": 289070
   },
   {
     "name": "Counter-Strike 2",
     "processNames": ["cs2"],
-    "steamGridId": null
+    "steamGridId": 730
   },
   {
     "name": "CS:GO",
@@ -92,12 +92,12 @@
   {
     "name": "Cyberpunk 2077",
     "processNames": ["cyberpunk2077"],
-    "steamGridId": null
+    "steamGridId": 1091500
   },
   {
     "name": "Dark Souls 3",
     "processNames": ["darksouls3"],
-    "steamGridId": null
+    "steamGridId": 374320
   },
   {
     "name": "Dead by Daylight",
@@ -132,7 +132,7 @@
   {
     "name": "Dota 2",
     "processNames": ["dota2"],
-    "steamGridId": null
+    "steamGridId": 570
   },
   {
     "name": "Elder Scrolls Online",
@@ -142,7 +142,7 @@
   {
     "name": "Elden Ring",
     "processNames": ["eldenring"],
-    "steamGridId": null
+    "steamGridId": 1245620
   },
   {
     "name": "Enshrouded",
@@ -152,7 +152,7 @@
   {
     "name": "Euro Truck Simulator 2",
     "processNames": ["eurotrucks2"],
-    "steamGridId": null
+    "steamGridId": 227300
   },
   {
     "name": "F1",
@@ -162,7 +162,7 @@
   {
     "name": "Fall Guys",
     "processNames": ["fallguys"],
-    "steamGridId": null
+    "steamGridId": 1097150
   },
   {
     "name": "Fallout 4",
@@ -232,7 +232,7 @@
   {
     "name": "GTA V",
     "processNames": ["gta5", "gtav"],
-    "steamGridId": null
+    "steamGridId": 271590
   },
   {
     "name": "Guild Wars 2",
@@ -252,7 +252,7 @@
   {
     "name": "Hades",
     "processNames": ["hades"],
-    "steamGridId": null
+    "steamGridId": 1145360
   },
   {
     "name": "Hearthstone",
@@ -267,7 +267,7 @@
   {
     "name": "Hollow Knight",
     "processNames": ["hollowknight"],
-    "steamGridId": null
+    "steamGridId": 367520
   },
   {
     "name": "Human Fall Flat",
@@ -282,7 +282,7 @@
   {
     "name": "Lethal Company",
     "processNames": ["lethalcompany"],
-    "steamGridId": null
+    "steamGridId": 1966720
   },
   {
     "name": "Lost Ark",
@@ -362,12 +362,12 @@
   {
     "name": "Palworld",
     "processNames": ["palworld"],
-    "steamGridId": null
+    "steamGridId": 1623730
   },
   {
     "name": "Phasmophobia",
     "processNames": ["phasmophobia"],
-    "steamGridId": null
+    "steamGridId": 739630
   },
   {
     "name": "Project Cars",
@@ -392,7 +392,7 @@
   {
     "name": "Red Dead Redemption 2",
     "processNames": ["rdr2"],
-    "steamGridId": null
+    "steamGridId": 1174180
   },
   {
     "name": "Resident Evil 4",
@@ -422,27 +422,27 @@
   {
     "name": "Rocket League",
     "processNames": ["rocketleague"],
-    "steamGridId": null
+    "steamGridId": 252950
   },
   {
     "name": "Rust",
     "processNames": ["rustclient", "rust"],
-    "steamGridId": null
+    "steamGridId": 252490
   },
   {
     "name": "Satisfactory",
     "processNames": ["satisfactory"],
-    "steamGridId": null
+    "steamGridId": 526870
   },
   {
     "name": "Sea of Thieves",
     "processNames": ["seaofthieves"],
-    "steamGridId": null
+    "steamGridId": 1172620
   },
   {
     "name": "Sekiro",
     "processNames": ["sekiro"],
-    "steamGridId": null
+    "steamGridId": 814380
   },
   {
     "name": "Skyrim",
@@ -467,7 +467,7 @@
   {
     "name": "Stardew Valley",
     "processNames": ["stardewvalley"],
-    "steamGridId": null
+    "steamGridId": 413150
   },
   {
     "name": "Starfield",
@@ -482,7 +482,7 @@
   {
     "name": "Street Fighter 6",
     "processNames": ["sf6"],
-    "steamGridId": null
+    "steamGridId": 1364780
   },
   {
     "name": "Super Smash Bros",
@@ -497,7 +497,7 @@
   {
     "name": "Terraria",
     "processNames": ["terraria"],
-    "steamGridId": null
+    "steamGridId": 105600
   },
   {
     "name": "The Binding of Isaac",
@@ -512,7 +512,7 @@
   {
     "name": "The Witcher 3",
     "processNames": ["witcher3"],
-    "steamGridId": null
+    "steamGridId": 292030
   },
   {
     "name": "Total War",

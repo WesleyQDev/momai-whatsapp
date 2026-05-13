@@ -17,7 +17,7 @@ interface EconomyTabProps {
   economyState?: {
     active: boolean
     reason: string | null
-    detectedGames: { name: string; processName: string }[]
+    detectedGames: { name: string; processName: string; steamGridId?: number | null }[]
   }
 }
 
@@ -172,6 +172,14 @@ export const EconomyTab = React.memo(
                 className="flex items-center justify-between gap-2 p-4 rounded-xl bg-accent/5 border border-accent/30"
               >
                 <div className="flex items-center gap-3 min-w-0">
+                  <img
+                    src={`https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${(game as any).steamGridId || 0}/header.jpg`}
+                    alt={game.name}
+                    className="w-12 h-7 rounded object-cover bg-white/5"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none'
+                    }}
+                  />
                   <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
                   <div className="flex flex-col">
                     <span className="text-sm font-semibold text-text">{game.name}</span>
