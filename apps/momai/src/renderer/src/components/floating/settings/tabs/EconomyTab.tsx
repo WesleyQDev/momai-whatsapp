@@ -1,12 +1,24 @@
 import React from 'react'
 
 interface EconomyTabProps {
-  t: any
+  t: (key: string) => string
   newApp: { name: string; executable: string }
   setNewApp: (app: { name: string; executable: string }) => void
   handleAddGamingApp: () => Promise<void>
   handleDeleteGamingApp: (id: number) => Promise<void>
   gamingApps: any[]
+  economyConfig?: {
+    gaming_mode_enabled: boolean
+    idle_timeout_app_open: number
+    idle_timeout_minimized: number
+    auto_detect_known_games: boolean
+  }
+  onUpdateConfig?: (config: Partial<any>) => Promise<void>
+  economyState?: {
+    active: boolean
+    reason: string | null
+    detectedGames: { name: string; processName: string }[]
+  }
 }
 
 export const EconomyTab = React.memo(
@@ -16,7 +28,10 @@ export const EconomyTab = React.memo(
     setNewApp,
     handleAddGamingApp,
     handleDeleteGamingApp,
-    gamingApps
+    gamingApps,
+    economyConfig,
+    onUpdateConfig,
+    economyState
   }: EconomyTabProps) => {
     return (
       <div className="space-y-6">
@@ -127,6 +142,81 @@ export const EconomyTab = React.memo(
             </div>
           </div>
         </div>
+
+        {/* LLM Timeout Controls */}
+        <div className="space-y-3">
+          <label className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+            LLM Timeout
+          </label>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-border/40">
+              <span className="text-sm text-text">App open (idle)</span>
+              <select
+                value={economyConfig?.idle_timeout_app_open ?? 5}
+                onChange={(e) => onUpdateConfig?.({ idle_timeout_app_open: Number(e.target.value) })}
+                className="bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-text outline-none"
+              >
+                <option value={0}>Off</option>
+                <option value={1}>1 min</option>
+                <option value={5}>5 min</option>
+                <option value={10}>10 min</option>
+                <option value={30}>30 min</option>
+              </select>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-border/40">
+              <span className="text-sm text-text">App minimized</span>
+              <select
+                value={economyConfig?.idle_timeout_minimized ?? 1}
+                onChange={(e) => onUpdateConfig?.({ idle_timeout_minimized: Number(e.target.value) })}
+                className="bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-text outline-none"
+              >
+                <option value={0}>Off</option>
+                <option value={1}>1 min</option>
+                <option value={5}>5 min</option>
+                <option value={10}>10 min</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Gaming Mode */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+            Gaming Mode
+          </label>
+          <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-border/40">
+            <div className="flex flex-col">
+              <span className="text-sm text-text">Auto-detect games</span>
+              <span className="text-xs text-text-muted">Save resources when gaming</span>
+            </div>
+            <button
+              onClick={() => onUpdateConfig?.({ gaming_mode_enabled: !economyConfig?.gaming_mode_enabled })}
+              className={`w-12 h-6 rounded-full transition-colors relative ${
+                economyConfig?.gaming_mode_enabled ? 'bg-accent' : 'bg-white/10'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                  economyConfig?.gaming_mode_enabled ? 'translate-x-6' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Active Status */}
+        {economyState?.active && (
+          <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/30">
+            <span className="text-sm text-green-400 font-medium">
+              Economy active — {economyState.reason === 'gaming' ? 'Game detected' : 'Idle timeout'}
+            </span>
+            {economyState.detectedGames.length > 0 && (
+              <div className="mt-1 text-xs text-green-400/70">
+                {economyState.detectedGames.map(g => g.name).join(', ')}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     )
   }
