@@ -193,6 +193,28 @@ export function registerIpcHandlers(): void {
     return getLastEconomyState()
   })
 
+  ipcMain.handle('economy:get-preferences', () => {
+    try {
+      const { readFileSync, existsSync, writeFileSync } = require('fs')
+      const { join } = require('path')
+      const prefsPath = join(app.getPath('userData'), 'economy-preferences.json')
+      if (!existsSync(prefsPath)) writeFileSync(prefsPath, '{}', 'utf-8')
+      return JSON.parse(readFileSync(prefsPath, 'utf-8'))
+    } catch { return {} }
+  })
+
+  ipcMain.handle('economy:set-game-preference', (_event, gameName: string, economyEnabled: boolean) => {
+    try {
+      const { readFileSync, existsSync, writeFileSync } = require('fs')
+      const { join } = require('path')
+      const prefsPath = join(app.getPath('userData'), 'economy-preferences.json')
+      const prefs = existsSync(prefsPath) ? JSON.parse(readFileSync(prefsPath, 'utf-8')) : {}
+      prefs[gameName.toLowerCase()] = economyEnabled
+      writeFileSync(prefsPath, JSON.stringify(prefs, null, 2), 'utf-8')
+      return true
+    } catch { return false }
+  })
+
   ipcMain.handle('economy:get-catalog', () => {
     try {
       const { readFileSync } = require('fs')

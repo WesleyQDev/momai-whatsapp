@@ -51,6 +51,7 @@ export class EconomyService {
   private knownGames: KnownGame[] = []
   private economyHost = 'http://localhost:8080'
   private gamingModeEnabled = false
+  private gamePreferences: Record<string, boolean> = {}
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private appOpenTimer: ReturnType<typeof setTimeout> | null = null
   private appMinimizedTimer: ReturnType<typeof setTimeout> | null = null
@@ -104,6 +105,14 @@ export class EconomyService {
 
   setGamingModeEnabled(enabled: boolean): void {
     this.gamingModeEnabled = enabled
+  }
+
+  setGamePreferences(prefs: Record<string, boolean>): void {
+    this.gamePreferences = prefs
+  }
+
+  private isEconomyEnabledFor(gameName: string): boolean {
+    return this.gamePreferences[gameName.toLowerCase()] !== false
   }
 
   setEconomyHost(host: string): void {
@@ -163,7 +172,7 @@ export class EconomyService {
       const match = app.executable
         ? processes.some((p) => this.matchProcess(p, app.executable))
         : false
-      if (match && !checked.has(app.name)) {
+      if (match && !checked.has(app.name) && this.isEconomyEnabledFor(app.name)) {
         checked.add(app.name)
         detected.push({ name: app.name, processName: app.executable, steamGridId: null })
       }
@@ -171,10 +180,16 @@ export class EconomyService {
 
     for (const game of this.knownGames) {
       if (checked.has(game.name)) continue
+      if (!this.isEconomyEnabledFor(game.name)) {
+        console.log(`[Economy] SKIPPED: ${game.name} (economy disabled)`)
+        checked.add(game.name)
+        continue
+      }
       const match = processes.find((p) =>
         game.processNames.some((pn) => this.matchProcess(p, pn))
       )
       if (match) {
+        checked.add(game.name)
         const coverUrl = this.resolveCoverUrl(game)
         detected.push({ name: game.name, processName: match, steamGridId: game.steamGridId, coverUrl })
         console.log(`[Economy] DETECTED: ${game.name} (cover: ${coverUrl})`)

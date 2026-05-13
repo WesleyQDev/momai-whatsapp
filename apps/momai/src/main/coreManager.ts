@@ -70,6 +70,16 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
     const knownGames = loadKnownGames()
     economyService.setKnownGames(knownGames)
 
+    try {
+      const { readFileSync, existsSync } = require('fs')
+      const { join } = require('path')
+      const prefsPath = join(app.getPath('userData'), 'economy-preferences.json')
+      if (existsSync(prefsPath)) {
+        const prefs = JSON.parse(readFileSync(prefsPath, 'utf-8'))
+        economyService.setGamePreferences(prefs)
+      }
+    } catch {}
+
     await economyService.start()
     logger.info('[Economy] EconomyService started (polling every 5s)')
   } catch (err) {

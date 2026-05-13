@@ -73,6 +73,9 @@ const api = {
   getEconomyState: (): Promise<any> => electronAPI.ipcRenderer.invoke('economy:get-state'),
   getEconomyCatalog: (): Promise<any[]> => electronAPI.ipcRenderer.invoke('economy:get-catalog'),
   scanEconomyLibraries: (): Promise<any[]> => electronAPI.ipcRenderer.invoke('economy:scan-libraries'),
+  getEconomyPreferences: (): Promise<Record<string, boolean>> => electronAPI.ipcRenderer.invoke('economy:get-preferences'),
+  setEconomyGamePreference: (gameName: string, enabled: boolean): Promise<boolean> =>
+    electronAPI.ipcRenderer.invoke('economy:set-game-preference', gameName, enabled),
   onEconomyStateChange: (
     callback: (state: { active: boolean; reason: string | null; detectedGames: { name: string; processName: string }[] }) => void
   ) => {
