@@ -554,5 +554,10 @@
     "name": "Firestone",
     "processNames": ["firestone"],
     "coverUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1013320/header.jpg"
+  },
+  {
+    "name": "Firestone Online Idle",
+    "processNames": ["firestone"],
+    "coverUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1013320/header.jpg"
   }
 ]

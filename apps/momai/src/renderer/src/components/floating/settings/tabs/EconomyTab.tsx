@@ -340,13 +340,14 @@ export const EconomyTab = React.memo(
                 return (
                   <div
                     key={idx}
-                    className={`relative rounded-xl overflow-hidden border transition-all ${
+                    onClick={() => toggleGameEconomy(game.name)}
+                    className={`relative rounded-xl overflow-hidden border transition-all cursor-pointer ${
                       isRunning
                         ? 'border-accent/50 ring-1 ring-accent/30'
                         : economyEnabled
                           ? 'border-green-500/30 bg-white/[0.03]'
                           : 'border-border/10 opacity-50 bg-white/[0.01]'
-                    }`}
+                    } hover:brightness-110`}
                   >
                     <div className="w-full aspect-[4/5] bg-white/5 overflow-hidden relative">
                       {coverUrl ? (
@@ -365,19 +366,6 @@ export const EconomyTab = React.memo(
                           {GAME_ICON}
                         </div>
                       )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleGameEconomy(game.name) }}
-                        className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center transition-all hover:scale-110 ${
-                          economyEnabled
-                            ? 'bg-green-500 text-white'
-                            : 'bg-white/10 text-text-muted'
-                        }`}
-                        title={economyEnabled ? 'Desativar economia' : 'Ativar economia'}
-                      >
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                        </svg>
-                      </button>
                     </div>
                     <div className="p-1.5">
                       <p className="text-[10px] font-semibold text-text truncate">{game.name}</p>
