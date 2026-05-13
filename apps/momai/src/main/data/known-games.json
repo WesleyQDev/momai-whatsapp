@@ -549,5 +549,10 @@
     "name": "XCOM 2",
     "processNames": ["xcom2"],
     "steamGridId": null
+  },
+  {
+    "name": "Firestone",
+    "processNames": ["firestone"],
+    "coverUrl": "https://cdn2.steamgriddb.com/thumb/dc87c2f1c1e7352a9ae6b22e220695dc.jpg"
   }
 ]

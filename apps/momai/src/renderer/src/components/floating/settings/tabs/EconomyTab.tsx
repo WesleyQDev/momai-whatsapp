@@ -112,9 +112,13 @@ export const EconomyTab = React.memo(
       setContextMenu({ x: e.clientX, y: e.clientY, gameName, isRunning })
     }
 
-    // Merge scanned games with catalog covers
     const mergedCatalog = scanned.map((s: any) => {
       const match = catalog.find((c: any) => c.name.toLowerCase() === s.name?.toLowerCase())
+      if (match) {
+        console.log(`[EconomyTab] Match: "${s.name}" → catalog coverUrl="${match.coverUrl}", steamGridId=${match.steamGridId}`)
+      } else {
+        console.log(`[EconomyTab] No catalog match for: "${s.name}"`)
+      }
       if (match && (match.coverUrl || match.steamGridId)) {
         return { ...s, coverUrl: match.coverUrl || getCoverUrl(match), steamGridId: match.steamGridId }
       }
@@ -126,75 +130,20 @@ export const EconomyTab = React.memo(
     const hasRunning = runningGames.length > 0
 
     return (
-      <div className="space-y-6">
-        <div className="space-y-1">
-          <h2 className="text-xl font-bold text-text tracking-tight">
-            {t('settings.economy.title')}
-          </h2>
-        </div>
-
-        {/* Settings row: Gaming Mode + LLM Timeout + Add Game */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Gaming Mode toggle */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onUpdateConfig?.({ gaming_mode_enabled: !economyConfig?.gaming_mode_enabled })}
-              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                economyConfig?.gaming_mode_enabled ? 'bg-accent/80' : 'bg-white/10'
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                  economyConfig?.gaming_mode_enabled ? 'translate-x-4' : 'translate-x-0'
-                }`}
-              />
-            </button>
-            <span className="text-xs font-semibold text-text">Auto-detect</span>
-          </div>
-
-          {/* LLM Timeout selector */}
-          <select
-            value={economyConfig?.idle_timeout_app_open ?? 0}
-            onChange={(e) => onUpdateConfig?.({ idle_timeout_app_open: Number(e.target.value) })}
-            className="bg-input border border-border rounded-lg px-2 py-1 text-xs text-text outline-none"
-            title="LLM timeout when app is open (idle)"
-          >
-            <option value={0}>LLM timeout: Off</option>
-            <option value={1}>1 min</option>
-            <option value={5}>5 min</option>
-            <option value={10}>10 min</option>
-            <option value={30}>30 min</option>
-          </select>
-
-          {/* Add game button */}
-          <button
-            onClick={() => setShowAddGame(!showAddGame)}
-            className="text-xs font-semibold text-accent hover:text-accent/80 transition-colors"
-          >
-            + Add Game
-          </button>
-
-          {/* Scan libraries */}
-          <button
-            onClick={handleScan}
-            disabled={scanning}
-            className="text-xs font-semibold text-text-muted hover:text-text transition-colors"
-          >
-            {scanning ? 'Scanning...' : 'Scan PC'}
-          </button>
-        </div>
-
-        {/* LLM Timeout section (collapsible, collapsed by default) */}
-        {showTimeout && (
-          <div className="space-y-2 p-3 rounded-xl bg-white/[0.03] border border-border/20">
+      <div className="space-y-8">
+        {/* ===== SONECA DA IA SECTION ===== */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold text-text tracking-tight">Soneca da IA</h2>
+          <p className="text-xs text-text-muted">Define quando a IA deve ser pausada para economizar recursos.</p>
+          <div className="p-4 rounded-xl bg-white/[0.03] border border-border/10 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-text">App open (idle)</span>
+              <span className="text-sm text-text">App aberto (ocioso)</span>
               <select
                 value={economyConfig?.idle_timeout_app_open ?? 5}
                 onChange={(e) => onUpdateConfig?.({ idle_timeout_app_open: Number(e.target.value) })}
                 className="bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-text outline-none"
               >
-                <option value={0}>Off</option>
+                <option value={0}>Desligado</option>
                 <option value={1}>1 min</option>
                 <option value={5}>5 min</option>
                 <option value={10}>10 min</option>
@@ -202,48 +151,88 @@ export const EconomyTab = React.memo(
               </select>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-text">App minimized</span>
+              <span className="text-sm text-text">App minimizado</span>
               <select
                 value={economyConfig?.idle_timeout_minimized ?? 1}
                 onChange={(e) => onUpdateConfig?.({ idle_timeout_minimized: Number(e.target.value) })}
                 className="bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-text outline-none"
               >
-                <option value={0}>Off</option>
+                <option value={0}>Desligado</option>
                 <option value={1}>1 min</option>
                 <option value={5}>5 min</option>
                 <option value={10}>10 min</option>
               </select>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Add game input (expandable) */}
-        {showAddGame && (
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Game folder path"
-              value={newApp.path || newApp.executable}
-              onChange={(e) => {
-                const path = e.target.value
-                const name = path.split(/[\\/]/).pop() || path
-                setNewApp({ name, executable: path })
-              }}
-              className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-xs font-medium text-text outline-none focus:border-accent/40"
-            />
+        {/* ===== GAMING MODE SECTION ===== */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-bold text-text tracking-tight">Modo Gaming</h3>
+
+          {/* Gaming controls row */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onUpdateConfig?.({ gaming_mode_enabled: !economyConfig?.gaming_mode_enabled })}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  economyConfig?.gaming_mode_enabled ? 'bg-accent/80' : 'bg-white/10'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    economyConfig?.gaming_mode_enabled ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+              <span className="text-xs font-semibold text-text">Auto-detectar jogos</span>
+            </div>
+
             <button
-              onClick={handleAddGamingApp}
-              className="px-3 bg-accent text-white rounded-lg text-xs font-bold uppercase hover:opacity-90 transition-all"
+              onClick={handleScan}
+              disabled={scanning}
+              className="text-xs font-semibold text-accent hover:text-accent/80 transition-colors"
             >
-              {t('settings.economy.addButton')}
+              {scanning ? 'Escaneando...' : 'Escanear PC'}
+            </button>
+
+            <button
+              onClick={() => setShowAddGame(!showAddGame)}
+              className="text-xs font-semibold text-text-muted hover:text-text transition-colors"
+            >
+              + Adicionar jogo manualmente
             </button>
           </div>
-        )}
 
-        {/* ===== NOW PLAYING SECTION ===== */}
-        {hasRunning && (
-          <div>
-            <h3 className="text-sm font-bold text-text mb-3">Agora Jogando</h3>
+          {/* Add game input */}
+          {showAddGame && (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Caminho da pasta do jogo"
+                value={newApp.path || newApp.executable}
+                onChange={(e) => {
+                  const path = e.target.value
+                  const name = path.split(/[\\/]/).pop() || path
+                  setNewApp({ name, executable: path })
+                }}
+                className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-xs font-medium text-text outline-none focus:border-accent/40"
+              />
+              <button
+                onClick={handleAddGamingApp}
+                className="px-3 bg-accent text-white rounded-lg text-xs font-bold uppercase hover:opacity-90 transition-all"
+              >
+                {t('settings.economy.addButton')}
+              </button>
+            </div>
+          )}
+
+          {/* All game catalog here */}
+
+          {/* ===== NOW PLAYING ===== */}
+          {hasRunning && (
+            <div>
+              <h4 className="text-sm font-semibold text-text mb-3">Agora Jogando</h4>
             {runningGames.map((game, idx) => {
               const coverUrl = (game as any).coverUrl
               return (
@@ -285,13 +274,9 @@ export const EconomyTab = React.memo(
           </div>
         )}
 
-        {/* ===== GAME CATALOG GRID ===== */}
-        <div>
-          <h3 className="text-sm font-bold text-text mb-3">Biblioteca de Jogos</h3>
-
           {/* Custom user-added games (not in catalog) */}
           {gamingApps.filter(a => !mergedCatalog.some((c: any) => c.name === a.name)).length > 0 && (
-            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3 mb-4">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
               {gamingApps
                 .filter(a => !mergedCatalog.some((c: any) => c.name === a.name))
                 .map((app) => (
@@ -303,15 +288,15 @@ export const EconomyTab = React.memo(
                         ? 'Clique direito para desativar economia'
                         : 'Clique direito para ativar economia'
                     }
-                    className={`relative rounded-xl overflow-hidden border cursor-context-menu transition-all ${
+                    className={`relative rounded-xl overflow-hidden border border-border/20 cursor-context-menu transition-all ${
                       runningNames.has(app.name)
                         ? 'border-accent/50 ring-1 ring-accent/30'
                         : gamePrefs[app.name.toLowerCase()] !== false
-                          ? 'border-green-500/30'
-                          : 'border-border/20 opacity-60'
-                    } bg-white/[0.02] group`}
+                          ? 'bg-white/[0.03]'
+                          : 'opacity-50 bg-white/[0.01]'
+                    } group`}
                   >
-                    <div className="w-full aspect-[3/4] bg-white/5 flex items-center justify-center">
+                    <div className="w-full aspect-[4/5] bg-white/5 flex items-center justify-center">
                       <div className="text-text-muted opacity-50">{GAME_ICON}</div>
                     </div>
                     <div className="p-1.5">
@@ -326,18 +311,26 @@ export const EconomyTab = React.memo(
                         <line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
                     </button>
+                    {gamePrefs[app.name.toLowerCase()] !== false && (
+                      <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                          <path d="M20 6L9 17l-5-5" />
+                        </svg>
+                      </div>
+                    )}
                   </div>
                 ))}
             </div>
           )}
 
           {/* Game grid */}
+          <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wide">Biblioteca de Jogos</h4>
           {mergedCatalog.length === 0 ? (
             <div className="py-8 text-center border border-dashed border-border rounded-xl">
-              <span className="text-sm text-text-muted font-medium italic">{scanning ? 'Scanning...' : 'Nenhum jogo encontrado'}</span>
+              <span className="text-sm text-text-muted font-medium italic">{scanning ? 'Escaneando...' : 'Nenhum jogo encontrado. Clique em "Escanear PC" para buscar seus jogos.'}</span>
             </div>
           ) : (
-            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
               {mergedCatalog.map((game: any, idx: number) => {
                 const coverUrl = getCoverUrl(game)
                 const isRunning = runningNames.has(game.name)
@@ -347,15 +340,15 @@ export const EconomyTab = React.memo(
                     key={idx}
                     onContextMenu={(e) => handleContextMenu(e, game.name, runningNames.has(game.name))}
                     title={economyEnabled ? 'Clique direito para desativar economia' : 'Clique direito para ativar economia'}
-                    className={`relative rounded-xl overflow-hidden border cursor-context-menu transition-all ${
+                    className={`relative rounded-xl overflow-hidden border border-border/20 cursor-context-menu transition-all ${
                       isRunning
                         ? 'border-accent/50 ring-1 ring-accent/30'
                         : economyEnabled
-                          ? 'border-green-500/30'
-                          : 'border-border/10 opacity-60'
-                    } bg-white/[0.02] hover:border-border/30 hover:bg-white/[0.04]`}
+                          ? 'bg-white/[0.03]'
+                          : 'opacity-50 bg-white/[0.01]'
+                    } hover:border-border/30 hover:bg-white/[0.04]`}
                   >
-                    <div className="w-full aspect-[3/4] bg-white/5 overflow-hidden">
+                    <div className="w-full aspect-[4/5] bg-white/5 overflow-hidden">
                       {coverUrl ? (
                         <img
                           src={coverUrl}
@@ -381,6 +374,13 @@ export const EconomyTab = React.memo(
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse block" />
                       </div>
                     )}
+                    {economyEnabled && (
+                      <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                          <path d="M20 6L9 17l-5-5" />
+                        </svg>
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -388,23 +388,22 @@ export const EconomyTab = React.memo(
           )}
         </div>
 
-        {/* Context Menu */}
         {contextMenu && (
-          <div
-            className="fixed z-50 min-w-[180px] bg-card border border-border/40 rounded-xl shadow-2xl py-1 backdrop-blur-xl"
-            style={{ left: contextMenu.x, top: contextMenu.y }}
-          >
-            <div className="px-3 py-2 text-xs font-semibold text-text-muted border-b border-border/20">
-              {contextMenu.gameName}
-            </div>
-            <button
-              onClick={() => toggleGameEconomy(contextMenu.gameName, gamePrefs[contextMenu.gameName.toLowerCase()] !== false)}
-              className="w-full text-left px-3 py-2 text-sm text-text hover:bg-white/5 transition-colors flex items-center gap-2"
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
+            <div
+              className="fixed z-50 bg-card border border-border/20 rounded-lg shadow-xl overflow-hidden"
+              style={{ left: contextMenu.x, top: contextMenu.y, minWidth: 140 }}
             >
-              <span className={`w-3 h-3 rounded-full border ${gamePrefs[contextMenu.gameName.toLowerCase()] !== false ? 'bg-green-500 border-green-500' : 'border-text-muted'}`} />
-              Modo Economia
-            </button>
-          </div>
+              <button
+                onClick={() => toggleGameEconomy(contextMenu.gameName, gamePrefs[contextMenu.gameName.toLowerCase()] !== false)}
+                className="w-full text-left px-3 py-2 text-xs text-text hover:bg-white/5 transition-colors flex items-center gap-2"
+              >
+                <span className={`w-2.5 h-2.5 rounded-full ${gamePrefs[contextMenu.gameName.toLowerCase()] !== false ? 'bg-green-500' : 'bg-text-muted'}`} />
+                {gamePrefs[contextMenu.gameName.toLowerCase()] !== false ? 'Desativar economia' : 'Ativar economia'}
+              </button>
+            </div>
+          </>
         )}
       </div>
     )
