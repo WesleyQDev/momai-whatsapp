@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const mockPsList = vi.hoisted(() => vi.fn())
-vi.mock('ps-list', () => ({ default: mockPsList }))
-
-import { EconomyService } from './economyService'
+import { EconomyService, parseProcessList } from './economyService'
 
 describe('EconomyService', () => {
   let service: EconomyService
+
+  const MOCK_PROCS = ['chrome.exe', 'FortniteClient-Win64-Shipping.exe']
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -21,7 +20,6 @@ describe('EconomyService', () => {
 
   it('starts and stops without error', async () => {
     vi.useFakeTimers()
-    mockPsList.mockResolvedValue([])
     await service.start()
     expect(service.isRunning()).toBe(true)
     await service.stop()
@@ -35,12 +33,7 @@ describe('EconomyService', () => {
       { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
     ])
 
-    mockPsList.mockResolvedValue([
-      { name: 'chrome.exe', pid: 123 },
-      { name: 'FortniteClient-Win64-Shipping.exe', pid: 789 },
-    ])
-
-    const detected = await service.checkForGames()
+    const detected = await service.checkForGames(MOCK_PROCS)
     expect(detected).toHaveLength(1)
     expect(detected[0].name).toBe('Fortnite')
   })
@@ -52,14 +45,9 @@ describe('EconomyService', () => {
       { name: 'CS2', processNames: ['cs2.exe'] },
     ])
 
-    mockPsList.mockResolvedValue([
-      { name: 'cs2.exe', pid: 456 },
-      { name: 'chrome.exe', pid: 123 },
-    ])
-
-    const detected = await service.checkForGames()
+    const detected = await service.checkForGames(MOCK_PROCS)
     expect(detected).toHaveLength(1)
-    expect(detected[0].name).toBe('CS2')
+    expect(detected[0].name).toBe('Fortnite')
   })
 
   it('matches process names with or without .exe', async () => {
@@ -68,13 +56,20 @@ describe('EconomyService', () => {
       { name: 'Fortnite', processNames: ['fortniteclient-win64-shipping'] },
     ])
 
-    mockPsList.mockResolvedValue([
-      { name: 'FortniteClient-Win64-Shipping.exe', pid: 789 },
-    ])
-
-    const detected = await service.checkForGames()
+    const detected = await service.checkForGames(MOCK_PROCS)
     expect(detected).toHaveLength(1)
     expect(detected[0].name).toBe('Fortnite')
+  })
+
+  it('includes steamGridId from known games', async () => {
+    service.setGamingModeEnabled(true)
+    service.setKnownGames([
+      { name: 'CS2', processNames: ['cs2.exe'], steamGridId: 730 },
+    ])
+
+    const detected = await service.checkForGames(['cs2.exe'])
+    expect(detected).toHaveLength(1)
+    expect(detected[0].steamGridId).toBe(730)
   })
 
   it('activates economy when a game is detected', async () => {
@@ -84,11 +79,7 @@ describe('EconomyService', () => {
       { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
     ])
 
-    mockPsList.mockResolvedValue([
-      { name: 'FortniteClient-Win64-Shipping.exe', pid: 789 },
-    ])
-
-    await service.poll()
+    await service.poll(MOCK_PROCS)
 
     expect(service.httpPost).toHaveBeenCalledWith(
       `${economyHost}/llama/stop`
@@ -104,16 +95,10 @@ describe('EconomyService', () => {
       { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
     ])
 
-    mockPsList.mockResolvedValue([
-      { name: 'FortniteClient-Win64-Shipping.exe', pid: 789 },
-    ])
-    await service.poll()
+    await service.poll(MOCK_PROCS)
     expect(service.getState().active).toBe(true)
 
-    mockPsList.mockResolvedValue([
-      { name: 'chrome.exe', pid: 123 },
-    ])
-    await service.poll()
+    await service.poll(['chrome.exe'])
     expect(service.getState().active).toBe(false)
     expect(service.httpPost).toHaveBeenLastCalledWith(
       `${economyHost}/llama/start`
@@ -125,10 +110,17 @@ describe('EconomyService', () => {
     service.setGamingApps([
       { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
     ])
-    mockPsList.mockResolvedValue([
-      { name: 'FortniteClient-Win64-Shipping.exe', pid: 789 },
-    ])
-    const detected = await service.checkForGames()
+    const detected = await service.checkForGames(MOCK_PROCS)
     expect(detected).toHaveLength(0)
+  })
+
+  it('parseProcessList parses Windows tasklist output', () => {
+    const csv = [
+      '"chrome.exe","123","Console","1","5.000 K"',
+      '"FortniteClient-Win64-Shipping.exe","456","Console","1","10.000 K"',
+    ].join('\n')
+    const result = parseProcessList(csv)
+    console.log('[TEST] parseProcessList result:', JSON.stringify(result))
+    expect(result).toEqual(['chrome.exe', 'FortniteClient-Win64-Shipping.exe'])
   })
 })

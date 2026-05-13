@@ -1,4 +1,15 @@
-import psList from 'ps-list'
+import { execSync as execSyncNode } from 'child_process'
+
+export function parseProcessList(out: string): string[] {
+  const names: string[] = []
+  for (const rawLine of out.split('\n')) {
+    const line = rawLine.trim()
+    if (!line.includes('.exe')) continue
+    const match = /"([^"]+\.exe)"/.exec(line)
+    if (match) names.push(match[1])
+  }
+  return names
+}
 
 export interface DetectedGame {
   name: string
@@ -50,7 +61,6 @@ export class EconomyService {
 
   private broadcastCallback: ((state: EconomyState) => void) | null = null
 
-  // Allow tests to inject a mock HTTP client
   httpGet: (url: string) => Promise<any> = async (url: string) => {
     const res = await fetch(url)
     return res.json()
@@ -59,6 +69,14 @@ export class EconomyService {
   httpPost: (url: string) => Promise<any> = async (url: string) => {
     const res = await fetch(url, { method: 'POST' })
     return { ok: res.ok, status: res.status }
+  }
+
+  execCmd(cmd: string): string {
+    return execSyncNode(cmd, {
+      encoding: 'utf-8',
+      timeout: 3000,
+      stdio: ['pipe', 'pipe', 'ignore'],
+    })
   }
 
   onStateChange(callback: (state: EconomyState) => void): void {
@@ -103,20 +121,29 @@ export class EconomyService {
     this.clearTimers()
   }
 
+  private getProcessList(): string[] {
+    try {
+      const cmd = process.platform === 'win32'
+        ? 'tasklist /FO CSV /NH'
+        : 'ps -eo comm --no-headers 2>/dev/null || ps -Ao comm= 2>/dev/null'
+      const out = this.execCmd(cmd)
+      return parseProcessList(out)
+    } catch {
+      return []
+    }
+  }
+
   private matchProcess(processName: string, target: string): boolean {
     const a = processName.toLowerCase()
     const b = target.toLowerCase()
     return a === b || a === b + '.exe' || a.replace(/\.exe$/, '') === b
   }
 
-  async checkForGames(): Promise<DetectedGame[]> {
+  async checkForGames(processOverrides?: string[]): Promise<DetectedGame[]> {
     if (!this.gamingModeEnabled) return []
 
-    let processes: any[] = []
-    try {
-      processes = await psList()
-    } catch (err) {
-      console.log('[Economy] ps-list error:', (err as Error).message)
+    const processes = processOverrides ?? this.getProcessList()
+    if (processes.length === 0) {
       return []
     }
 
@@ -124,9 +151,9 @@ export class EconomyService {
     const checked = new Set<string>()
 
     for (const app of this.gamingApps) {
-      const match = processes.find((p) =>
-        p.name ? this.matchProcess(p.name, app.executable) : false
-      )
+      const match = app.executable
+        ? processes.some((p) => this.matchProcess(p, app.executable))
+        : false
       if (match && !checked.has(app.name)) {
         checked.add(app.name)
         detected.push({ name: app.name, processName: app.executable, steamGridId: null })
@@ -136,21 +163,19 @@ export class EconomyService {
     for (const game of this.knownGames) {
       if (checked.has(game.name)) continue
       const match = processes.find((p) =>
-        p.name
-          ? game.processNames.some((pn) => this.matchProcess(p.name!, pn))
-          : false
+        game.processNames.some((pn) => this.matchProcess(p, pn))
       )
       if (match) {
         checked.add(game.name)
-        detected.push({ name: game.name, processName: match.name || '', steamGridId: game.steamGridId })
-        console.log(`[Economy] DETECTED: ${game.name}`)
+        detected.push({ name: game.name, processName: match, steamGridId: game.steamGridId })
+        console.log(`[Economy] DETECTED: ${game.name} (process: ${match})`)
       }
     }
 
     return detected
   }
 
-  async poll(): Promise<void> {
+  async poll(processOverrides?: string[]): Promise<void> {
     try {
       const config = await this.httpGet(`${this.economyHost}/economy/config`)
       this.gamingModeEnabled = !!(config as any).gaming_mode_enabled
@@ -159,7 +184,7 @@ export class EconomyService {
     }
 
     if (this.gamingModeEnabled) {
-      const detected = await this.checkForGames()
+      const detected = await this.checkForGames(processOverrides)
       const hasGames = detected.length > 0
 
       if (hasGames && !this.currentState.active) {
