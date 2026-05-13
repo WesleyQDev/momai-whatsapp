@@ -501,6 +501,7 @@ export default function ContainerChat({
   const [economyState, setEconomyState] = useState<{
     active: boolean
     detectedGames: { name: string; coverUrl?: string | null }[]
+    freedMemoryMb?: number
   } | null>(null)
 
   const [localDismissed, setLocalDismissed] = useState(false)
@@ -685,7 +686,11 @@ export default function ContainerChat({
               <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             </div>
             <h2 className="text-lg font-bold text-text">{econGame.name}</h2>
-            <p className="text-xs text-text-muted">Recursos liberados para o jogo rodar sem interferência</p>
+            <p className="text-xs text-text-muted">
+              {economyState.freedMemoryMb
+                ? `${economyState.freedMemoryMb} MB de RAM liberados`
+                : 'Recursos liberados para o jogo rodar sem interferência'}
+            </p>
           </div>
           <button
             onClick={dismissEconomy}

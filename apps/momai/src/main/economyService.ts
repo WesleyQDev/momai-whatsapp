@@ -36,6 +36,7 @@ export interface EconomyState {
   active: boolean
   reason: 'gaming' | 'idle' | 'manual' | null
   detectedGames: DetectedGame[]
+  freedMemoryMb?: number
 }
 
 export interface KnownGame {
@@ -166,6 +167,29 @@ export class EconomyService {
     return a === b || a === b + '.exe' || a.replace(/\.exe$/, '') === b
   }
 
+  private getProcessMemory(name: string): number {
+    try {
+      const cmd = process.platform === 'win32'
+        ? `tasklist /FO CSV /NH /FI "IMAGENAME eq ${name}"`
+        : `ps -eo rss= -C ${name} 2>/dev/null | head -1`
+      const out = this.execCmd(cmd)
+      if (!out) return 0
+      if (process.platform === 'win32') {
+        const lines = out.trim().split('\n')
+        for (const line of lines) {
+          const parts = line.split('","')
+          if (parts.length >= 4) {
+            const mem = parseInt(parts[parts.length - 1]?.replace(/[^0-9]/g, ''), 10)
+            if (!isNaN(mem)) return Math.round(mem / 1024)
+          }
+        }
+      }
+      return 0
+    } catch {
+      return 0
+    }
+  }
+
   private resolveCoverUrl(game: KnownGame): string | null {
     if (game.coverUrl) return game.coverUrl
     if (game.steamGridId) return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.steamGridId}/header.jpg`
@@ -236,8 +260,10 @@ export class EconomyService {
   }
 
   private async activateEconomy(reason: EconomyState['reason'], detected: DetectedGame[]): Promise<void> {
-    this.currentState = { active: true, reason, detectedGames: detected }
+    const before = this.getProcessMemory('python.exe')
     await this.httpPost(`${this.economyHost}/llama/stop`)
+    const freedMemoryMb = before > 0 ? before : undefined
+    this.currentState = { active: true, reason, detectedGames: detected, freedMemoryMb }
     this.broadcast()
   }
 
