@@ -7,6 +7,8 @@ export interface ScannedGame {
   appId: number
   launcher: 'steam' | 'epic'
   coverUrl: string
+  catalogItemId?: string
+  sandboxId?: string
 }
 
 function findSteamPath(): string | null {
@@ -84,46 +86,65 @@ function scanSteamFolder(appsDir: string, seen: Set<string>): ScannedGame[] {
   return games
 }
 
-function scanEpicGames(seen: Set<string>): ScannedGame[] {
+function scanEpicDatFallback(seen: Set<string>): ScannedGame[] {
   const games: ScannedGame[] = []
-  const dataPaths = [
+  const datPaths = [
     join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'Epic', 'UnrealEngineLauncher', 'LauncherInstalled.dat'),
     join(process.env.LOCALAPPDATA || '', 'Epic', 'UnrealEngineLauncher', 'LauncherInstalled.dat'),
-    join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'Epic', 'EpicGamesLauncher', 'Data', 'Manifests'),
   ]
-  for (const dataPath of dataPaths) {
-    if (dataPath.endsWith('.dat')) {
-      if (!existsSync(dataPath)) continue
-      try {
-        const data = JSON.parse(readFileSync(dataPath, 'utf-8'))
-        const apps: any[] = data?.InstallationList || []
-        for (const a of apps) {
-          if (!a.AppName || !a.DisplayName) continue
-          const key = a.DisplayName.toLowerCase()
-          if (seen.has(key)) continue
-          seen.add(key)
-          games.push({ name: a.DisplayName, appId: 0, launcher: 'epic', coverUrl: '' })
-        }
-      } catch {}
-    } else {
-      if (!existsSync(dataPath)) continue
-      try {
-        const files = readdirSync(dataPath)
-        for (const f of files) {
-          if (!f.endsWith('.item')) continue
-          try {
-            const item = JSON.parse(readFileSync(join(dataPath, f), 'utf-8'))
-            const name = item.DisplayName || item.AppName || item.CatalogItemId
-            if (!name) continue
-            const key = name.toLowerCase()
-            if (seen.has(key)) continue
-            seen.add(key)
-            games.push({ name, appId: 0, launcher: 'epic', coverUrl: '' })
-          } catch {}
-        }
-      } catch {}
-    }
+  for (const datPath of datPaths) {
+    if (!existsSync(datPath)) continue
+    try {
+      const data = JSON.parse(readFileSync(datPath, 'utf-8'))
+      const apps: any[] = data?.InstallationList || []
+      for (const a of apps) {
+        if (!a.AppName || !a.DisplayName) continue
+        const key = a.DisplayName.toLowerCase()
+        if (seen.has(key)) continue
+        seen.add(key)
+        games.push({ name: a.DisplayName, appId: 0, launcher: 'epic', coverUrl: '' })
+      }
+    } catch {}
   }
+  return games
+}
+
+function scanEpicManifests(seen: Set<string>): ScannedGame[] {
+  const games: ScannedGame[] = []
+  const manifestsPath = join(
+    process.env.PROGRAMDATA || 'C:\\ProgramData',
+    'Epic', 'EpicGamesLauncher', 'Data', 'Manifests'
+  )
+  if (!existsSync(manifestsPath)) return games
+  let files: string[]
+  try { files = readdirSync(manifestsPath) } catch { return games }
+  for (const f of files) {
+    if (!f.endsWith('.item')) continue
+    try {
+      const item = JSON.parse(readFileSync(join(manifestsPath, f), 'utf-8'))
+      const name = item.DisplayName || item.AppName || item.CatalogItemId
+      if (!name) continue
+      const key = name.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      games.push({
+        name,
+        appId: 0,
+        launcher: 'epic',
+        coverUrl: item.VaultThumbnailUrl || '',
+        catalogItemId: item.CatalogItemId,
+        sandboxId: item.SandboxId || item.CatalogNamespace,
+      })
+    } catch {}
+  }
+  return games
+}
+
+function scanEpicGames(seen: Set<string>): ScannedGame[] {
+  // .item files are richer (contain VaultThumbnailUrl), scan them first
+  const games = scanEpicManifests(seen)
+  // fallback to LauncherInstalled.dat for games not in .item files
+  games.push(...scanEpicDatFallback(seen))
   return games
 }
 
