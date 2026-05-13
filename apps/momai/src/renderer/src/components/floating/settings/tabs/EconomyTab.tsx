@@ -126,9 +126,9 @@ export const EconomyTab = React.memo(
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-text tracking-tight">Soneca da IA</h2>
           <p className="text-xs text-text-muted">Define quando a IA deve ser pausada para economizar recursos.</p>
-          <div className="p-4 rounded-xl bg-white/[0.03] border border-border/10 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-text">App aberto (ocioso)</span>
+          <div className="rounded-xl bg-white/[0.03] border border-border/40 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-border/30">
+              <span className="text-xs font-semibold text-text">App aberto (ocioso)</span>
               <select
                 value={economyConfig?.idle_timeout_app_open ?? 5}
                 onChange={(e) => onUpdateConfig?.({ idle_timeout_app_open: Number(e.target.value) })}
@@ -142,8 +142,8 @@ export const EconomyTab = React.memo(
                 <option value={30}>30 min</option>
               </select>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-text">App minimizado</span>
+            <div className="flex items-center justify-between p-4">
+              <span className="text-xs font-semibold text-text">App minimizado</span>
               <select
                 value={economyConfig?.idle_timeout_minimized ?? 1}
                 onChange={(e) => onUpdateConfig?.({ idle_timeout_minimized: Number(e.target.value) })}
@@ -163,10 +163,13 @@ export const EconomyTab = React.memo(
         <div className="space-y-4">
           <h3 className="text-lg font-bold text-text tracking-tight">Modo Gaming</h3>
 
-          {/* Gaming controls cards */}
-          <div className="p-4 rounded-xl bg-white/[0.03] border border-border/10 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-text">Auto-detectar jogos</span>
+          {/* Gaming controls card */}
+          <div className="rounded-xl bg-white/[0.03] border border-border/40 overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-border/30">
+              <div className="flex flex-col gap-0.5 pr-4">
+                <span className="text-xs font-semibold text-text">Auto-detectar jogos</span>
+                <span className="text-[11px] text-text-muted font-medium">Escaneia Steam e Epic automaticamente</span>
+              </div>
               <button
                 onClick={async () => {
                 const newVal = !economyConfig?.gaming_mode_enabled
@@ -184,21 +187,27 @@ export const EconomyTab = React.memo(
                 />
               </button>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-text">Escanear bibliotecas</span>
+            <div className="flex items-center justify-between p-4 border-b border-border/30">
+              <div className="flex flex-col gap-0.5 pr-4">
+                <span className="text-xs font-semibold text-text">Escanear bibliotecas</span>
+                <span className="text-[11px] text-text-muted font-medium">Busca jogos instalados no PC</span>
+              </div>
               <button
                 onClick={handleScan}
                 disabled={scanning}
-                className="text-xs font-semibold text-accent hover:text-accent/80 transition-colors"
+                className="text-xs font-semibold text-accent border border-accent/30 rounded-lg px-3 py-1.5 hover:bg-accent/5 transition-all disabled:opacity-40"
               >
                 {scanning ? 'Escaneando...' : 'Escanear PC'}
               </button>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-text">Adicionar jogo manual</span>
+            <div className="flex items-center justify-between p-4">
+              <div className="flex flex-col gap-0.5 pr-4">
+                <span className="text-xs font-semibold text-text">Adicionar jogo manual</span>
+                <span className="text-[11px] text-text-muted font-medium">Adiciona um jogo não detectado</span>
+              </div>
               <button
                 onClick={() => setShowAddGame(!showAddGame)}
-                className="text-xs font-semibold text-text-muted hover:text-text transition-colors"
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all text-text-muted border-border/30 hover:text-text hover:border-border/60"
               >
                 {showAddGame ? 'Cancelar' : '+ Adicionar'}
               </button>
