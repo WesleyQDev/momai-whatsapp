@@ -76,7 +76,6 @@ describe('EconomyService', () => {
   })
 
   it('activates economy when a game is detected', async () => {
-    service.setGamingModeEnabled(true)
     const economyHost = 'http://localhost:12345'
     service.setEconomyHost(economyHost)
     service.setGamingApps([
@@ -87,9 +86,15 @@ describe('EconomyService', () => {
       { name: 'FortniteClient-Win64-Shipping.exe', pid: 789 },
     ])
 
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ stopped: true }),
+    let callCount = 0
+    const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+      callCount++
+      if (callCount === 1) {
+        // First call: poll() refreshes config
+        return { ok: true, json: async () => ({ gaming_mode_enabled: true }) }
+      }
+      // Second call: activate economy
+      return { ok: true, json: async () => ({ stopped: true }) }
     })
     vi.stubGlobal('fetch', mockFetch)
 
@@ -104,29 +109,28 @@ describe('EconomyService', () => {
   })
 
   it('deactivates economy when game closes', async () => {
-    service.setGamingModeEnabled(true)
     const economyHost = 'http://localhost:12345'
     service.setEconomyHost(economyHost)
     service.setGamingApps([
       { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
     ])
 
-    const mockFetch = vi.fn()
+    const mockFetch = vi.fn(async (url: string) => {
+      if (url.includes('/llama/stop')) return { ok: true, json: async () => ({ stopped: true }) }
+      if (url.includes('/llama/start')) return { ok: true, json: async () => ({ ready: true }) }
+      return { ok: true, json: async () => ({ gaming_mode_enabled: true }) }
+    })
     vi.stubGlobal('fetch', mockFetch)
 
-    // First poll: game detected
-    mockPsList.mockResolvedValueOnce([
+    mockPsList.mockResolvedValue([
       { name: 'FortniteClient-Win64-Shipping.exe', pid: 789 },
     ])
-    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ stopped: true }) })
     await service.poll()
     expect(service.getState().active).toBe(true)
 
-    // Second poll: game gone
-    mockPsList.mockResolvedValueOnce([
+    mockPsList.mockResolvedValue([
       { name: 'chrome.exe', pid: 123 },
     ])
-    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ready: true }) })
     await service.poll()
     expect(service.getState().active).toBe(false)
     expect(mockFetch).toHaveBeenLastCalledWith(

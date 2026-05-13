@@ -129,6 +129,17 @@ export class EconomyService {
   }
 
   async poll(): Promise<void> {
+    // Re-fetch config on each poll so toggles take effect within 5s
+    try {
+      const configRes = await fetch(`${this.economyHost}/economy/config`)
+      if (configRes.ok) {
+        const config = await configRes.json()
+        this.gamingModeEnabled = !!config.gaming_mode_enabled
+      }
+    } catch {
+      // Node Core not available yet
+    }
+
     const detected = await this.checkForGames()
     const hasGames = detected.length > 0
 
