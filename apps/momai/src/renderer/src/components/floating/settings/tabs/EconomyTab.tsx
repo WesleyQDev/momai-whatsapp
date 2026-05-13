@@ -340,17 +340,15 @@ export const EconomyTab = React.memo(
                 return (
                   <div
                     key={idx}
-                    onContextMenu={(e) => handleContextMenu(e, game.name, runningNames.has(game.name))}
-                    title={economyEnabled ? 'Clique direito para desativar economia' : 'Clique direito para ativar economia'}
-                    className={`relative rounded-xl overflow-hidden border border-border/20 cursor-context-menu transition-all ${
+                    className={`relative rounded-xl overflow-hidden border transition-all ${
                       isRunning
                         ? 'border-accent/50 ring-1 ring-accent/30'
                         : economyEnabled
-                          ? 'bg-white/[0.03]'
-                          : 'opacity-50 bg-white/[0.01]'
-                    } hover:border-border/30 hover:bg-white/[0.04]`}
+                          ? 'border-green-500/30 bg-white/[0.03]'
+                          : 'border-border/10 opacity-50 bg-white/[0.01]'
+                    }`}
                   >
-                    <div className="w-full aspect-[4/5] bg-white/5 overflow-hidden">
+                    <div className="w-full aspect-[4/5] bg-white/5 overflow-hidden relative">
                       {coverUrl ? (
                         <img
                           src={coverUrl}
@@ -367,6 +365,19 @@ export const EconomyTab = React.memo(
                           {GAME_ICON}
                         </div>
                       )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleGameEconomy(game.name) }}
+                        className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center transition-all hover:scale-110 ${
+                          economyEnabled
+                            ? 'bg-green-500 text-white'
+                            : 'bg-white/10 text-text-muted'
+                        }`}
+                        title={economyEnabled ? 'Desativar economia' : 'Ativar economia'}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                        </svg>
+                      </button>
                     </div>
                     <div className="p-1.5">
                       <p className="text-[10px] font-semibold text-text truncate">{game.name}</p>
@@ -374,13 +385,6 @@ export const EconomyTab = React.memo(
                     {isRunning && (
                       <div className="absolute top-1 left-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse block" />
-                      </div>
-                    )}
-                    {economyEnabled && (
-                      <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                          <path d="M20 6L9 17l-5-5" />
-                        </svg>
                       </div>
                     )}
                   </div>

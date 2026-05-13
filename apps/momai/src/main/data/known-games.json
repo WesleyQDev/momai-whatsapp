@@ -217,7 +217,7 @@
   {
     "name": "Fortnite",
     "processNames": ["fortnite", "fortniteclient-win64-shipping", "fortnitelauncher", "fortniteclient-win64-shipping_eac_eos"],
-    "coverUrl": "https://cdn2.steamgriddb.com/thumb/bafd5785e9335ccde7bcde6051b5dcf6.png",
+    "coverUrl": "https://cdn2.steamgriddb.com/thumb/6c4d541fc68d426aa028bc05f38164d1.jpg",
     "steamGridId": null
   },
   {
@@ -553,6 +553,6 @@
   {
     "name": "Firestone",
     "processNames": ["firestone"],
-    "coverUrl": "https://cdn2.steamgriddb.com/thumb/dc87c2f1c1e7352a9ae6b22e220695dc.jpg"
+    "coverUrl": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1013320/header.jpg"
   }
 ]
