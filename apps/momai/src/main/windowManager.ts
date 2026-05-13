@@ -192,6 +192,18 @@ export function registerIpcHandlers(): void {
     return getLastEconomyState()
   })
 
+  ipcMain.handle('economy:get-catalog', () => {
+    try {
+      const { readFileSync } = require('fs')
+      const { join } = require('path')
+      const catalogPath = join(__dirname, '../src/main/data/known-games.json')
+      const data = readFileSync(catalogPath, 'utf-8')
+      return JSON.parse(data)
+    } catch {
+      return []
+    }
+  })
+
   ipcMain.on('window-reset-size', () => {
     const win = getMainWindow()
     if (win) {

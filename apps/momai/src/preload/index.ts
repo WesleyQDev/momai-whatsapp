@@ -71,6 +71,7 @@ const api = {
   resetWindowSize: (): void => electronAPI.ipcRenderer.send('window-reset-size'),
   isWindowMaximized: (): Promise<boolean> => electronAPI.ipcRenderer.invoke('is-window-maximized'),
   getEconomyState: (): Promise<any> => electronAPI.ipcRenderer.invoke('economy:get-state'),
+  getEconomyCatalog: (): Promise<any[]> => electronAPI.ipcRenderer.invoke('economy:get-catalog'),
   onEconomyStateChange: (
     callback: (state: { active: boolean; reason: string | null; detectedGames: { name: string; processName: string }[] }) => void
   ) => {
