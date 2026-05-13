@@ -163,9 +163,10 @@ export const EconomyTab = React.memo(
         <div className="space-y-4">
           <h3 className="text-lg font-bold text-text tracking-tight">Modo Gaming</h3>
 
-          {/* Gaming controls row */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
+          {/* Gaming controls cards */}
+          <div className="p-4 rounded-xl bg-white/[0.03] border border-border/10 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-text">Auto-detectar jogos</span>
               <button
                 onClick={async () => {
                 const newVal = !economyConfig?.gaming_mode_enabled
@@ -182,23 +183,26 @@ export const EconomyTab = React.memo(
                   }`}
                 />
               </button>
-              <span className="text-xs font-semibold text-text">Auto-detectar jogos</span>
             </div>
-
-            <button
-              onClick={handleScan}
-              disabled={scanning}
-              className="text-xs font-semibold text-accent hover:text-accent/80 transition-colors"
-            >
-              {scanning ? 'Escaneando...' : 'Escanear PC'}
-            </button>
-
-            <button
-              onClick={() => setShowAddGame(!showAddGame)}
-              className="text-xs font-semibold text-text-muted hover:text-text transition-colors"
-            >
-              + Adicionar jogo manualmente
-            </button>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-text">Escanear bibliotecas</span>
+              <button
+                onClick={handleScan}
+                disabled={scanning}
+                className="text-xs font-semibold text-accent hover:text-accent/80 transition-colors"
+              >
+                {scanning ? 'Escaneando...' : 'Escanear PC'}
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-text">Adicionar jogo manual</span>
+              <button
+                onClick={() => setShowAddGame(!showAddGame)}
+                className="text-xs font-semibold text-text-muted hover:text-text transition-colors"
+              >
+                {showAddGame ? 'Cancelar' : '+ Adicionar'}
+              </button>
+            </div>
           </div>
 
           {/* Add game input */}
