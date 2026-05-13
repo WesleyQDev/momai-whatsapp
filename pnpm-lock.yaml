@@ -158,6 +158,9 @@ importers:
       lucide-react:
         specifier: ^1.11.0
         version: 1.11.0(react@19.2.3)
+      ps-list:
+        specifier: ^9.0.0
+        version: 9.0.0
       react-force-graph-2d:
         specifier: ^1.29.1
         version: 1.29.1(react@19.2.3)
@@ -4916,6 +4919,10 @@ packages:
 
   proxy-from-env@1.1.0:
     resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
+
+  ps-list@9.0.0:
+    resolution: {integrity: sha512-lxMEoIL/BQlk2KunFzxwUPwMvjFH7x7cmvzSLsSHpyMXl9FFfLUlfKrYwFc4wx/ZaIxxuXC4n8rjQ1CX/tkXVQ==}
+    engines: {node: '>=20'}
 
   pump@3.0.3:
     resolution: {integrity: sha512-todwxLMY7/heScKmntwQG8CXVkWUOdYxIvY2s0VWAAMh/nd8SoYiRaKjlr7+iCs984f2P8zvrfWcDDYVb73NfA==}
@@ -11486,6 +11493,8 @@ snapshots:
   property-information@7.1.0: {}
 
   proxy-from-env@1.1.0: {}
+
+  ps-list@9.0.0: {}
 
   pump@3.0.3:
     dependencies:
