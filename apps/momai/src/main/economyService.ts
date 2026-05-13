@@ -168,23 +168,14 @@ export class EconomyService {
     return a === b || a === b + '.exe' || a.replace(/\.exe$/, '') === b
   }
 
-  private getProcessMemory(name: string): number {
+  private getFreeRamMb(): number {
     try {
       const cmd = process.platform === 'win32'
-        ? `tasklist /FO CSV /NH /FI "IMAGENAME eq ${name}"`
-        : `ps -eo rss= -C ${name} 2>/dev/null | head -1`
+        ? 'powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory" 2>nul'
+        : 'free -m | awk \'/Mem:/ {print $7}\''
       const out = this.execCmd(cmd)
-      if (!out) return 0
-      if (process.platform === 'win32') {
-        const lines = out.trim().split('\n')
-        for (const line of lines) {
-          const parts = line.split('","')
-          if (parts.length >= 4) {
-            const mem = parseInt(parts[parts.length - 1]?.replace(/[^0-9]/g, ''), 10)
-            if (!isNaN(mem)) return Math.round(mem / 1024)
-          }
-        }
-      }
+      const kb = parseInt(out?.trim(), 10)
+      if (!isNaN(kb) && kb > 0) return Math.round(kb / 1024)
       return 0
     } catch {
       return 0
@@ -262,21 +253,35 @@ export class EconomyService {
 
   private getVramUsage(): number {
     if (process.platform !== 'win32') return 0
+    // Try NVIDIA
     try {
       const out = this.execCmd('nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>nul')
       const mb = parseInt(out?.trim(), 10)
-      return isNaN(mb) ? 0 : mb
-    } catch {
-      return 0
-    }
+      if (!isNaN(mb) && mb > 0) return mb
+    } catch {}
+    // Try AMD
+    try {
+      const out = this.execCmd('rocm-smi --showmeminfo vram 2>nul')
+      const match = out.match(/VRAM\s*:\s*(\d+)\s*MB/i) || out.match(/Used\s*\(VRAM\)\s*:\s*(\d+)\s*MB/i)
+      if (match) { const mb = parseInt(match[1], 10); if (!isNaN(mb) && mb > 0) return mb }
+    } catch {}
+    // Fallback: Windows management query for GPU memory
+    try {
+      const out = this.execCmd(
+        `powershell -NoProfile -Command "& { try { $c = Get-Counter '\\GPU Process Memory(*)\\Dedicated Usage' -ErrorAction Stop; ($c.CounterSamples | Where-Object { $_.InstanceName -eq 'total' }).CookedValue } catch { 0 } }" 2>nul`
+      )
+      const bytes = parseInt(out?.trim(), 10)
+      if (!isNaN(bytes) && bytes > 0) return Math.round(bytes / (1024 * 1024))
+    } catch {}
+    return 0
   }
 
   private async activateEconomy(reason: EconomyState['reason'], detected: DetectedGame[]): Promise<void> {
-    const beforeRam = this.getProcessMemory('python.exe')
+    const beforeRam = this.getFreeRamMb()
     const beforeVram = this.getVramUsage()
     await this.httpPost(`${this.economyHost}/llama/stop`)
-    const freedMemoryMb = beforeRam > 0 ? beforeRam : undefined
-    const freedVramMb = beforeVram > 0 ? beforeVram : undefined
+    const freedMemoryMb = beforeRam > 0 ? Math.max(0, this.getFreeRamMb() - beforeRam) : undefined
+    const freedVramMb = beforeVram > 0 ? Math.max(0, this.getVramUsage() - beforeVram) : undefined
     this.currentState = { active: true, reason, detectedGames: detected, freedMemoryMb, freedVramMb }
     this.broadcast()
   }
