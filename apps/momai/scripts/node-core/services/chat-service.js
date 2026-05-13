@@ -821,6 +821,9 @@ async function streamLlamaChat(req, res, payload) {
   let estimatedPromptTokens = estimateTokenCount(content) + estimateTokenCount(memoryContext)
   let lastSystemMessage = null
   let lastCurrentMessages = []
+  let lastToolsPayload = []
+  let lastTPreFetch = 0
+  let lastTFirstToken = 0
   let lastFinishReason = null
   const activeHookSessions = []
 
@@ -1172,6 +1175,7 @@ async function streamLlamaChat(req, res, payload) {
         `[chat] Request: tools=${toolsPayload.length}, sys_prompt_len=${systemMessage.content.length}, msg_count=${requestBody.messages.length}`
       )
       debug(`[chat] Tools: ${toolsPayload.map((t) => t.function?.name || t.name).join(', ')}`)
+      lastToolsPayload = toolsPayload
 
       tokenizePromise
         .then((realTokens) => {
@@ -1186,6 +1190,7 @@ async function streamLlamaChat(req, res, payload) {
         if (_sse instanceof Promise) await _sse
       }
       const tPreFetch = Date.now()
+      lastTPreFetch = tPreFetch
       let tFirstToken = 0
       const scoresSummary = Object.keys(scoreMap).length
         ? `scores=${Object.entries(scoreMap)
@@ -1371,6 +1376,7 @@ async function streamLlamaChat(req, res, payload) {
           if (parsed.type === 'token') {
             if (!roundText) {
               tFirstToken = Date.now()
+              lastTFirstToken = tFirstToken
               info(
                 `[timing] first token received: ${Date.now() - t0}ms total (llama prefill+first=${Date.now() - tPreFetch}ms)`
               )
@@ -1799,28 +1805,27 @@ async function streamLlamaChat(req, res, payload) {
     try {
       const duration = Date.now() - t0
       const genTokens = estimateTokenCount(assembled || '')
-      const promptTokens = estimatedPromptTokens || estimateTokenCount(systemMessage?.content || '')
       const trace = {
         id: `${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         timestamp: Date.now(),
         type: toolSteps?.length ? 'llm_call' : (activeSkill ? 'skill' : 'llm_call'),
         total_duration: duration,
-        pre_llm_duration: typeof tPreFetch !== 'undefined' ? tPreFetch - t0 : 0,
-        first_token_duration: tFirstToken > 0 ? tFirstToken - t0 : 0,
-        generation_duration: tFirstToken > 0 ? duration - (tFirstToken - t0) : duration,
-        system_prompt: systemMessage?.content?.slice(0, 3000),
-        messages: (currentMessages || []).filter(m => m.role !== 'system').slice(-5).map(m => ({
+        pre_llm_duration: lastTPreFetch > 0 ? lastTPreFetch - t0 : 0,
+        first_token_duration: lastTFirstToken > 0 ? lastTFirstToken - t0 : 0,
+        generation_duration: lastTFirstToken > 0 ? duration - (lastTFirstToken - t0) : duration,
+        system_prompt: lastSystemMessage?.content?.slice(0, 3000),
+        messages: (lastCurrentMessages || []).filter(m => m.role !== 'system').slice(-5).map(m => ({
           role: m.role || 'user',
           content: String(m.content || '').slice(0, 1000)
         })),
         response: (assembled || '').slice(0, 10000),
         tokens_per_second: duration > 0 && genTokens > 0 ? Math.round((genTokens / duration) * 1000 * 10) / 10 : 0,
-        total_tokens: promptTokens + genTokens,
-        estimated_prompt_tokens: promptTokens,
+        total_tokens: estimatedPromptTokens + genTokens,
+        estimated_prompt_tokens: estimatedPromptTokens,
         generated_tokens: genTokens,
         model: tierName || 'unknown',
         tier: tierName || 'unknown',
-        tools_count: typeof toolsPayload !== 'undefined' ? (toolsPayload?.length || 0) : 0,
+        tools_count: lastToolsPayload?.length || 0,
         tool_calls: toolSteps?.length ? toolSteps.slice(0, 10).map(ts => ({
           tool_name: ts.name || ts.tool_name || 'unknown',
           args: ts.args || ts.input || {},
