@@ -70,6 +70,13 @@ const api = {
   restartApp: (): void => electronAPI.ipcRenderer.send('restart-app'),
   resetWindowSize: (): void => electronAPI.ipcRenderer.send('window-reset-size'),
   isWindowMaximized: (): Promise<boolean> => electronAPI.ipcRenderer.invoke('is-window-maximized'),
+  onEconomyStateChange: (
+    callback: (state: { active: boolean; reason: string | null; detectedGames: { name: string; processName: string }[] }) => void
+  ) => {
+    const handler = (_: any, state: any) => callback(state)
+    electronAPI.ipcRenderer.on('economy:state-change', handler)
+    return () => electronAPI.ipcRenderer.removeListener('economy:state-change', handler)
+  },
   onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => {
     const handler = (_: any, state: { maximized: boolean }) => callback(state)
     electronAPI.ipcRenderer.on('window-state-changed', handler)

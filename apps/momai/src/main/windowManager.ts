@@ -65,6 +65,17 @@ function getMainWindow(): BrowserWindow | null {
   return state.mainWindow && !state.mainWindow.isDestroyed() ? state.mainWindow : null
 }
 
+export function broadcastEconomyState(state: {
+  active: boolean
+  reason: string | null
+  detectedGames: { name: string; processName: string }[]
+}): void {
+  const win = getMainWindow()
+  if (win) {
+    win.webContents.send('economy:state-change', state)
+  }
+}
+
 export function registerIpcHandlers(): void {
   if (state.ipcHandlersRegistered) return
   setIpcHandlersRegistered(true)
