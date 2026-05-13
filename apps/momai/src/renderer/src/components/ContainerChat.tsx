@@ -662,22 +662,7 @@ export default function ContainerChat({
 
   return (
     <div className="bg-transparent w-full h-full flex flex-col overflow-hidden relative">
-      {showLoading ? (
-        <LoadingAnimation
-          progress={loadingProgress}
-          message={displayMessage}
-          onComplete={() => setAnimationFinished(true)}
-          isFirstLaunch={isFirstLaunch}
-        />
-      ) : isCallMode ? (
-        <CallModeUI
-          onEndCall={onToggleCallMode || (() => {})}
-          onStopVoice={stopCurrentVoice}
-          history={callHistory}
-          status={voiceStatus}
-          isSpeaking={speakingMessageId !== null && speakingMessageId !== undefined}
-        />
-      ) : econGame ? (
+      {econGame ? (
         <div className="flex flex-col flex-1 items-center justify-center p-8 animate-in fade-in duration-500 gap-8">
           <div className="w-56 aspect-[4/5] rounded-2xl overflow-hidden bg-white/5 shadow-2xl ring-1 ring-white/10">
             {econGame.coverUrl ? (
@@ -708,6 +693,21 @@ export default function ContainerChat({
             Sair do modo economia
           </button>
         </div>
+      ) : showLoading ? (
+        <LoadingAnimation
+          progress={loadingProgress}
+          message={displayMessage}
+          onComplete={() => setAnimationFinished(true)}
+          isFirstLaunch={isFirstLaunch}
+        />
+      ) : isCallMode ? (
+        <CallModeUI
+          onEndCall={onToggleCallMode || (() => {})}
+          onStopVoice={stopCurrentVoice}
+          history={callHistory}
+          status={voiceStatus}
+          isSpeaking={speakingMessageId !== null && speakingMessageId !== undefined}
+        />
       ) : (
         <div className="flex flex-col flex-1 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-700 ease-out fill-mode-both">
           <div className="flex items-center justify-between gap-4 px-4 pt-4 pb-2 z-20">
