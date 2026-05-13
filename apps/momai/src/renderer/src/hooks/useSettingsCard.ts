@@ -178,7 +178,9 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   const handleAddGamingApp = useCallback(async () => {
     if (!newApp.name || !newApp.executable) return
     try {
-      await api.post('/system/gaming-apps', newApp)
+      const gamePath = (newApp as any).path || newApp.executable
+      const folderName = gamePath.split(/[\\/]/).pop() || newApp.name
+      await api.post('/system/gaming-apps', { name: folderName, executable: folderName })
       setNewApp({ name: '', executable: '' })
       loadGamingApps()
     } catch (error) {

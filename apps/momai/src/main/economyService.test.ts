@@ -42,6 +42,22 @@ describe('EconomyService', () => {
     expect(detected[0].name).toBe('Fortnite')
   })
 
+  it('detects a known game from process list', async () => {
+    service.setKnownGames([
+      { name: 'Fortnite', processNames: ['FortniteClient-Win64-Shipping.exe', 'FortniteLauncher.exe'], steamGridId: null },
+      { name: 'CS2', processNames: ['cs2.exe'], steamGridId: null },
+    ])
+
+    mockPsList.mockResolvedValue([
+      { name: 'cs2.exe', pid: 456 },
+      { name: 'chrome.exe', pid: 123 },
+    ])
+
+    const detected = await service.checkForGames()
+    expect(detected).toHaveLength(1)
+    expect(detected[0].name).toBe('CS2')
+  })
+
   it('activates economy when a game is detected', async () => {
     const economyHost = 'http://localhost:12345'
     service.setEconomyHost(economyHost)

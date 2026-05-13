@@ -25,9 +25,16 @@ export interface EconomyState {
   detectedGames: DetectedGame[]
 }
 
+export interface KnownGame {
+  name: string
+  processNames: string[]
+  steamGridId: number | null
+}
+
 export class EconomyService {
   private running = false
   private gamingApps: GamingApp[] = []
+  private knownGames: KnownGame[] = []
   private economyHost = 'http://localhost:8080'
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private appOpenTimer: ReturnType<typeof setTimeout> | null = null
@@ -57,6 +64,10 @@ export class EconomyService {
     this.gamingApps = apps
   }
 
+  setKnownGames(games: KnownGame[]): void {
+    this.knownGames = games
+  }
+
   setEconomyHost(host: string): void {
     this.economyHost = host
   }
@@ -76,13 +87,28 @@ export class EconomyService {
   async checkForGames(): Promise<DetectedGame[]> {
     const processes = await psList()
     const detected: DetectedGame[] = []
+    const checked = new Set<string>()
 
+    // Check custom gaming apps (added by user)
     for (const app of this.gamingApps) {
       const match = processes.find(
         (p) => p.name?.toLowerCase() === app.executable.toLowerCase()
       )
-      if (match) {
+      if (match && !checked.has(app.name)) {
+        checked.add(app.name)
         detected.push({ name: app.name, processName: app.executable })
+      }
+    }
+
+    // Check known games list
+    for (const game of this.knownGames) {
+      if (checked.has(game.name)) continue
+      const match = processes.find((p) =>
+        game.processNames.some((pn) => p.name?.toLowerCase() === pn.toLowerCase())
+      )
+      if (match) {
+        checked.add(game.name)
+        detected.push({ name: game.name, processName: match.name || '' })
       }
     }
 

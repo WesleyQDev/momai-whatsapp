@@ -61,8 +61,11 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
     const gamingApps = await response.json()
     economyService.setGamingApps(gamingApps)
 
+    const knownGames = loadKnownGames()
+    economyService.setKnownGames(knownGames)
+
     await economyService.start()
-    logger.info('[Economy] EconomyService started successfully')
+    logger.info('[Economy] EconomyService started (polling every 5s)')
   } catch (err) {
     logger.error('[Economy] Failed to start EconomyService:', err)
   }
