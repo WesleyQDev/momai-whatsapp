@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { FunnelIcon, ArrowPathIcon, LockClosedIcon } from '@heroicons/react/24/outline'
+import { FunnelIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 
 interface LogEntry {
   timestamp: string
@@ -32,14 +32,6 @@ const LEVEL_ICONS: Record<string, string> = {
   error: '✗'
 }
 
-interface DevFeature {
-  id: string
-  title: string
-  description: string
-  icon: React.ReactNode
-  active: boolean
-}
-
 interface DeveloperTabProps {
   t: any
   handleDevMode: () => void
@@ -54,6 +46,9 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
   )
   const [observabilityEnabled, setObservabilityEnabled] = useState(
     () => localStorage.getItem('momai_observability_enabled') === 'true'
+  )
+  const [logsEnabled, setLogsEnabled] = useState(
+    () => localStorage.getItem('momai_logs_enabled') !== 'false'
   )
 
   useEffect(() => {
@@ -80,91 +75,6 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
       window.removeEventListener('momai_observability_sync', handleObservabilitySync as EventListener)
     }
   }, [])
-
-  const features: DevFeature[] = [
-    {
-      id: 'logs',
-      title: 'Logs do Sistema',
-      description:
-        'Visualize logs detalhados de todos os componentes em tempo real para debug e monitoramento.',
-      icon: (
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <rect x="2" y="3" width="20" height="14" rx="2" />
-          <line x1="8" y1="10" x2="16" y2="10" />
-          <line x1="8" y1="14" x2="12" y2="14" />
-          <circle cx="6" cy="10" r="0.5" fill="currentColor" />
-          <circle cx="6" cy="14" r="0.5" fill="currentColor" />
-        </svg>
-      ),
-      active: isDevMode
-    },
-    {
-      id: 'debug-info',
-      title: 'Informações de Debug',
-      description:
-        'Exibe dados técnicos extras sobre o estado da aplicação, backend e hardware detectado.',
-      icon: (
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="16" x2="12" y2="12" />
-          <line x1="12" y1="8" x2="12.01" y2="8" />
-        </svg>
-      ),
-      active: isDevMode
-    },
-    {
-      id: 'observability',
-      title: 'Observabilidade de IA',
-      description:
-        'Monitore chamadas ao LLM em tempo real: prompts, velocidade de tokens, execução de tools e latência.',
-      icon: (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 20V10M18 20V4M6 20v-4" />
-        </svg>
-      ),
-      active: isDevMode
-    },
-    {
-      id: 'raw-events',
-      title: 'Eventos Brutos',
-      description:
-        'Permite inspecionar eventos IPC e mensagens WebSocket sem filtragem para análise profunda.',
-      icon: (
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="4 17 10 11 4 5" />
-          <line x1="12" y1="19" x2="20" y2="19" />
-        </svg>
-      ),
-      active: isDevMode
-    }
-  ]
 
   return (
     <div className="space-y-6">
@@ -200,65 +110,73 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
         </button>
       </div>
 
-      {/* Recursos Extras */}
-      <div className="space-y-3">
-        <h3 className="text-[11px] font-semibold text-text-muted uppercase tracking-wide">
-          Recursos Extras
-        </h3>
-        <div className="grid grid-cols-1 gap-3">
-          {features.map((feature) => (
-            <div
-              key={feature.id}
-              className={`relative flex items-start gap-3 p-4 rounded-xl border transition-all ${
-                feature.active
-                  ? 'bg-white/[0.03] border-border/40'
-                  : 'bg-transparent border-border/20 opacity-60'
-              }`}
-            >
-              {!feature.active && (
-                <div className="absolute top-3 right-3">
-                  <LockClosedIcon className="w-4 h-4 text-text-muted/50" />
-                </div>
-              )}
-              <div
-                className={`shrink-0 mt-0.5 ${feature.active ? 'text-accent' : 'text-text-muted'}`}
+      {/* Logs do Sistema */}
+      {isDevMode && (
+        <div className="relative flex items-start gap-3 p-4 rounded-xl border border-border/40 bg-white/[0.03]">
+          <div className="shrink-0 mt-0.5 text-accent">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <line x1="8" y1="10" x2="16" y2="10" />
+              <line x1="8" y1="14" x2="12" y2="14" />
+              <circle cx="6" cy="10" r="0.5" fill="currentColor" />
+              <circle cx="6" cy="14" r="0.5" fill="currentColor" />
+            </svg>
+          </div>
+          <div className="flex flex-col gap-1 flex-1">
+            <span className="text-xs font-bold text-text">Logs do Sistema</span>
+            <span className="text-[11px] text-text-muted leading-relaxed">
+              Visualize logs detalhados de todos os componentes em tempo real para debug e monitoramento.
+            </span>
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-sm text-text-muted">Ativar Logs</span>
+              <button
+                data-testid="logs-toggle"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const next = !logsEnabled
+                  setLogsEnabled(next)
+                  localStorage.setItem('momai_logs_enabled', String(next))
+                }}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${logsEnabled ? 'bg-accent/80' : 'bg-white/10'}`}
               >
-                {feature.icon}
-              </div>
-              <div className="flex flex-col gap-1">
-                <span
-                  className={`text-xs font-bold ${
-                    feature.active ? 'text-text' : 'text-text-muted'
-                  }`}
-                >
-                  {feature.title}
-                </span>
-                <span className="text-[11px] text-text-muted leading-relaxed">
-                  {feature.description}
-                </span>
-                {feature.id === 'observability' && isDevMode && (
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-sm text-text-muted">Ativar Observabilidade</span>
-                    <button
-                      data-testid="observability-toggle"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        const next = !observabilityEnabled
-                        setObservabilityEnabled(next)
-                        localStorage.setItem('momai_observability_enabled', String(next))
-                        window.dispatchEvent(new CustomEvent('momai_observability_sync', { detail: next }))
-                      }}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${observabilityEnabled ? 'bg-accent/80' : 'bg-white/10'}`}
-                    >
-                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${observabilityEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-                )}
-              </div>
+                <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${logsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+              </button>
             </div>
-          ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {isDevMode && (
+        <div className="relative flex items-start gap-3 p-4 rounded-xl border border-border/40 bg-white/[0.03]">
+          <div className="shrink-0 mt-0.5 text-accent">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20V10M18 20V4M6 20v-4" />
+            </svg>
+          </div>
+          <div className="flex flex-col gap-1 flex-1">
+            <span className="text-xs font-bold text-text">Observabilidade de IA</span>
+            <span className="text-[11px] text-text-muted leading-relaxed">
+              Monitore chamadas ao LLM em tempo real: prompts, velocidade de tokens, execução de tools e latência.
+            </span>
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-sm text-text-muted">Ativar Observabilidade</span>
+              <button
+                data-testid="observability-toggle"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const next = !observabilityEnabled
+                  setObservabilityEnabled(next)
+                  localStorage.setItem('momai_observability_enabled', String(next))
+                  window.dispatchEvent(new CustomEvent('momai_observability_sync', { detail: next }))
+                }}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${observabilityEnabled ? 'bg-accent/80' : 'bg-white/10'}`}
+              >
+                <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${observabilityEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isDevMode && (
         <div className="flex items-center justify-between gap-2 p-4 rounded-xl bg-white/[0.03] border border-border/40">
@@ -288,8 +206,7 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
         </div>
       )}
 
-      {/* Logs Panel - só aparece quando ativo */}
-      {isDevMode && <LogsPanel />}
+      {isDevMode && logsEnabled && <LogsPanel />}
     </div>
   )
 }
