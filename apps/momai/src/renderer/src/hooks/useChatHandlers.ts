@@ -261,8 +261,6 @@ export function useChatHandlers({
             ]
           }
         })
-      } else if (msg.type === 'fortscript_event') {
-        window.dispatchEvent(new CustomEvent('momai_fortscript_event', { detail: msg }))
       } else if (msg.type === 'graph_open') {
         const optionsMap = msg.data.options_map || msg.data.optionsMap
         const newGraphState = {

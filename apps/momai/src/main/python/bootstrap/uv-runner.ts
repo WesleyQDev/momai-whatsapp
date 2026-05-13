@@ -315,10 +315,6 @@ export async function syncDependencies(
   }
   if (isDev) {
     installArgs.push('-e', writableCorePath)
-    const fortscriptPath = join(app.getAppPath(), '..', 'fortscript')
-    if (existsSync(fortscriptPath)) {
-      installArgs.push(fortscriptPath)
-    }
   } else {
     installArgs.push(writableCorePath)
   }

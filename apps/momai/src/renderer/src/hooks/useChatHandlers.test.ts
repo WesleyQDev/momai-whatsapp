@@ -528,15 +528,6 @@ describe('useChatHandlers', () => {
       }).not.toThrow()
     })
 
-    it('handles forscript_event without crashing', () => {
-      const hook = setupHook()
-      expect(() => {
-        act(() => {
-          hook.handleWsMessage({ type: 'fortscript_event', data: { event: 'test' } })
-        })
-      }).not.toThrow()
-    })
-
     it('handles model_changed without crashing', () => {
       const hook = setupHook()
       expect(() => {
