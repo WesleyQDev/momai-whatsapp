@@ -48,6 +48,12 @@ function createSettingsRoutes(context) {
         }
 
         Object.assign(store.settings, payload)
+        if (payload.tts_engine) {
+          const tier = store.settings.ai_tier || 'pro'
+          if (tier === 'lite') {
+            store.settings.tts_engine = 'edge-tts'
+          }
+        }
         store.settings.local_backend = normalizeBackendMode(store.settings.local_backend || 'auto')
         store.settings.context_window_mode = normalizeContextWindowMode(
           store.settings.context_window_mode || 'min'
@@ -60,6 +66,7 @@ function createSettingsRoutes(context) {
           if (store.settings.ai_tier === 'lite') {
             store.settings.tts_enabled = false
             store.settings.wake_word_enabled = false
+            store.settings.tts_engine = 'edge-tts'
           } else if (store.settings.ai_tier === 'pro') {
             store.settings.tts_enabled = true
             store.settings.wake_word_enabled = false
@@ -72,6 +79,7 @@ function createSettingsRoutes(context) {
           if (currentTier === 'lite') {
             store.settings.tts_enabled = false
             store.settings.wake_word_enabled = false
+            store.settings.tts_engine = 'edge-tts'
           } else if (currentTier === 'pro') {
             store.settings.wake_word_enabled = false
           }
@@ -121,6 +129,7 @@ function createSettingsRoutes(context) {
       if (mode === 'lite') {
         store.settings.tts_enabled = false
         store.settings.wake_word_enabled = false
+        store.settings.tts_engine = 'edge-tts'
       } else if (mode === 'pro') {
         store.settings.tts_enabled = true
         store.settings.wake_word_enabled = false

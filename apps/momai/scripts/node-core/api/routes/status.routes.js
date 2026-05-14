@@ -137,12 +137,15 @@ function createStatusRoutes(context) {
       if (requestedTier === 'lite') {
         store.settings.tts_enabled = false
         store.settings.wake_word_enabled = false
+        store.settings.tts_engine = 'edge-tts'
       } else if (requestedTier === 'pro') {
         store.settings.tts_enabled = true
         store.settings.wake_word_enabled = false
+        if (!store.settings.tts_engine) store.settings.tts_engine = 'kokoro'
       } else if (requestedTier === 'ultra') {
         store.settings.tts_enabled = true
         store.settings.wake_word_enabled = true
+        if (!store.settings.tts_engine) store.settings.tts_engine = 'kokoro'
       }
       saveStoreNow()
       const ready = await maybeRestartLlamaOnTierChange(
