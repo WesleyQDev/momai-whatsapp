@@ -317,86 +317,97 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[301] bg-bg flex animate-fade-in overflow-hidden transition-colors duration-500"
-      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      className="fixed inset-0 z-[301] bg-bg flex flex-col animate-fade-in overflow-hidden transition-colors duration-500"
     >
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-        <span className="text-[10px] font-black text-text-muted/70 uppercase tracking-[0.18em]">
-          Version {appVersion}
-        </span>
-      </div>
+      {/* Title Bar */}
+      <div
+        className="h-9 flex items-center px-4 border-b border-white/5 shrink-0"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
+        <div className="flex items-center gap-2 flex-1">
+          <span className="text-[10px] font-black text-text/50 uppercase tracking-[0.15em]">
+            MomAI v{appVersion}
+          </span>
+        </div>
 
-      {/* Language Selector Top Right */}
-      <div className="absolute top-4 right-6 z-[305] flex items-center gap-3">
-        <button
-          onClick={() => {
-            const nextLang = selectedLang === 'p' ? 'a' : 'p'
-            setSelectedLang(nextLang)
-            const group = getVoiceCatalog(selectedEngine).find((g) => g.code === nextLang)
-            if (group) {
-              setSelectedVoice(group.voices[0].id)
-              setLocale(nextLang === 'p' ? 'pt-BR' : ('en-US' as any))
-            }
-          }}
-          className="no-drag flex items-center gap-3 px-4 py-2 rounded-xl bg-white/[0.03] border border-white/5 hover:border-accent/40 hover:bg-white/[0.08] transition-all duration-300 group shadow-sm active:scale-95"
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        >
-          <div className="flex items-center gap-2.5">
-            {/* Brazil Flag */}
-            <div
-              className={`transition-all duration-500 flex items-center ${
-                selectedLang === 'p'
-                  ? 'opacity-100 scale-110 drop-shadow-[0_0_8px_rgba(34,197,94,0.3)]'
-                  : 'opacity-20 grayscale scale-90 blur-[0.5px]'
-              }`}
+        <div className="flex items-center gap-1">
+          {/* Language Selector */}
+          <div className="no-drag flex" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <button
+              onClick={() => {
+                const nextLang = selectedLang === 'p' ? 'a' : 'p'
+                setSelectedLang(nextLang)
+                const group = getVoiceCatalog(selectedEngine).find((g) => g.code === nextLang)
+                if (group) {
+                  setSelectedVoice(group.voices[0].id)
+                  setLocale(nextLang === 'p' ? 'pt-BR' : ('en-US' as any))
+                }
+              }}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-white/[0.05] transition-all active:scale-95"
             >
-              <svg width="20" height="14" viewBox="0 0 720 504" className="rounded-[2px]">
-                <rect width="720" height="504" fill="#009c3b" />
-                <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
-                <circle cx="360" cy="252" r="126" fill="#002776" />
-                <path d="M245 285a126 126 0 0 1 230-66 126 126 0 0 0-230 66z" fill="#fff" />
-              </svg>
-            </div>
-
-            <div className="w-[1px] h-3 bg-white/10" />
-
-            {/* USA Flag */}
-            <div
-              className={`transition-all duration-500 flex items-center ${
-                selectedLang === 'a'
-                  ? 'opacity-100 scale-110 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]'
-                  : 'opacity-20 grayscale scale-90 blur-[0.5px]'
-              }`}
-            >
-              <svg width="20" height="14" viewBox="0 0 741 390" className="rounded-[2px]">
-                <rect width="741" height="390" fill="#bf0a30" />
-                <path
-                  d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741"
-                  stroke="#fff"
-                  strokeWidth="30"
-                />
-                <rect width="296.4" height="210" fill="#002868" />
-                <g fill="#fff">
-                  <circle cx="25" cy="25" r="6" />
-                  <circle cx="75" cy="25" r="6" />
-                  <circle cx="125" cy="25" r="6" />
-                  <circle cx="175" cy="25" r="6" />
-                  <circle cx="225" cy="25" r="6" />
-                  <circle cx="50" cy="65" r="6" />
-                  <circle cx="100" cy="65" r="6" />
-                  <circle cx="150" cy="65" r="6" />
-                  <circle cx="200" cy="65" r="6" />
-                  <circle cx="25" cy="105" r="6" />
-                  <circle cx="75" cy="105" r="6" />
-                  <circle cx="125" cy="105" r="6" />
-                  <circle cx="175" cy="105" r="6" />
-                  <circle cx="225" cy="105" r="6" />
-                </g>
-              </svg>
-            </div>
+              <div
+                className={`transition-all duration-500 flex items-center ${
+                  selectedLang === 'p'
+                    ? 'opacity-100 scale-110 drop-shadow-[0_0_6px_rgba(34,197,94,0.3)]'
+                    : 'opacity-30 grayscale scale-90'
+                }`}
+              >
+                <svg width="14" height="10" viewBox="0 0 720 504" className="rounded-[1px]">
+                  <rect width="720" height="504" fill="#009c3b" />
+                  <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
+                  <circle cx="360" cy="252" r="126" fill="#002776" />
+                  <path d="M245 285a126 126 0 0 1 230-66 126 126 0 0 0-230 66z" fill="#fff" />
+                </svg>
+              </div>
+              <div
+                className={`transition-all duration-500 flex items-center ${
+                  selectedLang === 'a'
+                    ? 'opacity-100 scale-110 drop-shadow-[0_0_6px_rgba(59,130,246,0.3)]'
+                    : 'opacity-30 grayscale scale-90'
+                }`}
+              >
+                <svg width="14" height="10" viewBox="0 0 741 390" className="rounded-[1px]">
+                  <rect width="741" height="390" fill="#bf0a30" />
+                  <path d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741" stroke="#fff" strokeWidth="30" />
+                  <rect width="296.4" height="210" fill="#002868" />
+                  <g fill="#fff">
+                    <circle cx="25" cy="25" r="6" /><circle cx="75" cy="25" r="6" />
+                    <circle cx="125" cy="25" r="6" /><circle cx="175" cy="25" r="6" />
+                    <circle cx="225" cy="25" r="6" /><circle cx="50" cy="65" r="6" />
+                    <circle cx="100" cy="65" r="6" /><circle cx="150" cy="65" r="6" />
+                    <circle cx="200" cy="65" r="6" /><circle cx="25" cy="105" r="6" />
+                    <circle cx="75" cy="105" r="6" /><circle cx="125" cy="105" r="6" />
+                    <circle cx="175" cy="105" r="6" /><circle cx="225" cy="105" r="6" />
+                  </g>
+                </svg>
+              </div>
+            </button>
           </div>
-        </button>
+
+          {/* Window Controls */}
+          <button
+            onClick={() => window.api.minimize()}
+            className="no-drag h-7 w-7 flex items-center justify-center text-text-muted/50 hover:bg-white/[0.05] hover:text-text rounded-lg transition-all active:scale-90"
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          >
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor">
+              <path d="M2 6h8" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button
+            onClick={() => window.api.close()}
+            className="no-drag h-7 w-7 flex items-center justify-center text-text-muted/50 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition-all active:scale-90"
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          >
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor">
+              <path d="M3 3l6 6M9 3l-6 6" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
       </div>
+
+      {/* Content: left pane + right pane */}
+      <div className="flex flex-1 overflow-hidden">
 
       {/* Left Pane - Branding & Status */}
       <div className="w-[350px] bg-sidebar pt-2 pb-12 px-10 flex flex-col justify-between items-center border-r border-border/10 relative overflow-hidden transition-colors duration-500 shrink-0">
@@ -769,6 +780,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )
