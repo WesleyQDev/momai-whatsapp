@@ -290,6 +290,16 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       })
   }
 
+  // Reset voice when engine changes if current voice doesn't exist in new catalog
+  useEffect(() => {
+    const catalog = getVoiceCatalog(selectedEngine)
+    const exists = catalog.some((g) => g.voices.some((v) => v.id === selectedVoice))
+    if (!exists) {
+      const firstVoice = catalog[0]?.voices[0]?.id
+      if (firstVoice) setSelectedVoice(firstVoice)
+    }
+  }, [selectedEngine])
+
   // 3. Global Shortcuts / Enter to Finish
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -324,7 +334,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
           onClick={() => {
             const nextLang = selectedLang === 'p' ? 'a' : 'p'
             setSelectedLang(nextLang)
-            const group = VOICE_CATALOG.find((g) => g.code === nextLang)
+            const group = getVoiceCatalog(selectedEngine).find((g) => g.code === nextLang)
             if (group) {
               setSelectedVoice(group.voices[0].id)
               setLocale(nextLang === 'p' ? 'pt-BR' : ('en-US' as any))
