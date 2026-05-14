@@ -40,6 +40,19 @@ function getCurrentTier(): string | null {
   return null
 }
 
+function getCurrentTtsEngine(): string | null {
+  const storePath = join(app.getPath('userData'), 'data', 'node-core-store.json')
+  try {
+    if (existsSync(storePath)) {
+      const data = JSON.parse(readFileSync(storePath, 'utf-8'))
+      return data.settings?.tts_engine || null
+    }
+  } catch (e) {
+    logger.warn('[CoreManager] Error reading tts_engine from store:', e)
+  }
+  return null
+}
+
 function loadKnownGames(): { name: string; processNames: string[] }[] {
   try {
     const knownGamesPath = join(app.getAppPath(), 'src', 'main', 'data', 'known-games.json')
@@ -619,9 +632,11 @@ export async function startCoreBackend(): Promise<void> {
 
     // Start Python sidecar proactively at app startup (non-blocking),
     // so voice/TTS is warm before the first user message.
-    // Skip if Lite mode or if onboarding is not finished yet (tier unknown).
+    // Pro with edge-tts doesn't need Python (edge-tts is npm-based).
+    // Ultra always needs Python for whisper/STT.
     const tier = getCurrentTier()
-    if (tier && tier !== 'lite') {
+    const ttsEngine = getCurrentTtsEngine()
+    if (tier === 'ultra' || (tier === 'pro' && (!ttsEngine || ttsEngine === 'kokoro'))) {
       void ensurePythonSidecar()
         .then((result) => {
           if (result.ok) {
