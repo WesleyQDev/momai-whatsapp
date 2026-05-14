@@ -388,7 +388,7 @@ export default function ChatInput({
 
     // Restriction Logic
     if (key === 'wake_word_enabled' && aiTier !== 'ultra') return
-    if (key === 'tts_enabled' && aiTier === 'lite') return
+
 
     const previous = voiceSettings[key]
     const next = !previous
@@ -516,37 +516,27 @@ export default function ChatInput({
                     </button>
 
                     {/* TTS Option */}
-                    {aiTier !== 'lite' && (
-                      <button
-                        type="button"
-                        onClick={() => toggleSetting('tts_enabled')}
-                        disabled={!settingsLoaded || isSavingSettings || aiTier === 'lite'}
-                        className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-all border-t border-border/10 ${
-                          voiceSettings.tts_enabled && aiTier !== 'lite'
-                            ? 'bg-accent/5 text-accent'
-                            : ''
-                        } ${aiTier === 'lite' ? 'cursor-default opacity-80' : ''}`}
-                      >
-                        <SpeakerWaveIcon
-                          className={`w-4 h-4 ${voiceSettings.tts_enabled && aiTier !== 'lite' ? 'text-accent' : 'text-text-muted opacity-50'}`}
-                        />
-                        <div className="flex flex-col items-start flex-1">
-                          <span className="text-[11px] font-bold">{t('chatInput.falar')}</span>
-                          <span
-                            className={`text-[9px] font-medium leading-tight ${aiTier !== 'lite' ? 'text-text-muted opacity-70' : 'text-emerald-500'}`}
-                          >
-                            {aiTier !== 'lite'
-                              ? t('chatInput.falarDesc')
-                              : 'Recurso disponível a partir do Pro'}
-                          </span>
-                        </div>
-                        {aiTier !== 'lite' && (
-                          <div
-                            className={`w-1.5 h-1.5 rounded-full ${voiceSettings.tts_enabled ? 'bg-accent' : 'bg-white/10'}`}
-                          />
-                        )}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => toggleSetting('tts_enabled')}
+                      disabled={!settingsLoaded || isSavingSettings}
+                      className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-all border-t border-border/10 ${
+                        voiceSettings.tts_enabled ? 'bg-accent/5 text-accent' : ''
+                      }`}
+                    >
+                      <SpeakerWaveIcon
+                        className={`w-4 h-4 ${voiceSettings.tts_enabled ? 'text-accent' : 'text-text-muted opacity-50'}`}
+                      />
+                      <div className="flex flex-col items-start flex-1">
+                        <span className="text-[11px] font-bold">{t('chatInput.falar')}</span>
+                        <span className="text-[9px] font-medium leading-tight text-text-muted opacity-70">
+                          {t('chatInput.falarDesc')}
+                        </span>
+                      </div>
+                      <div
+                        className={`w-1.5 h-1.5 rounded-full ${voiceSettings.tts_enabled ? 'bg-accent' : 'bg-white/10'}`}
+                      />
+                    </button>
                   </div>
                 )}
               </div>
