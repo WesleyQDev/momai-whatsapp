@@ -573,86 +573,6 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
               </div>
 
               <div className="space-y-6">
-                {/* ─── Voice Settings Section ─── */}
-                <div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
-                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                      <line x1="12" y1="19" x2="12" y2="23" />
-                      <line x1="8" y1="23" x2="16" y2="23" />
-                    </svg>
-                    <span className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em]">
-                      {t('onboarding.voiceSection')}
-                    </span>
-                  </div>
-
-                  {/* TTS Engine Selector */}
-                  <div className="space-y-2 mb-3">
-                    <label className="text-[8px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">
-                      {t('onboarding.ttsEngineLabel')}
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {getAvailableEngines(selectedTier).map((engine) => (
-                        <button
-                          key={engine.id}
-                          onClick={() => setSelectedEngine(engine.id)}
-                          className={`no-drag py-2 px-3 rounded-lg border text-left transition-all ${
-                            selectedEngine === engine.id
-                              ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20'
-                              : 'bg-input border-border/20 text-text-muted hover:bg-white/[0.05]'
-                          }`}
-                          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                        >
-                          <div className="flex items-center gap-1.5">
-                            {engine.id === 'edge-tts' && (
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
-                              </svg>
-                            )}
-                            <span className="text-[10px] font-bold">{t(engine.labelKey)}</span>
-                          </div>
-                          <div className={`text-[8px] mt-0 ${selectedEngine === engine.id ? 'text-white/70' : 'opacity-50'}`}>
-                            {t(engine.descKey)}
-                          </div>
-
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Voice Selector */}
-                  <div className="space-y-2">
-                    <label className="text-[8px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">
-                      {t('onboarding.voiceLabel')}
-                    </label>
-                    <div className="relative group">
-                      <select
-                        value={selectedVoice}
-                        onChange={(e) => setSelectedVoice(e.target.value)}
-                        className="no-drag w-full bg-input border border-border/20 rounded-lg px-4 py-3 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
-                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                      >
-                        {getVoiceCatalog(selectedEngine)
-                          .find((g) => g.code === selectedLang)
-                          ?.voices.map((v) => (
-                            <option key={v.id} value={v.id}>
-                              {v.name}
-                            </option>
-                          ))}
-                      </select>
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-20">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
-                          <path d="M6 9l6 6 6-6" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ─── Divider ─── */}
-                <div className="border-t border-white/5" />
-
                 {/* ─── Personality Section ─── */}
                 <div>
                   <div className="flex items-center gap-2 mb-4">
@@ -733,6 +653,86 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                             <path d="M6 9l6 6 6-6" />
                           </svg>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ─── Divider ─── */}
+                <div className="border-t border-white/5" />
+
+                {/* ─── Voice Settings Section ─── */}
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-accent">
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <line x1="12" y1="19" x2="12" y2="23" />
+                      <line x1="8" y1="23" x2="16" y2="23" />
+                    </svg>
+                    <span className="text-[10px] font-black text-text-muted uppercase tracking-[0.2em]">
+                      {t('onboarding.voiceSection')}
+                    </span>
+                  </div>
+
+                  {/* TTS Engine Selector */}
+                  <div className="space-y-2 mb-3">
+                    <label className="text-[8px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">
+                      {t('onboarding.ttsEngineLabel')}
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {getAvailableEngines(selectedTier).map((engine) => (
+                        <button
+                          key={engine.id}
+                          onClick={() => setSelectedEngine(engine.id)}
+                          className={`no-drag py-2 px-3 rounded-lg border text-left transition-all ${
+                            selectedEngine === engine.id
+                              ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20'
+                              : 'bg-input border-border/20 text-text-muted hover:bg-white/[0.05]'
+                          }`}
+                          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            {engine.id === 'edge-tts' && (
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+                              </svg>
+                            )}
+                            <span className="text-[10px] font-bold">{t(engine.labelKey)}</span>
+                          </div>
+                          <div className={`text-[8px] mt-0 ${selectedEngine === engine.id ? 'text-white/70' : 'opacity-50'}`}>
+                            {t(engine.descKey)}
+                          </div>
+
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Voice Selector */}
+                  <div className="space-y-2">
+                    <label className="text-[8px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">
+                      {t('onboarding.voiceLabel')}
+                    </label>
+                    <div className="relative group">
+                      <select
+                        value={selectedVoice}
+                        onChange={(e) => setSelectedVoice(e.target.value)}
+                        className="no-drag w-full bg-input border border-border/20 rounded-lg px-4 py-3 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                      >
+                        {getVoiceCatalog(selectedEngine)
+                          .find((g) => g.code === selectedLang)
+                          ?.voices.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.name}
+                            </option>
+                          ))}
+                      </select>
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-20">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
                       </div>
                     </div>
                   </div>
