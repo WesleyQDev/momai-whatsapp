@@ -356,7 +356,7 @@
   "onboarding.voiceLabel": "Voz da Assistente",
   "onboarding.ttsEngineLabel": "Motor de TTS",
   "onboarding.ttsEngine.kokoro": "Kokoro",
-  "onboarding.ttsEngine.kokoro.desc": "Qualidade média, requer mais recursos",
+  "onboarding.ttsEngine.kokoro.desc": "Média, roda local (RAM+CPU)",
   "onboarding.ttsEngine.edge-tts": "Edge TTS",
   "onboarding.ttsEngine.edge-tts.desc": "Alta qualidade, requer internet",
   "onboarding.ttsEngine.internetHint": "Requer conexão com a internet",
