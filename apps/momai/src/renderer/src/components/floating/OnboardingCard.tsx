@@ -243,8 +243,6 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
     localStorage.setItem('momai_ai_tier', tier)
     if (tier === 'lite') {
       setSelectedEngine('edge-tts')
-    } else {
-      setSelectedEngine('kokoro')
     }
     setStep(2)
     try {
@@ -590,7 +588,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                   </div>
 
                   {/* TTS Engine Selector */}
-                  <div className="space-y-2 mb-4">
+                  <div className="space-y-2 mb-3">
                     <label className="text-[8px] font-black text-text-muted uppercase tracking-[0.2em] ml-1">
                       {t('onboarding.ttsEngineLabel')}
                     </label>
@@ -599,20 +597,27 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                         <button
                           key={engine.id}
                           onClick={() => setSelectedEngine(engine.id)}
-                          className={`no-drag p-3 rounded-xl border text-left transition-all ${
+                          className={`no-drag py-2 px-3 rounded-lg border text-left transition-all ${
                             selectedEngine === engine.id
                               ? 'bg-accent text-white border-accent shadow-lg shadow-accent/20'
                               : 'bg-input border-border/20 text-text-muted hover:bg-white/[0.05]'
                           }`}
                           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                         >
-                          <div className="text-[11px] font-bold">{t(engine.labelKey)}</div>
-                          <div className={`text-[9px] mt-0.5 ${selectedEngine === engine.id ? 'text-white/70' : 'opacity-50'}`}>
+                          <div className="flex items-center gap-1.5">
+                            {engine.id === 'edge-tts' && (
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+                              </svg>
+                            )}
+                            <span className="text-[10px] font-bold">{t(engine.labelKey)}</span>
+                          </div>
+                          <div className={`text-[8px] mt-0 ${selectedEngine === engine.id ? 'text-white/70' : 'opacity-50'}`}>
                             {t(engine.descKey)}
                           </div>
                           {engine.id === 'edge-tts' && selectedEngine === 'edge-tts' && (
-                            <div className="flex items-center gap-1 mt-1.5 text-[8px] font-semibold text-yellow-300">
-                              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                            <div className="flex items-center gap-1 mt-0.5 text-[7px] font-semibold text-yellow-300">
+                              <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                                 <circle cx="12" cy="12" r="10" />
                                 <line x1="12" y1="8" x2="12" y2="12" />
                                 <line x1="12" y1="16" x2="12.01" y2="16" />
