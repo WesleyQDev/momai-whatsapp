@@ -165,7 +165,11 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   )
   const [selectedVoice, setSelectedVoice] = useState('pf_dora')
   const [selectedEngine, setSelectedEngine] = useState<string>('edge-tts')
-  const [selectedLang, setSelectedLang] = useState('p')
+  const [langOpen, setLangOpen] = useState(false)
+  const [selectedLang, setSelectedLang] = useState(() => {
+    const navLang = navigator.language || 'en-US'
+    return navLang.split('-')[0].toLowerCase() === 'pt' ? 'p' : 'a'
+  })
   const [selectedTier, setSelectedTier] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [appVersion, setAppVersion] = useState('1.0.0')
@@ -191,6 +195,10 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
           const langCode = data.locale === 'pt-BR' ? 'p' : 'a'
           setSelectedLang(langCode)
           setLocale(data.locale)
+        } else {
+          const navLang = navigator.language || 'en-US'
+          const detectedLocale = navLang.split('-')[0].toLowerCase() === 'pt' ? 'pt-BR' : 'en-US'
+          setLocale(detectedLocale as any)
         }
         if (data.tts_voice) setSelectedVoice(data.tts_voice)
         if (data.tts_engine) setSelectedEngine(data.tts_engine)
@@ -215,6 +223,18 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       window.api?.setResizable?.(true)
     }
   }, [setLocale]) // setLocale is stable from useI18n
+
+  // Close language dropdown on click outside
+  useEffect(() => {
+    if (!langOpen) return
+    const handleClick = () => setLangOpen(false)
+    // Delay to avoid the opening click itself triggering the close
+    const id = setTimeout(() => document.addEventListener('click', handleClick), 0)
+    return () => {
+      clearTimeout(id)
+      document.removeEventListener('click', handleClick)
+    }
+  }, [langOpen])
 
   // 2. Progress & System Event Listeners
   useEffect(() => {
@@ -331,57 +351,85 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         </div>
 
         <div className="flex items-center gap-1">
-          {/* Language Selector */}
-          <div className="no-drag flex" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {/* Language Selector Dropdown */}
+          <div className="no-drag relative" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
             <button
-              onClick={() => {
-                const nextLang = selectedLang === 'p' ? 'a' : 'p'
-                setSelectedLang(nextLang)
-                const group = getVoiceCatalog(selectedEngine).find((g) => g.code === nextLang)
-                if (group) {
-                  setSelectedVoice(group.voices[0].id)
-                  setLocale(nextLang === 'p' ? 'pt-BR' : ('en-US' as any))
-                }
-              }}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-white/[0.05] transition-all active:scale-95"
+              onClick={() => setLangOpen(!langOpen)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/[0.05] transition-all active:scale-95"
             >
-              <div
-                className={`transition-all duration-500 flex items-center ${
-                  selectedLang === 'p'
-                    ? 'opacity-100 scale-110 drop-shadow-[0_0_6px_rgba(34,197,94,0.3)]'
-                    : 'opacity-30 grayscale scale-90'
-                }`}
-              >
-                <svg width="14" height="10" viewBox="0 0 720 504" className="rounded-[1px]">
-                  <rect width="720" height="504" fill="#009c3b" />
-                  <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
-                  <circle cx="360" cy="252" r="126" fill="#002776" />
-                  <path d="M245 285a126 126 0 0 1 230-66 126 126 0 0 0-230 66z" fill="#fff" />
-                </svg>
-              </div>
-              <div
-                className={`transition-all duration-500 flex items-center ${
-                  selectedLang === 'a'
-                    ? 'opacity-100 scale-110 drop-shadow-[0_0_6px_rgba(59,130,246,0.3)]'
-                    : 'opacity-30 grayscale scale-90'
-                }`}
-              >
-                <svg width="14" height="10" viewBox="0 0 741 390" className="rounded-[1px]">
-                  <rect width="741" height="390" fill="#bf0a30" />
-                  <path d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741" stroke="#fff" strokeWidth="30" />
-                  <rect width="296.4" height="210" fill="#002868" />
-                  <g fill="#fff">
-                    <circle cx="25" cy="25" r="6" /><circle cx="75" cy="25" r="6" />
-                    <circle cx="125" cy="25" r="6" /><circle cx="175" cy="25" r="6" />
-                    <circle cx="225" cy="25" r="6" /><circle cx="50" cy="65" r="6" />
-                    <circle cx="100" cy="65" r="6" /><circle cx="150" cy="65" r="6" />
-                    <circle cx="200" cy="65" r="6" /><circle cx="25" cy="105" r="6" />
-                    <circle cx="75" cy="105" r="6" /><circle cx="125" cy="105" r="6" />
-                    <circle cx="175" cy="105" r="6" /><circle cx="225" cy="105" r="6" />
-                  </g>
-                </svg>
-              </div>
+              <svg width="14" height="10" viewBox="0 0 720 504" className={`rounded-[1px] ${selectedLang === 'p' ? 'opacity-100' : 'opacity-0 hidden'}`}>
+                <rect width="720" height="504" fill="#009c3b" />
+                <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
+                <circle cx="360" cy="252" r="126" fill="#002776" />
+                <path d="M245 285a126 126 0 0 1 230-66 126 126 0 0 0-230 66z" fill="#fff" />
+              </svg>
+              <svg width="14" height="10" viewBox="0 0 741 390" className={`rounded-[1px] ${selectedLang === 'a' ? 'opacity-100' : 'opacity-0 hidden'}`}>
+                <rect width="741" height="390" fill="#bf0a30" />
+                <path d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741" stroke="#fff" strokeWidth="30" />
+                <rect width="296.4" height="210" fill="#002868" />
+                <g fill="#fff">
+                  <circle cx="25" cy="25" r="6" /><circle cx="75" cy="25" r="6" />
+                  <circle cx="125" cy="25" r="6" /><circle cx="175" cy="25" r="6" />
+                  <circle cx="225" cy="25" r="6" /><circle cx="50" cy="65" r="6" />
+                  <circle cx="100" cy="65" r="6" /><circle cx="150" cy="65" r="6" />
+                  <circle cx="200" cy="65" r="6" /><circle cx="25" cy="105" r="6" />
+                  <circle cx="75" cy="105" r="6" /><circle cx="125" cy="105" r="6" />
+                  <circle cx="175" cy="105" r="6" /><circle cx="225" cy="105" r="6" />
+                </g>
+              </svg>
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="opacity-40">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
             </button>
+            {langOpen && (
+              <div className="absolute right-0 top-full mt-1 bg-zinc-900 border border-white/10 rounded-lg shadow-xl overflow-hidden z-[400] min-w-[160px]">
+                <button
+                  onClick={() => {
+                    setLangOpen(false)
+                    setSelectedLang('p')
+                    setLocale('pt-BR' as any)
+                    const group = getVoiceCatalog(selectedEngine).find((g) => g.code === 'p')
+                    if (group) setSelectedVoice(group.voices[0].id)
+                  }}
+                  className={`flex items-center gap-2.5 w-full px-3 py-2 hover:bg-white/[0.05] transition-all ${selectedLang === 'p' ? 'bg-white/[0.03]' : ''}`}
+                >
+                  <svg width="16" height="11" viewBox="0 0 720 504" className="rounded-[1px] shrink-0">
+                    <rect width="720" height="504" fill="#009c3b" />
+                    <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
+                    <circle cx="360" cy="252" r="126" fill="#002776" />
+                    <path d="M245 285a126 126 0 0 1 230-66 126 126 0 0 0-230 66z" fill="#fff" />
+                  </svg>
+                  <span className="text-[11px] font-semibold text-text">Português (BR)</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setLangOpen(false)
+                    setSelectedLang('a')
+                    setLocale('en-US' as any)
+                    const group = getVoiceCatalog(selectedEngine).find((g) => g.code === 'a')
+                    if (group) setSelectedVoice(group.voices[0].id)
+                  }}
+                  className={`flex items-center gap-2.5 w-full px-3 py-2 hover:bg-white/[0.05] transition-all ${selectedLang === 'a' ? 'bg-white/[0.03]' : ''}`}
+                >
+                  <svg width="16" height="11" viewBox="0 0 741 390" className="rounded-[1px] shrink-0">
+                    <rect width="741" height="390" fill="#bf0a30" />
+                    <path d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741" stroke="#fff" strokeWidth="30" />
+                    <rect width="296.4" height="210" fill="#002868" />
+                    <g fill="#fff">
+                      <circle cx="25" cy="25" r="6" /><circle cx="75" cy="25" r="6" />
+                      <circle cx="125" cy="25" r="6" /><circle cx="175" cy="25" r="6" />
+                      <circle cx="225" cy="25" r="6" /><circle cx="50" cy="65" r="6" />
+                      <circle cx="100" cy="65" r="6" /><circle cx="150" cy="65" r="6" />
+                      <circle cx="200" cy="65" r="6" /><circle cx="25" cy="105" r="6" />
+                      <circle cx="75" cy="105" r="6" /><circle cx="125" cy="105" r="6" />
+                      <circle cx="175" cy="105" r="6" /><circle cx="225" cy="105" r="6" />
+                    </g>
+                  </svg>
+                  <span className="text-[11px] font-semibold text-text">English (US)</span>
+                  <span className="ml-auto text-[9px] text-text-muted/50 font-medium">EN</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Window Controls */}
@@ -414,7 +462,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         <div className="relative z-10 flex flex-col items-center text-center w-full">
           {/* Logo Icon */}
           <div className="w-16 h-16 flex items-center justify-center -mb-1">
-            <img src={iconGif} alt="MomAI" className="w-full h-full object-contain" />
+            <img src={iconGif} alt="MomAI" draggable={false} className="w-full h-full object-contain select-none pointer-events-none" />
           </div>
 
           <div className="space-y-4 w-full">
@@ -537,7 +585,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       >
         <div className="w-full max-w-none mx-auto px-6">
           {step === 1 ? (
-            <div className="space-y-10 animate-fade-in flex flex-col items-center text-center">
+            <div className="space-y-6 animate-fade-in flex flex-col items-center text-center">
               <div className="space-y-2">
                 <h2 className="text-3xl font-bold text-text tracking-tight">
                   {t('onboarding.tier.title')}

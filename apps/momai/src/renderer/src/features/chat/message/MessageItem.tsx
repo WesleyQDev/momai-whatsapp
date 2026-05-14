@@ -136,6 +136,7 @@ const MessageItem = memo(
     }
 
     const handleContextMenu = (e: React.MouseEvent) => {
+      if ((e.target as HTMLElement).tagName === 'IMG') return
       e.preventDefault()
       state.setContextMenu({ x: e.clientX, y: e.clientY })
     }
@@ -197,7 +198,7 @@ const MessageItem = memo(
               <div
                 className={`relative z-10 w-8 h-8 rounded-lg border border-border/20 bg-card overflow-hidden ${isLoading ? 'animate-ai-loading ring-1 ring-accent/20' : ''}`}
               >
-                <img src={icon} alt="MomAI" className="w-full h-full object-cover" />
+                <img src={icon} alt="MomAI" draggable={false} className="w-full h-full object-cover select-none pointer-events-none" />
               </div>
             </div>
           ) : (

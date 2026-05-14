@@ -56,7 +56,8 @@ const WelcomeScreen = ({ onComplete, isFirstLaunch, version }: WelcomeScreenProp
           <img
             src={logo}
             alt="MomAI"
-            className="w-40 h-40 object-contain relative z-10 drop-shadow-[0_0_40px_rgba(167,139,250,0.4)]"
+            draggable={false}
+            className="w-40 h-40 object-contain relative z-10 drop-shadow-[0_0_40px_rgba(167,139,250,0.4)] select-none pointer-events-none"
           />
         </div>
 

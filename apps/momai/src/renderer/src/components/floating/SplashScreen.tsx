@@ -221,7 +221,8 @@ export default function SplashScreen({
             <img
               src={icon}
               alt="MomAI Logo"
-              className={`w-10 h-10 object-contain relative z-10 drop-shadow-lg ${bootstrapError ? 'opacity-50' : ''}`}
+              draggable={false}
+              className={`w-10 h-10 object-contain relative z-10 drop-shadow-lg select-none pointer-events-none ${bootstrapError ? 'opacity-50' : ''}`}
             />
           </div>
           <div className="flex flex-col justify-center">
