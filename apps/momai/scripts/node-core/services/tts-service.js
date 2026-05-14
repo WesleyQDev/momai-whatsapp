@@ -104,8 +104,8 @@ async function triggerAutoTts(text, capturedGen) {
     .replace(/[*_~#]/g, ' ')
     .replace(/["""''']/g, '')
 
-  if (aiTier === 'lite') {
-    console.log('[NodeCore][Voice] Auto TTS skipped: ai_tier=lite')
+  if (aiTier === 'lite' && (store.settings.tts_engine || 'edge-tts') === 'kokoro') {
+    console.log('[NodeCore][Voice] Auto TTS skipped: kokoro unavailable in Lite')
     return
   }
   if (!ttsEnabled) {
