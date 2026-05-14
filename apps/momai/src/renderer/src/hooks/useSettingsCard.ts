@@ -50,7 +50,7 @@ export interface LocalDetails {
 }
 
 const TIER_DEFAULTS: Record<string, { tts_enabled: boolean; wake_word_enabled: boolean }> = {
-  lite: { tts_enabled: false, wake_word_enabled: false },
+  lite: { tts_enabled: true, wake_word_enabled: false },
   pro: { tts_enabled: true, wake_word_enabled: false },
   ultra: { tts_enabled: true, wake_word_enabled: true }
 }

@@ -18,7 +18,7 @@ function createSettingsRoutes(context) {
     if (pathname === '/settings' && req.method === 'GET') {
       const tier = store.settings.ai_tier || 'pro'
       if (tier === 'lite') {
-        store.settings.tts_enabled = false
+        store.settings.tts_enabled = true
         store.settings.wake_word_enabled = false
       } else if (tier === 'pro') {
         store.settings.wake_word_enabled = false
@@ -64,7 +64,7 @@ function createSettingsRoutes(context) {
 
         if (payload.ai_tier) {
           if (store.settings.ai_tier === 'lite') {
-            store.settings.tts_enabled = false
+            store.settings.tts_enabled = true
             store.settings.wake_word_enabled = false
             store.settings.tts_engine = 'edge-tts'
           } else if (store.settings.ai_tier === 'pro') {
@@ -79,7 +79,7 @@ function createSettingsRoutes(context) {
         } else {
           const currentTier = store.settings.ai_tier || 'pro'
           if (currentTier === 'lite') {
-            store.settings.tts_enabled = false
+            store.settings.tts_enabled = true
             store.settings.wake_word_enabled = false
             store.settings.tts_engine = 'edge-tts'
           } else if (currentTier === 'pro') {
@@ -129,7 +129,7 @@ function createSettingsRoutes(context) {
       store.mode = 'local'
       store.settings.ai_tier = mode
       if (mode === 'lite') {
-        store.settings.tts_enabled = false
+        store.settings.tts_enabled = true
         store.settings.wake_word_enabled = false
         store.settings.tts_engine = 'edge-tts'
       } else if (mode === 'pro') {

@@ -135,7 +135,7 @@ function createStatusRoutes(context) {
       store.mode = 'local'
       store.settings.ai_tier = requestedTier
       if (requestedTier === 'lite') {
-        store.settings.tts_enabled = false
+        store.settings.tts_enabled = true
         store.settings.wake_word_enabled = false
         store.settings.tts_engine = 'edge-tts'
       } else if (requestedTier === 'pro') {
