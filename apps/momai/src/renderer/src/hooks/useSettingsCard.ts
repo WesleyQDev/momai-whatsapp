@@ -250,6 +250,9 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
         tts_enabled: tierDefaults.tts_enabled,
         wake_word_enabled: tierDefaults.wake_word_enabled
       }
+      if (_tier === 'lite') {
+        payload.tts_engine = 'edge-tts'
+      }
 
       api
         .patch('/settings', payload)
