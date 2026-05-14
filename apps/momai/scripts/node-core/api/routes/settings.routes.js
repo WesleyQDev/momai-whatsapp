@@ -70,9 +70,11 @@ function createSettingsRoutes(context) {
           } else if (store.settings.ai_tier === 'pro') {
             store.settings.tts_enabled = true
             store.settings.wake_word_enabled = false
+            if (!store.settings.tts_engine) store.settings.tts_engine = 'kokoro'
           } else if (store.settings.ai_tier === 'ultra') {
             store.settings.tts_enabled = true
             store.settings.wake_word_enabled = true
+            if (!store.settings.tts_engine) store.settings.tts_engine = 'kokoro'
           }
         } else {
           const currentTier = store.settings.ai_tier || 'pro'
