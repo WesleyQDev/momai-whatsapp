@@ -645,15 +645,16 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                 </svg>
                 Voltar
               </button>
-              <h2 className="text-xl font-black text-text tracking-tight">
-                {t('onboarding.title')}
-              </h2>
-
-              <div className="border-t border-border/10" />
+              <div className="space-y-1">
+                <h2 className="text-xl font-black text-text tracking-tight">
+                  {t('onboarding.title')}
+                </h2>
+                <div className="border-t border-border/10" />
+              </div>
 
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-text-muted ml-0.5">
+                  <label className="text-xs font-bold text-text-muted ml-0.5">
                     {t('onboarding.nameLabel')}
                   </label>
                   <input
@@ -669,7 +670,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
 
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-text-muted ml-0.5">
+                    <label className="text-xs font-bold text-text-muted ml-0.5">
                       {t('onboarding.themeLabel')}
                     </label>
                     <div className="relative">
@@ -690,7 +691,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-text-muted ml-0.5">
+                    <label className="text-xs font-bold text-text-muted ml-0.5">
                       Language
                     </label>
                     <div className="relative">
@@ -723,7 +724,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-text-muted ml-0.5">
+                  <label className="text-xs font-bold text-text-muted ml-0.5">
                     Voz
                   </label>
                   <div className="grid grid-cols-2 gap-2">
@@ -761,7 +762,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-text-muted ml-0.5">
+                  <label className="text-xs font-bold text-text-muted ml-0.5">
                     {t('onboarding.voiceLabel')}
                   </label>
                   <div className="relative">
