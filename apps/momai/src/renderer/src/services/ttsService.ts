@@ -100,14 +100,10 @@ class TTSServiceRenderer {
     )
   }
 
-  private async playAudioBuffer(payload: { data: string; mimeType: string }) {
+  private async playAudioBuffer(payload: { data: Uint8Array; mimeType: string }) {
     this.hasLocalAudio = true
     try {
-      const binary = atob(payload.data)
-      const bytes = new Uint8Array(binary.length)
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i)
-      }
+      const bytes = payload.data
 
       if (this.audioCtx?.state === 'suspended') {
         await this.audioCtx.resume()
@@ -134,9 +130,7 @@ class TTSServiceRenderer {
     } catch (err) {
       console.warn('[Renderer TTS] AudioContext decode error, fallback to HTMLAudio:', err)
       try {
-        const binary = atob(payload.data)
-        const bytes = new Uint8Array(binary.length)
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+        const bytes = payload.data
         const url = URL.createObjectURL(new Blob([bytes.buffer], { type: payload.mimeType }))
         const audio = new Audio(url)
         audio.onended = () => {

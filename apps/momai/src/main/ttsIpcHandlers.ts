@@ -113,20 +113,13 @@ export function setupTTSHandlers() {
 
   ttsService.on('play-audio-buffer', (buffer: Buffer) => {
     const windows = require('electron').BrowserWindow.getAllWindows()
-    console.log(`[TTS IPC] play-audio-buffer: windows=${windows.length}, buf=${buffer.length}`)
     windows.forEach((win) => {
       if (!win.isDestroyed()) {
         const isMp3 = buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0
-        const base64 = buffer.toString('base64')
-        console.log(
-          `[TTS IPC] Sending tts:play-audio-buffer to window, base64 len=${base64.length}`
-        )
         win.webContents.send('tts:play-audio-buffer', {
-          data: base64,
+          data: buffer, // Enviar buffer bruto (mais rápido que base64)
           mimeType: isMp3 ? 'audio/mpeg' : 'audio/wav'
         })
-      } else {
-        console.warn('[TTS IPC] Window is destroyed, skipping')
       }
     })
   })

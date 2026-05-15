@@ -235,61 +235,96 @@ export class TTSService extends EventEmitter {
   // Main process cannot import renderer code; keep in sync manually.
   private sanitizeForTTS(text: string): string {
     return text
-      .replace(/\p{Extended_Pictographic}/gu, '')
-      .replace(/```[\s\S]*?```/g, '')
-      .replace(/`([^`]+)`/g, '$1')
-      .replace(/^#{1,6}\s+/gm, '')
-      .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
-      .replace(/\*\*(.+?)\*\*/g, '$1')
-      .replace(/__(.+?)__/g, '$1')
-      .replace(/\*(.+?)\*/g, '$1')
-      .replace(/_(.+?)_/g, '$1')
-      .replace(/~~(.+?)~~/g, '$1')
-      .replace(/!?\[([^\]]*)\]\([^)]+\)/g, '$1')
-      .replace(/^\s*[-*+]\s+/gm, '')
-      .replace(/^\s*\d+\.\s+/gm, '')
-      .replace(/^>+\s?/gm, '')
-      .replace(/---+|\*\*\*+|___+/g, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .replace(/[*_~#]/g, ' ')
-      .replace(/["""''']/g, '')
+      .replace(/\p{Extended_Pictographic}/gu, '') // Remove emojis
+      .replace(/```[\s\S]*?```/g, '') // Remove code blocks
+      .replace(/`([^`]+)`/g, '$1') // Remove inline code
+      .replace(/^#{1,6}\s+/gm, '') // Remove headers
+      .replace(/\*\*\*(.+?)\*\*\*/g, '$1') // Remove bold italic
+      .replace(/\*\*(.+?)\*\*/g, '$1') // Remove bold
+      .replace(/__(.+?)__/g, '$1') // Remove bold underscore
+      .replace(/\*(.+?)\*/g, '$1') // Remove italic
+      .replace(/_(.+?)_/g, '$1') // Remove italic underscore
+      .replace(/~~(.+?)~~/g, '$1') // Remove strikethrough
+      .replace(/!?\[([^\]]*)\]\([^)]+\)/g, '$1') // Remove links
+      .replace(/^\s*[-*+]\s+/gm, '') // Remove list bullets
+      .replace(/^\s*\d+\.\s+/gm, '') // Remove numbered lists
+      .replace(/^>+\s?/gm, '') // Remove blockquotes
+      .replace(/---+|\*\*\*+|___+/g, '') // Remove horizontal rules
+      .replace(/\n{3,}/g, '\n\n') // Normalize multiple newlines
+      .replace(/[*_~#]/g, ' ') // Remove remaining markdown chars
+      .replace(/["""''']/g, '') // Remove fancy quotes
       .trim()
+  }
+
+  private splitIntoSentences(text: string): string[] {
+    if (!text) return []
+
+    // Limpeza extra para evitar problemas no split
+    const cleanText = text.replace(/\s+/g, ' ').trim()
+
+    // Divide por pontuação final seguida de espaço ou fim de linha
+    // Tenta evitar dividir em abreviações comuns (Sr. Dra. etc)
+    const sentences = cleanText
+      .replace(/([.!?])\s+/g, '$1|')
+      .split('|')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+
+    // Se uma sentença for muito longa (> 200 caracteres), tenta dividir por vírgula ou ponto e vírgula
+    const finalSentences: string[] = []
+    for (const s of sentences) {
+      if (s.length > 200) {
+        const subParts = s.replace(/([,;])\s+/g, '$1|').split('|')
+        finalSentences.push(...subParts.map((p) => p.trim()).filter((p) => p.length > 0))
+      } else {
+        finalSentences.push(s)
+      }
+    }
+
+    return finalSentences
   }
 
   private async speakWithEdgeTTS(text: string): Promise<void> {
     try {
-      text = this.sanitizeForTTS(text)
-      console.log('[TTSService] EdgeTTS START:', text.slice(0, 50))
+      const sanitizedText = this.sanitizeForTTS(text)
+      const sentences = this.splitIntoSentences(sanitizedText)
+
+      if (sentences.length === 0) return
+
+      console.log(`[TTSService] EdgeTTS START: ${sentences.length} sentences`)
       const { EdgeTTS } = this.edgeTTSInstance
 
       const edgeVoice = this.mapKokoroToEdgeVoice(this.config.voice)
-      console.log('[TTSService] Edge voice:', edgeVoice)
-
       const ratePercent = Math.round((this.config.speed - 1) * 100)
       const rateStr = ratePercent >= 0 ? `+${ratePercent}%` : `${ratePercent}%`
-      console.log('[TTSService] Edge rate:', rateStr)
 
-      const edge = new EdgeTTS(text, edgeVoice, { rate: rateStr })
-      console.log('[TTSService] EdgeTTS instance created')
-      const result = await edge.synthesize()
-      console.log('[TTSService] Synthesize OK type:', result.audio.type, 'size:', result.audio.size)
+      for (let i = 0; i < sentences.length; i++) {
+        if (!this.isSpeaking) {
+          console.log('[TTSService] EdgeTTS aborted (isSpeaking=false)')
+          break
+        }
 
-      if (!this.isSpeaking) {
-        console.log('[TTSService] TTS was stopped during synthesize, discarding audio')
-        return
+        const sentence = sentences[i]
+        // Ignorar sentenças muito curtas (menos de 2 caracteres alfanuméricos)
+        if (sentence.replace(/[^a-zA-Z0-9]/g, '').length < 2) continue
+
+        console.log(`[TTSService] EdgeTTS Synthesis [${i + 1}/${sentences.length}]:`, sentence.slice(0, 40) + '...')
+        
+        const edge = new EdgeTTS(sentence, edgeVoice, { rate: rateStr })
+        const result = await edge.synthesize()
+
+        if (!this.isSpeaking) break
+
+        const arrayBuffer = await result.audio.arrayBuffer()
+        const audioBuffer = Buffer.from(arrayBuffer)
+
+        if (audioBuffer && audioBuffer.length > 0) {
+          console.log(`[TTSService] Emitting audio buffer for sentence ${i + 1}, len: ${audioBuffer.length}`)
+          this.emit('play-audio-buffer', audioBuffer)
+        }
       }
 
-      const arrayBuffer = await result.audio.arrayBuffer()
-      const audioBuffer = Buffer.from(arrayBuffer)
-      console.log('[TTSService] Buffer len:', audioBuffer.length)
-
-      if (audioBuffer && audioBuffer.length > 0) {
-        // Send audio buffer directly to renderer via IPC (avoids filesystem access issues)
-        console.log('[TTSService] Emitting play-audio-buffer, len:', audioBuffer.length)
-        this.emit('play-audio-buffer', audioBuffer)
-      } else {
-        console.log('[TTSService] EMPTY buffer, skipping playback')
-      }
+      console.log('[TTSService] EdgeTTS ALL sentences processed')
     } catch (error) {
       console.error('[TTSService] Erro ao falar com edge-tts:', error)
       throw error
