@@ -57,7 +57,7 @@ export class EconomyService {
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private appOpenTimer: ReturnType<typeof setTimeout> | null = null
   private appMinimizedTimer: ReturnType<typeof setTimeout> | null = null
-  private coverCache = new Map<string, string>()
+
   private preferencesPath: string | null = null
   private dismissed = false
 
