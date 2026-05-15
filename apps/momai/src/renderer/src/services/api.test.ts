@@ -1,7 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('axios', () => ({ default: { create: vi.fn() } }))
-
 vi.mock('./ttsService', () => ({
   getTTSServiceRenderer: vi.fn(() => ({
     speak: vi.fn(),

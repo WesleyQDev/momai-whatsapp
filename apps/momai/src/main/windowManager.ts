@@ -145,6 +145,10 @@ export function registerIpcHandlers(): void {
       event.sender.send('notification-clicked', { title, body, voice_response })
     })
 
+    n.on('failed', (_event, error) => {
+      logger.warn('[WindowManager] Notification failed (macOS without code-signing):', error)
+    })
+
     n.show()
   })
 

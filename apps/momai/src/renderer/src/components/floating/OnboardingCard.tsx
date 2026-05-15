@@ -214,6 +214,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
       try {
         const res = await api.get('/settings')
         const data = res.data
+        if (!data) return
         if (data.user_name) setName(data.user_name)
         if (data.locale) {
           const langCode = data.locale === 'pt-BR' ? 'p' : 'a'

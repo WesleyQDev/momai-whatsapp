@@ -6,6 +6,8 @@
     "strict": true,
     "noEmit": true,
     "lib": ["es2015"],
+    "types": ["node"],
+    "moduleResolution": "nodenext",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

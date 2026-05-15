@@ -146,11 +146,13 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   const checkLocalStatus = useCallback(async () => {
     try {
       const res = await api.get('/setup/status')
-      setLocalDetails(res.data)
-      if (res.data.engine_installed) {
-        setInstallStatus('installed')
-      } else {
-        setInstallStatus('missing')
+      if (res.data) {
+        setLocalDetails(res.data)
+        if (res.data.engine_installed) {
+          setInstallStatus('installed')
+        } else {
+          setInstallStatus('missing')
+        }
       }
     } catch (error) {
       console.error('Error checking local status:', error)
@@ -163,7 +165,7 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     setInstallProgress(0)
     try {
       const res = await api.post('/setup/install-engine', { backend })
-      if (res.data.status === 'error') {
+      if (res.data?.status === 'error') {
         setInstallStatus('error')
         alert(res.data.message)
       }
@@ -175,7 +177,7 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   const loadGamingApps = useCallback(async () => {
     try {
       const res = await api.get('/system/gaming-apps')
-      setGamingApps(res.data)
+      if (res.data) setGamingApps(res.data)
     } catch (error) {
       console.error('Error loading gaming apps:', error)
     }
@@ -270,13 +272,17 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   const loadSettings = useCallback(async () => {
     try {
       const res = await api.get('/settings')
-      setSettings(res.data)
-      if (res.data.locale) {
-        setLocale(res.data.locale)
+      if (res.data) {
+        setSettings(res.data)
+        if (res.data.locale) {
+          setLocale(res.data.locale)
+        }
       }
 
       const statusRes = await api.get('/status')
-      setTiersConfig(statusRes.data.tiers_config)
+      if (statusRes.data) {
+        setTiersConfig(statusRes.data.tiers_config)
+      }
     } catch (error) {
       console.error('Error loading settings:', error)
     } finally {

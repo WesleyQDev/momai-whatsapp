@@ -1,10 +1,27 @@
-import axios from 'axios'
 import { cleanMomaiActions, stripEmojisAndMarkdown } from '../utils/text'
 import { API_URL } from '../constants'
 
-export const api = axios.create({
-  baseURL: API_URL
-})
+async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  })
+  const text = await res.text()
+  const data = text ? JSON.parse(text) : undefined
+  if (!res.ok) {
+    const err: any = new Error(`HTTP ${res.status}: ${res.statusText}`)
+    err.response = { status: res.status, statusText: res.statusText, data }
+    throw err
+  }
+  return { data, status: res.status, statusText: res.statusText }
+}
+
+export const api = {
+  get: (path: string) => apiFetch(path),
+  post: (path: string, body?: any) => apiFetch(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  patch: (path: string, body?: any) => apiFetch(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
+  delete: (path: string) => apiFetch(path, { method: 'DELETE' }),
+}
 
 export interface StructuredResponse {
   type: string
