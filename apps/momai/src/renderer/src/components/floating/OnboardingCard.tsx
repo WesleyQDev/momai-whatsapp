@@ -672,39 +672,53 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                     <label className="text-[10px] font-bold text-text-muted ml-0.5">
                       {t('onboarding.themeLabel')}
                     </label>
-                    <select
-                      value={theme}
-                      onChange={(e) => changeTheme(e.target.value as Theme)}
-                      className="no-drag w-full bg-input border border-border/20 rounded-lg px-2.5 py-1.5 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
-                    >
-                      <option value="dark">{t('onboarding.theme.dark')}</option>
-                      <option value="light">{t('onboarding.theme.light')}</option>
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={theme}
+                        onChange={(e) => changeTheme(e.target.value as Theme)}
+                        className="no-drag w-full bg-input border border-border/20 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                      >
+                        <option value="dark">{t('onboarding.theme.dark')}</option>
+                        <option value="light">{t('onboarding.theme.light')}</option>
+                      </select>
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-text-muted ml-0.5">
                       Language
                     </label>
-                    <select
-                      value={selectedLang}
-                      onChange={(e) => {
-                        const newLang = e.target.value
-                        setSelectedLang(newLang)
-                        const group = getVoiceCatalog(selectedEngine).find((g) => g.code === newLang)
-                        if (group) {
-                          setSelectedVoice(group.voices[0].id)
-                          setLocale(newLang === 'p' ? 'pt-BR' : ('en-US' as any))
-                        }
-                      }}
-                      className="no-drag w-full bg-input border border-border/20 rounded-lg px-2.5 py-1.5 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
-                    >
-                      {getVoiceCatalog(selectedEngine).map((g) => (
-                        <option key={g.code} value={g.code}>
-                          {g.langName}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={selectedLang}
+                        onChange={(e) => {
+                          const newLang = e.target.value
+                          setSelectedLang(newLang)
+                          const group = getVoiceCatalog(selectedEngine).find((g) => g.code === newLang)
+                          if (group) {
+                            setSelectedVoice(group.voices[0].id)
+                            setLocale(newLang === 'p' ? 'pt-BR' : ('en-US' as any))
+                          }
+                        }}
+                        className="no-drag w-full bg-input border border-border/20 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                      >
+                        {getVoiceCatalog(selectedEngine).map((g) => (
+                          <option key={g.code} value={g.code}>
+                            {g.langName}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -750,20 +764,27 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                   <label className="text-[10px] font-bold text-text-muted ml-0.5">
                     {t('onboarding.voiceLabel')}
                   </label>
-                  <select
-                    value={selectedVoice}
-                    onChange={(e) => setSelectedVoice(e.target.value)}
-                    className="no-drag w-full bg-input border border-border/20 rounded-lg px-3 py-2 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
-                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                  >
-                    {getVoiceCatalog(selectedEngine)
-                      .find((g) => g.code === selectedLang)
-                      ?.voices.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.name}
-                        </option>
-                      ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={selectedVoice}
+                      onChange={(e) => setSelectedVoice(e.target.value)}
+                      className="no-drag w-full bg-input border border-border/20 rounded-lg pl-3 pr-8 py-2 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                    >
+                      {getVoiceCatalog(selectedEngine)
+                        .find((g) => g.code === selectedLang)
+                        ?.voices.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
               </div>
 

@@ -344,6 +344,9 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
       console.error(e)
     }
 
+    // Clear chat session
+    window.dispatchEvent(new CustomEvent('momai_new_session'))
+
     // @ts-ignore
     window.electron.ipcRenderer.send('reset-onboarding')
 
