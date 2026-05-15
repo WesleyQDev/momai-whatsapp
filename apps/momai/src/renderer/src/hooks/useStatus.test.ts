@@ -85,11 +85,11 @@ describe('useStatus', () => {
     })
 
     // Advance to exactly the stall threshold (STALLED_TIMEOUT_MS = 20000).
-    // Watchdog fires every 5000ms; at 20000ms timeSinceLastProgress >= 20000.
-    // Stop at 20000ms (not 21000ms) to avoid the init polling (1500ms interval)
-    // from overwriting the stalled message at 21000ms.
+    // Watchdog fires every 5000ms; at 120000ms timeSinceLastProgress >= 120000.
+    // Stop at 120000ms (not 121000ms) to avoid the init polling (1500ms interval)
+    // from overwriting the stalled message at 121000ms.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(20000)
+      await vi.advanceTimersByTimeAsync(120000)
     })
 
     expect(result.current.isStalled).toBe(true)

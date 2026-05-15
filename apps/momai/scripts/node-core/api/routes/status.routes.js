@@ -141,11 +141,11 @@ function createStatusRoutes(context) {
       } else if (requestedTier === 'pro') {
         store.settings.tts_enabled = true
         store.settings.wake_word_enabled = false
-        if (!store.settings.tts_engine) store.settings.tts_engine = 'kokoro'
+        if (!store.settings.tts_engine) store.settings.tts_engine = 'edge-tts'
       } else if (requestedTier === 'ultra') {
         store.settings.tts_enabled = true
         store.settings.wake_word_enabled = true
-        if (!store.settings.tts_engine) store.settings.tts_engine = 'kokoro'
+        if (!store.settings.tts_engine) store.settings.tts_engine = 'edge-tts'
       }
       saveStoreNow()
       const ready = await maybeRestartLlamaOnTierChange(

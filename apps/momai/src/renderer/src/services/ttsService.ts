@@ -94,7 +94,7 @@ class TTSServiceRenderer {
     this.cleanupFns.push(on('tts:engine-changed', (engine) => this.emit('engine-changed', engine)))
     this.cleanupFns.push(on('tts:voice-changed', (voice) => this.emit('voice-changed', voice)))
     this.cleanupFns.push(
-      on('tts:play-audio-buffer', (payload: { data: string; mimeType: string }) => {
+      on('tts:play-audio-buffer', (payload: { data: Uint8Array; mimeType: string }) => {
         this.playAudioBuffer(payload)
       })
     )
@@ -113,7 +113,7 @@ class TTSServiceRenderer {
         this.nextScheduleTime = 0
       }
 
-      const audioBuffer = await this.audioCtx.decodeAudioData(bytes.buffer.slice(0))
+      const audioBuffer = await this.audioCtx.decodeAudioData(bytes.slice(0).buffer as ArrayBuffer)
       const startTime = Math.max(this.nextScheduleTime, this.audioCtx.currentTime)
 
       const source = this.audioCtx.createBufferSource()
@@ -131,7 +131,7 @@ class TTSServiceRenderer {
       console.warn('[Renderer TTS] AudioContext decode error, fallback to HTMLAudio:', err)
       try {
         const bytes = payload.data
-        const url = URL.createObjectURL(new Blob([bytes.buffer], { type: payload.mimeType }))
+        const url = URL.createObjectURL(new Blob([bytes.buffer as ArrayBuffer], { type: payload.mimeType }))
         const audio = new Audio(url)
         audio.onended = () => {
           URL.revokeObjectURL(url)

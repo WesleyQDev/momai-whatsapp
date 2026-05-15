@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { StatusData, fetchStatus, updateMode, fetchInitStatus } from '../services/api'
 
-const STALLED_TIMEOUT_MS = 20000
+const STALLED_TIMEOUT_MS = 120000
 
 const MESSAGE_TRANSLATIONS: Record<string, string> = {
   'Creating isolated environment...': 'Criando ambiente isolado...',

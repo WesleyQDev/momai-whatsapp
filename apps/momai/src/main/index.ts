@@ -8,7 +8,8 @@ import {
   startCoreBackend,
   shutdownCoreBackend,
   ensurePythonSidecar,
-  forceKillAllSync
+  forceKillAllSync,
+  stopActiveServices
 } from './coreManager'
 import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
@@ -132,10 +133,15 @@ ipcMain.handle('is-first-launch', () => {
   return state.isFirstLaunch
 })
 
-ipcMain.on('reset-onboarding', () => {
+ipcMain.on('reset-onboarding', async () => {
   logger.info('[Electron] Resetting onboarding status')
   state.isFirstLaunch = true
   saveOnboardingCompleted(false)
+
+  // Stop LLM, Python (Wake Word) and TTS to ensure silence during onboarding
+  void stopActiveServices().catch((err) => {
+    logger.error('[Electron] Failed to stop services on onboarding reset:', err)
+  })
 })
 
 ipcMain.on('restart-app', async () => {

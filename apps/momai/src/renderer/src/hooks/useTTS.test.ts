@@ -301,6 +301,6 @@ describe('useTTS', () => {
     await waitFor(() => expect(result.current.isReady).toBe(true))
 
     expect(result.current.config).toBeNull()
-    expect(result.current.currentEngine).toBe('kokoro')
+    expect(result.current.currentEngine).toBe('edge-tts')
   })
 })

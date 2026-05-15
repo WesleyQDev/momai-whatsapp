@@ -28,6 +28,7 @@ export default function EconomyToast({ economyState }: EconomyToastProps) {
       })
       return () => cleanup?.()
     }
+    return
   }, [economyState])
 
   useEffect(() => {

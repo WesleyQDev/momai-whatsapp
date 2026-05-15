@@ -767,6 +767,37 @@ export function forceKillAllSync(): void {
   killAllLlamaServers()
 }
 
+export async function stopActiveServices(): Promise<void> {
+  logger.info('[CoreManager] Stopping active services (LLM, Python) for onboarding reset...')
+
+  // 1. Stop Python (Wake Word, STT, Kokoro)
+  try {
+    if (isPythonRunning()) {
+      await killPythonBackend()
+    } else {
+      await killProcessOnPort(PYTHON_SIDECAR_PORT)
+    }
+  } catch (err) {
+    logger.warn('[CoreManager] Failed to stop Python sidecar during services stop:', err)
+  }
+
+  // 2. Kill all llama servers (LLM)
+  try {
+    killAllLlamaServers()
+  } catch (err) {
+    logger.warn('[CoreManager] Failed to kill llama servers during services stop:', err)
+  }
+
+  // 3. Stop TTS in main process
+  try {
+    getTTSService().stop()
+  } catch (err) {
+    logger.warn('[CoreManager] Failed to stop TTS during services stop:', err)
+  }
+
+  logger.info('[CoreManager] Active services stopped.')
+}
+
 export async function restartCoreBackend(): Promise<{ success: boolean; error?: string }> {
   try {
     isStoppingCore = true

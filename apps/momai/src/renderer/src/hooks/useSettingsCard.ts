@@ -71,7 +71,7 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     ai_model: '',
     local_backend: 'auto',
     api_keys: { groq: '', gemini: '' },
-    tts_engine: 'kokoro',
+    tts_engine: 'edge-tts',
     tts_voice: '',
     tts_enabled: true,
     wake_word_enabled: false,

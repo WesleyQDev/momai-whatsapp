@@ -25,7 +25,7 @@ function defaultStore() {
       ai_model: 'Qwen 3.5',
       local_backend: 'auto',
       auto_start_llm: true,
-      tts_engine: 'kokoro',
+      tts_engine: 'edge-tts',
       tts_voice: 'pf_dora',
       tts_enabled: true,
       wake_word_enabled: false,

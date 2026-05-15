@@ -115,7 +115,7 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
         <div className="bg-white/[0.03] rounded-xl border border-border/40 overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-border/20">
             <div className="flex items-center gap-3 min-w-0">
-              <svg className="shrink-0 text-accent" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="Logs do sistema em tempo real">
+              <svg className="shrink-0 text-accent" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Logs do sistema em tempo real">
                 <rect x="2" y="3" width="20" height="14" rx="2" />
                 <line x1="8" y1="10" x2="16" y2="10" />
                 <line x1="8" y1="14" x2="12" y2="14" />
@@ -140,7 +140,7 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
 
           <div className="flex items-center justify-between p-4 border-b border-border/20">
             <div className="flex items-center gap-3 min-w-0">
-              <svg className="shrink-0 text-accent" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="Monitoramento de chamadas ao LLM">
+              <svg className="shrink-0 text-accent" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Monitoramento de chamadas ao LLM">
                 <path d="M12 20V10M18 20V4M6 20v-4" />
               </svg>
               <div className="flex flex-col gap-0.5 min-w-0">
@@ -161,7 +161,7 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
 
           <div className="flex items-center justify-between p-4">
             <div className="flex items-center gap-3 min-w-0">
-              <svg className="shrink-0 text-accent" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title="Indicador visual de contexto usado">
+              <svg className="shrink-0 text-accent" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Indicador visual de contexto usado">
                 <circle cx="12" cy="12" r="10" />
                 <path d="M12 6v6l4 2" />
               </svg>

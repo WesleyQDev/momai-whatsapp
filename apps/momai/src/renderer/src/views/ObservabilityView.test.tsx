@@ -7,7 +7,8 @@ const mockTraces = [
   {
     id: 'trace-1',
     timestamp: Date.now() - 10000,
-    type: 'llm_call',
+    type: 'llm_call' as const,
+    status: 'success' as const,
     total_duration: 12300,
     pre_llm_duration: 340,
     first_token_duration: 890,
@@ -28,13 +29,13 @@ const mockTraces = [
     tool_calls: [
       { tool_name: 'get_weather', args: { city: 'SP' }, result: '28°C', duration_ms: 890 }
     ],
-    thread_id: 'default',
-    status: 'success'
+    thread_id: 'default'
   },
   {
     id: 'trace-2',
     timestamp: Date.now() - 60000,
-    type: 'skill',
+    type: 'skill' as const,
+    status: 'success' as const,
     total_duration: 1200,
     tokens_per_second: 0,
     total_tokens: 0,
@@ -42,7 +43,6 @@ const mockTraces = [
     tier: 'pro',
     tools_count: 0,
     thread_id: 'default',
-    status: 'success',
     active_skill: 'weather'
   }
 ]

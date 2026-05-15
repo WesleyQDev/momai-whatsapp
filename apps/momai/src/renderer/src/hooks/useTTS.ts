@@ -4,7 +4,7 @@ import { getTTSServiceRenderer, TTSEngine, TTSVoice, TTSConfig } from '../servic
 export function useTTS() {
   const [isReady, setIsReady] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
-  const [currentEngine, setCurrentEngine] = useState<TTSEngine>('kokoro')
+  const [currentEngine, setCurrentEngine] = useState<TTSEngine>('edge-tts')
   const [availableVoices, setAvailableVoices] = useState<TTSVoice[]>([])
   const [config, setConfig] = useState<TTSConfig | null>(null)
   const [error, setError] = useState<string | null>(null)

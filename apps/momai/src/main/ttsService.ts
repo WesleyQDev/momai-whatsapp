@@ -28,7 +28,7 @@ export class TTSService extends EventEmitter {
   constructor(config: Partial<TTSConfig> = {}) {
     super()
     this.config = {
-      engine: config.engine || 'kokoro',
+      engine: config.engine || 'edge-tts',
       voice: config.voice || 'pf_dora',
       speed: config.speed || 1.0,
       enabled: config.enabled !== false

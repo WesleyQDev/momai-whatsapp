@@ -120,7 +120,7 @@ async function triggerAutoTts(text, capturedGen) {
   }
 
   // Use main process TTSService for non-kokoro engines (edge-tts, say)
-  const ttsEngine = store.settings.tts_engine || 'kokoro'
+  const ttsEngine = store.settings.tts_engine || 'edge-tts'
   console.log(`[NodeCore][Voice] triggerAutoTts engine=${ttsEngine} text="${cleaned.slice(0, 40)}"`)
   if (ttsEngine !== 'kokoro') {
     if (typeof process.send !== 'function') {

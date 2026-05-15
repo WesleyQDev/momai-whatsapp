@@ -346,6 +346,8 @@ export async function syncDependencies(
       'onnxruntime'
     )
 
+    installArgs.push('rapidfuzz')
+
     if (isUltra) {
       installArgs.push('faster-whisper', 'ctranslate2')
     }

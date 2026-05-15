@@ -691,8 +691,8 @@ export default function ContainerChat({
             <p className="text-xs text-text-muted">
               {(() => {
                 const parts: string[] = []
-                if (economyState.freedMemoryMb) parts.push(`${economyState.freedMemoryMb} MB RAM`)
-                if (economyState.freedVramMb) parts.push(`${economyState.freedVramMb} MB VRAM`)
+                if (economyState?.freedMemoryMb) parts.push(`${economyState.freedMemoryMb} MB RAM`)
+                if (economyState?.freedVramMb) parts.push(`${economyState.freedVramMb} MB VRAM`)
                 return parts.length > 0 ? parts.join(' + ') + ' liberados' : 'Recursos liberados para o jogo rodar sem interferência'
               })()}
             </p>

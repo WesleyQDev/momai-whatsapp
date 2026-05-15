@@ -113,7 +113,7 @@ export async function checkVenvHealth(pythonExe: string, corePath: string): Prom
   const depsProbeScript = [
     'import os, re, sys, tomllib',
     'md = __import__("importlib.metadata", fromlist=["version"])',
-    'required_default = ["python-dotenv", "fastapi", "uvicorn", "sqlalchemy", "kokoro-onnx"]',
+    'required_default = ["python-dotenv", "fastapi", "uvicorn", "sqlalchemy", "kokoro-onnx", "faster-whisper", "ctranslate2", "rapidfuzz"]',
     'required_default = [d for d in required_default if d]',
     'dist_names = []',
     'try:',
