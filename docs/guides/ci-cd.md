@@ -79,7 +79,6 @@ on:
     branches: [main]
     paths:
       - 'apps/landing-page/**'
-      - 'CHANGELOG.md'
   workflow_dispatch:
 ```
 

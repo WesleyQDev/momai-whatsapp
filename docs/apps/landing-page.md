@@ -66,7 +66,7 @@ pnpm format     # Prettier
 
 O deploy é automático via GitHub Actions (`.github/workflows/deploy-landing.yml`):
 
-1. Trigger: push na branch `main` com mudanças em `apps/landing-page/**` ou `CHANGELOG.md`
+1. Trigger: push na branch `main` com mudanças em `apps/landing-page/**`
 2. Build: `pnpm build`
 3. Prepare: copia `dist/`, `v1/`, `saude/`, `CNAME`, `.nojekyll`, `politicas-privacidade.html`
 4. Deploy: GitHub Pages via `peaceiris/actions-gh-pages`

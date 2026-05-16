@@ -3,7 +3,7 @@
 ![MomAI](apps/docs/logo/logo.png)
 
 [![GitHub](https://img.shields.io/badge/GitHub-WesleyQDev%2FMomAI-181717?style=for-the-badge&logo=github)](https://github.com/WesleyQDev/MomAI)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg?style=for-the-badge)](LICENSE)
 
 </div>
 
@@ -25,7 +25,7 @@ MomAI é uma assistente virtual **local-first** e focada em privacidade. Ela com
 
 - **Privacidade** - Seus dados ficam no seu computador.
 - **Extensível** - Adicione apenas as funcionalidades (agentes e ferramentas) que você precisa.
-- **Código Aberto** - Licença MIT, totalmente gratuito.
+- **Gratuito** - Uso pessoal sem custos.
 - **Multiplataforma** - Windows, Linux e Mac.
 
 ## Funcionalidades
@@ -54,7 +54,7 @@ Para a documentação técnica raiz (Spec-Driven, Arc42 + C4, ADR e specs increm
 
 ## Licença
 
-Este projeto está licenciado sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+Uso pessoal gratuito sob licença proprietária. Veja o arquivo [LICENSE](LICENSE) para os termos completos.
 
 ---
 
