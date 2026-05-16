@@ -46,8 +46,25 @@ jobs:
           cp CNAME .nojekyll politicas-privacidade.html _site/
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./_site
-          publish_branch: gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Remove old deploy artifacts from root
+          rm -rf assets/ images/ 2>/dev/null || true
+          rm -f index.html 2>/dev/null || true
+
+          # Copy new build + preserved content to root
+          cp -r _site/. .
+
+          # Clean up temp dir
+          rm -rf _site
+
+          # Commit and push to main (root-level changes only)
+          git add -A
+          if git diff --staged --quiet; then
+            echo "No changes to deploy"
+          else
+            git commit -m "deploy: landing page [skip ci]"
+            git push origin main
+          fi
