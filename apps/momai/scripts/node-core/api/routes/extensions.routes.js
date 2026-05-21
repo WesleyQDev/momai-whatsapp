@@ -475,30 +475,45 @@ function createExtensionsRoutes(context) {
       return true
     }
 
-    /* ── Disconnect WhatsApp: stop + delete creds.json + restart to show QR ── */
+    /* ── Helper: wipe Baileys auth dir (rm dir, fallback to creds.json) ── */
+    function _wipeBaileysAuth(baseDir) {
+      const authDir = path.join(baseDir, 'whatsapp', 'baileys-auth')
+      // Try full dir rm first (process is dead, should work)
+      try {
+        if (fs.existsSync(authDir)) {
+          fs.rmSync(authDir, { recursive: true, force: true })
+          console.log('[extensions] Deleted baileys-auth/')
+          return
+        }
+      } catch (e) {
+        console.log('[extensions] Full rm failed, trying creds.json fallback:', e.message)
+      }
+      // Fallback: delete just creds.json
+      try {
+        const credsPath = path.join(authDir, 'creds.json')
+        if (fs.existsSync(credsPath)) {
+          fs.unlinkSync(credsPath)
+          console.log('[extensions] Deleted creds.json (fallback)')
+        }
+      } catch (e) {
+        console.log('[extensions] Failed to delete creds.json:', e.message)
+      }
+    }
+
+    /* ── Disconnect WhatsApp: stop + wipe auth + restart to show QR ── */
     if (pathname === '/extensions/whatsapp/disconnect' && req.method === 'POST') {
       try {
         // 1. Kill persistent worker and WAIT for process to fully exit
         await extensionHostManager.stopPersistent('whatsapp')
         await new Promise(r => setTimeout(r, 500))
 
-        // 2. Delete creds.json — the one file that defines the session
-        //    (useMultiFileAuthState recreates the dir automatically, but
-        //    without creds.json it returns initAuthCreds() → forces QR)
-        const credsPath = path.join(skillRegistry.extensionsDir, 'whatsapp', 'baileys-auth', 'creds.json')
-        try {
-          if (fs.existsSync(credsPath)) {
-            fs.unlinkSync(credsPath)
-            console.log('[extensions] Deleted creds.json — QR will be generated')
-          }
-        } catch (e) {
-          console.log('[extensions] Failed to delete creds.json:', e.message)
-        }
+        // 2. Wipe Baileys auth — forces QR on next start
+        _wipeBaileysAuth(skillRegistry.extensionsDir)
 
         // 3. Broadcast logged_out so UI shows QR container
         extensionEvents.broadcast('authenticated', { status: 'logged_out' })
 
-        // 4. Restart worker fresh — no creds → Baileys generates QR
+        // 4. Restart worker fresh
         const whatsappSkill = (skillRegistry.getAll?.() || []).find(s => s.id === 'whatsapp')
         if (whatsappSkill) {
           setTimeout(() => {
@@ -516,21 +531,13 @@ function createExtensionsRoutes(context) {
       return true
     }
 
-    /* ── Restart WhatsApp worker (same as disconnect: kill + delete creds + restart) ── */
+    /* ── Restart WhatsApp worker (same as disconnect: kill + wipe auth + restart) ── */
     if (pathname === '/extensions/whatsapp/restart' && req.method === 'POST') {
       try {
         await extensionHostManager.stopPersistent('whatsapp').catch(() => {})
         await new Promise(r => setTimeout(r, 500))
 
-        const credsPath = path.join(skillRegistry.extensionsDir, 'whatsapp', 'baileys-auth', 'creds.json')
-        try {
-          if (fs.existsSync(credsPath)) {
-            fs.unlinkSync(credsPath)
-            console.log('[extensions] Deleted creds.json on restart')
-          }
-        } catch (e) {
-          console.log('[extensions] Failed to delete creds.json:', e.message)
-        }
+        _wipeBaileysAuth(skillRegistry.extensionsDir)
 
         const skill = (skillRegistry.getAll?.() || []).find(s => s.id === 'whatsapp')
         if (skill) {
