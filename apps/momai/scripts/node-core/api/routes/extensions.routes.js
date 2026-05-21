@@ -7,6 +7,7 @@ const https = require('node:https')
 const { exec } = require('node:child_process')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { createPermissionSchema } = require('../../permissions/schema')
+const extensionEvents = require('../../services/extension-events')
 
 let _cachedExtensionsPayload = null
 let _lastExtensionsRefresh = 0
@@ -434,7 +435,6 @@ function createExtensionsRoutes(context) {
 
     /* ── SSE stream for extension push events ── */
     if (pathname === '/extensions/events' && req.method === 'GET') {
-      const extensionEvents = require('../../services/extension-events')
       extensionEvents.addClient(res)
       return true
     }
