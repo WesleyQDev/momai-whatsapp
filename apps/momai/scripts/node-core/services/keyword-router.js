@@ -14,32 +14,34 @@ function matchKeyword(inputTokens, keywordTokens) {
   return true
 }
 
-const shared = require('./shared-state')
+let _store = null
 
-function getKeywords() {
-  return shared.store.skillKeywords || {}
+function setStore(storeRef) {
+  _store = storeRef
 }
 
-// Seed default keywords for packaged extensions
+function getKeywords() {
+  return (_store && _store.skillKeywords) || {}
+}
+
 function seedDefaultKeywords(skillRegistry) {
-  if (!shared.store.skillKeywords) shared.store.skillKeywords = {}
-  const skills = skillRegistry.getAll ? skillRegistry.getAll() : []
+  if (!_store || !skillRegistry || typeof skillRegistry.getAll !== 'function') return
+  if (!_store.skillKeywords) _store.skillKeywords = {}
+  const skills = skillRegistry.getAll()
   for (const skill of skills) {
     const id = skill.manifest?.id || skill.id
     if (!id) continue
     const newKeywords = (skill.manifest?.intents || skill.manifest?.triggers || []).filter(Boolean)
     if (newKeywords.length === 0) continue
 
-    const existing = shared.store.skillKeywords[id] || []
+    const existing = _store.skillKeywords[id] || []
     const merged = [...new Set([...existing, ...newKeywords])]
     if (merged.length !== existing.length) {
-      shared.store.skillKeywords[id] = merged
+      _store.skillKeywords[id] = merged
       console.log(`[keywords] Updated ${id}: ${existing.length} -> ${merged.length} keywords`)
     }
   }
 }
-
-module.exports = { routeByKeyword, tokenize, matchKeyword, seedDefaultKeywords }
 
 function routeByKeyword(text, skillRegistry) {
   const normalized = text.toLowerCase().trim()
@@ -63,4 +65,4 @@ function routeByKeyword(text, skillRegistry) {
   return null
 }
 
-module.exports = { routeByKeyword, tokenize, matchKeyword }
+module.exports = { routeByKeyword, tokenize, matchKeyword, setStore, seedDefaultKeywords }

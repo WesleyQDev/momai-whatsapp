@@ -68,15 +68,6 @@ async function initializeRegistries() {
     info('[core] Prompt registry not available:', e.message)
   }
 
-  // Seed extension keywords on startup
-  try {
-    const { seedDefaultKeywords } = require('./services/keyword-router')
-    if (typeof seedDefaultKeywords === 'function' && skillRegistry) {
-      seedDefaultKeywords(skillRegistry)
-    }
-  } catch (e) {
-    info('[core] Keyword seeding not available:', e.message)
-  }
 }
 
 // ============================================
@@ -366,6 +357,17 @@ async function startServer() {
 
   // Initialize registries
   await initializeRegistries()
+
+  // Wire up keyword router with real store
+  const { setStore, seedDefaultKeywords } = require('./services/keyword-router')
+  setStore(store)
+  try {
+    if (typeof seedDefaultKeywords === 'function' && skillRegistry) {
+      seedDefaultKeywords(skillRegistry)
+    }
+  } catch (e) {
+    info('[core] Keyword seeding failed:', e.message)
+  }
 
   // Initialize shared state
   const _skillRegistry = skillRegistry || shared.skillRegistry
