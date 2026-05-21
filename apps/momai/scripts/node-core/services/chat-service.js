@@ -1889,6 +1889,7 @@ async function streamLlamaChat(req, res, payload) {
 }
 
 async function runVoiceCommand(payload = {}) {
+  console.log('[VOICE-CMD] runVoiceCommand called with content:', payload.content)
   let content = String(payload.content || '').trim()
   if (!content) return
   const threadId = String(payload.thread_id || 'default')
@@ -1900,10 +1901,10 @@ async function runVoiceCommand(payload = {}) {
 
   let keywordWebSources = null
 
-  // Handle "responda" voice command BEFORE keyword routing
-  // This adds context about the last WhatsApp message and lets the LLM handle it
+  console.log('[VOICE-CMD] Checking responda in:', content)
   const contentLower = content.toLowerCase()
   if (contentLower.includes('responda') || contentLower.includes('responde')) {
+    console.log('[VOICE-CMD] responda detected, fetching last contact')
     try {
       const hostManager = require('./extension-host-manager')
       const histResult = await hostManager.sendToPersistent('whatsapp', { toolName: 'get_history', args: {} })
@@ -1912,9 +1913,9 @@ async function runVoiceCommand(payload = {}) {
         content = `[Contexto: ultima mensagem no WhatsApp foi de "${last.from}" dizendo: "${last.text}"]\n${content}`
       }
     } catch {}
-    // Skip keyword routing, fall through to LLM with context
+    console.log('[VOICE-CMD] responda handled, falling through to LLM')
   } else {
-    // Normal keyword routing for non-responda commands
+    console.log('[VOICE-CMD] NOT responda, doing normal keyword routing')
     const { routeByKeyword } = require('./keyword-router')
     const skillRegistry = shared.skillRegistry
     let keywordWebSources = null
