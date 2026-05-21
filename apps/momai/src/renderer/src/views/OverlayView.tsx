@@ -7,8 +7,10 @@ export default function OverlayView() {
   const [data, setData] = useState<any>(null)
 
   useEffect(() => {
-    document.documentElement.style.backgroundColor = 'transparent'
-    document.body.style.backgroundColor = 'transparent'
+    document.documentElement.style.setProperty('background', 'transparent', 'important')
+    document.body.style.setProperty('background', 'transparent', 'important')
+    const root = document.getElementById('root')
+    if (root) root.style.setProperty('background', 'transparent', 'important')
 
     // @ts-ignore
     const removeListener = window.electron.ipcRenderer.on('update-overlay-content', (_, contentData) => {
@@ -59,7 +61,7 @@ export default function OverlayView() {
     const quickReplies = data?.quickReplies || []
 
     return (
-      <div className="w-screen h-screen flex items-center justify-center bg-transparent">
+      <div className="w-screen h-screen flex items-center justify-center bg-transparent" onClick={handleClose}>
         <div
           className="rounded-2xl border border-white/10 bg-zinc-900/95 backdrop-blur-xl shadow-2xl p-5 w-full max-w-md mx-4 animate-fade-in pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
