@@ -475,39 +475,33 @@ function createExtensionsRoutes(context) {
       return true
     }
 
-    /* ── Disconnect WhatsApp: logout properly + delete auth + restart to show QR ── */
+    /* ── Disconnect WhatsApp: stop + rename auth (Windows-safe) + restart to show QR ── */
     if (pathname === '/extensions/whatsapp/disconnect' && req.method === 'POST') {
       try {
-        // 1. Send logout command to Baileys (clean disconnect + auth removal)
-        try {
-          await extensionHostManager.sendToPersistent('whatsapp', { toolName: 'logout', args: {} })
-        } catch {
-          // Worker may already be disconnected, that's fine
-        }
-
-        // 2. Give Baileys a moment to flush auth changes
-        await new Promise(r => setTimeout(r, 1000))
-
-        // 3. Kill the persistent worker
+        // 1. Kill the persistent worker
         extensionHostManager.stopPersistent('whatsapp')
 
-        // 4. Delete Baileys auth folder entirely
+        // 2. Rename auth dir instead of deleting (rename works even with open files on Windows)
         const baileysAuthDir = path.join(skillRegistry.extensionsDir, 'whatsapp', 'baileys-auth')
+        const baileysAuthBak = baileysAuthDir + '-old-' + Date.now()
         if (fs.existsSync(baileysAuthDir)) {
-          // Retry deletion up to 3 times (Windows file locks)
-          for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-              fs.rmSync(baileysAuthDir, { recursive: true, force: true })
-              break
-            } catch (e) {
-              if (attempt < 2) await new Promise(r => setTimeout(r, 500))
-              else console.log('[extensions] Failed to delete baileys-auth after 3 attempts:', e.message)
-            }
+          try {
+            fs.renameSync(baileysAuthDir, baileysAuthBak)
+            console.log('[extensions] Renamed baileys-auth to ' + path.basename(baileysAuthBak))
+            // Cleanup old backup async
+            setTimeout(() => {
+              fs.rmSync(baileysAuthBak, { recursive: true, force: true })
+              console.log('[extensions] Cleaned up old auth backup')
+            }, 5000)
+          } catch (e) {
+            console.log('[extensions] Failed to rename baileys-auth:', e.message)
           }
-          console.log('[extensions] Deleted baileys-auth for WhatsApp disconnect')
         }
 
-        // 5. Restart worker fresh — will generate QR since no auth exists
+        // 3. Broadcast logged_out so UI shows QR container
+        extensionEvents.broadcast('authenticated', { status: 'logged_out' })
+
+        // 4. Restart worker fresh — no auth dir → Baileys generates QR
         const whatsappSkill = (skillRegistry.getAll?.() || []).find(s => s.id === 'whatsapp')
         if (whatsappSkill) {
           setTimeout(() => {
@@ -518,8 +512,6 @@ function createExtensionsRoutes(context) {
           }, 500)
         }
 
-        // 6. Broadcast logged_out so UI shows QR
-        extensionEvents.broadcast('authenticated', { status: 'logged_out' })
         sendJson(res, 200, { ok: true, connected: false })
       } catch (err) {
         sendJson(res, 200, { ok: false, error: err.message })
