@@ -516,6 +516,25 @@ function createExtensionsRoutes(context) {
       return true
     }
 
+    /* ── Generic LLM completion for extensions ── */
+    if (pathname === '/extensions/llm/complete' && req.method === 'POST') {
+      const body = await readJsonBody(req).catch(() => ({}))
+      const prompt = String(body.prompt || body.user || '')
+      if (!prompt) { sendJson(res, 200, { text: '' }); return true }
+      try {
+        const { createSkillLlmHelper } = require('../../services/skill-llm')
+        const llm = createSkillLlmHelper({ llamaState, tierName: store?.settings?.ai_tier || 'pro', temperature: 0.4 })
+        const result = await llm.completeText({
+          system: String(body.system || 'Responda de forma direta e natural.'),
+          user: prompt
+        })
+        sendJson(res, 200, { text: (result.text || '').trim() })
+      } catch {
+        sendJson(res, 200, { text: prompt })
+      }
+      return true
+    }
+
     /* ── Send command to persistent worker ── */
     const cmdMatch = pathname.match(/^\/extensions\/([^/]+)\/command$/)
     if (cmdMatch && req.method === 'POST') {

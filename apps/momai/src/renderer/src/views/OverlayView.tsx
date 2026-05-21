@@ -39,14 +39,30 @@ export default function OverlayView() {
     window.electron.ipcRenderer.send('close-overlay')
   }, [])
 
-  const handleRespond = useCallback(async (message: string) => {
+  const handleRespond = useCallback(async (label: string) => {
     try {
+      // Expand intention via LLM before sending
+      let finalMessage = label
+      if (!label.startsWith('__')) {
+        try {
+          const llmRes = await fetch(`${API_URL}/extensions/llm/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: `A mensagem original foi: "${data?.message || ''}". O usuario quer: ${label}. Gere APENAS o texto da resposta, sem explicacoes, sem aspas.`
+            })
+          })
+          const llmData = await llmRes.json()
+          if (llmData?.text) finalMessage = llmData.text.trim()
+        } catch {}
+      }
+
       await fetch(`${API_URL}/extensions/whatsapp/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           toolName: 'send_message',
-          args: { contact: data?.contactJid || data?.contact, message }
+          args: { contact: data?.contactJid || data?.contact, message: finalMessage }
         })
       })
     } catch {}
