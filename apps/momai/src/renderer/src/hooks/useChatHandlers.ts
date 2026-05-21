@@ -69,6 +69,16 @@ export function useChatHandlers({
         window.dispatchEvent(new CustomEvent('momai_voice_volume', { detail: msg.volumes }))
       } else if (msg.type === 'voice_status') {
         dispatch({ type: 'SET_VOICE_STATUS', status: msg.status })
+      } else if (msg.type === 'voice_error') {
+        if (isCallModeRef.current) {
+          dispatch({
+            type: 'SET_CALL_HISTORY',
+            updater: (prev) => [
+              ...prev,
+              { id: `error-${Date.now()}`, role: 'assistant' as const, content: msg.message || 'Erro ao processar áudio' }
+            ].slice(-5)
+          })
+        }
       } else if (msg.type === 'voice_engine_loading') {
         const data = msg.data || {}
         dispatch({

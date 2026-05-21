@@ -346,9 +346,9 @@ async function syncPythonCallModeState(reason = 'unknown') {
     }
   }
 
-  warn(
-    `[NodeCore][Voice] Call-mode sync failed (${reason}) after retries: ${lastError || 'unknown error'}`
-  )
+  const msg = `[NodeCore][Voice] Call-mode sync failed (${reason}) after retries: ${lastError || 'unknown error'}`
+  warn(msg)
+  throw new Error(msg)
 }
 
 module.exports = {

@@ -493,6 +493,7 @@ export function useChatActions({
 
   const toggleCallMode = useCallback(async () => {
     const newState = !isCallMode
+    const prevState = isCallMode
     if (newState) {
       await Promise.allSettled([stopGenerationApi(), stopVoiceApi()])
       dispatch({ type: 'SET_LOADING', isLoading: false })
@@ -507,6 +508,8 @@ export function useChatActions({
       await setCallModeApi(newState)
     } catch (err) {
       console.error('Erro ao alterar modo chamada:', err)
+      dispatch({ type: 'SET_CALL_MODE', enabled: prevState })
+      dispatch({ type: 'SET_CALL_HISTORY', updater: () => [] })
     }
   }, [isCallMode, dispatch, stopVoice])
 

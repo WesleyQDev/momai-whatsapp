@@ -564,6 +564,7 @@ async function startServer() {
     const startupTier = store.settings.ai_tier || 'pro'
     if (startupTier === 'ultra') {
       void ttsService.syncWakeWordState('startup')
+      void ttsService.syncPythonCallModeState('startup')
       embeddingManager
         .ensureEmbeddingReady()
         .then((ok) => {

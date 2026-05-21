@@ -234,6 +234,13 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
         logger.debug("[Voice] Node voice-command completed")
     except Exception as exc:
         logger.error("Error processing voice: %s", exc)
+        try:
+            await broadcast_to_sockets({
+                "type": "voice_error",
+                "message": "Erro ao processar comando de voz."
+            })
+        except Exception:
+            pass
 
 
 async def close_http_client() -> None:

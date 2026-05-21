@@ -184,7 +184,12 @@ function createSettingsRoutes(context) {
 
       store.call_mode = enabled
       saveStore()
-      void syncPythonCallModeState('call_mode_change')
+      try {
+        await syncPythonCallModeState('call_mode_change')
+      } catch {
+        sendJson(res, 503, { detail: 'Failed to sync call mode to Python sidecar' })
+        return true
+      }
       void syncWakeWordState('call_mode_change')
       sendJson(res, 200, { status: 'ok', call_mode: store.call_mode })
       return true

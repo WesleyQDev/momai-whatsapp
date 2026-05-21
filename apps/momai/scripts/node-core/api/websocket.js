@@ -10,6 +10,8 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
   const wsClients = new Set()
   let pythonWs = null
 
+  const { syncWakeWordState, syncPythonCallModeState } = require('../services/tts-service')
+
   function broadcast(payload) {
     if (!wss) return
     const data = JSON.stringify(payload)
@@ -95,13 +97,15 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
     pythonWs.on('open', () => {
       info(`[NodeCore] Connected to Python sidecar WebSocket at ${url}`)
       resetReconnectDelay()
+      syncPythonCallModeState('ws_reconnect')
+      syncWakeWordState('ws_reconnect')
     })
 
     pythonWs.on('message', (data) => {
       try {
         const msg = JSON.parse(data.toString())
         if (
-          ['tts_start', 'tts_stop', 'voice_bands', 'voice_status', 'voice_partial'].includes(
+          ['tts_start', 'tts_stop', 'voice_bands', 'voice_status', 'voice_partial', 'voice_error'].includes(
             msg.type
           )
         ) {
