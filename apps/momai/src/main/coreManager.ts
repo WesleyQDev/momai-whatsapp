@@ -79,7 +79,7 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
 
     const [gamingRes, configRes] = await Promise.all([
       fetch(`http://${apiHost}:${apiPort}/system/gaming-apps`),
-      fetch(`http://${apiHost}:${apiPort}/economy/config`),
+      fetch(`http://${apiHost}:${apiPort}/economy/config`)
     ])
     const gamingApps = await gamingRes.json()
     economyService.setGamingApps(gamingApps)

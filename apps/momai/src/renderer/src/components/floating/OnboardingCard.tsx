@@ -361,9 +361,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   }, [step, name, isSaving])
 
   return (
-    <div
-      className="fixed inset-0 z-[301] bg-bg flex flex-col animate-fade-in overflow-hidden transition-colors duration-500"
-    >
+    <div className="fixed inset-0 z-[301] bg-bg flex flex-col animate-fade-in overflow-hidden transition-colors duration-500">
       {/* Title Bar */}
       <div
         className="h-9 flex items-center px-4 border-b border-white/5 shrink-0"
@@ -377,32 +375,64 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
 
         <div className="flex items-center gap-1">
           {/* Language Selector Dropdown */}
-          <div className="no-drag relative" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <div
+            className="no-drag relative"
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          >
             <button
               onClick={() => setLangOpen(!langOpen)}
               className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/[0.05] transition-all active:scale-95"
             >
-              <svg width="14" height="10" viewBox="0 0 720 504" className={`rounded-[1px] ${selectedLang === 'p' ? 'opacity-100' : 'opacity-0 hidden'}`}>
+              <svg
+                width="14"
+                height="10"
+                viewBox="0 0 720 504"
+                className={`rounded-[1px] ${selectedLang === 'p' ? 'opacity-100' : 'opacity-0 hidden'}`}
+              >
                 <rect width="720" height="504" fill="#009c3b" />
                 <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
                 <circle cx="360" cy="252" r="126" fill="#002776" />
                 <path d="M245 285a126 126 0 0 1 230-66 126 126 0 0 0-230 66z" fill="#fff" />
               </svg>
-              <svg width="14" height="10" viewBox="0 0 741 390" className={`rounded-[1px] ${selectedLang === 'a' ? 'opacity-100' : 'opacity-0 hidden'}`}>
+              <svg
+                width="14"
+                height="10"
+                viewBox="0 0 741 390"
+                className={`rounded-[1px] ${selectedLang === 'a' ? 'opacity-100' : 'opacity-0 hidden'}`}
+              >
                 <rect width="741" height="390" fill="#bf0a30" />
-                <path d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741" stroke="#fff" strokeWidth="30" />
+                <path
+                  d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741"
+                  stroke="#fff"
+                  strokeWidth="30"
+                />
                 <rect width="296.4" height="210" fill="#002868" />
                 <g fill="#fff">
-                  <circle cx="25" cy="25" r="6" /><circle cx="75" cy="25" r="6" />
-                  <circle cx="125" cy="25" r="6" /><circle cx="175" cy="25" r="6" />
-                  <circle cx="225" cy="25" r="6" /><circle cx="50" cy="65" r="6" />
-                  <circle cx="100" cy="65" r="6" /><circle cx="150" cy="65" r="6" />
-                  <circle cx="200" cy="65" r="6" /><circle cx="25" cy="105" r="6" />
-                  <circle cx="75" cy="105" r="6" /><circle cx="125" cy="105" r="6" />
-                  <circle cx="175" cy="105" r="6" /><circle cx="225" cy="105" r="6" />
+                  <circle cx="25" cy="25" r="6" />
+                  <circle cx="75" cy="25" r="6" />
+                  <circle cx="125" cy="25" r="6" />
+                  <circle cx="175" cy="25" r="6" />
+                  <circle cx="225" cy="25" r="6" />
+                  <circle cx="50" cy="65" r="6" />
+                  <circle cx="100" cy="65" r="6" />
+                  <circle cx="150" cy="65" r="6" />
+                  <circle cx="200" cy="65" r="6" />
+                  <circle cx="25" cy="105" r="6" />
+                  <circle cx="75" cy="105" r="6" />
+                  <circle cx="125" cy="105" r="6" />
+                  <circle cx="175" cy="105" r="6" />
+                  <circle cx="225" cy="105" r="6" />
                 </g>
               </svg>
-              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="opacity-40">
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                className="opacity-40"
+              >
                 <path d="M6 9l6 6 6-6" />
               </svg>
             </button>
@@ -418,7 +448,12 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                   }}
                   className={`flex items-center gap-2.5 w-full px-3 py-2 hover:bg-white/[0.05] transition-all ${selectedLang === 'p' ? 'bg-white/[0.03]' : ''}`}
                 >
-                  <svg width="16" height="11" viewBox="0 0 720 504" className="rounded-[1px] shrink-0">
+                  <svg
+                    width="16"
+                    height="11"
+                    viewBox="0 0 720 504"
+                    className="rounded-[1px] shrink-0"
+                  >
                     <rect width="720" height="504" fill="#009c3b" />
                     <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
                     <circle cx="360" cy="252" r="126" fill="#002776" />
@@ -436,18 +471,34 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                   }}
                   className={`flex items-center gap-2.5 w-full px-3 py-2 hover:bg-white/[0.05] transition-all ${selectedLang === 'a' ? 'bg-white/[0.03]' : ''}`}
                 >
-                  <svg width="16" height="11" viewBox="0 0 741 390" className="rounded-[1px] shrink-0">
+                  <svg
+                    width="16"
+                    height="11"
+                    viewBox="0 0 741 390"
+                    className="rounded-[1px] shrink-0"
+                  >
                     <rect width="741" height="390" fill="#bf0a30" />
-                    <path d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741" stroke="#fff" strokeWidth="30" />
+                    <path
+                      d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741"
+                      stroke="#fff"
+                      strokeWidth="30"
+                    />
                     <rect width="296.4" height="210" fill="#002868" />
                     <g fill="#fff">
-                      <circle cx="25" cy="25" r="6" /><circle cx="75" cy="25" r="6" />
-                      <circle cx="125" cy="25" r="6" /><circle cx="175" cy="25" r="6" />
-                      <circle cx="225" cy="25" r="6" /><circle cx="50" cy="65" r="6" />
-                      <circle cx="100" cy="65" r="6" /><circle cx="150" cy="65" r="6" />
-                      <circle cx="200" cy="65" r="6" /><circle cx="25" cy="105" r="6" />
-                      <circle cx="75" cy="105" r="6" /><circle cx="125" cy="105" r="6" />
-                      <circle cx="175" cy="105" r="6" /><circle cx="225" cy="105" r="6" />
+                      <circle cx="25" cy="25" r="6" />
+                      <circle cx="75" cy="25" r="6" />
+                      <circle cx="125" cy="25" r="6" />
+                      <circle cx="175" cy="25" r="6" />
+                      <circle cx="225" cy="25" r="6" />
+                      <circle cx="50" cy="65" r="6" />
+                      <circle cx="100" cy="65" r="6" />
+                      <circle cx="150" cy="65" r="6" />
+                      <circle cx="200" cy="65" r="6" />
+                      <circle cx="25" cy="105" r="6" />
+                      <circle cx="75" cy="105" r="6" />
+                      <circle cx="125" cy="105" r="6" />
+                      <circle cx="175" cy="105" r="6" />
+                      <circle cx="225" cy="105" r="6" />
                     </g>
                   </svg>
                   <span className="text-[11px] font-semibold text-text">English (US)</span>
@@ -481,331 +532,376 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
 
       {/* Content: left pane + right pane */}
       <div className="flex flex-1 overflow-hidden">
+        {/* Left Pane - Branding & Status */}
+        <div className="w-[350px] bg-sidebar pt-2 pb-12 px-10 flex flex-col justify-between items-center border-r border-border/10 relative overflow-hidden transition-colors duration-500 shrink-0">
+          <div className="relative z-10 flex flex-col items-center text-center w-full">
+            {/* Logo Icon */}
+            <div className="w-16 h-16 flex items-center justify-center -mb-1">
+              <img
+                src={iconGif}
+                alt="MomAI"
+                draggable={false}
+                onContextMenu={(e) => e.preventDefault()}
+                onMouseDown={(e) => e.preventDefault()}
+                className="w-full h-full object-contain"
+              />
+            </div>
 
-      {/* Left Pane - Branding & Status */}
-      <div className="w-[350px] bg-sidebar pt-2 pb-12 px-10 flex flex-col justify-between items-center border-r border-border/10 relative overflow-hidden transition-colors duration-500 shrink-0">
-        <div className="relative z-10 flex flex-col items-center text-center w-full">
-          {/* Logo Icon */}
-          <div className="w-16 h-16 flex items-center justify-center -mb-1">
-            <img
-              src={iconGif}
-              alt="MomAI"
-              draggable={false}
-              onContextMenu={(e) => e.preventDefault()}
-              onMouseDown={(e) => e.preventDefault()}
-              className="w-full h-full object-contain"
-            />
-          </div>
-
-          <div className="space-y-4 w-full">
-            <h1 className="text-3xl font-black text-text tracking-tighter uppercase leading-[0.9]">
-              MomAI
-              <br />
-              <span className="text-accent underline decoration-accent/10 text-[16px] tracking-normal lowercase">
-                100% local e gratuita
-              </span>
-            </h1>
-
-            {/* Requirements Section */}
-            <div className="w-full pt-12 space-y-6">
-              <div className="flex items-center gap-2.5 border-b border-white/5 pb-3 mb-2">
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  className="text-accent/80"
-                >
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                  <line x1="8" y1="21" x2="16" y2="21" />
-                  <line x1="12" y1="17" x2="12" y2="21" />
-                </svg>
-                <span className="text-[10px] font-black text-text/60 uppercase tracking-[0.2em]">
-                  Requisitos
+            <div className="space-y-4 w-full">
+              <h1 className="text-3xl font-black text-text tracking-tighter uppercase leading-[0.9]">
+                MomAI
+                <br />
+                <span className="text-accent underline decoration-accent/10 text-[16px] tracking-normal lowercase">
+                  100% local e gratuita
                 </span>
-              </div>
+              </h1>
 
-              <div className="space-y-6">
-                {/* Lite */}
-                <div className="flex gap-4 items-center group/req">
-                  <div className="text-emerald-500 shrink-0">
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                    >
-                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                    </svg>
-                  </div>
-                  <p className="text-[13px] text-text font-bold leading-snug text-left">
-                    {t('onboarding.tier.lite.requirements')}
-                  </p>
+              {/* Requirements Section */}
+              <div className="w-full pt-12 space-y-6">
+                <div className="flex items-center gap-2.5 border-b border-white/5 pb-3 mb-2">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    className="text-accent/80"
+                  >
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" />
+                    <line x1="12" y1="17" x2="12" y2="21" />
+                  </svg>
+                  <span className="text-[10px] font-black text-text/60 uppercase tracking-[0.2em]">
+                    Requisitos
+                  </span>
                 </div>
 
-                {/* Pro */}
-                <div className="flex gap-4 items-center group/req">
-                  <div className="text-red-500 shrink-0">
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                    >
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                    </svg>
-                  </div>
-                  <p className="text-[13px] text-text font-bold leading-snug text-left">
-                    {t('onboarding.tier.pro.requirements')}
-                  </p>
-                </div>
-
-                {/* Ultra */}
-                <div className="flex gap-4 items-center group/req">
-                  <div className="text-yellow-400 shrink-0">
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                    >
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    </svg>
-                  </div>
-                  <p className="text-[13px] text-text font-bold leading-snug text-left">
-                    {t('onboarding.tier.ultra.requirements')}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-4 relative z-10 w-full max-w-[200px] flex flex-col items-center">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-2 h-2 rounded-full bg-accent ${step === 1 ? 'animate-pulse' : ''}`}
-            />
-            <span className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em]">
-              {step === 1 ? 'Intelligence Selection' : 'Personality Setup'}
-            </span>
-          </div>
-          <div className="h-1 w-full bg-text/5 rounded-full overflow-hidden">
-            <div
-              className={`h-full bg-accent rounded-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(var(--accent-rgb),0.5)]`}
-              style={{ width: step === 1 ? '33%' : '66%' }}
-            />
-          </div>
-        </div>
-
-        {/* Abstract decor */}
-        <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-accent/5 rounded-full blur-[100px]" />
-      </div>
-
-      {/* Right Pane - Configuration Form */}
-      <div
-        className="no-drag flex-1 bg-card p-6 flex flex-col overflow-y-auto transition-colors duration-500"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-      >
-        <div className="w-full max-w-none mx-auto">
-          {step === 1 ? (
-            <div className="space-y-6 animate-fade-in flex flex-col items-center text-center">
-              <div className="space-y-2">
-                <h2 className="text-3xl font-bold text-text tracking-tight">
-                  {t('onboarding.tier.title')}
-                </h2>
-                <p className="text-sm text-text-muted font-normal opacity-50">
-                  {t('onboarding.tier.subtitle')}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 w-full max-w-[700px] px-4 py-4">
-                <TierCard id="lite" onSelect={handleSelectTier} t={t} />
-                <TierCard id="pro" onSelect={handleSelectTier} t={t} />
-                <TierCard id="ultra" onSelect={handleSelectTier} t={t} />
-              </div>
-            </div>
-          ) : (
-            <div className="w-full max-w-sm mx-auto space-y-4 animate-fade-in">
-              <button
-                onClick={() => setStep(1)}
-                className="no-drag inline-flex items-center gap-1.5 text-[12px] font-bold text-accent/70 hover:text-accent transition-all"
-                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M19 12H5M12 19l-7-7 7-7" />
-                </svg>
-                Voltar
-              </button>
-              <div className="space-y-1">
-                <h2 className="text-xl font-black text-text tracking-tight">
-                  {t('onboarding.title')}
-                </h2>
-                <div className="border-t border-border/10" />
-              </div>
-
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-text-muted ml-0.5">
-                    {t('onboarding.nameLabel')}
-                  </label>
-                  <input
-                    type="text"
-                    autoFocus
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="no-drag w-full bg-input border border-border/20 rounded-lg px-3 py-2 text-xs font-bold text-text focus:border-accent/40 outline-none transition-all placeholder:opacity-10 select-text"
-                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                    placeholder={t('onboarding.namePlaceholder')}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-text-muted ml-0.5">
-                      {t('onboarding.themeLabel')}
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={theme}
-                        onChange={(e) => changeTheme(e.target.value as Theme)}
-                        className="no-drag w-full bg-input border border-border/20 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                <div className="space-y-6">
+                  {/* Lite */}
+                  <div className="flex gap-4 items-center group/req">
+                    <div className="text-emerald-500 shrink-0">
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
                       >
-                        <option value="dark">{t('onboarding.theme.dark')}</option>
-                        <option value="light">{t('onboarding.theme.light')}</option>
-                      </select>
-                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
-                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M6 9l6 6 6-6" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-text-muted ml-0.5">
-                      Language
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={selectedLang}
-                        onChange={(e) => {
-                          const newLang = e.target.value
-                          setSelectedLang(newLang)
-                          const group = getVoiceCatalog(selectedEngine).find((g) => g.code === newLang)
-                          if (group) {
-                            setSelectedVoice(group.voices[0].id)
-                            setLocale(newLang === 'p' ? 'pt-BR' : ('en-US' as any))
-                          }
-                        }}
-                        className="no-drag w-full bg-input border border-border/20 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
-                      >
-                        {getVoiceCatalog(selectedEngine).map((g) => (
-                          <option key={g.code} value={g.code}>
-                            {g.langName}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
-                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M6 9l6 6 6-6" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-text-muted ml-0.5">
-                    Voz
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {getAvailableEngines(selectedTier).map((engine) => (
-                      <button
-                        key={engine.id}
-                        onClick={() => setSelectedEngine(engine.id)}
-                        className={`no-drag py-2 px-3 rounded-lg border text-left transition-all ${
-                          selectedEngine === engine.id
-                            ? 'bg-accent/10 text-accent border-accent/40'
-                            : 'bg-input border-border/20 text-text-muted hover:bg-white/[0.05]'
-                        }`}
-                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          {engine.id === 'edge-tts' ? (
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
-                            </svg>
-                          ) : (
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-                              <path d="M7 10l5-5 5 5" />
-                              <line x1="12" y1="15" x2="12" y2="5" />
-                            </svg>
-                          )}
-                          <span className="text-xs font-bold">{engine.id === 'edge-tts' ? 'Nuvem' : 'Local'}</span>
-                        </div>
-                        <div className="text-[10px] text-text-muted/70 mt-0.5">
-                          {t(engine.descKey)}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-text-muted ml-0.5">
-                    {t('onboarding.voiceLabel')}
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={selectedVoice}
-                      onChange={(e) => setSelectedVoice(e.target.value)}
-                      className="no-drag w-full bg-input border border-border/20 rounded-lg pl-3 pr-8 py-2 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
-                      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-                    >
-                      {getVoiceCatalog(selectedEngine)
-                        .find((g) => g.code === selectedLang)
-                        ?.voices.map((v) => (
-                          <option key={v.id} value={v.id}>
-                            {v.name}
-                          </option>
-                        ))}
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
-                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <path d="M6 9l6 6 6-6" />
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                       </svg>
                     </div>
+                    <p className="text-[13px] text-text font-bold leading-snug text-left">
+                      {t('onboarding.tier.lite.requirements')}
+                    </p>
+                  </div>
+
+                  {/* Pro */}
+                  <div className="flex gap-4 items-center group/req">
+                    <div className="text-red-500 shrink-0">
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                      >
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      </svg>
+                    </div>
+                    <p className="text-[13px] text-text font-bold leading-snug text-left">
+                      {t('onboarding.tier.pro.requirements')}
+                    </p>
+                  </div>
+
+                  {/* Ultra */}
+                  <div className="flex gap-4 items-center group/req">
+                    <div className="text-yellow-400 shrink-0">
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                      >
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      </svg>
+                    </div>
+                    <p className="text-[13px] text-text font-bold leading-snug text-left">
+                      {t('onboarding.tier.ultra.requirements')}
+                    </p>
                   </div>
                 </div>
               </div>
-
-              <button
-                onClick={handleFinish}
-                disabled={!name.trim() || isSaving}
-                className={`no-drag group relative w-full py-2.5 rounded-xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center overflow-hidden ${
-                  !name.trim() || isSaving
-                    ? 'bg-white/[0.02] text-text/20 cursor-not-allowed border border-white/5'
-                    : 'bg-accent text-white shadow-[0_0_15px_rgba(var(--accent-rgb),0.2)] hover:shadow-[0_0_25px_rgba(var(--accent-rgb),0.4)] hover:-translate-y-0.5 active:scale-[0.98]'
-                }`}
-              >
-                <span className="relative z-10">
-                  {isSaving ? 'Configuring System...' : t('onboarding.finish')}
-                </span>
-              </button>
             </div>
-          )}
+          </div>
+
+          <div className="space-y-4 relative z-10 w-full max-w-[200px] flex flex-col items-center">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-2 h-2 rounded-full bg-accent ${step === 1 ? 'animate-pulse' : ''}`}
+              />
+              <span className="text-[9px] font-black text-text-muted uppercase tracking-[0.2em]">
+                {step === 1 ? 'Intelligence Selection' : 'Personality Setup'}
+              </span>
+            </div>
+            <div className="h-1 w-full bg-text/5 rounded-full overflow-hidden">
+              <div
+                className={`h-full bg-accent rounded-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(var(--accent-rgb),0.5)]`}
+                style={{ width: step === 1 ? '33%' : '66%' }}
+              />
+            </div>
+          </div>
+
+          {/* Abstract decor */}
+          <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-accent/5 rounded-full blur-[100px]" />
         </div>
-      </div>
+
+        {/* Right Pane - Configuration Form */}
+        <div
+          className="no-drag flex-1 bg-card p-6 flex flex-col overflow-y-auto transition-colors duration-500"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        >
+          <div className="w-full max-w-none mx-auto">
+            {step === 1 ? (
+              <div className="space-y-6 animate-fade-in flex flex-col items-center text-center">
+                <div className="space-y-2">
+                  <h2 className="text-3xl font-bold text-text tracking-tight">
+                    {t('onboarding.tier.title')}
+                  </h2>
+                  <p className="text-sm text-text-muted font-normal opacity-50">
+                    {t('onboarding.tier.subtitle')}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 w-full max-w-[700px] px-4 py-4">
+                  <TierCard id="lite" onSelect={handleSelectTier} t={t} />
+                  <TierCard id="pro" onSelect={handleSelectTier} t={t} />
+                  <TierCard id="ultra" onSelect={handleSelectTier} t={t} />
+                </div>
+              </div>
+            ) : (
+              <div className="w-full max-w-sm mx-auto space-y-4 animate-fade-in">
+                <button
+                  onClick={() => setStep(1)}
+                  className="no-drag inline-flex items-center gap-1.5 text-[12px] font-bold text-accent/70 hover:text-accent transition-all"
+                  style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                  Voltar
+                </button>
+                <div className="space-y-1">
+                  <h2 className="text-xl font-black text-text tracking-tight">
+                    {t('onboarding.title')}
+                  </h2>
+                  <div className="border-t border-border/10" />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-text-muted ml-0.5">
+                      {t('onboarding.nameLabel')}
+                    </label>
+                    <input
+                      type="text"
+                      autoFocus
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="no-drag w-full bg-input border border-border/20 rounded-lg px-3 py-2 text-xs font-bold text-text focus:border-accent/40 outline-none transition-all placeholder:opacity-10 select-text"
+                      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                      placeholder={t('onboarding.namePlaceholder')}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-text-muted ml-0.5">
+                        {t('onboarding.themeLabel')}
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={theme}
+                          onChange={(e) => changeTheme(e.target.value as Theme)}
+                          className="no-drag w-full bg-input border border-border/20 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                        >
+                          <option value="dark">{t('onboarding.theme.dark')}</option>
+                          <option value="light">{t('onboarding.theme.light')}</option>
+                        </select>
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
+                          <svg
+                            width="8"
+                            height="8"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                          >
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-text-muted ml-0.5">Language</label>
+                      <div className="relative">
+                        <select
+                          value={selectedLang}
+                          onChange={(e) => {
+                            const newLang = e.target.value
+                            setSelectedLang(newLang)
+                            const group = getVoiceCatalog(selectedEngine).find(
+                              (g) => g.code === newLang
+                            )
+                            if (group) {
+                              setSelectedVoice(group.voices[0].id)
+                              setLocale(newLang === 'p' ? 'pt-BR' : ('en-US' as any))
+                            }
+                          }}
+                          className="no-drag w-full bg-input border border-border/20 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                        >
+                          {getVoiceCatalog(selectedEngine).map((g) => (
+                            <option key={g.code} value={g.code}>
+                              {g.langName}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
+                          <svg
+                            width="8"
+                            height="8"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                          >
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-text-muted ml-0.5">Voz</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {getAvailableEngines(selectedTier).map((engine) => (
+                        <button
+                          key={engine.id}
+                          onClick={() => setSelectedEngine(engine.id)}
+                          className={`no-drag py-2 px-3 rounded-lg border text-left transition-all ${
+                            selectedEngine === engine.id
+                              ? 'bg-accent/10 text-accent border-accent/40'
+                              : 'bg-input border-border/20 text-text-muted hover:bg-white/[0.05]'
+                          }`}
+                          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            {engine.id === 'edge-tts' ? (
+                              <svg
+                                width="11"
+                                height="11"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+                              </svg>
+                            ) : (
+                              <svg
+                                width="11"
+                                height="11"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                                <path d="M7 10l5-5 5 5" />
+                                <line x1="12" y1="15" x2="12" y2="5" />
+                              </svg>
+                            )}
+                            <span className="text-xs font-bold">
+                              {engine.id === 'edge-tts' ? 'Nuvem' : 'Local'}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-text-muted/70 mt-0.5">
+                            {t(engine.descKey)}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-text-muted ml-0.5">
+                      {t('onboarding.voiceLabel')}
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={selectedVoice}
+                        onChange={(e) => setSelectedVoice(e.target.value)}
+                        className="no-drag w-full bg-input border border-border/20 rounded-lg pl-3 pr-8 py-2 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
+                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                      >
+                        {getVoiceCatalog(selectedEngine)
+                          .find((g) => g.code === selectedLang)
+                          ?.voices.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.name}
+                            </option>
+                          ))}
+                      </select>
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
+                        <svg
+                          width="8"
+                          height="8"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                        >
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleFinish}
+                  disabled={!name.trim() || isSaving}
+                  className={`no-drag group relative w-full py-2.5 rounded-xl font-black uppercase text-[10px] tracking-[0.2em] transition-all flex items-center justify-center overflow-hidden ${
+                    !name.trim() || isSaving
+                      ? 'bg-white/[0.02] text-text/20 cursor-not-allowed border border-white/5'
+                      : 'bg-accent text-white shadow-[0_0_15px_rgba(var(--accent-rgb),0.2)] hover:shadow-[0_0_25px_rgba(var(--accent-rgb),0.4)] hover:-translate-y-0.5 active:scale-[0.98]'
+                  }`}
+                >
+                  <span className="relative z-10">
+                    {isSaving ? 'Configuring System...' : t('onboarding.finish')}
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

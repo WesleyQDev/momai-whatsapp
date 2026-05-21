@@ -98,7 +98,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
           sidebarPanel: manifest.sidebarPanel || null,
           agent_name: manifest.id
         },
-        keywords: store.skillKeywords?.[manifest.id || skill.id] || [],
+        keywords: store.skillKeywords?.[manifest.id || skill.id] || []
       }
     } catch (err) {
       console.error(`[SkillOrchestrator] Error mapping skill ${skill?.id}:`, err)

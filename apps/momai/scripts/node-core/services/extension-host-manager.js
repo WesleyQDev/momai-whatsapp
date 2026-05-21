@@ -115,7 +115,7 @@ class ExtensionHostManager extends EventEmitter {
       this.restartCounts.set(skillId, count)
 
       const entry = this.persistentHosts.get(skillId)
-      const ranLongEnough = entry && (Date.now() - entry.startedAt) > 60000
+      const ranLongEnough = entry && Date.now() - entry.startedAt > 60000
 
       this.persistentHosts.delete(skillId)
 

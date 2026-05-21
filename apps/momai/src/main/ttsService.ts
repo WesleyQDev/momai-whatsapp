@@ -308,8 +308,11 @@ export class TTSService extends EventEmitter {
         // Ignorar sentenças muito curtas (menos de 2 caracteres alfanuméricos)
         if (sentence.replace(/[^a-zA-Z0-9]/g, '').length < 2) continue
 
-        console.log(`[TTSService] EdgeTTS Synthesis [${i + 1}/${sentences.length}]:`, sentence.slice(0, 40) + '...')
-        
+        console.log(
+          `[TTSService] EdgeTTS Synthesis [${i + 1}/${sentences.length}]:`,
+          sentence.slice(0, 40) + '...'
+        )
+
         const edge = new EdgeTTS(sentence, edgeVoice, { rate: rateStr })
         const result = await edge.synthesize()
 
@@ -319,7 +322,9 @@ export class TTSService extends EventEmitter {
         const audioBuffer = Buffer.from(arrayBuffer)
 
         if (audioBuffer && audioBuffer.length > 0) {
-          console.log(`[TTSService] Emitting audio buffer for sentence ${i + 1}, len: ${audioBuffer.length}`)
+          console.log(
+            `[TTSService] Emitting audio buffer for sentence ${i + 1}, len: ${audioBuffer.length}`
+          )
           this.emit('play-audio-buffer', audioBuffer)
         }
       }

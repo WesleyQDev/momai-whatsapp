@@ -6,7 +6,8 @@ async function searchSteamStore(term) {
   if (body && body.items && body.items.length > 0) {
     const item = body.items[0]
     if (item.header_image) return item.header_image
-    if (item.id) return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${item.id}/header.jpg`
+    if (item.id)
+      return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${item.id}/header.jpg`
   }
   return null
 }
@@ -37,7 +38,7 @@ function createSystemRoutes(context) {
       let changed = false
       for (const app of store.gaming_apps) {
         if (!app.cover_url) {
-          app.cover_url = await fetchCoverFromSteamStore(app.name) || null
+          app.cover_url = (await fetchCoverFromSteamStore(app.name)) || null
           changed = true
         }
       }
@@ -49,7 +50,10 @@ function createSystemRoutes(context) {
     if (pathname === '/system/gaming-apps' && req.method === 'POST') {
       const payload = await context.readJsonBody(req).catch(() => ({}))
       const rawName = String(payload.name || 'Game')
-      const gameName = rawName.replace(/\.exe["']?\s*$/i, '').replace(/\s*(Updater|Launcher|Installer)\s*$/i, '').trim()
+      const gameName = rawName
+        .replace(/\.exe["']?\s*$/i, '')
+        .replace(/\s*(Updater|Launcher|Installer)\s*$/i, '')
+        .trim()
       const coverUrl = await fetchCoverFromSteamStore(gameName)
 
       const appItem = {

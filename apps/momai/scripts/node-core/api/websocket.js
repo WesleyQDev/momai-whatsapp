@@ -105,9 +105,14 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
       try {
         const msg = JSON.parse(data.toString())
         if (
-          ['tts_start', 'tts_stop', 'voice_bands', 'voice_status', 'voice_partial', 'voice_error'].includes(
-            msg.type
-          )
+          [
+            'tts_start',
+            'tts_stop',
+            'voice_bands',
+            'voice_status',
+            'voice_partial',
+            'voice_error'
+          ].includes(msg.type)
         ) {
           broadcast(msg)
         }

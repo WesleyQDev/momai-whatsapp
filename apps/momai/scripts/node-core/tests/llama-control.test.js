@@ -3,9 +3,14 @@ describe('llama control routes', () => {
     let stopped = false
     let lastStatus, lastData
     const ctx = {
-      stopLlamaServer: async () => { stopped = true },
+      stopLlamaServer: async () => {
+        stopped = true
+      },
       ensureLlamaReady: async () => ({ ready: true, is_loading: false }),
-      sendJson: (res, status, data) => { lastStatus = status; lastData = data },
+      sendJson: (res, status, data) => {
+        lastStatus = status
+        lastData = data
+      },
       llamaState: { ready: true }
     }
 
@@ -27,8 +32,14 @@ describe('llama control routes', () => {
     let lastStatus, lastData
     const ctx = {
       stopLlamaServer: async () => {},
-      ensureLlamaReady: async (force) => { started = true; return { ready: true, is_loading: false } },
-      sendJson: (res, status, data) => { lastStatus = status; lastData = data },
+      ensureLlamaReady: async (force) => {
+        started = true
+        return { ready: true, is_loading: false }
+      },
+      sendJson: (res, status, data) => {
+        lastStatus = status
+        lastData = data
+      },
       llamaState: { ready: true }
     }
 

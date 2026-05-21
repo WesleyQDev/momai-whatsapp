@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { api, stopVoice, stopGeneration, fetchEconomyConfig, updateEconomyConfig } from '../services/api'
+import {
+  api,
+  stopVoice,
+  stopGeneration,
+  fetchEconomyConfig,
+  updateEconomyConfig
+} from '../services/api'
 import { useI18n } from '../i18n'
 
 export type Tab = 'general' | 'brain' | 'updates' | 'economy' | 'voice' | 'logs' | 'developer'
@@ -102,10 +108,14 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   const [gamingApps, setGamingApps] = useState<any[]>([])
   const [newApp, setNewApp] = useState({ name: '', executable: '' })
   const [economyConfig, setEconomyConfig] = useState<any>(null)
-  const [economyState, setEconomyState] = useState<{ active: boolean; reason: string | null; detectedGames: { name: string; processName: string }[] }>({
+  const [economyState, setEconomyState] = useState<{
+    active: boolean
+    reason: string | null
+    detectedGames: { name: string; processName: string }[]
+  }>({
     active: false,
     reason: null,
-    detectedGames: [],
+    detectedGames: []
   })
   const [appVersion, setAppVersion] = useState('1.0.0')
   const [isAdvancedHardwareOpen, setIsAdvancedHardwareOpen] = useState(false)
@@ -192,14 +202,17 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     }
   }, [])
 
-  const handleUpdateEconomyConfig = useCallback(async (patch: Record<string, any>) => {
-    try {
-      await updateEconomyConfig(patch)
-      await loadEconomyConfig()
-    } catch {
-      console.error('Error updating economy config')
-    }
-  }, [loadEconomyConfig])
+  const handleUpdateEconomyConfig = useCallback(
+    async (patch: Record<string, any>) => {
+      try {
+        await updateEconomyConfig(patch)
+        await loadEconomyConfig()
+      } catch {
+        console.error('Error updating economy config')
+      }
+    },
+    [loadEconomyConfig]
+  )
 
   const handleAddGamingApp = useCallback(async () => {
     if (!newApp.name || !newApp.executable) return
@@ -364,15 +377,22 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     loadEconomyConfig()
 
     // Fetch current economy state on mount (covers race condition with IPC)
-    ;(window as any).api?.getEconomyState?.().then((state: any) => {
-      if (state) setEconomyState(state)
-    }).catch(() => {})
+    ;(window as any).api
+      ?.getEconomyState?.()
+      .then((state: any) => {
+        if (state) setEconomyState(state)
+      })
+      .catch(() => {})
 
-    const cleanup = (window as any).api?.onEconomyStateChange?.((
-      state: { active: boolean; reason: string | null; detectedGames: { name: string; processName: string }[] }
-    ) => {
-      setEconomyState(state)
-    })
+    const cleanup = (window as any).api?.onEconomyStateChange?.(
+      (state: {
+        active: boolean
+        reason: string | null
+        detectedGames: { name: string; processName: string }[]
+      }) => {
+        setEconomyState(state)
+      }
+    )
 
     const handleModelChange = (e: any) => {
       const detail = e.detail
@@ -438,6 +458,6 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     resetOnboarding,
     economyConfig,
     handleUpdateEconomyConfig,
-    economyState,
+    economyState
   }
 }

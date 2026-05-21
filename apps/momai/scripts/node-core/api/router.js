@@ -128,10 +128,14 @@ function createRouter(context, routeHandlers) {
 
         if (reminder.is_active && parseTime(reminder.scheduled_time) <= now) {
           reminder.is_active = false
-          error(`[NodeCore][Reminders] Safety: deactivated reminder that failed to advance: ${reminder.title}`)
+          error(
+            `[NodeCore][Reminders] Safety: deactivated reminder that failed to advance: ${reminder.title}`
+          )
         }
       } catch (err) {
-        error(`[NodeCore][Reminders] Error processing reminder #${reminder.id} "${reminder.title}": ${err?.message || err}`)
+        error(
+          `[NodeCore][Reminders] Error processing reminder #${reminder.id} "${reminder.title}": ${err?.message || err}`
+        )
         reminder.is_active = false
         touched = true
       }

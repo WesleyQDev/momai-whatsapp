@@ -36,7 +36,9 @@ const TrelloLists = ({ data }) => {
   return (
     <div className="my-3 rounded-2xl border border-border/20 bg-zinc-900 text-white overflow-hidden shadow-xl">
       <div className="px-5 pt-4 pb-2">
-        <h4 className="m-0 text-[14px] font-semibold text-white/90">{boardName || 'Listas do Quadro'}</h4>
+        <h4 className="m-0 text-[14px] font-semibold text-white/90">
+          {boardName || 'Listas do Quadro'}
+        </h4>
       </div>
       <div className="px-5 pb-3">
         <div className="flex flex-col gap-1">

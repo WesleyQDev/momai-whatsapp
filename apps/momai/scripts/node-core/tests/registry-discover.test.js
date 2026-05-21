@@ -2,10 +2,7 @@ const path = require('node:path')
 const { parseSkillMarkdown } = require('../../skills/registry')
 
 describe('parseSkillMarkdown - weather', () => {
-  const weatherSkillMd = path.resolve(
-    __dirname,
-    '../../skills/core/weather/SKILL.md'
-  )
+  const weatherSkillMd = path.resolve(__dirname, '../../skills/core/weather/SKILL.md')
 
   let parsed
   beforeAll(() => {
@@ -65,13 +62,13 @@ describe('discover matching logic', () => {
     for (const skill of skills) {
       if (!skill.enabled) continue
       const description = String(skill.manifest.description || '').toLowerCase()
-      const intents = Array.isArray(skill.manifest.intents)
-        ? skill.manifest.intents
-        : []
+      const intents = Array.isArray(skill.manifest.intents) ? skill.manifest.intents : []
       let score = 0
 
       for (const intent of intents) {
-        const intentNorm = String(intent || '').toLowerCase().trim()
+        const intentNorm = String(intent || '')
+          .toLowerCase()
+          .trim()
         if (!intentNorm) continue
         if (lower.includes(intentNorm)) score += 3
       }
@@ -185,10 +182,7 @@ describe('discover matching logic', () => {
       ['previsao', 'clima', 'tempo'],
       'Previsao do tempo'
     )
-    const result = discover('qual a previsao para amanha', [
-      skillWithPrevisao,
-      otherSkill
-    ])
+    const result = discover('qual a previsao para amanha', [skillWithPrevisao, otherSkill])
     expect(result).not.toBeNull()
     expect(result.id).toBe('weather')
   })

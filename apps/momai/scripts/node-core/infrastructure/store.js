@@ -64,8 +64,8 @@ function defaultStore() {
       idle_timeout_minimized: 1,
       auto_detect_known_games: true,
       gaming_apps: [],
-      next_gaming_app_id: 1,
-    },
+      next_gaming_app_id: 1
+    }
   }
 }
 

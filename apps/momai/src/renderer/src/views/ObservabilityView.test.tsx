@@ -67,7 +67,7 @@ describe('ObservabilityView', () => {
   it('expands trace on click to show details', () => {
     render(<ObservabilityView initialTraces={mockTraces} />)
     const expandBtns = screen.getAllByRole('button')
-    const traceBtn = expandBtns.find(b => b.getAttribute('aria-expanded') === 'false')
+    const traceBtn = expandBtns.find((b) => b.getAttribute('aria-expanded') === 'false')
     if (traceBtn) fireEvent.click(traceBtn)
     expect(screen.getByText(/Pre-LLM/i)).toBeTruthy()
     expect(screen.getByText(/get_weather/i)).toBeTruthy()
@@ -84,9 +84,11 @@ describe('ObservabilityView', () => {
   it('syncs with momai_observability_trace events', () => {
     render(<ObservabilityView />)
     act(() => {
-      window.dispatchEvent(new CustomEvent('momai_observability_trace', {
-        detail: mockTraces[0]
-      }))
+      window.dispatchEvent(
+        new CustomEvent('momai_observability_trace', {
+          detail: mockTraces[0]
+        })
+      )
     })
     expect(screen.getByText('45.2')).toBeTruthy()
   })

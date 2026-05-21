@@ -147,6 +147,7 @@ function App(): React.JSX.Element {
 
   const viewMapping: Record<string, string> = {
     '/extensions': 'ExtensionsStore',
+    '/extensions/whatsapp': 'WhatsAppDashboard',
     '/notes': 'NotesDashboard',
     '/agenda': 'RemindersDashboard',
     '/about': 'AboutDashboard',

@@ -10,10 +10,13 @@ const [skillId, skillPath] = process.argv.slice(2)
 
 const dataDir = process.env.MOMAI_DATA_DIR || path.resolve(__dirname, '..', '..', 'data')
 
+const storageBase = path.join(dataDir, 'extensions', skillId)
+
 // Storage API for extensions
 const storage = {
+  storageDir: storageBase,
   async get(key) {
-    const filePath = path.join(dataDir, 'extensions', skillId, `${key}.json`)
+    const filePath = path.join(storageBase, `${key}.json`)
     try {
       const content = await fs.readFile(filePath, 'utf-8')
       return JSON.parse(content)
@@ -23,13 +26,12 @@ const storage = {
   },
 
   async set(key, value) {
-    const dir = path.join(dataDir, 'extensions', skillId)
-    await fs.mkdir(dir, { recursive: true })
+    await fs.mkdir(storageBase, { recursive: true })
     const serialized = JSON.stringify(value, null, 2)
     if (serialized.length > 1024 * 1024) {
       throw new Error('Storage quota exceeded: max 1MB per extension')
     }
-    await fs.writeFile(path.join(dir, `${key}.json`), serialized, 'utf-8')
+    await fs.writeFile(path.join(storageBase, `${key}.json`), serialized, 'utf-8')
   }
 }
 

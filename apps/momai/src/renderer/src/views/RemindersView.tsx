@@ -261,7 +261,8 @@ export default function RemindersView() {
               <div className="flex items-center gap-1 text-[10px] uppercase font-black tracking-widest text-emerald-500/70">
                 <ArrowPathIcon className="w-3 h-3" />
                 <span>
-                  R:{r.repeat_value} {r.repeat_interval}{r.repeat_count ? ` ${r.trigger_count}/${r.repeat_count}` : ''}
+                  R:{r.repeat_value} {r.repeat_interval}
+                  {r.repeat_count ? ` ${r.trigger_count}/${r.repeat_count}` : ''}
                 </span>
               </div>
             )}

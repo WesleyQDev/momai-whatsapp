@@ -118,7 +118,8 @@ describe('extractLocation', () => {
   })
 
   test('texto muito longo nao vira local', () => {
-    const long = 'uma frase muito longa que nao deveria ser interpretada como local de tamanho grande'
+    const long =
+      'uma frase muito longa que nao deveria ser interpretada como local de tamanho grande'
     expect(extractLocation(long)).toBeNull()
   })
 

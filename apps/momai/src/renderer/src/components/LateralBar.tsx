@@ -20,6 +20,7 @@ interface LateralBarProps {
   activeRoute: string
   onNavigate: (path: string) => void
   onOpenSettings?: () => void
+  onOpenPanel?: (extensionId: string | null) => void
   isCompact?: boolean
 }
 
@@ -31,6 +32,11 @@ interface ExtensionItem {
   enabled: boolean
   features?: {
     sidebar?: boolean
+    sidebarPanel?: {
+      icon: string
+      label: string
+      panelEndpoint: string
+    } | null
   }
 }
 
@@ -52,6 +58,7 @@ export default function LateralBar({
   activeRoute,
   onNavigate,
   onOpenSettings,
+  onOpenPanel,
   isCompact = false
 }: LateralBarProps) {
   const { t } = useI18n()
@@ -197,6 +204,10 @@ export default function LateralBar({
               e.features?.sidebar && e.enabled && e.name !== 'responder' && e.name !== 'scheduler'
           )
 
+          const panelExtensions = extensions.filter(
+            (e) => e.features?.sidebarPanel && e.enabled && e.id !== 'responder'
+          )
+
           return (
             <>
               {renderExt(
@@ -206,6 +217,28 @@ export default function LateralBar({
               {renderNotes()}
               {renderScheduler()}
               {otherExtensions.map((ext) => renderExt(ext, iconMap[ext.category || 'Puzzle']))}
+
+              {/* Extension Panels Section */}
+              {panelExtensions.length > 0 && (
+                <>
+                  <div className="w-6 h-px bg-white/10 my-1" />
+                  {panelExtensions.map((ext) => {
+                    const panel = ext.features?.sidebarPanel
+                    return (
+                      <button
+                        key={`panel-${ext.id}`}
+                        onClick={() => onOpenPanel?.(ext.id)}
+                        title={panel?.label || ext.name}
+                        className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 text-text-muted hover:text-text`}
+                      >
+                        <span className="text-base transition-all duration-300 ease-out group-hover:scale-110">
+                          {panel?.icon || '🧩'}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </>
+              )}
             </>
           )
         })()}

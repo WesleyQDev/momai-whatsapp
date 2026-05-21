@@ -5,7 +5,7 @@ const listeners = new Set<Listener>()
 
 export function pushTrace(trace: any) {
   traces = [trace, ...traces].slice(0, 50)
-  listeners.forEach(l => l(trace))
+  listeners.forEach((l) => l(trace))
 }
 
 export function getTraces() {

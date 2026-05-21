@@ -14,7 +14,17 @@ describe('EconomyToast', () => {
   it('renders when active with detected game and cover', () => {
     render(
       <EconomyToast
-        economyState={{ active: true, reason: 'gaming', detectedGames: [{ name: 'Fortnite', processName: 'FortniteClient.exe', coverUrl: 'https://example.com/cover.jpg' }] }}
+        economyState={{
+          active: true,
+          reason: 'gaming',
+          detectedGames: [
+            {
+              name: 'Fortnite',
+              processName: 'FortniteClient.exe',
+              coverUrl: 'https://example.com/cover.jpg'
+            }
+          ]
+        }}
       />
     )
     expect(screen.getByText(/fortnite/i)).toBeTruthy()
@@ -22,33 +32,33 @@ describe('EconomyToast', () => {
   })
 
   it('renders when inactive', () => {
-    render(
-      <EconomyToast
-        economyState={{ active: false, reason: null, detectedGames: [] }}
-      />
-    )
+    render(<EconomyToast economyState={{ active: false, reason: null, detectedGames: [] }} />)
     expect(screen.getByText(/sistemas restaurados/i)).toBeTruthy()
   })
 
   it('stays visible until dismissed', () => {
     const { container } = render(
       <EconomyToast
-        economyState={{ active: true, reason: 'gaming', detectedGames: [{ name: 'Fortnite', processName: 'FortniteClient.exe' }] }}
+        economyState={{
+          active: true,
+          reason: 'gaming',
+          detectedGames: [{ name: 'Fortnite', processName: 'FortniteClient.exe' }]
+        }}
       />
     )
     expect(container.children.length).toBeGreaterThan(0)
-    act(() => { vi.advanceTimersByTime(10000) })
+    act(() => {
+      vi.advanceTimersByTime(10000)
+    })
     expect(container.children.length).toBeGreaterThan(0)
   })
 
   it('dismisses on close button click', () => {
-    render(
-      <EconomyToast
-        economyState={{ active: true, reason: 'gaming', detectedGames: [] }}
-      />
-    )
+    render(<EconomyToast economyState={{ active: true, reason: 'gaming', detectedGames: [] }} />)
     const closeBtn = screen.getByRole('button')
-    act(() => { closeBtn.click() })
+    act(() => {
+      closeBtn.click()
+    })
     expect(screen.queryByText(/modo economia ativado/i)).toBeNull()
   })
 })

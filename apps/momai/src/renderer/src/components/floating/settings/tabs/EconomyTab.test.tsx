@@ -20,7 +20,7 @@ describe('EconomyTab', () => {
         'settings.economy.timeoutAppOpen': 'Timeout (app open)',
         'settings.economy.timeoutMinimized': 'Timeout (minimized)',
         'settings.economy.gamingMode': 'Gaming Mode',
-        'settings.economy.gamingModeDesc': 'Auto-detect games',
+        'settings.economy.gamingModeDesc': 'Auto-detect games'
       }
       return translations[key] || key
     },
@@ -34,10 +34,10 @@ describe('EconomyTab', () => {
       idle_timeout_app_open: 5,
       idle_timeout_minimized: 1,
       auto_detect_known_games: true,
-      gaming_apps: [],
+      gaming_apps: []
     },
     onUpdateConfig: async () => {},
-    economyState: { active: false, reason: null, detectedGames: [] },
+    economyState: { active: false, reason: null, detectedGames: [] }
   }
 
   it('renders without crashing', () => {
@@ -73,7 +73,7 @@ describe('EconomyTab', () => {
         economyState={{
           active: true,
           reason: null,
-          detectedGames: [{ name: 'Game1', processName: 'game1.exe', coverUrl: null }],
+          detectedGames: [{ name: 'Game1', processName: 'game1.exe', coverUrl: null }]
         }}
       />
     )

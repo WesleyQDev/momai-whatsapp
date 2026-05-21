@@ -131,7 +131,9 @@ class TTSServiceRenderer {
       console.warn('[Renderer TTS] AudioContext decode error, fallback to HTMLAudio:', err)
       try {
         const bytes = payload.data
-        const url = URL.createObjectURL(new Blob([bytes.buffer as ArrayBuffer], { type: payload.mimeType }))
+        const url = URL.createObjectURL(
+          new Blob([bytes.buffer as ArrayBuffer], { type: payload.mimeType })
+        )
         const audio = new Audio(url)
         audio.onended = () => {
           URL.revokeObjectURL(url)

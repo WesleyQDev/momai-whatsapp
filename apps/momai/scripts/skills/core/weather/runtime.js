@@ -225,8 +225,7 @@ module.exports = {
     console.error(`[weather] content: "${text}"`)
     console.error(`[weather] args: ${JSON.stringify(args || {})}`)
 
-    const location =
-      args?.location || extractLocation(args?.content || text || '')
+    const location = args?.location || extractLocation(args?.content || text || '')
     console.error(`[weather] extracted: "${location}"`)
 
     if (!location) {

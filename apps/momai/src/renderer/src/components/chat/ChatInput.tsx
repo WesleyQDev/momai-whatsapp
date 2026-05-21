@@ -389,7 +389,6 @@ export default function ChatInput({
     // Restriction Logic
     if (key === 'wake_word_enabled' && aiTier !== 'ultra') return
 
-
     const previous = voiceSettings[key]
     const next = !previous
     setVoiceSettings((prev) => ({ ...prev, [key]: next }))
