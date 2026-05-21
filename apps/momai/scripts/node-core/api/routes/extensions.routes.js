@@ -495,8 +495,8 @@ function createExtensionsRoutes(context) {
           temperature: 0.5
         })
         const result = await llm.completeText({
-          system: 'A mensagem original esta entre aspas. Reformule em uma frase natural informando o usuario. Nao adicione fatos que nao estao na mensagem. Separe a frase das opcoes com " | ". Exemplo: Wesley sua mae perguntou se voce almocou | Ja almocamos | Ainda nao',
-          user: `"${message}" - ${displayContact}`
+          system: 'Voce e um assistente notificando o usuario sobre uma mensagem recebida no WhatsApp. Fale em segunda pessoa para o usuario. Explique quem enviou e o contexto. Exemplo: "sua mae esta te chamando la no whatsapp" ou "um contato no whatsapp te insultou". Nao repita a mensagem literalmente. Separe a frase das opcoes de resposta com " | ". Exemplo completo: sua mae perguntou se voce almocou pelo whatsapp | Ja almocamos | Ainda nao',
+          user: `Quem enviou: ${displayContact}. Mensagem: "${message}"`
         })
         const text = (result.text || '').trim()
         const parts = text.split('|').map(function(s) { return s.trim() }).filter(Boolean)
