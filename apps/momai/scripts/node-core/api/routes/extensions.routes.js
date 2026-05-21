@@ -475,6 +475,58 @@ function createExtensionsRoutes(context) {
       return true
     }
 
+    /* ── Disconnect WhatsApp: logout properly + delete auth + restart to show QR ── */
+    if (pathname === '/extensions/whatsapp/disconnect' && req.method === 'POST') {
+      try {
+        // 1. Send logout command to Baileys (clean disconnect + auth removal)
+        try {
+          await extensionHostManager.sendToPersistent('whatsapp', { toolName: 'logout', args: {} })
+        } catch {
+          // Worker may already be disconnected, that's fine
+        }
+
+        // 2. Give Baileys a moment to flush auth changes
+        await new Promise(r => setTimeout(r, 1000))
+
+        // 3. Kill the persistent worker
+        extensionHostManager.stopPersistent('whatsapp')
+
+        // 4. Delete Baileys auth folder entirely
+        const baileysAuthDir = path.join(skillRegistry.extensionsDir, 'whatsapp', 'baileys-auth')
+        if (fs.existsSync(baileysAuthDir)) {
+          // Retry deletion up to 3 times (Windows file locks)
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              fs.rmSync(baileysAuthDir, { recursive: true, force: true })
+              break
+            } catch (e) {
+              if (attempt < 2) await new Promise(r => setTimeout(r, 500))
+              else console.log('[extensions] Failed to delete baileys-auth after 3 attempts:', e.message)
+            }
+          }
+          console.log('[extensions] Deleted baileys-auth for WhatsApp disconnect')
+        }
+
+        // 5. Restart worker fresh — will generate QR since no auth exists
+        const whatsappSkill = (skillRegistry.getAll?.() || []).find(s => s.id === 'whatsapp')
+        if (whatsappSkill) {
+          setTimeout(() => {
+            extensionHostManager
+              .startPersistent(whatsappSkill.id, whatsappSkill.dir, whatsappSkill.manifest)
+              .then(() => console.log('[extensions] WhatsApp re-started after disconnect'))
+              .catch((err) => console.log('[extensions] WhatsApp restart failed:', err.message))
+          }, 500)
+        }
+
+        // 6. Broadcast logged_out so UI shows QR
+        extensionEvents.broadcast('authenticated', { status: 'logged_out' })
+        sendJson(res, 200, { ok: true, connected: false })
+      } catch (err) {
+        sendJson(res, 200, { ok: false, error: err.message })
+      }
+      return true
+    }
+
     /* ── Process WhatsApp notification with LLM ── */
     if (pathname === '/extensions/whatsapp/process-notification' && req.method === 'POST') {
       const body = await readJsonBody(req).catch(() => ({}))

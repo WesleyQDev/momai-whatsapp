@@ -25,7 +25,6 @@ export default function WhatsAppView() {
   const [newContact, setNewContact] = useState('')
   const [editingName, setEditingName] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
-  const [refreshing, setRefreshing] = useState(false)
   const [quickReplies, setQuickReplies] = useState<string[]>([])
   const [sending, setSending] = useState(false)
 
@@ -56,10 +55,15 @@ export default function WhatsAppView() {
     } catch {}
   }, [])
 
+  const disconnect = useCallback(async () => {
+    try {
+      await fetch(`${API_URL}/extensions/whatsapp/disconnect`, { method: 'POST' })
+      setConnected(false)
+    } catch {}
+  }, [])
+
   const refresh = useCallback(async () => {
-    setRefreshing(true)
     await Promise.all([loadStats(), loadHistory()])
-    setRefreshing(false)
   }, [loadStats, loadHistory])
 
   // Generate quick replies when history changes
@@ -100,8 +104,6 @@ export default function WhatsAppView() {
 
   useEffect(() => {
     refresh()
-    const interval = setInterval(refresh, 5000)
-    return () => clearInterval(interval)
   }, [refresh])
 
   useExtensionEvents({
@@ -180,13 +182,6 @@ export default function WhatsAppView() {
       <div className="flex items-center gap-3">
         <span className="text-2xl">💚</span>
         <h1 className="text-xl font-semibold">WhatsApp</h1>
-        <button
-          onClick={refresh}
-          disabled={refreshing}
-          className="ml-2 px-2 py-1 text-xs rounded-lg bg-white/5 hover:bg-white/10 text-text-muted disabled:opacity-50"
-        >
-          {refreshing ? '...' : 'Atualizar'}
-        </button>
         <div
           className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
             connected ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
@@ -218,6 +213,20 @@ export default function WhatsAppView() {
         <div className="rounded-xl border border-white/5 bg-card p-6 text-center space-y-3">
           <p className="text-sm text-text-muted">Escaneie o QR code com o WhatsApp do celular</p>
           <img src={qrUrl} alt="QR Code" className="mx-auto rounded-xl" width={256} height={256} />
+        </div>
+      )}
+
+      {connected && (
+        <div className="rounded-xl border border-white/5 bg-card">
+          <div className="px-4 py-3 flex items-center justify-between">
+            <span className="text-xs text-text-muted">Sessão ativa</span>
+            <button
+              onClick={disconnect}
+              className="px-3 py-1.5 text-xs rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
+            >
+              Desconectar
+            </button>
+          </div>
         </div>
       )}
 
