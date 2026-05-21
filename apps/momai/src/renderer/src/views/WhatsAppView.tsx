@@ -109,6 +109,16 @@ export default function WhatsAppView() {
     } catch {}
   }
 
+  const addUnknownContact = async (jid: string) => {
+    const raw = jid.split('@')[0] || jid
+    await fetch(`${API_URL}/extensions/whatsapp/command`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toolName: 'add_contact', args: { contact: raw } })
+    })
+    refresh()
+  }
+
   const saveContactName = async (contactId: string) => {
     if (!editValue.trim()) return
     try {
@@ -189,6 +199,15 @@ export default function WhatsAppView() {
             <div className="flex items-center gap-2">
               <span className="text-xs">{msg.direction === 'incoming' ? '🟢' : '🔵'}</span>
               <span className="font-medium text-sm">{msg.from}</span>
+              {msg.direction === 'incoming' && /^\d+$/.test(msg.from) && !contacts.find(c => c.id === msg.jid.split('@')[0]) && (
+                <button
+                  onClick={() => addUnknownContact(msg.jid)}
+                  className="text-xs text-accent hover:text-accent/80 px-1.5 py-0.5 rounded bg-accent/10 hover:bg-accent/20"
+                  title="Adicionar aos contatos"
+                >
+                  + Contato
+                </button>
+              )}
               <span className="ml-auto text-xs text-text-muted">{formatTime(msg.timestamp)}</span>
             </div>
             <p className="text-sm text-text-muted mt-0.5 ml-5 truncate">{msg.text}</p>
