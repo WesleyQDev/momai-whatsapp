@@ -486,8 +486,41 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       }
     }
 
+    // Check string-based permissions (network:persistent, storage:persistent, etc.)
+    const stringPerms = Array.isArray(skill.manifest.permissions)
+      ? skill.manifest.permissions
+      : []
+    for (const perm of stringPerms) {
+      const config = this.permissions?.[skillId] || {}
+      if (config[perm] === false) {
+        return {
+          ok: false,
+          error: `permission_denied: ${perm}`,
+          permission: perm,
+          tool: toolName
+        }
+      }
+    }
+
     // Isolated execution for all non-builtins (extensions and packaged)
     if (skill.kind === 'extension' || skill.kind === 'packaged') {
+      // Background skills route to persistent worker
+      if (skill.manifest?.background) {
+        console.log(`[registry] Executing ${skillId} in persistent worker...`)
+        try {
+          const result = await extensionHostManager.sendToPersistent(skillId, {
+            content: input,
+            context,
+            manifest: skill.manifest,
+            args,
+            toolName
+          })
+          return { ...result, tool: toolName }
+        } catch (err) {
+          return { ok: false, error: err.message, tool: toolName }
+        }
+      }
+
       console.log(`[registry] Executing ${skillId} in isolated host...`)
       return extensionHostManager.execute(skillId, skill.dir, {
         content: input,
