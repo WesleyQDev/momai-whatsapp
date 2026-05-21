@@ -464,8 +464,6 @@ function createExtensionsRoutes(context) {
       }
       return true
     }
-      return true
-    }
 
     /* ── Send command to persistent worker ── */
     const cmdMatch = pathname.match(/^\/extensions\/([^/]+)\/command$/)
