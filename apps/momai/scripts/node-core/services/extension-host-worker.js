@@ -5,12 +5,40 @@
  */
 
 const path = require('node:path')
+const fs = require('node:fs/promises')
 const [skillId, skillPath] = process.argv.slice(2)
 
-// Mock/Proxy for MomAI API
+const dataDir = process.env.MOMAI_DATA_DIR || path.resolve(__dirname, '..', '..', 'data')
+
+// Storage API for extensions
+const storage = {
+  async get(key) {
+    const filePath = path.join(dataDir, 'extensions', skillId, `${key}.json`)
+    try {
+      const content = await fs.readFile(filePath, 'utf-8')
+      return JSON.parse(content)
+    } catch {
+      return null
+    }
+  },
+
+  async set(key, value) {
+    const dir = path.join(dataDir, 'extensions', skillId)
+    await fs.mkdir(dir, { recursive: true })
+    const serialized = JSON.stringify(value, null, 2)
+    if (serialized.length > 1024 * 1024) {
+      throw new Error('Storage quota exceeded: max 1MB per extension')
+    }
+    await fs.writeFile(path.join(dir, `${key}.json`), serialized, 'utf-8')
+  }
+}
+
+// MomAI API bridge injected into runtime.execute()
 const momai = {
-  log: (msg) => process.send({ type: 'log', message: msg })
-  // Future: Add more APIs here (network, storage, etc.)
+  log: (msg) => process.send({ type: 'log', message: msg }),
+  sendEvent: (eventType, data) => process.send({ type: 'event', eventType, data }),
+  sendStructuredResponse: (data) => process.send({ type: 'structured_response', data }),
+  storage
 }
 
 let runtime = null

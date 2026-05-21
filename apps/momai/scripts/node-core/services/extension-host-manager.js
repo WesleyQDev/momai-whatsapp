@@ -7,6 +7,7 @@
 const { fork } = require('node:child_process')
 const path = require('node:path')
 const { EventEmitter } = require('node:events')
+const extensionEvents = require('./extension-events')
 
 class ExtensionHostManager extends EventEmitter {
   constructor() {
@@ -14,6 +15,8 @@ class ExtensionHostManager extends EventEmitter {
     this.hosts = new Map() // skillId -> { process, ready }
     this.pendingCalls = new Map() // requestId -> { resolve, reject }
     this.requestIdCounter = 0
+    this.persistentHosts = new Map()
+    this.restartCounts = new Map()
   }
 
   /**
@@ -93,6 +96,100 @@ class ExtensionHostManager extends EventEmitter {
   }
 
   /**
+   * Starts a persistent background worker for an extension
+   */
+  async startPersistent(skillId, skillPath, manifest) {
+    if (this.persistentHosts.has(skillId)) return
+
+    const hostPath = path.join(__dirname, 'extension-host-worker.js')
+    const child = fork(hostPath, [skillId, skillPath], {
+      stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+      env: { ...process.env, MOMAI_EXTENSION_ID: skillId, MOMAI_PERSISTENT: 'true' }
+    })
+
+    const entry = { child, skillId, manifest, startedAt: Date.now() }
+    this.persistentHosts.set(skillId, entry)
+
+    child.on('message', (msg) => {
+      if (msg.type === 'ready') {
+        this.emit(`${skillId}:ready`)
+      } else if (msg.type === 'event') {
+        extensionEvents.broadcast(msg.eventType, msg.data || {})
+      } else if (msg.type === 'structured_response') {
+        extensionEvents.broadcast('structured_response', { skillId, ...msg.data })
+      } else if (msg.type === 'response') {
+        const pending = this.pendingCalls.get(msg.requestId)
+        if (pending) {
+          this.pendingCalls.delete(msg.requestId)
+          pending.resolve(msg.result)
+        }
+      } else if (msg.type === 'log') {
+        console.log(`[ext:${skillId}]`, msg.message)
+      }
+    })
+
+    child.on('exit', (code) => {
+      this.persistentHosts.delete(skillId)
+      const count = (this.restartCounts.get(skillId) || 0) + 1
+      this.restartCounts.set(skillId, count)
+
+      if (count <= 3 && this._shouldAutoRestart(skillId)) {
+        const delay = Math.min(1000 * Math.pow(3, count - 1), 5000)
+        setTimeout(() => this.startPersistent(skillId, skillPath, manifest), delay)
+      } else {
+        this.emit(`${skillId}:crashed`, { code, restartCount: count })
+      }
+    })
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Worker ready timeout')), 15000)
+      this.once(`${skillId}:ready`, () => {
+        clearTimeout(timeout)
+        resolve()
+      })
+    })
+  }
+
+  stopPersistent(skillId) {
+    const entry = this.persistentHosts.get(skillId)
+    if (entry) {
+      entry.child.kill()
+      this.persistentHosts.delete(skillId)
+      this.restartCounts.delete(skillId)
+    }
+  }
+
+  async sendToPersistent(skillId, message) {
+    const entry = this.persistentHosts.get(skillId)
+    if (!entry) throw new Error(`No persistent host for ${skillId}`)
+
+    const requestId = ++this.requestIdCounter
+    return new Promise((resolve, reject) => {
+      this.pendingCalls.set(requestId, { resolve, reject })
+      entry.child.send({ type: 'execute', requestId, payload: message })
+      setTimeout(() => {
+        if (this.pendingCalls.has(requestId)) {
+          this.pendingCalls.delete(requestId)
+          reject(new Error('Extension execution timeout'))
+        }
+      }, 30000)
+    })
+  }
+
+  stopAllPersistent() {
+    for (const id of this.persistentHosts.keys()) {
+      this.stopPersistent(id)
+    }
+  }
+
+  _shouldAutoRestart(skillId) {
+    const entry = this.persistentHosts.get(skillId)
+    if (!entry) return true
+    const elapsed = Date.now() - entry.startedAt
+    return elapsed > 60000
+  }
+
+  /**
    * Terminates a host
    */
   terminate(skillId) {
@@ -107,6 +204,7 @@ class ExtensionHostManager extends EventEmitter {
     for (const skillId of this.hosts.keys()) {
       this.terminate(skillId)
     }
+    this.stopAllPersistent()
   }
 }
 

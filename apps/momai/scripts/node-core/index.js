@@ -93,6 +93,7 @@ const reminderService = require('./services/reminder-service')
 const skillOrchestrator = require('./services/skill-orchestrator')
 const ttsService = require('./services/tts-service')
 const chatService = require('./services/chat-service')
+const extensionHostManager = require('./services/extension-host-manager')
 
 // ============================================
 // API modules
@@ -434,6 +435,7 @@ async function startServer() {
     ensurePython: ttsService.ensurePython || (() => Promise.resolve('')),
     syncPythonCallModeState: ttsService.syncPythonCallModeState || (() => Promise.resolve()),
     buildExtensionsPayload: skillOrchestrator.buildExtensionsPayload || (() => []),
+    extensionHostManager,
     streamLlamaChat: chatService.streamLlamaChat || (() => Promise.resolve()),
     isValidTier,
     normalizeBackendMode: llamaManager.normalizeBackendMode || ((v) => v),
@@ -509,6 +511,20 @@ async function startServer() {
       // Inject broadcast into shared-state so tts-service and chat-service can use it
       shared.broadcast = wsResult.broadcast
     }
+  }
+
+  // Start persistent extension workers
+  try {
+    const skills = _skillRegistry?.getAll?.() || []
+    for (const skill of skills) {
+      if (skill.manifest?.background) {
+        extensionHostManager.startPersistent(skill.id, skill.path, skill.manifest)
+          .then(() => info(`[ext] Started persistent worker: ${skill.id}`))
+          .catch(err => info(`[ext] Failed to start persistent worker: ${skill.id}: ${err.message}`))
+      }
+    }
+  } catch (err) {
+    info('[ext] Error initializing persistent workers:', err.message)
   }
 
   // Start server
