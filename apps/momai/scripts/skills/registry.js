@@ -388,12 +388,16 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   }
 
   function discover(query) {
+    const result = discoverTopN(query, 1)
+    return result.length > 0 ? result[0] : null
+  }
+
+  function discoverTopN(query, n = 3) {
     const q = String(query || '')
     const enabled = getEnabled()
-
     const lower = q.toLowerCase()
-    let best = null
-    let bestScore = 0
+    const scored = []
+
     for (const skill of enabled) {
       const description = String(skill.manifest.description || '').toLowerCase()
       const intents = Array.isArray(skill.manifest.intents) ? skill.manifest.intents : []
@@ -411,19 +415,17 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
         if (token.length < 3) continue
         if (description.includes(token)) score += 1
       }
-      if (score > bestScore) {
-        best = skill
-        bestScore = score
-      }
+
+      if (score > 0) scored.push({ id: skill.id, name: skill.manifest.name, score })
     }
 
-    if (!best || bestScore <= 0) return null
-    return {
-      id: best.id,
-      name: best.manifest.name,
-      confidence: Math.min(0.95, bestScore / 3),
+    scored.sort((a, b) => b.score - a.score)
+    return scored.slice(0, Math.max(1, n)).map((s) => ({
+      id: s.id,
+      name: s.name,
+      confidence: Math.min(0.95, s.score / 3),
       source: 'lexical'
-    }
+    }))
   }
 
   async function execute(skillId, input, context, args, toolName) {
@@ -488,6 +490,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     if (skill.kind === 'extension' || skill.kind === 'packaged') {
       console.log(`[registry] Executing ${skillId} in isolated host...`)
       return extensionHostManager.execute(skillId, skill.dir, {
+        content: input,
         input,
         context,
         manifest: skill.manifest,
@@ -600,6 +603,31 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     return functions
   }
 
+  function buildUseSkillTool(skills) {
+    const names = skills.map((s) => s.id)
+    const desc = skills
+      .map((s) => `  ${s.id}: ${(s.manifest.description || '').slice(0, 100)}`)
+      .join('\n')
+    return {
+      type: 'function',
+      function: {
+        name: 'use_skill',
+        description: `Ativa uma skill especializada e desbloqueia suas ferramentas.\n\nSkills disponiveis:\n${desc}\n\nEscolha a skill que melhor se encaixa na pergunta do usuario. Ex: clima -> weather, busca -> search.`,
+        parameters: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              enum: names,
+              description: `Nome da skill: ${names.join(', ')}`
+            }
+          },
+          required: ['name']
+        }
+      }
+    }
+  }
+
   return {
     initialize: refresh,
     refresh,
@@ -609,11 +637,13 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     getEnabled,
     getById,
     discover,
+    discoverTopN,
     execute,
     executeHook,
     getSkillsWithHook,
     toListPayload,
     toOpenAITools,
+    buildUseSkillTool,
     extensionsDir
   }
 }

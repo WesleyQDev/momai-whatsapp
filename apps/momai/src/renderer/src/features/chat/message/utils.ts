@@ -11,15 +11,22 @@ export const cleanUIMetadata = (text: string) => {
 
 export const humanizeToolName = (name: string) => {
   const lower = (name || '').toLowerCase()
-  if (lower.includes('duckduckgo') || lower.includes('search')) return 'Busca na web'
+  if (lower.includes('duckduckgo') || lower.includes('web_search')) return 'Busca na web'
   if (lower.includes('reminder')) return 'Lembretes'
   if (lower.includes('interface')) return 'Interface'
   if (lower.includes('os') || lower.includes('shell')) return 'Sistema OS'
   if (lower.includes('browser') || lower.includes('navigate')) return 'Navegador'
   if (lower.includes('youtube')) return 'YouTube'
+  if (lower.includes('get_weather') || lower.includes('weather')) return 'Previsão do tempo'
+  if (lower.includes('search_local_items') || lower.includes('open_local_item')) return 'Busca local'
+  if (lower.includes('save_note_memory') || lower.includes('search_note_memory')) return 'Memória'
+  if (lower.includes('create_reminder') || lower.includes('list_reminders') || lower.includes('remove_reminder')) return 'Lembretes'
+  if (lower.includes('skill_execute') || lower.includes('activate_skill') || lower.includes('use_skill')) return 'Skill'
 
   const fallback = name || 'Ferramenta'
-  return fallback.charAt(0).toUpperCase() + fallback.slice(1)
+  return fallback
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 export const minimizeText = (value: unknown, max = 180) => {

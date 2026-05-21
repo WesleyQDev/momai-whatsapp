@@ -413,7 +413,7 @@ async function getTop5SkillsSemantic(query) {
   const enabledSkills = getEnabledSkills()
   if (enabledSkills.length === 0) return []
 
-  if (!text || !semanticState.ready || enabledSkills.length <= 5) {
+  if (!text || !semanticState.ready) {
     return enabledSkills.slice(0, 5).map((s) => ({ id: s.id, score: 0.5 }))
   }
 

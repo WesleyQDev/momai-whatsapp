@@ -164,38 +164,69 @@ function extractLocation(text) {
   if (!source) return null
 
   const patterns = [
-    /(?:tempo|clima|temperatura|previs[aã]o do tempo)\s+(?:em|para|de|na|no)\s+([^,?.!\n]+)/i,
-    /(?:weather|forecast|temperature)\s+(?:in|for)\s+([^,?.!\n]+)/i,
-    /\bem\s+([^,?.!\n]+)/i,
-    /\bpara\s+([^,?.!\n]+)/i,
-    /\bde\s+([^,?.!\n]+)/i
+    /* Padrão principal: palavra de clima + preposição + local */
+    /(?:tempo|clima|temperatura|previs[aã]o(?:\s+do\s+tempo)?)\s+(?:em|para|de|na|no)\s+([^,?.!\n]{2,})/i,
+
+    /* Condição climática + (até 2 palavras opcionais) + preposição + local
+       Ex: "vai chover em SP", "vai chover hoje em SP", "vai fazer sol no Rio" */
+    /(?:chover|chuva|neve|nevar|nevando|sol|nublado|calor|frio|umidade|vento|tempestade|garoa)(?:\s+[a-zà-ú]+){0,2}\s+(?:em|para|na|no)\s+([^,?.!\n]{2,})/i,
+
+    /* Inglês */
+    /(?:weather|forecast|temperature)\s+(?:in|for)\s+([^,?.!\n]{2,})/i
   ]
 
   for (const pattern of patterns) {
     const match = source.match(pattern)
     if (match && match[1]) {
-      const location = String(match[1]).trim().replace(/^a\s+/i, '').replace(/^o\s+/i, '')
+      const location = String(match[1])
+        .trim()
+        .replace(/^[aão]\s+/i, '')
+        .replace(/\s+(hoje|agora|amanh[ãa]|depois|à|ao?|neste|nesta|nesse|nessa)\b.*/i, '')
+        .trim()
       if (location.length >= 2) return location
     }
   }
 
-  if (source.length >= 2 && source.length < 100) {
-    return source
+  /* Fallback: apenas se source PARECE ser um nome de lugar */
+  /* Uppercase + 2-40 chars = provavel nome proprio (ex: "Sao Paulo", "Curitiba") */
+  /* Se comecar com minuscula, aceita apenas se for palavra unica (ex: "curitiba") */
+  if (source.length >= 2 && source.length <= 40) {
+    if (/^[A-ZÀ-Ú]/.test(source)) return source
+    if (!source.includes(' ') && source.length >= 3) return source
   }
 
   return null
 }
 
 module.exports = {
-  tools: [{ name: 'get_weather', description: 'Obtem previsao do tempo para uma localidade.' }],
+  tools: [
+    {
+      name: 'get_weather',
+      description:
+        'Obtem previsao do tempo atualizada para uma cidade ou localidade. Use quando o usuario perguntar sobre clima, temperatura, se vai chover, fazer sol, etc.',
+      parameters: {
+        type: 'object',
+        properties: {
+          location: {
+            type: 'string',
+            description:
+              'Nome da cidade ou localidade (ex: "Sao Paulo", "Rio de Janeiro", "Nova York", "Londres")'
+          }
+        },
+        required: ['location']
+      }
+    }
+  ],
 
-  async execute({ content, context }) {
+  async execute({ content, context, args }) {
     const text = String(content || '').trim()
     console.error(`[weather] === EXECUTE ===`)
     console.error(`[weather] content type: ${typeof content}`)
     console.error(`[weather] content: "${text}"`)
+    console.error(`[weather] args: ${JSON.stringify(args || {})}`)
 
-    const location = extractLocation(text)
+    const location =
+      args?.location || extractLocation(args?.content || text || '')
     console.error(`[weather] extracted: "${location}"`)
 
     if (!location) {
@@ -224,7 +255,7 @@ module.exports = {
             forecast: structuredForecast.rows
           }
         },
-        instruction: JSON.stringify(structuredForecast),
+        instruction: `Previsao do tempo para ${structuredForecast.resolvedLocation}:\n${structuredForecast.rows.map((r) => `${r.day}: ${r.emoji} ${r.condition}, ${r.min} a ${r.max}`).join('\n')}\n\nFonte: Open-Meteo`,
         webSources: [
           {
             url: structuredForecast.sourceUrl,
@@ -244,3 +275,5 @@ module.exports = {
     }
   }
 }
+
+module.exports.extractLocation = extractLocation

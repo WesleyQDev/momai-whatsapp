@@ -939,183 +939,107 @@ async function streamLlamaChat(req, res, payload) {
       }
     }
 
-    let directSkillResult = null
+    /* Descobre as top 5 skills (sempre, sem threshold) */
+    let discoveredSkillIds = []
+    let topScores = {}
+    let toolsPayload = []
+    let toolSteps = []
+    let activeSkill = null
 
-    while (round < maxToolRounds) {
-      round++
-
-      let toolsPayload = []
-      let availableSkillDescs = null
-      const scoreMap = {}
-      {
-        let top5SkillIds = []
-
+    {
+      const top5 = await (async () => {
         if (isUltra) {
           const semanticResults = await getTop5SkillsSemantic(content)
-          top5SkillIds = semanticResults.map((r) => r.id)
-          for (const r of semanticResults) scoreMap[r.id] = r.score
+          if (semanticResults.length > 0) {
+            semanticResults.forEach((r) => { topScores[r.id] = r.score })
+            return semanticResults.map((r) => r.id)
+          }
+          debug('[chat] Semantic empty, falling back to lexical')
         }
-
-        /* Fallback: if semantic search returned no skills (embedding not ready or non-ultra),
-           use lexical discovery from the skill registry */
-        if (
-          top5SkillIds.length === 0 &&
-          skillRegistry &&
-          typeof skillRegistry.discover === 'function'
-        ) {
-          const discovered = skillRegistry.discover(content)
-          if (discovered) {
-            debug(
-              `[chat] Lexical discovery found "${discovered.id}" (confidence=${discovered.confidence})`
-            )
-            top5SkillIds.push(discovered.id)
-
-            /* High-confidence direct execution: if confidence is very high,
-               execute the skill immediately without waiting for LLM tool calling.
-               This is more reliable with small models that struggle with function calling. */
-            if (discovered.confidence >= 0.8 && skillRegistry.execute) {
-              try {
-                const skillInput = content
-                const runtimeContext = {
-                  listActiveReminders(limit = 8) {
-                    return store.reminders
-                      .filter((r) => r.is_active)
-                      .sort(
-                        (a, b) =>
-                          new Date(a.scheduled_time).getTime() -
-                          new Date(b.scheduled_time).getTime()
-                      )
-                      .slice(0, limit)
-                  },
-                  createReminderFromText(text) {
-                    const {
-                      parseRelativeReminder,
-                      extractReminderTitle,
-                      normalizeReminder
-                    } = require('./reminder-service')
-                    const rawText = String(text || '').trim()
-                    const scheduled =
-                      parseRelativeReminder(rawText) ||
-                      new Date(Date.now() + 60 * 60 * 1000).toISOString()
-                    const title = extractReminderTitle(rawText)
-                    const reminder = normalizeReminder({
-                      id: store.next_reminder_id++,
-                      title: title || 'Lembrete',
-                      content: rawText,
-                      scheduled_time: scheduled,
-                      is_active: true,
-                      created_at: isoNow()
-                    })
-                    store.reminders.push(reminder)
-                    saveStore()
-                    broadcast({ type: 'reminders_updated' })
-                    return reminder
-                  },
-                  deleteRemindersByIds(ids) {
-                    const idSet = new Set(Array.isArray(ids) ? ids : [ids])
-                    const initialCount = store.reminders.length
-                    store.reminders = store.reminders.filter((r) => !idSet.has(r.id))
-                    const changed = store.reminders.length !== initialCount
-                    if (changed) {
-                      saveStore()
-                      broadcast({ type: 'reminders_updated' })
-                    }
-                    return { success: changed, count: initialCount - store.reminders.length }
-                  },
-                  searchWeb
-                }
-                directSkillResult = await skillRegistry.execute(
-                  discovered.id,
-                  skillInput,
-                  runtimeContext,
-                  { query: content },
-                  null
-                )
-                debug(
-                  `[chat] Direct skill execution result: hasStructured=${!!directSkillResult?.structuredResponse}`
-                )
-                if (directSkillResult?.structuredResponse) {
-                  bufferedStructuredResponse = directSkillResult.structuredResponse
-                }
-                const discoveredSkill = getSkillRegistry()?.getById?.(discovered.id)
-                const directStep = {
-                  skill_id: discovered.id,
-                  skill_name: discoveredSkill?.manifest?.name || discovered.id,
-                  tool: 'skill_execute',
-                  name: `skill:${discovered.id}`,
-                  description: String(
-                    discoveredSkill?.manifest?.description ||
-                      'Execução direta de skill por detecção lexical.'
-                  ),
-                  status: directSkillResult ? 'success' : 'error',
-                  started_at: isoNow()
-                }
-                toolSteps.push(directStep)
-                activeSkill = discovered.id
-                {
-                  const _sse = writeSse(res, { active_skill: activeSkill })
-                  if (_sse instanceof Promise) await _sse
-                }
-                {
-                  const _sse = writeSse(res, { tool_steps: toolSteps })
-                  if (_sse instanceof Promise) await _sse
-                }
-              } catch (execErr) {
-                debug(`[chat] Direct skill execution failed: ${execErr.message}`)
-              }
-            }
+        if (skillRegistry && typeof skillRegistry.discoverTopN === 'function') {
+          const d = skillRegistry.discoverTopN(content, 5)
+          if (d.length > 0) {
+            d.forEach((x) => { topScores[x.id] = x.confidence })
+            return d.map((x) => x.id)
           }
         }
+        return []
+      })()
+      discoveredSkillIds = top5
+    }
 
-        /* Use embedding similarity score as the relevance gatekeeper.
-           Only skills with score >= threshold get their tool schemas loaded.
-           If embedding returned all zeros (table not synced yet) or all below
-           threshold, fall back to the top 1 skill so the system still works. */
-        const SIMILARITY_THRESHOLD = 0.15
-        const toolSkillIds = disableToolsForTurn
-          ? []
-          : isUltra
-            ? (() => {
-                const highScore = top5SkillIds.filter(
-                  (id) => (scoreMap[id] || 0) >= SIMILARITY_THRESHOLD
-                )
-                if (highScore.length > 0) return highScore
-                // Fallback: no skill reached threshold → use top 1 skill anyway
-                if (top5SkillIds.length > 0) return top5SkillIds.slice(0, 1)
-                return []
-              })()
-            : top5SkillIds
+    let toolInstruction = null
+    let directSkillResult = null
 
-        // Build lightweight skill descriptions for the system prompt (name + description only)
-        const allSelectedSkills = top5SkillIds
-          .map((id) => skillRegistry?.getById?.(id))
-          .filter(Boolean)
-        availableSkillDescs = allSelectedSkills.length
-          ? `# AVAILABLE SKILLS\n${allSelectedSkills.map((s) => `- ${s.manifest.name}: ${s.manifest.description}`).join('\n')}`
-          : null
+    /* Converte as top 5 skills em tools nativas pro LLM */
+    const allSelectedSkills = discoveredSkillIds.map((id) => skillRegistry?.getById?.(id)).filter(Boolean)
+    if (allSelectedSkills.length > 0 && skillRegistry && typeof skillRegistry.toOpenAITools === 'function') {
+      toolsPayload = skillRegistry.toOpenAITools(discoveredSkillIds)
+    }
 
-        if (skillRegistry && typeof skillRegistry.toOpenAITools === 'function') {
-          toolsPayload = skillRegistry.toOpenAITools(toolSkillIds)
+    /* Pre-executa a melhor skill (fallback caso LLM nao chame a tool) */
+    const scoreEntries = Object.entries(topScores)
+    if (scoreEntries.length > 0) {
+      const bestScore = Math.max(...scoreEntries.map(([, v]) => v))
+      const bestEntry = scoreEntries.find(([, v]) => v === bestScore)
+      /* Se mensagem atual for curta, combina com mensagem anterior para contexto */
+      let execContent = content
+      if (execContent.length < 60) {
+        const userMsgs = messages.filter((m) => m.role === 'user')
+        if (userMsgs.length > 1) {
+          execContent = `${userMsgs[userMsgs.length - 2].content} ${execContent}`
         }
       }
-
-      /* Build tool instruction for the system prompt — lightweight, no full schemas */
-      let toolInstruction = null
-      if (toolsPayload.length > 0) {
-        toolInstruction = `# AVAILABLE TOOLS CALLING\nYou have access to the following tools:\n${toolsPayload.map((t) => `- ${t.function?.name || t.name}: ${t.function?.description || t.description}`).join('\n')}\n\nWhen you need to use a tool, respond with a tool_call in the format: <tool_call>{"name":"tool_name","arguments":{...}}</tool_call>`
-      } else if (availableSkillDescs) {
-        toolInstruction = availableSkillDescs
+      if (bestEntry && bestScore >= 0.25 && skillRegistry && typeof skillRegistry.execute === 'function') {
+        const [bestId] = bestEntry
+        const skillObj = skillRegistry.getById(bestId)
+        if (skillObj && isSkillEnabledByStore(skillObj)) {
+          try {
+            directSkillResult = await skillRegistry.execute(bestId, execContent, { searchWeb }, { query: execContent }, null)
+            if (directSkillResult?.structuredResponse) {
+              bufferedStructuredResponse = directSkillResult.structuredResponse
+            }
+            if (directSkillResult?.instruction) {
+              extraSystemInstructions.push(`[DADOS REAIS]\n${directSkillResult.instruction}`)
+            }
+            const toolName = (skillObj.manifest.tools && skillObj.manifest.tools.length > 0)
+              ? skillObj.manifest.tools[0].name
+              : bestId
+            toolSteps.push({
+              skill_id: bestId,
+              skill_name: skillObj.manifest.name,
+              tool: 'skill_execute',
+              name: toolName,
+              description: String(skillObj.manifest.description || ''),
+              status: directSkillResult ? 'success' : 'error',
+              started_at: isoNow()
+            })
+            activeSkill = bestId
+            { const _sse = writeSse(res, { active_skill: activeSkill }); if (_sse instanceof Promise) await _sse }
+            { const _sse = writeSse(res, { tool_steps: toolSteps }); if (_sse instanceof Promise) await _sse }
+          } catch (e) {
+            debug(`[chat] Pre-exec failed: ${e.message}`)
+          }
+        }
       }
+    }
 
-      /* If direct skill execution already produced a structured response,
-         we can skip the LLM round for tool calling and just ask the LLM
-         to generate a brief confirmation text. */
-      if (directSkillResult?.structuredResponse && !bufferedStructuredResponse) {
-        bufferedStructuredResponse = directSkillResult.structuredResponse
+    /* Se ja tem dados reais, nao expoe tools (evita confusao) */
+    if (directSkillResult?.instruction) {
+      toolsPayload = []
+      if (bufferedStructuredResponse) {
+        toolInstruction = `A skill foi executada e retornou dados reais. Use os dados abaixo para responder ao usuario:\n${directSkillResult.instruction}`
+      } else {
+        toolInstruction = `Skill executada mas retornou: "${directSkillResult.instruction}". Informe isso ao usuario educadamente.`
       }
+    } else {
+      const skillDesc = allSelectedSkills.length
+        ? `# SKILLS DISPONIVEIS\n${allSelectedSkills.map((s) => `- ${s.manifest.name}: ${s.manifest.description}`).join('\n')}\n\nIMPORTANTE: Use as ferramentas acima para obter dados reais. NAO invente.`
+        : null
+      toolInstruction = skillDesc
+    }
 
-      /* Rebuild system message with tool instructions */
-      let promptText = ''
+    /* Rebuild system message with tool instructions */
       if (promptRegistry && typeof promptRegistry.buildSystemPrompt === 'function') {
         promptText = promptRegistry.buildSystemPrompt({
           tier: tierName,
@@ -1131,20 +1055,19 @@ async function streamLlamaChat(req, res, payload) {
       if (extraSystemInstructions.length > 0) {
         promptText += `\n\n${extraSystemInstructions.join('\n\n')}`
       }
-      const systemMessage = {
-        role: 'system',
-        content: sanitizePromptText(promptText)
-      }
+       const systemMessage = {
+         role: 'system',
+         content: sanitizePromptText(promptText)
+       }
 
-      /* Inject direct skill result into conversation context so LLM sees it */
+      /* Round loop: LLM ve tools, decide se chama alguma, resultado volta */
+      let round = 0
+      const maxToolRounds = 3
+
+      while (round < maxToolRounds) {
+        round++
+
       const currentMessages = [...messages]
-      if (directSkillResult?.instruction) {
-        currentMessages.push({
-          role: 'system',
-          content: `[TOOL RESULT] ${directSkillResult.instruction}`
-        })
-      }
-
       const allMessages = [systemMessage, ...currentMessages.filter((m) => m.role !== 'system')]
       estimatedPromptTokens =
         estimateTokenCount(systemMessage.content) +
@@ -1161,6 +1084,9 @@ async function streamLlamaChat(req, res, payload) {
         ),
         messages: allMessages
       }
+      if (toolsPayload.length > 0 && round === 1) {
+        requestBody.tools = toolsPayload
+      }
       const tokenizePromise = tokenizePrompt(allMessages)
       lastSystemMessage = systemMessage
       lastCurrentMessages = currentMessages
@@ -1168,14 +1094,9 @@ async function streamLlamaChat(req, res, payload) {
         Number(llamaState.contextTotalTokens || 8192),
         Math.max(0, estimatedPromptTokens)
       )
-      if (toolsPayload.length > 0 && !directSkillResult?.structuredResponse) {
-        requestBody.tools = toolsPayload
-      }
-
       debug(
-        `[chat] Request: tools=${toolsPayload.length}, sys_prompt_len=${systemMessage.content.length}, msg_count=${requestBody.messages.length}`
+        `[chat] Round ${round}: tools=${toolsPayload.length}, sysLen=${systemMessage.content.length}, msgs=${requestBody.messages.length}`
       )
-      debug(`[chat] Tools: ${toolsPayload.map((t) => t.function?.name || t.name).join(', ')}`)
       lastToolsPayload = toolsPayload
 
       tokenizePromise
@@ -1193,13 +1114,8 @@ async function streamLlamaChat(req, res, payload) {
       const tPreFetch = Date.now()
       lastTPreFetch = tPreFetch
       let tFirstToken = 0
-      const scoresSummary = Object.keys(scoreMap).length
-        ? `scores=${Object.entries(scoreMap)
-            .map(([k, v]) => `${k}=${v.toFixed(2)}`)
-            .join(',')}`
-        : ''
       info(
-        `[timing] pre-llama overhead: ${tPreFetch - t0}ms (tier=${tierName}, tools=${toolsPayload.length}, sysPromptLen=${systemMessage.content.length}, historyLen=${currentMessages.length}${scoresSummary ? ', ' + scoresSummary : ''})`
+        `[timing] pre-llama overhead: ${tPreFetch - t0}ms (tier=${tierName}, tools=${toolsPayload.length}, sysPromptLen=${systemMessage.content.length}, historyLen=${currentMessages.length})`
       )
       let llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
         method: 'POST',
@@ -1383,12 +1299,12 @@ async function streamLlamaChat(req, res, payload) {
               )
             }
             roundText += parsed.token
-            assembled += parsed.token
             generatedTokensEstimate += estimateTokenCount(parsed.token)
             llamaState.contextUsedTokens = Math.min(
               Number(llamaState.contextTotalTokens || 8192),
               Math.max(0, estimatedPromptTokens + generatedTokensEstimate)
             )
+            assembled += parsed.token
             {
               const _sse = writeSse(res, { token: parsed.token })
               if (_sse instanceof Promise) await _sse
@@ -1404,12 +1320,9 @@ async function streamLlamaChat(req, res, payload) {
       }
 
       debug(
-        `[chat] Round ${round} result: text_len=${roundText.length}, tool_calls=${toolCallsAccum.length}`
+        `[chat] Round result: text_len=${roundText.length}, tool_calls=${toolCallsAccum.length}`
       )
       lastFinishReason = roundFinishReason || lastFinishReason
-      if (roundText.length > 0) {
-        debug(`[chat] Round ${round} text preview: "${roundText.slice(0, 120)}"`)
-      }
 
       if (toolCallsAccum.length > 0 && toolCallsAccum[0]?.function?.name) {
         const executedTools = []
@@ -1426,10 +1339,10 @@ async function streamLlamaChat(req, res, payload) {
           }
 
           let skillId = toolName
-          const skillRegistry = getSkillRegistry()
+          const skillRegistryRef = getSkillRegistry()
           let skillObj = null
-          if (skillRegistry && typeof skillRegistry.getById === 'function') {
-            skillObj = skillRegistry.getById(skillId)
+          if (skillRegistryRef && typeof skillRegistryRef.getById === 'function') {
+            skillObj = skillRegistryRef.getById(skillId)
           }
 
           if (!skillObj) {
@@ -1634,12 +1547,11 @@ async function streamLlamaChat(req, res, payload) {
             })
           }
         }
-
         if (executedTools.length > 0) {
+          info(`[chat] Tools executed: ${executedTools.map((e) => e.name).join(', ')}. Continuing round.`)
           continue
         }
       }
-
       break
     }
 
@@ -1727,7 +1639,19 @@ async function streamLlamaChat(req, res, payload) {
     /* ── Retry: if LLM returned nothing usable (empty or only <think> tags),
        generate a contextual fallback so the user never sees a blank message ── */
     const visibleText = assembled.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
-    if (!visibleText && !bufferedStructuredResponse) {
+    if (!visibleText && bufferedStructuredResponse && directSkillResult?.instruction) {
+      const skillText = directSkillResult.instruction
+      assembled = skillText
+      for (const token of splitTokens(skillText)) {
+        if (closed || stopGenerationRequested || res.destroyed) break
+        {
+          const _sse = writeSse(res, { token })
+          if (_sse instanceof Promise) await _sse
+          else if (_sse === false) break
+        }
+      }
+      flushTtsChunks(true)
+    } else if (!visibleText && !bufferedStructuredResponse) {
       debug('[chat] LLM returned empty/think-only response, generating fallback')
       const fallbackMsg = generateFallbackReply(content, memoryContext, null, fallbackLanguage)
       for (const token of splitTokens(fallbackMsg)) {

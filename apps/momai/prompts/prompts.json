@@ -4,7 +4,7 @@
   "default_style": "balanced",
   "default_max_sentences": 6,
   "memory_context_header": "CONHECIMENTO (NOTAS LOCAIS):\n{{sections}}",
-  "system_template": "You are MomAI.\n\nPersona:\n{{assistant_persona}}\n\nResponse style: {{response_style}}\nTarget max sentences: {{max_sentences}}\n\n{{tier_instructions}}\n\n{{memory_block}}",
+  "system_template": "You are MomAI.\n\nPersona:\n{{assistant_persona}}\n\nResponse style: {{response_style}}\nTarget max sentences: {{max_sentences}}\n\n{{tier_instructions}}\n\n{{memory_block}}\n\n{{tool_instruction}}",
   "tiers": {
     "lite": {
       "response_style": "balanced",

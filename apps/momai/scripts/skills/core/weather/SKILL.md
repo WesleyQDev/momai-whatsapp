@@ -16,8 +16,25 @@ intents:
   - temperatura em
   - previsão do tempo
   - previsao do tempo
+  - previsão
+  - previsao
   - weather
   - forecast
+  - chuva
+  - chover
+  - neve
+  - nevando
+  - sol
+  - nublado
+  - calor
+  - frio
+  - umidade
+  - vento
+  - tempestade
+  - vai chover
+  - vai fazer sol
+  - faz calor
+  - faz frio
 allowed-tools: get_weather
 compatibility: MomAI Node Core Ultra
 ---
