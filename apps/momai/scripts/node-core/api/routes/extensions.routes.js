@@ -454,7 +454,7 @@ function createExtensionsRoutes(context) {
               extension: extId,
               header: { title: extId },
               status: body.error ? { type: 'error', message: body.error } : { type: 'success', message: 'Conectado' },
-              items: body.whitelist?.map((w: any) => ({ label: w.name || w, meta: w.number || w })) || []
+              items: (body.whitelist || []).map(function(w) { return { label: w.name || w, meta: w.number || w } })
             }
           }
         }
