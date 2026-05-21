@@ -70,7 +70,12 @@ class ExtensionHostManager extends EventEmitter {
   async startPersistent(skillId, skillPath, manifest) {
     if (this.persistentHosts.has(skillId)) return
 
-    const child = this._spawnHost(skillId, skillPath, { MOMAI_PERSISTENT: 'true' })
+    const bgScript = manifest.backgroundScript || 'runtime.js'
+    const hostPath = path.join(skillPath, bgScript)
+    const child = fork(hostPath, [skillId, skillPath], {
+      stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+      env: { ...process.env, MOMAI_EXTENSION_ID: skillId, MOMAI_PERSISTENT: 'true' }
+    })
     const entry = { child, skillId, manifest, startedAt: Date.now() }
     this.persistentHosts.set(skillId, entry)
 
