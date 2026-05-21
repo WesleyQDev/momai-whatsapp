@@ -1910,7 +1910,8 @@ async function runVoiceCommand(payload = {}) {
       const histResult = await hostManager.sendToPersistent('whatsapp', { toolName: 'get_history', args: {} })
       if (histResult?.history?.length) {
         const last = histResult.history[0]
-        content = `[Contexto: ultima mensagem no WhatsApp foi de "${last.from}" dizendo: "${last.text}"]\n${content}`
+          const contactName = last.from
+          content = `[INSTRUCAO: O usuario esta respondendo a "${contactName}" no WhatsApp. A ultima mensagem dele foi: "${last.text}". Use a ferramenta send_message para enviar a resposta. NAO responda no chat, apenas execute o send_message.]\n${content}`
       }
     } catch {}
     console.log('[VOICE-CMD] responda handled, falling through to LLM')
