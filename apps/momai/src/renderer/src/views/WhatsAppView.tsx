@@ -32,11 +32,12 @@ export default function WhatsAppView() {
         body: JSON.stringify({ toolName: 'get_stats', args: {} })
       })
       const data = await res.json()
+      console.log('[WhatsAppView] loadStats response:', JSON.stringify(data))
       if (data.ok === false) return
       setConnected(data.connected || false)
       setTotalMessages(data.totalMessages || 0)
       setContacts(data.whitelist || [])
-    } catch {}
+    } catch (e) { console.error('[WhatsAppView] loadStats error:', e) }
   }, [])
 
   const loadHistory = useCallback(async () => {
