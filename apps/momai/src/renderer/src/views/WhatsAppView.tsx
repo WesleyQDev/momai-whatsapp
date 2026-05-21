@@ -209,20 +209,22 @@ export default function WhatsAppView() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-xl border border-white/5 bg-card p-4">
-          <p className="text-2xl font-bold">{totalMessages}</p>
-          <p className="text-xs text-text-muted">Mensagens</p>
+      {connected && (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="rounded-xl border border-white/5 bg-card p-4">
+            <p className="text-2xl font-bold">{totalMessages}</p>
+            <p className="text-xs text-text-muted">Mensagens</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-card p-4">
+            <p className="text-2xl font-bold">{contacts.length}</p>
+            <p className="text-xs text-text-muted">Contatos</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-card p-4">
+            <p className="text-2xl font-bold">Online</p>
+            <p className="text-xs text-text-muted">Status</p>
+          </div>
         </div>
-        <div className="rounded-xl border border-white/5 bg-card p-4">
-          <p className="text-2xl font-bold">{contacts.length}</p>
-          <p className="text-xs text-text-muted">Contatos</p>
-        </div>
-        <div className="rounded-xl border border-white/5 bg-card p-4">
-          <p className="text-2xl font-bold">{connected ? 'Online' : 'Offline'}</p>
-          <p className="text-xs text-text-muted">Status</p>
-        </div>
-      </div>
+      )}
 
       {!connected && (
         <div className="rounded-xl border border-white/5 bg-card p-6 text-center space-y-4">
@@ -264,15 +266,16 @@ export default function WhatsAppView() {
         </div>
       )}
 
-      <div className="rounded-xl border border-white/5 bg-card">
-        <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between">
-          <span>Ultimas Mensagens</span>
-          <span className="text-xs text-text-muted">{history.length} msgs</span>
-        </div>
-        {history.length === 0 && (
-          <div className="p-6 text-center text-sm text-text-muted">Nenhuma mensagem ainda</div>
-        )}
-        {history.map((msg, i) => (
+      {connected && (
+        <div className="rounded-xl border border-white/5 bg-card">
+          <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between">
+            <span>Ultimas Mensagens</span>
+            <span className="text-xs text-text-muted">{history.length} msgs</span>
+          </div>
+          {history.length === 0 && (
+            <div className="p-6 text-center text-sm text-text-muted">Nenhuma mensagem ainda</div>
+          )}
+          {history.map((msg, i) => (
           <div
             key={i}
             className="px-4 py-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors"
@@ -330,7 +333,9 @@ export default function WhatsAppView() {
           </div>
         )}
       </div>
+      )}
 
+      {connected && (
       <div className="rounded-xl border border-white/5 bg-card">
         <div className="px-4 py-3 border-b border-white/5 font-medium text-sm">
           Contatos Monitorados
@@ -401,6 +406,7 @@ export default function WhatsAppView() {
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }
