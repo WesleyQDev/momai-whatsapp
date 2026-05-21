@@ -476,9 +476,12 @@ function createExtensionsRoutes(context) {
     }
 
     /* ── Helper: wipe Baileys auth dir (rm dir, fallback to creds.json) ── */
-    function _wipeBaileysAuth(baseDir) {
-      const authDir = path.join(baseDir, 'whatsapp', 'baileys-auth')
-      // Try full dir rm first (process is dead, should work)
+    function _wipeBaileysAuth() {
+      // Worker resolves data dir from __dirname — we mirror that here
+      // routes file: .../node-core/api/routes/ -> ../../../../data = .../momai/data
+      // worker file: .../packaged/whatsapp/ -> ../../../../data = .../momai/data
+      const repoData = path.resolve(__dirname, '..', '..', '..', '..', 'data')
+      const authDir = path.join(repoData, 'extensions', 'whatsapp', 'baileys-auth')
       try {
         if (fs.existsSync(authDir)) {
           fs.rmSync(authDir, { recursive: true, force: true })
@@ -508,7 +511,7 @@ function createExtensionsRoutes(context) {
         await new Promise(r => setTimeout(r, 500))
 
         // 2. Wipe Baileys auth — forces QR on next start
-        _wipeBaileysAuth(skillRegistry.extensionsDir)
+        _wipeBaileysAuth()
 
         // 3. Broadcast logged_out so UI shows QR container
         extensionEvents.broadcast('authenticated', { status: 'logged_out' })
@@ -538,7 +541,7 @@ function createExtensionsRoutes(context) {
         await extensionHostManager.stopPersistent('whatsapp').catch(() => {})
         await new Promise(r => setTimeout(r, 500))
 
-        _wipeBaileysAuth(skillRegistry.extensionsDir)
+        _wipeBaileysAuth()
 
         const skill = (skillRegistry.getAll?.() || []).find(s => s.id === 'whatsapp')
         if (skill) {
