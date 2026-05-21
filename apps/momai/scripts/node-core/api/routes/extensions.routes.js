@@ -445,10 +445,25 @@ function createExtensionsRoutes(context) {
       const extId = panelMatch[1]
       try {
         const result = await extensionHostManager.sendToPersistent(extId, { toolName: 'panel', args: {} })
-        sendJson(res, 200, result || { ok: false, error: 'no_data' })
+        const body = result || { ok: false, error: 'no_data' }
+        // Wrap raw responses in structured response for GenericExtensionCard
+        if (!body.structuredResponse) {
+          body.structuredResponse = {
+            type: 'generic-extension',
+            data: {
+              extension: extId,
+              header: { title: extId },
+              status: body.error ? { type: 'error', message: body.error } : { type: 'success', message: 'Conectado' },
+              items: body.whitelist?.map((w: any) => ({ label: w.name || w, meta: w.number || w })) || []
+            }
+          }
+        }
+        sendJson(res, 200, body)
       } catch (err) {
         sendJson(res, 200, { ok: false, error: err.message })
       }
+      return true
+    }
       return true
     }
 
