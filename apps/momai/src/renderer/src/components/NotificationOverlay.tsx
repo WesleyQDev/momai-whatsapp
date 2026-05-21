@@ -48,10 +48,14 @@ export default function NotificationOverlay() {
             }
 
             const overlayData = {
-              type: 'whatsapp_notification',
-              ...event.data,
-              quickReplies: llmData.quickReplies || [],
-              tts: llmData.tts || ''
+              structuredResponse: {
+                type: 'whatsapp_notification',
+                data: {
+                  ...event.data,
+                  quickReplies: llmData.quickReplies || [],
+                  tts: llmData.tts || ''
+                }
+              }
             }
 
             // Show overlay
@@ -65,7 +69,7 @@ export default function NotificationOverlay() {
             }
           } catch {
             // Fallback: show raw notification
-            const rawData = { type: 'whatsapp_notification', ...event.data, quickReplies: [] }
+            const rawData = { structuredResponse: { type: 'whatsapp_notification', data: { ...event.data, quickReplies: [] } } }
             if ((window as any).api?.openOverlay) {
               ;(window as any).api.openOverlay(rawData)
             }
