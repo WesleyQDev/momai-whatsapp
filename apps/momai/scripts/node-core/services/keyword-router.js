@@ -22,17 +22,19 @@ function getKeywords() {
 
 // Seed default keywords for packaged extensions
 function seedDefaultKeywords(skillRegistry) {
-  const kw = shared.store.skillKeywords
-  if (!kw) shared.store.skillKeywords = {}
+  if (!shared.store.skillKeywords) shared.store.skillKeywords = {}
   const skills = skillRegistry.getAll ? skillRegistry.getAll() : []
   for (const skill of skills) {
     const id = skill.manifest?.id || skill.id
     if (!id) continue
-    const existing = shared.store.skillKeywords[id]
-    const triggers = (skill.manifest?.intents || skill.manifest?.triggers || []).filter(Boolean)
-    if ((!existing || existing.length === 0) && triggers.length > 0) {
-      shared.store.skillKeywords[id] = triggers
-      console.log(`[keywords] Seeded ${triggers.length} keywords for ${id}`)
+    const newKeywords = (skill.manifest?.intents || skill.manifest?.triggers || []).filter(Boolean)
+    if (newKeywords.length === 0) continue
+
+    const existing = shared.store.skillKeywords[id] || []
+    const merged = [...new Set([...existing, ...newKeywords])]
+    if (merged.length !== existing.length) {
+      shared.store.skillKeywords[id] = merged
+      console.log(`[keywords] Updated ${id}: ${existing.length} -> ${merged.length} keywords`)
     }
   }
 }
