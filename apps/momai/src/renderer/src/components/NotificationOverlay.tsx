@@ -26,21 +26,24 @@ export default function NotificationOverlay() {
     }
   }, [])
 
-  const handleEvent = useCallback((event: { eventType: string; data: any }) => {
-    if (event.eventType === 'whatsapp_notification' || event.eventType === 'notification') {
-      const id = `${event.eventType}-${Date.now()}`
-      const notification: Notification = {
-        id,
-        eventType: event.eventType,
-        data: event.data,
-        receivedAt: Date.now()
-      }
-      setNotifications((prev) => [...prev, notification])
+  const handleEvent = useCallback(
+    (event: { eventType: string; data: any }) => {
+      if (event.eventType === 'whatsapp_notification' || event.eventType === 'notification') {
+        const id = `${event.eventType}-${Date.now()}`
+        const notification: Notification = {
+          id,
+          eventType: event.eventType,
+          data: event.data,
+          receivedAt: Date.now()
+        }
+        setNotifications((prev) => [...prev, notification])
 
-      const timer = setTimeout(() => removeNotification(id), NOTIFICATION_TIMEOUT)
-      timersRef.current.set(id, timer)
-    }
-  }, [removeNotification])
+        const timer = setTimeout(() => removeNotification(id), NOTIFICATION_TIMEOUT)
+        timersRef.current.set(id, timer)
+      }
+    },
+    [removeNotification]
+  )
 
   useExtensionEvents({ onEvent: handleEvent })
 
@@ -66,17 +69,20 @@ export default function NotificationOverlay() {
             onDismiss={() => removeNotification(notification.id)}
             onRespond={async (message: string) => {
               try {
-                await fetch(`${API_URL}/extensions/${(notification.data.contactJid || '').includes('@') ? 'whatsapp' : 'whatsapp'}/command`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    toolName: 'send_message',
-                    args: {
-                      contact: notification.data.contactJid || notification.data.contact,
-                      message
-                    }
-                  })
-                })
+                await fetch(
+                  `${API_URL}/extensions/${(notification.data.contactJid || '').includes('@') ? 'whatsapp' : 'whatsapp'}/command`,
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      toolName: 'send_message',
+                      args: {
+                        contact: notification.data.contactJid || notification.data.contact,
+                        message
+                      }
+                    })
+                  }
+                )
               } catch (err) {
                 console.error('Failed to send:', err)
               }
