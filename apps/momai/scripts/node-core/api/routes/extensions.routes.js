@@ -128,7 +128,8 @@ function createExtensionsRoutes(context) {
     saveStore,
     ensureDir,
     llamaState,
-    semanticState
+    semanticState,
+    extensionHostManager = { sendToPersistent: async () => ({ ok: false, error: 'not_available' }) }
   } = context
 
   async function getExtensionsPayload(lang) {
@@ -428,6 +429,43 @@ function createExtensionsRoutes(context) {
         active_processes: (llamaState.process ? 2 : 1) + (semanticState.embedding.process ? 1 : 0),
         vram_usage: 0
       })
+      return true
+    }
+
+    /* ── SSE stream for extension push events ── */
+    if (pathname === '/extensions/events' && req.method === 'GET') {
+      const extensionEvents = require('../../services/extension-events')
+      extensionEvents.addClient(res)
+      return true
+    }
+
+    /* ── Fetch panel data from persistent worker ── */
+    const panelMatch = pathname.match(/^\/extensions\/([^/]+)\/panel$/)
+    if (panelMatch && req.method === 'GET') {
+      const extId = panelMatch[1]
+      try {
+        const result = await extensionHostManager.sendToPersistent(extId, { toolName: 'panel', args: {} })
+        sendJson(res, 200, result || { ok: false, error: 'no_data' })
+      } catch (err) {
+        sendJson(res, 200, { ok: false, error: err.message })
+      }
+      return true
+    }
+
+    /* ── Send command to persistent worker ── */
+    const cmdMatch = pathname.match(/^\/extensions\/([^/]+)\/command$/)
+    if (cmdMatch && req.method === 'POST') {
+      const extId = cmdMatch[1]
+      const body = await readJsonBody(req).catch(() => ({}))
+      try {
+        const result = await extensionHostManager.sendToPersistent(extId, {
+          toolName: body.toolName,
+          args: body.args || {}
+        })
+        sendJson(res, 200, result || { ok: true })
+      } catch (err) {
+        sendJson(res, 200, { ok: false, error: err.message })
+      }
       return true
     }
 
