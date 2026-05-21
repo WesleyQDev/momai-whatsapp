@@ -29,25 +29,52 @@ export default function NotificationOverlay() {
   const handleEvent = useCallback(
     (event: { eventType: string; data: any }) => {
       if (event.eventType === 'whatsapp_notification' || event.eventType === 'notification') {
-        // Use Electron overlay window when available
-        if ((window as any).api?.openOverlay) {
-          ;(window as any).api.openOverlay({
-            type: 'whatsapp_notification',
-            ...event.data
-          })
-          return
+        const processMsg = async () => {
+          try {
+            // Get LLM-generated TTS + quick replies
+            const llmRes = await fetch(`${API_URL}/extensions/whatsapp/process-notification`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contact: event.data.contact, message: event.data.message })
+            })
+            const llmData = await llmRes.json()
+
+            // Play TTS using Web Speech API (built into Electron/Chrome)
+            if (llmData.tts && 'speechSynthesis' in window) {
+              try {
+                const utterance = new SpeechSynthesisUtterance(llmData.tts)
+                utterance.lang = 'pt-BR'
+                utterance.rate = 1.1
+                window.speechSynthesis.cancel()
+                window.speechSynthesis.speak(utterance)
+              } catch {}
+            }
+
+            const overlayData = {
+              type: 'whatsapp_notification',
+              ...event.data,
+              quickReplies: llmData.quickReplies || [],
+              tts: llmData.tts || ''
+            }
+
+            // Show overlay
+            if ((window as any).api?.openOverlay) {
+              ;(window as any).api.openOverlay(overlayData)
+            } else {
+              const id = `${event.eventType}-${Date.now()}`
+              setNotifications((prev) => [...prev, { id, eventType: event.eventType, data: overlayData, receivedAt: Date.now() }])
+              const timer = setTimeout(() => removeNotification(id), NOTIFICATION_TIMEOUT)
+              timersRef.current.set(id, timer)
+            }
+          } catch {
+            // Fallback: show raw notification
+            const rawData = { type: 'whatsapp_notification', ...event.data, quickReplies: [] }
+            if ((window as any).api?.openOverlay) {
+              ;(window as any).api.openOverlay(rawData)
+            }
+          }
         }
-        // Fallback: in-app card overlay
-        const id = `${event.eventType}-${Date.now()}`
-        const notification: Notification = {
-          id,
-          eventType: event.eventType,
-          data: event.data,
-          receivedAt: Date.now()
-        }
-        setNotifications((prev) => [...prev, notification])
-        const timer = setTimeout(() => removeNotification(id), NOTIFICATION_TIMEOUT)
-        timersRef.current.set(id, timer)
+        processMsg()
       }
     },
     [removeNotification]

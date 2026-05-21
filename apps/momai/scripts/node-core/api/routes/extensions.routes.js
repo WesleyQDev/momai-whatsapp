@@ -444,7 +444,10 @@ function createExtensionsRoutes(context) {
     if (panelMatch && req.method === 'GET') {
       const extId = panelMatch[1]
       try {
-        const result = await extensionHostManager.sendToPersistent(extId, { toolName: 'panel', args: {} })
+        const result = await extensionHostManager.sendToPersistent(extId, {
+          toolName: 'panel',
+          args: {}
+        })
         const body = result || { ok: false, error: 'no_data' }
         // Wrap raw responses in structured response for GenericExtensionCard
         if (!body.structuredResponse) {
@@ -454,14 +457,56 @@ function createExtensionsRoutes(context) {
               extension: extId,
               header: { title: extId, subtitle: body.connected ? 'Conectado' : 'Desconectado' },
               connected: body.connected,
-              status: body.error ? { type: 'error', message: body.error } : (body.connected ? { type: 'success', message: 'Conectado' } : undefined),
-              items: (body.whitelist || []).map(function(w) { return { label: w.name || w, meta: w.number || w } })
+              status: body.error
+                ? { type: 'error', message: body.error }
+                : body.connected
+                  ? { type: 'success', message: 'Conectado' }
+                  : undefined,
+              items: (body.whitelist || []).map(function (w) {
+                return { label: w.name || w, meta: w.number || w }
+              })
             }
           }
         }
         sendJson(res, 200, body)
       } catch (err) {
         sendJson(res, 200, { ok: false, error: err.message })
+      }
+      return true
+    }
+
+    /* ── Process WhatsApp notification with LLM ── */
+    if (pathname === '/extensions/whatsapp/process-notification' && req.method === 'POST') {
+      try {
+        const { createSkillLlmHelper } = require('../../services/skill-llm')
+        const body = await readJsonBody(req).catch(() => ({}))
+        const contact = body.contact || body.from || 'Alguem'
+        const message = body.message || body.text || ''
+
+        const llm = createSkillLlmHelper({
+          llamaState,
+          tierName: store?.settings?.ai_tier || 'pro',
+          temperature: 0.3
+        })
+
+        const result = await llm.completeText({
+          system: 'Você é um assistente que processa notificações do WhatsApp. Gere uma frase curta para TTS (text-to-speech) e 2-3 opções de resposta rápida. Responda APENAS no formato JSON: {"tts": "frase curta", "quickReplies": ["opcao1", "opcao2"]}',
+          user: `Nova mensagem de ${contact}: "${message}"`
+        })
+
+        let parsed
+        try {
+          parsed = JSON.parse(result.text)
+        } catch {
+          parsed = {
+            tts: `${contact} enviou: ${message.substring(0, 60)}`,
+            quickReplies: ['Sim', 'Nao', 'Agora nao']
+          }
+        }
+
+        sendJson(res, 200, { tts: parsed.tts || '', quickReplies: parsed.quickReplies || [] })
+      } catch (err) {
+        sendJson(res, 200, { tts: '', quickReplies: [] })
       }
       return true
     }
