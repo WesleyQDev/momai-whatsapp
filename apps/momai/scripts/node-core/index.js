@@ -67,6 +67,16 @@ async function initializeRegistries() {
   } catch (e) {
     info('[core] Prompt registry not available:', e.message)
   }
+
+  // Seed extension keywords on startup
+  try {
+    const { seedDefaultKeywords } = require('./services/keyword-router')
+    if (typeof seedDefaultKeywords === 'function' && skillRegistry) {
+      seedDefaultKeywords(skillRegistry)
+    }
+  } catch (e) {
+    info('[core] Keyword seeding not available:', e.message)
+  }
 }
 
 // ============================================
