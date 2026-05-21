@@ -1898,34 +1898,28 @@ async function runVoiceCommand(payload = {}) {
 
   broadcast({ type: 'user', content: originalContent })
 
-  // Keyword routing: try direct skill execution, but fall through to LLM if
-  // the skill doesn't provide a user-facing directResponse
-  const { routeByKeyword } = require('./keyword-router')
-  const skillRegistry = shared.skillRegistry
-  let keywordWebSources = null
+  // Handle "responda" voice command BEFORE keyword routing
+  // This adds context about the last WhatsApp message and lets the LLM handle it
+  const contentLower = content.toLowerCase()
+  if (contentLower.includes('responda') || contentLower.includes('responde')) {
+    try {
+      const hostManager = require('./extension-host-manager')
+      const histResult = await hostManager.sendToPersistent('whatsapp', { toolName: 'get_history', args: {} })
+      if (histResult?.history?.length) {
+        const last = histResult.history[0]
+        content = `[Contexto: ultima mensagem no WhatsApp foi de "${last.from}" dizendo: "${last.text}"]\n${content}`
+      }
+    } catch {}
+    // Skip keyword routing, fall through to LLM with context
+  } else {
+    // Normal keyword routing for non-responda commands
+    const { routeByKeyword } = require('./keyword-router')
+    const skillRegistry = shared.skillRegistry
+    let keywordWebSources = null
 
-  if (skillRegistry) {
-    const match = routeByKeyword(content, skillRegistry)
-    if (match) {
-      debug(
-        `[voice-cmd] Keyword "${match.keyword}" matched skill "${match.skillId}"`
-      )
-
-      // For "responda" keyword, get last contact context from worker
-      const isResponda = match.skillId === 'whatsapp' && (content.toLowerCase().includes('responda') || content.toLowerCase().includes('responde'))
-      debug(`[voice-cmd] isResponda=${isResponda} skillId=${match.skillId} content="${content}"`)
-      if (isResponda) {
-        try {
-          const hostManager = require('./extension-host-manager')
-          const histResult = await hostManager.sendToPersistent('whatsapp', { toolName: 'get_history', args: {} })
-          if (histResult?.history?.length) {
-            const last = histResult.history[0]
-            content = `[Contexto: ultima mensagem no WhatsApp foi de "${last.from}" dizendo: "${last.text}"]\n${content}`
-          }
-        } catch {}
-        // Fall through to LLM with context
-      } else {
-        // Normal keyword skill execution
+    if (skillRegistry) {
+      const match = routeByKeyword(content, skillRegistry)
+      if (match) {
         broadcast({ type: 'assistant', data: { status: 'Executando skill...' } })
         try {
           const timeoutPromise = new Promise((_, reject) =>
