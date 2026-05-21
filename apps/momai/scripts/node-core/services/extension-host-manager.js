@@ -76,6 +76,10 @@ class ExtensionHostManager extends EventEmitter {
       stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
       env: { ...process.env, MOMAI_EXTENSION_ID: skillId, MOMAI_PERSISTENT: 'true' }
     })
+
+    child.stderr.on('data', (data) => {
+      console.error(`[ext:${skillId}:stderr]`, data.toString())
+    })
     const entry = { child, skillId, manifest, startedAt: Date.now() }
     this.persistentHosts.set(skillId, entry)
 
