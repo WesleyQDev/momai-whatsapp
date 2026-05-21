@@ -475,13 +475,14 @@ function createExtensionsRoutes(context) {
       return true
     }
 
-    /* ── Disconnect WhatsApp: stop + rename auth (Windows-safe) + restart to show QR ── */
+    /* ── Disconnect WhatsApp: stop (await exit) + rename auth + restart to show QR ── */
     if (pathname === '/extensions/whatsapp/disconnect' && req.method === 'POST') {
       try {
-        // 1. Kill the persistent worker
-        extensionHostManager.stopPersistent('whatsapp')
+        // 1. Kill persistent worker and WAIT for process to fully exit (releases file handles)
+        await extensionHostManager.stopPersistent('whatsapp')
+        await new Promise(r => setTimeout(r, 500)) // extra grace for Windows handle cleanup
 
-        // 2. Rename auth dir instead of deleting (rename works even with open files on Windows)
+        // 2. Rename auth dir (now safe — process is dead, no file handles open)
         const baileysAuthDir = path.join(skillRegistry.extensionsDir, 'whatsapp', 'baileys-auth')
         const baileysAuthBak = baileysAuthDir + '-old-' + Date.now()
         if (fs.existsSync(baileysAuthDir)) {

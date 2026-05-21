@@ -171,15 +171,21 @@ class ExtensionHostManager extends EventEmitter {
 
   stopPersistent(skillId) {
     const entry = this.persistentHosts.get(skillId)
-    if (!entry) return
-    entry.child.kill()
+    if (!entry) return Promise.resolve()
+    const { child } = entry
     this.persistentHosts.delete(skillId)
     this.restartCounts.delete(skillId)
+    child.kill()
+    return new Promise((resolve) => {
+      const done = () => { child.removeListener('exit', done); resolve() }
+      child.on('exit', done)
+      setTimeout(done, 3000) // safety timeout
+    })
   }
 
-  stopAllPersistent() {
-    for (const id of this.persistentHosts.keys()) {
-      this.stopPersistent(id)
+  async stopAllPersistent() {
+    for (const id of [...this.persistentHosts.keys()]) {
+      await this.stopPersistent(id)
     }
   }
 
