@@ -477,38 +477,33 @@ function createExtensionsRoutes(context) {
 
     /* ── Process WhatsApp notification with LLM ── */
     if (pathname === '/extensions/whatsapp/process-notification' && req.method === 'POST') {
+      const body = await readJsonBody(req).catch(() => ({}))
+      const contact = body.contact || body.from || 'Alguem'
+      const message = body.message || body.text || ''
+      const isNumber = /^\d{8,}$/.test(contact.replace(/\D/g, ''))
+      const displayContact = isNumber ? 'Um contato' : contact
+
+      // TTS fixo: so avisa quem mandou, sem repetir a mensagem
+      const tts = `Mensagem de ${displayContact}`
+
+      // LLM so para gerar opcoes de resposta rapida
+      let quickReplies = ['Sim', 'Nao', 'Agora nao']
       try {
         const { createSkillLlmHelper } = require('../../services/skill-llm')
-        const body = await readJsonBody(req).catch(() => ({}))
-        const contact = body.contact || body.from || 'Alguem'
-        const message = body.message || body.text || ''
-        const isNumber = /^\d{8,}$/.test(contact.replace(/\D/g, ''))
-        const displayContact = isNumber ? 'Um contato' : contact
-
         const llm = createSkillLlmHelper({
           llamaState,
           tierName: store?.settings?.ai_tier || 'pro',
           temperature: 0.3
         })
-
         const result = await llm.completeText({
-          system: 'Você gera uma frase curta para TTS e 2 opções de resposta. Responda apenas: TTS: frase aqui | Opcoes: op1, op2',
-          user: `${displayContact} disse: "${message}"`
+          system: 'Gere 2 opcoes curtas de resposta para uma mensagem. Responda apenas as opcoes separadas por virgula. Nao use numeracao.',
+          user: `Mensagem: "${message}"`
         })
+        const opts = (result.text || '').split(',').map(function(s) { return s.trim() }).filter(Boolean)
+        if (opts.length >= 2) quickReplies = opts.slice(0, 3)
+      } catch {}
 
-        let tts = `${displayContact} disse: ${message.length > 80 ? message.substring(0, 80) + '...' : message}`
-        let quickReplies = ['Sim', 'Nao', 'Agora nao']
-
-        const text = result.text || ''
-        const ttsMatch = text.match(/TTS:\s*(.+?)(?:\||$)/)
-        const optsMatch = text.match(/Opcoes:\s*(.+)/)
-        if (ttsMatch) tts = ttsMatch[1].trim()
-        if (optsMatch) quickReplies = optsMatch[1].split(',').map(function(s) { return s.trim() }).filter(Boolean)
-
-        sendJson(res, 200, { tts, quickReplies })
-      } catch (err) {
-        sendJson(res, 200, { tts: '', quickReplies: [] })
-      }
+      sendJson(res, 200, { tts, quickReplies })
       return true
     }
 
