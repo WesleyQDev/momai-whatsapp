@@ -61,10 +61,11 @@ export default function OverlayView() {
     const quickReplies = data?.quickReplies || []
 
     return (
-      <div className="w-screen h-screen flex items-center justify-center bg-transparent" onClick={handleClose}>
+      <div className="w-screen h-screen flex items-center justify-center bg-transparent select-none" onClick={handleClose}>
         <div
           className="rounded-2xl border border-white/10 bg-zinc-900/95 backdrop-blur-xl shadow-2xl p-5 w-full max-w-md mx-4 animate-fade-in pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
+          style={{ WebkitAppRegion: 'drag' } as any}
         >
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-lg">
@@ -74,7 +75,7 @@ export default function OverlayView() {
               <p className="text-sm font-medium text-white truncate">{contact}</p>
               <p className="text-xs text-text-muted">WhatsApp</p>
             </div>
-            <button onClick={handleClose} className="text-text-muted hover:text-white p-1">
+            <button onClick={handleClose} className="text-text-muted hover:text-white p-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
               <XMarkIcon className="w-4 h-4" />
             </button>
           </div>
@@ -85,6 +86,7 @@ export default function OverlayView() {
                 key={i}
                 onClick={() => handleRespond(reply)}
                 className="px-3 py-1.5 text-xs rounded-full bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20"
+                style={{ WebkitAppRegion: 'no-drag' } as any}
               >
                 {reply}
               </button>
@@ -92,6 +94,7 @@ export default function OverlayView() {
             <button
               onClick={() => handleRespond('__open_chat__')}
               className="px-3 py-1.5 text-xs rounded-full bg-white/5 text-text-muted hover:text-white hover:bg-white/10 transition-colors"
+              style={{ WebkitAppRegion: 'no-drag' } as any}
             >
               ✏️ Responder
             </button>
