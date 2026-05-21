@@ -23,6 +23,9 @@ export default function WhatsAppView() {
   const [history, setHistory] = useState<Message[]>([])
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [newContact, setNewContact] = useState('')
+  const [editingName, setEditingName] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
 
   const loadStats = useCallback(async () => {
     try {
@@ -32,12 +35,11 @@ export default function WhatsAppView() {
         body: JSON.stringify({ toolName: 'get_stats', args: {} })
       })
       const data = await res.json()
-      console.log('[WhatsAppView] loadStats response:', JSON.stringify(data))
       if (data.ok === false) return
       setConnected(data.connected || false)
       setTotalMessages(data.totalMessages || 0)
       setContacts(data.whitelist || [])
-    } catch (e) { console.error('[WhatsAppView] loadStats error:', e) }
+    } catch {}
   }, [])
 
   const loadHistory = useCallback(async () => {
@@ -52,15 +54,17 @@ export default function WhatsAppView() {
     } catch {}
   }, [])
 
-  useEffect(() => {
-    loadStats()
-    loadHistory()
-    const interval = setInterval(() => {
-      loadStats()
-      loadHistory()
-    }, 5000)
-    return () => clearInterval(interval)
+  const refresh = useCallback(async () => {
+    setRefreshing(true)
+    await Promise.all([loadStats(), loadHistory()])
+    setRefreshing(false)
   }, [loadStats, loadHistory])
+
+  useEffect(() => {
+    refresh()
+    const interval = setInterval(refresh, 5000)
+    return () => clearInterval(interval)
+  }, [refresh])
 
   useExtensionEvents({
     onEvent: useCallback(
@@ -72,16 +76,12 @@ export default function WhatsAppView() {
         } else if (event.eventType === 'authenticated') {
           setConnected(event.data?.status === 'connected')
           setQrUrl(null)
-          loadStats()
-          loadHistory()
         } else if (event.eventType === 'connection_status') {
           setConnected(event.data?.status === 'connected')
-        } else if (event.eventType === 'whatsapp_notification') {
-          loadStats()
-          loadHistory()
         }
+        refresh()
       },
-      [loadStats, loadHistory]
+      [refresh]
     )
   })
 
@@ -94,7 +94,7 @@ export default function WhatsAppView() {
         body: JSON.stringify({ toolName: 'add_contact', args: { contact: newContact.trim() } })
       })
       setNewContact('')
-      loadStats()
+      refresh()
     } catch {}
   }
 
@@ -105,7 +105,20 @@ export default function WhatsAppView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolName: 'remove_contact', args: { contact: id } })
       })
-      loadStats()
+      refresh()
+    } catch {}
+  }
+
+  const saveContactName = async (contactId: string) => {
+    if (!editValue.trim()) return
+    try {
+      await fetch(`${API_URL}/extensions/whatsapp/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolName: 'set_contact_name', args: { contact: contactId, name: editValue.trim() } })
+      })
+      setEditingName(null)
+      refresh()
     } catch {}
   }
 
@@ -119,6 +132,13 @@ export default function WhatsAppView() {
       <div className="flex items-center gap-3">
         <span className="text-2xl">💚</span>
         <h1 className="text-xl font-semibold">WhatsApp</h1>
+        <button
+          onClick={refresh}
+          disabled={refreshing}
+          className="ml-2 px-2 py-1 text-xs rounded-lg bg-white/5 hover:bg-white/10 text-text-muted disabled:opacity-50"
+        >
+          {refreshing ? '...' : 'Atualizar'}
+        </button>
         <div
           className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
             connected ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
@@ -154,8 +174,9 @@ export default function WhatsAppView() {
       )}
 
       <div className="rounded-xl border border-white/5 bg-card">
-        <div className="px-4 py-3 border-b border-white/5 font-medium text-sm">
-          Ultimas Mensagens
+        <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between">
+          <span>Ultimas Mensagens</span>
+          <span className="text-xs text-text-muted">{history.length} msgs</span>
         </div>
         {history.length === 0 && (
           <div className="p-6 text-center text-sm text-text-muted">Nenhuma mensagem ainda</div>
@@ -170,7 +191,7 @@ export default function WhatsAppView() {
               <span className="font-medium text-sm">{msg.from}</span>
               <span className="ml-auto text-xs text-text-muted">{formatTime(msg.timestamp)}</span>
             </div>
-            <p className="text-sm text-text-muted mt-0.5 ml-5">{msg.text}</p>
+            <p className="text-sm text-text-muted mt-0.5 ml-5 truncate">{msg.text}</p>
           </div>
         ))}
       </div>
@@ -189,14 +210,41 @@ export default function WhatsAppView() {
           >
             <span className="text-lg">📱</span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{c.name}</p>
-              <p className="text-xs text-text-muted truncate">{c.number}</p>
+              {editingName === c.id ? (
+                <input
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveContactName(c.id)
+                    if (e.key === 'Escape') setEditingName(null)
+                  }}
+                  onBlur={() => saveContactName(c.id)}
+                  autoFocus
+                  className="w-full bg-white/10 rounded px-2 py-0.5 text-sm border border-accent/50 outline-none"
+                />
+              ) : (
+                <>
+                  <p className="text-sm font-medium truncate">{c.name}</p>
+                  <p className="text-xs text-text-muted truncate">{c.number}</p>
+                </>
+              )}
             </div>
             <button
-              onClick={() => removeContact(c.id)}
-              className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded-lg hover:bg-red-500/10"
+              onClick={() => {
+                setEditingName(c.id)
+                setEditValue(c.name)
+              }}
+              className="text-xs text-text-muted hover:text-text px-1.5 py-1 rounded-lg hover:bg-white/5"
+              title="Renomear"
             >
-              Remover
+              ✏️
+            </button>
+            <button
+              onClick={() => removeContact(c.id)}
+              className="text-xs text-red-400 hover:text-red-300 px-1.5 py-1 rounded-lg hover:bg-red-500/10"
+              title="Remover"
+            >
+              🗑️
             </button>
           </div>
         ))}
