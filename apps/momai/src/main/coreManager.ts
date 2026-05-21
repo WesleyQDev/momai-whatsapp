@@ -1,4 +1,4 @@
-import { app, ipcMain } from 'electron'
+import { app, ipcMain, powerMonitor } from 'electron'
 import { existsSync, mkdirSync, readFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { spawn, execSync } from 'child_process'
@@ -69,6 +69,13 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
     economyService = new EconomyService()
     economyService.onStateChange(broadcastEconomyState)
     economyService.setEconomyHost(`http://${apiHost}:${apiPort}`)
+
+    economyService.setGetSystemIdleTime(() => powerMonitor.getSystemIdleTime())
+
+    economyService.setIsWindowMinimized(() => {
+      const win = getMainWindow()
+      return win ? win.isMinimized() : false
+    })
 
     const [gamingRes, configRes] = await Promise.all([
       fetch(`http://${apiHost}:${apiPort}/system/gaming-apps`),

@@ -10,7 +10,11 @@ describe('EconomyService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     service = new EconomyService()
-    service.httpGet = vi.fn().mockResolvedValue({ gaming_mode_enabled: true })
+    service.httpGet = vi.fn().mockResolvedValue({
+      gaming_mode_enabled: true,
+      idle_timeout_app_open: 5,
+      idle_timeout_minimized: 1,
+    })
     service.httpPost = vi.fn().mockResolvedValue({ ok: true })
   })
 
@@ -122,5 +126,81 @@ describe('EconomyService', () => {
     const result = parseProcessList(csv)
     console.log('[TEST] parseProcessList result:', JSON.stringify(result))
     expect(result).toEqual(['chrome.exe', 'FortniteClient-Win64-Shipping.exe'])
+  })
+
+  it('activates economy when idle timeout reached (app open)', async () => {
+    const economyHost = 'http://localhost:12345'
+    service.setEconomyHost(economyHost)
+    service.setGamingModeEnabled(false)
+    service.setGetSystemIdleTime(() => 301) // 5min + 1s
+    service.setIsWindowMinimized(() => false)
+
+    await service.poll(['chrome.exe'])
+
+    expect(service.httpPost).toHaveBeenCalledWith(`${economyHost}/llama/stop`)
+    expect(service.getState().active).toBe(true)
+    expect(service.getState().reason).toBe('idle')
+  })
+
+  it('activates economy faster when window is minimized', async () => {
+    const economyHost = 'http://localhost:12345'
+    service.setEconomyHost(economyHost)
+    service.setGamingModeEnabled(false)
+    service.setGetSystemIdleTime(() => 90) // 1min30s
+    service.setIsWindowMinimized(() => true)
+
+    await service.poll(['chrome.exe'])
+
+    expect(service.httpPost).toHaveBeenCalledWith(`${economyHost}/llama/stop`)
+    expect(service.getState().active).toBe(true)
+    expect(service.getState().reason).toBe('idle')
+  })
+
+  it('deactivates economy when user becomes active again', async () => {
+    const economyHost = 'http://localhost:12345'
+    service.setEconomyHost(economyHost)
+    service.setGamingModeEnabled(false)
+    service.setGetSystemIdleTime(() => 310)
+    service.setIsWindowMinimized(() => false)
+
+    await service.poll(['chrome.exe'])
+    expect(service.getState().active).toBe(true)
+
+    service.setGetSystemIdleTime(() => 1) // user just interacted
+    await service.poll(['chrome.exe'])
+    expect(service.getState().active).toBe(false)
+    expect(service.httpPost).toHaveBeenLastCalledWith(`${economyHost}/llama/start`)
+  })
+
+  it('does not activate when idle timeout is set to 0 (disabled)', async () => {
+    service.httpGet = vi.fn().mockResolvedValue({
+      gaming_mode_enabled: false,
+      idle_timeout_app_open: 0,
+      idle_timeout_minimized: 0,
+    })
+    service.setGetSystemIdleTime(() => 9999)
+    service.setIsWindowMinimized(() => false)
+
+    await service.poll(['chrome.exe'])
+
+    expect(service.getState().active).toBe(false)
+  })
+
+  it('gaming mode takes priority over idle', async () => {
+    const economyHost = 'http://localhost:12345'
+    service.setEconomyHost(economyHost)
+    service.setGamingModeEnabled(true)
+    service.setGamingApps([
+      { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
+    ])
+    // Idle conditions are met, but gaming should win
+    service.setGetSystemIdleTime(() => 9999)
+    service.setIsWindowMinimized(() => false)
+
+    await service.poll(['chrome.exe', 'FortniteClient-Win64-Shipping.exe'])
+
+    expect(service.getState().active).toBe(true)
+    expect(service.getState().reason).toBe('gaming')
+    expect(service.getState().detectedGames[0].name).toBe('Fortnite')
   })
 })

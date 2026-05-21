@@ -54,6 +54,12 @@ export class EconomyService {
   private economyHost = 'http://localhost:8080'
   private gamingModeEnabled = false
   private gamePreferences: Record<string, boolean> = {}
+  private getSystemIdleTime: () => number = () => 0
+  private isWindowMinimized: () => boolean = () => false
+
+  private idleTimeoutAppOpen = 5
+  private idleTimeoutMinimized = 1
+
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private appOpenTimer: ReturnType<typeof setTimeout> | null = null
   private appMinimizedTimer: ReturnType<typeof setTimeout> | null = null
@@ -117,6 +123,19 @@ export class EconomyService {
 
   setPreferencesPath(path: string): void {
     this.preferencesPath = path
+  }
+
+  setGetSystemIdleTime(fn: () => number): void {
+    this.getSystemIdleTime = fn
+  }
+
+  setIsWindowMinimized(fn: () => boolean): void {
+    this.isWindowMinimized = fn
+  }
+
+  setIdleTimeouts(appOpen: number, minimized: number): void {
+    this.idleTimeoutAppOpen = appOpen
+    this.idleTimeoutMinimized = minimized
   }
 
   async dismiss(): Promise<void> {
@@ -238,10 +257,32 @@ export class EconomyService {
     return detected
   }
 
+  async checkForIdle(): Promise<boolean> {
+    const idleSeconds = this.getSystemIdleTime()
+    const minimized = this.isWindowMinimized()
+
+    const timeoutMinutes = minimized ? this.idleTimeoutMinimized : this.idleTimeoutAppOpen
+    if (timeoutMinutes <= 0) return false
+
+    return idleSeconds >= timeoutMinutes * 60
+  }
+
   async poll(processOverrides?: string[]): Promise<void> {
     try {
       const config = await this.httpGet(`${this.economyHost}/economy/config`)
       this.gamingModeEnabled = !!(config as any).gaming_mode_enabled
+      this.setIdleTimeouts(
+        (config as any).idle_timeout_app_open ?? 5,
+        (config as any).idle_timeout_minimized ?? 1
+      )
+    } catch {
+      // Will retry on next interval
+    }
+
+    // Refresh gaming apps list so newly added games are detected
+    try {
+      const apps = await this.httpGet(`${this.economyHost}/system/gaming-apps`)
+      if (Array.isArray(apps)) this.setGamingApps(apps)
     } catch {
       // Will retry on next interval
     }
@@ -253,7 +294,10 @@ export class EconomyService {
       if (hasGames && !this.currentState.active) {
         this.dismissed = false
         await this.activateEconomy('gaming', detected)
-      } else if (!hasGames && this.currentState.active && this.currentState.reason === 'gaming') {
+        return
+      }
+
+      if (!hasGames && this.currentState.active && this.currentState.reason === 'gaming') {
         await this.deactivateEconomy()
       }
 
@@ -261,7 +305,17 @@ export class EconomyService {
       if (this.dismissed) {
         const stillRunning = await this.checkForGames(processOverrides, true)
         if (stillRunning.length === 0) this.dismissed = false
+        return
       }
+    }
+
+    // Soneca da IA: idle timeout check
+    const isIdle = await this.checkForIdle()
+
+    if (isIdle && !this.currentState.active) {
+      await this.activateEconomy('idle', [])
+    } else if (!isIdle && this.currentState.active && this.currentState.reason === 'idle') {
+      await this.deactivateEconomy()
     }
   }
 

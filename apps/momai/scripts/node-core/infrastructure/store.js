@@ -59,7 +59,7 @@ function defaultStore() {
       updated_at: now
     },
     economy: {
-      gaming_mode_enabled: false,
+      gaming_mode_enabled: true,
       idle_timeout_app_open: 5,
       idle_timeout_minimized: 1,
       auto_detect_known_games: true,

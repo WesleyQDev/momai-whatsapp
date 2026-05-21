@@ -353,7 +353,11 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     onClose()
   }, [onClose])
 
+  const isFirstRenderRef = useRef(true)
   useEffect(() => {
+    if (!isFirstRenderRef.current) return
+    isFirstRenderRef.current = false
+
     loadSettings()
     checkLocalStatus()
     loadGamingApps()

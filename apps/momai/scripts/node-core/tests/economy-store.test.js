@@ -4,7 +4,7 @@ describe('economy store defaults', () => {
     const store = defaultStore()
 
     expect(store.economy).toBeDefined()
-    expect(store.economy.gaming_mode_enabled).toBe(false)
+    expect(store.economy.gaming_mode_enabled).toBe(true)
     expect(typeof store.economy.idle_timeout_app_open).toBe('number')
     expect(typeof store.economy.idle_timeout_minimized).toBe('number')
     expect(store.economy.auto_detect_known_games).toBe(true)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 
 interface EconomyTabProps {
   t: (key: string) => string
@@ -63,7 +63,6 @@ export const EconomyTab = React.memo(
     const [gamePrefs, setGamePrefs] = useState<Record<string, boolean>>({})
 
     useEffect(() => {
-      console.log('[EconomyTab] Mounting, api present:', !!(window as any).api)
       ;(window as any).api?.getEconomyCatalog?.()
         .then((data: any) => {
           console.log('[EconomyTab] Catalog loaded:', data?.length, 'games')
@@ -100,21 +99,16 @@ export const EconomyTab = React.memo(
 
     const autoDetectOn = economyConfig?.gaming_mode_enabled ?? false
 
-    // When auto-detect is off, hide scanned games; when on, show them with covers from catalog
-    const mergedCatalog = autoDetectOn
-      ? scanned.map((s: any) => {
-          const match = catalog.find((c: any) => c.name.toLowerCase() === s.name?.toLowerCase())
-          if (match) {
-            console.log(`[EconomyTab] Match: "${s.name}" → catalog coverUrl="${match.coverUrl}", steamGridId=${match.steamGridId}`)
-          } else {
-            console.log(`[EconomyTab] No catalog match for: "${s.name}"`)
-          }
-          if (match && (match.coverUrl || match.steamGridId)) {
-            return { ...s, coverUrl: match.coverUrl || getCoverUrl(match), steamGridId: match.steamGridId }
-          }
-          return s
-        })
-      : []
+    const mergedCatalog = useMemo(() => {
+      if (!autoDetectOn) return []
+      return scanned.map((s: any) => {
+        const match = catalog.find((c: any) => c.name.toLowerCase() === s.name?.toLowerCase())
+        if (match && (match.coverUrl || match.steamGridId)) {
+          return { ...s, coverUrl: match.coverUrl || getCoverUrl(match), steamGridId: match.steamGridId }
+        }
+        return s
+      })
+    }, [autoDetectOn, scanned, catalog])
 
     const runningGames = economyState?.detectedGames || []
     const runningNames = new Set(runningGames.map(g => g.name))
@@ -284,122 +278,102 @@ export const EconomyTab = React.memo(
           </div>
         )}
 
-          {/* Custom user-added games (not in catalog) */}
-          {gamingApps.filter(a => !mergedCatalog.some((c: any) => c.name === a.name)).length > 0 && (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
-              {gamingApps
-                .filter(a => !mergedCatalog.some((c: any) => c.name === a.name))
-                .map((app) => (
-                  <div
-                    key={app.id}
-                    className={`relative rounded-xl overflow-hidden border transition-all ${
-                      runningNames.has(app.name)
-                        ? 'border-accent/50 ring-1 ring-accent/30'
-                        : gamePrefs[app.name.toLowerCase()] !== false
-                          ? 'border-green-500/30 bg-white/[0.03]'
-                          : 'border-border/10 opacity-50 bg-white/[0.01]'
-                    }`}
-                  >
-                    <div className="w-full aspect-[4/5] bg-white/5 flex items-center justify-center relative">
-                      <div className="text-text-muted opacity-30">{GAME_ICON}</div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleGameEconomy(app.name) }}
-                        className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center transition-all hover:scale-110 ${
-                          gamePrefs[app.name.toLowerCase()] !== false
-                            ? 'bg-green-500 text-white'
-                            : 'bg-white/10 text-text-muted'
-                        }`}
-                        title={gamePrefs[app.name.toLowerCase()] !== false ? 'Desativar economia' : 'Ativar economia'}
-                      >
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div className="p-1.5">
-                      <p className="text-[10px] font-semibold text-text truncate">{app.name}</p>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteGamingApp(app.id)}
-                      className="absolute top-1 right-1 p-1 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
-                    {gamePrefs[app.name.toLowerCase()] !== false && (
-                      <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                          <path d="M20 6L9 17l-5-5" />
-                        </svg>
-                      </div>
-                    )}
+          {/* Unified game grid: catalog + manually added */}
+          {(() => {
+            const manualOnly = gamingApps.filter(a => !mergedCatalog.some((c: any) => c.name.toLowerCase() === a.name.toLowerCase()))
+            const allGames = [...mergedCatalog, ...manualOnly.map((a: any) => ({
+              name: a.name,
+              coverUrl: a.cover_url || null,
+              steamGridId: a.steam_grid_id || null,
+              processNames: [a.executable],
+              isManual: true,
+              appId: a.id,
+            }))]
+            return (
+              <>
+                <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wide">Biblioteca de Jogos</h4>
+                {autoDetectOn && (
+                  <p className="text-[11px] text-text-muted/60 leading-relaxed">
+                    Jogos ativos têm borda verde. Desativados ficam opacos.
+                  </p>
+                )}
+                {allGames.length === 0 ? (
+                  <div className="py-8 text-center border border-dashed border-border rounded-xl">
+                    <span className="text-sm text-text-muted font-medium italic">{scanning ? 'Escaneando...' : 'Nenhum jogo encontrado. Clique em "Escanear PC" para buscar seus jogos.'}</span>
                   </div>
-                ))}
-            </div>
-          )}
-
-          {/* Game grid */}
-          <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wide">Biblioteca de Jogos</h4>
-          {autoDetectOn && (
-            <p className="text-[11px] text-text-muted/60 leading-relaxed">
-              Jogos ativos têm borda verde. Desativados ficam opacos.
-            </p>
-          )}
-          {mergedCatalog.length === 0 ? (
-            <div className="py-8 text-center border border-dashed border-border rounded-xl">
-              <span className="text-sm text-text-muted font-medium italic">{scanning ? 'Escaneando...' : 'Nenhum jogo encontrado. Clique em "Escanear PC" para buscar seus jogos.'}</span>
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
-              {mergedCatalog.map((game: any, idx: number) => {
-                const coverUrl = getCoverUrl(game)
-                const isRunning = runningNames.has(game.name)
-                const economyEnabled = gamePrefs[game.name.toLowerCase()] !== false
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => toggleGameEconomy(game.name)}
-                    className={`relative rounded-xl overflow-hidden border transition-all cursor-pointer ${
-                      isRunning
-                        ? 'border-accent/50 ring-1 ring-accent/30'
-                        : economyEnabled
-                          ? 'border-green-500/30 bg-white/[0.03]'
-                          : 'border-border/10 opacity-50 bg-white/[0.01]'
-                    } hover:brightness-110`}
-                  >
-                    <div className="w-full aspect-[4/5] bg-white/5 overflow-hidden relative">
-                      {coverUrl ? (
-                        <img
-                          src={coverUrl}
-                          alt={game.name}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = ''
-                            ;(e.target as HTMLImageElement).style.display = 'none'
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-text-muted opacity-30">
-                          {GAME_ICON}
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
+                    {allGames.map((game: any, idx: number) => {
+                      const catalogMatch = !game.isManual ? game : catalog.find((c: any) => c.name.toLowerCase() === game.name.toLowerCase())
+                      const coverUrl = game.isManual
+                        ? (game.coverUrl || (catalogMatch ? getCoverUrl(catalogMatch) : null))
+                        : getCoverUrl(game)
+                      const isRunning = runningNames.has(game.name)
+                      const economyEnabled = gamePrefs[game.name.toLowerCase()] !== false
+                      return (
+                        <div
+                          key={game.isManual ? `manual-${game.appId}` : `catalog-${idx}`}
+                          onClick={() => toggleGameEconomy(game.name)}
+                          className={`group relative rounded-xl overflow-hidden border transition-all cursor-pointer ${
+                            isRunning
+                              ? 'border-accent/50 ring-1 ring-accent/30'
+                              : economyEnabled
+                                ? 'border-green-500/30 bg-white/[0.03]'
+                                : 'border-border/10 opacity-50 bg-white/[0.01]'
+                          } hover:brightness-110`}
+                        >
+                          <div className="w-full aspect-[4/5] bg-white/5 overflow-hidden relative">
+                            {coverUrl ? (
+                              <img
+                                src={coverUrl}
+                                alt={game.name}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = ''
+                                  ;(e.target as HTMLImageElement).style.display = 'none'
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-text-muted opacity-30">
+                                {GAME_ICON}
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-1.5">
+                            <p className="text-[10px] font-semibold text-text truncate">{game.name}</p>
+                          </div>
+                          {isRunning && (
+                            <div className="absolute top-1 left-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse block" />
+                            </div>
+                          )}
+                          {game.isManual && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDeleteGamingApp(game.appId) }}
+                              className="absolute top-1 right-1 p-1 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            </button>
+                          )}
+                          {!game.isManual && economyEnabled && (
+                            <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                                <path d="M20 6L9 17l-5-5" />
+                              </svg>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <div className="p-1.5">
-                      <p className="text-[10px] font-semibold text-text truncate">{game.name}</p>
-                    </div>
-                    {isRunning && (
-                      <div className="absolute top-1 left-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse block" />
-                      </div>
-                    )}
+                      )
+                    })}
                   </div>
-                )
-              })}
-            </div>
-          )}
+                )}
+              </>
+            )
+          })()}
         </div>
 
       </div>
