@@ -486,22 +486,6 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       }
     }
 
-    // Check string-based permissions (network:persistent, storage:persistent, etc.)
-    const stringPerms = Array.isArray(skill.manifest.permissions)
-      ? skill.manifest.permissions
-      : []
-    for (const perm of stringPerms) {
-      const config = this.permissions?.[skillId] || {}
-      if (config[perm] === false) {
-        return {
-          ok: false,
-          error: `permission_denied: ${perm}`,
-          permission: perm,
-          tool: toolName
-        }
-      }
-    }
-
     // Isolated execution for all non-builtins (extensions and packaged)
     if (skill.kind === 'extension' || skill.kind === 'packaged') {
       // Background skills route to persistent worker

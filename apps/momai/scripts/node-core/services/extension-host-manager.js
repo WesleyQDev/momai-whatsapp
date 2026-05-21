@@ -15,6 +15,7 @@ class ExtensionHostManager extends EventEmitter {
     this.hosts = new Map()
     this.persistentHosts = new Map()
     this.pendingCalls = new Map()
+    this.pendingReady = new Map()
     this.restartCounts = new Map()
     this.requestIdCounter = 0
   }
@@ -94,6 +95,13 @@ class ExtensionHostManager extends EventEmitter {
     })
 
     child.on('exit', (code) => {
+      // Reject pending ready promise if worker died before becoming ready
+      const pendingReject = this.pendingReady.get(skillId)
+      if (pendingReject) {
+        this.pendingReady.delete(skillId)
+        pendingReject(new Error(`Worker exited with code ${code} before ready`))
+      }
+
       const count = (this.restartCounts.get(skillId) || 0) + 1
       this.restartCounts.set(skillId, count)
 
@@ -111,8 +119,13 @@ class ExtensionHostManager extends EventEmitter {
     })
 
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Worker ready timeout')), 15000)
+      this.pendingReady.set(skillId, reject)
+      const timeout = setTimeout(() => {
+        this.pendingReady.delete(skillId)
+        reject(new Error('Worker ready timeout'))
+      }, 15000)
       this.once(`${skillId}:ready`, () => {
+        this.pendingReady.delete(skillId)
         clearTimeout(timeout)
         resolve()
       })
