@@ -1377,6 +1377,7 @@ async function streamLlamaChat(req, res, payload) {
 
       if (toolCallsAccum.length > 0 && toolCallsAccum[0]?.function?.name) {
         const executedTools = []
+        let skipLlmRound = false
         for (const tc of toolCallsAccum) {
           if (!tc?.function?.name) continue
 
@@ -1526,7 +1527,8 @@ async function streamLlamaChat(req, res, payload) {
                 args,
                 toolName
               )
-              const toolResultText = result?.instruction || JSON.stringify(result || {})
+              if (result?.directResponse) skipLlmRound = true
+              const toolResultText = skipLlmRound ? '' : (result?.instruction || JSON.stringify(result || {}))
               if (result?.structuredResponse) {
                 bufferedStructuredResponse = result.structuredResponse
               } else if (result?.directResponse) {
@@ -1567,22 +1569,24 @@ async function streamLlamaChat(req, res, payload) {
                 memorySources = [...memorySources, ...result.webSources].slice(0, 12)
               }
 
-              messages.push({
-                role: 'assistant',
-                tool_calls: [
-                  {
-                    id: tc.id || `call_${toolName}`,
-                    type: 'function',
-                    function: { name: toolName, arguments: rawArgs }
-                  }
-                ]
-              })
-              messages.push({
-                role: 'tool',
-                tool_call_id: tc.id || `call_${toolName}`,
-                content: toolResultText
-              })
-              executedTools.push({ name: toolName, result: toolResultText })
+              if (!skipLlmRound) {
+                messages.push({
+                  role: 'assistant',
+                  tool_calls: [
+                    {
+                      id: tc.id || `call_${toolName}`,
+                      type: 'function',
+                      function: { name: toolName, arguments: rawArgs }
+                    }
+                  ]
+                })
+                messages.push({
+                  role: 'tool',
+                  tool_call_id: tc.id || `call_${toolName}`,
+                  content: toolResultText
+                })
+              }
+              executedTools.push({ name: toolName, result: toolResultText || result?.directResponse || 'ok' })
             } catch (execError) {
               messages.push({
                 role: 'tool',
@@ -1598,6 +1602,7 @@ async function streamLlamaChat(req, res, payload) {
             })
           }
         }
+        if (skipLlmRound) break
         if (executedTools.length > 0) {
           info(
             `[chat] Tools executed: ${executedTools.map((e) => e.name).join(', ')}. Continuing round.`
