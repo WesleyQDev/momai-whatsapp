@@ -17,6 +17,15 @@ function createChatRoutes(context) {
   } = context
 
   return async function handleChatRoutes(req, res, pathname, parsedUrl) {
+    if (pathname === '/voice/whatsapp-reply/wait' && req.method === 'POST') {
+      try {
+        await proxyToPython(req, res, pathname)
+      } catch (error) {
+        sendVoiceSidecarFallback(res, pathname, error)
+      }
+      return true
+    }
+
     if (pathname === '/chat/speak') {
       try {
         const payload = await context.readJsonBody(req).catch(() => ({}))
