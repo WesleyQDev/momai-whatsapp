@@ -479,7 +479,6 @@ async function startServer() {
     return false
   }
 
-
   // Compose router
   const { handleRequest, server, shutdownAll } = createRouter(context, [
     handleObservabilityRoute,
@@ -518,9 +517,12 @@ async function startServer() {
     const skills = _skillRegistry?.getAll?.() || []
     for (const skill of skills) {
       if (skill.manifest?.background) {
-        extensionHostManager.startPersistent(skill.id, skill.path, skill.manifest)
+        extensionHostManager
+          .startPersistent(skill.id, skill.dir, skill.manifest)
           .then(() => info(`[ext] Started persistent worker: ${skill.id}`))
-          .catch(err => info(`[ext] Failed to start persistent worker: ${skill.id}: ${err.message}`))
+          .catch((err) =>
+            info(`[ext] Failed to start persistent worker: ${skill.id}: ${err.message}`)
+          )
       }
     }
   } catch (err) {
