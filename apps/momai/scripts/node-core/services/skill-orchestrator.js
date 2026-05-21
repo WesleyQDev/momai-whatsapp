@@ -95,6 +95,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         readme: docContent.trim(),
         features: {
           sidebar: manifest.sidebar === true,
+          sidebarPanel: manifest.sidebarPanel || null,
           agent_name: manifest.id
         },
         keywords: store.skillKeywords?.[manifest.id || skill.id] || [],

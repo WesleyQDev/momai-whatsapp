@@ -383,6 +383,14 @@ export interface Extension {
   repo?: string
   stars?: number
   compatibility?: string
+  features?: {
+    sidebar?: boolean
+    sidebarPanel?: {
+      icon: string
+      label: string
+      panelEndpoint: string
+    } | null
+  }
 }
 
 export async function fetchExtensions(lang?: string): Promise<Extension[]> {
