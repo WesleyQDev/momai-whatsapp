@@ -483,8 +483,8 @@ function createExtensionsRoutes(context) {
       const isNumber = /^\d{8,}$/.test(contact.replace(/\D/g, ''))
       const displayContact = isNumber ? 'Um contato' : contact
 
-      // Default fallback
-      let tts = `${displayContact} enviou uma mensagem`
+      // Default fallback: sempre inclui quem enviou e que foi pelo WhatsApp
+      let tts = `${displayContact} te enviou uma mensagem no WhatsApp`
       let quickReplies = ['Sim', 'Nao', 'Agora nao']
 
       try {
@@ -497,7 +497,7 @@ function createExtensionsRoutes(context) {
 
         // Uma unica chamada ao LLM: ele gera a frase TTS E as opcoes
         const result = await llm.completeText({
-          system: 'AVISO IMPORTANTE: Nao repita a mensagem recebida. Nao use a palavra "enviou". Apenas informe o usuario de forma natural sobre a mensagem que chegou. Exemplo bom: "Wesley sua mae perguntou se voce almocou". Exemplo RUIM: "Mae enviou voce almocou". Separe a frase das opcoes com "|". Exemplo: Wesley sua mae perguntou se voce almocou | Ja almocamos | Ainda nao',
+          system: 'Informe o usuario sobre a mensagem recebida. Diga quem enviou e que foi pelo WhatsApp. Nao repita a mensagem literalmente. Exemplo: "Wesley sua mae te enviou uma mensagem no WhatsApp perguntando se voce almocou". Separe as opcoes com "|". Exemplo: Wesley sua mae perguntou se voce almocou | Ja almocamos | Ainda nao',
           user: `${displayContact}: "${message}"`
         })
 
