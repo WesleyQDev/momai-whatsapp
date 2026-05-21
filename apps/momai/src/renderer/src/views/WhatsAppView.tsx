@@ -62,6 +62,13 @@ export default function WhatsAppView() {
     } catch {}
   }, [])
 
+  const reconnect = useCallback(async () => {
+    try {
+      setQrUrl(null)
+      await fetch(`${API_URL}/extensions/whatsapp/restart`, { method: 'POST' })
+    } catch {}
+  }, [])
+
   const refresh = useCallback(async () => {
     await Promise.all([loadStats(), loadHistory()])
   }, [loadStats, loadHistory])
@@ -209,10 +216,29 @@ export default function WhatsAppView() {
         </div>
       </div>
 
-      {!connected && qrUrl && (
-        <div className="rounded-xl border border-white/5 bg-card p-6 text-center space-y-3">
-          <p className="text-sm text-text-muted">Escaneie o QR code com o WhatsApp do celular</p>
-          <img src={qrUrl} alt="QR Code" className="mx-auto rounded-xl" width={256} height={256} />
+      {!connected && (
+        <div className="rounded-xl border border-white/5 bg-card p-6 text-center space-y-4">
+          {qrUrl ? (
+            <>
+              <p className="text-sm text-text-muted">Escaneie o QR code com o WhatsApp do celular</p>
+              <img src={qrUrl} alt="QR Code" className="mx-auto rounded-xl" width={256} height={256} />
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="animate-pulse flex justify-center">
+                <div className="w-48 h-48 rounded-xl bg-white/5 flex items-center justify-center">
+                  <span className="text-4xl opacity-20">💚</span>
+                </div>
+              </div>
+              <p className="text-sm text-text-muted">Aguardando QR code...</p>
+              <button
+                onClick={reconnect}
+                className="px-4 py-2 text-sm rounded-lg bg-accent/10 text-accent hover:bg-accent/20 border border-accent/20 transition-colors"
+              >
+                Gerar QR
+              </button>
+            </div>
+          )}
         </div>
       )}
 

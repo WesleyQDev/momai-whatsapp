@@ -520,6 +520,25 @@ function createExtensionsRoutes(context) {
       return true
     }
 
+    /* ── Restart WhatsApp worker (e.g. to show QR after disconnect) ── */
+    if (pathname === '/extensions/whatsapp/restart' && req.method === 'POST') {
+      try {
+        extensionHostManager.stopPersistent('whatsapp').catch(() => {})
+        await new Promise(r => setTimeout(r, 1000))
+        const skill = (skillRegistry.getAll?.() || []).find(s => s.id === 'whatsapp')
+        if (skill) {
+          extensionHostManager
+            .startPersistent(skill.id, skill.dir, skill.manifest)
+            .then(() => console.log('[extensions] WhatsApp restarted'))
+            .catch((err) => console.log('[extensions] Restart failed:', err.message))
+        }
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        sendJson(res, 200, { ok: false, error: err.message })
+      }
+      return true
+    }
+
     /* ── Process WhatsApp notification with LLM ── */
     if (pathname === '/extensions/whatsapp/process-notification' && req.method === 'POST') {
       const body = await readJsonBody(req).catch(() => ({}))
