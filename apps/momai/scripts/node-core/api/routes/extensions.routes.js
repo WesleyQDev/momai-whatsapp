@@ -534,6 +534,7 @@ function createExtensionsRoutes(context) {
     /* ── Restart WhatsApp worker (same as disconnect: kill + wipe auth + restart) ── */
     if (pathname === '/extensions/whatsapp/restart' && req.method === 'POST') {
       try {
+        console.log('[extensions] Restart requested')
         await extensionHostManager.stopPersistent('whatsapp').catch(() => {})
         await new Promise(r => setTimeout(r, 500))
 
