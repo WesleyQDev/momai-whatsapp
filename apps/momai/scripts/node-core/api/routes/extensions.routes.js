@@ -482,6 +482,8 @@ function createExtensionsRoutes(context) {
         const body = await readJsonBody(req).catch(() => ({}))
         const contact = body.contact || body.from || 'Alguem'
         const message = body.message || body.text || ''
+        const isNumber = /^\d{8,}$/.test(contact.replace(/\D/g, ''))
+        const displayContact = isNumber ? 'Um contato' : contact
 
         const llm = createSkillLlmHelper({
           llamaState,
@@ -491,10 +493,10 @@ function createExtensionsRoutes(context) {
 
         const result = await llm.completeText({
           system: 'Você gera uma frase curta para TTS e 2 opções de resposta. Responda apenas: TTS: frase aqui | Opcoes: op1, op2',
-          user: `${contact} disse: "${message}"`
+          user: `${displayContact} disse: "${message}"`
         })
 
-        let tts = `${contact} disse: ${message.length > 80 ? message.substring(0, 80) + '...' : message}`
+        let tts = `${displayContact} disse: ${message.length > 80 ? message.substring(0, 80) + '...' : message}`
         let quickReplies = ['Sim', 'Nao', 'Agora nao']
 
         const text = result.text || ''
