@@ -497,8 +497,8 @@ function createExtensionsRoutes(context) {
 
         // Uma unica chamada ao LLM: ele gera a frase TTS E as opcoes
         const result = await llm.completeText({
-          system: 'Informe o usuario sobre a mensagem recebida em uma frase natural e curta. Depois sugira 2 opcoes de resposta. Separe a frase das opcoes com "|". Exemplo: Wesley sua mae perguntou se voce almocou | Ja almocamos | Ainda nao',
-          user: `${displayContact} enviou: "${message}"`
+          system: 'AVISO IMPORTANTE: Nao repita a mensagem recebida. Nao use a palavra "enviou". Apenas informe o usuario de forma natural sobre a mensagem que chegou. Exemplo bom: "Wesley sua mae perguntou se voce almocou". Exemplo RUIM: "Mae enviou voce almocou". Separe a frase das opcoes com "|". Exemplo: Wesley sua mae perguntou se voce almocou | Ja almocamos | Ainda nao',
+          user: `${displayContact}: "${message}"`
         })
 
         const text = (result.text || '').trim()
@@ -525,12 +525,13 @@ function createExtensionsRoutes(context) {
         const { createSkillLlmHelper } = require('../../services/skill-llm')
         const llm = createSkillLlmHelper({ llamaState, tierName: store?.settings?.ai_tier || 'pro', temperature: 0.4 })
         const result = await llm.completeText({
-          system: String(body.system || 'Responda de forma direta e natural.'),
+          system: String(body.system || 'Responda de forma direta e natural. Gere APENAS o texto da resposta, sem explicacoes, sem aspas, sem formatacao.'),
           user: prompt
         })
-        sendJson(res, 200, { text: (result.text || '').trim() })
+        const text = (result.text || '').trim()
+        sendJson(res, 200, { text })
       } catch {
-        sendJson(res, 200, { text: prompt })
+        sendJson(res, 200, { text: '' })
       }
       return true
     }

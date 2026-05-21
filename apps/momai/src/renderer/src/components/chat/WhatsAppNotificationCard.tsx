@@ -25,11 +25,11 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            prompt: `Original message: "${message}". User wants to: ${label}. Generate ONLY the reply text.`
+            prompt: `Mensagem recebida: "${message}". Intencao do usuario: ${label}. Gere APENAS o texto da resposta para enviar no WhatsApp, sem explicacoes.`
           })
         })
         const d = await res.json()
-        if (d?.text) finalMessage = d.text.trim()
+        finalMessage = (d?.text || '').trim() || label
       } catch {}
     }
 
