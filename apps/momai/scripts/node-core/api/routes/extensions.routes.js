@@ -483,24 +483,33 @@ function createExtensionsRoutes(context) {
       const isNumber = /^\d{8,}$/.test(contact.replace(/\D/g, ''))
       const displayContact = isNumber ? 'Um contato' : contact
 
-      // TTS fixo: so avisa quem mandou, sem repetir a mensagem
-      const tts = `Mensagem de ${displayContact}`
-
-      // LLM so para gerar opcoes de resposta rapida
+      // Default fallback
+      let tts = `${displayContact} enviou uma mensagem`
       let quickReplies = ['Sim', 'Nao', 'Agora nao']
+
       try {
         const { createSkillLlmHelper } = require('../../services/skill-llm')
         const llm = createSkillLlmHelper({
           llamaState,
           tierName: store?.settings?.ai_tier || 'pro',
-          temperature: 0.3
+          temperature: 0.5
         })
+
+        // Uma unica chamada ao LLM: ele gera a frase TTS E as opcoes
         const result = await llm.completeText({
-          system: 'Gere 2 opcoes curtas de resposta para uma mensagem. Responda apenas as opcoes separadas por virgula. Nao use numeracao.',
-          user: `Mensagem: "${message}"`
+          system: 'Informe o usuario sobre a mensagem recebida em uma frase natural e curta. Depois sugira 2 opcoes de resposta. Separe a frase das opcoes com "|". Exemplo: Wesley sua mae perguntou se voce almocou | Ja almocamos | Ainda nao',
+          user: `${displayContact} enviou: "${message}"`
         })
-        const opts = (result.text || '').split(',').map(function(s) { return s.trim() }).filter(Boolean)
-        if (opts.length >= 2) quickReplies = opts.slice(0, 3)
+
+        const text = (result.text || '').trim()
+        const parts = text.split('|').map(function(s) { return s.trim() }).filter(Boolean)
+        if (parts.length >= 2) {
+          tts = parts[0]
+          const opts = parts.slice(1).flatMap(function(s) { return s.split(/[,;]/).map(function(x) { return x.trim() }).filter(Boolean) })
+          if (opts.length >= 1) quickReplies = opts.slice(0, 3)
+        } else if (text) {
+          tts = text
+        }
       } catch {}
 
       sendJson(res, 200, { tts, quickReplies })
