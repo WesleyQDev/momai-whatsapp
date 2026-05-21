@@ -1898,6 +1898,8 @@ async function runVoiceCommand(payload = {}) {
 
   broadcast({ type: 'user', content: originalContent })
 
+  let keywordWebSources = null
+
   // Handle "responda" voice command BEFORE keyword routing
   // This adds context about the last WhatsApp message and lets the LLM handle it
   const contentLower = content.toLowerCase()
