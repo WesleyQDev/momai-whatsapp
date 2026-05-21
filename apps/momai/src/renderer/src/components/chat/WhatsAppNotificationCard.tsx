@@ -65,23 +65,16 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       </div>
       <p className="text-sm text-gray-300 mb-4">{message}</p>
       <div className="flex flex-wrap gap-2">
-        {quickReplies.map((reply: string, i: number) => (
-          <button
-            key={i}
-            onClick={() => handleRespond(reply)}
-            className="px-3 py-1.5 text-xs rounded-full bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20"
-            style={{ WebkitAppRegion: 'no-drag' } as any}
-          >
-            {reply}
-          </button>
-        ))}
-        <button
-          onClick={() => handleRespond('__open_chat__')}
-          className="px-3 py-1.5 text-xs rounded-full bg-white/5 text-text-muted hover:text-white hover:bg-white/10 transition-colors"
-          style={{ WebkitAppRegion: 'no-drag' } as any}
-        >
-          ✏️ Responder
-        </button>
+            {quickReplies.map((reply: string, i: number) => (
+              <button
+                key={i}
+                onClick={() => handleRespond(reply)}
+                className="px-3 py-1.5 text-xs rounded-full bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20"
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+              >
+                {reply}
+              </button>
+            ))}
       </div>
     </div>
   )
