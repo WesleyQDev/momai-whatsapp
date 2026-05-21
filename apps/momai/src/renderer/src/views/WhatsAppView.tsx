@@ -26,6 +26,8 @@ export default function WhatsAppView() {
   const [editingName, setEditingName] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [quickReplies, setQuickReplies] = useState<string[]>([])
+  const [sending, setSending] = useState(false)
 
   const loadStats = useCallback(async () => {
     try {
@@ -59,6 +61,42 @@ export default function WhatsAppView() {
     await Promise.all([loadStats(), loadHistory()])
     setRefreshing(false)
   }, [loadStats, loadHistory])
+
+  // Generate quick replies when history changes
+  useEffect(() => {
+    const lastIncoming = [...history].reverse().find(m => m.direction === 'incoming')
+    if (lastIncoming) {
+      fetch(`${API_URL}/extensions/whatsapp/process-notification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact: lastIncoming.from, message: lastIncoming.text })
+      })
+        .then(r => r.json())
+        .then(d => { if (d.quickReplies?.length) setQuickReplies(d.quickReplies) })
+        .catch(() => {})
+    }
+  }, [history])
+
+  const sendQuickReply = useCallback(async (label: string) => {
+    setSending(true)
+    try {
+      // Expand via LLM
+      const llmRes = await fetch(`${API_URL}/extensions/llm/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: `Mensagem recebida: "..." Intencao: ${label}. Gere a resposta.` })
+      })
+      const llmData = await llmRes.json()
+      const lastMsg = [...history].reverse().find(m => m.direction === 'incoming')
+      const finalMsg = (llmData?.text || '').trim() || label
+      await fetch(`${API_URL}/extensions/whatsapp/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolName: 'send_message', args: { contact: lastMsg?.jid || '', message: finalMsg } })
+      })
+    } catch {}
+    setSending(false)
+  }, [history])
 
   useEffect(() => {
     refresh()
@@ -232,6 +270,22 @@ export default function WhatsAppView() {
             <p className="text-sm text-text-muted mt-0.5 ml-5 truncate">{msg.text}</p>
           </div>
         ))}
+
+        {/* Quick reply buttons on latest incoming message */}
+        {quickReplies.length > 0 && history.filter(m => m.direction === 'incoming').length > 0 && (
+          <div className="px-4 py-3 border-t border-white/5 flex flex-wrap gap-2">
+            {quickReplies.map((reply, i) => (
+              <button
+                key={i}
+                onClick={() => sendQuickReply(reply)}
+                disabled={sending}
+                className="px-3 py-1.5 text-xs rounded-full bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20 disabled:opacity-50"
+              >
+                {sending ? '...' : reply}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="rounded-xl border border-white/5 bg-card">
