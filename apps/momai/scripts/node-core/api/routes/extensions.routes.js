@@ -490,21 +490,20 @@ function createExtensionsRoutes(context) {
         })
 
         const result = await llm.completeText({
-          system: 'Você é um assistente que processa notificações do WhatsApp. Gere uma frase curta para TTS (text-to-speech) e 2-3 opções de resposta rápida. Responda APENAS no formato JSON: {"tts": "frase curta", "quickReplies": ["opcao1", "opcao2"]}',
-          user: `Nova mensagem de ${contact}: "${message}"`
+          system: 'Você gera uma frase curta para TTS e 2 opções de resposta. Responda apenas: TTS: frase aqui | Opcoes: op1, op2',
+          user: `${contact} disse: "${message}"`
         })
 
-        let parsed
-        try {
-          parsed = JSON.parse(result.text)
-        } catch {
-          parsed = {
-            tts: `${contact} enviou: ${message.substring(0, 60)}`,
-            quickReplies: ['Sim', 'Nao', 'Agora nao']
-          }
-        }
+        let tts = `${contact} disse: ${message.length > 80 ? message.substring(0, 80) + '...' : message}`
+        let quickReplies = ['Sim', 'Nao', 'Agora nao']
 
-        sendJson(res, 200, { tts: parsed.tts || '', quickReplies: parsed.quickReplies || [] })
+        const text = result.text || ''
+        const ttsMatch = text.match(/TTS:\s*(.+?)(?:\||$)/)
+        const optsMatch = text.match(/Opcoes:\s*(.+)/)
+        if (ttsMatch) tts = ttsMatch[1].trim()
+        if (optsMatch) quickReplies = optsMatch[1].split(',').map(function(s) { return s.trim() }).filter(Boolean)
+
+        sendJson(res, 200, { tts, quickReplies })
       } catch (err) {
         sendJson(res, 200, { tts: '', quickReplies: [] })
       }
