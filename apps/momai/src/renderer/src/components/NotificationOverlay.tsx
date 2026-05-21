@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import { useExtensionEvents } from '../hooks/useExtensionEvents'
+import { getTTSServiceRenderer } from '../services/ttsService'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -39,14 +40,10 @@ export default function NotificationOverlay() {
             })
             const llmData = await llmRes.json()
 
-            // Play TTS using Web Speech API (built into Electron/Chrome)
-            if (llmData.tts && 'speechSynthesis' in window) {
+            // Play TTS using configured engine
+            if (llmData.tts) {
               try {
-                const utterance = new SpeechSynthesisUtterance(llmData.tts)
-                utterance.lang = 'pt-BR'
-                utterance.rate = 1.1
-                window.speechSynthesis.cancel()
-                window.speechSynthesis.speak(utterance)
+                getTTSServiceRenderer().speak(llmData.tts)
               } catch {}
             }
 
