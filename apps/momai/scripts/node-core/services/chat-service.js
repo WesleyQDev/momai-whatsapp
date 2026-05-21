@@ -1912,7 +1912,9 @@ async function runVoiceCommand(payload = {}) {
       )
 
       // For "responda" keyword, get last contact context from worker
-      if (match.skillId === 'whatsapp' && (content.toLowerCase().includes('responda') || content.toLowerCase().includes('responde'))) {
+      const isResponda = match.skillId === 'whatsapp' && (content.toLowerCase().includes('responda') || content.toLowerCase().includes('responde'))
+      debug(`[voice-cmd] isResponda=${isResponda} skillId=${match.skillId} content="${content}"`)
+      if (isResponda) {
         try {
           const hostManager = require('./extension-host-manager')
           const histResult = await hostManager.sendToPersistent('whatsapp', { toolName: 'get_history', args: {} })
