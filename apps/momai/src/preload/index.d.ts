@@ -47,6 +47,9 @@ declare global {
       isWindowMaximized: () => Promise<boolean>
       onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => () => void
       setResizable?: (resizable: boolean) => void
+      openOverlay: (data: any) => void
+      closeOverlay: () => void
+      onOverlayAction: (callback: (action: any) => void) => () => void
       notes: {
         list: () => Promise<any[]>
         get: (noteId: string) => Promise<any | null>

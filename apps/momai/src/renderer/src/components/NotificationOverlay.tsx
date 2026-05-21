@@ -29,6 +29,15 @@ export default function NotificationOverlay() {
   const handleEvent = useCallback(
     (event: { eventType: string; data: any }) => {
       if (event.eventType === 'whatsapp_notification' || event.eventType === 'notification') {
+        // Use Electron overlay window when available
+        if ((window as any).api?.openOverlay) {
+          ;(window as any).api.openOverlay({
+            type: 'whatsapp_notification',
+            ...event.data
+          })
+          return
+        }
+        // Fallback: in-app card overlay
         const id = `${event.eventType}-${Date.now()}`
         const notification: Notification = {
           id,
@@ -37,7 +46,6 @@ export default function NotificationOverlay() {
           receivedAt: Date.now()
         }
         setNotifications((prev) => [...prev, notification])
-
         const timer = setTimeout(() => removeNotification(id), NOTIFICATION_TIMEOUT)
         timersRef.current.set(id, timer)
       }

@@ -1,50 +1,113 @@
-import { useEffect, useState } from 'react'
-import GraphInterface from '../components/GraphInterface'
+import { useEffect, useState, useCallback } from 'react'
+import { XMarkIcon } from '@heroicons/react/24/outline'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 export default function OverlayView() {
   const [data, setData] = useState<any>(null)
 
   useEffect(() => {
-    // Force transparency on body/html to ensure the overlay background works
     document.documentElement.style.backgroundColor = 'transparent'
     document.body.style.backgroundColor = 'transparent'
 
-    // Escuta evento do processo main para receber dados para exibir
     // @ts-ignore
-    const removeListener = window.electron.ipcRenderer.on(
-      'update-overlay-content',
-      (_, contentData) => {
-        setData(contentData)
-      }
-    )
+    const removeListener = window.electron.ipcRenderer.on('update-overlay-content', (_, contentData) => {
+      setData(contentData)
+    })
 
-    // Avisa que está pronto
     // @ts-ignore
     window.electron.ipcRenderer.send('overlay-ready')
 
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // @ts-ignore
+        window.electron.ipcRenderer.send('close-overlay')
+      }
+    }
+    window.addEventListener('keydown', handleEsc)
+
     return () => {
       removeListener()
+      window.removeEventListener('keydown', handleEsc)
     }
   }, [])
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     // @ts-ignore
     window.electron.ipcRenderer.send('close-overlay')
-  }
+  }, [])
 
-  if (!data) return <div className="w-screen h-screen bg-transparent"></div>
+  const handleRespond = useCallback(async (message: string) => {
+    try {
+      await fetch(`${API_URL}/extensions/whatsapp/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toolName: 'send_message',
+          args: { contact: data?.contactJid || data?.contact, message }
+        })
+      })
+    } catch {}
+    handleClose()
+  }, [data, handleClose])
+
+  if (!data) return <div className="w-screen h-screen bg-transparent" />
+
+  if (data.type === 'whatsapp_notification') {
+    const contact = data?.contact || data?.from || 'Desconhecido'
+    const message = data?.message || data?.text || ''
+    const quickReplies = data?.quickReplies || []
+
+    return (
+      <div className="w-screen h-screen flex items-center justify-center bg-transparent">
+        <div
+          className="rounded-2xl border border-white/10 bg-zinc-900/95 backdrop-blur-xl shadow-2xl p-5 w-full max-w-md mx-4 animate-fade-in pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-lg">
+              {data?.contactAvatar || '👤'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">{contact}</p>
+              <p className="text-xs text-text-muted">WhatsApp</p>
+            </div>
+            <button onClick={handleClose} className="text-text-muted hover:text-white p-1">
+              <XMarkIcon className="w-4 h-4" />
+            </button>
+          </div>
+          <p className="text-sm text-gray-300 mb-4">{message}</p>
+          <div className="flex flex-wrap gap-2">
+            {quickReplies.map((reply: string, i: number) => (
+              <button
+                key={i}
+                onClick={() => handleRespond(reply)}
+                className="px-3 py-1.5 text-xs rounded-full bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20"
+              >
+                {reply}
+              </button>
+            ))}
+            <button
+              onClick={() => handleRespond('__open_chat__')}
+              className="px-3 py-1.5 text-xs rounded-full bg-white/5 text-text-muted hover:text-white hover:bg-white/10 transition-colors"
+            >
+              ✏️ Responder
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="w-screen h-screen flex justify-end items-start p-4 bg-transparent">
-      {/* Reuse existing component but force specific styles via wrapper or props if needed */}
       <div className="bg-black/80 backdrop-blur-xl rounded-xl border border-white/10 overflow-hidden shadow-2xl max-h-[80vh] w-[400px]">
-        {/* We reconstruct the content manually or wrap GraphInterface if possible. 
-                 GraphInterface has specific layout logic ('side' / 'center'). 
-                 Let's extract the internals or just mock it here for simplicity/transparency. 
-                 Or better, pass 'side' to GraphInterface but override container styles?
-                 GraphInterface has a rigid div wrapper. Let's replicate the structure cleanly here.
-             */}
-        <GraphInterface view="side" content={data.content} onClose={handleClose} />
+        <div className="p-4 text-white">
+          <p className="text-sm">{JSON.stringify(data)}</p>
+          <button onClick={handleClose} className="mt-2 text-xs text-text-muted hover:text-white">
+            Fechar
+          </button>
+        </div>
       </div>
     </div>
   )
