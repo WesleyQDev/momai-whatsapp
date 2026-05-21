@@ -452,8 +452,9 @@ function createExtensionsRoutes(context) {
             type: 'generic-extension',
             data: {
               extension: extId,
-              header: { title: extId },
-              status: body.error ? { type: 'error', message: body.error } : { type: 'success', message: 'Conectado' },
+              header: { title: extId, subtitle: body.connected ? 'Conectado' : 'Desconectado' },
+              connected: body.connected,
+              status: body.error ? { type: 'error', message: body.error } : (body.connected ? { type: 'success', message: 'Conectado' } : undefined),
               items: (body.whitelist || []).map(function(w) { return { label: w.name || w, meta: w.number || w } })
             }
           }
