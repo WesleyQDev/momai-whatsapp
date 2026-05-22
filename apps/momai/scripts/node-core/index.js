@@ -528,7 +528,8 @@ async function startServer() {
   try {
     const skills = _skillRegistry?.getAll?.() || []
     for (const skill of skills) {
-      if (skill.manifest?.background) {
+      const isEnabled = skillOrchestrator.isSkillEnabledByStore(skill)
+      if (skill.manifest?.background && isEnabled) {
         extensionHostManager
           .startPersistent(skill.id, skill.dir, skill.manifest)
           .then(() => info(`[ext] Started persistent worker: ${skill.id}`))

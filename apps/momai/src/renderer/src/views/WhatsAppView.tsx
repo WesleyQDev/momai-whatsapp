@@ -115,9 +115,12 @@ export default function WhatsAppView() {
 
   // Auto-restart worker when disconnected with no QR
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
     if (!connected && !qrUrl) {
-      const timer = setTimeout(reconnect, 2000)
-      return () => clearTimeout(timer)
+      timer = setTimeout(reconnect, 2000)
+    }
+    return () => {
+      if (timer) clearTimeout(timer)
     }
   }, [connected, qrUrl, reconnect])
 

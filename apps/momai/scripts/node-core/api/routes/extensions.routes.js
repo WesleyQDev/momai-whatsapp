@@ -297,6 +297,21 @@ function createExtensionsRoutes(context) {
         context.syncSkillAndToolIndexes(true).catch(() => {})
       }
 
+      // Manage persistent worker lifecycle if needed
+      const skill = skillRegistry.getById(payload.id)
+      if (skill && skill.manifest?.background) {
+        if (found.enabled) {
+          console.log(`[extensions] Starting persistent worker for toggled extension: ${skill.id}`)
+          extensionHostManager.startPersistent(skill.id, skill.dir, skill.manifest)
+            .catch((err) => console.log(`[extensions] Failed to start persistent worker for ${skill.id}:`, err.message))
+        } else {
+          console.log(`[extensions] Stopping persistent worker for toggled extension: ${skill.id}`)
+          await extensionHostManager.stopPersistent(skill.id).catch((err) => {
+            console.log(`[extensions] Failed to stop persistent worker for ${skill.id}:`, err.message)
+          })
+        }
+      }
+
       const hookName = found.enabled ? 'onActivate' : 'onDeactivate'
       await skillRegistry.executeHook(payload.id, hookName, { extId: payload.id }).catch((err) => {
         console.log(`[extensions] ${hookName} hook failed for ${payload.id}: ${err.message}`)
@@ -309,6 +324,12 @@ function createExtensionsRoutes(context) {
       const payload = await readJsonBody(req).catch(() => ({}))
       const extId = String(payload.id || '')
       const extDir = path.join(skillRegistry.extensionsDir, extId)
+
+      // Stop persistent worker if running
+      await extensionHostManager.stopPersistent(extId).catch((err) => {
+        console.log(`[extensions] Failed to stop persistent worker during uninstall for ${extId}:`, err.message)
+      })
+
       await skillRegistry.executeHook(extId, 'onUninstall', { extId, extDir }).catch((err) => {
         console.log(`[extensions] onUninstall hook failed for ${extId}: ${err.message}`)
       })

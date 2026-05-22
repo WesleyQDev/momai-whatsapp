@@ -134,6 +134,12 @@ const GitHubIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
+const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 16 16" fill="currentColor" {...props}>
+    <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/>
+  </svg>
+)
+
 const iconMap: Record<string, React.ElementType> = {
   Cpu: CpuChipIcon,
   CpuChip: CpuChipIcon,
@@ -166,10 +172,20 @@ const iconMap: Record<string, React.ElementType> = {
   CheckBadge: CheckBadgeIcon,
   Trash: TrashIcon,
   ArrowPath: ArrowPathIcon,
-  CloudArrowDown: CloudArrowDownIcon
+  CloudArrowDown: CloudArrowDownIcon,
+  whatsapp: WhatsAppIcon,
+  WhatsApp: WhatsAppIcon,
+  '💚': WhatsAppIcon
 }
 
-function getSkillGradient(name: string) {
+function getSkillGradient(name: string, id?: string) {
+  const normalizedName = name ? name.toLowerCase().trim() : ''
+  const normalizedId = id ? id.toLowerCase().trim() : ''
+
+  if (normalizedName === 'whatsapp' || normalizedId === 'whatsapp') {
+    return 'from-emerald-500 to-green-600'
+  }
+
   const gradients = [
     'from-violet-600 to-purple-500',
     'from-rose-600 to-pink-500',
@@ -187,8 +203,26 @@ function getSkillGradient(name: string) {
   return gradients[Math.abs(hash) % gradients.length]
 }
 
-function getSkillIcon(name: string) {
-  return iconMap[name] || PuzzlePieceIcon
+function getSkillIcon(name: string, skillId?: string, skillName?: string) {
+  const normalizedIcon = name ? name.trim() : ''
+  const normalizedId = skillId ? skillId.toLowerCase().trim() : ''
+  const normalizedName = skillName ? skillName.toLowerCase().trim() : ''
+
+  if (
+    normalizedIcon === 'whatsapp' ||
+    normalizedId === 'whatsapp' ||
+    normalizedName === 'whatsapp' ||
+    normalizedIcon === '💚'
+  ) {
+    return WhatsAppIcon
+  }
+
+  return (
+    iconMap[name] ||
+    (skillId && iconMap[skillId]) ||
+    (skillName && iconMap[skillName]) ||
+    PuzzlePieceIcon
+  )
 }
 
 /* ─── Star Rating ─── */
@@ -269,15 +303,16 @@ function FeaturedCarousel({
         style={{ cursor: dragScroll.grabCursor }}
       >
         {skills.map((skill) => {
-          const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece')
+          const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece', skill.id, skill.name)
+          const isWhatsapp = skill.id === 'whatsapp' || skill.name.toLowerCase() === 'whatsapp'
           return (
             <div
               key={skill.id}
               onClick={() => !dragScroll.isDraggingScroll() && onSelect(skill)}
-              className="shrink-0 w-72 h-40 rounded-xl overflow-hidden cursor-pointer group/card relative border border-zinc-700/50 hover:border-zinc-600 transition-all hover:-translate-y-0.5 hover:shadow-lg"
+              className={`shrink-0 w-72 h-40 rounded-xl overflow-hidden cursor-pointer group/card relative border border-zinc-700/50 transition-all hover:-translate-y-0.5 hover:shadow-lg ${isWhatsapp ? 'hover:border-emerald-500/50' : 'hover:border-zinc-600'}`}
             >
               <div
-                className={`absolute inset-0 bg-gradient-to-br ${getSkillGradient(skill.name)} opacity-30`}
+                className={`absolute inset-0 bg-gradient-to-br ${getSkillGradient(skill.name, skill.id)} opacity-30`}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/40 to-transparent" />
               <div className="absolute inset-0 p-4 flex flex-col justify-between">
@@ -314,16 +349,17 @@ function FeaturedCarousel({
 
 /* ─── Skill Card ─── */
 function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extension) => void }) {
-  const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece')
+  const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece', skill.id, skill.name)
+  const isWhatsapp = skill.id === 'whatsapp' || skill.name.toLowerCase() === 'whatsapp'
   return (
     <div
       onClick={() => onSelect(skill)}
-      className="group bg-zinc-800/40 border border-zinc-700/50 rounded-2xl overflow-hidden cursor-pointer hover:border-violet-500/50 hover:bg-zinc-800/80 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl active:scale-[0.98]"
+      className={`group bg-zinc-800/40 border border-zinc-700/50 rounded-2xl overflow-hidden cursor-pointer hover:bg-zinc-800/80 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl active:scale-[0.98] ${isWhatsapp ? 'hover:border-emerald-500/50' : 'hover:border-violet-500/50'}`}
     >
       <div className="p-5">
         <div className="flex items-start justify-between mb-4">
           <div
-            className={`p-3 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name)} shadow-lg shadow-violet-500/10`}
+            className={`p-3 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name, skill.id)} shadow-lg ${isWhatsapp ? 'shadow-emerald-500/15' : 'shadow-violet-500/10'}`}
           >
             {React.createElement(IconComponent, { className: 'w-6 h-6 text-white' })}
           </div>
@@ -350,7 +386,7 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
             )}
           </div>
         </div>
-        <h3 className="text-base font-bold text-zinc-100 mb-1.5 group-hover:text-violet-400 transition-colors">
+        <h3 className={`text-base font-bold text-zinc-100 mb-1.5 transition-colors ${isWhatsapp ? 'group-hover:text-emerald-400' : 'group-hover:text-violet-400'}`}>
           {skill.name}
         </h3>
         <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed mb-4 min-h-[2.5rem]">
@@ -411,7 +447,7 @@ function SkillDetailView({
   installing: string | null
   installProgress?: { percent: number; speed: string; status: string } | null
 }) {
-  const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece')
+  const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece', skill.id, skill.name)
   const isInstalled =
     skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
   const isBuiltin = skill.category === 'core'
@@ -430,7 +466,7 @@ function SkillDetailView({
       {/* Tighter Hero Header */}
       <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-6 pb-6 border-b border-zinc-800/50">
         <div
-          className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name)} shadow-xl shadow-violet-500/10 flex items-center justify-center shrink-0 border-2 border-zinc-800 relative overflow-hidden`}
+          className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name, skill.id)} shadow-xl ${skill.id === 'whatsapp' || skill.name.toLowerCase() === 'whatsapp' ? 'shadow-emerald-500/15' : 'shadow-violet-500/10'} flex items-center justify-center shrink-0 border-2 border-zinc-800 relative overflow-hidden`}
         >
           <div className="absolute inset-0 bg-white/5" />
           {React.createElement(IconComponent, {
@@ -524,11 +560,11 @@ function SkillDetailView({
                 <button
                   onClick={() => onInstall(skill)}
                   disabled={installing === skill.id}
-                  className="px-8 py-2.5 bg-violet-600 text-white rounded-xl text-xs font-black hover:bg-violet-500 disabled:opacity-50 transition-all uppercase tracking-widest relative overflow-hidden"
+                  className={`px-8 py-2.5 text-white rounded-xl text-xs font-black disabled:opacity-50 transition-all uppercase tracking-widest relative overflow-hidden ${skill.id === 'whatsapp' || skill.name.toLowerCase() === 'whatsapp' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-violet-600 hover:bg-violet-500'}`}
                 >
                   {installing === skill.id && installProgress && (
                     <div
-                      className="absolute left-0 top-0 bottom-0 bg-violet-400/30 transition-all duration-300"
+                      className={`absolute left-0 top-0 bottom-0 transition-all duration-300 ${skill.id === 'whatsapp' || skill.name.toLowerCase() === 'whatsapp' ? 'bg-emerald-400/30' : 'bg-violet-400/30'}`}
                       style={{ width: `${installProgress.percent}%` }}
                     />
                   )}
@@ -732,6 +768,7 @@ export default function ExtensionsView() {
     try {
       const data = await fetchExtensions(locale)
       setAllSkills(data)
+      window.dispatchEvent(new CustomEvent('momai_extensions_sync', { detail: data }))
       return data
     } catch (err) {
       console.error('Erro ao carregar skills:', err)
@@ -776,7 +813,11 @@ export default function ExtensionsView() {
   const handleToggle = async (ext: Extension) => {
     try {
       await toggleExtension(ext.id, !ext.enabled)
-      await loadData(true)
+      const freshData = await loadData(true)
+      if (selectedSkill?.id === ext.id) {
+        const updated = freshData.find((s) => s.id === ext.id)
+        if (updated) setSelectedSkill(updated)
+      }
     } catch (err) {
       alert(t('extensions.errors.toggle', { error: String(err) }))
     }
