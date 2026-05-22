@@ -15,9 +15,12 @@ export default function OverlayView() {
     if (root) root.style.setProperty('background', 'transparent', 'important')
 
     // @ts-ignore
-    const removeListener = window.electron.ipcRenderer.on('update-overlay-content', (_, contentData) => {
-      setData(contentData)
-    })
+    const removeListener = window.electron.ipcRenderer.on(
+      'update-overlay-content',
+      (_, contentData) => {
+        setData(contentData)
+      }
+    )
 
     // @ts-ignore
     window.electron.ipcRenderer.send('overlay-ready')
@@ -48,7 +51,10 @@ export default function OverlayView() {
     const Renderer = getRenderer(data.structuredResponse.type)
     if (Renderer) {
       return (
-        <div className="w-screen h-screen flex items-center justify-center bg-transparent select-none" onClick={handleClose}>
+        <div
+          className="w-screen h-screen flex items-center justify-center bg-transparent select-none"
+          onClick={handleClose}
+        >
           {createElement(Renderer, {
             data: {
               ...data.structuredResponse.data,
@@ -62,14 +68,21 @@ export default function OverlayView() {
   }
 
   return (
-    <div className="w-screen h-screen flex items-center justify-center bg-transparent select-none" onClick={handleClose}>
+    <div
+      className="w-screen h-screen flex items-center justify-center bg-transparent select-none"
+      onClick={handleClose}
+    >
       <div
         className="rounded-2xl border border-white/10 bg-zinc-900/95 backdrop-blur-xl shadow-2xl p-5 w-full max-w-md mx-4"
         onClick={(e) => e.stopPropagation()}
         style={{ WebkitAppRegion: 'drag' } as any}
       >
         <p className="text-sm text-gray-300">{JSON.stringify(data)}</p>
-        <button onClick={handleClose} className="mt-3 text-xs text-text-muted hover:text-white px-3 py-1 rounded-lg bg-white/5" style={{ WebkitAppRegion: 'no-drag' } as any}>
+        <button
+          onClick={handleClose}
+          className="mt-3 text-xs text-text-muted hover:text-white px-3 py-1 rounded-lg bg-white/5"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+        >
           Fechar
         </button>
       </div>

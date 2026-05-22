@@ -28,20 +28,17 @@ const VOICE_STATUS_LABELS: Record<string, string> = {
 }
 
 function sendToWhatsApp(contactJid: string, contact: string, message: string) {
-  return fetch(
-    `${API_URL}/extensions/whatsapp/command`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        toolName: 'send_message',
-        args: {
-          contact: contactJid || contact,
-          message
-        }
-      })
-    }
-  )
+  return fetch(`${API_URL}/extensions/whatsapp/command`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      toolName: 'send_message',
+      args: {
+        contact: contactJid || contact,
+        message
+      }
+    })
+  })
 }
 
 export default function NotificationOverlay() {
@@ -63,46 +60,70 @@ export default function NotificationOverlay() {
     }
   }, [])
 
-  const startVoiceDetection = useCallback(async (id: string, contactJid: string, contactName: string) => {
-    const controller = new AbortController()
-    voiceAbortRef.current.set(id, controller)
+  const startVoiceDetection = useCallback(
+    async (id: string, contactJid: string, contactName: string) => {
+      const controller = new AbortController()
+      voiceAbortRef.current.set(id, controller)
 
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, voice: { status: 'listening', abortController: controller } } : n))
-    )
-
-    try {
-      const response = await fetch(`${API_URL}/voice/whatsapp-reply/wait`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact_jid: contactJid }),
-        signal: controller.signal
-      })
-
-      if (!response.ok) {
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === id ? { ...n, voice: { status: 'idle', abortController: null } } : n))
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === id ? { ...n, voice: { status: 'listening', abortController: controller } } : n
         )
-        return
-      }
-
-      const { text, status } = await response.json()
-
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, voice: { status: status === 'complete' && text ? 'complete' : status === 'timeout' ? 'timeout' : 'idle', abortController: null } } : n))
       )
 
-      if (text) {
-        await sendToWhatsApp(contactJid, contactName, text)
-        removeNotification(id)
+      try {
+        const response = await fetch(`${API_URL}/voice/whatsapp-reply/wait`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contact_jid: contactJid }),
+          signal: controller.signal
+        })
+
+        if (!response.ok) {
+          setNotifications((prev) =>
+            prev.map((n) =>
+              n.id === id ? { ...n, voice: { status: 'idle', abortController: null } } : n
+            )
+          )
+          return
+        }
+
+        const { text, status } = await response.json()
+
+        setNotifications((prev) =>
+          prev.map((n) =>
+            n.id === id
+              ? {
+                  ...n,
+                  voice: {
+                    status:
+                      status === 'complete' && text
+                        ? 'complete'
+                        : status === 'timeout'
+                          ? 'timeout'
+                          : 'idle',
+                    abortController: null
+                  }
+                }
+              : n
+          )
+        )
+
+        if (text) {
+          await sendToWhatsApp(contactJid, contactName, text)
+          removeNotification(id)
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return
+        setNotifications((prev) =>
+          prev.map((n) =>
+            n.id === id ? { ...n, voice: { status: 'error', abortController: null } } : n
+          )
+        )
       }
-    } catch (err: any) {
-      if (err?.name === 'AbortError') return
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, voice: { status: 'error', abortController: null } } : n))
-      )
-    }
-  }, [removeNotification])
+    },
+    [removeNotification]
+  )
 
   const handleEvent = useCallback(
     (event: { eventType: string; data: any }) => {
@@ -134,7 +155,7 @@ export default function NotificationOverlay() {
             }
 
             if ((window as any).api?.openOverlay) {
-              (window as any).api.openOverlay(overlayData)
+              ;(window as any).api.openOverlay(overlayData)
             } else {
               const id = `${event.eventType}-${Date.now()}`
               const notifData = {
@@ -160,9 +181,14 @@ export default function NotificationOverlay() {
               }
             }
           } catch {
-            const rawData = { structuredResponse: { type: 'whatsapp_notification', data: { ...event.data, quickReplies: [] } } }
+            const rawData = {
+              structuredResponse: {
+                type: 'whatsapp_notification',
+                data: { ...event.data, quickReplies: [] }
+              }
+            }
             if ((window as any).api?.openOverlay) {
-              (window as any).api.openOverlay(rawData)
+              ;(window as any).api.openOverlay(rawData)
             }
           }
         }
@@ -239,7 +265,8 @@ function NotificationCard({
     <div className="rounded-2xl border border-white/10 bg-zinc-900/95 backdrop-blur-xl shadow-2xl p-5">
       <div className="flex items-center gap-3 mb-3">
         <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-lg">
-          {data?.contactAvatar || (voice.status === 'listening' || voice.status === 'detected' ? '🎤' : '👤')}
+          {data?.contactAvatar ||
+            (voice.status === 'listening' || voice.status === 'detected' ? '🎤' : '👤')}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-white truncate">{contact}</p>
@@ -253,7 +280,9 @@ function NotificationCard({
 
       {voiceLabel && (
         <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-accent/5 border border-accent/10">
-          <MicrophoneIcon className={`w-4 h-4 ${voice.status === 'listening' ? 'text-accent animate-pulse' : voice.status === 'detected' ? 'text-green-400' : 'text-text-muted'}`} />
+          <MicrophoneIcon
+            className={`w-4 h-4 ${voice.status === 'listening' ? 'text-accent animate-pulse' : voice.status === 'detected' ? 'text-green-400' : 'text-text-muted'}`}
+          />
           <span className="text-xs text-text-muted">{voiceLabel}</span>
         </div>
       )}

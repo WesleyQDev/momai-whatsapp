@@ -1528,7 +1528,9 @@ async function streamLlamaChat(req, res, payload) {
                 toolName
               )
               if (result?.directResponse) skipLlmRound = true
-              const toolResultText = skipLlmRound ? '' : (result?.instruction || JSON.stringify(result || {}))
+              const toolResultText = skipLlmRound
+                ? ''
+                : result?.instruction || JSON.stringify(result || {})
               if (result?.structuredResponse) {
                 bufferedStructuredResponse = result.structuredResponse
               } else if (result?.directResponse) {
@@ -1586,7 +1588,10 @@ async function streamLlamaChat(req, res, payload) {
                   content: toolResultText
                 })
               }
-              executedTools.push({ name: toolName, result: toolResultText || result?.directResponse || 'ok' })
+              executedTools.push({
+                name: toolName,
+                result: toolResultText || result?.directResponse || 'ok'
+              })
             } catch (execError) {
               messages.push({
                 role: 'tool',
@@ -1912,11 +1917,14 @@ async function runVoiceCommand(payload = {}) {
     console.log('[VOICE-CMD] responda detected, fetching last contact')
     try {
       const hostManager = require('./extension-host-manager')
-      const histResult = await hostManager.sendToPersistent('whatsapp', { toolName: 'get_history', args: {} })
+      const histResult = await hostManager.sendToPersistent('whatsapp', {
+        toolName: 'get_history',
+        args: {}
+      })
       if (histResult?.history?.length) {
         const last = histResult.history[0]
-          const contactName = last.from
-          content = `[INSTRUCAO: O usuario esta respondendo a "${contactName}" no WhatsApp. A ultima mensagem dele foi: "${last.text}". Use a ferramenta send_message para enviar a resposta. NAO responda no chat, apenas execute o send_message.]\n${content}`
+        const contactName = last.from
+        content = `[INSTRUCAO: O usuario esta respondendo a "${contactName}" no WhatsApp. A ultima mensagem dele foi: "${last.text}". Use a ferramenta send_message para enviar a resposta. NAO responda no chat, apenas execute o send_message.]\n${content}`
       }
     } catch {}
     console.log('[VOICE-CMD] responda handled, falling through to LLM')

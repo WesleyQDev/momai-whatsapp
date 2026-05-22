@@ -302,12 +302,21 @@ function createExtensionsRoutes(context) {
       if (skill && skill.manifest?.background) {
         if (found.enabled) {
           console.log(`[extensions] Starting persistent worker for toggled extension: ${skill.id}`)
-          extensionHostManager.startPersistent(skill.id, skill.dir, skill.manifest)
-            .catch((err) => console.log(`[extensions] Failed to start persistent worker for ${skill.id}:`, err.message))
+          extensionHostManager
+            .startPersistent(skill.id, skill.dir, skill.manifest)
+            .catch((err) =>
+              console.log(
+                `[extensions] Failed to start persistent worker for ${skill.id}:`,
+                err.message
+              )
+            )
         } else {
           console.log(`[extensions] Stopping persistent worker for toggled extension: ${skill.id}`)
           await extensionHostManager.stopPersistent(skill.id).catch((err) => {
-            console.log(`[extensions] Failed to stop persistent worker for ${skill.id}:`, err.message)
+            console.log(
+              `[extensions] Failed to stop persistent worker for ${skill.id}:`,
+              err.message
+            )
           })
         }
       }
@@ -327,7 +336,10 @@ function createExtensionsRoutes(context) {
 
       // Stop persistent worker if running
       await extensionHostManager.stopPersistent(extId).catch((err) => {
-        console.log(`[extensions] Failed to stop persistent worker during uninstall for ${extId}:`, err.message)
+        console.log(
+          `[extensions] Failed to stop persistent worker during uninstall for ${extId}:`,
+          err.message
+        )
       })
 
       await skillRegistry.executeHook(extId, 'onUninstall', { extId, extDir }).catch((err) => {
@@ -529,7 +541,7 @@ function createExtensionsRoutes(context) {
       try {
         // 1. Kill persistent worker and WAIT for process to fully exit
         await extensionHostManager.stopPersistent('whatsapp')
-        await new Promise(r => setTimeout(r, 500))
+        await new Promise((r) => setTimeout(r, 500))
 
         // 2. Wipe Baileys auth — forces QR on next start
         _wipeBaileysAuth()
@@ -538,7 +550,7 @@ function createExtensionsRoutes(context) {
         extensionEvents.broadcast('authenticated', { status: 'logged_out' })
 
         // 4. Restart worker fresh
-        const whatsappSkill = (skillRegistry.getAll?.() || []).find(s => s.id === 'whatsapp')
+        const whatsappSkill = (skillRegistry.getAll?.() || []).find((s) => s.id === 'whatsapp')
         if (whatsappSkill) {
           setTimeout(() => {
             extensionHostManager
@@ -560,11 +572,11 @@ function createExtensionsRoutes(context) {
       try {
         console.log('[extensions] Restart requested')
         await extensionHostManager.stopPersistent('whatsapp').catch(() => {})
-        await new Promise(r => setTimeout(r, 500))
+        await new Promise((r) => setTimeout(r, 500))
 
         _wipeBaileysAuth()
 
-        const skill = (skillRegistry.getAll?.() || []).find(s => s.id === 'whatsapp')
+        const skill = (skillRegistry.getAll?.() || []).find((s) => s.id === 'whatsapp')
         if (skill) {
           extensionHostManager
             .startPersistent(skill.id, skill.dir, skill.manifest)
@@ -600,14 +612,27 @@ function createExtensionsRoutes(context) {
           temperature: 0.5
         })
         const result = await llm.completeText({
-          system: 'Voce e um assistente notificando o usuario sobre uma mensagem recebida no WhatsApp. Fale em segunda pessoa para o usuario. Explique quem enviou e o contexto. Exemplo: "sua mae esta te chamando la no whatsapp" ou "um contato no whatsapp te insultou". Nao repita a mensagem literalmente. Separe a frase das opcoes de resposta com " | ". Exemplo completo: sua mae perguntou se voce almocou pelo whatsapp | Ja almocamos | Ainda nao',
+          system:
+            'Voce e um assistente notificando o usuario sobre uma mensagem recebida no WhatsApp. Fale em segunda pessoa para o usuario. Explique quem enviou e o contexto. Exemplo: "sua mae esta te chamando la no whatsapp" ou "um contato no whatsapp te insultou". Nao repita a mensagem literalmente. Separe a frase das opcoes de resposta com " | ". Exemplo completo: sua mae perguntou se voce almocou pelo whatsapp | Ja almocamos | Ainda nao',
           user: `Quem enviou: ${displayContact}. Mensagem: "${message}"`
         })
         const text = (result.text || '').trim()
-        const parts = text.split('|').map(function(s) { return s.trim() }).filter(Boolean)
+        const parts = text
+          .split('|')
+          .map(function (s) {
+            return s.trim()
+          })
+          .filter(Boolean)
         if (parts.length >= 2) {
           tts = parts[0]
-          const opts = parts.slice(1).flatMap(function(s) { return s.split(/[,;]/).map(function(x) { return x.trim() }).filter(Boolean) })
+          const opts = parts.slice(1).flatMap(function (s) {
+            return s
+              .split(/[,;]/)
+              .map(function (x) {
+                return x.trim()
+              })
+              .filter(Boolean)
+          })
           if (opts.length >= 1) quickReplies = opts.slice(0, 3)
         }
       } catch {}
@@ -620,12 +645,22 @@ function createExtensionsRoutes(context) {
     if (pathname === '/extensions/llm/complete' && req.method === 'POST') {
       const body = await readJsonBody(req).catch(() => ({}))
       const prompt = String(body.prompt || body.user || '')
-      if (!prompt) { sendJson(res, 200, { text: '' }); return true }
+      if (!prompt) {
+        sendJson(res, 200, { text: '' })
+        return true
+      }
       try {
         const { createSkillLlmHelper } = require('../../services/skill-llm')
-        const llm = createSkillLlmHelper({ llamaState, tierName: store?.settings?.ai_tier || 'pro', temperature: 0.4 })
+        const llm = createSkillLlmHelper({
+          llamaState,
+          tierName: store?.settings?.ai_tier || 'pro',
+          temperature: 0.4
+        })
         const result = await llm.completeText({
-          system: String(body.system || 'Responda de forma direta e natural. Gere APENAS o texto da resposta, sem explicacoes, sem aspas, sem formatacao.'),
+          system: String(
+            body.system ||
+              'Responda de forma direta e natural. Gere APENAS o texto da resposta, sem explicacoes, sem aspas, sem formatacao.'
+          ),
           user: prompt
         })
         const text = (result.text || '').trim()

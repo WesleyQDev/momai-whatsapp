@@ -67,7 +67,6 @@ async function initializeRegistries() {
   } catch (e) {
     info('[core] Prompt registry not available:', e.message)
   }
-
 }
 
 // ============================================

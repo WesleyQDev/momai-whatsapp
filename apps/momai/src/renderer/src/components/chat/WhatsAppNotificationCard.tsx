@@ -20,7 +20,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const contactJid = data?.contactJid || data?.contact || ''
   const onClose = data?.onClose || (() => {})
 
-  const [voiceStatus, setVoiceStatus] = useState<'idle' | 'listening' | 'detected' | 'complete' | 'error' | 'timeout'>('idle')
+  const [voiceStatus, setVoiceStatus] = useState<
+    'idle' | 'listening' | 'detected' | 'complete' | 'error' | 'timeout'
+  >('idle')
   const abortRef = useRef<AbortController | null>(null)
   const hasReplied = useRef(false)
 
@@ -31,40 +33,46 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     }
   }, [])
 
-  const sendReply = useCallback(async (text: string) => {
-    if (hasReplied.current) return
-    hasReplied.current = true
+  const sendReply = useCallback(
+    async (text: string) => {
+      if (hasReplied.current) return
+      hasReplied.current = true
 
-    try {
-      await fetch(`${API_URL}/extensions/whatsapp/command`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toolName: 'send_message',
-          args: { contact: contactJid, message: text }
+      try {
+        await fetch(`${API_URL}/extensions/whatsapp/command`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toolName: 'send_message',
+            args: { contact: contactJid, message: text }
+          })
         })
-      })
-    } catch {}
-    onClose()
-  }, [contactJid, onClose])
+      } catch {}
+      onClose()
+    },
+    [contactJid, onClose]
+  )
 
-  const handleQuickReply = useCallback(async (label: string) => {
-    if (hasReplied.current) return
-    hasReplied.current = true
-    stop()
+  const handleQuickReply = useCallback(
+    async (label: string) => {
+      if (hasReplied.current) return
+      hasReplied.current = true
+      stop()
 
-    try {
-      await fetch(`${API_URL}/extensions/whatsapp/command`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toolName: 'send_message',
-          args: { contact: contactJid, message: label }
+      try {
+        await fetch(`${API_URL}/extensions/whatsapp/command`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toolName: 'send_message',
+            args: { contact: contactJid, message: label }
+          })
         })
-      })
-    } catch {}
-    onClose()
-  }, [contactJid, onClose, stop])
+      } catch {}
+      onClose()
+    },
+    [contactJid, onClose, stop]
+  )
 
   useEffect(() => {
     if (!contactJid) return
@@ -74,7 +82,6 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     let cancelled = false
 
     setVoiceStatus('listening')
-
     ;(async () => {
       try {
         const res = await fetch(`${API_URL}/voice/whatsapp-reply/wait`, {
@@ -119,13 +126,22 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     >
       <div className="flex items-center gap-3 mb-3">
         <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-lg">
-          {voiceStatus === 'listening' || voiceStatus === 'detected' ? '🎤' : data?.contactAvatar || '👤'}
+          {voiceStatus === 'listening' || voiceStatus === 'detected'
+            ? '🎤'
+            : data?.contactAvatar || '👤'}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-white truncate">{contact}</p>
           <p className="text-xs text-text-muted">WhatsApp</p>
         </div>
-        <button onClick={() => { stop(); onClose() }} className="text-text-muted hover:text-white p-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
+        <button
+          onClick={() => {
+            stop()
+            onClose()
+          }}
+          className="text-text-muted hover:text-white p-1"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+        >
           <XMarkIcon className="w-4 h-4" />
         </button>
       </div>
@@ -133,7 +149,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
       {voiceLabel && (
         <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-accent/5 border border-accent/10">
-          <MicrophoneIcon className={`w-4 h-4 ${voiceStatus === 'listening' ? 'text-accent animate-pulse' : voiceStatus === 'detected' || voiceStatus === 'complete' ? 'text-green-400' : 'text-text-muted'}`} />
+          <MicrophoneIcon
+            className={`w-4 h-4 ${voiceStatus === 'listening' ? 'text-accent animate-pulse' : voiceStatus === 'detected' || voiceStatus === 'complete' ? 'text-green-400' : 'text-text-muted'}`}
+          />
           <span className="text-xs text-text-muted">{voiceLabel}</span>
         </div>
       )}

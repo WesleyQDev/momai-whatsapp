@@ -177,7 +177,10 @@ class ExtensionHostManager extends EventEmitter {
     this.restartCounts.delete(skillId)
     child.kill()
     return new Promise((resolve) => {
-      const done = () => { child.removeListener('exit', done); resolve() }
+      const done = () => {
+        child.removeListener('exit', done)
+        resolve()
+      }
       child.on('exit', done)
       setTimeout(done, 3000) // safety timeout
     })

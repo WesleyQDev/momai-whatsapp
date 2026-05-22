@@ -54,7 +54,13 @@ function parseSkillMarkdown(filePath) {
       continue
     }
 
-    if (key === 'intents' || key === 'allowed-tools' || key === 'tags' || key === 'tools' || key === 'triggers') {
+    if (
+      key === 'intents' ||
+      key === 'allowed-tools' ||
+      key === 'tags' ||
+      key === 'tools' ||
+      key === 'triggers'
+    ) {
       frontmatter[key] = parseListValue(val)
     } else if (key === 'enabled') {
       frontmatter[key] = !/^false$/i.test(val.trim())

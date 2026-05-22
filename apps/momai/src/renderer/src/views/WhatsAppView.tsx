@@ -75,39 +75,49 @@ export default function WhatsAppView() {
 
   // Generate quick replies when history changes
   useEffect(() => {
-    const lastIncoming = [...history].reverse().find(m => m.direction === 'incoming')
+    const lastIncoming = [...history].reverse().find((m) => m.direction === 'incoming')
     if (lastIncoming) {
       fetch(`${API_URL}/extensions/whatsapp/process-notification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contact: lastIncoming.from, message: lastIncoming.text })
       })
-        .then(r => r.json())
-        .then(d => { if (d.quickReplies?.length) setQuickReplies(d.quickReplies) })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.quickReplies?.length) setQuickReplies(d.quickReplies)
+        })
         .catch(() => {})
     }
   }, [history])
 
-  const sendQuickReply = useCallback(async (label: string) => {
-    setSending(true)
-    try {
-      // Expand via LLM
-      const llmRes = await fetch(`${API_URL}/extensions/llm/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: `Mensagem recebida: "..." Intencao: ${label}. Gere a resposta.` })
-      })
-      const llmData = await llmRes.json()
-      const lastMsg = [...history].reverse().find(m => m.direction === 'incoming')
-      const finalMsg = (llmData?.text || '').trim() || label
-      await fetch(`${API_URL}/extensions/whatsapp/command`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'send_message', args: { contact: lastMsg?.jid || '', message: finalMsg } })
-      })
-    } catch {}
-    setSending(false)
-  }, [history])
+  const sendQuickReply = useCallback(
+    async (label: string) => {
+      setSending(true)
+      try {
+        // Expand via LLM
+        const llmRes = await fetch(`${API_URL}/extensions/llm/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: `Mensagem recebida: "..." Intencao: ${label}. Gere a resposta.`
+          })
+        })
+        const llmData = await llmRes.json()
+        const lastMsg = [...history].reverse().find((m) => m.direction === 'incoming')
+        const finalMsg = (llmData?.text || '').trim() || label
+        await fetch(`${API_URL}/extensions/whatsapp/command`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toolName: 'send_message',
+            args: { contact: lastMsg?.jid || '', message: finalMsg }
+          })
+        })
+      } catch {}
+      setSending(false)
+    },
+    [history]
+  )
 
   useEffect(() => {
     refresh()
@@ -183,7 +193,10 @@ export default function WhatsAppView() {
       await fetch(`${API_URL}/extensions/whatsapp/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName: 'set_contact_name', args: { contact: contactId, name: editValue.trim() } })
+        body: JSON.stringify({
+          toolName: 'set_contact_name',
+          args: { contact: contactId, name: editValue.trim() }
+        })
       })
       setEditingName(null)
       refresh()
@@ -233,8 +246,16 @@ export default function WhatsAppView() {
         <div className="rounded-xl border border-white/5 bg-card p-6 text-center space-y-4">
           {qrUrl ? (
             <>
-              <p className="text-sm text-text-muted">Escaneie o QR code com o WhatsApp do celular</p>
-              <img src={qrUrl} alt="QR Code" className="mx-auto rounded-xl" width={256} height={256} />
+              <p className="text-sm text-text-muted">
+                Escaneie o QR code com o WhatsApp do celular
+              </p>
+              <img
+                src={qrUrl}
+                alt="QR Code"
+                className="mx-auto rounded-xl"
+                width={256}
+                height={256}
+              />
             </>
           ) : (
             <div className="space-y-3">
@@ -279,136 +300,143 @@ export default function WhatsAppView() {
             <div className="p-6 text-center text-sm text-text-muted">Nenhuma mensagem ainda</div>
           )}
           {history.map((msg, i) => (
-          <div
-            key={i}
-            className="px-4 py-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-xs">{msg.direction === 'incoming' ? '🟢' : '🔵'}</span>
-              <span className="font-medium text-sm">{msg.from}</span>
-              {(() => {
-                if (msg.direction !== 'incoming' || !/^\d+$/.test(msg.from)) return null
-                const msgJid = msg.jid.split('@')[0]
-                if (contacts.find(c => c.id === msgJid)) return null
-                const jidDigits = msgJid.replace(/\D/g, '')
-                const match = contacts.find(c => {
-                  const cDigits = String(c.id || c.number).replace(/\D/g, '')
-                  return cDigits && (jidDigits.endsWith(cDigits) || cDigits.endsWith(jidDigits))
-                })
-                return (
-                  <button
-                    onClick={() => {
-                      if (match) {
-                        fetch(`${API_URL}/extensions/whatsapp/command`, {
-                          method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ toolName: 'set_contact_name', args: { contact: msgJid, name: match.name } })
-                        }).then(() => refresh())
-                      } else {
-                        addUnknownContact(msg.jid)
-                      }
-                    }}
-                    className="text-xs text-accent hover:text-accent/80 px-1.5 py-0.5 rounded bg-accent/10 hover:bg-accent/20"
-                    title={match ? `Associar a ${match.name}` : 'Adicionar aos contatos'}
-                  >
-                    {match ? `Associar a ${match.name}` : '+ Contato'}
-                  </button>
-                )
-              })()}
-              <span className="ml-auto text-xs text-text-muted">{formatTime(msg.timestamp)}</span>
+            <div
+              key={i}
+              className="px-4 py-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-xs">{msg.direction === 'incoming' ? '🟢' : '🔵'}</span>
+                <span className="font-medium text-sm">{msg.from}</span>
+                {(() => {
+                  if (msg.direction !== 'incoming' || !/^\d+$/.test(msg.from)) return null
+                  const msgJid = msg.jid.split('@')[0]
+                  if (contacts.find((c) => c.id === msgJid)) return null
+                  const jidDigits = msgJid.replace(/\D/g, '')
+                  const match = contacts.find((c) => {
+                    const cDigits = String(c.id || c.number).replace(/\D/g, '')
+                    return cDigits && (jidDigits.endsWith(cDigits) || cDigits.endsWith(jidDigits))
+                  })
+                  return (
+                    <button
+                      onClick={() => {
+                        if (match) {
+                          fetch(`${API_URL}/extensions/whatsapp/command`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              toolName: 'set_contact_name',
+                              args: { contact: msgJid, name: match.name }
+                            })
+                          }).then(() => refresh())
+                        } else {
+                          addUnknownContact(msg.jid)
+                        }
+                      }}
+                      className="text-xs text-accent hover:text-accent/80 px-1.5 py-0.5 rounded bg-accent/10 hover:bg-accent/20"
+                      title={match ? `Associar a ${match.name}` : 'Adicionar aos contatos'}
+                    >
+                      {match ? `Associar a ${match.name}` : '+ Contato'}
+                    </button>
+                  )
+                })()}
+                <span className="ml-auto text-xs text-text-muted">{formatTime(msg.timestamp)}</span>
+              </div>
+              <p className="text-sm text-text-muted mt-0.5 ml-5 truncate">{msg.text}</p>
             </div>
-            <p className="text-sm text-text-muted mt-0.5 ml-5 truncate">{msg.text}</p>
-          </div>
-        ))}
+          ))}
 
-        {/* Quick reply buttons on latest incoming message */}
-        {quickReplies.length > 0 && history.filter(m => m.direction === 'incoming').length > 0 && (
-          <div className="px-4 py-3 border-t border-white/5 flex flex-wrap gap-2">
-            {quickReplies.map((reply, i) => (
-              <button
-                key={i}
-                onClick={() => sendQuickReply(reply)}
-                disabled={sending}
-                className="px-3 py-1.5 text-xs rounded-full bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20 disabled:opacity-50"
-              >
-                {sending ? '...' : reply}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+          {/* Quick reply buttons on latest incoming message */}
+          {quickReplies.length > 0 &&
+            history.filter((m) => m.direction === 'incoming').length > 0 && (
+              <div className="px-4 py-3 border-t border-white/5 flex flex-wrap gap-2">
+                {quickReplies.map((reply, i) => (
+                  <button
+                    key={i}
+                    onClick={() => sendQuickReply(reply)}
+                    disabled={sending}
+                    className="px-3 py-1.5 text-xs rounded-full bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20 disabled:opacity-50"
+                  >
+                    {sending ? '...' : reply}
+                  </button>
+                ))}
+              </div>
+            )}
+        </div>
       )}
 
       {connected && (
-      <div className="rounded-xl border border-white/5 bg-card">
-        <div className="px-4 py-3 border-b border-white/5 font-medium text-sm">
-          Contatos Monitorados
-        </div>
-        {contacts.length === 0 && (
-          <div className="p-6 text-center text-sm text-text-muted">Nenhum contato na whitelist</div>
-        )}
-        {contacts.map((c) => (
-          <div
-            key={c.id}
-            className="px-4 py-3 border-b border-white/5 last:border-0 flex items-center gap-3 hover:bg-white/5 transition-colors"
-          >
-            <span className="text-lg">📱</span>
-            <div className="flex-1 min-w-0">
-              {editingName === c.id ? (
-                <input
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') saveContactName(c.id)
-                    if (e.key === 'Escape') setEditingName(null)
-                  }}
-                  onBlur={() => saveContactName(c.id)}
-                  autoFocus
-                  className="w-full bg-white/10 rounded px-2 py-0.5 text-sm border border-accent/50 outline-none"
-                />
-              ) : (
-                <>
-                  <p className="text-sm font-medium truncate">{c.name}</p>
-                  <p className="text-xs text-text-muted truncate">{c.number}</p>
-                </>
-              )}
+        <div className="rounded-xl border border-white/5 bg-card">
+          <div className="px-4 py-3 border-b border-white/5 font-medium text-sm">
+            Contatos Monitorados
+          </div>
+          {contacts.length === 0 && (
+            <div className="p-6 text-center text-sm text-text-muted">
+              Nenhum contato na whitelist
             </div>
-            <button
-              onClick={() => {
-                setEditingName(c.id)
-                setEditValue(c.name)
-              }}
-              className="text-xs text-text-muted hover:text-text px-1.5 py-1 rounded-lg hover:bg-white/5"
-              title="Renomear"
+          )}
+          {contacts.map((c) => (
+            <div
+              key={c.id}
+              className="px-4 py-3 border-b border-white/5 last:border-0 flex items-center gap-3 hover:bg-white/5 transition-colors"
             >
-              ✏️
-            </button>
-            <button
-              onClick={() => removeContact(c.id)}
-              className="text-xs text-red-400 hover:text-red-300 px-1.5 py-1 rounded-lg hover:bg-red-500/10"
-              title="Remover"
-            >
-              🗑️
-            </button>
-          </div>
-        ))}
-        <div className="px-4 py-3 border-t border-white/5">
-          <div className="flex gap-2">
-            <input
-              value={newContact}
-              onChange={(e) => setNewContact(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addContact()}
-              placeholder="+5511999999999"
-              className="flex-1 bg-white/5 rounded-lg px-3 py-1.5 text-sm border border-white/10 outline-none focus:border-accent/50"
-            />
-            <button
-              onClick={addContact}
-              className="px-3 py-1.5 text-sm rounded-lg bg-accent/10 text-accent hover:bg-accent/20 border border-accent/20"
-            >
-              Adicionar
-            </button>
+              <span className="text-lg">📱</span>
+              <div className="flex-1 min-w-0">
+                {editingName === c.id ? (
+                  <input
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') saveContactName(c.id)
+                      if (e.key === 'Escape') setEditingName(null)
+                    }}
+                    onBlur={() => saveContactName(c.id)}
+                    autoFocus
+                    className="w-full bg-white/10 rounded px-2 py-0.5 text-sm border border-accent/50 outline-none"
+                  />
+                ) : (
+                  <>
+                    <p className="text-sm font-medium truncate">{c.name}</p>
+                    <p className="text-xs text-text-muted truncate">{c.number}</p>
+                  </>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setEditingName(c.id)
+                  setEditValue(c.name)
+                }}
+                className="text-xs text-text-muted hover:text-text px-1.5 py-1 rounded-lg hover:bg-white/5"
+                title="Renomear"
+              >
+                ✏️
+              </button>
+              <button
+                onClick={() => removeContact(c.id)}
+                className="text-xs text-red-400 hover:text-red-300 px-1.5 py-1 rounded-lg hover:bg-red-500/10"
+                title="Remover"
+              >
+                🗑️
+              </button>
+            </div>
+          ))}
+          <div className="px-4 py-3 border-t border-white/5">
+            <div className="flex gap-2">
+              <input
+                value={newContact}
+                onChange={(e) => setNewContact(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addContact()}
+                placeholder="+5511999999999"
+                className="flex-1 bg-white/5 rounded-lg px-3 py-1.5 text-sm border border-white/10 outline-none focus:border-accent/50"
+              />
+              <button
+                onClick={addContact}
+                className="px-3 py-1.5 text-sm rounded-lg bg-accent/10 text-accent hover:bg-accent/20 border border-accent/20"
+              >
+                Adicionar
+              </button>
+            </div>
           </div>
         </div>
-      </div>
       )}
     </div>
   )
