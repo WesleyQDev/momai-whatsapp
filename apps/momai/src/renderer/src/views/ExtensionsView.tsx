@@ -384,6 +384,8 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
   const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece', skill.id, skill.name)
   const isWhatsapp = skill.id === 'whatsapp' || skill.name.toLowerCase() === 'whatsapp'
   const isLauncher = skill.id === 'launcher' || skill.name.toLowerCase() === 'launcher'
+  const isInstalled =
+    skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
   return (
     <div
       onClick={() => onSelect(skill)}
@@ -412,11 +414,16 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
                 Comunidade
               </div>
             )}
-            {!skill.enabled && (
-              <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-600 border border-zinc-800">
-                Inativa
-              </span>
-            )}
+            {isInstalled &&
+              (skill.enabled ? (
+                <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  Ativa
+                </span>
+              ) : (
+                <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-600 border border-zinc-800">
+                  Inativa
+                </span>
+              ))}
           </div>
         </div>
         <h3

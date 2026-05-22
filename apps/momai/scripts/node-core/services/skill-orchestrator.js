@@ -69,7 +69,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         typeof manifest.readme === 'object' && manifest.readme !== null ? manifest.readme : {}
 
       const docContent =
-        readmes[lang] || readmes['pt-BR'] || readmes['default'] || manifest.instructions || ''
+        readmes[lang] || readmes['pt-BR'] || readmes['default'] || ''
 
       return {
         id: manifest.id || skill.id,

@@ -94,6 +94,42 @@ export default function LateralBar({
   const [observabilityEnabled, setObservabilityEnabled] = useState(
     () => localStorage.getItem('momai_observability_enabled') === 'true'
   )
+  const [seenPanels, setSeenPanels] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('momai_seen_panels')
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
+
+  const markAsSeen = (extId: string) => {
+    if (!seenPanels.includes(extId)) {
+      const newSeen = [...seenPanels, extId]
+      setSeenPanels(newSeen)
+      localStorage.setItem('momai_seen_panels', JSON.stringify(newSeen))
+    }
+  }
+
+  useEffect(() => {
+    const enabledPanelIds = extensions
+      .filter((e) => (e.features?.sidebarPanel || e.features?.sidebar) && e.enabled && e.name !== 'responder')
+      .map((e) => e.id)
+
+    setSeenPanels((prev) => {
+      const filtered = prev.filter((id) => enabledPanelIds.includes(id))
+      if (filtered.length !== prev.length) {
+        localStorage.setItem('momai_seen_panels', JSON.stringify(filtered))
+        return filtered
+      }
+      return prev
+    })
+  }, [extensions])
+
+  const handlePanelClick = (extId: string) => {
+    markAsSeen(extId)
+    onOpenPanel?.(extId)
+  }
 
   useEffect(() => {
     const handler = () => {
@@ -177,10 +213,15 @@ export default function LateralBar({
               null
             const FallbackIconComponent = fallbackIcon
 
+            const isNew = ext.name !== 'responder' && !seenPanels.includes(ext.id)
+
             return (
               <button
                 key={ext.id}
-                onClick={() => onNavigate(route)}
+                onClick={() => {
+                  markAsSeen(ext.id)
+                  onNavigate(route)
+                }}
                 title={ext.name}
                 id={isChat ? 'tutorial-chat' : undefined}
                 className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 ${isActive ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
@@ -204,6 +245,13 @@ export default function LateralBar({
                   <FallbackIconComponent
                     className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
                   />
+                )}
+                {isNew && (
+                  <span
+                    className={`absolute left-1/2 -translate-x-1/2 ${isCompact ? 'bottom-[-7px] px-1 text-[6px] h-3' : 'bottom-[-11px] px-1.5 text-[7px] h-3.5'} flex items-center justify-center rounded-full bg-emerald-500 font-extrabold uppercase tracking-wider text-white shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse z-10 pointer-events-none`}
+                  >
+                    New
+                  </span>
                 )}
               </button>
             )
@@ -272,16 +320,24 @@ export default function LateralBar({
                   <div className="w-6 h-px bg-white/10 my-1" />
                   {panelExtensions.map((ext) => {
                     const panel = ext.features?.sidebarPanel
+                    const isNew = !seenPanels.includes(ext.id)
                     return (
                       <button
                         key={`panel-${ext.id}`}
-                        onClick={() => onOpenPanel?.(ext.id)}
+                        onClick={() => handlePanelClick(ext.id)}
                         title={panel?.label || ext.name}
                         className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 text-text-muted hover:text-text`}
                       >
                         <span className="text-base transition-all duration-300 ease-out group-hover:scale-110">
                           {panel?.icon || '🧩'}
                         </span>
+                        {isNew && (
+                          <span
+                            className={`absolute left-1/2 -translate-x-1/2 ${isCompact ? 'bottom-[-7px] px-1 text-[6px] h-3' : 'bottom-[-11px] px-1.5 text-[7px] h-3.5'} flex items-center justify-center rounded-full bg-emerald-500 font-extrabold uppercase tracking-wider text-white shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse z-10 pointer-events-none`}
+                          >
+                            New
+                          </span>
+                        )}
                       </button>
                     )
                   })}

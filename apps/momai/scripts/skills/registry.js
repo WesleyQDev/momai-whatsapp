@@ -552,8 +552,20 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       permissions: skill.manifest.permissions || null,
       risk_level: skill.manifest._riskLevel || 'low',
       permission_summary: skill.manifest._permSummary || [],
-      instructions: (skill.manifest.readme || skill.manifest.instructions || '').trim(),
-      readme: (skill.manifest.readme || skill.manifest.instructions || '').trim(),
+      instructions: (() => {
+        const r = skill.manifest.readme
+        if (r && typeof r === 'object') {
+          return (r['pt-BR'] || r['default'] || '').trim()
+        }
+        return ''
+      })(),
+      readme: (() => {
+        const r = skill.manifest.readme
+        if (r && typeof r === 'object') {
+          return (r['pt-BR'] || r['default'] || '').trim()
+        }
+        return ''
+      })(),
       version: skill.manifest.version || '1.0.0',
       author: skill.manifest.author || 'MomAI Team',
       tags: skill.manifest.tags || [],
