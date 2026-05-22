@@ -8,6 +8,8 @@ interface Message {
   text: string
   timestamp: number
   direction: 'incoming' | 'outgoing'
+  isGroup?: boolean
+  groupName?: string | null
 }
 
 interface Contact {
@@ -217,19 +219,48 @@ export default function WhatsAppView() {
 
   // Generate quick replies when history changes
   useEffect(() => {
-    const lastIncoming = [...history].reverse().find((m) => m.direction === 'incoming')
-    if (lastIncoming) {
-      fetch(`${API_URL}/extensions/whatsapp/process-notification`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact: lastIncoming.from, message: lastIncoming.text })
-      })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.quickReplies?.length) setQuickReplies(d.quickReplies)
-        })
-        .catch(() => {})
+    if (history.length === 0) {
+      setQuickReplies([])
+      return
     }
+
+    // Since history is sorted newest first, find() gets the most recent incoming message
+    const lastIncoming = history.find((m) => m.direction === 'incoming')
+    if (!lastIncoming) {
+      setQuickReplies([])
+      return
+    }
+
+    // Check if we already replied to this specific incoming message
+    const lastMessageForContact = history.find((m) => m.jid === lastIncoming.jid)
+    const hasReplied = lastMessageForContact?.direction === 'outgoing'
+
+    if (hasReplied) {
+      setQuickReplies([])
+      return
+    }
+
+    fetch(`${API_URL}/extensions/whatsapp/process-notification`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contact: lastIncoming.from,
+        message: lastIncoming.text,
+        isGroup: lastIncoming.isGroup,
+        groupName: lastIncoming.groupName
+      })
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.quickReplies?.length) {
+          setQuickReplies(d.quickReplies)
+        } else {
+          setQuickReplies([])
+        }
+      })
+      .catch(() => {
+        setQuickReplies([])
+      })
   }, [history])
 
   const sendQuickReply = useCallback(

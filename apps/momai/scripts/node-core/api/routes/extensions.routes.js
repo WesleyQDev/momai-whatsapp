@@ -597,11 +597,15 @@ function createExtensionsRoutes(context) {
       const body = await readJsonBody(req).catch(() => ({}))
       const contact = body.contact || body.from || 'Alguem'
       const message = body.message || body.text || ''
+      const isGroup = body.isGroup || false
+      const groupName = body.groupName || ''
       const isNumber = /^\d{8,}$/.test(contact.replace(/\D/g, ''))
       const displayContact = isNumber ? 'Um contato' : contact
 
       // Default: TTS informativo caso o LLM falhe
-      let tts = `${displayContact} te enviou uma mensagem no WhatsApp`
+      let tts = isGroup
+        ? `${displayContact} enviou uma mensagem no grupo ${groupName} no WhatsApp`
+        : `${displayContact} te enviou uma mensagem no WhatsApp`
       let quickReplies = ['Sim', 'Nao', 'Agora nao']
 
       try {
@@ -613,8 +617,10 @@ function createExtensionsRoutes(context) {
         })
         const result = await llm.completeText({
           system:
-            'Voce e um assistente notificando o usuario sobre uma mensagem recebida no WhatsApp. Fale em segunda pessoa para o usuario. Explique quem enviou e o contexto. Exemplo: "sua mae esta te chamando la no whatsapp" ou "um contato no whatsapp te insultou". Nao repita a mensagem literalmente. Separe a frase das opcoes de resposta com " | ". Exemplo completo: sua mae perguntou se voce almocou pelo whatsapp | Ja almocamos | Ainda nao',
-          user: `Quem enviou: ${displayContact}. Mensagem: "${message}"`
+            'Voce e um assistente notificando o usuario sobre uma mensagem recebida no WhatsApp. Fale em segunda pessoa para o usuario. Explique quem enviou e o contexto, incluindo o nome do grupo se a mensagem for de um grupo. Exemplo: "sua mae esta te chamando la no whatsapp" ou "um contato no whatsapp te insultou" ou "fulano mandou mensagem no grupo Familia". Nao repita a mensagem literalmente. Separe a frase das opcoes de resposta com " | ". Exemplo completo: sua mae perguntou se voce almocou pelo whatsapp | Ja almocamos | Ainda nao',
+          user: isGroup
+            ? `Quem enviou: ${displayContact} no grupo "${groupName}". Mensagem: "${message}"`
+            : `Quem enviou: ${displayContact}. Mensagem: "${message}"`
         })
         const text = (result.text || '').trim()
         const parts = text
