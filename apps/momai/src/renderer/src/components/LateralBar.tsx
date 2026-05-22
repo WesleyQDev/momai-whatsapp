@@ -115,7 +115,10 @@ export default function LateralBar({
     if (extensions.length === 0) return
 
     const enabledPanelIds = extensions
-      .filter((e) => (e.features?.sidebarPanel || e.features?.sidebar) && e.enabled && e.name !== 'responder')
+      .filter(
+        (e) =>
+          (e.features?.sidebarPanel || e.features?.sidebar) && e.enabled && e.name !== 'responder'
+      )
       .map((e) => e.id)
 
     setSeenPanels((prev) => {

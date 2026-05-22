@@ -137,30 +137,33 @@ export default function WhatsAppView() {
     } catch {}
   }, [])
 
-  const loadPaginatedContacts = useCallback(async (page: number, search: string) => {
-    setContactsLoading(true)
-    try {
-      const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          toolName: 'get_wa_contacts',
-          args: {
-            page,
-            perPage: contactsPerPage,
-            search: search.trim()
-          }
+  const loadPaginatedContacts = useCallback(
+    async (page: number, search: string) => {
+      setContactsLoading(true)
+      try {
+        const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toolName: 'get_wa_contacts',
+            args: {
+              page,
+              perPage: contactsPerPage,
+              search: search.trim()
+            }
+          })
         })
-      })
-      const data = await res.json()
-      if (data.contacts) {
-        setPaginatedContacts(data.contacts)
-        setTotalFilteredContacts(data.totalFiltered || 0)
-        setTotalPages(data.totalPages || 1)
-      }
-    } catch {}
-    setContactsLoading(false)
-  }, [contactsPerPage])
+        const data = await res.json()
+        if (data.contacts) {
+          setPaginatedContacts(data.contacts)
+          setTotalFilteredContacts(data.totalFiltered || 0)
+          setTotalPages(data.totalPages || 1)
+        }
+      } catch {}
+      setContactsLoading(false)
+    },
+    [contactsPerPage]
+  )
 
   const refresh = useCallback(async () => {
     await Promise.all([
@@ -179,8 +182,8 @@ export default function WhatsAppView() {
       })
       const data = await res.json()
       if (data.ok) {
-        setPaginatedContacts(prev =>
-          prev.map(c => c.id === contactId ? { ...c, monitoring: data.monitoring } : c)
+        setPaginatedContacts((prev) =>
+          prev.map((c) => (c.id === contactId ? { ...c, monitoring: data.monitoring } : c))
         )
         loadStats()
       }
@@ -551,7 +554,7 @@ export default function WhatsAppView() {
                       </>
                     )}
                   </div>
-                  
+
                   {editingName !== c.id && (
                     <button
                       onClick={() => {
@@ -564,9 +567,11 @@ export default function WhatsAppView() {
                       ✏️
                     </button>
                   )}
-                  
+
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs ${c.monitoring ? 'text-green-400' : 'text-text-muted'}`}>
+                    <span
+                      className={`text-xs ${c.monitoring ? 'text-green-400' : 'text-text-muted'}`}
+                    >
                       {c.monitoring ? 'Monitorado' : 'Ignorado'}
                     </span>
                     <button
@@ -591,11 +596,13 @@ export default function WhatsAppView() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
               <span className="text-xs text-text-muted">
-                Mostrando {((contactsPage - 1) * contactsPerPage) + 1} a {Math.min(contactsPage * contactsPerPage, totalFilteredContacts)} de {totalFilteredContacts} contatos
+                Mostrando {(contactsPage - 1) * contactsPerPage + 1} a{' '}
+                {Math.min(contactsPage * contactsPerPage, totalFilteredContacts)} de{' '}
+                {totalFilteredContacts} contatos
               </span>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setContactsPage(p => Math.max(1, p - 1))}
+                  onClick={() => setContactsPage((p) => Math.max(1, p - 1))}
                   disabled={contactsPage === 1}
                   className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
@@ -605,7 +612,7 @@ export default function WhatsAppView() {
                   {contactsPage} / {totalPages}
                 </span>
                 <button
-                  onClick={() => setContactsPage(p => Math.min(totalPages, p + 1))}
+                  onClick={() => setContactsPage((p) => Math.min(totalPages, p + 1))}
                   disabled={contactsPage === totalPages}
                   className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
