@@ -99,6 +99,7 @@ export default function WhatsAppView() {
   const [editValue, setEditValue] = useState('')
   const [quickReplies, setQuickReplies] = useState<string[]>([])
   const [sending, setSending] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   // Paginated contacts state
   const [contactsPage, setContactsPage] = useState(1)
@@ -172,6 +173,16 @@ export default function WhatsAppView() {
       loadPaginatedContacts(contactsPage, contactSearch)
     ])
   }, [loadStats, loadHistory, loadPaginatedContacts, contactsPage, contactSearch])
+
+  const handleSync = useCallback(async () => {
+    if (syncing) return
+    setSyncing(true)
+    try {
+      await fetch(`${API_URL}/extensions/whatsapp/sync`, {
+        method: 'POST'
+      })
+    } catch {}
+  }, [syncing])
 
   const toggleMonitoring = async (contactId: string) => {
     try {
@@ -312,16 +323,12 @@ export default function WhatsAppView() {
     setContactsPage(1)
   }, [contactSearch])
 
-  // Auto-restart worker when disconnected with no QR
+  // Poll connection status periodically when disconnected
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    if (!connected && !qrUrl) {
-      timer = setTimeout(reconnect, 2000)
-    }
-    return () => {
-      if (timer) clearTimeout(timer)
-    }
-  }, [connected, qrUrl, reconnect])
+    if (connected) return
+    const interval = setInterval(loadStats, 5000)
+    return () => clearInterval(interval)
+  }, [connected, loadStats])
 
   useExtensionEvents({
     onEvent: useCallback(
@@ -337,6 +344,7 @@ export default function WhatsAppView() {
           setConnected(event.data?.status === 'connected')
         } else if (event.eventType === 'contacts_synced') {
           setSyncedContacts(event.data?.count || 0)
+          setSyncing(false)
         }
         refresh()
       },
@@ -354,15 +362,43 @@ export default function WhatsAppView() {
       <div className="flex items-center gap-3">
         <span className="text-2xl">💚</span>
         <h1 className="text-xl font-semibold">WhatsApp</h1>
-        <div
-          className={`ml-auto flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
-            connected ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
-          }`}
-        >
+        <div className="ml-auto flex items-center gap-2">
+          {connected && (
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="p-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-text-muted hover:text-text transition-colors flex items-center justify-center disabled:opacity-50"
+              title="Sincronizar contatos"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={syncing ? 'animate-spin' : ''}
+              >
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                <path d="M16 16h5v5" />
+              </svg>
+            </button>
+          )}
           <div
-            className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}
-          />
-          {connected ? 'Conectado' : 'Desconectado'}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
+              connected ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+            }`}
+          >
+            <div
+              className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}
+            />
+            {connected ? 'Conectado' : 'Desconectado'}
+          </div>
         </div>
       </div>
 

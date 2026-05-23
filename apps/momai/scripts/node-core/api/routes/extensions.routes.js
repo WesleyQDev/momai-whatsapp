@@ -592,6 +592,28 @@ function createExtensionsRoutes(context) {
       return true
     }
 
+    /* ── Sync WhatsApp contacts (restart worker WITHOUT wiping auth) ── */
+    if (pathname === '/extensions/whatsapp/sync' && req.method === 'POST') {
+      try {
+        console.log('[extensions] Sync contacts requested')
+        await extensionHostManager.stopPersistent('whatsapp').catch(() => {})
+        await new Promise((r) => setTimeout(r, 500))
+
+        const skill = (skillRegistry.getAll?.() || []).find((s) => s.id === 'whatsapp')
+        if (skill) {
+          extensionHostManager
+            .startPersistent(skill.id, skill.dir, skill.manifest)
+            .then(() => console.log('[extensions] WhatsApp synced (worker restarted with auth)'))
+            .catch((err) => console.log('[extensions] Sync restart failed:', err.message))
+        }
+
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        sendJson(res, 200, { ok: false, error: err.message })
+      }
+      return true
+    }
+
     /* ── Process WhatsApp notification with LLM ── */
     if (pathname === '/extensions/whatsapp/process-notification' && req.method === 'POST') {
       const body = await readJsonBody(req).catch(() => ({}))
