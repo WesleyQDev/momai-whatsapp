@@ -279,7 +279,7 @@ export default function WhatsAppView() {
           })
         })
         const llmData = await llmRes.json()
-        const lastMsg = [...history].reverse().find((m) => m.direction === 'incoming')
+        const lastMsg = history.find((m) => m.direction === 'incoming')
         const finalMsg = (llmData?.text || '').trim() || label
         await fetch(`${API_URL}/extensions/whatsapp/command`, {
           method: 'POST',
