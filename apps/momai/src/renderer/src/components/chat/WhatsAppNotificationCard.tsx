@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { XMarkIcon, MicrophoneIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline'
+import ImageViewer from '../ImageViewer'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -46,6 +47,7 @@ const getInitials = (name: string): string => {
 
 function ContactAvatar({ src, name, id }: { src?: string | null; name: string; id: string }) {
   const [error, setError] = useState(false)
+  const [showViewer, setShowViewer] = useState(false)
 
   useEffect(() => {
     setError(false)
@@ -53,12 +55,19 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
 
   if (src && !error) {
     return (
-      <img
-        src={src}
-        alt={name}
-        onError={() => setError(true)}
-        className="w-10 h-10 rounded-full object-cover shrink-0"
-      />
+      <>
+        <img
+          src={src}
+          alt={name}
+          onError={() => setError(true)}
+          className="w-10 h-10 rounded-full object-cover shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={(e) => {
+            e.stopPropagation()
+            setShowViewer(true)
+          }}
+        />
+        {showViewer && <ImageViewer src={src} alt={name} onClose={() => setShowViewer(false)} />}
+      </>
     )
   }
 
@@ -274,11 +283,13 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         className="flex shrink-0 items-center gap-3 px-4 py-3 border-b border-border/40 bg-sidebar/30"
         style={{ WebkitAppRegion: 'drag' } as any}
       >
-        <ContactAvatar
-          src={data?.contactAvatar}
-          name={isGroup ? groupName : contact}
-          id={contactJid}
-        />
+        <div onClick={(e) => e.stopPropagation()} style={{ WebkitAppRegion: 'no-drag' } as any}>
+          <ContactAvatar
+            src={data?.contactAvatar}
+            name={isGroup ? groupName : contact}
+            id={contactJid}
+          />
+        </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-text truncate">
             {isGroup ? groupName : contact}

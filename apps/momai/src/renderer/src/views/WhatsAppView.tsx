@@ -3,6 +3,7 @@ import QRCode from 'qrcode'
 import { API_URL } from '../constants'
 import { useExtensionEvents } from '../hooks/useExtensionEvents'
 import { resolveWhatsAppChannel } from '../utils/whatsappChannel'
+import ImageViewer from '../components/ImageViewer'
 
 interface Message {
   from: string
@@ -181,6 +182,7 @@ function WhatsAppIcon({ className = 'w-7 h-7' }: { className?: string }) {
 
 function ContactAvatar({ src, name, id }: { src?: string | null; name: string; id: string }) {
   const [error, setError] = useState(false)
+  const [showViewer, setShowViewer] = useState(false)
 
   useEffect(() => {
     setError(false)
@@ -188,12 +190,19 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
 
   if (src && !error) {
     return (
-      <img
-        src={src}
-        alt={name}
-        onError={() => setError(true)}
-        className="w-10 h-10 rounded-full object-cover shrink-0"
-      />
+      <>
+        <img
+          src={src}
+          alt={name}
+          onError={() => setError(true)}
+          className="w-10 h-10 rounded-full object-cover shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={(e) => {
+            e.stopPropagation()
+            setShowViewer(true)
+          }}
+        />
+        {showViewer && <ImageViewer src={src} alt={name} onClose={() => setShowViewer(false)} />}
+      </>
     )
   }
 
@@ -929,11 +938,9 @@ export default function WhatsAppView() {
                 title="Ver conversa e responder"
               >
                 <div className="flex gap-3">
-                  <ContactAvatar
-                    src={convo.profilePicUrl}
-                    name={avatarName}
-                    id={convo.jid}
-                  />
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <ContactAvatar src={convo.profilePicUrl} name={avatarName} id={convo.jid} />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
                       {convo.isGroup && convo.groupName ? (
