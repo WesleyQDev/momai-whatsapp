@@ -9,6 +9,7 @@ const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { createPermissionSchema } = require('../../permissions/schema')
 const extensionEvents = require('../../services/extension-events')
 const { resolveWhatsAppChannel } = require('../../utils/whatsapp-channel')
+const { DATA_DIR } = require('../../config/constants')
 
 let _cachedExtensionsPayload = null
 let _lastExtensionsRefresh = 0
@@ -510,12 +511,12 @@ function createExtensionsRoutes(context) {
     }
 
     /* ── Helper: wipe Baileys auth dir (rm dir, fallback to creds.json) ── */
+    function _getBaileysAuthDir() {
+      return path.join(DATA_DIR, 'extensions', 'whatsapp', 'baileys-auth')
+    }
+
     function _wipeBaileysAuth() {
-      // Worker resolves data dir from __dirname — we mirror that here
-      // routes file: .../node-core/api/routes/ -> ../../../../data = .../momai/data
-      // worker file: .../packaged/whatsapp/ -> ../../../../data = .../momai/data
-      const repoData = path.resolve(__dirname, '..', '..', '..', '..', 'data')
-      const authDir = path.join(repoData, 'extensions', 'whatsapp', 'baileys-auth')
+      const authDir = _getBaileysAuthDir()
       try {
         if (fs.existsSync(authDir)) {
           fs.rmSync(authDir, { recursive: true, force: true })
@@ -540,17 +541,26 @@ function createExtensionsRoutes(context) {
     /* ── Disconnect WhatsApp: stop + wipe auth + restart to show QR ── */
     if (pathname === '/extensions/whatsapp/disconnect' && req.method === 'POST') {
       try {
-        // 1. Kill persistent worker and WAIT for process to fully exit
-        await extensionHostManager.stopPersistent('whatsapp')
-        await new Promise((r) => setTimeout(r, 500))
+        // 1. Graceful logout on running worker (prevents auto-reconnect race)
+        try {
+          await extensionHostManager.sendToPersistent('whatsapp', {
+            toolName: 'disconnect',
+            args: {}
+          })
+        } catch {}
 
-        // 2. Wipe Baileys auth — forces QR on next start
+        // 2. Stop worker
+        await extensionHostManager.stopPersistent('whatsapp')
+        await new Promise((r) => setTimeout(r, 400))
+
+        // 3. Wipe Baileys auth — forces QR on next start
         _wipeBaileysAuth()
 
-        // 3. Broadcast logged_out so UI shows QR container
+        // 4. Broadcast logged_out so UI shows QR container
         extensionEvents.broadcast('authenticated', { status: 'logged_out' })
+        extensionEvents.broadcast('connection_status', { status: 'disconnected' })
 
-        // 4. Restart worker fresh
+        // 5. Restart worker fresh (no creds → QR)
         const whatsappSkill = (skillRegistry.getAll?.() || []).find((s) => s.id === 'whatsapp')
         if (whatsappSkill) {
           setTimeout(() => {
@@ -558,7 +568,7 @@ function createExtensionsRoutes(context) {
               .startPersistent(whatsappSkill.id, whatsappSkill.dir, whatsappSkill.manifest)
               .then(() => console.log('[extensions] WhatsApp re-started after disconnect'))
               .catch((err) => console.log('[extensions] WhatsApp restart failed:', err.message))
-          }, 500)
+          }, 400)
         }
 
         sendJson(res, 200, { ok: true, connected: false })

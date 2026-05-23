@@ -511,7 +511,9 @@ export default function WhatsAppView() {
             QRCode.toDataURL(event.data.qr, { width: 256, margin: 1 }).then(setQrUrl)
           })
         } else if (event.eventType === 'connection_status') {
-          setConnected(event.data?.status === 'connected')
+          const status = event.data?.status
+          if (status === 'connected') setConnected(true)
+          else if (status === 'disconnected' || status === 'reconnecting') setConnected(false)
         } else if (event.eventType === 'contacts_synced') {
           setSyncedContacts(event.data?.count || 0)
           setSyncing(false)
@@ -519,9 +521,17 @@ export default function WhatsAppView() {
           loadHistory()
           return
         } else if (event.eventType === 'authenticated') {
-          setConnected(event.data?.status === 'connected')
-          setQrUrl(null)
-          loadHistory()
+          const status = event.data?.status
+          if (status === 'logged_out') {
+            setConnected(false)
+            setQrUrl(null)
+          } else if (status === 'connected') {
+            setConnected(true)
+            setQrUrl(null)
+            loadHistory()
+          } else {
+            setConnected(false)
+          }
           return
         }
         refresh()
