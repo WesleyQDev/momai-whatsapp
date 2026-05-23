@@ -108,11 +108,10 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     async (text: string) => {
       if (hasReplied.current) return
       hasReplied.current = true
-
-      console.log("[WhatsAppNotificationCard] sendReply - contactJid:", contactJid, "text:", text)
+      setSending(true)
 
       try {
-        await fetch(`${API_URL}/extensions/whatsapp/command`, {
+        const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -120,10 +119,19 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             args: { contact: contactJid, message: text }
           })
         })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || data?.ok === false) {
+          console.error('[WhatsAppNotificationCard] sendReply failed:', data?.error)
+          hasReplied.current = false
+          setSending(false)
+          return
+        }
+        onClose()
       } catch (err) {
-        console.error("[WhatsAppNotificationCard] sendReply error:", err)
+        console.error('[WhatsAppNotificationCard] sendReply error:', err)
+        hasReplied.current = false
+        setSending(false)
       }
-      onClose()
     },
     [contactJid, onClose]
   )
@@ -131,26 +139,10 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const handleQuickReply = useCallback(
     async (label: string) => {
       if (hasReplied.current) return
-      hasReplied.current = true
       stop()
-
-      console.log("[WhatsAppNotificationCard] handleQuickReply - contactJid:", contactJid, "label:", label)
-
-      try {
-        await fetch(`${API_URL}/extensions/whatsapp/command`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            toolName: 'send_message',
-            args: { contact: contactJid, message: label }
-          })
-        })
-      } catch (err) {
-        console.error("[WhatsAppNotificationCard] handleQuickReply error:", err)
-      }
-      onClose()
+      await sendReply(label)
     },
-    [contactJid, onClose, stop]
+    [sendReply, stop]
   )
 
   useEffect(() => {
