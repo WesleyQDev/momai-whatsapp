@@ -167,6 +167,9 @@ function createRouter(context, routeHandlers) {
       for (const controller of context.activeChatControllers) {
         controller.abort()
       }
+      if (context.extensionHostManager?.stopAllPersistent) {
+        await context.extensionHostManager.stopAllPersistent().catch(() => {})
+      }
       await context.stopEmbeddingServer()
       await context.stopLlamaServer()
     } finally {

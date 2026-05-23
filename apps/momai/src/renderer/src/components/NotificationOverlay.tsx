@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { XMarkIcon, MicrophoneIcon } from '@heroicons/react/24/outline'
 import { useExtensionEvents } from '../hooks/useExtensionEvents'
 import { getTTSServiceRenderer } from '../services/ttsService'
+import { resolveWhatsAppChannel } from '../utils/whatsappChannel'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -45,6 +46,8 @@ export default function NotificationOverlay() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const voiceAbortRef = useRef<Map<string, AbortController>>(new Map())
+  /** Uma geracao por mensagem (evita TTS errado quando varias pessoas mandam no mesmo grupo) */
+  const notificationGenByKeyRef = useRef<Map<string, number>>(new Map())
 
   const removeNotification = useCallback((id: string) => {
     const controller = voiceAbortRef.current.get(id)
@@ -128,6 +131,13 @@ export default function NotificationOverlay() {
   const handleEvent = useCallback(
     (event: { eventType: string; data: any }) => {
       if (event.eventType === 'whatsapp_notification' || event.eventType === 'notification') {
+        const { contactJid, isGroup, groupName } = resolveWhatsAppChannel(event.data)
+        const senderJid = event.data.senderJid || ''
+        const msgKey = `${contactJid}:${senderJid}:${event.data.timestamp}:${event.data.message}`
+        const prevGen = notificationGenByKeyRef.current.get(msgKey) || 0
+        const gen = prevGen + 1
+        notificationGenByKeyRef.current.set(msgKey, gen)
+
         const processMsg = async () => {
           try {
             const llmRes = await fetch(`${API_URL}/extensions/whatsapp/process-notification`, {
@@ -135,24 +145,36 @@ export default function NotificationOverlay() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 contact: event.data.contact,
+                senderName: event.data.contact,
+                senderJid,
                 message: event.data.message,
-                isGroup: event.data.isGroup,
-                groupName: event.data.groupName
+                contactJid,
+                isGroup,
+                groupName
               })
             })
             const llmData = await llmRes.json()
 
+            if (notificationGenByKeyRef.current.get(msgKey) !== gen) return
+
             if (llmData.tts) {
               try {
-                getTTSServiceRenderer().speak(llmData.tts)
+                const tts = getTTSServiceRenderer()
+                await tts.stop()
+                await tts.speak(llmData.tts)
               } catch {}
             }
+
+            if (notificationGenByKeyRef.current.get(msgKey) !== gen) return
 
             const overlayData = {
               structuredResponse: {
                 type: 'whatsapp_notification',
                 data: {
                   ...event.data,
+                  contactJid,
+                  isGroup,
+                  groupName,
                   quickReplies: llmData.quickReplies || [],
                   tts: llmData.tts || ''
                 }

@@ -72,9 +72,16 @@ class ExtensionHostManager extends EventEmitter {
 
     const bgScript = manifest.backgroundScript || 'runtime.js'
     const hostPath = path.join(skillPath, bgScript)
+    const dataDir =
+      process.env.MOMAI_NODE_CORE_DATA_DIR || process.env.MOMAI_DATA_DIR || ''
     const child = fork(hostPath, [skillId, skillPath], {
       stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-      env: { ...process.env, MOMAI_EXTENSION_ID: skillId, MOMAI_PERSISTENT: 'true' }
+      env: {
+        ...process.env,
+        MOMAI_EXTENSION_ID: skillId,
+        MOMAI_PERSISTENT: 'true',
+        ...(dataDir ? { MOMAI_DATA_DIR: dataDir, MOMAI_NODE_CORE_DATA_DIR: dataDir } : {})
+      }
     })
 
     child.stderr.on('data', (data) => {
@@ -175,14 +182,22 @@ class ExtensionHostManager extends EventEmitter {
     const { child } = entry
     this.persistentHosts.delete(skillId)
     this.restartCounts.delete(skillId)
-    child.kill()
+    try {
+      child.send({ type: 'shutdown' })
+    } catch {}
+    const childRef = child
     return new Promise((resolve) => {
       const done = () => {
-        child.removeListener('exit', done)
+        childRef.removeListener('exit', done)
         resolve()
       }
-      child.on('exit', done)
-      setTimeout(done, 3000) // safety timeout
+      childRef.on('exit', done)
+      setTimeout(() => {
+        try {
+          if (!childRef.killed) childRef.kill()
+        } catch {}
+        done()
+      }, 1200)
     })
   }
 

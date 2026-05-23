@@ -3,6 +3,18 @@ import { XMarkIcon, MicrophoneIcon, PaperAirplaneIcon } from '@heroicons/react/2
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+type HistoryLine = {
+  direction: 'incoming' | 'outgoing'
+  text: string
+  timestamp: number
+  from?: string
+}
+
+const formatHistoryTime = (ts: number) => {
+  const ms = ts > 1e12 ? ts : ts * 1000
+  return new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
 const VOICE_LABELS: Record<string, string> = {
   listening: 'Aguardando "responda"...',
   detected: 'Ouvindo resposta...',
@@ -76,6 +88,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
   const contact = data?.contact || data?.from || 'Desconhecido'
   const message = data?.message || data?.text || ''
+  const conversationHistory: HistoryLine[] = data?.conversationHistory || []
   const quickReplies = data?.quickReplies || []
   const contactJid = data?.contactJid || data?.contact || ''
   const isGroup = data?.isGroup || false
@@ -96,7 +109,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     setCustomText('')
     setSending(false)
     interactionGenRef.current += 1
-  }, [contactJid, message])
+  }, [contactJid, message, conversationHistory.length])
 
   const stop = useCallback(() => {
     if (abortRef.current) {
@@ -116,7 +129,15 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
               'Escreva APENAS o texto de uma mensagem de WhatsApp a ser enviada.',
               `Contato: ${contact}`,
               isGroup ? `Grupo: ${groupName}` : '',
-              `Mensagem recebida: "${message}"`,
+              conversationHistory.length > 0
+                ? `Historico recente:\n${conversationHistory
+                    .map((l) =>
+                      l.direction === 'incoming'
+                        ? `${l.from || contact}: ${l.text}`
+                        : `Voce: ${l.text}`
+                    )
+                    .join('\n')}`
+                : `Mensagem recebida: "${message}"`,
               `Intencao: ${intent}`,
               'Resposta curta e natural em portugues, sem aspas nem explicacao.'
             ]
@@ -131,7 +152,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         return intent
       }
     },
-    [contact, message, isGroup, groupName]
+    [contact, message, isGroup, groupName, conversationHistory]
   )
 
   const beginUserSend = useCallback(() => {
@@ -281,7 +302,41 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           <XMarkIcon className="w-4 h-4" />
         </button>
       </div>
-      <p className="text-sm text-gray-300 mb-4">{message}</p>
+      {conversationHistory.length > 0 ? (
+        <div
+          className="mb-4 max-h-52 overflow-y-auto space-y-2 pr-1 rounded-lg bg-black/20 p-3"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+        >
+          {conversationHistory.map((line, i) => (
+            <div
+              key={`${line.timestamp}-${i}`}
+              className={
+                line.direction === 'outgoing'
+                  ? 'pl-3 border-l-2 border-accent/40'
+                  : 'pl-0.5'
+              }
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className={`text-xs font-medium ${
+                    line.direction === 'outgoing' ? 'text-accent' : 'text-text-muted'
+                  }`}
+                >
+                  {line.direction === 'outgoing' ? 'Você' : line.from || contact}
+                </span>
+                <span className="text-[10px] text-text-muted ml-auto">
+                  {formatHistoryTime(line.timestamp)}
+                </span>
+              </div>
+              <p className="text-sm text-gray-300 mt-0.5 whitespace-pre-wrap break-words">
+                {line.text}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-gray-300 mb-4">{message}</p>
+      )}
 
       <div
         className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-accent/5 border border-accent/10"

@@ -8,6 +8,7 @@ const { exec } = require('node:child_process')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { createPermissionSchema } = require('../../permissions/schema')
 const extensionEvents = require('../../services/extension-events')
+const { resolveWhatsAppChannel } = require('../../utils/whatsapp-channel')
 
 let _cachedExtensionsPayload = null
 let _lastExtensionsRefresh = 0
@@ -617,17 +618,17 @@ function createExtensionsRoutes(context) {
     /* ── Process WhatsApp notification with LLM ── */
     if (pathname === '/extensions/whatsapp/process-notification' && req.method === 'POST') {
       const body = await readJsonBody(req).catch(() => ({}))
-      const contact = body.contact || body.from || 'Alguem'
+      const contact = body.contact || body.from || body.senderName || 'Alguem'
       const message = body.message || body.text || ''
-      const isGroup = body.isGroup || false
-      const groupName = body.groupName || ''
-      const isNumber = /^\d{8,}$/.test(contact.replace(/\D/g, ''))
+      const { contactJid, isGroup, groupName } = resolveWhatsAppChannel(body)
+      const isNumber = /^\d{8,}$/.test(String(contact).replace(/\D/g, ''))
       const displayContact = isNumber ? 'Um contato' : contact
 
-      // Default: TTS informativo caso o LLM falhe
-      let tts = isGroup
-        ? `${displayContact} enviou uma mensagem no grupo ${groupName} no WhatsApp`
-        : `${displayContact} te enviou uma mensagem no WhatsApp`
+      // TTS deterministico: evita o LLM confundir remetentes em grupos
+      const tts = isGroup
+        ? `${displayContact} enviou uma mensagem no grupo ${groupName || 'do WhatsApp'}`
+        : `${displayContact} te enviou uma mensagem no privado`
+
       let quickReplies = ['Sim', 'Nao', 'Agora nao']
 
       try {
@@ -635,25 +636,20 @@ function createExtensionsRoutes(context) {
         const llm = createSkillLlmHelper({
           llamaState,
           tierName: store?.settings?.ai_tier || 'pro',
-          temperature: 0.5
+          temperature: 0.3
         })
+        const channelLabel = isGroup
+          ? `GRUPO (nome do grupo: "${groupName || 'sem nome'}")`
+          : 'CONVERSA PRIVADA (chat individual, NAO e grupo)'
         const result = await llm.completeText({
           system:
-            'Voce e um assistente notificando o usuario sobre uma mensagem recebida no WhatsApp. Fale em segunda pessoa para o usuario. Explique quem enviou e o contexto, incluindo o nome do grupo se a mensagem for de um grupo. Nao repita a mensagem literalmente. Separe a frase TTS das sugestoes de resposta com " | ". As sugestoes devem ser mensagens CURTAS que o usuario enviaria no WhatsApp (ate 6 palavras), nunca descricoes de acao. Errado: "Respondi de volta com uma mensagem curta" ou "Ignorei e nao falei nada". Certo: "Oi, tudo bem!" | "To ocupado" | "Depois falo". Exemplo completo: sua mae perguntou se voce almocou pelo whatsapp | Ja almocamos | Ainda nao',
-          user: isGroup
-            ? `Quem enviou: ${displayContact} no grupo "${groupName}". Mensagem: "${message}"`
-            : `Quem enviou: ${displayContact}. Mensagem: "${message}"`
+            'Gere APENAS 3 sugestoes curtas de resposta para WhatsApp (ate 6 palavras cada), separadas por " | ". Nao escreva frase de notificacao nem TTS. Nao invente outro remetente. Exemplo: Oi | Ja almoco | Ainda nao',
+          user: `Canal: ${channelLabel}\nRemetente desta mensagem (use so este nome): ${displayContact}\nMensagem recebida: "${message}"`
         })
         const text = (result.text || '').trim()
-        const parts = text
+        const opts = text
           .split('|')
-          .map(function (s) {
-            return s.trim()
-          })
-          .filter(Boolean)
-        if (parts.length >= 2) {
-          tts = parts[0]
-          const opts = parts.slice(1).flatMap(function (s) {
+          .flatMap(function (s) {
             return s
               .split(/[,;]/)
               .map(function (x) {
@@ -661,8 +657,7 @@ function createExtensionsRoutes(context) {
               })
               .filter(Boolean)
           })
-          if (opts.length >= 1) quickReplies = opts.slice(0, 3)
-        }
+        if (opts.length >= 1) quickReplies = opts.slice(0, 3)
       } catch {}
 
       sendJson(res, 200, { tts, quickReplies })
@@ -695,6 +690,19 @@ function createExtensionsRoutes(context) {
         sendJson(res, 200, { text })
       } catch {
         sendJson(res, 200, { text: '' })
+      }
+      return true
+    }
+
+    if (pathname === '/extensions/whatsapp/flush-history' && req.method === 'POST') {
+      try {
+        const result = await extensionHostManager.sendToPersistent('whatsapp', {
+          toolName: 'flush_history',
+          args: {}
+        })
+        sendJson(res, 200, result || { ok: true })
+      } catch (err) {
+        sendJson(res, 200, { ok: false, error: err.message })
       }
       return true
     }

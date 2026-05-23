@@ -11,6 +11,7 @@ import {
   forceKillAllSync,
   stopActiveServices
 } from './coreManager'
+import { API_HOST, API_PORT } from './constants'
 import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
 import { setupTTSHandlers, cleanupTTSHandlers } from './ttsIpcHandlers'
@@ -242,17 +243,34 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', (e) => {
   if (state.isQuitting) return
+  e.preventDefault()
   setIsQuitting(true)
 
   logger.info('[Electron] before-quit: Iniciando shutdown...')
   globalShortcut.unregisterAll()
   cleanupTTSHandlers()
 
-  forceKillAllSync()
+  void (async () => {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 2500)
+      await fetch(`http://${API_HOST}:${API_PORT}/extensions/whatsapp/flush-history`, {
+        method: 'POST',
+        signal: controller.signal
+      }).catch(() => null)
+      clearTimeout(timer)
+    } catch {}
 
-  logger.info('[Electron] Shutdown completo. Saindo...')
+    try {
+      await shutdownCoreBackend()
+    } catch {}
+
+    forceKillAllSync()
+    logger.info('[Electron] Shutdown completo. Saindo...')
+    app.exit(0)
+  })()
 })
 
 app.on('window-all-closed', () => {
