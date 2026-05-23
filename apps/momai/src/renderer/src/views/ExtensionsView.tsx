@@ -626,12 +626,13 @@ function SkillDetailView({
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => onToggle(skill)}
-                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all uppercase tracking-widest ${
+                  className={`inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black transition-all uppercase tracking-widest ${
                     skill.enabled
-                      ? 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-300'
-                      : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:bg-zinc-700 hover:text-white'
+                      ? 'bg-zinc-800/60 text-zinc-400 border border-zinc-700 hover:bg-zinc-800 hover:text-zinc-200 hover:border-zinc-600'
+                      : 'bg-emerald-600 text-white border border-emerald-500/50 shadow-lg shadow-emerald-500/25 hover:bg-emerald-500 hover:shadow-emerald-500/35 active:scale-[0.98]'
                   }`}
                 >
+                  {!skill.enabled && <PowerIcon className="w-4 h-4" />}
                   {skill.enabled ? 'Desativar' : 'Ativar'}
                 </button>
                 <button
