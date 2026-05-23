@@ -100,6 +100,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       if (hasReplied.current) return
       hasReplied.current = true
 
+      console.log("[WhatsAppNotificationCard] sendReply - contactJid:", contactJid, "text:", text)
+
       try {
         await fetch(`${API_URL}/extensions/whatsapp/command`, {
           method: 'POST',
@@ -109,7 +111,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             args: { contact: contactJid, message: text }
           })
         })
-      } catch {}
+      } catch (err) {
+        console.error("[WhatsAppNotificationCard] sendReply error:", err)
+      }
       onClose()
     },
     [contactJid, onClose]
@@ -121,6 +125,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       hasReplied.current = true
       stop()
 
+      console.log("[WhatsAppNotificationCard] handleQuickReply - contactJid:", contactJid, "label:", label)
+
       try {
         await fetch(`${API_URL}/extensions/whatsapp/command`, {
           method: 'POST',
@@ -130,7 +136,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             args: { contact: contactJid, message: label }
           })
         })
-      } catch {}
+      } catch (err) {
+        console.error("[WhatsAppNotificationCard] handleQuickReply error:", err)
+      }
       onClose()
     },
     [contactJid, onClose, stop]
