@@ -211,9 +211,10 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
   }
 
   const isPhone = /^[+\d\s().-]*$/.test(name)
+  const isGroup = id.endsWith('@g.us')
   return (
     <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-lg shrink-0">
-      {isPhone ? '📱' : '👤'}
+      {isGroup ? '👥' : isPhone ? '📱' : '👤'}
     </div>
   )
 }
@@ -244,8 +245,16 @@ export default function WhatsAppView() {
   const [contactSearch, setContactSearch] = useState('')
   const [paginatedContacts, setPaginatedContacts] = useState<WaContact[]>([])
   const [totalFilteredContacts, setTotalFilteredContacts] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
+  const [contactsTotalPages, setContactsTotalPages] = useState(1)
   const [contactsLoading, setContactsLoading] = useState(false)
+
+  const [groupsPage, setGroupsPage] = useState(1)
+  const [groupsPerPage] = useState(10)
+  const [groupSearch, setGroupSearch] = useState('')
+  const [paginatedGroups, setPaginatedGroups] = useState<WaContact[]>([])
+  const [totalFilteredGroups, setTotalFilteredGroups] = useState(0)
+  const [groupsTotalPages, setGroupsTotalPages] = useState(1)
+  const [groupsLoading, setGroupsLoading] = useState(false)
   const [avatarByJid, setAvatarByJid] = useState<Record<string, string | null>>({})
   const [conversationsPage, setConversationsPage] = useState(1)
   const [conversationsPerPage] = useState(10)
@@ -390,7 +399,7 @@ export default function WhatsAppView() {
         if (data.contacts) {
           setPaginatedContacts(data.contacts)
           setTotalFilteredContacts(data.totalFiltered || 0)
-          setTotalPages(data.totalPages || 1)
+          setContactsTotalPages(data.totalPages || 1)
         }
         return data
       } catch {
@@ -402,29 +411,81 @@ export default function WhatsAppView() {
     [contactsPerPage]
   )
 
+  const loadPaginatedGroups = useCallback(
+    async (page: number, search: string) => {
+      setGroupsLoading(true)
+      try {
+        const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toolName: 'get_wa_groups',
+            args: {
+              page,
+              perPage: groupsPerPage,
+              search: search.trim()
+            }
+          })
+        })
+        const data = await res.json()
+        if (data.contacts) {
+          setPaginatedGroups(data.contacts)
+          setTotalFilteredGroups(data.totalFiltered || 0)
+          setGroupsTotalPages(data.totalPages || 1)
+        }
+        return data
+      } catch {
+        return null
+      } finally {
+        setGroupsLoading(false)
+      }
+    },
+    [groupsPerPage]
+  )
+
   const tryFinishContactSync = useCallback(
     async (reportedCount?: number) => {
       if (reportedCount === 0) {
         setSyncing(false)
         return
       }
-      const data = await loadPaginatedContacts(contactsPage, contactSearch)
+      const [data] = await Promise.all([
+        loadPaginatedContacts(contactsPage, contactSearch),
+        loadPaginatedGroups(groupsPage, groupSearch)
+      ])
       const total = data?.totalFiltered ?? 0
       const pageCount = data?.contacts?.length ?? 0
       if (pageCount > 0 || total === 0) {
         setSyncing(false)
       }
     },
-    [loadPaginatedContacts, contactsPage, contactSearch]
+    [
+      loadPaginatedContacts,
+      loadPaginatedGroups,
+      contactsPage,
+      contactSearch,
+      groupsPage,
+      groupSearch
+    ]
   )
 
   const refresh = useCallback(async () => {
     await Promise.all([
       loadStats(),
       loadHistory(),
-      loadPaginatedContacts(contactsPage, contactSearch)
+      loadPaginatedContacts(contactsPage, contactSearch),
+      loadPaginatedGroups(groupsPage, groupSearch)
     ])
-  }, [loadStats, loadHistory, loadPaginatedContacts, contactsPage, contactSearch])
+  }, [
+    loadStats,
+    loadHistory,
+    loadPaginatedContacts,
+    loadPaginatedGroups,
+    contactsPage,
+    contactSearch,
+    groupsPage,
+    groupSearch
+  ])
 
   const handleSync = useCallback(async () => {
     if (syncing) return
@@ -454,9 +515,10 @@ export default function WhatsAppView() {
       })
       const data = await res.json()
       if (data.ok) {
-        setPaginatedContacts((prev) =>
+        const updater = (prev: WaContact[]) =>
           prev.map((c) => (c.id === contactId ? { ...c, monitoring: data.monitoring } : c))
-        )
+        setPaginatedContacts(updater)
+        setPaginatedGroups(updater)
         loadStats()
       }
     } catch {}
@@ -617,10 +679,21 @@ export default function WhatsAppView() {
     return () => clearTimeout(timer)
   }, [contactsPage, contactSearch, loadPaginatedContacts])
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadPaginatedGroups(groupsPage, groupSearch)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [groupsPage, groupSearch, loadPaginatedGroups])
+
   // Reset page to 1 when search changes
   useEffect(() => {
     setContactsPage(1)
   }, [contactSearch])
+
+  useEffect(() => {
+    setGroupsPage(1)
+  }, [groupSearch])
 
   // Poll faster while waiting for QR after disconnect
   useEffect(() => {
@@ -654,6 +727,8 @@ export default function WhatsAppView() {
         } else if (event.eventType === 'contacts_updated') {
           void loadStats()
           if (syncingRef.current) void tryFinishContactSync()
+          void loadPaginatedContacts(contactsPage, contactSearch)
+          void loadPaginatedGroups(groupsPage, groupSearch)
           return
         } else if (event.eventType === 'history_loaded') {
           loadHistory()
@@ -677,7 +752,20 @@ export default function WhatsAppView() {
         }
         refresh()
       },
-      [refresh, loadHistory, applyQrString, tryFinishContactSync, loadStats, beginPairing]
+      [
+        refresh,
+        loadHistory,
+        applyQrString,
+        tryFinishContactSync,
+        loadStats,
+        beginPairing,
+        loadPaginatedContacts,
+        loadPaginatedGroups,
+        contactsPage,
+        contactSearch,
+        groupsPage,
+        groupSearch
+      ]
     )
   })
 
@@ -687,7 +775,8 @@ export default function WhatsAppView() {
   }
 
   return (
-    <div className="flex-1 h-full overflow-y-auto p-6 space-y-6">
+    <div className="flex-1 h-full flex flex-col min-h-0">
+      <div className="shrink-0 px-6 pt-6 pb-4">
       <div className="flex items-center gap-3">
         <WhatsAppIcon className="w-8 h-8 shrink-0" />
         <h1 className="text-xl font-semibold">WhatsApp</h1>
@@ -736,33 +825,13 @@ export default function WhatsAppView() {
           </div>
         </div>
       </div>
-
-      {connected && (
-        <div className="grid grid-cols-4 gap-4">
-          <div className="rounded-xl border border-white/5 bg-card p-4">
-            <p className="text-2xl font-bold">{totalMessages}</p>
-            <p className="text-xs text-text-muted">Mensagens</p>
-          </div>
-          <div className="rounded-xl border border-white/5 bg-card p-4">
-            <p className="text-2xl font-bold">{monitoredCount}</p>
-            <p className="text-xs text-text-muted">Monitorados</p>
-          </div>
-          <div className="rounded-xl border border-white/5 bg-card p-4">
-            <p className="text-2xl font-bold">{syncedContacts}</p>
-            <p className="text-xs text-text-muted">Contatos Sync</p>
-          </div>
-          <div className="rounded-xl border border-white/5 bg-card p-4">
-            <p className="text-2xl font-bold">Online</p>
-            <p className="text-xs text-text-muted">Status</p>
-          </div>
-        </div>
-      )}
+      </div>
 
       {!connected && (
-        <div className="rounded-xl border border-white/5 bg-card p-6 text-center space-y-4">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8 text-center space-y-5 min-h-0">
           {qrUrl ? (
             <>
-              <p className="text-sm text-text-muted">
+              <p className="text-sm text-text-muted max-w-sm">
                 Escaneie o QR code com o WhatsApp do celular
               </p>
               <img
@@ -774,7 +843,7 @@ export default function WhatsAppView() {
               />
             </>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4 flex flex-col items-center">
               <div className="animate-pulse flex justify-center">
                 <div className="w-48 h-48 rounded-xl bg-white/5 flex items-center justify-center">
                   <WhatsAppIcon className="w-16 h-16 opacity-30" />
@@ -793,6 +862,26 @@ export default function WhatsAppView() {
       )}
 
       {connected && (
+        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6 min-h-0">
+        <div className="grid grid-cols-4 gap-4">
+          <div className="rounded-xl border border-white/5 bg-card p-4">
+            <p className="text-2xl font-bold">{totalMessages}</p>
+            <p className="text-xs text-text-muted">Mensagens</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-card p-4">
+            <p className="text-2xl font-bold">{monitoredCount}</p>
+            <p className="text-xs text-text-muted">Monitorados</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-card p-4">
+            <p className="text-2xl font-bold">{syncedContacts}</p>
+            <p className="text-xs text-text-muted">Contatos Sync</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-card p-4">
+            <p className="text-2xl font-bold">Online</p>
+            <p className="text-xs text-text-muted">Status</p>
+          </div>
+        </div>
+
         <div className="rounded-xl border border-white/5 bg-card">
           <div className="px-4 py-3 flex items-center justify-between">
             <span className="text-xs text-text-muted">Sessão ativa</span>
@@ -804,7 +893,6 @@ export default function WhatsAppView() {
             </button>
           </div>
         </div>
-      )}
 
       {(connected || allConversations.length > 0) && (
         <div className="rounded-xl border border-white/5 bg-card">
@@ -953,6 +1041,132 @@ export default function WhatsAppView() {
       )}
 
       {connected && (
+        <>
+        <div className="rounded-xl border border-white/5 bg-card">
+          <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between flex-wrap gap-2">
+            <span>Grupos do WhatsApp</span>
+            <div className="relative w-64">
+              <input
+                value={groupSearch}
+                onChange={(e) => setGroupSearch(e.target.value)}
+                placeholder="Buscar grupo..."
+                className="w-full bg-white/5 rounded-lg pl-3 pr-8 py-1.5 text-xs border border-white/10 outline-none focus:border-accent/50"
+              />
+              {groupsLoading && (
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                  <div className="w-3.5 h-3.5 border-2 border-accent/40 border-t-accent rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {paginatedGroups.length === 0 ? (
+            <div className="p-6 text-center text-sm text-text-muted">
+              {groupsLoading ? 'Carregando grupos...' : 'Nenhum grupo encontrado'}
+            </div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {paginatedGroups.map((c) => (
+                <div
+                  key={c.id}
+                  className="px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                >
+                  <ContactAvatar src={c.profilePicUrl} name={c.displayName} id={c.id} />
+                  <div className="flex-1 min-w-0">
+                    {editingName === c.id ? (
+                      <input
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveContactName(c.id)
+                          if (e.key === 'Escape') setEditingName(null)
+                        }}
+                        onBlur={() => saveContactName(c.id)}
+                        autoFocus
+                        className="w-full max-w-xs bg-white/10 rounded px-2 py-0.5 text-sm border border-accent/50 outline-none"
+                      />
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium truncate">{c.displayName}</p>
+                          {c.name && c.notify && c.name !== c.notify && (
+                            <span className="text-xs text-text-muted opacity-60">({c.notify})</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-text-muted truncate">{c.id.replace('@g.us', '')}</p>
+                      </>
+                    )}
+                  </div>
+
+                  {editingName !== c.id && (
+                    <button
+                      onClick={() => {
+                        setEditingName(c.id)
+                        setEditValue(c.displayName)
+                      }}
+                      className="text-xs text-text-muted hover:text-text px-1.5 py-1 rounded-lg hover:bg-white/5"
+                      title="Renomear"
+                    >
+                      ✏️
+                    </button>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs ${c.monitoring ? 'text-green-400' : 'text-text-muted'}`}
+                    >
+                      {c.monitoring ? 'Monitorado' : 'Ignorado'}
+                    </span>
+                    <button
+                      onClick={() => toggleMonitoring(c.id)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        c.monitoring ? 'bg-green-500' : 'bg-white/10'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          c.monitoring ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {groupsTotalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
+              <span className="text-xs text-text-muted">
+                Mostrando {(groupsPage - 1) * groupsPerPage + 1} a{' '}
+                {Math.min(groupsPage * groupsPerPage, totalFilteredGroups)} de {totalFilteredGroups}{' '}
+                grupos
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGroupsPage((p) => Math.max(1, p - 1))}
+                  disabled={groupsPage === 1}
+                  className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Anterior
+                </button>
+                <span className="text-xs self-center px-2 text-text-muted">
+                  {groupsPage} / {groupsTotalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setGroupsPage((p) => Math.min(groupsTotalPages, p + 1))}
+                  disabled={groupsPage === groupsTotalPages}
+                  className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Próximo
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="rounded-xl border border-white/5 bg-card">
           <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between flex-wrap gap-2">
             <span>Contatos do WhatsApp</span>
@@ -1047,7 +1261,7 @@ export default function WhatsAppView() {
           )}
 
           {/* Pagination Controls */}
-          {totalPages > 1 && (
+          {contactsTotalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
               <span className="text-xs text-text-muted">
                 Mostrando {(contactsPage - 1) * contactsPerPage + 1} a{' '}
@@ -1056,6 +1270,7 @@ export default function WhatsAppView() {
               </span>
               <div className="flex gap-2">
                 <button
+                  type="button"
                   onClick={() => setContactsPage((p) => Math.max(1, p - 1))}
                   disabled={contactsPage === 1}
                   className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
@@ -1063,11 +1278,12 @@ export default function WhatsAppView() {
                   Anterior
                 </button>
                 <span className="text-xs self-center px-2 text-text-muted">
-                  {contactsPage} / {totalPages}
+                  {contactsPage} / {contactsTotalPages}
                 </span>
                 <button
-                  onClick={() => setContactsPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={contactsPage === totalPages}
+                  type="button"
+                  onClick={() => setContactsPage((p) => Math.min(contactsTotalPages, p + 1))}
+                  disabled={contactsPage === contactsTotalPages}
                   className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   Próximo
@@ -1075,6 +1291,9 @@ export default function WhatsAppView() {
               </div>
             </div>
           )}
+        </div>
+        </>
+      )}
         </div>
       )}
     </div>
