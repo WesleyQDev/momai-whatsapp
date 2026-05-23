@@ -277,10 +277,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             }
           }}
           disabled={!customText.trim() || sending}
-          className="p-1.5 rounded-full transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-          style={{ backgroundColor: '#A0A5AF' }}
+          className="p-1 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
         >
-          <PaperAirplaneIcon className="w-3.5 h-3.5 text-white" />
+          <PaperAirplaneIcon className="w-5 h-5" style={{ color: '#D1D5DB' }} />
         </button>
       </div>
 
