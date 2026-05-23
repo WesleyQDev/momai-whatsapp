@@ -77,7 +77,7 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
 
   const isPhone = /^[+\d\s().-]*$/.test(name)
   return (
-    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-lg shrink-0">
+    <div className="w-10 h-10 rounded-full bg-white/[0.03] border border-border/40 flex items-center justify-center text-lg shrink-0">
       {isPhone ? '📱' : '👤'}
     </div>
   )
@@ -260,19 +260,24 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
   return (
     <div
-      className="rounded-2xl border border-white/10 bg-zinc-900/95 backdrop-blur-xl shadow-2xl p-5 w-full max-w-md mx-4"
+      className="w-full max-w-md mx-4 rounded-xl border border-border bg-card shadow-2xl overflow-hidden"
       style={{ WebkitAppRegion: 'drag' } as any}
     >
-      <div className="flex items-center gap-3 mb-3">
+      <div
+        className="flex items-center gap-3 px-4 py-3 border-b border-border/40 bg-sidebar/30"
+        style={{ WebkitAppRegion: 'drag' } as any}
+      >
         <ContactAvatar
           src={data?.contactAvatar}
           name={isGroup ? groupName : contact}
           id={contactJid}
         />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-white truncate">{isGroup ? groupName : contact}</p>
+          <p className="text-xs font-semibold text-text truncate">
+            {isGroup ? groupName : contact}
+          </p>
           <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-xs text-text-muted">
+            <span className="text-[11px] text-text-muted font-medium">
               {isGroup ? `${contact} no WhatsApp` : 'WhatsApp'}
             </span>
             <svg
@@ -281,6 +286,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
               fill="none"
               stroke="#25D366"
               strokeWidth="1.4"
+              aria-hidden
             >
               <path d="M12 2.5C6.753 2.5 2.5 6.753 2.5 12c0 1.7.446 3.296 1.226 4.684L2.5 21.5l4.916-1.29A9.45 9.45 0 0 0 12 21.5c5.247 0 9.5-4.253 9.5-9.5S17.247 2.5 12 2.5z" />
               <path
@@ -292,105 +298,120 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           </div>
         </div>
         <button
+          type="button"
           onClick={() => {
             stop()
             onClose()
           }}
-          className="text-text-muted hover:text-white p-1"
+          className="p-1 rounded-md hover:bg-text/10 text-text-muted hover:text-text transition-colors shrink-0"
           style={{ WebkitAppRegion: 'no-drag' } as any}
+          aria-label="Fechar"
         >
           <XMarkIcon className="w-4 h-4" />
         </button>
       </div>
-      {conversationHistory.length > 0 ? (
-        <div
-          className="mb-4 max-h-52 overflow-y-auto space-y-2 pr-1 rounded-lg bg-black/20 p-3"
-          style={{ WebkitAppRegion: 'no-drag' } as any}
-        >
-          {conversationHistory.map((line, i) => (
-            <div
-              key={`${line.timestamp}-${i}`}
-              className={
-                line.direction === 'outgoing'
-                  ? 'pl-3 border-l-2 border-accent/40'
-                  : 'pl-0.5'
-              }
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-xs font-medium ${
-                    line.direction === 'outgoing' ? 'text-accent' : 'text-text-muted'
-                  }`}
-                >
-                  {line.direction === 'outgoing' ? 'Você' : line.from || contact}
-                </span>
-                <span className="text-[10px] text-text-muted ml-auto">
-                  {formatHistoryTime(line.timestamp)}
-                </span>
+
+      <div className="p-4 space-y-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
+        {conversationHistory.length > 0 ? (
+          <div className="max-h-52 overflow-y-auto custom-scrollbar space-y-2 pr-1 rounded-lg bg-black/20 p-3">
+            {conversationHistory.map((line, i) => (
+              <div
+                key={`${line.timestamp}-${i}`}
+                className={
+                  line.direction === 'outgoing'
+                    ? 'pl-3 border-l-2 border-accent/40'
+                    : 'pl-0.5'
+                }
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-xs font-medium ${
+                      line.direction === 'outgoing' ? 'text-accent' : 'text-text-muted'
+                    }`}
+                  >
+                    {line.direction === 'outgoing' ? 'Você' : line.from || contact}
+                  </span>
+                  <span className="text-[10px] text-text-muted ml-auto">
+                    {formatHistoryTime(line.timestamp)}
+                  </span>
+                </div>
+                <p className="text-sm text-text/80 mt-0.5 whitespace-pre-wrap break-words">
+                  {line.text}
+                </p>
               </div>
-              <p className="text-sm text-gray-300 mt-0.5 whitespace-pre-wrap break-words">
-                {line.text}
-              </p>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-sm text-gray-300 mb-4">{message}</p>
-      )}
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-text/80">{message}</p>
+        )}
 
-      <div
-        className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-accent/5 border border-accent/10"
-        style={{ WebkitAppRegion: 'no-drag' } as any}
-      >
-        <MicrophoneIcon
-          className={`w-4 h-4 shrink-0 ${voiceStatus === 'listening' ? 'text-accent animate-pulse' : voiceStatus === 'detected' || voiceStatus === 'complete' ? 'text-green-400' : 'text-text-muted'}`}
-        />
-        <input
-          ref={inputRef}
-          type="text"
-          value={customText}
-          onChange={(e) => setCustomText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && customText.trim() && !sending) {
-              e.preventDefault()
-              const gen = beginUserSend()
-              sendReply(customText.trim(), gen)
-            }
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-input border border-border cursor-text focus-within:border-accent/40 transition-colors"
+          onMouseDown={(e) => {
+            const target = e.target as HTMLElement
+            if (target.closest('button') || target.tagName === 'INPUT') return
+            e.preventDefault()
+            inputRef.current?.focus()
           }}
-          disabled={sending}
-          placeholder="Digite uma mensagem..."
-          className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder-white/30 focus:outline-none disabled:opacity-50"
-        />
-        <button
-          onClick={() => {
-            if (customText.trim() && !sending) {
-              const gen = beginUserSend()
-              sendReply(customText.trim(), gen)
-            }
-          }}
-          disabled={!customText.trim() || sending}
-          className="p-1 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
         >
-          <PaperAirplaneIcon className="w-5 h-5" style={{ color: '#D1D5DB' }} />
-        </button>
-      </div>
-
-      <div
-        className="flex flex-wrap gap-2"
-        style={{ WebkitAppRegion: 'no-drag' } as any}
-      >
-        {quickReplies.map((reply: string, i: number) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => handleQuickReply(reply)}
+          <MicrophoneIcon
+            className={`w-4 h-4 shrink-0 pointer-events-none ${
+              voiceStatus === 'listening'
+                ? 'text-green-400 animate-pulse'
+                : voiceStatus === 'detected' || voiceStatus === 'complete'
+                  ? 'text-green-400'
+                  : 'text-text-muted'
+            }`}
+            title={voiceLabel}
+          />
+          <input
+            ref={inputRef}
+            type="text"
+            value={customText}
+            onChange={(e) => setCustomText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && customText.trim() && !sending) {
+                e.preventDefault()
+                const gen = beginUserSend()
+                sendReply(customText.trim(), gen)
+              }
+            }}
             disabled={sending}
-            className="px-3 py-1.5 text-xs rounded-full bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20 disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ WebkitAppRegion: 'no-drag' } as any}
+            placeholder="Digite uma mensagem..."
+            className="flex-1 min-w-0 bg-transparent text-xs text-text placeholder:text-text-muted/50 focus:outline-none disabled:opacity-50 cursor-text"
+          />
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              if (customText.trim() && !sending) {
+                const gen = beginUserSend()
+                sendReply(customText.trim(), gen)
+              }
+            }}
+            disabled={!customText.trim() || sending}
+            className="p-1 rounded-md text-text-muted hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            aria-label="Enviar"
           >
-            {reply}
+            <PaperAirplaneIcon className="w-4 h-4" />
           </button>
-        ))}
+        </div>
+
+        {quickReplies.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {quickReplies.map((reply: string, i: number) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => handleQuickReply(reply)}
+                disabled={sending}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border bg-white/[0.03] text-text-muted hover:text-text hover:bg-white/5 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {reply}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
