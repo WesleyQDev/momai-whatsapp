@@ -102,6 +102,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const [sending, setSending] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const historyScrollRef = useRef<HTMLDivElement | null>(null)
   /** Bumped on manual/quick-reply send so in-flight voice sends are ignored */
   const interactionGenRef = useRef(0)
 
@@ -110,6 +111,12 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     setSending(false)
     interactionGenRef.current += 1
   }, [contactJid, message, conversationHistory.length])
+
+  useEffect(() => {
+    const el = historyScrollRef.current
+    if (!el || conversationHistory.length === 0) return
+    el.scrollTop = el.scrollHeight
+  }, [contactJid, conversationHistory.length])
 
   const stop = useCallback(() => {
     if (abortRef.current) {
@@ -260,11 +267,11 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
   return (
     <div
-      className="w-full max-w-md mx-4 rounded-xl border border-border bg-card shadow-2xl overflow-hidden"
+      className="flex flex-col w-full max-w-md max-h-[calc(100vh-2rem)] mx-4 rounded-xl border border-border bg-card shadow-2xl overflow-hidden"
       style={{ WebkitAppRegion: 'drag' } as any}
     >
       <div
-        className="flex items-center gap-3 px-4 py-3 border-b border-border/40 bg-sidebar/30"
+        className="flex shrink-0 items-center gap-3 px-4 py-3 border-b border-border/40 bg-sidebar/30"
         style={{ WebkitAppRegion: 'drag' } as any}
       >
         <ContactAvatar
@@ -311,42 +318,50 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         </button>
       </div>
 
-      <div className="p-4 space-y-3" style={{ WebkitAppRegion: 'no-drag' } as any}>
+      <div
+        className="flex flex-col flex-1 min-h-0 gap-3 p-4"
+        style={{ WebkitAppRegion: 'no-drag' } as any}
+      >
         {conversationHistory.length > 0 ? (
-          <div className="max-h-52 overflow-y-auto custom-scrollbar space-y-2 pr-1 rounded-lg bg-black/20 p-3">
-            {conversationHistory.map((line, i) => (
-              <div
-                key={`${line.timestamp}-${i}`}
-                className={
-                  line.direction === 'outgoing'
-                    ? 'pl-3 border-l-2 border-accent/40'
-                    : 'pl-0.5'
-                }
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-xs font-medium ${
-                      line.direction === 'outgoing' ? 'text-accent' : 'text-text-muted'
-                    }`}
-                  >
-                    {line.direction === 'outgoing' ? 'Você' : line.from || contact}
-                  </span>
-                  <span className="text-[10px] text-text-muted ml-auto">
-                    {formatHistoryTime(line.timestamp)}
-                  </span>
+          <div
+            ref={historyScrollRef}
+            className="min-h-[8rem] max-h-[min(17.5rem,calc(100vh-15rem))] flex-1 overflow-y-auto overscroll-contain custom-scrollbar rounded-lg bg-black/20 scroll-pt-3 scroll-pb-3"
+          >
+            <div className="px-3 py-2 space-y-3">
+              {conversationHistory.map((line, i) => (
+                <div
+                  key={`${line.timestamp}-${i}`}
+                  className={
+                    line.direction === 'outgoing'
+                      ? 'pl-3 border-l-2 border-accent/40'
+                      : 'pl-0.5'
+                  }
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-medium ${
+                        line.direction === 'outgoing' ? 'text-accent' : 'text-text-muted'
+                      }`}
+                    >
+                      {line.direction === 'outgoing' ? 'Você' : line.from || contact}
+                    </span>
+                    <span className="text-[10px] text-text-muted ml-auto shrink-0">
+                      {formatHistoryTime(line.timestamp)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-text/80 mt-0.5 whitespace-pre-wrap break-words">
+                    {line.text}
+                  </p>
                 </div>
-                <p className="text-sm text-text/80 mt-0.5 whitespace-pre-wrap break-words">
-                  {line.text}
-                </p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         ) : (
-          <p className="text-sm text-text/80">{message}</p>
+          <p className="text-sm text-text/80 shrink-0">{message}</p>
         )}
 
         <div
-          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-input border border-border cursor-text focus-within:border-accent/40 transition-colors"
+          className="flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg bg-input border border-border cursor-text focus-within:border-accent/40 transition-colors"
           onMouseDown={(e) => {
             const target = e.target as HTMLElement
             if (target.closest('button') || target.tagName === 'INPUT') return
@@ -398,7 +413,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         </div>
 
         {quickReplies.length > 0 && (
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="flex shrink-0 flex-wrap gap-2 pt-0.5 pb-0.5">
             {quickReplies.map((reply: string, i: number) => (
               <button
                 key={i}

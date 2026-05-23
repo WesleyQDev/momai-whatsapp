@@ -17,13 +17,8 @@ export function resolveWhatsAppContactJid(data: WhatsAppNotificationPayload): st
 
 export function resolveWhatsAppChannel(data: WhatsAppNotificationPayload) {
   const contactJid = resolveWhatsAppContactJid(data)
-  const explicitGroup = data.isGroup === true
+  const isGroup = contactJid.endsWith('@g.us')
   const groupName = String(data.groupName || '').trim()
-
-  let isGroup = contactJid.endsWith('@g.us')
-  if (!isGroup && explicitGroup && (groupName || contactJid.endsWith('@g.us'))) {
-    isGroup = true
-  }
 
   return {
     contactJid,

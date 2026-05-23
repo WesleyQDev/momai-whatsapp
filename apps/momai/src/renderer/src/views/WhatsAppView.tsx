@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import QRCode from 'qrcode'
 import { API_URL } from '../constants'
 import { useExtensionEvents } from '../hooks/useExtensionEvents'
 import { resolveWhatsAppChannel } from '../utils/whatsappChannel'
@@ -109,8 +110,8 @@ function buildConversationSummaries(history: Message[]): ConversationSummary[] {
       latestReplies: latestTurn.replies,
       incomingCount: turns.length,
       contactLabel: latestTurn.incoming.from,
-      isGroup: latestTurn.incoming.isGroup ?? jid.endsWith('@g.us'),
-      groupName: latestTurn.incoming.groupName ?? null,
+      isGroup: jid.endsWith('@g.us'),
+      groupName: jid.endsWith('@g.us') ? latestTurn.incoming.groupName ?? null : null,
       profilePicUrl
     })
   }
@@ -224,9 +225,18 @@ export default function WhatsAppView() {
   const [monitoredCount, setMonitoredCount] = useState(0)
   const [history, setHistory] = useState<Message[]>([])
   const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [statsLoaded, setStatsLoaded] = useState(false)
+  const [hasCredentials, setHasCredentials] = useState(false)
+  const [pairingActive, setPairingActive] = useState(false)
+  const qrRequestInFlight = useRef(false)
   const [editingName, setEditingName] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [syncing, setSyncing] = useState(false)
+  const syncingRef = useRef(false)
+
+  useEffect(() => {
+    syncingRef.current = syncing
+  }, [syncing])
 
   // Paginated contacts state
   const [contactsPage, setContactsPage] = useState(1)
@@ -263,6 +273,45 @@ export default function WhatsAppView() {
     }
   }, [conversationsPage, conversationsTotalPages])
 
+  const applyQrString = useCallback((qr: string) => {
+    QRCode.toDataURL(qr, { width: 256, margin: 1 }).then(setQrUrl).catch(() => {})
+  }, [])
+
+  const beginPairing = useCallback(() => {
+    setPairingActive(true)
+    setHasCredentials(false)
+    setQrUrl(null)
+    qrRequestInFlight.current = false
+  }, [])
+
+  const requestQr = useCallback(
+    async (opts?: { force?: boolean }): Promise<boolean> => {
+      if (qrRequestInFlight.current) return false
+      qrRequestInFlight.current = true
+      try {
+        const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toolName: 'request_qr',
+            args: { force: opts?.force ?? pairingActive }
+          })
+        })
+        const data = await res.json()
+        if (data.qr) {
+          applyQrString(data.qr)
+          return true
+        }
+        return false
+      } catch {
+        return false
+      } finally {
+        qrRequestInFlight.current = false
+      }
+    },
+    [applyQrString, pairingActive]
+  )
+
   const loadAvatars = useCallback(async (jids: string[]) => {
     const unique = [...new Set(jids.filter((j) => j.includes('@')))]
     if (unique.length === 0) return
@@ -288,12 +337,22 @@ export default function WhatsAppView() {
       })
       const data = await res.json()
       if (data.ok === false) return
-      setConnected(data.connected || false)
+      const isConnected = Boolean(data.connected)
+      setConnected(isConnected)
+      setHasCredentials(Boolean(data.hasCredentials))
       setTotalMessages(data.totalMessages || 0)
       setSyncedContacts(data.syncedContacts || 0)
       setMonitoredCount(data.monitoredCount || 0)
-    } catch {}
-  }, [])
+      if (isConnected) {
+        setQrUrl(null)
+      } else if (data.qr) {
+        applyQrString(data.qr)
+      }
+    } catch {
+    } finally {
+      setStatsLoaded(true)
+    }
+  }, [applyQrString])
 
   const loadHistory = useCallback(async () => {
     try {
@@ -333,10 +392,30 @@ export default function WhatsAppView() {
           setTotalFilteredContacts(data.totalFiltered || 0)
           setTotalPages(data.totalPages || 1)
         }
-      } catch {}
-      setContactsLoading(false)
+        return data
+      } catch {
+        return null
+      } finally {
+        setContactsLoading(false)
+      }
     },
     [contactsPerPage]
+  )
+
+  const tryFinishContactSync = useCallback(
+    async (reportedCount?: number) => {
+      if (reportedCount === 0) {
+        setSyncing(false)
+        return
+      }
+      const data = await loadPaginatedContacts(contactsPage, contactSearch)
+      const total = data?.totalFiltered ?? 0
+      const pageCount = data?.contacts?.length ?? 0
+      if (pageCount > 0 || total === 0) {
+        setSyncing(false)
+      }
+    },
+    [loadPaginatedContacts, contactsPage, contactSearch]
   )
 
   const refresh = useCallback(async () => {
@@ -351,11 +430,20 @@ export default function WhatsAppView() {
     if (syncing) return
     setSyncing(true)
     try {
-      await fetch(`${API_URL}/extensions/whatsapp/sync`, {
-        method: 'POST'
+      const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolName: 'sync_contacts', args: {} })
       })
-    } catch {}
-  }, [syncing])
+      const data = await res.json()
+      if (data.syncedContacts !== undefined) {
+        setSyncedContacts(data.syncedContacts)
+      }
+      await tryFinishContactSync(data.syncedContacts)
+    } catch {
+      setSyncing(false)
+    }
+  }, [syncing, tryFinishContactSync])
 
   const toggleMonitoring = async (contactId: string) => {
     try {
@@ -391,28 +479,35 @@ export default function WhatsAppView() {
   }
 
   const disconnect = useCallback(async () => {
+    beginPairing()
+    setConnected(false)
     try {
       await fetch(`${API_URL}/extensions/whatsapp/disconnect`, { method: 'POST' })
-      setConnected(false)
     } catch {}
-  }, [])
+  }, [beginPairing])
 
   const reconnect = useCallback(async () => {
     try {
-      setQrUrl(null)
+      beginPairing()
+      setConnected(false)
       await fetch(`${API_URL}/extensions/whatsapp/restart`, { method: 'POST' })
     } catch {}
-  }, [])
+  }, [beginPairing])
 
   const openConversationOverlay = useCallback(
     async (convo: ConversationSummary) => {
       const { jid, latestIncoming: contextMsg, turns } = convo
       if (!jid) return
 
+      const isGroupChat = jid.endsWith('@g.us')
+      const replyJid =
+        !isGroupChat && contextMsg.senderJid && !contextMsg.senderJid.endsWith('@g.us')
+          ? contextMsg.senderJid
+          : jid
       const { contactJid, isGroup, groupName } = resolveWhatsAppChannel({
-        contactJid: jid,
-        isGroup: contextMsg.isGroup,
-        groupName: contextMsg.groupName
+        contactJid: replyJid,
+        isGroup: isGroupChat,
+        groupName: isGroupChat ? contextMsg.groupName : undefined
       })
       const conversationHistory = turnsToHistoryLines(turns)
 
@@ -439,15 +534,20 @@ export default function WhatsAppView() {
       } catch {}
 
       let contactAvatar = convo.profilePicUrl
-      if (!contactAvatar) {
+      const avatarJids = [...new Set([jid, replyJid, contactJid].filter((j) => j?.includes('@')))]
+      if (!contactAvatar && avatarJids.length > 0) {
         try {
           const avRes = await fetch(`${API_URL}/extensions/whatsapp/command`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ toolName: 'get_avatars', args: { jids: [jid] } })
+            body: JSON.stringify({ toolName: 'get_avatars', args: { jids: avatarJids } })
           })
           const avData = await avRes.json()
-          contactAvatar = avData.avatars?.[jid] || null
+          contactAvatar =
+            avData.avatars?.[jid] ||
+            avData.avatars?.[replyJid] ||
+            avData.avatars?.[contactJid] ||
+            null
           if (contactAvatar) {
             setAvatarByJid((prev) => ({ ...prev, [jid]: contactAvatar }))
           }
@@ -483,6 +583,32 @@ export default function WhatsAppView() {
     refresh()
   }, [refresh])
 
+  // First visit without session: enter pairing mode
+  useEffect(() => {
+    if (!statsLoaded || connected || qrUrl || pairingActive) return
+    if (hasCredentials || syncingRef.current) return
+    beginPairing()
+  }, [statsLoaded, connected, qrUrl, hasCredentials, pairingActive, beginPairing])
+
+  // After disconnect / logout: poll until QR appears (worker may still be starting)
+  useEffect(() => {
+    if (!pairingActive || connected || qrUrl || syncingRef.current) return
+
+    let cancelled = false
+    const poll = async () => {
+      for (let attempt = 0; attempt < 30 && !cancelled; attempt++) {
+        await loadStats()
+        const gotQr = await requestQr({ force: true })
+        if (cancelled || gotQr || qrUrl) return
+        await new Promise((r) => setTimeout(r, Math.min(400 + attempt * 80, 1200)))
+      }
+    }
+    void poll()
+    return () => {
+      cancelled = true
+    }
+  }, [pairingActive, connected, qrUrl, loadStats, requestQr])
+
   // Debounced search / pagination trigger
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -496,38 +622,53 @@ export default function WhatsAppView() {
     setContactsPage(1)
   }, [contactSearch])
 
-  // Poll connection status periodically when disconnected
+  // Poll faster while waiting for QR after disconnect
   useEffect(() => {
     if (connected) return
-    const interval = setInterval(loadStats, 5000)
+    const ms = pairingActive && !qrUrl ? 1500 : 5000
+    const interval = setInterval(loadStats, ms)
     return () => clearInterval(interval)
-  }, [connected, loadStats])
+  }, [connected, pairingActive, qrUrl, loadStats])
+
+  // Safety: stop spinner if contacts_synced never arrives
+  useEffect(() => {
+    if (!syncing) return
+    const timeout = setTimeout(() => setSyncing(false), 120_000)
+    return () => clearTimeout(timeout)
+  }, [syncing])
 
   useExtensionEvents({
     onEvent: useCallback(
       (event) => {
-        if (event.eventType === 'qr_code') {
-          import('qrcode').then((QRCode) => {
-            QRCode.toDataURL(event.data.qr, { width: 256, margin: 1 }).then(setQrUrl)
-          })
+        if (event.eventType === 'qr_code' && event.data?.qr) {
+          applyQrString(event.data.qr)
+          setPairingActive(false)
         } else if (event.eventType === 'connection_status') {
           const status = event.data?.status
           if (status === 'connected') setConnected(true)
-          else if (status === 'disconnected' || status === 'reconnecting') setConnected(false)
+          else if (status === 'disconnected') setConnected(false)
         } else if (event.eventType === 'contacts_synced') {
           setSyncedContacts(event.data?.count || 0)
-          setSyncing(false)
-        } else if (event.eventType === 'contacts_updated' || event.eventType === 'history_loaded') {
+          void loadStats()
+          void tryFinishContactSync(event.data?.count)
+        } else if (event.eventType === 'contacts_updated') {
+          void loadStats()
+          if (syncingRef.current) void tryFinishContactSync()
+          return
+        } else if (event.eventType === 'history_loaded') {
           loadHistory()
           return
         } else if (event.eventType === 'authenticated') {
           const status = event.data?.status
           if (status === 'logged_out') {
+            beginPairing()
             setConnected(false)
-            setQrUrl(null)
+            setSyncing(false)
           } else if (status === 'connected') {
             setConnected(true)
+            setPairingActive(false)
             setQrUrl(null)
+            setSyncing(true)
             loadHistory()
           } else {
             setConnected(false)
@@ -536,7 +677,7 @@ export default function WhatsAppView() {
         }
         refresh()
       },
-      [refresh, loadHistory]
+      [refresh, loadHistory, applyQrString, tryFinishContactSync, loadStats, beginPairing]
     )
   })
 
@@ -555,8 +696,13 @@ export default function WhatsAppView() {
             <button
               onClick={handleSync}
               disabled={syncing}
-              className="p-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-text-muted hover:text-text transition-colors flex items-center justify-center disabled:opacity-50"
-              title="Sincronizar contatos"
+              className={`p-1.5 rounded-lg border transition-colors flex items-center justify-center ${
+                syncing
+                  ? 'bg-accent/10 border-accent/30 text-accent cursor-wait'
+                  : 'bg-white/5 border-white/10 hover:bg-white/10 text-text-muted hover:text-text disabled:opacity-50'
+              }`}
+              title={syncing ? 'Sincronizando contatos...' : 'Sincronizar contatos'}
+              aria-busy={syncing}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -569,6 +715,7 @@ export default function WhatsAppView() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 className={syncing ? 'animate-spin' : ''}
+                aria-hidden
               >
                 <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
                 <path d="M3 3v5h5" />

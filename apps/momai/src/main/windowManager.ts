@@ -257,14 +257,28 @@ export function registerIpcHandlers(): void {
   })
 }
 
+function getOverlayDimensions(data?: { structuredResponse?: { type?: string; data?: { conversationHistory?: unknown[] } } }) {
+  const isWhatsApp = data?.structuredResponse?.type === 'whatsapp_notification'
+  const historyLen = data?.structuredResponse?.data?.conversationHistory?.length ?? 0
+  const width = 440
+  if (isWhatsApp && historyLen > 0) {
+    return { width, height: 540 }
+  }
+  if (isWhatsApp) {
+    return { width, height: 400 }
+  }
+  return { width: 500, height: 350 }
+}
+
 export function createOverlayWindow(data?: any): void {
   let isNew = false
+  const { width, height } = getOverlayDimensions(data)
 
   if (!state.overlayWindow || state.overlayWindow.isDestroyed()) {
     isNew = true
     const overlayWindow = new BrowserWindow({
-      width: 500,
-      height: 350,
+      width,
+      height,
       show: false,
       frame: false,
       transparent: true,
@@ -291,11 +305,12 @@ export function createOverlayWindow(data?: any): void {
 
   const overlayWin = state.overlayWindow
   if (overlayWin) {
+    overlayWin.setSize(width, height)
     const primaryDisplay = screen.getPrimaryDisplay()
     const { workArea } = primaryDisplay
     overlayWin.setPosition(
-      Math.round((workArea.width - 500) / 2),
-      Math.round((workArea.height - 350) / 2)
+      Math.round((workArea.width - width) / 2),
+      Math.round((workArea.height - height) / 2)
     )
     overlayWin.showInactive()
 
