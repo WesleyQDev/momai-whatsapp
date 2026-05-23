@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { XMarkIcon, MicrophoneIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, MicrophoneIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -85,8 +85,17 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const [voiceStatus, setVoiceStatus] = useState<
     'idle' | 'listening' | 'detected' | 'complete' | 'error' | 'timeout'
   >('idle')
+  const [customText, setCustomText] = useState('')
+  const [sending, setSending] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const hasReplied = useRef(false)
+
+  useEffect(() => {
+    setCustomText('')
+    setSending(false)
+    hasReplied.current = false
+  }, [contactJid, message])
 
   const stop = useCallback(() => {
     if (abortRef.current) {
@@ -235,14 +244,45 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       </div>
       <p className="text-sm text-gray-300 mb-4">{message}</p>
 
-      {voiceLabel && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-accent/5 border border-accent/10">
-          <MicrophoneIcon
-            className={`w-4 h-4 ${voiceStatus === 'listening' ? 'text-accent animate-pulse' : voiceStatus === 'detected' || voiceStatus === 'complete' ? 'text-green-400' : 'text-text-muted'}`}
-          />
-          <span className="text-xs text-text-muted">{voiceLabel}</span>
-        </div>
-      )}
+      <div
+        className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-accent/5 border border-accent/10"
+        style={{ WebkitAppRegion: 'no-drag' } as any}
+      >
+        <MicrophoneIcon
+          className={`w-4 h-4 shrink-0 ${voiceStatus === 'listening' ? 'text-accent animate-pulse' : voiceStatus === 'detected' || voiceStatus === 'complete' ? 'text-green-400' : 'text-text-muted'}`}
+        />
+        <input
+          ref={inputRef}
+          type="text"
+          value={customText}
+          onChange={(e) => setCustomText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && customText.trim() && !sending) {
+              e.preventDefault()
+              setSending(true)
+              stop()
+              sendReply(customText.trim())
+            }
+          }}
+          disabled={sending}
+          placeholder="Digite uma mensagem..."
+          className="flex-1 min-w-0 bg-transparent text-sm text-white placeholder-white/30 focus:outline-none disabled:opacity-50"
+        />
+        <button
+          onClick={() => {
+            if (customText.trim() && !sending) {
+              setSending(true)
+              stop()
+              sendReply(customText.trim())
+            }
+          }}
+          disabled={!customText.trim() || sending}
+          className="p-1.5 rounded-full transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+          style={{ backgroundColor: '#A0A5AF' }}
+        >
+          <PaperAirplaneIcon className="w-3.5 h-3.5 text-white" />
+        </button>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {quickReplies.map((reply: string, i: number) => (

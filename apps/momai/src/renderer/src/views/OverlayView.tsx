@@ -55,6 +55,7 @@ export default function OverlayView() {
           className="w-screen h-screen flex items-center justify-center bg-transparent select-none"
           onClick={handleClose}
         >
+          <div onClick={(e) => e.stopPropagation()}>
           {createElement(Renderer, {
             data: {
               ...data.structuredResponse.data,
@@ -62,6 +63,7 @@ export default function OverlayView() {
               onSend: data.structuredResponse.data?.onSend
             }
           })}
+          </div>
         </div>
       )
     }
