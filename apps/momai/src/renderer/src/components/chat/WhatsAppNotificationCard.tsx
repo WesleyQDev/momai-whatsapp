@@ -89,12 +89,13 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const [sending, setSending] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const hasReplied = useRef(false)
+  /** Bumped on manual/quick-reply send so in-flight voice sends are ignored */
+  const interactionGenRef = useRef(0)
 
   useEffect(() => {
     setCustomText('')
     setSending(false)
-    hasReplied.current = false
+    interactionGenRef.current += 1
   }, [contactJid, message])
 
   const stop = useCallback(() => {
@@ -104,32 +105,70 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     }
   }, [])
 
-  const sendReply = useCallback(
-    async (text: string) => {
-      if (hasReplied.current) return
-      hasReplied.current = true
-      setSending(true)
+  const expandQuickReply = useCallback(
+    async (intent: string) => {
+      try {
+        const res = await fetch(`${API_URL}/extensions/llm/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: [
+              'Escreva APENAS o texto de uma mensagem de WhatsApp a ser enviada.',
+              `Contato: ${contact}`,
+              isGroup ? `Grupo: ${groupName}` : '',
+              `Mensagem recebida: "${message}"`,
+              `Intencao: ${intent}`,
+              'Resposta curta e natural em portugues, sem aspas nem explicacao.'
+            ]
+              .filter(Boolean)
+              .join('\n')
+          })
+        })
+        const data = await res.json().catch(() => ({}))
+        const expanded = (data?.text || '').trim()
+        return expanded || intent
+      } catch {
+        return intent
+      }
+    },
+    [contact, message, isGroup, groupName]
+  )
 
+  const beginUserSend = useCallback(() => {
+    stop()
+    setVoiceStatus('idle')
+    return ++interactionGenRef.current
+  }, [stop])
+
+  const sendReply = useCallback(
+    async (text: string, gen: number) => {
+      const body = text?.trim()
+      if (!body || gen !== interactionGenRef.current) {
+        if (gen === interactionGenRef.current) setSending(false)
+        return
+      }
+
+      setSending(true)
       try {
         const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             toolName: 'send_message',
-            args: { contact: contactJid, message: text }
+            args: { contact: contactJid, message: body }
           })
         })
         const data = await res.json().catch(() => ({}))
+        if (gen !== interactionGenRef.current) return
         if (!res.ok || data?.ok === false) {
           console.error('[WhatsAppNotificationCard] sendReply failed:', data?.error)
-          hasReplied.current = false
           setSending(false)
           return
         }
         onClose()
       } catch (err) {
+        if (gen !== interactionGenRef.current) return
         console.error('[WhatsAppNotificationCard] sendReply error:', err)
-        hasReplied.current = false
         setSending(false)
       }
     },
@@ -138,11 +177,18 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
   const handleQuickReply = useCallback(
     async (label: string) => {
-      if (hasReplied.current) return
-      stop()
-      await sendReply(label)
+      if (sending) return
+      const gen = beginUserSend()
+      setSending(true)
+      try {
+        const messageToSend = await expandQuickReply(label)
+        await sendReply(messageToSend, gen)
+      } catch (err) {
+        console.error('[WhatsAppNotificationCard] handleQuickReply error:', err)
+        if (gen === interactionGenRef.current) setSending(false)
+      }
     },
-    [sendReply, stop]
+    [beginUserSend, expandQuickReply, sendReply, sending]
   )
 
   useEffect(() => {
@@ -150,6 +196,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
     const controller = new AbortController()
     abortRef.current = controller
+    const voiceGen = interactionGenRef.current
     let cancelled = false
 
     setVoiceStatus('listening')
@@ -165,11 +212,11 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         if (cancelled || !res.ok) return
 
         const result = await res.json()
-        if (cancelled) return
+        if (cancelled || voiceGen !== interactionGenRef.current) return
 
-        if (result.text) {
+        if (result.text?.trim()) {
           setVoiceStatus('complete')
-          await sendReply(result.text)
+          await sendReply(result.text.trim(), voiceGen)
         } else if (result.status === 'timeout') {
           setVoiceStatus('timeout')
         } else {
@@ -251,9 +298,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           onKeyDown={(e) => {
             if (e.key === 'Enter' && customText.trim() && !sending) {
               e.preventDefault()
-              setSending(true)
-              stop()
-              sendReply(customText.trim())
+              const gen = beginUserSend()
+              sendReply(customText.trim(), gen)
             }
           }}
           disabled={sending}
@@ -263,9 +309,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         <button
           onClick={() => {
             if (customText.trim() && !sending) {
-              setSending(true)
-              stop()
-              sendReply(customText.trim())
+              const gen = beginUserSend()
+              sendReply(customText.trim(), gen)
             }
           }}
           disabled={!customText.trim() || sending}
@@ -275,12 +320,17 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div
+        className="flex flex-wrap gap-2"
+        style={{ WebkitAppRegion: 'no-drag' } as any}
+      >
         {quickReplies.map((reply: string, i: number) => (
           <button
             key={i}
+            type="button"
             onClick={() => handleQuickReply(reply)}
-            className="px-3 py-1.5 text-xs rounded-full bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20"
+            disabled={sending}
+            className="px-3 py-1.5 text-xs rounded-full bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20 disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ WebkitAppRegion: 'no-drag' } as any}
           >
             {reply}
