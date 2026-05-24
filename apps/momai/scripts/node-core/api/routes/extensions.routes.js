@@ -626,13 +626,24 @@ function createExtensionsRoutes(context) {
     /* ── Process WhatsApp notification with LLM ── */
     if (pathname === '/extensions/whatsapp/process-notification' && req.method === 'POST') {
       const body = await readJsonBody(req).catch(() => ({}))
-      const contact = body.contact || body.from || body.senderName || 'Alguem'
-      const message = body.message || body.text || ''
       const { contactJid, isGroup, groupName } = resolveWhatsAppChannel(body)
+
+      // Use resolveContactName logic if potential JID is provided
+      const rawContact = body.contact || body.from || body.senderName || 'Alguem'
+      let contact = rawContact
+
+      try {
+        // We try to use the same logic as the worker to get the personalized name
+        // But since node-core doesn't have direct access to waContacts easily without some plumbing,
+        // we rely on the worker having sent the correct 'contact' name in the event.
+        // If the body already has a groupName or contact, we trust it as it should have been resolved by the worker.
+      } catch (e) {}
+
+      const message = body.message || body.text || ''
       const isNumber = /^\d{8,}$/.test(String(contact).replace(/\D/g, ''))
       const displayContact = isNumber ? 'Um contato' : contact
 
-      // TTS deterministico: evita o LLM confundir remetentes em grupos
+      // TTS determinístico: evita o LLM confundir remetentes em grupos
       const tts = isGroup
         ? `${displayContact} enviou uma mensagem no grupo ${groupName || 'do WhatsApp'}`
         : `${displayContact} te enviou uma mensagem no privado`

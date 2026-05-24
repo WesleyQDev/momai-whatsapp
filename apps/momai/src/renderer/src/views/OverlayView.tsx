@@ -60,7 +60,7 @@ export default function OverlayView() {
     if (Renderer) {
       return (
         <div
-          className="w-screen h-screen flex items-center justify-center bg-transparent select-none p-4 box-border overflow-hidden"
+          className="w-screen h-screen flex items-center justify-center bg-transparent p-4 box-border overflow-hidden"
           onClick={handleBackdropClick}
         >
           <div className="max-h-full flex flex-col min-h-0" onClick={(e) => e.stopPropagation()}>

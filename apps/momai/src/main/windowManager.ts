@@ -313,6 +313,8 @@ export function createOverlayWindow(data?: any): void {
       Math.round((workArea.height - height) / 2)
     )
     overlayWin.showInactive()
+    overlayWin.setAlwaysOnTop(true, 'screen-saver')
+    overlayWin.focus()
 
     const sendData = (): void => {
       if (data) overlayWin.webContents.send('update-overlay-content', data)
