@@ -202,6 +202,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           setSending(false)
           return
         }
+        setCustomText('')
+        setSending(false)
         onClose()
       } catch (err) {
         if (gen !== interactionGenRef.current) return
@@ -290,7 +292,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             id={contactJid}
           />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()} style={{ WebkitAppRegion: 'no-drag' } as any}>
           <p className="text-xs font-semibold text-text truncate">
             {isGroup ? groupName : contact}
           </p>
@@ -372,8 +374,11 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         )}
 
         <div
-          className="flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg bg-input border border-border cursor-text focus-within:border-accent/40 transition-colors"
+          className={`flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg bg-input border border-border focus-within:border-accent/40 transition-colors ${
+            sending ? 'cursor-default' : 'cursor-text'
+          }`}
           onMouseDown={(e) => {
+            if (sending) return
             const target = e.target as HTMLElement
             if (target.closest('button') || target.tagName === 'INPUT') return
             e.preventDefault()
@@ -402,9 +407,11 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                 sendReply(customText.trim(), gen)
               }
             }}
-            disabled={sending}
+            readOnly={sending}
             placeholder="Digite uma mensagem..."
-            className="flex-1 min-w-0 bg-transparent text-xs text-text placeholder:text-text-muted/50 focus:outline-none disabled:opacity-50 cursor-text"
+            className={`flex-1 min-w-0 bg-transparent text-xs text-text placeholder:text-text-muted/50 focus:outline-none ${
+              sending ? 'opacity-50 cursor-default' : 'cursor-text'
+            }`}
           />
           <button
             type="button"
@@ -416,7 +423,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
               }
             }}
             disabled={!customText.trim() || sending}
-            className="p-1 rounded-md text-text-muted hover:text-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            className={`p-1 rounded-md text-text-muted hover:text-text transition-colors disabled:opacity-40 shrink-0 ${
+              !customText.trim() || sending ? 'cursor-default' : 'cursor-pointer'
+            }`}
             aria-label="Enviar"
           >
             <PaperAirplaneIcon className="w-4 h-4" />
@@ -431,7 +440,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                 type="button"
                 onClick={() => handleQuickReply(reply)}
                 disabled={sending}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border bg-white/[0.03] text-text-muted hover:text-text hover:bg-white/5 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg border border-border bg-white/[0.03] text-text-muted hover:text-text hover:bg-white/5 transition-all disabled:opacity-40 ${
+                  sending ? 'cursor-default' : 'cursor-pointer'
+                }`}
               >
                 {reply}
               </button>

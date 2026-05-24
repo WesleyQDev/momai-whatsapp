@@ -44,6 +44,14 @@ export default function OverlayView() {
     window.electron.ipcRenderer.send('close-overlay')
   }
 
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (data?.structuredResponse?.type === 'whatsapp_notification') {
+      // Bloqueia clique no backdrop para WhatsApp
+      return
+    }
+    handleClose()
+  }
+
   if (!data) return <div className="w-screen h-screen bg-transparent" />
 
   // Render structured responses generically via SkillResponseRegistry
@@ -53,7 +61,7 @@ export default function OverlayView() {
       return (
         <div
           className="w-screen h-screen flex items-center justify-center bg-transparent select-none p-4 box-border overflow-hidden"
-          onClick={handleClose}
+          onClick={handleBackdropClick}
         >
           <div className="max-h-full flex flex-col min-h-0" onClick={(e) => e.stopPropagation()}>
           {createElement(Renderer, {

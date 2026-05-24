@@ -14,10 +14,16 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
     <div
       className="fixed inset-0 z-[500] flex items-center justify-center bg-zinc-900/40 backdrop-blur-sm animate-in fade-in duration-300"
       style={{ top: '32px' }} // Adjusted to always show titlebar (assuming titlebar is 32px height)
-      onClick={onClose}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClose()
+      }}
     >
       <button
-        onClick={onClose}
+        onClick={(e) => {
+          e.stopPropagation()
+          onClose()
+        }}
         className="absolute top-6 right-6 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-[600]"
         aria-label="Close"
       >
@@ -35,7 +41,7 @@ export default function ImageViewer({ src, alt, onClose }: ImageViewerProps) {
         />
       </div>
 
-      <div className="absolute inset-0 -z-10 cursor-zoom-out" />
+      <div className="absolute inset-0 -z-10" />
     </div>,
     document.body
   )

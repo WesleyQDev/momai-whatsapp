@@ -45,6 +45,11 @@ function normalizeTimestamp(ts: number): number {
   return ts > 1e12 ? ts : ts * 1000
 }
 
+function formatTime(ts: number): string {
+  const ms = normalizeTimestamp(ts)
+  return new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
 function buildTurns(sorted: Message[]): ConversationTurn[] {
   const turns: ConversationTurn[] = []
   let current: ConversationTurn | null = null
@@ -267,6 +272,56 @@ export default function WhatsAppView() {
   const [avatarByJid, setAvatarByJid] = useState<Record<string, string | null>>({})
   const [conversationsPage, setConversationsPage] = useState(1)
   const [conversationsPerPage] = useState(10)
+  const [notificationsDisabled, setNotificationsDisabled] = useState(false)
+  const [showNotificationDropdown, setShowNotificationDropdown] = useState(false)
+  const notificationDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        notificationDropdownRef.current &&
+        !notificationDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowNotificationDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Load notifications state
+  useEffect(() => {
+    fetch(`${API_URL}/extensions/whatsapp/command`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toolName: 'get_settings' })
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.settings?.notificationsDisabled !== undefined) {
+          setNotificationsDisabled(data.settings.notificationsDisabled)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const toggleNotifications = async () => {
+    const newState = !notificationsDisabled
+    setNotificationsDisabled(newState)
+    try {
+      await fetch(`${API_URL}/extensions/whatsapp/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toolName: 'update_settings',
+          args: { notificationsDisabled: newState }
+        })
+      })
+    } catch {
+      setNotificationsDisabled(!newState)
+    }
+  }
 
   const allConversations = useMemo(() => {
     return buildConversationSummaries(history).map((c) => ({
@@ -331,7 +386,7 @@ export default function WhatsAppView() {
   )
 
   const loadAvatars = useCallback(async (jids: string[]) => {
-    const unique = [...new Set(jids.filter((j) => j.includes('@')))]
+    const unique = [...new Set(jids.filter((j) => typeof j === 'string' && j.includes('@')))]
     if (unique.length === 0) return
     try {
       const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
@@ -382,7 +437,7 @@ export default function WhatsAppView() {
       const data = await res.json()
       if (data.history) {
         setHistory(data.history)
-        const jids = [...new Set(data.history.map((m: Message) => m.jid).filter(Boolean))]
+        const jids = [...new Set(data.history.map((m: Message) => m.jid).filter(Boolean))] as string[]
         loadAvatars(jids)
       }
     } catch {}
@@ -778,11 +833,6 @@ export default function WhatsAppView() {
     )
   })
 
-  const formatTime = (ts: number) => {
-    const d = new Date(ts * 1000)
-    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  }
-
   return (
     <div className="flex-1 h-full flex flex-col min-h-0">
       <div className="shrink-0 px-6 pt-6 pb-4">
@@ -790,6 +840,61 @@ export default function WhatsAppView() {
         <WhatsAppIcon className="w-8 h-8 shrink-0" />
         <h1 className="text-xl font-semibold">WhatsApp</h1>
         <div className="ml-auto flex items-center gap-2">
+          {connected && (
+            <div className="relative" ref={notificationDropdownRef}>
+              <button
+                onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
+                className="px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-text-muted hover:text-text transition-all flex items-center gap-2"
+              >
+                <span className="text-xs font-medium">
+                  {notificationsDisabled ? 'Notificação desativada' : 'Notificação ativa'}
+                </span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  <path d="M18.63 13A17.89 17.89 0 0 1 18 8a6 6 0 0 0-12 0 17.89 17.89 0 0 1-.63 5" />
+                  <path d="M3 17a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1c0-2 0-3-3-3H6c-3 0-3 1-3 3Z" />
+                </svg>
+              </button>
+
+              {showNotificationDropdown && (
+                <div className="absolute right-0 mt-2 w-48 rounded-xl border border-white/10 bg-zinc-900 shadow-2xl z-[100] overflow-hidden animate-in fade-in zoom-in duration-200">
+                  <button
+                    onClick={() => {
+                      if (notificationsDisabled) toggleNotifications()
+                      setShowNotificationDropdown(false)
+                    }}
+                    className={`w-full flex items-center gap-2 px-4 py-2.5 text-xs text-left transition-colors ${
+                      !notificationsDisabled ? 'text-accent bg-accent/5' : 'text-text-muted hover:bg-white/5'
+                    }`}
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full ${!notificationsDisabled ? 'bg-accent' : 'bg-transparent border border-white/20'}`} />
+                    Notificação ativa
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!notificationsDisabled) toggleNotifications()
+                      setShowNotificationDropdown(false)
+                    }}
+                    className={`w-full flex items-center gap-2 px-4 py-2.5 text-xs text-left transition-colors border-t border-white/5 ${
+                      notificationsDisabled ? 'text-red-400 bg-red-400/5' : 'text-text-muted hover:bg-white/5'
+                    }`}
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full ${notificationsDisabled ? 'bg-red-400' : 'bg-transparent border border-white/20'}`} />
+                    Notificação desativada
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {connected && (
             <button
               onClick={handleSync}
@@ -872,7 +977,7 @@ export default function WhatsAppView() {
 
       {connected && (
         <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6 min-h-0">
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div className="rounded-xl border border-white/5 bg-card p-4">
             <p className="text-2xl font-bold">{totalMessages}</p>
             <p className="text-xs text-text-muted">Mensagens</p>
@@ -880,10 +985,6 @@ export default function WhatsAppView() {
           <div className="rounded-xl border border-white/5 bg-card p-4">
             <p className="text-2xl font-bold">{monitoredCount}</p>
             <p className="text-xs text-text-muted">Monitorados</p>
-          </div>
-          <div className="rounded-xl border border-white/5 bg-card p-4">
-            <p className="text-2xl font-bold">{syncedContacts}</p>
-            <p className="text-xs text-text-muted">Contatos Sync</p>
           </div>
           <div className="rounded-xl border border-white/5 bg-card p-4">
             <p className="text-2xl font-bold">Online</p>
