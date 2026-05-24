@@ -1159,18 +1159,24 @@ export default function WhatsAppView() {
                     {convo.latestReplies.map((reply, ri) => (
                       <div
                         key={`${reply.timestamp}-${ri}`}
-                        className="mt-2 pl-3 border-l-2 border-accent/40"
+                        className="mt-2 flex items-center gap-2.5 group/reply"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-accent font-medium">Você</span>
-                          <span className="text-xs text-text-muted ml-auto">
+                        <div className="flex flex-col items-center w-3 shrink-0">
+                          <div className="h-1.5 w-px bg-white/10" />
+                          <div className="w-2 h-2 rounded-full border border-white/20 bg-white/5 flex items-center justify-center">
+                            <div className="w-1 h-1 rounded-full bg-white/20" />
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                          <span className="text-xs text-text-muted font-bold shrink-0">Você:</span>
+                          <span className="text-xs text-text-muted/70 truncate flex-1">
+                            {reply.text}
+                          </span>
+                          <span className="text-[10px] font-medium text-text-muted/30 shrink-0">
                             {formatTime(reply.timestamp)}
                           </span>
                         </div>
-                        <p className="text-sm text-text-muted/90 mt-0.5 line-clamp-2">
-                          {reply.text}
-                        </p>
                       </div>
                     ))}
                   </div>

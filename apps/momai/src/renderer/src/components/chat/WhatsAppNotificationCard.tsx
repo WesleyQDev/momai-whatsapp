@@ -102,6 +102,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const contactJid = data?.contactJid || data?.contact || ''
   const isGroup = data?.isGroup || false
   const groupName = data?.groupName || ''
+  const isAdminsOnly = data?.isAdminsOnly || false
   const onClose = data?.onClose || (() => {})
 
   const [voiceStatus, setVoiceStatus] = useState<
@@ -373,66 +374,74 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           <p className="text-sm text-text/80 shrink-0 select-text">{message}</p>
         )}
 
-        <div
-          className={`flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg bg-input border border-border focus-within:border-accent/40 transition-colors ${
-            sending ? 'cursor-default' : 'cursor-text'
-          }`}
-          onMouseDown={(e) => {
-            if (sending) return
-            const target = e.target as HTMLElement
-            if (target.closest('button') || target.tagName === 'INPUT') return
-            e.preventDefault()
-            inputRef.current?.focus()
-          }}
-        >
-          <MicrophoneIcon
-            className={`w-4 h-4 shrink-0 pointer-events-none ${
-              voiceStatus === 'listening'
-                ? 'text-green-400 animate-pulse'
-                : voiceStatus === 'detected' || voiceStatus === 'complete'
-                  ? 'text-green-400'
-                  : 'text-text-muted'
+        {isAdminsOnly ? (
+          <div className="flex items-center justify-center py-2 px-3 rounded-lg bg-black/10 border border-white/5">
+            <p className="text-[11px] text-text-muted">
+              Somente <span className="text-green-500 font-bold">admins</span> podem enviar mensagens
+            </p>
+          </div>
+        ) : (
+          <div
+            className={`flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg bg-input border border-border focus-within:border-accent/40 transition-colors ${
+              sending ? 'cursor-default' : 'cursor-text'
             }`}
-            title={voiceLabel}
-          />
-          <input
-            ref={inputRef}
-            type="text"
-            value={customText}
-            onChange={(e) => setCustomText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && customText.trim() && !sending) {
-                e.preventDefault()
-                const gen = beginUserSend()
-                sendReply(customText.trim(), gen)
-              }
+            onMouseDown={(e) => {
+              if (sending) return
+              const target = e.target as HTMLElement
+              if (target.closest('button') || target.tagName === 'INPUT') return
+              e.preventDefault()
+              inputRef.current?.focus()
             }}
-            readOnly={sending}
-            placeholder="Digite uma mensagem..."
-            className={`flex-1 min-w-0 bg-transparent text-xs text-text placeholder:text-text-muted/50 focus:outline-none ${
-              sending ? 'opacity-50 cursor-default' : 'cursor-text'
-            }`}
-          />
-          <button
-            type="button"
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={() => {
-              if (customText.trim() && !sending) {
-                const gen = beginUserSend()
-                sendReply(customText.trim(), gen)
-              }
-            }}
-            disabled={!customText.trim() || sending}
-            className={`p-1 rounded-md text-text-muted hover:text-text transition-colors disabled:opacity-40 shrink-0 ${
-              !customText.trim() || sending ? 'cursor-default' : 'cursor-pointer'
-            }`}
-            aria-label="Enviar"
           >
-            <PaperAirplaneIcon className="w-4 h-4" />
-          </button>
-        </div>
+            <MicrophoneIcon
+              className={`w-4 h-4 shrink-0 pointer-events-none ${
+                voiceStatus === 'listening'
+                  ? 'text-green-400 animate-pulse'
+                  : voiceStatus === 'detected' || voiceStatus === 'complete'
+                    ? 'text-green-400'
+                    : 'text-text-muted'
+              }`}
+              title={voiceLabel}
+            />
+            <input
+              ref={inputRef}
+              type="text"
+              value={customText}
+              onChange={(e) => setCustomText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && customText.trim() && !sending) {
+                  e.preventDefault()
+                  const gen = beginUserSend()
+                  sendReply(customText.trim(), gen)
+                }
+              }}
+              readOnly={sending}
+              placeholder="Digite uma mensagem..."
+              className={`flex-1 min-w-0 bg-transparent text-xs text-text placeholder:text-text-muted/50 focus:outline-none ${
+                sending ? 'opacity-50 cursor-default' : 'cursor-text'
+              }`}
+            />
+            <button
+              type="button"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => {
+                if (customText.trim() && !sending) {
+                  const gen = beginUserSend()
+                  sendReply(customText.trim(), gen)
+                }
+              }}
+              disabled={!customText.trim() || sending}
+              className={`p-1 rounded-md text-text-muted hover:text-text transition-colors disabled:opacity-40 shrink-0 ${
+                !customText.trim() || sending ? 'cursor-default' : 'cursor-pointer'
+              }`}
+              aria-label="Enviar"
+            >
+              <PaperAirplaneIcon className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
-        {quickReplies.length > 0 && (
+        {quickReplies.length > 0 && !isAdminsOnly && (
           <div className="flex shrink-0 flex-wrap gap-2 pt-0.5 pb-0.5">
             {quickReplies.map((reply: string, i: number) => (
               <button
