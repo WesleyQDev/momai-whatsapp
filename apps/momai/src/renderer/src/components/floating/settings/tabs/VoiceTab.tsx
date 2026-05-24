@@ -1,11 +1,7 @@
 import { Settings, Tab } from '../../../../hooks/useSettingsCard'
 import React, { useState, useEffect } from 'react'
 import { useTTS } from '../../../../hooks/useTTS'
-import {
-  fetchExtensions,
-  fetchSkillKeywords,
-  updateSkillKeywords
-} from '../../../../services/api'
+import { fetchExtensions, fetchSkillKeywords, updateSkillKeywords } from '../../../../services/api'
 
 interface VoiceTabProps {
   t: any
@@ -145,13 +141,12 @@ export const VoiceTab = React.memo(
     const [newKeyword, setNewKeyword] = useState('')
 
     useEffect(() => {
-      Promise.all([
-        fetchExtensions(),
-        fetchSkillKeywords()
-      ]).then(([exts, kws]) => {
-        setExtList(exts.filter((s: any) => s.category !== 'community'))
-        setKeywordsMap(kws)
-      }).catch(() => {})
+      Promise.all([fetchExtensions(), fetchSkillKeywords()])
+        .then(([exts, kws]) => {
+          setExtList(exts.filter((s: any) => s.category !== 'community'))
+          setKeywordsMap(kws)
+        })
+        .catch(() => {})
     }, [])
 
     async function handleRemoveTrigger(skillId: string, keyword: string) {
@@ -545,7 +540,16 @@ export const VoiceTab = React.memo(
               <div className="flex items-center justify-between gap-2 p-4">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/[0.05] text-text-muted/50">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
                     </svg>
                   </div>
@@ -560,8 +564,16 @@ export const VoiceTab = React.memo(
                   onClick={() => setShowAddForm(!showAddForm)}
                   className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors shrink-0"
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
                   {showAddForm ? 'Fechar' : 'Adicionar'}
                 </button>
@@ -574,19 +586,34 @@ export const VoiceTab = React.memo(
                       value={selectedSkill}
                       onChange={(e) => setSelectedSkill(e.target.value)}
                       className="flex-1 px-3 py-2 pr-8 text-xs rounded-lg bg-white/5 border border-border/40 text-text outline-none focus:border-accent/50 appearance-none"
-                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff44' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundPosition: 'right 8px center', backgroundRepeat: 'no-repeat', backgroundSize: '14px' }}
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff44' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                        backgroundPosition: 'right 8px center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '14px'
+                      }}
                     >
-                      <option value="" className="bg-zinc-900">Skill...</option>
+                      <option value="" className="bg-zinc-900">
+                        Skill...
+                      </option>
                       {extList.map((s) => (
-                        <option key={s.id} value={s.id} disabled={!s.enabled} className="bg-zinc-900">
-                          {s.name}{!s.enabled ? ' (off)' : ''}
+                        <option
+                          key={s.id}
+                          value={s.id}
+                          disabled={!s.enabled}
+                          className="bg-zinc-900"
+                        >
+                          {s.name}
+                          {!s.enabled ? ' (off)' : ''}
                         </option>
                       ))}
                     </select>
                     <input
                       value={newKeyword}
                       onChange={(e) => setNewKeyword(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddTrigger() }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddTrigger()
+                      }}
                       placeholder="Palavra"
                       className="w-36 px-3 py-2 text-xs rounded-lg bg-white/5 border border-border/40 text-text placeholder:text-text-muted/50 outline-none focus:border-accent/50"
                     />
@@ -597,7 +624,10 @@ export const VoiceTab = React.memo(
               {triggers.length > 0 && (
                 <div className="border-t border-border/40 divide-y divide-border/10">
                   {triggers.map((tr) => (
-                    <div key={`${tr.skillId}:${tr.keyword}`} className="flex items-center justify-between px-4 py-2.5">
+                    <div
+                      key={`${tr.skillId}:${tr.keyword}`}
+                      className="flex items-center justify-between px-4 py-2.5"
+                    >
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-xs font-semibold text-text">{tr.keyword}</span>
                         <span className="text-[10px] text-text-muted/40">→</span>
@@ -607,8 +637,16 @@ export const VoiceTab = React.memo(
                         onClick={() => handleRemoveTrigger(tr.skillId, tr.keyword)}
                         className="text-text-muted/30 hover:text-red-400 transition-colors shrink-0"
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
                         </svg>
                       </button>
                     </div>

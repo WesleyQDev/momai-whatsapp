@@ -70,7 +70,7 @@ export class EconomyService {
   private currentState: EconomyState = {
     active: false,
     reason: null,
-    detectedGames: [],
+    detectedGames: []
   }
 
   private broadcastCallback: ((state: EconomyState) => void) | null = null
@@ -89,7 +89,7 @@ export class EconomyService {
     return execSyncNode(cmd, {
       encoding: 'utf-8',
       timeout: 3000,
-      stdio: ['pipe', 'pipe', 'ignore'],
+      stdio: ['pipe', 'pipe', 'ignore']
     })
   }
 
@@ -177,9 +177,10 @@ export class EconomyService {
 
   private getProcessList(): string[] {
     try {
-      const cmd = process.platform === 'win32'
-        ? 'tasklist /FO CSV /NH'
-        : 'ps -eo comm --no-headers 2>/dev/null || ps -Ao comm= 2>/dev/null'
+      const cmd =
+        process.platform === 'win32'
+          ? 'tasklist /FO CSV /NH'
+          : 'ps -eo comm --no-headers 2>/dev/null || ps -Ao comm= 2>/dev/null'
       const out = this.execCmd(cmd)
       return parseProcessList(out)
     } catch {
@@ -195,9 +196,10 @@ export class EconomyService {
 
   private getFreeRamMb(): number {
     try {
-      const cmd = process.platform === 'win32'
-        ? 'powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory" 2>nul'
-        : 'free -m | awk \'/Mem:/ {print $7}\''
+      const cmd =
+        process.platform === 'win32'
+          ? 'powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory" 2>nul'
+          : "free -m | awk '/Mem:/ {print $7}'"
       const out = this.execCmd(cmd)
       const kb = parseInt(out?.trim(), 10)
       if (!isNaN(kb) && kb > 0) return Math.round(kb / 1024)
@@ -209,11 +211,15 @@ export class EconomyService {
 
   private resolveCoverUrl(game: KnownGame): string | null {
     if (game.coverUrl) return game.coverUrl
-    if (game.steamGridId) return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.steamGridId}/header.jpg`
+    if (game.steamGridId)
+      return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.steamGridId}/header.jpg`
     return null
   }
 
-  async checkForGames(processOverrides?: string[], ignoreDismissed = false): Promise<DetectedGame[]> {
+  async checkForGames(
+    processOverrides?: string[],
+    ignoreDismissed = false
+  ): Promise<DetectedGame[]> {
     if (!this.gamingModeEnabled) return []
     if (!ignoreDismissed && this.dismissed) return []
     this.reloadPreferences()
@@ -243,13 +249,16 @@ export class EconomyService {
         checked.add(game.name)
         continue
       }
-      const match = processes.find((p) =>
-        game.processNames.some((pn) => this.matchProcess(p, pn))
-      )
+      const match = processes.find((p) => game.processNames.some((pn) => this.matchProcess(p, pn)))
       if (match) {
         checked.add(game.name)
         const coverUrl = this.resolveCoverUrl(game)
-        detected.push({ name: game.name, processName: match, steamGridId: game.steamGridId, coverUrl })
+        detected.push({
+          name: game.name,
+          processName: match,
+          steamGridId: game.steamGridId,
+          coverUrl
+        })
         console.log(`[Economy] DETECTED: ${game.name} (cover: ${coverUrl})`)
       }
     }
@@ -323,15 +332,21 @@ export class EconomyService {
     if (process.platform !== 'win32') return 0
     // Try NVIDIA
     try {
-      const out = this.execCmd('nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>nul')
+      const out = this.execCmd(
+        'nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>nul'
+      )
       const mb = parseInt(out?.trim(), 10)
       if (!isNaN(mb) && mb > 0) return mb
     } catch {}
     // Try AMD
     try {
       const out = this.execCmd('rocm-smi --showmeminfo vram 2>nul')
-      const match = out.match(/VRAM\s*:\s*(\d+)\s*MB/i) || out.match(/Used\s*\(VRAM\)\s*:\s*(\d+)\s*MB/i)
-      if (match) { const mb = parseInt(match[1], 10); if (!isNaN(mb) && mb > 0) return mb }
+      const match =
+        out.match(/VRAM\s*:\s*(\d+)\s*MB/i) || out.match(/Used\s*\(VRAM\)\s*:\s*(\d+)\s*MB/i)
+      if (match) {
+        const mb = parseInt(match[1], 10)
+        if (!isNaN(mb) && mb > 0) return mb
+      }
     } catch {}
     // Fallback: Windows management query for GPU memory
     try {
@@ -344,13 +359,22 @@ export class EconomyService {
     return 0
   }
 
-  private async activateEconomy(reason: EconomyState['reason'], detected: DetectedGame[]): Promise<void> {
+  private async activateEconomy(
+    reason: EconomyState['reason'],
+    detected: DetectedGame[]
+  ): Promise<void> {
     const beforeRam = this.getFreeRamMb()
     const beforeVram = this.getVramUsage()
     await this.httpPost(`${this.economyHost}/llama/stop`)
     const freedMemoryMb = beforeRam > 0 ? Math.max(0, this.getFreeRamMb() - beforeRam) : undefined
     const freedVramMb = beforeVram > 0 ? Math.max(0, this.getVramUsage() - beforeVram) : undefined
-    this.currentState = { active: true, reason, detectedGames: detected, freedMemoryMb, freedVramMb }
+    this.currentState = {
+      active: true,
+      reason,
+      detectedGames: detected,
+      freedMemoryMb,
+      freedVramMb
+    }
     this.broadcast()
   }
 
@@ -365,8 +389,17 @@ export class EconomyService {
   }
 
   private clearTimers(): void {
-    if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null }
-    if (this.appOpenTimer) { clearTimeout(this.appOpenTimer); this.appOpenTimer = null }
-    if (this.appMinimizedTimer) { clearTimeout(this.appMinimizedTimer); this.appMinimizedTimer = null }
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer)
+      this.pollTimer = null
+    }
+    if (this.appOpenTimer) {
+      clearTimeout(this.appOpenTimer)
+      this.appOpenTimer = null
+    }
+    if (this.appMinimizedTimer) {
+      clearTimeout(this.appMinimizedTimer)
+      this.appMinimizedTimer = null
+    }
   }
 }

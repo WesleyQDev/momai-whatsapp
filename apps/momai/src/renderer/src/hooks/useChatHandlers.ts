@@ -73,10 +73,15 @@ export function useChatHandlers({
         if (isCallModeRef.current) {
           dispatch({
             type: 'SET_CALL_HISTORY',
-            updater: (prev) => [
-              ...prev,
-              { id: `error-${Date.now()}`, role: 'assistant' as const, content: msg.message || 'Erro ao processar áudio' }
-            ].slice(-5)
+            updater: (prev) =>
+              [
+                ...prev,
+                {
+                  id: `error-${Date.now()}`,
+                  role: 'assistant' as const,
+                  content: msg.message || 'Erro ao processar áudio'
+                }
+              ].slice(-5)
           })
         }
       } else if (msg.type === 'voice_engine_loading') {

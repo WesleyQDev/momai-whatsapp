@@ -32,12 +32,17 @@ function saveMetrics() {
     const dir = path.dirname(METRICS_FILE)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
     fs.writeFileSync(METRICS_FILE, JSON.stringify(metricsCache), 'utf8')
-  } catch (_) { /* ignore */ }
+  } catch (_) {
+    /* ignore */
+  }
 }
 
 function scheduleSave() {
   if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => { saveMetrics(); saveTimer = null }, 2000)
+  saveTimer = setTimeout(() => {
+    saveMetrics()
+    saveTimer = null
+  }, 2000)
 }
 
 function recordMetric(trace) {
@@ -62,7 +67,15 @@ function computeStats() {
   const metrics = loadMetrics()
   const total = metrics.length
   if (total === 0) {
-    return { total: 0, avg_tps: 0, avg_duration: 0, avg_tokens: 0, trend: null, recent: [], by_hour: [] }
+    return {
+      total: 0,
+      avg_tps: 0,
+      avg_duration: 0,
+      avg_tokens: 0,
+      trend: null,
+      recent: [],
+      by_hour: []
+    }
   }
 
   const avgTps = +(metrics.reduce((s, m) => s + m.tokens_per_second, 0) / total).toFixed(2)
@@ -76,7 +89,7 @@ function computeStats() {
   if (last10.length >= 3 && prev10.length >= 3) {
     const lastAvg = last10.reduce((s, m) => s + m.tokens_per_second, 0) / last10.length
     const prevAvg = prev10.reduce((s, m) => s + m.tokens_per_second, 0) / prev10.length
-    const diff = +((lastAvg - prevAvg) / prevAvg * 100).toFixed(1)
+    const diff = +(((lastAvg - prevAvg) / prevAvg) * 100).toFixed(1)
     trend = {
       recent_avg_tps: +lastAvg.toFixed(2),
       previous_avg_tps: +prevAvg.toFixed(2),
@@ -88,12 +101,12 @@ function computeStats() {
   // By hour (last 24h)
   const now = Date.now()
   const dayAgo = now - 86400000
-  const recent = metrics.filter(m => m.timestamp > dayAgo)
+  const recent = metrics.filter((m) => m.timestamp > dayAgo)
   const byHour = []
   for (let h = 23; h >= 0; h--) {
     const start = now - (h + 1) * 3600000
     const end = now - h * 3600000
-    const slice = recent.filter(m => m.timestamp >= start && m.timestamp < end)
+    const slice = recent.filter((m) => m.timestamp >= start && m.timestamp < end)
     if (slice.length > 0) {
       byHour.push({
         hour: new Date(start).toLocaleTimeString('pt-BR', { hour: '2-digit' }),
@@ -109,7 +122,7 @@ function computeStats() {
     avg_duration: +avgDur,
     avg_tokens: +avgTok,
     trend,
-    recent: metrics.slice(-50).map(m => ({
+    recent: metrics.slice(-50).map((m) => ({
       tps: m.tokens_per_second,
       duration_ms: m.duration_ms,
       timestamp: m.timestamp

@@ -54,7 +54,13 @@ function parseSkillMarkdown(filePath) {
       continue
     }
 
-    if (key === 'intents' || key === 'allowed-tools' || key === 'tags') {
+    if (
+      key === 'intents' ||
+      key === 'allowed-tools' ||
+      key === 'tags' ||
+      key === 'tools' ||
+      key === 'triggers'
+    ) {
       frontmatter[key] = parseListValue(val)
     } else if (key === 'enabled') {
       frontmatter[key] = !/^false$/i.test(val.trim())
@@ -488,6 +494,23 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
 
     // Isolated execution for all non-builtins (extensions and packaged)
     if (skill.kind === 'extension' || skill.kind === 'packaged') {
+      // Background skills route to persistent worker
+      if (skill.manifest?.background) {
+        console.log(`[registry] Executing ${skillId} in persistent worker...`)
+        try {
+          const result = await extensionHostManager.sendToPersistent(skillId, {
+            content: input,
+            context,
+            manifest: skill.manifest,
+            args,
+            toolName
+          })
+          return { ...result, tool: toolName }
+        } catch (err) {
+          return { ok: false, error: err.message, tool: toolName }
+        }
+      }
+
       console.log(`[registry] Executing ${skillId} in isolated host...`)
       return extensionHostManager.execute(skillId, skill.dir, {
         content: input,
@@ -529,8 +552,20 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       permissions: skill.manifest.permissions || null,
       risk_level: skill.manifest._riskLevel || 'low',
       permission_summary: skill.manifest._permSummary || [],
-      instructions: (skill.manifest.readme || skill.manifest.instructions || '').trim(),
-      readme: (skill.manifest.readme || skill.manifest.instructions || '').trim(),
+      instructions: (() => {
+        const r = skill.manifest.readme
+        if (r && typeof r === 'object') {
+          return (r['pt-BR'] || r['default'] || '').trim()
+        }
+        return ''
+      })(),
+      readme: (() => {
+        const r = skill.manifest.readme
+        if (r && typeof r === 'object') {
+          return (r['pt-BR'] || r['default'] || '').trim()
+        }
+        return ''
+      })(),
       version: skill.manifest.version || '1.0.0',
       author: skill.manifest.author || 'MomAI Team',
       tags: skill.manifest.tags || [],

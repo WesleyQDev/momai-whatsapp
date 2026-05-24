@@ -559,9 +559,7 @@ describe('useChatHandlers', () => {
         hook.handleWsMessage({ type: 'observability_trace', data: traceData })
       })
 
-      const events = dispatchSpy.mock.calls.filter(
-        ([e]) => e.type === 'momai_observability_trace'
-      )
+      const events = dispatchSpy.mock.calls.filter(([e]) => e.type === 'momai_observability_trace')
       expect(events.length).toBe(1)
       expect((events[0][0] as CustomEvent).detail).toEqual(traceData)
     })
@@ -574,9 +572,7 @@ describe('useChatHandlers', () => {
         hook.handleWsMessage({ type: 'init_progress', data: { progress: 50 } })
       })
 
-      const events = dispatchSpy.mock.calls.filter(
-        ([e]) => e.type === 'momai_observability_trace'
-      )
+      const events = dispatchSpy.mock.calls.filter(([e]) => e.type === 'momai_observability_trace')
       expect(events.length).toBe(0)
     })
   })

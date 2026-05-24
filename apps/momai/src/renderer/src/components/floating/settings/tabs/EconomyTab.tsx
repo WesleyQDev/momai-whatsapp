@@ -17,7 +17,12 @@ interface EconomyTabProps {
   economyState?: {
     active: boolean
     reason: string | null
-    detectedGames: { name: string; processName: string; steamGridId?: number | null; coverUrl?: string | null }[]
+    detectedGames: {
+      name: string
+      processName: string
+      steamGridId?: number | null
+      coverUrl?: string | null
+    }[]
   }
 }
 
@@ -30,7 +35,8 @@ interface CatalogGame {
 
 function getCoverUrl(game: CatalogGame): string | null {
   if (game.coverUrl) return game.coverUrl
-  if (game.steamGridId) return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.steamGridId}/header.jpg`
+  if (game.steamGridId)
+    return `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${game.steamGridId}/header.jpg`
   return null
 }
 
@@ -63,21 +69,26 @@ export const EconomyTab = React.memo(
     const [gamePrefs, setGamePrefs] = useState<Record<string, boolean>>({})
 
     useEffect(() => {
-      ;(window as any).api?.getEconomyCatalog?.()
+      ;(window as any).api
+        ?.getEconomyCatalog?.()
         .then((data: any) => {
           console.log('[EconomyTab] Catalog loaded:', data?.length, 'games')
           setCatalog(data || [])
         })
         .catch((err: any) => console.error('[EconomyTab] Catalog error:', err))
-      ;(window as any).api?.scanEconomyLibraries?.()
+      ;(window as any).api
+        ?.scanEconomyLibraries?.()
         .then((data: any) => {
           console.log('[EconomyTab] Scanned:', data?.length, 'games')
           setScanned(data || [])
         })
         .catch((err: any) => console.error('[EconomyTab] Scan error:', err))
-      ;(window as any).api?.getEconomyPreferences?.().then((prefs: any) => {
-        if (prefs) setGamePrefs(prefs)
-      }).catch(() => {})
+      ;(window as any).api
+        ?.getEconomyPreferences?.()
+        .then((prefs: any) => {
+          if (prefs) setGamePrefs(prefs)
+        })
+        .catch(() => {})
     }, [])
 
     const handleScan = async () => {
@@ -104,14 +115,18 @@ export const EconomyTab = React.memo(
       return scanned.map((s: any) => {
         const match = catalog.find((c: any) => c.name.toLowerCase() === s.name?.toLowerCase())
         if (match && (match.coverUrl || match.steamGridId)) {
-          return { ...s, coverUrl: match.coverUrl || getCoverUrl(match), steamGridId: match.steamGridId }
+          return {
+            ...s,
+            coverUrl: match.coverUrl || getCoverUrl(match),
+            steamGridId: match.steamGridId
+          }
         }
         return s
       })
     }, [autoDetectOn, scanned, catalog])
 
     const runningGames = economyState?.detectedGames || []
-    const runningNames = new Set(runningGames.map(g => g.name))
+    const runningNames = new Set(runningGames.map((g) => g.name))
     const hasRunning = runningGames.length > 0
 
     return (
@@ -119,15 +134,24 @@ export const EconomyTab = React.memo(
         {/* ===== SONECA DA IA SECTION ===== */}
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-text tracking-tight">Soneca da IA</h2>
-          <p className="text-xs text-text-muted">Define quando a IA deve ser pausada para economizar recursos.</p>
+          <p className="text-xs text-text-muted">
+            Define quando a IA deve ser pausada para economizar recursos.
+          </p>
           <div className="rounded-xl bg-white/[0.03] border border-border/40 overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-border/30">
               <span className="text-xs font-semibold text-text">App aberto (ocioso)</span>
               <select
                 value={economyConfig?.idle_timeout_app_open ?? 5}
-                onChange={(e) => onUpdateConfig?.({ idle_timeout_app_open: Number(e.target.value) })}
+                onChange={(e) =>
+                  onUpdateConfig?.({ idle_timeout_app_open: Number(e.target.value) })
+                }
                 className="bg-input border border-border rounded-lg px-3 py-1.5 pr-8 text-sm text-text outline-none appearance-none"
-                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff44' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundPosition: 'right 8px center', backgroundRepeat: 'no-repeat', backgroundSize: '14px' }}
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff44' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                  backgroundPosition: 'right 8px center',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '14px'
+                }}
               >
                 <option value={0}>Desligado</option>
                 <option value={1}>1 min</option>
@@ -140,9 +164,16 @@ export const EconomyTab = React.memo(
               <span className="text-xs font-semibold text-text">App minimizado</span>
               <select
                 value={economyConfig?.idle_timeout_minimized ?? 1}
-                onChange={(e) => onUpdateConfig?.({ idle_timeout_minimized: Number(e.target.value) })}
+                onChange={(e) =>
+                  onUpdateConfig?.({ idle_timeout_minimized: Number(e.target.value) })
+                }
                 className="bg-input border border-border rounded-lg px-3 py-1.5 pr-8 text-sm text-text outline-none appearance-none"
-                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff44' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundPosition: 'right 8px center', backgroundRepeat: 'no-repeat', backgroundSize: '14px' }}
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff44' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                  backgroundPosition: 'right 8px center',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '14px'
+                }}
               >
                 <option value={0}>Desligado</option>
                 <option value={1}>1 min</option>
@@ -162,14 +193,16 @@ export const EconomyTab = React.memo(
             <div className="flex items-center justify-between p-4 border-b border-border/30">
               <div className="flex flex-col gap-0.5 pr-4">
                 <span className="text-xs font-semibold text-text">Auto-detectar jogos</span>
-                <span className="text-[11px] text-text-muted font-medium">Escaneia Steam e Epic automaticamente</span>
+                <span className="text-[11px] text-text-muted font-medium">
+                  Escaneia Steam e Epic automaticamente
+                </span>
               </div>
               <button
                 onClick={async () => {
-                const newVal = !economyConfig?.gaming_mode_enabled
-                await onUpdateConfig?.({ gaming_mode_enabled: newVal })
-                if (newVal) await handleScan()
-              }}
+                  const newVal = !economyConfig?.gaming_mode_enabled
+                  await onUpdateConfig?.({ gaming_mode_enabled: newVal })
+                  if (newVal) await handleScan()
+                }}
                 className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   economyConfig?.gaming_mode_enabled ? 'bg-accent/80' : 'bg-white/10'
                 }`}
@@ -184,7 +217,9 @@ export const EconomyTab = React.memo(
             <div className="flex items-center justify-between p-4 border-b border-border/30">
               <div className="flex flex-col gap-0.5 pr-4">
                 <span className="text-xs font-semibold text-text">Escanear bibliotecas</span>
-                <span className="text-[11px] text-text-muted font-medium">Busca jogos instalados no PC</span>
+                <span className="text-[11px] text-text-muted font-medium">
+                  Busca jogos instalados no PC
+                </span>
               </div>
               <button
                 onClick={handleScan}
@@ -197,7 +232,9 @@ export const EconomyTab = React.memo(
             <div className="flex items-center justify-between p-4">
               <div className="flex flex-col gap-0.5 pr-4">
                 <span className="text-xs font-semibold text-text">Adicionar jogo manual</span>
-                <span className="text-[11px] text-text-muted font-medium">Adiciona um jogo não detectado</span>
+                <span className="text-[11px] text-text-muted font-medium">
+                  Adiciona um jogo não detectado
+                </span>
               </div>
               <button
                 onClick={() => setShowAddGame(!showAddGame)}
@@ -237,61 +274,68 @@ export const EconomyTab = React.memo(
           {hasRunning && (
             <div>
               <h4 className="text-sm font-semibold text-text mb-3">Agora Jogando</h4>
-            {runningGames.map((game, idx) => {
-              const coverUrl = (game as any).coverUrl
-              return (
-                <div
-                  key={idx}
-                  className="relative w-full rounded-2xl overflow-hidden border-2 border-accent/30 bg-accent/5 mb-3"
-                >
-                  {coverUrl ? (
-                    <div className="relative w-full" style={{ aspectRatio: '460/215' }}>
-                      <img
-                        src={coverUrl}
-                        alt={game.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none'
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                      <div className="absolute bottom-0 left-0 right-0 p-4">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                          <span className="text-lg font-bold text-white">{game.name}</span>
-                          <span className="text-xs font-medium text-green-400 bg-green-500/20 px-2 py-0.5 rounded-full">
-                            Rodando agora
-                          </span>
+              {runningGames.map((game, idx) => {
+                const coverUrl = (game as any).coverUrl
+                return (
+                  <div
+                    key={idx}
+                    className="relative w-full rounded-2xl overflow-hidden border-2 border-accent/30 bg-accent/5 mb-3"
+                  >
+                    {coverUrl ? (
+                      <div className="relative w-full" style={{ aspectRatio: '460/215' }}>
+                        <img
+                          src={coverUrl}
+                          alt={game.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            ;(e.target as HTMLImageElement).style.display = 'none'
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                        <div className="absolute bottom-0 left-0 right-0 p-4">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                            <span className="text-lg font-bold text-white">{game.name}</span>
+                            <span className="text-xs font-medium text-green-400 bg-green-500/20 px-2 py-0.5 rounded-full">
+                              Rodando agora
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3 p-4">
-                      <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
-                      <span className="text-lg font-bold text-text">{game.name}</span>
-                      <span className="text-xs font-medium text-green-400">Rodando agora</span>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
+                    ) : (
+                      <div className="flex items-center gap-3 p-4">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+                        <span className="text-lg font-bold text-text">{game.name}</span>
+                        <span className="text-xs font-medium text-green-400">Rodando agora</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {/* Unified game grid: catalog + manually added */}
           {(() => {
-            const manualOnly = gamingApps.filter(a => !mergedCatalog.some((c: any) => c.name.toLowerCase() === a.name.toLowerCase()))
-            const allGames = [...mergedCatalog, ...manualOnly.map((a: any) => ({
-              name: a.name,
-              coverUrl: a.cover_url || null,
-              steamGridId: a.steam_grid_id || null,
-              processNames: [a.executable],
-              isManual: true,
-              appId: a.id,
-            }))]
+            const manualOnly = gamingApps.filter(
+              (a) => !mergedCatalog.some((c: any) => c.name.toLowerCase() === a.name.toLowerCase())
+            )
+            const allGames = [
+              ...mergedCatalog,
+              ...manualOnly.map((a: any) => ({
+                name: a.name,
+                coverUrl: a.cover_url || null,
+                steamGridId: a.steam_grid_id || null,
+                processNames: [a.executable],
+                isManual: true,
+                appId: a.id
+              }))
+            ]
             return (
               <>
-                <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wide">Biblioteca de Jogos</h4>
+                <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wide">
+                  Biblioteca de Jogos
+                </h4>
                 {autoDetectOn && (
                   <p className="text-[11px] text-text-muted/60 leading-relaxed">
                     Jogos ativos têm borda verde. Desativados ficam opacos.
@@ -299,14 +343,20 @@ export const EconomyTab = React.memo(
                 )}
                 {allGames.length === 0 ? (
                   <div className="py-8 text-center border border-dashed border-border rounded-xl">
-                    <span className="text-sm text-text-muted font-medium italic">{scanning ? 'Escaneando...' : 'Nenhum jogo encontrado. Clique em "Escanear PC" para buscar seus jogos.'}</span>
+                    <span className="text-sm text-text-muted font-medium italic">
+                      {scanning
+                        ? 'Escaneando...'
+                        : 'Nenhum jogo encontrado. Clique em "Escanear PC" para buscar seus jogos.'}
+                    </span>
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
                     {allGames.map((game: any, idx: number) => {
-                      const catalogMatch = !game.isManual ? game : catalog.find((c: any) => c.name.toLowerCase() === game.name.toLowerCase())
+                      const catalogMatch = !game.isManual
+                        ? game
+                        : catalog.find((c: any) => c.name.toLowerCase() === game.name.toLowerCase())
                       const coverUrl = game.isManual
-                        ? (game.coverUrl || (catalogMatch ? getCoverUrl(catalogMatch) : null))
+                        ? game.coverUrl || (catalogMatch ? getCoverUrl(catalogMatch) : null)
                         : getCoverUrl(game)
                       const isRunning = runningNames.has(game.name)
                       const economyEnabled = gamePrefs[game.name.toLowerCase()] !== false
@@ -330,7 +380,7 @@ export const EconomyTab = React.memo(
                                 className="w-full h-full object-cover"
                                 loading="lazy"
                                 onError={(e) => {
-                                  (e.target as HTMLImageElement).src = ''
+                                  ;(e.target as HTMLImageElement).src = ''
                                   ;(e.target as HTMLImageElement).style.display = 'none'
                                 }}
                               />
@@ -341,7 +391,9 @@ export const EconomyTab = React.memo(
                             )}
                           </div>
                           <div className="p-1.5">
-                            <p className="text-[10px] font-semibold text-text truncate">{game.name}</p>
+                            <p className="text-[10px] font-semibold text-text truncate">
+                              {game.name}
+                            </p>
                           </div>
                           {isRunning && (
                             <div className="absolute top-1 left-1">
@@ -350,10 +402,20 @@ export const EconomyTab = React.memo(
                           )}
                           {game.isManual && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); handleDeleteGamingApp(game.appId) }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteGamingApp(game.appId)
+                              }}
                               className="absolute top-1 right-1 p-1 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                             >
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                              <svg
+                                width="10"
+                                height="10"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="white"
+                                strokeWidth="3"
+                              >
                                 <line x1="18" y1="6" x2="6" y2="18" />
                                 <line x1="6" y1="6" x2="18" y2="18" />
                               </svg>
@@ -361,7 +423,14 @@ export const EconomyTab = React.memo(
                           )}
                           {!game.isManual && economyEnabled && (
                             <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                              <svg
+                                width="10"
+                                height="10"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="white"
+                                strokeWidth="3"
+                              >
                                 <path d="M20 6L9 17l-5-5" />
                               </svg>
                             </div>
@@ -375,7 +444,6 @@ export const EconomyTab = React.memo(
             )
           })()}
         </div>
-
       </div>
     )
   }

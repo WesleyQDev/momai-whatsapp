@@ -39,7 +39,11 @@ interface ObservabilityViewProps {
 }
 
 const TYPE_ICONS: Record<string, string> = { llm_call: '🤖', skill: '⚡', fallback: '⚠' }
-const TYPE_COLORS: Record<string, string> = { llm_call: 'text-blue-400', skill: 'text-green-400', fallback: 'text-yellow-400' }
+const TYPE_COLORS: Record<string, string> = {
+  llm_call: 'text-blue-400',
+  skill: 'text-green-400',
+  fallback: 'text-yellow-400'
+}
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
@@ -56,7 +60,10 @@ function TokenSpeedBar({ speed, maxSpeed }: { speed: number; maxSpeed: number })
   return (
     <div className="flex items-center gap-2 min-w-[80px]">
       <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-        <div className="h-full bg-gradient-to-r from-blue-500 to-accent rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+        <div
+          className="h-full bg-gradient-to-r from-blue-500 to-accent rounded-full transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
       </div>
       <span className="text-xs text-text-muted w-10 text-right tabular-nums">{speed}</span>
     </div>
@@ -64,21 +71,27 @@ function TokenSpeedBar({ speed, maxSpeed }: { speed: number; maxSpeed: number })
 }
 
 function TrendGraph({ traces }: { traces: Trace[] }) {
-  const llmTraces = traces.filter(t => t.type === 'llm_call' && t.tokens_per_second > 0).slice(-30)
+  const llmTraces = traces
+    .filter((t) => t.type === 'llm_call' && t.tokens_per_second > 0)
+    .slice(-30)
   if (llmTraces.length < 2) return null
 
-  const maxTps = Math.max(...llmTraces.map(t => t.tokens_per_second))
+  const maxTps = Math.max(...llmTraces.map((t) => t.tokens_per_second))
   const w = 160
   const h = 40
-  const points = llmTraces.map((t, i) => {
-    const x = (i / (llmTraces.length - 1)) * w
-    const y = h - (t.tokens_per_second / maxTps) * h
-    return `${x},${y}`
-  }).join(' ')
+  const points = llmTraces
+    .map((t, i) => {
+      const x = (i / (llmTraces.length - 1)) * w
+      const y = h - (t.tokens_per_second / maxTps) * h
+      return `${x},${y}`
+    })
+    .join(' ')
 
   return (
     <div className="bg-white/5 rounded-xl p-4 mx-4 mt-4">
-      <div className="text-sm text-text-muted mb-2">Token Speed (tok/s) — últimos {llmTraces.length}</div>
+      <div className="text-sm text-text-muted mb-2">
+        Token Speed (tok/s) — últimos {llmTraces.length}
+      </div>
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full max-w-[200px] h-10">
         <polyline fill="none" stroke="rgb(99,102,241)" strokeWidth="2" points={points} />
       </svg>
@@ -98,14 +111,18 @@ function TraceDetail({ trace, maxTps }: { trace: Trace; maxTps: number }) {
       >
         <span className={TYPE_COLORS[trace.type]}>{TYPE_ICONS[trace.type]}</span>
         <span className="text-xs text-text-muted w-10">{formatTime(trace.timestamp)}</span>
-        <span className="text-xs text-text-muted w-16">{trace.type === 'llm_call' ? 'LLM' : trace.active_skill || trace.type}</span>
+        <span className="text-xs text-text-muted w-16">
+          {trace.type === 'llm_call' ? 'LLM' : trace.active_skill || trace.type}
+        </span>
         <span className="text-xs text-text-muted w-16">{formatDuration(trace.total_duration)}</span>
         {trace.type === 'llm_call' && (
           <div className="flex-1">
             <TokenSpeedBar speed={trace.tokens_per_second} maxSpeed={maxTps} />
           </div>
         )}
-        <span className="text-xs text-text-muted w-14 tabular-nums">{trace.total_tokens || '-'}</span>
+        <span className="text-xs text-text-muted w-14 tabular-nums">
+          {trace.total_tokens || '-'}
+        </span>
         <span className="text-xs text-text-muted">{isOpen ? '▲' : '▼'}</span>
       </button>
 
@@ -119,17 +136,26 @@ function TraceDetail({ trace, maxTps }: { trace: Trace; maxTps: number }) {
 
           {trace.system_prompt && (
             <div>
-              <div className="text-xs text-text-muted mb-1">▶ System Prompt ({trace.estimated_prompt_tokens || 0} tokens)</div>
-              <pre className="text-xs text-text bg-white/5 rounded-lg p-3 overflow-x-auto max-h-32 overflow-y-auto whitespace-pre-wrap font-mono">{trace.system_prompt.slice(0, 2000)}</pre>
+              <div className="text-xs text-text-muted mb-1">
+                ▶ System Prompt ({trace.estimated_prompt_tokens || 0} tokens)
+              </div>
+              <pre className="text-xs text-text bg-white/5 rounded-lg p-3 overflow-x-auto max-h-32 overflow-y-auto whitespace-pre-wrap font-mono">
+                {trace.system_prompt.slice(0, 2000)}
+              </pre>
             </div>
           )}
 
           {trace.messages && trace.messages.length > 0 && (
             <div>
-              <div className="text-xs text-text-muted mb-1">▶ Messages ({trace.messages.length})</div>
+              <div className="text-xs text-text-muted mb-1">
+                ▶ Messages ({trace.messages.length})
+              </div>
               <div className="space-y-1">
                 {trace.messages.map((msg, i) => (
-                  <div key={i} className={`text-xs rounded-lg p-2 ${msg.role === 'user' ? 'bg-blue-500/10' : msg.role === 'tool' ? 'bg-green-500/10' : 'bg-white/5'}`}>
+                  <div
+                    key={i}
+                    className={`text-xs rounded-lg p-2 ${msg.role === 'user' ? 'bg-blue-500/10' : msg.role === 'tool' ? 'bg-green-500/10' : 'bg-white/5'}`}
+                  >
                     <span className="font-bold text-text-muted">{msg.role}: </span>
                     <span className="text-text">{msg.content.slice(0, 300)}</span>
                   </div>
@@ -162,7 +188,9 @@ function TraceDetail({ trace, maxTps }: { trace: Trace; maxTps: number }) {
 
           {trace.tool_calls && trace.tool_calls.length > 0 && (
             <div>
-              <div className="text-xs text-text-muted mb-1">▶ Tools ({trace.tool_calls.length})</div>
+              <div className="text-xs text-text-muted mb-1">
+                ▶ Tools ({trace.tool_calls.length})
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -177,9 +205,15 @@ function TraceDetail({ trace, maxTps }: { trace: Trace; maxTps: number }) {
                     {trace.tool_calls.map((tc, i) => (
                       <tr key={i} className="border-b border-white/5">
                         <td className="py-1 pr-2 text-accent">{tc.tool_name}</td>
-                        <td className="py-1 pr-2 text-text-muted font-mono max-w-[120px] truncate">{JSON.stringify(tc.args)}</td>
-                        <td className="py-1 pr-2 text-text-muted">{tc.duration_ms ? formatDuration(tc.duration_ms) : '-'}</td>
-                        <td className="py-1 text-text-muted max-w-[120px] truncate">{tc.result || '-'}</td>
+                        <td className="py-1 pr-2 text-text-muted font-mono max-w-[120px] truncate">
+                          {JSON.stringify(tc.args)}
+                        </td>
+                        <td className="py-1 pr-2 text-text-muted">
+                          {tc.duration_ms ? formatDuration(tc.duration_ms) : '-'}
+                        </td>
+                        <td className="py-1 text-text-muted max-w-[120px] truncate">
+                          {tc.result || '-'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -196,7 +230,7 @@ function TraceDetail({ trace, maxTps }: { trace: Trace; maxTps: number }) {
 export default function ObservabilityView({ initialTraces }: ObservabilityViewProps) {
   const [traces, setTraces] = useState<Trace[]>(() => {
     const stored = getTraces()
-    return stored.length ? stored : (initialTraces || [])
+    return stored.length ? stored : initialTraces || []
   })
   const [filter, setFilter] = useState<'all' | 'llm_call' | 'skill' | 'error'>('all')
   const [search, setSearch] = useState('')
@@ -212,7 +246,10 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
     }
     fetchStats()
     const interval = setInterval(fetchStats, 5000)
-    return () => { cancelled = true; clearInterval(interval) }
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
   }, [])
 
   useEffect(() => {
@@ -234,7 +271,9 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
             if (getTraces().length > 50) getTraces().length = 50
           }
         }
-      } catch (_) { /* server not ready yet */ }
+      } catch (_) {
+        /* server not ready yet */
+      }
     }
 
     fetchTraces()
@@ -243,12 +282,12 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
     const handler = (event: Event) => {
       const trace = (event as CustomEvent<Trace>).detail
       console.debug('[observability] CustomEvent received:', trace?.id, trace?.status)
-      setTraces(prev => [trace, ...prev].slice(0, 50))
+      setTraces((prev) => [trace, ...prev].slice(0, 50))
     }
     window.addEventListener('momai_observability_trace', handler as EventListener)
 
     const unsub = subscribe((trace: any) => {
-      setTraces(prev => [trace, ...prev].slice(0, 50))
+      setTraces((prev) => [trace, ...prev].slice(0, 50))
     })
 
     return () => {
@@ -259,24 +298,31 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
     }
   }, [])
 
-  const filteredTraces = traces.filter(t => {
-    if (filter === 'error') return t.status === 'error'
-    if (filter !== 'all') return t.type === filter
-    return true
-  }).filter(t => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return (
-      t.model?.toLowerCase().includes(q) ||
-      t.active_skill?.toLowerCase().includes(q) ||
-      t.tool_calls?.some(tc => tc.tool_name.toLowerCase().includes(q)) ||
-      t.response?.toLowerCase().includes(q) ||
-      t.messages?.some(m => m.content.toLowerCase().includes(q))
-    )
-  })
+  const filteredTraces = traces
+    .filter((t) => {
+      if (filter === 'error') return t.status === 'error'
+      if (filter !== 'all') return t.type === filter
+      return true
+    })
+    .filter((t) => {
+      if (!search) return true
+      const q = search.toLowerCase()
+      return (
+        t.model?.toLowerCase().includes(q) ||
+        t.active_skill?.toLowerCase().includes(q) ||
+        t.tool_calls?.some((tc) => tc.tool_name.toLowerCase().includes(q)) ||
+        t.response?.toLowerCase().includes(q) ||
+        t.messages?.some((m) => m.content.toLowerCase().includes(q))
+      )
+    })
 
-  const llmTraces = traces.filter(t => t.type === 'llm_call' && t.tokens_per_second > 0)
-  const maxDisplayTps = Math.max(...filteredTraces.filter(t => t.type === 'llm_call' && t.tokens_per_second > 0).map(t => t.tokens_per_second), 1)
+  const llmTraces = traces.filter((t) => t.type === 'llm_call' && t.tokens_per_second > 0)
+  const maxDisplayTps = Math.max(
+    ...filteredTraces
+      .filter((t) => t.type === 'llm_call' && t.tokens_per_second > 0)
+      .map((t) => t.tokens_per_second),
+    1
+  )
 
   return (
     <div className="w-full h-full flex flex-col bg-bg text-text">
@@ -292,7 +338,9 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
           <div className="flex items-center gap-4 text-xs">
             <span className="text-text-muted">{stats.total} chamadas</span>
             <span className="text-text-muted">·</span>
-            <span className="text-text">Média: <strong>{stats.avg_tps}</strong> tok/s</span>
+            <span className="text-text">
+              Média: <strong>{stats.avg_tps}</strong> tok/s
+            </span>
             <span className="text-text-muted">·</span>
             <span className="text-text">{stats.avg_duration}ms / chamada</span>
             <span className="text-text-muted">·</span>
@@ -302,8 +350,9 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
             <div className="flex items-center gap-2 mt-2 text-xs">
               <span className="text-text-muted">Tendência (últimos 10 vs anteriores):</span>
               <span className={stats.trend.improving ? 'text-green-400' : 'text-red-400'}>
-                {stats.trend.recent_avg_tps} vs {stats.trend.previous_avg_tps} tok/s
-                ({stats.trend.change_pct > 0 ? '+' : ''}{stats.trend.change_pct}%)
+                {stats.trend.recent_avg_tps} vs {stats.trend.previous_avg_tps} tok/s (
+                {stats.trend.change_pct > 0 ? '+' : ''}
+                {stats.trend.change_pct}%)
                 {stats.trend.improving ? ' ↑' : ' ↓'}
               </span>
             </div>
@@ -316,8 +365,15 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
                   const maxTps = Math.max(...stats.by_hour.map((x: any) => x.avg_tps), 1)
                   const pct = (h.avg_tps / maxTps) * 100
                   return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-0.5" title={`${h.hour}h: ${h.avg_tps} tok/s (${h.count} chamadas)`}>
-                      <div className="w-full bg-accent/20 rounded-t" style={{ height: `${Math.max(pct, 5)}%` }} />
+                    <div
+                      key={i}
+                      className="flex-1 flex flex-col items-center gap-0.5"
+                      title={`${h.hour}h: ${h.avg_tps} tok/s (${h.count} chamadas)`}
+                    >
+                      <div
+                        className="w-full bg-accent/20 rounded-t"
+                        style={{ height: `${Math.max(pct, 5)}%` }}
+                      />
                       <span className="text-[9px] text-text-muted">{h.hour}</span>
                     </div>
                   )
@@ -329,7 +385,7 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
       )}
 
       <div className="px-4 py-3 flex items-center gap-2 border-b border-white/5">
-        {(['all', 'llm_call', 'skill', 'error'] as const).map(f => (
+        {(['all', 'llm_call', 'skill', 'error'] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -342,7 +398,7 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
         <input
           type="text"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar..."
           className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-xs text-text placeholder-text-muted w-32 focus:outline-none focus:border-accent/50"
         />
@@ -351,11 +407,13 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
       <div className="flex-1 overflow-y-auto scrollbar-thin">
         {filteredTraces.length === 0 ? (
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
-            {traces.length === 0 ? 'Nenhum trace ainda. Faça uma pergunta à MomAI para começar.' : 'Nenhum resultado para este filtro.'}
+            {traces.length === 0
+              ? 'Nenhum trace ainda. Faça uma pergunta à MomAI para começar.'
+              : 'Nenhum resultado para este filtro.'}
           </div>
         ) : (
           <div>
-            {filteredTraces.map(trace => (
+            {filteredTraces.map((trace) => (
               <TraceDetail key={trace.id} trace={trace} maxTps={maxDisplayTps} />
             ))}
           </div>
@@ -365,7 +423,11 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
       <div className="px-4 py-2 border-t border-white/5 text-xs text-text-muted flex items-center">
         <span>{traces.length} traces coletados</span>
         <span className="mx-2">·</span>
-        <span>{llmTraces.length > 0 ? `Média: ${(llmTraces.reduce((a, t) => a + t.tokens_per_second, 0) / llmTraces.length).toFixed(1)} tok/s` : 'Aguardando dados...'}</span>
+        <span>
+          {llmTraces.length > 0
+            ? `Média: ${(llmTraces.reduce((a, t) => a + t.tokens_per_second, 0) / llmTraces.length).toFixed(1)} tok/s`
+            : 'Aguardando dados...'}
+        </span>
       </div>
     </div>
   )

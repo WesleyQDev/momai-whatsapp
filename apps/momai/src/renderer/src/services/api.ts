@@ -18,9 +18,11 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
 
 export const api = {
   get: (path: string) => apiFetch(path),
-  post: (path: string, body?: any) => apiFetch(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
-  patch: (path: string, body?: any) => apiFetch(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
-  delete: (path: string) => apiFetch(path, { method: 'DELETE' }),
+  post: (path: string, body?: any) =>
+    apiFetch(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  patch: (path: string, body?: any) =>
+    apiFetch(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
+  delete: (path: string) => apiFetch(path, { method: 'DELETE' })
 }
 
 export interface StructuredResponse {
@@ -383,6 +385,14 @@ export interface Extension {
   repo?: string
   stars?: number
   compatibility?: string
+  features?: {
+    sidebar?: boolean
+    sidebarPanel?: {
+      icon: string
+      label: string
+      panelEndpoint: string
+    } | null
+  }
 }
 
 export async function fetchExtensions(lang?: string): Promise<Extension[]> {
@@ -483,10 +493,7 @@ export async function fetchSkillKeywords(): Promise<Record<string, string[]>> {
   return response.json()
 }
 
-export async function updateSkillKeywords(
-  skillId: string,
-  keywords: string[]
-): Promise<void> {
+export async function updateSkillKeywords(skillId: string, keywords: string[]): Promise<void> {
   const response = await fetch(`${API_URL}/skills/keywords/${skillId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

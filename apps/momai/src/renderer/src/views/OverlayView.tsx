@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react'
-import GraphInterface from '../components/GraphInterface'
+import { createElement } from 'react'
+import { getRenderer, registerRenderer } from '../components/chat/SkillResponseRegistry'
+import WhatsAppNotificationCard from '../components/chat/WhatsAppNotificationCard'
+
+registerRenderer('whatsapp_notification', WhatsAppNotificationCard)
 
 export default function OverlayView() {
   const [data, setData] = useState<any>(null)
 
   useEffect(() => {
-    // Force transparency on body/html to ensure the overlay background works
-    document.documentElement.style.backgroundColor = 'transparent'
-    document.body.style.backgroundColor = 'transparent'
+    document.documentElement.style.setProperty('background', 'transparent', 'important')
+    document.body.style.setProperty('background', 'transparent', 'important')
+    const root = document.getElementById('root')
+    if (root) root.style.setProperty('background', 'transparent', 'important')
 
-    // Escuta evento do processo main para receber dados para exibir
     // @ts-ignore
     const removeListener = window.electron.ipcRenderer.on(
       'update-overlay-content',
@@ -18,12 +22,20 @@ export default function OverlayView() {
       }
     )
 
-    // Avisa que está pronto
     // @ts-ignore
     window.electron.ipcRenderer.send('overlay-ready')
 
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // @ts-ignore
+        window.electron.ipcRenderer.send('close-overlay')
+      }
+    }
+    window.addEventListener('keydown', handleEsc)
+
     return () => {
       removeListener()
+      window.removeEventListener('keydown', handleEsc)
     }
   }, [])
 
@@ -32,19 +44,57 @@ export default function OverlayView() {
     window.electron.ipcRenderer.send('close-overlay')
   }
 
-  if (!data) return <div className="w-screen h-screen bg-transparent"></div>
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (data?.structuredResponse?.type === 'whatsapp_notification') {
+      // Bloqueia clique no backdrop para WhatsApp
+      return
+    }
+    handleClose()
+  }
+
+  if (!data) return <div className="w-screen h-screen bg-transparent" />
+
+  // Render structured responses generically via SkillResponseRegistry
+  if (data?.structuredResponse) {
+    const Renderer = getRenderer(data.structuredResponse.type)
+    if (Renderer) {
+      return (
+        <div
+          className="w-screen h-screen flex items-center justify-center bg-transparent p-4 box-border overflow-hidden"
+          onClick={handleBackdropClick}
+        >
+          <div className="max-h-full flex flex-col min-h-0" onClick={(e) => e.stopPropagation()}>
+          {createElement(Renderer, {
+            data: {
+              ...data.structuredResponse.data,
+              onClose: handleClose,
+              onSend: data.structuredResponse.data?.onSend
+            }
+          })}
+          </div>
+        </div>
+      )
+    }
+  }
 
   return (
-    <div className="w-screen h-screen flex justify-end items-start p-4 bg-transparent">
-      {/* Reuse existing component but force specific styles via wrapper or props if needed */}
-      <div className="bg-black/80 backdrop-blur-xl rounded-xl border border-white/10 overflow-hidden shadow-2xl max-h-[80vh] w-[400px]">
-        {/* We reconstruct the content manually or wrap GraphInterface if possible. 
-                 GraphInterface has specific layout logic ('side' / 'center'). 
-                 Let's extract the internals or just mock it here for simplicity/transparency. 
-                 Or better, pass 'side' to GraphInterface but override container styles?
-                 GraphInterface has a rigid div wrapper. Let's replicate the structure cleanly here.
-             */}
-        <GraphInterface view="side" content={data.content} onClose={handleClose} />
+    <div
+      className="w-screen h-screen flex items-center justify-center bg-transparent select-none"
+      onClick={handleClose}
+    >
+      <div
+        className="rounded-2xl border border-white/10 bg-zinc-900/95 backdrop-blur-xl shadow-2xl p-5 w-full max-w-md mx-4"
+        onClick={(e) => e.stopPropagation()}
+        style={{ WebkitAppRegion: 'drag' } as any}
+      >
+        <p className="text-sm text-gray-300">{JSON.stringify(data)}</p>
+        <button
+          onClick={handleClose}
+          className="mt-3 text-xs text-text-muted hover:text-white px-3 py-1 rounded-lg bg-white/5"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+        >
+          Fechar
+        </button>
       </div>
     </div>
   )

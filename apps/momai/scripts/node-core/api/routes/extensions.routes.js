@@ -7,6 +7,9 @@ const https = require('node:https')
 const { exec } = require('node:child_process')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { createPermissionSchema } = require('../../permissions/schema')
+const extensionEvents = require('../../services/extension-events')
+const { resolveWhatsAppChannel } = require('../../utils/whatsapp-channel')
+const { DATA_DIR } = require('../../config/constants')
 
 let _cachedExtensionsPayload = null
 let _lastExtensionsRefresh = 0
@@ -128,7 +131,8 @@ function createExtensionsRoutes(context) {
     saveStore,
     ensureDir,
     llamaState,
-    semanticState
+    semanticState,
+    extensionHostManager = { sendToPersistent: async () => ({ ok: false, error: 'not_available' }) }
   } = context
 
   async function getExtensionsPayload(lang) {
@@ -295,6 +299,30 @@ function createExtensionsRoutes(context) {
         context.syncSkillAndToolIndexes(true).catch(() => {})
       }
 
+      // Manage persistent worker lifecycle if needed
+      const skill = skillRegistry.getById(payload.id)
+      if (skill && skill.manifest?.background) {
+        if (found.enabled) {
+          console.log(`[extensions] Starting persistent worker for toggled extension: ${skill.id}`)
+          extensionHostManager
+            .startPersistent(skill.id, skill.dir, skill.manifest)
+            .catch((err) =>
+              console.log(
+                `[extensions] Failed to start persistent worker for ${skill.id}:`,
+                err.message
+              )
+            )
+        } else {
+          console.log(`[extensions] Stopping persistent worker for toggled extension: ${skill.id}`)
+          await extensionHostManager.stopPersistent(skill.id).catch((err) => {
+            console.log(
+              `[extensions] Failed to stop persistent worker for ${skill.id}:`,
+              err.message
+            )
+          })
+        }
+      }
+
       const hookName = found.enabled ? 'onActivate' : 'onDeactivate'
       await skillRegistry.executeHook(payload.id, hookName, { extId: payload.id }).catch((err) => {
         console.log(`[extensions] ${hookName} hook failed for ${payload.id}: ${err.message}`)
@@ -307,6 +335,15 @@ function createExtensionsRoutes(context) {
       const payload = await readJsonBody(req).catch(() => ({}))
       const extId = String(payload.id || '')
       const extDir = path.join(skillRegistry.extensionsDir, extId)
+
+      // Stop persistent worker if running
+      await extensionHostManager.stopPersistent(extId).catch((err) => {
+        console.log(
+          `[extensions] Failed to stop persistent worker during uninstall for ${extId}:`,
+          err.message
+        )
+      })
+
       await skillRegistry.executeHook(extId, 'onUninstall', { extId, extDir }).catch((err) => {
         console.log(`[extensions] onUninstall hook failed for ${extId}: ${err.message}`)
       })
@@ -428,6 +465,281 @@ function createExtensionsRoutes(context) {
         active_processes: (llamaState.process ? 2 : 1) + (semanticState.embedding.process ? 1 : 0),
         vram_usage: 0
       })
+      return true
+    }
+
+    /* ── SSE stream for extension push events ── */
+    if (pathname === '/extensions/events' && req.method === 'GET') {
+      extensionEvents.addClient(res)
+      return true
+    }
+
+    /* ── Fetch panel data from persistent worker ── */
+    const panelMatch = pathname.match(/^\/extensions\/([^/]+)\/panel$/)
+    if (panelMatch && req.method === 'GET') {
+      const extId = panelMatch[1]
+      try {
+        const result = await extensionHostManager.sendToPersistent(extId, {
+          toolName: 'panel',
+          args: {}
+        })
+        const body = result || { ok: false, error: 'no_data' }
+        // Wrap raw responses in structured response for GenericExtensionCard
+        if (!body.structuredResponse) {
+          body.structuredResponse = {
+            type: 'generic-extension',
+            data: {
+              extension: extId,
+              header: { title: extId, subtitle: body.connected ? 'Conectado' : 'Desconectado' },
+              connected: body.connected,
+              status: body.error
+                ? { type: 'error', message: body.error }
+                : body.connected
+                  ? { type: 'success', message: 'Conectado' }
+                  : undefined,
+              items: (body.whitelist || []).map(function (w) {
+                return { label: w.name || w, meta: w.number || w }
+              })
+            }
+          }
+        }
+        sendJson(res, 200, body)
+      } catch (err) {
+        sendJson(res, 200, { ok: false, error: err.message })
+      }
+      return true
+    }
+
+    /* ── Helper: wipe Baileys auth dir (rm dir, fallback to creds.json) ── */
+    function _getBaileysAuthDir() {
+      return path.join(DATA_DIR, 'extensions', 'whatsapp', 'baileys-auth')
+    }
+
+    function _wipeBaileysAuth() {
+      const authDir = _getBaileysAuthDir()
+      try {
+        if (fs.existsSync(authDir)) {
+          fs.rmSync(authDir, { recursive: true, force: true })
+          console.log('[extensions] Deleted baileys-auth/')
+          return
+        }
+      } catch (e) {
+        console.log('[extensions] Full rm failed, trying creds.json fallback:', e.message)
+      }
+      // Fallback: delete just creds.json
+      try {
+        const credsPath = path.join(authDir, 'creds.json')
+        if (fs.existsSync(credsPath)) {
+          fs.unlinkSync(credsPath)
+          console.log('[extensions] Deleted creds.json (fallback)')
+        }
+      } catch (e) {
+        console.log('[extensions] Failed to delete creds.json:', e.message)
+      }
+    }
+
+    /* ── Disconnect WhatsApp: stop + wipe auth + restart to show QR ── */
+    if (pathname === '/extensions/whatsapp/disconnect' && req.method === 'POST') {
+      try {
+        // 1. Graceful logout on running worker (prevents auto-reconnect race)
+        try {
+          await extensionHostManager.sendToPersistent('whatsapp', {
+            toolName: 'disconnect',
+            args: {}
+          })
+        } catch {}
+
+        // 2. Stop worker
+        await extensionHostManager.stopPersistent('whatsapp')
+        await new Promise((r) => setTimeout(r, 150))
+
+        // 3. Wipe Baileys auth — forces QR on next start
+        _wipeBaileysAuth()
+
+        // 4. Broadcast logged_out so UI shows QR container
+        extensionEvents.broadcast('authenticated', { status: 'logged_out' })
+        extensionEvents.broadcast('connection_status', { status: 'disconnected' })
+
+        // 5. Restart worker fresh (no creds → QR) without extra delay
+        const whatsappSkill = (skillRegistry.getAll?.() || []).find((s) => s.id === 'whatsapp')
+        if (whatsappSkill) {
+          extensionHostManager
+            .startPersistent(whatsappSkill.id, whatsappSkill.dir, whatsappSkill.manifest)
+            .then(() => console.log('[extensions] WhatsApp re-started after disconnect'))
+            .catch((err) => console.log('[extensions] WhatsApp restart failed:', err.message))
+        }
+
+        sendJson(res, 200, { ok: true, connected: false })
+      } catch (err) {
+        sendJson(res, 200, { ok: false, error: err.message })
+      }
+      return true
+    }
+
+    /* ── Restart WhatsApp worker (same as disconnect: kill + wipe auth + restart) ── */
+    if (pathname === '/extensions/whatsapp/restart' && req.method === 'POST') {
+      try {
+        console.log('[extensions] Restart requested')
+        await extensionHostManager.stopPersistent('whatsapp').catch(() => {})
+        await new Promise((r) => setTimeout(r, 500))
+
+        _wipeBaileysAuth()
+
+        const skill = (skillRegistry.getAll?.() || []).find((s) => s.id === 'whatsapp')
+        if (skill) {
+          extensionHostManager
+            .startPersistent(skill.id, skill.dir, skill.manifest)
+            .then(() => console.log('[extensions] WhatsApp restarted'))
+            .catch((err) => console.log('[extensions] Restart failed:', err.message))
+        }
+
+        extensionEvents.broadcast('authenticated', { status: 'logged_out' })
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        sendJson(res, 200, { ok: false, error: err.message })
+      }
+      return true
+    }
+
+    /* ── Sync WhatsApp contacts (restart worker WITHOUT wiping auth) ── */
+    if (pathname === '/extensions/whatsapp/sync' && req.method === 'POST') {
+      try {
+        console.log('[extensions] Sync contacts requested')
+        await extensionHostManager.stopPersistent('whatsapp').catch(() => {})
+        await new Promise((r) => setTimeout(r, 500))
+
+        const skill = (skillRegistry.getAll?.() || []).find((s) => s.id === 'whatsapp')
+        if (skill) {
+          extensionHostManager
+            .startPersistent(skill.id, skill.dir, skill.manifest)
+            .then(() => console.log('[extensions] WhatsApp synced (worker restarted with auth)'))
+            .catch((err) => console.log('[extensions] Sync restart failed:', err.message))
+        }
+
+        sendJson(res, 200, { ok: true })
+      } catch (err) {
+        sendJson(res, 200, { ok: false, error: err.message })
+      }
+      return true
+    }
+
+    /* ── Process WhatsApp notification with LLM ── */
+    if (pathname === '/extensions/whatsapp/process-notification' && req.method === 'POST') {
+      const body = await readJsonBody(req).catch(() => ({}))
+      const { contactJid, isGroup, groupName } = resolveWhatsAppChannel(body)
+
+      // Use resolveContactName logic if potential JID is provided
+      const rawContact = body.contact || body.from || body.senderName || 'Alguem'
+      let contact = rawContact
+
+      try {
+        // We try to use the same logic as the worker to get the personalized name
+        // But since node-core doesn't have direct access to waContacts easily without some plumbing,
+        // we rely on the worker having sent the correct 'contact' name in the event.
+        // If the body already has a groupName or contact, we trust it as it should have been resolved by the worker.
+      } catch (e) {}
+
+      const message = body.message || body.text || ''
+      const isNumber = /^\d{8,}$/.test(String(contact).replace(/\D/g, ''))
+      const displayContact = isNumber ? 'Um contato' : contact
+
+      // TTS determinístico: evita o LLM confundir remetentes em grupos
+      const tts = isGroup
+        ? `${displayContact} enviou uma mensagem no grupo ${groupName || 'do WhatsApp'}`
+        : `${displayContact} te enviou uma mensagem no privado`
+
+      let quickReplies = ['Sim', 'Nao', 'Agora nao']
+
+      try {
+        const { createSkillLlmHelper } = require('../../services/skill-llm')
+        const llm = createSkillLlmHelper({
+          llamaState,
+          tierName: store?.settings?.ai_tier || 'pro',
+          temperature: 0.3
+        })
+        const channelLabel = isGroup
+          ? `GRUPO (nome do grupo: "${groupName || 'sem nome'}")`
+          : 'CONVERSA PRIVADA (chat individual, NAO e grupo)'
+        const result = await llm.completeText({
+          system:
+            'Gere APENAS 3 sugestoes curtas de resposta para WhatsApp (ate 6 palavras cada), separadas por " | ". Nao escreva frase de notificacao nem TTS. Nao invente outro remetente. Exemplo: Oi | Ja almoco | Ainda nao',
+          user: `Canal: ${channelLabel}\nRemetente desta mensagem (use so este nome): ${displayContact}\nMensagem recebida: "${message}"`
+        })
+        const text = (result.text || '').trim()
+        const opts = text
+          .split('|')
+          .flatMap(function (s) {
+            return s
+              .split(/[,;]/)
+              .map(function (x) {
+                return x.trim()
+              })
+              .filter(Boolean)
+          })
+        if (opts.length >= 1) quickReplies = opts.slice(0, 3)
+      } catch {}
+
+      sendJson(res, 200, { tts, quickReplies })
+      return true
+    }
+
+    /* ── Generic LLM completion for extensions ── */
+    if (pathname === '/extensions/llm/complete' && req.method === 'POST') {
+      const body = await readJsonBody(req).catch(() => ({}))
+      const prompt = String(body.prompt || body.user || '')
+      if (!prompt) {
+        sendJson(res, 200, { text: '' })
+        return true
+      }
+      try {
+        const { createSkillLlmHelper } = require('../../services/skill-llm')
+        const llm = createSkillLlmHelper({
+          llamaState,
+          tierName: store?.settings?.ai_tier || 'pro',
+          temperature: 0.4
+        })
+        const result = await llm.completeText({
+          system: String(
+            body.system ||
+              'Responda de forma direta e natural. Gere APENAS o texto da resposta, sem explicacoes, sem aspas, sem formatacao.'
+          ),
+          user: prompt
+        })
+        const text = (result.text || '').trim()
+        sendJson(res, 200, { text })
+      } catch {
+        sendJson(res, 200, { text: '' })
+      }
+      return true
+    }
+
+    if (pathname === '/extensions/whatsapp/flush-history' && req.method === 'POST') {
+      try {
+        const result = await extensionHostManager.sendToPersistent('whatsapp', {
+          toolName: 'flush_history',
+          args: {}
+        })
+        sendJson(res, 200, result || { ok: true })
+      } catch (err) {
+        sendJson(res, 200, { ok: false, error: err.message })
+      }
+      return true
+    }
+
+    /* ── Send command to persistent worker ── */
+    const cmdMatch = pathname.match(/^\/extensions\/([^/]+)\/command$/)
+    if (cmdMatch && req.method === 'POST') {
+      const extId = cmdMatch[1]
+      const body = await readJsonBody(req).catch(() => ({}))
+      try {
+        const result = await extensionHostManager.sendToPersistent(extId, {
+          toolName: body.toolName,
+          args: body.args || {}
+        })
+        sendJson(res, 200, result || { ok: true })
+      } catch (err) {
+        sendJson(res, 200, { ok: false, error: err.message })
+      }
       return true
     }
 

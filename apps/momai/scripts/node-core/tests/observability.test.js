@@ -42,7 +42,9 @@ describe('observability', () => {
       modelName: 'llama-3.2',
       tier: 'pro',
       toolCount: 1,
-      toolStepsList: [{ name: 'get_weather', args: { city: 'SP' }, result: '28°C', duration_ms: 890 }],
+      toolStepsList: [
+        { name: 'get_weather', args: { city: 'SP' }, result: '28°C', duration_ms: 890 }
+      ],
       activeSkillId: undefined,
       status: 'success'
     })

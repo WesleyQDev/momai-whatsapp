@@ -66,15 +66,16 @@ function TooltipIcon({ label }: { label: string }) {
       onMouseLeave={() => setShow(false)}
     >
       <InformationCircleIcon className="w-3.5 h-3.5 text-text-muted/30 hover:text-text-muted/60 transition-colors cursor-help" />
-      {show && createPortal(
-        <span
-          className="fixed px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-white/10 text-[11px] text-text-muted whitespace-nowrap shadow-2xl z-[99999] pointer-events-none"
-          style={{ top: pos.top, left: pos.left, transform: 'translateX(-50%)' }}
-        >
-          {label}
-        </span>,
-        document.body
-      )}
+      {show &&
+        createPortal(
+          <span
+            className="fixed px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-white/10 text-[11px] text-text-muted whitespace-nowrap shadow-2xl z-[99999] pointer-events-none"
+            style={{ top: pos.top, left: pos.left, transform: 'translateX(-50%)' }}
+          >
+            {label}
+          </span>,
+          document.body
+        )}
     </span>
   )
 }
@@ -169,7 +170,10 @@ export default function ReminderForm({
 
         {/* Type Selector */}
         <div className="space-y-2">
-          <span className="block text-[10px] text-text-muted/60 font-medium">Tipo<TooltipIcon label={t('reminders.tooltips.type')} /></span>
+          <span className="block text-[10px] text-text-muted/60 font-medium">
+            Tipo
+            <TooltipIcon label={t('reminders.tooltips.type')} />
+          </span>
           <div className="flex gap-2 flex-wrap">
             <button
               type="button"
@@ -245,11 +249,17 @@ export default function ReminderForm({
             <ArrowPathIcon
               className={`w-3.5 h-3.5 shrink-0 ${formData.repeat_interval ? 'text-emerald-500' : 'text-text-muted/40'}`}
             />
-            <span className="text-[10px] text-text-muted/60 font-medium font-medium">Repetição<TooltipIcon label={t('reminders.tooltips.repeat')} /></span>
+            <span className="text-[10px] text-text-muted/60 font-medium font-medium">
+              Repetição
+              <TooltipIcon label={t('reminders.tooltips.repeat')} />
+            </span>
             {formData.repeat_interval && (
               <button
                 type="button"
-                onClick={() => { setFormData({ ...formData, repeat_interval: null, repeat_count: null }); setIsRepeatOpen(false) }}
+                onClick={() => {
+                  setFormData({ ...formData, repeat_interval: null, repeat_count: null })
+                  setIsRepeatOpen(false)
+                }}
                 className="ml-auto p-1 text-text-muted/40 hover:text-text-muted transition-colors"
               >
                 <XMarkIcon className="w-3 h-3" />
@@ -263,11 +273,22 @@ export default function ReminderForm({
               onClick={() => setIsRepeatOpen(!isRepeatOpen)}
               className="w-full flex items-center justify-between gap-1 bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-text/70 hover:text-text transition-colors"
             >
-              <span>{formData.repeat_interval
-                ? (formData.repeat_interval === 'minutes' ? 'Minutos' : formData.repeat_interval === 'hours' ? 'Horas' : formData.repeat_interval === 'days' ? 'Dias' : formData.repeat_interval === 'weeks' ? 'Semanas' : 'Meses')
-                : 'Nenhum'}
+              <span>
+                {formData.repeat_interval
+                  ? formData.repeat_interval === 'minutes'
+                    ? 'Minutos'
+                    : formData.repeat_interval === 'hours'
+                      ? 'Horas'
+                      : formData.repeat_interval === 'days'
+                        ? 'Dias'
+                        : formData.repeat_interval === 'weeks'
+                          ? 'Semanas'
+                          : 'Meses'
+                  : 'Nenhum'}
               </span>
-              <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform ${isRepeatOpen ? 'rotate-180' : ''}`} />
+              <ChevronDownIcon
+                className={`w-3.5 h-3.5 transition-transform ${isRepeatOpen ? 'rotate-180' : ''}`}
+              />
             </button>
 
             {isRepeatOpen && (
@@ -291,14 +312,27 @@ export default function ReminderForm({
                       className={`w-full px-3 py-2 text-left text-xs transition-colors ${formData.repeat_interval === opt ? 'text-accent' : 'text-text-muted hover:text-text'}`}
                       onClick={() => {
                         if (!formData.repeat_interval) {
-                          setFormData({ ...formData, repeat_interval: opt, repeat_value: 1, repeat_count: null })
+                          setFormData({
+                            ...formData,
+                            repeat_interval: opt,
+                            repeat_value: 1,
+                            repeat_count: null
+                          })
                         } else {
                           setFormData({ ...formData, repeat_interval: opt })
                         }
                         setIsRepeatOpen(false)
                       }}
                     >
-                      {opt === 'minutes' ? 'Minutos' : opt === 'hours' ? 'Horas' : opt === 'days' ? 'Dias' : opt === 'weeks' ? 'Semanas' : 'Meses'}
+                      {opt === 'minutes'
+                        ? 'Minutos'
+                        : opt === 'hours'
+                          ? 'Horas'
+                          : opt === 'days'
+                            ? 'Dias'
+                            : opt === 'weeks'
+                              ? 'Semanas'
+                              : 'Meses'}
                     </button>
                   ))}
                 </div>
@@ -309,18 +343,29 @@ export default function ReminderForm({
           {formData.repeat_interval && (
             <div className="flex gap-3 flex-wrap">
               <div className="flex-1">
-                <span className="block text-[10px] text-text-muted/60 mb-1.5">A cada<TooltipIcon label={t('reminders.tooltips.interval')} /></span>
+                <span className="block text-[10px] text-text-muted/60 mb-1.5">
+                  A cada
+                  <TooltipIcon label={t('reminders.tooltips.interval')} />
+                </span>
                 <input
                   type="number"
                   min={1}
                   max={999}
                   className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-text/90 outline-none focus:ring-1 focus:ring-accent/20 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   value={formData.repeat_value}
-                  onChange={(e) => setFormData({ ...formData, repeat_value: Math.max(1, Number(e.target.value) || 1) })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      repeat_value: Math.max(1, Number(e.target.value) || 1)
+                    })
+                  }
                 />
               </div>
               <div className="flex-1">
-                <span className="block text-[10px] text-text-muted/60 mb-1.5">Limitar<TooltipIcon label={t('reminders.tooltips.limit')} /></span>
+                <span className="block text-[10px] text-text-muted/60 mb-1.5">
+                  Limitar
+                  <TooltipIcon label={t('reminders.tooltips.limit')} />
+                </span>
                 <input
                   type="number"
                   min={1}
@@ -330,7 +375,10 @@ export default function ReminderForm({
                   value={formData.repeat_count ?? ''}
                   onChange={(e) => {
                     const v = e.target.value
-                    setFormData({ ...formData, repeat_count: v === '' ? null : Math.max(1, Number(v)) })
+                    setFormData({
+                      ...formData,
+                      repeat_count: v === '' ? null : Math.max(1, Number(v))
+                    })
                   }}
                 />
               </div>
@@ -377,7 +425,10 @@ export default function ReminderForm({
       {/* Voice toggle */}
       <div className="flex items-center justify-between py-2">
         <div>
-          <span className="block text-[10px] text-text-muted/60 font-medium">Ler em voz alta<TooltipIcon label={t('reminders.tooltips.voice')} /></span>
+          <span className="block text-[10px] text-text-muted/60 font-medium">
+            Ler em voz alta
+            <TooltipIcon label={t('reminders.tooltips.voice')} />
+          </span>
           <span className="text-[11px] text-text-muted/40">Quando disparar, ler em voz alta</span>
         </div>
         <button

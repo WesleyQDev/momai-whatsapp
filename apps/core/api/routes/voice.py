@@ -3,6 +3,8 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 import logging
 
+from services.voice.whatsapp_reply import WhatsAppReplyDetector
+
 logger = logging.getLogger("momai.api.voice")
 
 
@@ -171,6 +173,11 @@ async def control_wake_word(control: WakeWordControl):
         import app_state
         from app_state import get_settings_cached
 
+        # Ignora tentativas de religar durante uma sessao de reply do WhatsApp
+        if control.enabled and _whatsapp_reply_active:
+            logger.info("[VoiceAPI] Ignoring wake word enable: WhatsApp reply active")
+            return {"success": False, "message": "WhatsApp reply active"}
+
         # Prevent enabling if Lite tier
         settings = await get_settings_cached()
         
@@ -258,3 +265,108 @@ async def update_tts_status(req: TTSStatusReq):
     except Exception as e:
         logger.error(f"[VoiceAPI] TTS status update error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class WhatsAppReplyWaitRequest(BaseModel):
+    contact_jid: str
+
+
+_whatsapp_reply_lock = asyncio.Lock()
+_whatsapp_reply_active = False
+
+
+def _get_whisper_model():
+    """Reuse or load a Whisper model instance for the WhatsApp reply detector."""
+    import app_state
+
+    if hasattr(app_state, "ww") and app_state.ww and app_state.ww.model:
+        return app_state.ww.model
+
+    global _transcriber
+    if _transcriber is not None:
+        return _transcriber.model
+
+    import ctranslate2
+    from faster_whisper import WhisperModel
+
+    device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
+    compute_type = "float16" if device == "cuda" else "int8"
+    logger.info(f"[VoiceAPI] Loading Whisper tiny for WhatsApp reply on {device}")
+    model = WhisperModel("tiny", device=device, compute_type=compute_type)
+    return model
+
+
+@router.post("/whatsapp-reply/wait")
+async def whatsapp_reply_wait(req: WhatsAppReplyWaitRequest):
+    """
+    Blocking endpoint: inicia a escuta por 'responda', captura a resposta,
+    transcreve e retorna o texto. A requisicao bloqueia ate o resultado
+    ficar pronto ou timeout (30s).
+
+    Pausa o wake word detector (Luna) durante a escuta para evitar
+    que o Luna intercepte o 'responda' e mande pro LLM.
+    """
+    global _whatsapp_reply_active
+
+    async with _whatsapp_reply_lock:
+        if _whatsapp_reply_active:
+            raise HTTPException(status_code=409, detail="Ja existe uma escuta ativa")
+        _whatsapp_reply_active = True
+
+    import app_state
+
+    # Pausa o Luna (wake word) para nao conflitar
+    was_luna_active = False
+    if app_state.ww:
+        was_luna_active = app_state.ww.wake_word_active
+        app_state.ww.stop()
+        app_state.ww = None
+        logger.info("[VoiceAPI] Luna paused for WhatsApp reply")
+
+    model = _get_whisper_model()
+    result_event = asyncio.Event()
+    result = {"text": "", "status": "error"}
+
+    def _on_status(status: str):
+        nonlocal result
+        result["status"] = status
+        if status in ("complete", "error", "timeout", "idle"):
+            if app_state.main_loop:
+                app_state.main_loop.call_soon_threadsafe(result_event.set)
+
+    def _on_result(text: str, contact_jid: str):
+        nonlocal result
+        result["text"] = text
+        result["status"] = "complete"
+        if app_state.main_loop:
+            app_state.main_loop.call_soon_threadsafe(result_event.set)
+
+    detector = WhatsAppReplyDetector(
+        model=model,
+        on_result=_on_result,
+        on_status=_on_status,
+    )
+
+    detector.start(contact_jid=req.contact_jid)
+
+    try:
+        await asyncio.wait_for(result_event.wait(), timeout=50.0)
+    except asyncio.TimeoutError:
+        result = {"text": "", "status": "timeout"}
+    finally:
+        detector.stop()
+        _whatsapp_reply_active = False
+
+        # Religa o Luna se estava ativo antes
+        if was_luna_active:
+            try:
+                await ensure_wake_word_detector()
+                if app_state.ww:
+                    app_state.ww.wake_word_active = True
+                    if not app_state.ww.running:
+                        app_state.ww.start()
+                    logger.info("[VoiceAPI] Luna resumed after WhatsApp reply")
+            except Exception as e:
+                logger.error(f"[VoiceAPI] Failed to resume Luna: {e}")
+
+    return result

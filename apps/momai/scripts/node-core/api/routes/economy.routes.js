@@ -30,7 +30,7 @@ function createEconomyRoutes(context) {
       sendJson(res, 200, {
         active: store.economy.gaming_mode_enabled,
         reason: null,
-        detected_games: [],
+        detected_games: []
       })
       return true
     }

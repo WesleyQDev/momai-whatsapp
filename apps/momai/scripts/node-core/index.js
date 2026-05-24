@@ -93,6 +93,7 @@ const reminderService = require('./services/reminder-service')
 const skillOrchestrator = require('./services/skill-orchestrator')
 const ttsService = require('./services/tts-service')
 const chatService = require('./services/chat-service')
+const extensionHostManager = require('./services/extension-host-manager')
 
 // ============================================
 // API modules
@@ -356,6 +357,17 @@ async function startServer() {
   // Initialize registries
   await initializeRegistries()
 
+  // Wire up keyword router with real store
+  const { setStore, seedDefaultKeywords } = require('./services/keyword-router')
+  setStore(store)
+  try {
+    if (typeof seedDefaultKeywords === 'function' && skillRegistry) {
+      seedDefaultKeywords(skillRegistry)
+    }
+  } catch (e) {
+    info('[core] Keyword seeding failed:', e.message)
+  }
+
   // Initialize shared state
   const _skillRegistry = skillRegistry || shared.skillRegistry
   const _promptRegistry = promptRegistry || shared.promptRegistry
@@ -434,6 +446,7 @@ async function startServer() {
     ensurePython: ttsService.ensurePython || (() => Promise.resolve('')),
     syncPythonCallModeState: ttsService.syncPythonCallModeState || (() => Promise.resolve()),
     buildExtensionsPayload: skillOrchestrator.buildExtensionsPayload || (() => []),
+    extensionHostManager,
     streamLlamaChat: chatService.streamLlamaChat || (() => Promise.resolve()),
     isValidTier,
     normalizeBackendMode: llamaManager.normalizeBackendMode || ((v) => v),
@@ -477,7 +490,6 @@ async function startServer() {
     return false
   }
 
-
   // Compose router
   const { handleRequest, server, shutdownAll } = createRouter(context, [
     handleObservabilityRoute,
@@ -509,6 +521,24 @@ async function startServer() {
       // Inject broadcast into shared-state so tts-service and chat-service can use it
       shared.broadcast = wsResult.broadcast
     }
+  }
+
+  // Start persistent extension workers
+  try {
+    const skills = _skillRegistry?.getAll?.() || []
+    for (const skill of skills) {
+      const isEnabled = skillOrchestrator.isSkillEnabledByStore(skill)
+      if (skill.manifest?.background && isEnabled) {
+        extensionHostManager
+          .startPersistent(skill.id, skill.dir, skill.manifest)
+          .then(() => info(`[ext] Started persistent worker: ${skill.id}`))
+          .catch((err) =>
+            info(`[ext] Failed to start persistent worker: ${skill.id}: ${err.message}`)
+          )
+      }
+    }
+  } catch (err) {
+    info('[ext] Error initializing persistent workers:', err.message)
   }
 
   // Start server

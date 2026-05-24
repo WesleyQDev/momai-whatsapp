@@ -961,10 +961,14 @@ module.exports = {
       }
     }
 
-    const topItems = scored.slice(0, 5).map((item) => `- ${item.name} (${Math.round(item.score * 100)}% ${item.type}): ${item.path}`).join('\n')
-    const msg = scored.length === 1
-      ? `Encontrei 1 resultado para "${rawQuery}":\n${topItems}\n\nDeseja que eu abra?`
-      : `Encontrei ${scored.length} resultados para "${rawQuery}". Principais:\n${topItems}\n\nQual deles deseja abrir?`
+    const topItems = scored
+      .slice(0, 5)
+      .map((item) => `- ${item.name} (${Math.round(item.score * 100)}% ${item.type}): ${item.path}`)
+      .join('\n')
+    const msg =
+      scored.length === 1
+        ? `Encontrei 1 resultado para "${rawQuery}":\n${topItems}\n\nDeseja que eu abra?`
+        : `Encontrei ${scored.length} resultados para "${rawQuery}". Principais:\n${topItems}\n\nQual deles deseja abrir?`
     return {
       tool: 'search_local_items',
       structuredResponse: buildCardPayload(rawQuery, scored),

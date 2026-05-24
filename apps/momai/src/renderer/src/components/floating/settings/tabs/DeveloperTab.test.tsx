@@ -41,9 +41,7 @@ describe('DeveloperTab - Observability toggle', () => {
     const toggle = screen.getByTestId('observability-toggle')
     fireEvent.click(toggle)
 
-    const calls = dispatchSpy.mock.calls.filter(
-      ([e]) => e.type === 'momai_observability_sync'
-    )
+    const calls = dispatchSpy.mock.calls.filter(([e]) => e.type === 'momai_observability_sync')
     expect(calls.length).toBe(1)
     expect((calls[0][0] as CustomEvent).detail).toBe(true)
   })

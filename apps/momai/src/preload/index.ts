@@ -72,17 +72,30 @@ const api = {
   isWindowMaximized: (): Promise<boolean> => electronAPI.ipcRenderer.invoke('is-window-maximized'),
   getEconomyState: (): Promise<any> => electronAPI.ipcRenderer.invoke('economy:get-state'),
   getEconomyCatalog: (): Promise<any[]> => electronAPI.ipcRenderer.invoke('economy:get-catalog'),
-  scanEconomyLibraries: (): Promise<any[]> => electronAPI.ipcRenderer.invoke('economy:scan-libraries'),
+  scanEconomyLibraries: (): Promise<any[]> =>
+    electronAPI.ipcRenderer.invoke('economy:scan-libraries'),
   dismissEconomy: (): Promise<boolean> => electronAPI.ipcRenderer.invoke('economy:dismiss'),
-  getEconomyPreferences: (): Promise<Record<string, boolean>> => electronAPI.ipcRenderer.invoke('economy:get-preferences'),
+  getEconomyPreferences: (): Promise<Record<string, boolean>> =>
+    electronAPI.ipcRenderer.invoke('economy:get-preferences'),
   setEconomyGamePreference: (gameName: string, enabled: boolean): Promise<boolean> =>
     electronAPI.ipcRenderer.invoke('economy:set-game-preference', gameName, enabled),
   onEconomyStateChange: (
-    callback: (state: { active: boolean; reason: string | null; detectedGames: { name: string; processName: string }[] }) => void
+    callback: (state: {
+      active: boolean
+      reason: string | null
+      detectedGames: { name: string; processName: string }[]
+    }) => void
   ) => {
     const handler = (_: any, state: any) => callback(state)
     electronAPI.ipcRenderer.on('economy:state-change', handler)
     return () => electronAPI.ipcRenderer.removeListener('economy:state-change', handler)
+  },
+  openOverlay: (data: any): void => electronAPI.ipcRenderer.send('open-overlay', data),
+  closeOverlay: (): void => electronAPI.ipcRenderer.send('close-overlay'),
+  onOverlayAction: (callback: (action: any) => void) => {
+    const handler = (_: any, action: any) => callback(action)
+    electronAPI.ipcRenderer.on('overlay-action', handler)
+    return () => electronAPI.ipcRenderer.removeListener('overlay-action', handler)
   },
   onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => {
     const handler = (_: any, state: { maximized: boolean }) => callback(state)

@@ -17,13 +17,14 @@ function findSteamPath(): string | null {
     'C:\\Program Files\\Steam',
     'D:\\Steam',
     'D:\\Program Files (x86)\\Steam',
-    'D:\\Program Files\\Steam',
+    'D:\\Program Files\\Steam'
   ]
   try {
-    const reg = execSync(
-      'reg query "HKCU\\Software\\Valve\\Steam" /v SteamPath 2>nul',
-      { encoding: 'utf-8', timeout: 3000, stdio: ['pipe', 'pipe', 'ignore'] }
-    )
+    const reg = execSync('reg query "HKCU\\Software\\Valve\\Steam" /v SteamPath 2>nul', {
+      encoding: 'utf-8',
+      timeout: 3000,
+      stdio: ['pipe', 'pipe', 'ignore']
+    })
     const match = reg.match(/SteamPath\s+REG_\w+\s+(.+)/)
     if (match) {
       const p = match[1].trim().replace(/\\\\/g, '\\')
@@ -64,7 +65,11 @@ function scanSteamFolder(appsDir: string, seen: Set<string>): ScannedGame[] {
   const games: ScannedGame[] = []
   if (!existsSync(appsDir)) return games
   let files: string[]
-  try { files = readdirSync(appsDir) } catch { return games }
+  try {
+    files = readdirSync(appsDir)
+  } catch {
+    return games
+  }
   for (const file of files) {
     if (!file.startsWith('appmanifest_') || !file.endsWith('.acf')) continue
     try {
@@ -79,7 +84,7 @@ function scanSteamFolder(appsDir: string, seen: Set<string>): ScannedGame[] {
         name,
         appId: parseInt(appId, 10),
         launcher: 'steam',
-        coverUrl: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`,
+        coverUrl: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`
       })
     } catch {}
   }
@@ -89,8 +94,13 @@ function scanSteamFolder(appsDir: string, seen: Set<string>): ScannedGame[] {
 function scanEpicDatFallback(seen: Set<string>): ScannedGame[] {
   const games: ScannedGame[] = []
   const datPaths = [
-    join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'Epic', 'UnrealEngineLauncher', 'LauncherInstalled.dat'),
-    join(process.env.LOCALAPPDATA || '', 'Epic', 'UnrealEngineLauncher', 'LauncherInstalled.dat'),
+    join(
+      process.env.PROGRAMDATA || 'C:\\ProgramData',
+      'Epic',
+      'UnrealEngineLauncher',
+      'LauncherInstalled.dat'
+    ),
+    join(process.env.LOCALAPPDATA || '', 'Epic', 'UnrealEngineLauncher', 'LauncherInstalled.dat')
   ]
   for (const datPath of datPaths) {
     if (!existsSync(datPath)) continue
@@ -113,11 +123,18 @@ function scanEpicManifests(seen: Set<string>): ScannedGame[] {
   const games: ScannedGame[] = []
   const manifestsPath = join(
     process.env.PROGRAMDATA || 'C:\\ProgramData',
-    'Epic', 'EpicGamesLauncher', 'Data', 'Manifests'
+    'Epic',
+    'EpicGamesLauncher',
+    'Data',
+    'Manifests'
   )
   if (!existsSync(manifestsPath)) return games
   let files: string[]
-  try { files = readdirSync(manifestsPath) } catch { return games }
+  try {
+    files = readdirSync(manifestsPath)
+  } catch {
+    return games
+  }
   for (const f of files) {
     if (!f.endsWith('.item')) continue
     try {
@@ -133,7 +150,7 @@ function scanEpicManifests(seen: Set<string>): ScannedGame[] {
         launcher: 'epic',
         coverUrl: item.VaultThumbnailUrl || '',
         catalogItemId: item.CatalogItemId,
-        sandboxId: item.SandboxId || item.CatalogNamespace,
+        sandboxId: item.SandboxId || item.CatalogNamespace
       })
     } catch {}
   }

@@ -128,10 +128,14 @@ function createRouter(context, routeHandlers) {
 
         if (reminder.is_active && parseTime(reminder.scheduled_time) <= now) {
           reminder.is_active = false
-          error(`[NodeCore][Reminders] Safety: deactivated reminder that failed to advance: ${reminder.title}`)
+          error(
+            `[NodeCore][Reminders] Safety: deactivated reminder that failed to advance: ${reminder.title}`
+          )
         }
       } catch (err) {
-        error(`[NodeCore][Reminders] Error processing reminder #${reminder.id} "${reminder.title}": ${err?.message || err}`)
+        error(
+          `[NodeCore][Reminders] Error processing reminder #${reminder.id} "${reminder.title}": ${err?.message || err}`
+        )
         reminder.is_active = false
         touched = true
       }
@@ -162,6 +166,9 @@ function createRouter(context, routeHandlers) {
     try {
       for (const controller of context.activeChatControllers) {
         controller.abort()
+      }
+      if (context.extensionHostManager?.stopAllPersistent) {
+        await context.extensionHostManager.stopAllPersistent().catch(() => {})
       }
       await context.stopEmbeddingServer()
       await context.stopLlamaServer()

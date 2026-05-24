@@ -508,12 +508,15 @@ export default function ContainerChat({
   const [localDismissed, setLocalDismissed] = useState(false)
 
   useEffect(() => {
-    const cleanup = (window as any).api?.onEconomyStateChange?.((
-      newState: { active: boolean; detectedGames: { name: string; coverUrl?: string | null }[] }
-    ) => {
-      setEconomyState(newState)
-      if (!newState.active) setLocalDismissed(false)
-    })
+    const cleanup = (window as any).api?.onEconomyStateChange?.(
+      (newState: {
+        active: boolean
+        detectedGames: { name: string; coverUrl?: string | null }[]
+      }) => {
+        setEconomyState(newState)
+        if (!newState.active) setLocalDismissed(false)
+      }
+    )
     return () => cleanup?.()
   }, [])
   const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
@@ -647,7 +650,8 @@ export default function ContainerChat({
     (isModeChanging && !hasUserData) ||
     (isBrainLoading && !isBrainReady && !hasUserData)
 
-  const econActive = economyState?.active && economyState.detectedGames.length > 0 && !localDismissed
+  const econActive =
+    economyState?.active && economyState.detectedGames.length > 0 && !localDismissed
   const econGame = econActive ? economyState!.detectedGames[0] : null
 
   const dismissEconomy = () => {
@@ -670,10 +674,24 @@ export default function ContainerChat({
         <div className="flex flex-col flex-1 items-center justify-center p-8 animate-in fade-in duration-500 gap-8">
           <div className="w-56 aspect-[4/5] rounded-2xl overflow-hidden bg-white/5 shadow-2xl ring-1 ring-white/10">
             {econGame.coverUrl ? (
-              <img src={econGame.coverUrl} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+              <img
+                src={econGame.coverUrl}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  ;(e.target as HTMLImageElement).style.display = 'none'
+                }}
+              />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-text-muted/20">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <svg
+                  width="48"
+                  height="48"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
                   <path d="M6 12h4M8 10v4" />
                   <path d="M15.5 12a.5.5 0 0 1 0 1 .5.5 0 0 1 0-1Z" />
                   <path d="M18.5 10a.5.5 0 0 1 0 1 .5.5 0 0 1 0-1Z" />
@@ -684,7 +702,9 @@ export default function ContainerChat({
           </div>
           <div className="text-center space-y-2 max-w-xs">
             <div className="flex items-center justify-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-green-400">Economia</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-green-400">
+                Economia
+              </span>
               <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             </div>
             <h2 className="text-lg font-bold text-text">{econGame.name}</h2>
@@ -693,7 +713,9 @@ export default function ContainerChat({
                 const parts: string[] = []
                 if (economyState?.freedMemoryMb) parts.push(`${economyState.freedMemoryMb} MB RAM`)
                 if (economyState?.freedVramMb) parts.push(`${economyState.freedVramMb} MB VRAM`)
-                return parts.length > 0 ? parts.join(' + ') + ' liberados' : 'Recursos liberados para o jogo rodar sem interferência'
+                return parts.length > 0
+                  ? parts.join(' + ') + ' liberados'
+                  : 'Recursos liberados para o jogo rodar sem interferência'
               })()}
             </p>
           </div>

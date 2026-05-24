@@ -47,7 +47,9 @@ describe('StructuredResponseRenderer', () => {
     const testData = { message: 'hello', count: 42 }
     render(<StructuredResponseRenderer response={{ type: 'data_type', data: testData }} />)
 
-    expect((MockRenderer.mock.calls[0] as unknown as [{ data: any }])[0]).toEqual({ data: testData })
+    expect((MockRenderer.mock.calls[0] as unknown as [{ data: any }])[0]).toEqual({
+      data: testData
+    })
   })
 
   it('renders different renderers when type changes', () => {

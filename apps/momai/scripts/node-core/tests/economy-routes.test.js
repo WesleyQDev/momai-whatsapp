@@ -7,13 +7,16 @@ describe('economy routes', () => {
         idle_timeout_minimized: 1,
         auto_detect_known_games: true,
         gaming_apps: [],
-        next_gaming_app_id: 1,
+        next_gaming_app_id: 1
       }
     }
     let lastStatus, lastData
     const ctx = {
       store,
-      sendJson: (res, status, data) => { lastStatus = status; lastData = data },
+      sendJson: (res, status, data) => {
+        lastStatus = status
+        lastData = data
+      },
       saveStore: () => {},
       readJsonBody: async () => ({}),
       ...overrides
@@ -26,7 +29,9 @@ describe('economy routes', () => {
     const { createEconomyRoutes } = require('../api/routes/economy.routes')
     const handler = createEconomyRoutes(ctx)
 
-    const handled = await handler({ method: 'GET' }, {}, '/economy/config', { searchParams: new URLSearchParams() })
+    const handled = await handler({ method: 'GET' }, {}, '/economy/config', {
+      searchParams: new URLSearchParams()
+    })
 
     expect(handled).toBe(true)
     expect(getLast().status).toBe(200)
@@ -39,13 +44,17 @@ describe('economy routes', () => {
   test('PATCH /economy/config updates economy config', async () => {
     let savedStore = null
     const { ctx, getLast } = makeCtx({
-      saveStore: () => { savedStore = { ...ctx.store } },
+      saveStore: () => {
+        savedStore = { ...ctx.store }
+      },
       readJsonBody: async () => ({ gaming_mode_enabled: true, idle_timeout_app_open: 10 })
     })
     const { createEconomyRoutes } = require('../api/routes/economy.routes')
     const handler = createEconomyRoutes(ctx)
 
-    const handled = await handler({ method: 'PATCH' }, {}, '/economy/config', { searchParams: new URLSearchParams() })
+    const handled = await handler({ method: 'PATCH' }, {}, '/economy/config', {
+      searchParams: new URLSearchParams()
+    })
 
     expect(handled).toBe(true)
     expect(getLast().status).toBe(200)
@@ -60,7 +69,9 @@ describe('economy routes', () => {
     const { createEconomyRoutes } = require('../api/routes/economy.routes')
     const handler = createEconomyRoutes(ctx)
 
-    const handled = await handler({ method: 'GET' }, {}, '/economy/status', { searchParams: new URLSearchParams() })
+    const handled = await handler({ method: 'GET' }, {}, '/economy/status', {
+      searchParams: new URLSearchParams()
+    })
 
     expect(handled).toBe(true)
     expect(getLast().status).toBe(200)

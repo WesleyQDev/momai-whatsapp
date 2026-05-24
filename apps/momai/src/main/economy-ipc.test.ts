@@ -5,19 +5,19 @@ vi.hoisted(() => {
 })
 
 vi.mock('@electron-toolkit/utils', () => ({
-  is: { dev: false },
+  is: { dev: false }
 }))
 
 vi.mock('./logger', () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }))
 
 vi.mock('./constants', () => ({
-  API_BASE_URL: 'http://localhost:8000',
+  API_BASE_URL: 'http://localhost:8000'
 }))
 
 vi.mock('./coreManager', () => ({
-  restartCoreBackend: vi.fn(),
+  restartCoreBackend: vi.fn()
 }))
 
 import { state } from './state'
@@ -32,15 +32,15 @@ describe('economy IPC', () => {
     const mockWin = {
       isDestroyed: vi.fn(() => false),
       webContents: {
-        send: vi.fn(),
-      },
+        send: vi.fn()
+      }
     }
     state.mainWindow = mockWin as any
 
     const testState = {
       active: true,
       reason: 'gaming' as const,
-      detectedGames: [{ name: 'Fortnite', processName: 'FortniteClient-Win64-Shipping.exe' }],
+      detectedGames: [{ name: 'Fortnite', processName: 'FortniteClient-Win64-Shipping.exe' }]
     }
 
     broadcastEconomyState(testState)

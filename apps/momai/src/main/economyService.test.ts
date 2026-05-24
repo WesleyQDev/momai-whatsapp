@@ -13,7 +13,7 @@ describe('EconomyService', () => {
     service.httpGet = vi.fn().mockResolvedValue({
       gaming_mode_enabled: true,
       idle_timeout_app_open: 5,
-      idle_timeout_minimized: 1,
+      idle_timeout_minimized: 1
     })
     service.httpPost = vi.fn().mockResolvedValue({ ok: true })
   })
@@ -34,7 +34,7 @@ describe('EconomyService', () => {
   it('detects a gaming app from process list', async () => {
     service.setGamingModeEnabled(true)
     service.setGamingApps([
-      { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
+      { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' }
     ])
 
     const detected = await service.checkForGames(MOCK_PROCS)
@@ -45,8 +45,11 @@ describe('EconomyService', () => {
   it('detects a known game from process list', async () => {
     service.setGamingModeEnabled(true)
     service.setKnownGames([
-      { name: 'Fortnite', processNames: ['FortniteClient-Win64-Shipping.exe', 'FortniteLauncher.exe'] },
-      { name: 'CS2', processNames: ['cs2.exe'] },
+      {
+        name: 'Fortnite',
+        processNames: ['FortniteClient-Win64-Shipping.exe', 'FortniteLauncher.exe']
+      },
+      { name: 'CS2', processNames: ['cs2.exe'] }
     ])
 
     const detected = await service.checkForGames(MOCK_PROCS)
@@ -56,9 +59,7 @@ describe('EconomyService', () => {
 
   it('matches process names with or without .exe', async () => {
     service.setGamingModeEnabled(true)
-    service.setKnownGames([
-      { name: 'Fortnite', processNames: ['fortniteclient-win64-shipping'] },
-    ])
+    service.setKnownGames([{ name: 'Fortnite', processNames: ['fortniteclient-win64-shipping'] }])
 
     const detected = await service.checkForGames(MOCK_PROCS)
     expect(detected).toHaveLength(1)
@@ -67,9 +68,7 @@ describe('EconomyService', () => {
 
   it('includes steamGridId from known games', async () => {
     service.setGamingModeEnabled(true)
-    service.setKnownGames([
-      { name: 'CS2', processNames: ['cs2.exe'], steamGridId: 730 },
-    ])
+    service.setKnownGames([{ name: 'CS2', processNames: ['cs2.exe'], steamGridId: 730 }])
 
     const detected = await service.checkForGames(['cs2.exe'])
     expect(detected).toHaveLength(1)
@@ -80,14 +79,12 @@ describe('EconomyService', () => {
     const economyHost = 'http://localhost:12345'
     service.setEconomyHost(economyHost)
     service.setGamingApps([
-      { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
+      { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' }
     ])
 
     await service.poll(MOCK_PROCS)
 
-    expect(service.httpPost).toHaveBeenCalledWith(
-      `${economyHost}/llama/stop`
-    )
+    expect(service.httpPost).toHaveBeenCalledWith(`${economyHost}/llama/stop`)
     expect(service.getState().active).toBe(true)
     expect(service.getState().reason).toBe('gaming')
   })
@@ -96,7 +93,7 @@ describe('EconomyService', () => {
     const economyHost = 'http://localhost:12345'
     service.setEconomyHost(economyHost)
     service.setGamingApps([
-      { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
+      { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' }
     ])
 
     await service.poll(MOCK_PROCS)
@@ -104,15 +101,13 @@ describe('EconomyService', () => {
 
     await service.poll(['chrome.exe'])
     expect(service.getState().active).toBe(false)
-    expect(service.httpPost).toHaveBeenLastCalledWith(
-      `${economyHost}/llama/start`
-    )
+    expect(service.httpPost).toHaveBeenLastCalledWith(`${economyHost}/llama/start`)
   })
 
   it('returns empty when gaming mode is disabled', async () => {
     service.setGamingModeEnabled(false)
     service.setGamingApps([
-      { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
+      { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' }
     ])
     const detected = await service.checkForGames(MOCK_PROCS)
     expect(detected).toHaveLength(0)
@@ -121,7 +116,7 @@ describe('EconomyService', () => {
   it('parseProcessList parses Windows tasklist output', () => {
     const csv = [
       '"chrome.exe","123","Console","1","5.000 K"',
-      '"FortniteClient-Win64-Shipping.exe","456","Console","1","10.000 K"',
+      '"FortniteClient-Win64-Shipping.exe","456","Console","1","10.000 K"'
     ].join('\n')
     const result = parseProcessList(csv)
     console.log('[TEST] parseProcessList result:', JSON.stringify(result))
@@ -176,7 +171,7 @@ describe('EconomyService', () => {
     service.httpGet = vi.fn().mockResolvedValue({
       gaming_mode_enabled: false,
       idle_timeout_app_open: 0,
-      idle_timeout_minimized: 0,
+      idle_timeout_minimized: 0
     })
     service.setGetSystemIdleTime(() => 9999)
     service.setIsWindowMinimized(() => false)
@@ -191,7 +186,7 @@ describe('EconomyService', () => {
     service.setEconomyHost(economyHost)
     service.setGamingModeEnabled(true)
     service.setGamingApps([
-      { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' },
+      { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' }
     ])
     // Idle conditions are met, but gaming should win
     service.setGetSystemIdleTime(() => 9999)

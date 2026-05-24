@@ -20,12 +20,12 @@ export default function EconomyToast({ economyState }: EconomyToastProps) {
 
   useEffect(() => {
     if (!economyState) {
-      const cleanup = (window as any).api?.onEconomyStateChange?.((
-        newState: { active: boolean; reason: string | null; detectedGames: DetectedGame[] }
-      ) => {
-        setState(newState)
-        setIsVisible(true)
-      })
+      const cleanup = (window as any).api?.onEconomyStateChange?.(
+        (newState: { active: boolean; reason: string | null; detectedGames: DetectedGame[] }) => {
+          setState(newState)
+          setIsVisible(true)
+        }
+      )
       return () => cleanup?.()
     }
     return
@@ -63,7 +63,14 @@ export default function EconomyToast({ economyState }: EconomyToastProps) {
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-text-muted/30">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M6 12h4M8 10v4" />
                   <path d="M15.5 12a.5.5 0 0 1 0 1 .5.5 0 0 1 0-1Z" />
                   <path d="M18.5 10a.5.5 0 0 1 0 1 .5.5 0 0 1 0-1Z" />
@@ -74,7 +81,14 @@ export default function EconomyToast({ economyState }: EconomyToastProps) {
           </div>
         ) : (
           <div className="w-14 h-14 rounded-xl bg-black/20 flex items-center justify-center shrink-0">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
             </svg>
           </div>
@@ -90,7 +104,11 @@ export default function EconomyToast({ economyState }: EconomyToastProps) {
             />
           </div>
           <span className="text-[13px] font-bold leading-tight mt-0.5 text-text truncate">
-            {isActive ? (firstGame ? firstGame.name : 'Modo Economia Ativado') : 'Sistemas Restaurados'}
+            {isActive
+              ? firstGame
+                ? firstGame.name
+                : 'Modo Economia Ativado'
+              : 'Sistemas Restaurados'}
           </span>
           <p className="text-[10px] text-text-muted/70 mt-0.5 leading-relaxed truncate">
             {isActive

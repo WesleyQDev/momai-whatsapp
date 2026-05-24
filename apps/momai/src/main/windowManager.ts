@@ -71,7 +71,12 @@ let lastEconomyState: any = { active: false, reason: null, detectedGames: [] }
 export function broadcastEconomyState(state: {
   active: boolean
   reason: string | null
-  detectedGames: { name: string; processName: string; steamGridId?: number | null; coverUrl?: string | null }[]
+  detectedGames: {
+    name: string
+    processName: string
+    steamGridId?: number | null
+    coverUrl?: string | null
+  }[]
 }): void {
   lastEconomyState = state
   const win = getMainWindow()
@@ -204,20 +209,27 @@ export function registerIpcHandlers(): void {
       const prefsPath = join(app.getPath('userData'), 'economy-preferences.json')
       if (!existsSync(prefsPath)) writeFileSync(prefsPath, '{}', 'utf-8')
       return JSON.parse(readFileSync(prefsPath, 'utf-8'))
-    } catch { return {} }
+    } catch {
+      return {}
+    }
   })
 
-  ipcMain.handle('economy:set-game-preference', (_event, gameName: string, economyEnabled: boolean) => {
-    try {
-      const { readFileSync, existsSync, writeFileSync } = require('fs')
-      const { join } = require('path')
-      const prefsPath = join(app.getPath('userData'), 'economy-preferences.json')
-      const prefs = existsSync(prefsPath) ? JSON.parse(readFileSync(prefsPath, 'utf-8')) : {}
-      prefs[gameName.toLowerCase()] = economyEnabled
-      writeFileSync(prefsPath, JSON.stringify(prefs, null, 2), 'utf-8')
-      return true
-    } catch { return false }
-  })
+  ipcMain.handle(
+    'economy:set-game-preference',
+    (_event, gameName: string, economyEnabled: boolean) => {
+      try {
+        const { readFileSync, existsSync, writeFileSync } = require('fs')
+        const { join } = require('path')
+        const prefsPath = join(app.getPath('userData'), 'economy-preferences.json')
+        const prefs = existsSync(prefsPath) ? JSON.parse(readFileSync(prefsPath, 'utf-8')) : {}
+        prefs[gameName.toLowerCase()] = economyEnabled
+        writeFileSync(prefsPath, JSON.stringify(prefs, null, 2), 'utf-8')
+        return true
+      } catch {
+        return false
+      }
+    }
+  )
 
   ipcMain.handle('economy:get-catalog', () => {
     try {
@@ -245,20 +257,35 @@ export function registerIpcHandlers(): void {
   })
 }
 
+function getOverlayDimensions(data?: { structuredResponse?: { type?: string; data?: { conversationHistory?: unknown[] } } }) {
+  const isWhatsApp = data?.structuredResponse?.type === 'whatsapp_notification'
+  const historyLen = data?.structuredResponse?.data?.conversationHistory?.length ?? 0
+  const width = 440
+  if (isWhatsApp && historyLen > 0) {
+    return { width, height: 540 }
+  }
+  if (isWhatsApp) {
+    return { width, height: 400 }
+  }
+  return { width: 500, height: 350 }
+}
+
 export function createOverlayWindow(data?: any): void {
   let isNew = false
+  const { width, height } = getOverlayDimensions(data)
 
   if (!state.overlayWindow || state.overlayWindow.isDestroyed()) {
     isNew = true
     const overlayWindow = new BrowserWindow({
-      width: 450,
-      height: 670,
+      width,
+      height,
       show: false,
       frame: false,
       transparent: true,
+      backgroundColor: '#00000000',
       alwaysOnTop: true,
       resizable: false,
-      hasShadow: false,
+      hasShadow: true,
       skipTaskbar: true,
       icon: ICON_PATH,
       webPreferences: {
@@ -278,10 +305,16 @@ export function createOverlayWindow(data?: any): void {
 
   const overlayWin = state.overlayWindow
   if (overlayWin) {
+    overlayWin.setSize(width, height)
     const primaryDisplay = screen.getPrimaryDisplay()
-    const { width } = primaryDisplay.workAreaSize
-    overlayWin.setPosition(width - 480, 50)
+    const { workArea } = primaryDisplay
+    overlayWin.setPosition(
+      Math.round((workArea.width - width) / 2),
+      Math.round((workArea.height - height) / 2)
+    )
     overlayWin.showInactive()
+    overlayWin.setAlwaysOnTop(true, 'screen-saver')
+    overlayWin.focus()
 
     const sendData = (): void => {
       if (data) overlayWin.webContents.send('update-overlay-content', data)

@@ -81,7 +81,8 @@ module.exports = {
           },
           repeat_count: {
             type: 'number',
-            description: 'Quantas vezes repetir no total (opcional, padrao = infinito se repeat_interval definido)'
+            description:
+              'Quantas vezes repetir no total (opcional, padrao = infinito se repeat_interval definido)'
           }
         }
       }

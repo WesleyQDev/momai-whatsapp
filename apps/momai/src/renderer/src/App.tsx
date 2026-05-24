@@ -18,6 +18,8 @@ import WelcomeScreen from './components/WelcomeScreen'
 import TierChangeOverlay from './components/TierChangeOverlay'
 import BootstrapError from './components/BootstrapError'
 import InfoPanel from './components/InfoPanel'
+import ExtensionPanel from './components/ExtensionPanel'
+import NotificationOverlay from './components/NotificationOverlay'
 import { useAudioFallback } from './hooks/useAudioFallback'
 import { useInitTtsRenderer } from './hooks/useInitTtsRenderer'
 import { useAppTheme } from './hooks/useAppTheme'
@@ -78,6 +80,7 @@ function App(): React.JSX.Element {
   const [showOverlay, setShowOverlay] = useState(false)
   const [overlayTier, setOverlayTier] = useState<string | null>(null)
   const [isTierChanging, setIsTierChanging] = useState(false)
+  const [activePanel, setActivePanel] = useState<string | null>(null)
 
   useEffect(() => {
     const handleStart = (e: any) => {
@@ -144,6 +147,7 @@ function App(): React.JSX.Element {
 
   const viewMapping: Record<string, string> = {
     '/extensions': 'ExtensionsStore',
+    '/extensions/whatsapp': 'WhatsAppDashboard',
     '/notes': 'NotesDashboard',
     '/agenda': 'RemindersDashboard',
     '/about': 'AboutDashboard',
@@ -176,6 +180,7 @@ function App(): React.JSX.Element {
               : 'auto'
         }}
       >
+        <NotificationOverlay />
         <TitleBar onClearHistory={triggerClearHistory} activeRoute={location.pathname} />
 
         <div className="flex-1 flex w-full min-h-0 relative">
@@ -183,8 +188,19 @@ function App(): React.JSX.Element {
             activeRoute={location.pathname}
             onNavigate={(path) => navigate(path)}
             onOpenSettings={() => openSettings('general')}
+            onOpenPanel={(id) => setActivePanel(id === activePanel ? null : id)}
             isCompact={isCompact}
           />
+
+          {activePanel && (
+            <ExtensionPanel
+              extensionId={activePanel}
+              label=""
+              icon=""
+              panelEndpoint={`/extensions/${activePanel}/panel`}
+              onClose={() => setActivePanel(null)}
+            />
+          )}
 
           <main className="flex-1 relative flex overflow-hidden">
             <div className="absolute inset-0 z-0 bg-bg">

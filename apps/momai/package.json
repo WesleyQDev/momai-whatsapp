@@ -24,7 +24,7 @@
     "prebuild": "node -e \"const isWin = process.platform === 'win32'; const cmd = isWin ? 'powershell -ExecutionPolicy Bypass -File scripts/hydrate-bin.ps1' : 'bash scripts/hydrate-bin.sh'; require('child_process').execSync(cmd, {stdio: 'inherit'})\"",
     "build": "npm run prebuild && npm run typecheck && electron-vite build",
     "validate:llama:package": "node scripts/validate-llama-package.js",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "electron-builder install-app-deps && node scripts/patch-baileys-group-lid.js",
     "build:unpack": "npm run build && electron-builder --dir && npm run validate:llama:package",
     "build:win": "npm run build && node -e \"const { execSync } = require('child_process'); const env = { ...process.env, CSC_IDENTITY_AUTO_DISCOVERY: 'false', CSC_LINK: '', CSC_KEY_PASSWORD: '', WIN_CSC_LINK: '', WIN_CSC_KEY_PASSWORD: '' }; execSync('electron-builder --win nsis -p never --config.win.signAndEditExecutable=false --config.forceCodeSigning=false', { stdio: 'inherit', env });\" && node scripts/validate-llama-package.js dist/win-unpacked/resources --platform=win32",
     "build:win_clean": "pnpm run clean && pnpm run build:win",
@@ -63,7 +63,9 @@
     "remark-gfm": "^4.0.1",
     "say": "^0.16.0",
     "ws": "^8.20.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "@whiskeysockets/baileys": "^6.7.9",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",

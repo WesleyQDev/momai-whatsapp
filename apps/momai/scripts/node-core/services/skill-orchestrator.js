@@ -68,8 +68,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
       const readmes =
         typeof manifest.readme === 'object' && manifest.readme !== null ? manifest.readme : {}
 
-      const docContent =
-        readmes[lang] || readmes['pt-BR'] || readmes['default'] || manifest.instructions || ''
+      const docContent = readmes[lang] || readmes['pt-BR'] || readmes['default'] || ''
 
       return {
         id: manifest.id || skill.id,
@@ -95,9 +94,10 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         readme: docContent.trim(),
         features: {
           sidebar: manifest.sidebar === true,
+          sidebarPanel: manifest.sidebarPanel || null,
           agent_name: manifest.id
         },
-        keywords: store.skillKeywords?.[manifest.id || skill.id] || [],
+        keywords: store.skillKeywords?.[manifest.id || skill.id] || []
       }
     } catch (err) {
       console.error(`[SkillOrchestrator] Error mapping skill ${skill?.id}:`, err)

@@ -72,7 +72,10 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
     window.addEventListener('momai_observability_sync', handleObservabilitySync as EventListener)
     return () => {
       window.removeEventListener('momai_dev_mode_sync', syncDevMode as EventListener)
-      window.removeEventListener('momai_observability_sync', handleObservabilitySync as EventListener)
+      window.removeEventListener(
+        'momai_observability_sync',
+        handleObservabilitySync as EventListener
+      )
     }
   }, [])
 
@@ -115,7 +118,18 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
         <div className="bg-white/[0.03] rounded-xl border border-border/40 overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-border/20">
             <div className="flex items-center gap-3 min-w-0">
-              <svg className="shrink-0 text-accent" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Logs do sistema em tempo real">
+              <svg
+                className="shrink-0 text-accent"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-label="Logs do sistema em tempo real"
+              >
                 <rect x="2" y="3" width="20" height="14" rx="2" />
                 <line x1="8" y1="10" x2="16" y2="10" />
                 <line x1="8" y1="14" x2="12" y2="14" />
@@ -124,59 +138,115 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
               </svg>
               <div className="flex flex-col gap-0.5 min-w-0">
                 <span className="text-xs font-semibold text-text">Logs do Sistema</span>
-                <span className="text-[11px] text-text-muted font-medium">Visualize logs detalhados em tempo real.</span>
+                <span className="text-[11px] text-text-muted font-medium">
+                  Visualize logs detalhados em tempo real.
+                </span>
               </div>
             </div>
             <button
               data-testid="logs-toggle"
               title={logsEnabled ? 'Desativar logs do sistema' : 'Ativar logs do sistema'}
               aria-label={logsEnabled ? 'Desativar Logs do Sistema' : 'Ativar Logs do Sistema'}
-              onClick={() => { const next = !logsEnabled; setLogsEnabled(next); localStorage.setItem('momai_logs_enabled', String(next)) }}
+              onClick={() => {
+                const next = !logsEnabled
+                setLogsEnabled(next)
+                localStorage.setItem('momai_logs_enabled', String(next))
+              }}
               className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${logsEnabled ? 'bg-accent/80' : 'bg-white/10'}`}
             >
-              <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${logsEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${logsEnabled ? 'translate-x-4' : 'translate-x-0'}`}
+              />
             </button>
           </div>
 
           <div className="flex items-center justify-between p-4 border-b border-border/20">
             <div className="flex items-center gap-3 min-w-0">
-              <svg className="shrink-0 text-accent" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Monitoramento de chamadas ao LLM">
+              <svg
+                className="shrink-0 text-accent"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-label="Monitoramento de chamadas ao LLM"
+              >
                 <path d="M12 20V10M18 20V4M6 20v-4" />
               </svg>
               <div className="flex flex-col gap-0.5 min-w-0">
                 <span className="text-xs font-semibold text-text">Observabilidade de IA</span>
-                <span className="text-[11px] text-text-muted font-medium">Monitore chamadas ao LLM em tempo real.</span>
+                <span className="text-[11px] text-text-muted font-medium">
+                  Monitore chamadas ao LLM em tempo real.
+                </span>
               </div>
             </div>
             <button
               data-testid="observability-toggle"
               title={observabilityEnabled ? 'Desativar observabilidade' : 'Ativar observabilidade'}
-              aria-label={observabilityEnabled ? 'Desativar Observabilidade de IA' : 'Ativar Observabilidade de IA'}
-              onClick={() => { const next = !observabilityEnabled; setObservabilityEnabled(next); localStorage.setItem('momai_observability_enabled', String(next)); window.dispatchEvent(new CustomEvent('momai_observability_sync', { detail: next })) }}
+              aria-label={
+                observabilityEnabled
+                  ? 'Desativar Observabilidade de IA'
+                  : 'Ativar Observabilidade de IA'
+              }
+              onClick={() => {
+                const next = !observabilityEnabled
+                setObservabilityEnabled(next)
+                localStorage.setItem('momai_observability_enabled', String(next))
+                window.dispatchEvent(new CustomEvent('momai_observability_sync', { detail: next }))
+              }}
               className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${observabilityEnabled ? 'bg-accent/80' : 'bg-white/10'}`}
             >
-              <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${observabilityEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${observabilityEnabled ? 'translate-x-4' : 'translate-x-0'}`}
+              />
             </button>
           </div>
 
           <div className="flex items-center justify-between p-4">
             <div className="flex items-center gap-3 min-w-0">
-              <svg className="shrink-0 text-accent" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="Indicador visual de contexto usado">
+              <svg
+                className="shrink-0 text-accent"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-label="Indicador visual de contexto usado"
+              >
                 <circle cx="12" cy="12" r="10" />
                 <path d="M12 6v6l4 2" />
               </svg>
               <div className="flex flex-col gap-0.5 min-w-0">
                 <span className="text-xs font-semibold text-text">Ver contexto total usado</span>
-                <span className="text-[11px] text-text-muted font-medium">Mostra no chat uma circunferência com contexto usado e restante.</span>
+                <span className="text-[11px] text-text-muted font-medium">
+                  Mostra no chat uma circunferência com contexto usado e restante.
+                </span>
               </div>
             </div>
             <button
-              title={showContextRing ? 'Desativar indicador de contexto' : 'Ativar indicador de contexto'}
-              aria-label={showContextRing ? 'Desativar indicador de contexto' : 'Ativar indicador de contexto'}
-              onClick={() => { const next = !showContextRing; localStorage.setItem('momai_show_context_ring', String(next)); window.dispatchEvent(new CustomEvent('momai_context_ring_sync', { detail: next })); setShowContextRing(next) }}
+              title={
+                showContextRing ? 'Desativar indicador de contexto' : 'Ativar indicador de contexto'
+              }
+              aria-label={
+                showContextRing ? 'Desativar indicador de contexto' : 'Ativar indicador de contexto'
+              }
+              onClick={() => {
+                const next = !showContextRing
+                localStorage.setItem('momai_show_context_ring', String(next))
+                window.dispatchEvent(new CustomEvent('momai_context_ring_sync', { detail: next }))
+                setShowContextRing(next)
+              }}
               className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${showContextRing ? 'bg-accent/80' : 'bg-white/10'}`}
             >
-              <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${showContextRing ? 'translate-x-4' : 'translate-x-0'}`} />
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${showContextRing ? 'translate-x-4' : 'translate-x-0'}`}
+              />
             </button>
           </div>
         </div>

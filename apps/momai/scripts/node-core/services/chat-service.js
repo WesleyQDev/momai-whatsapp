@@ -58,11 +58,29 @@ async function tokenizePrompt(messages) {
 }
 
 function buildObservabilityTrace({
-  traceId, threadId, traceType, totalDuration, preLlamaDuration,
-  firstTokenDuration, genDuration, systemPrompt, chatMessages,
-  response, tps, promptTokens, genTokens, modelName, tier,
-  toolCount, toolStepsList, activeSkillId, status, errorMsg,
-  content, fallbackMsg, assembledText
+  traceId,
+  threadId,
+  traceType,
+  totalDuration,
+  preLlamaDuration,
+  firstTokenDuration,
+  genDuration,
+  systemPrompt,
+  chatMessages,
+  response,
+  tps,
+  promptTokens,
+  genTokens,
+  modelName,
+  tier,
+  toolCount,
+  toolStepsList,
+  activeSkillId,
+  status,
+  errorMsg,
+  content,
+  fallbackMsg,
+  assembledText
 }) {
   return {
     id: traceId,
@@ -73,10 +91,13 @@ function buildObservabilityTrace({
     first_token_duration: firstTokenDuration,
     generation_duration: genDuration,
     system_prompt: systemPrompt || '',
-    messages: (chatMessages || []).filter(m => m.role !== 'system').slice(-10).map(m => ({
-      role: m.role,
-      content: (m.content || '').slice(0, 1000)
-    })),
+    messages: (chatMessages || [])
+      .filter((m) => m.role !== 'system')
+      .slice(-10)
+      .map((m) => ({
+        role: m.role,
+        content: (m.content || '').slice(0, 1000)
+      })),
     response: (response || '').slice(0, 5000),
     tokens_per_second: tps,
     total_tokens: promptTokens + genTokens,
@@ -85,12 +106,14 @@ function buildObservabilityTrace({
     model: modelName || 'unknown',
     tier: tier || 'unknown',
     tools_count: toolCount || 0,
-    tool_calls: (toolStepsList || []).length ? toolStepsList.map(ts => ({
-      tool_name: ts.name || ts.tool_name || 'unknown',
-      args: ts.args || ts.input || {},
-      result: ts.result ? String(ts.result).slice(0, 500) : undefined,
-      duration_ms: ts.duration_ms || 0
-    })) : undefined,
+    tool_calls: (toolStepsList || []).length
+      ? toolStepsList.map((ts) => ({
+          tool_name: ts.name || ts.tool_name || 'unknown',
+          args: ts.args || ts.input || {},
+          result: ts.result ? String(ts.result).slice(0, 500) : undefined,
+          duration_ms: ts.duration_ms || 0
+        }))
+      : undefined,
     active_skill: activeSkillId || undefined,
     thread_id: threadId || 'default',
     status,
@@ -951,7 +974,9 @@ async function streamLlamaChat(req, res, payload) {
         if (isUltra) {
           const semanticResults = await getTop5SkillsSemantic(content)
           if (semanticResults.length > 0) {
-            semanticResults.forEach((r) => { topScores[r.id] = r.score })
+            semanticResults.forEach((r) => {
+              topScores[r.id] = r.score
+            })
             return semanticResults.map((r) => r.id)
           }
           debug('[chat] Semantic empty, falling back to lexical')
@@ -959,7 +984,9 @@ async function streamLlamaChat(req, res, payload) {
         if (skillRegistry && typeof skillRegistry.discoverTopN === 'function') {
           const d = skillRegistry.discoverTopN(content, 5)
           if (d.length > 0) {
-            d.forEach((x) => { topScores[x.id] = x.confidence })
+            d.forEach((x) => {
+              topScores[x.id] = x.confidence
+            })
             return d.map((x) => x.id)
           }
         }
@@ -972,8 +999,14 @@ async function streamLlamaChat(req, res, payload) {
     let directSkillResult = null
 
     /* Converte as top 5 skills em tools nativas pro LLM */
-    const allSelectedSkills = discoveredSkillIds.map((id) => skillRegistry?.getById?.(id)).filter(Boolean)
-    if (allSelectedSkills.length > 0 && skillRegistry && typeof skillRegistry.toOpenAITools === 'function') {
+    const allSelectedSkills = discoveredSkillIds
+      .map((id) => skillRegistry?.getById?.(id))
+      .filter(Boolean)
+    if (
+      allSelectedSkills.length > 0 &&
+      skillRegistry &&
+      typeof skillRegistry.toOpenAITools === 'function'
+    ) {
       toolsPayload = skillRegistry.toOpenAITools(discoveredSkillIds)
     }
 
@@ -990,21 +1023,33 @@ async function streamLlamaChat(req, res, payload) {
           execContent = `${userMsgs[userMsgs.length - 2].content} ${execContent}`
         }
       }
-      if (bestEntry && bestScore >= 0.25 && skillRegistry && typeof skillRegistry.execute === 'function') {
+      if (
+        bestEntry &&
+        bestScore >= 0.25 &&
+        skillRegistry &&
+        typeof skillRegistry.execute === 'function'
+      ) {
         const [bestId] = bestEntry
         const skillObj = skillRegistry.getById(bestId)
         if (skillObj && isSkillEnabledByStore(skillObj)) {
           try {
-            directSkillResult = await skillRegistry.execute(bestId, execContent, { searchWeb }, { query: execContent }, null)
+            directSkillResult = await skillRegistry.execute(
+              bestId,
+              execContent,
+              { searchWeb },
+              { query: execContent },
+              null
+            )
             if (directSkillResult?.structuredResponse) {
               bufferedStructuredResponse = directSkillResult.structuredResponse
             }
             if (directSkillResult?.instruction) {
               extraSystemInstructions.push(`[DADOS REAIS]\n${directSkillResult.instruction}`)
             }
-            const toolName = (skillObj.manifest.tools && skillObj.manifest.tools.length > 0)
-              ? skillObj.manifest.tools[0].name
-              : bestId
+            const toolName =
+              skillObj.manifest.tools && skillObj.manifest.tools.length > 0
+                ? skillObj.manifest.tools[0].name
+                : bestId
             toolSteps.push({
               skill_id: bestId,
               skill_name: skillObj.manifest.name,
@@ -1015,8 +1060,14 @@ async function streamLlamaChat(req, res, payload) {
               started_at: isoNow()
             })
             activeSkill = bestId
-            { const _sse = writeSse(res, { active_skill: activeSkill }); if (_sse instanceof Promise) await _sse }
-            { const _sse = writeSse(res, { tool_steps: toolSteps }); if (_sse instanceof Promise) await _sse }
+            {
+              const _sse = writeSse(res, { active_skill: activeSkill })
+              if (_sse instanceof Promise) await _sse
+            }
+            {
+              const _sse = writeSse(res, { tool_steps: toolSteps })
+              if (_sse instanceof Promise) await _sse
+            }
           } catch (e) {
             debug(`[chat] Pre-exec failed: ${e.message}`)
           }
@@ -1040,32 +1091,32 @@ async function streamLlamaChat(req, res, payload) {
     }
 
     /* Rebuild system message with tool instructions */
-      if (promptRegistry && typeof promptRegistry.buildSystemPrompt === 'function') {
-        promptText = promptRegistry.buildSystemPrompt({
-          tier: tierName,
-          persona:
-            store.settings.assistant_persona ||
-            (promptRegistry.getDefaults ? promptRegistry.getDefaults().assistant_persona : 'MomAI'),
-          memoryContext,
-          toolInstruction,
-          responseStyle,
-          responseLanguage
-        })
-      }
-      if (extraSystemInstructions.length > 0) {
-        promptText += `\n\n${extraSystemInstructions.join('\n\n')}`
-      }
-       const systemMessage = {
-         role: 'system',
-         content: sanitizePromptText(promptText)
-       }
+    if (promptRegistry && typeof promptRegistry.buildSystemPrompt === 'function') {
+      promptText = promptRegistry.buildSystemPrompt({
+        tier: tierName,
+        persona:
+          store.settings.assistant_persona ||
+          (promptRegistry.getDefaults ? promptRegistry.getDefaults().assistant_persona : 'MomAI'),
+        memoryContext,
+        toolInstruction,
+        responseStyle,
+        responseLanguage
+      })
+    }
+    if (extraSystemInstructions.length > 0) {
+      promptText += `\n\n${extraSystemInstructions.join('\n\n')}`
+    }
+    const systemMessage = {
+      role: 'system',
+      content: sanitizePromptText(promptText)
+    }
 
-      /* Round loop: LLM ve tools, decide se chama alguma, resultado volta */
-      let round = 0
-      const maxToolRounds = 3
+    /* Round loop: LLM ve tools, decide se chama alguma, resultado volta */
+    let round = 0
+    const maxToolRounds = 3
 
-      while (round < maxToolRounds) {
-        round++
+    while (round < maxToolRounds) {
+      round++
 
       const currentMessages = [...messages]
       const allMessages = [systemMessage, ...currentMessages.filter((m) => m.role !== 'system')]
@@ -1326,6 +1377,7 @@ async function streamLlamaChat(req, res, payload) {
 
       if (toolCallsAccum.length > 0 && toolCallsAccum[0]?.function?.name) {
         const executedTools = []
+        let skipLlmRound = false
         for (const tc of toolCallsAccum) {
           if (!tc?.function?.name) continue
 
@@ -1475,7 +1527,10 @@ async function streamLlamaChat(req, res, payload) {
                 args,
                 toolName
               )
-              const toolResultText = result?.instruction || JSON.stringify(result || {})
+              if (result?.directResponse) skipLlmRound = true
+              const toolResultText = skipLlmRound
+                ? ''
+                : result?.instruction || JSON.stringify(result || {})
               if (result?.structuredResponse) {
                 bufferedStructuredResponse = result.structuredResponse
               } else if (result?.directResponse) {
@@ -1516,22 +1571,27 @@ async function streamLlamaChat(req, res, payload) {
                 memorySources = [...memorySources, ...result.webSources].slice(0, 12)
               }
 
-              messages.push({
-                role: 'assistant',
-                tool_calls: [
-                  {
-                    id: tc.id || `call_${toolName}`,
-                    type: 'function',
-                    function: { name: toolName, arguments: rawArgs }
-                  }
-                ]
+              if (!skipLlmRound) {
+                messages.push({
+                  role: 'assistant',
+                  tool_calls: [
+                    {
+                      id: tc.id || `call_${toolName}`,
+                      type: 'function',
+                      function: { name: toolName, arguments: rawArgs }
+                    }
+                  ]
+                })
+                messages.push({
+                  role: 'tool',
+                  tool_call_id: tc.id || `call_${toolName}`,
+                  content: toolResultText
+                })
+              }
+              executedTools.push({
+                name: toolName,
+                result: toolResultText || result?.directResponse || 'ok'
               })
-              messages.push({
-                role: 'tool',
-                tool_call_id: tc.id || `call_${toolName}`,
-                content: toolResultText
-              })
-              executedTools.push({ name: toolName, result: toolResultText })
             } catch (execError) {
               messages.push({
                 role: 'tool',
@@ -1547,8 +1607,11 @@ async function streamLlamaChat(req, res, payload) {
             })
           }
         }
+        if (skipLlmRound) break
         if (executedTools.length > 0) {
-          info(`[chat] Tools executed: ${executedTools.map((e) => e.name).join(', ')}. Continuing round.`)
+          info(
+            `[chat] Tools executed: ${executedTools.map((e) => e.name).join(', ')}. Continuing round.`
+          )
           continue
         }
       }
@@ -1733,30 +1796,36 @@ async function streamLlamaChat(req, res, payload) {
       const trace = {
         id: `${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         timestamp: Date.now(),
-        type: toolSteps?.length ? 'llm_call' : (activeSkill ? 'skill' : 'llm_call'),
+        type: toolSteps?.length ? 'llm_call' : activeSkill ? 'skill' : 'llm_call',
         total_duration: duration,
         pre_llm_duration: lastTPreFetch > 0 ? lastTPreFetch - t0 : 0,
         first_token_duration: lastTFirstToken > 0 ? lastTFirstToken - t0 : 0,
         generation_duration: lastTFirstToken > 0 ? duration - (lastTFirstToken - t0) : duration,
         system_prompt: lastSystemMessage?.content?.slice(0, 3000),
-        messages: (lastCurrentMessages || []).filter(m => m.role !== 'system').slice(-5).map(m => ({
-          role: m.role || 'user',
-          content: String(m.content || '').slice(0, 1000)
-        })),
+        messages: (lastCurrentMessages || [])
+          .filter((m) => m.role !== 'system')
+          .slice(-5)
+          .map((m) => ({
+            role: m.role || 'user',
+            content: String(m.content || '').slice(0, 1000)
+          })),
         response: (assembled || '').slice(0, 10000),
-        tokens_per_second: duration > 0 && genTokens > 0 ? Math.round((genTokens / duration) * 1000 * 10) / 10 : 0,
+        tokens_per_second:
+          duration > 0 && genTokens > 0 ? Math.round((genTokens / duration) * 1000 * 10) / 10 : 0,
         total_tokens: estimatedPromptTokens + genTokens,
         estimated_prompt_tokens: estimatedPromptTokens,
         generated_tokens: genTokens,
         model: tierName || 'unknown',
         tier: tierName || 'unknown',
         tools_count: lastToolsPayload?.length || 0,
-        tool_calls: toolSteps?.length ? toolSteps.slice(0, 10).map(ts => ({
-          tool_name: ts.name || ts.tool_name || 'unknown',
-          args: ts.args || ts.input || {},
-          result: ts.result ? String(ts.result).slice(0, 500) : undefined,
-          duration_ms: ts.duration_ms || 0
-        })) : undefined,
+        tool_calls: toolSteps?.length
+          ? toolSteps.slice(0, 10).map((ts) => ({
+              tool_name: ts.name || ts.tool_name || 'unknown',
+              args: ts.args || ts.input || {},
+              result: ts.result ? String(ts.result).slice(0, 500) : undefined,
+              duration_ms: ts.duration_ms || 0
+            }))
+          : undefined,
         active_skill: activeSkill || undefined,
         thread_id: threadId || 'default',
         status: 'success'
@@ -1765,7 +1834,14 @@ async function streamLlamaChat(req, res, payload) {
       shared.observabilityBuffer.unshift(trace)
       if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
       broadcast({ type: 'observability_trace', data: trace })
-      info('[OBS] Trace recorded id=' + trace.id + ' tps=' + trace.tokens_per_second + ' tokens=' + trace.total_tokens)
+      info(
+        '[OBS] Trace recorded id=' +
+          trace.id +
+          ' tps=' +
+          trace.tokens_per_second +
+          ' tokens=' +
+          trace.total_tokens
+      )
       recordMetric(trace)
     } catch (_) {
       warn('[OBS] Failed to record trace: ' + (_?.message || String(_)))
@@ -1823,6 +1899,7 @@ async function streamLlamaChat(req, res, payload) {
 }
 
 async function runVoiceCommand(payload = {}) {
+  console.log('[VOICE-CMD] runVoiceCommand called with content:', payload.content)
   let content = String(payload.content || '').trim()
   if (!content) return
   const threadId = String(payload.thread_id || 'default')
@@ -1832,48 +1909,63 @@ async function runVoiceCommand(payload = {}) {
 
   broadcast({ type: 'user', content: originalContent })
 
-  // Keyword routing: try direct skill execution, but fall through to LLM if
-  // the skill doesn't provide a user-facing directResponse
-  const { routeByKeyword } = require('./keyword-router')
-  const skillRegistry = shared.skillRegistry
   let keywordWebSources = null
 
-  if (skillRegistry) {
-    const match = routeByKeyword(content, skillRegistry)
-    if (match) {
-      debug(`[voice-cmd] Keyword "${match.keyword}" matched skill "${match.skillId}", routing directly`)
-      broadcast({ type: 'assistant', data: { status: 'Executando skill...' } })
-      try {
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Skill execution timed out')), 10000)
-        )
-        const result = await Promise.race([
-          skillRegistry.execute(match.skillId, content, { searchWeb }),
-          timeoutPromise
-        ])
+  console.log('[VOICE-CMD] Checking responda in:', content)
+  const contentLower = content.toLowerCase()
+  if (contentLower.includes('responda') || contentLower.includes('responde')) {
+    console.log('[VOICE-CMD] responda detected, fetching last contact')
+    try {
+      const hostManager = require('./extension-host-manager')
+      const histResult = await hostManager.sendToPersistent('whatsapp', {
+        toolName: 'get_history',
+        args: {}
+      })
+      if (histResult?.history?.length) {
+        const last = histResult.history[0]
+        const contactName = last.from
+        content = `[INSTRUCAO: O usuario esta respondendo a "${contactName}" no WhatsApp. A ultima mensagem dele foi: "${last.text}". Use a ferramenta send_message para enviar a resposta. NAO responda no chat, apenas execute o send_message.]\n${content}`
+      }
+    } catch {}
+    console.log('[VOICE-CMD] responda handled, falling through to LLM')
+  } else {
+    console.log('[VOICE-CMD] NOT responda, doing normal keyword routing')
+    const { routeByKeyword } = require('./keyword-router')
+    const skillRegistry = shared.skillRegistry
+    let keywordWebSources = null
 
-        // Fast path: if the skill returned a user-facing directResponse, stream it directly
-        if (result?.directResponse) {
-          broadcast({ type: 'assistant', data: { status: 'responding' } })
-          for (const token of splitTokens(result.directResponse)) {
-            broadcast({ type: 'assistant', data: { token } })
-          }
-          if (result?.webSources) {
-            broadcast({ type: 'assistant', data: { webSources: result.webSources } })
-          }
-          broadcast({ type: 'assistant', data: { done: true } })
-          return
-        }
+    if (skillRegistry) {
+      const match = routeByKeyword(content, skillRegistry)
+      if (match) {
+        broadcast({ type: 'assistant', data: { status: 'Executando skill...' } })
+        try {
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Skill execution timed out')), 10000)
+          )
+          const result = await Promise.race([
+            skillRegistry.execute(match.skillId, content, { searchWeb }),
+            timeoutPromise
+          ])
 
-        // No directResponse — prepend instruction to content so LLM can
-        // generate a natural language response from the pre-executed result
-        if (result?.instruction) {
-          content = `${content}\n\n[Resultado de skill já executada]\n${result.instruction}`
+          if (result?.directResponse) {
+            broadcast({ type: 'assistant', data: { status: 'responding' } })
+            for (const token of splitTokens(result.directResponse)) {
+              broadcast({ type: 'assistant', data: { token } })
+            }
+            if (result?.webSources) {
+              broadcast({ type: 'assistant', data: { webSources: result.webSources } })
+            }
+            broadcast({ type: 'assistant', data: { done: true } })
+            return
+          }
+
+          if (result?.instruction) {
+            content = `${content}\n\n[Resultado de skill já executada]\n${result.instruction}`
+          }
+          keywordWebSources = result?.webSources || null
+        } catch (err) {
+          debug(`[voice-cmd] Skill execution error: ${err.message}`)
         }
-        keywordWebSources = result?.webSources || null
-      } catch (err) {
-        debug(`[voice-cmd] Skill execution error: ${err.message}`)
-        // Fall through to LLM path
       }
     }
   }

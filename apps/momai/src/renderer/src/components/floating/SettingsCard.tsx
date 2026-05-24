@@ -106,7 +106,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
     resetOnboarding,
     economyConfig,
     handleUpdateEconomyConfig,
-    economyState,
+    economyState
   } = useSettingsCard(initialTab, onClose)
 
   const sidebar = (

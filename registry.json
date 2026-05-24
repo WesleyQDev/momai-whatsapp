@@ -8,8 +8,6 @@
       "version": "0.1.0",
       "download_url": "https://github.com/WesleyQDev/momai-system-info/archive/refs/tags/v0.1.zip",
       "is_official": true
-<<<<<<< Updated upstream
-=======
     },
     {
       "id": "whatsapp",
@@ -19,7 +17,6 @@
       "version": "0.1.0",
       "download_url": "https://github.com/WesleyQDev/momai-whatsapp-extension/archive/refs/tags/v0.1.0.zip",
       "is_official": true
->>>>>>> Stashed changes
     }
   ]
 }
