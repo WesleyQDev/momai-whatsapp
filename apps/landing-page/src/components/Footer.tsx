@@ -50,7 +50,7 @@ export function Footer() {
           {t("footer.changelog")}
         </Link>
         <a
-          href="/politicas-privacidade.html"
+          href="/politicas-privacidade-momai.html"
           className="text-[var(--text-secondary)] no-underline transition-colors hover:text-[var(--accent)]"
         >
           {t("footer.politica")}

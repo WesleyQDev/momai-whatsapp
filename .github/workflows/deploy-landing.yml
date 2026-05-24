@@ -43,7 +43,7 @@ jobs:
           cp -r apps/landing-page/dist/. _site/
           cp -r v1 _site/
           cp -r saude _site/
-          cp CNAME .nojekyll politicas-privacidade.html _site/
+          cp CNAME .nojekyll politicas-privacidade.html politicas-privacidade-momai.html _site/
 
       - name: Deploy to GitHub Pages
         run: |
