@@ -844,14 +844,13 @@ export default function WhatsAppView() {
             <div className="relative" ref={notificationDropdownRef}>
               <button
                 onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
-                className="px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-text-muted hover:text-text transition-all flex items-center gap-2"
+                className={`px-3 py-1.5 border border-white/10 bg-white/5 hover:bg-white/10 text-text-muted hover:text-text transition-all flex items-center gap-2 ${
+                  showNotificationDropdown ? 'rounded-t-lg border-b-white/5' : 'rounded-lg'
+                }`}
               >
-                <span className="text-xs font-medium">
-                  {notificationsDisabled ? 'Notificação desativada' : 'Notificação ativa'}
-                </span>
                 <svg
-                  width="16"
-                  height="16"
+                  width="14"
+                  height="14"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -863,34 +862,65 @@ export default function WhatsAppView() {
                   <path d="M18.63 13A17.89 17.89 0 0 1 18 8a6 6 0 0 0-12 0 17.89 17.89 0 0 1-.63 5" />
                   <path d="M3 17a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1c0-2 0-3-3-3H6c-3 0-3 1-3 3Z" />
                 </svg>
+                <span className="text-xs font-medium">
+                  {notificationsDisabled ? 'Desativada' : 'Ativa'}
+                </span>
               </button>
 
               {showNotificationDropdown && (
-                <div className="absolute right-0 mt-2 w-48 rounded-xl border border-white/10 bg-zinc-900 shadow-2xl z-[100] overflow-hidden animate-in fade-in zoom-in duration-200">
-                  <button
-                    onClick={() => {
-                      if (notificationsDisabled) toggleNotifications()
-                      setShowNotificationDropdown(false)
-                    }}
-                    className={`w-full flex items-center gap-2 px-4 py-2.5 text-xs text-left transition-colors ${
-                      !notificationsDisabled ? 'text-accent bg-accent/5' : 'text-text-muted hover:bg-white/5'
-                    }`}
-                  >
-                    <div className={`w-1.5 h-1.5 rounded-full ${!notificationsDisabled ? 'bg-accent' : 'bg-transparent border border-white/20'}`} />
-                    Notificação ativa
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!notificationsDisabled) toggleNotifications()
-                      setShowNotificationDropdown(false)
-                    }}
-                    className={`w-full flex items-center gap-2 px-4 py-2.5 text-xs text-left transition-colors border-t border-white/5 ${
-                      notificationsDisabled ? 'text-red-400 bg-red-400/5' : 'text-text-muted hover:bg-white/5'
-                    }`}
-                  >
-                    <div className={`w-1.5 h-1.5 rounded-full ${notificationsDisabled ? 'bg-red-400' : 'bg-transparent border border-white/20'}`} />
-                    Notificação desativada
-                  </button>
+                <div className="absolute top-full left-0 right-0 -mt-[1px] rounded-b-lg border border-white/10 bg-white/5 shadow-2xl z-[100] overflow-hidden animate-in fade-in zoom-in duration-200 backdrop-blur-xl">
+                  <div className="w-full border-t border-white/10" />
+                  {!notificationsDisabled ? (
+                    <button
+                      onClick={() => {
+                        toggleNotifications()
+                        setShowNotificationDropdown(false)
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 text-[10px] text-center transition-colors text-text-muted hover:bg-white/5"
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="opacity-50"
+                      >
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                        <path d="M18.63 13A17.89 17.89 0 0 1 18 8a6 6 0 0 0-12 0 17.89 17.89 0 0 1-.63 5" />
+                        <path d="M3 17a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1c0-2 0-3-3-3H6c-3 0-3 1-3 3Z" />
+                      </svg>
+                      Desativada
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        toggleNotifications()
+                        setShowNotificationDropdown(false)
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 text-[10px] text-center transition-colors text-text-muted hover:bg-white/5"
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="opacity-50"
+                      >
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                        <path d="M18.63 13A17.89 17.89 0 0 1 18 8a6 6 0 0 0-12 0 17.89 17.89 0 0 1-.63 5" />
+                        <path d="M3 17a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1c0-2 0-3-3-3H6c-3 0-3 1-3 3Z" />
+                      </svg>
+                      Ativa
+                    </button>
+                  )}
                 </div>
               )}
             </div>
