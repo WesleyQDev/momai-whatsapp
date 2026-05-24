@@ -67,17 +67,17 @@ export function useChatActions({
         .map((hit) => {
           const text = (hit.text || '').trim()
           if (!text) return ''
-          return `--- [TITULO DA NOTA: ${String(hit.title || 'Nota').toUpperCase()}] ---\n${text}\n`
+          return `--- [NOTE: ${String(hit.title || 'Nota').toUpperCase()}] ---\n${text}\n`
         })
         .filter(Boolean)
 
       const memory_context = sections.length
-        ? `CONHECIMENTO (NOTAS LOCAIS):\n${sections.join('\n')}`
+        ? `KNOWLEDGE (LOCAL NOTES):\n${sections.join('\n')}`
         : undefined
 
       const memory_sources: Source[] = selected.map((hit) => ({
         url: `momai://note/${hit.note_id}`,
-        title: `Nota: ${hit.title || 'Sem título'}`,
+        title: `Note: ${hit.title || 'Untitled'}`,
         snippet: (hit.text || '').slice(0, 200)
       }))
 

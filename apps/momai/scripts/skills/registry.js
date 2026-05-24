@@ -647,7 +647,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       type: 'function',
       function: {
         name: 'use_skill',
-        description: `Ativa uma skill especializada e desbloqueia suas ferramentas.\n\nSkills disponiveis:\n${desc}\n\nEscolha a skill que melhor se encaixa na pergunta do usuario. Ex: clima -> weather, busca -> search.`,
+        description: `Activate a specialized skill and unlock its tools.\n\nAvailable skills:\n${desc}\n\nChoose the skill that best matches the user's request. Ex: weather -> get_weather, search -> web_search.`,
         parameters: {
           type: 'object',
           properties: {

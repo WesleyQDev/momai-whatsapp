@@ -173,56 +173,37 @@ export const ToolSteps: React.FC<ToolStepsProps> = ({
                 </div>
               ))}
 
-              {/* Sources integrated into tools list */}
+              {/* Sources as tags */}
               {isLastPart && sources && sources.length > 0 && (
-                <div className="flex items-start gap-4 mb-5 relative z-10 animate-in fade-in duration-300">
-                  <div className="mt-0.5 w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 bg-card border border-zinc-300 dark:border-white/20 text-zinc-500 dark:text-zinc-400 z-10">
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                    >
-                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                    </svg>
-                  </div>
-                  <div className="flex flex-col min-w-0 pt-[1px]">
-                    <button
-                      type="button"
-                      onClick={() => setOpenSources(!openSources)}
-                      className="text-[13px] font-medium text-zinc-700 dark:text-zinc-300 hover:text-accent flex items-center gap-1.5"
-                    >
-                      Fontes ({sources.length})
-                      <svg
-                        width="8"
-                        height="8"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        className={`transition-transform duration-200 ${openSources ? 'rotate-180' : ''}`}
-                      >
-                        <polyline points="6 9 12 15 18 9" />
+                <div className="flex flex-col gap-2 mb-5 relative z-10 animate-in fade-in duration-300">
+                  <div className="flex items-center gap-2">
+                    <div className="w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 bg-card border border-zinc-300 dark:border-white/20 text-zinc-500 dark:text-zinc-400">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="m21 21-4.35-4.35" />
                       </svg>
-                    </button>
-                    {openSources && (
-                      <div className="mt-1 flex flex-col gap-1">
-                        {sources.map((s, idx) => (
-                          <a
-                            key={idx}
-                            href={s.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[12px] text-blue-500 hover:underline"
-                          >
-                            {cleanUIMetadata(s.title || s.url)}
-                          </a>
-                        ))}
-                      </div>
-                    )}
+                    </div>
+                    <span className="text-[13px] text-zinc-600 dark:text-zinc-400">
+                      Pesquisa <span className="font-medium">Busca na web</span>
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-2 ml-[22px]">
+                    {sources.map((s, idx) => (
+                      <a
+                        key={idx}
+                        href={s.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-[12px] !text-zinc-600 dark:!text-zinc-400 hover:!text-zinc-800 dark:hover:!text-zinc-200 transition-colors no-underline"
+                      >
+                        <svg className="w-2.5 h-2.5 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" />
+                          <ellipse cx="12" cy="12" rx="3" ry="8" />
+                          <path d="M2 12h20" />
+                        </svg>
+                        <span className="truncate max-w-[120px]">{cleanUIMetadata(s.title || s.url)}</span>
+                      </a>
+                    ))}
                   </div>
                 </div>
               )}

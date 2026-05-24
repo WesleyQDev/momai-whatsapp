@@ -353,11 +353,11 @@ function buildMemoryContextAndSources(hits) {
     const txt = String(hit.text || '').trim()
     if (!txt) continue
     sections.push(
-      `--- [TITULO DA NOTA: ${String(hit.title || 'Nota').toUpperCase()}] ---\n${txt}\n`
+      `--- [NOTE: ${String(hit.title || 'Note').toUpperCase()}] ---\n${txt}\n`
     )
     memorySources.push({
       url: `momai://note/${hit.note_id}`,
-      title: `Nota: ${hit.title || 'Sem título'}`,
+      title: `Note: ${hit.title || 'Untitled'}`,
       snippet: txt.slice(0, 220),
       retrieval_type: hit.retrieval_type || 'lexical'
     })

@@ -567,7 +567,7 @@ async function streamFallbackResponse(
     await new Promise((r) => setTimeout(r, 15))
   }
 
-  appendMessage(threadId, 'assistant', assembled.trim() || 'Interrompido.')
+  appendMessage(threadId, 'assistant', assembled.trim() || 'Interrupted.')
   {
     const _sse = writeSse(res, { done: true })
     if (_sse instanceof Promise) await _sse
@@ -1010,82 +1010,10 @@ async function streamLlamaChat(req, res, payload) {
       toolsPayload = skillRegistry.toOpenAITools(discoveredSkillIds)
     }
 
-    /* Pre-executa a melhor skill (fallback caso LLM nao chame a tool) */
-    const scoreEntries = Object.entries(topScores)
-    if (scoreEntries.length > 0) {
-      const bestScore = Math.max(...scoreEntries.map(([, v]) => v))
-      const bestEntry = scoreEntries.find(([, v]) => v === bestScore)
-      /* Se mensagem atual for curta, combina com mensagem anterior para contexto */
-      let execContent = content
-      if (execContent.length < 60) {
-        const userMsgs = messages.filter((m) => m.role === 'user')
-        if (userMsgs.length > 1) {
-          execContent = `${userMsgs[userMsgs.length - 2].content} ${execContent}`
-        }
-      }
-      if (
-        bestEntry &&
-        bestScore >= 0.25 &&
-        skillRegistry &&
-        typeof skillRegistry.execute === 'function'
-      ) {
-        const [bestId] = bestEntry
-        const skillObj = skillRegistry.getById(bestId)
-        if (skillObj && isSkillEnabledByStore(skillObj)) {
-          try {
-            directSkillResult = await skillRegistry.execute(
-              bestId,
-              execContent,
-              { searchWeb },
-              { query: execContent },
-              null
-            )
-            if (directSkillResult?.structuredResponse) {
-              bufferedStructuredResponse = directSkillResult.structuredResponse
-            }
-            if (directSkillResult?.instruction) {
-              extraSystemInstructions.push(`[DADOS REAIS]\n${directSkillResult.instruction}`)
-            }
-            const toolName =
-              skillObj.manifest.tools && skillObj.manifest.tools.length > 0
-                ? skillObj.manifest.tools[0].name
-                : bestId
-            toolSteps.push({
-              skill_id: bestId,
-              skill_name: skillObj.manifest.name,
-              tool: 'skill_execute',
-              name: toolName,
-              description: String(skillObj.manifest.description || ''),
-              status: directSkillResult ? 'success' : 'error',
-              started_at: isoNow()
-            })
-            activeSkill = bestId
-            {
-              const _sse = writeSse(res, { active_skill: activeSkill })
-              if (_sse instanceof Promise) await _sse
-            }
-            {
-              const _sse = writeSse(res, { tool_steps: toolSteps })
-              if (_sse instanceof Promise) await _sse
-            }
-          } catch (e) {
-            debug(`[chat] Pre-exec failed: ${e.message}`)
-          }
-        }
-      }
-    }
-
-    /* Se ja tem dados reais, nao expoe tools (evita confusao) */
-    if (directSkillResult?.instruction) {
-      toolsPayload = []
-      if (bufferedStructuredResponse) {
-        toolInstruction = `A skill foi executada e retornou dados reais. Use os dados abaixo para responder ao usuario:\n${directSkillResult.instruction}`
-      } else {
-        toolInstruction = `Skill executada mas retornou: "${directSkillResult.instruction}". Informe isso ao usuario educadamente.`
-      }
-    } else {
+    /* Skills disponiveis como tools para o LLM decidir uso e parametros */
+    if (allSelectedSkills.length > 0) {
       const skillDesc = allSelectedSkills.length
-        ? `# SKILLS DISPONIVEIS\n${allSelectedSkills.map((s) => `- ${s.manifest.name}: ${s.manifest.description}`).join('\n')}\n\nIMPORTANTE: Use as ferramentas acima para obter dados reais. NAO invente.`
+        ? `<available_skills>\n${allSelectedSkills.map((s) => `- ${s.manifest.name}: ${s.manifest.description}`).join('\n')}\n</available_skills>\n\nIMPORTANT: Use the tools above to get real data. Do NOT invent or hallucinate results.`
         : null
       toolInstruction = skillDesc
     }
@@ -1149,6 +1077,12 @@ async function streamLlamaChat(req, res, payload) {
         `[chat] Round ${round}: tools=${toolsPayload.length}, sysLen=${systemMessage.content.length}, msgs=${requestBody.messages.length}`
       )
       lastToolsPayload = toolsPayload
+
+      /* Show "Buscando..." during LLM thinking instead of just "Pensando..." */
+      if (allSelectedSkills.length > 0 && round === 1) {
+        const _sse = writeSse(res, { status: 'Buscando...' })
+        if (_sse instanceof Promise) await _sse
+      }
 
       tokenizePromise
         .then((realTokens) => {
@@ -1520,6 +1454,7 @@ async function streamLlamaChat(req, res, payload) {
               if (!skillRegistry || typeof skillRegistry.execute !== 'function') {
                 throw new Error('Skill registry not available')
               }
+
               const result = await skillRegistry.execute(
                 skillId,
                 args.content || content,
@@ -1554,7 +1489,8 @@ async function streamLlamaChat(req, res, payload) {
                     ''
                 ),
                 status: result ? 'success' : 'error',
-                started_at: isoNow()
+                started_at: isoNow(),
+                args: args?.query || args?.content || null
               }
               toolSteps.push(toolStep)
               activeSkill = skillId
@@ -1569,6 +1505,14 @@ async function streamLlamaChat(req, res, payload) {
 
               if (Array.isArray(result?.webSources) && result.webSources.length) {
                 memorySources = [...memorySources, ...result.webSources].slice(0, 12)
+                {
+                  const _sse = writeSse(res, { sources: memorySources })
+                  if (_sse instanceof Promise) await _sse
+                }
+                {
+                  const _sse = writeSse(res, { webSources: result.webSources })
+                  if (_sse instanceof Promise) await _sse
+                }
               }
 
               if (!skipLlmRound) {
@@ -1625,7 +1569,7 @@ async function streamLlamaChat(req, res, payload) {
       isLikelyIncompleteResponse(assembled, lastFinishReason)
     ) {
       const continuationPrompt =
-        'Continue exatamente de onde parou, sem repetir conteúdo já enviado. Feche blocos de código e tags pendentes quando necessário.'
+        'Continue exactly from where you left off without repeating content already sent. Close any open code blocks and pending tags.'
       const tailAssistant = trimMessageForContext(assembled, 2200)
       const continuationMessages = [
         ...(lastCurrentMessages || []).filter((m) => m.role !== 'system'),
@@ -1777,7 +1721,7 @@ async function streamLlamaChat(req, res, payload) {
       }
     }
 
-    appendMessage(threadId, 'assistant', assembled.trim() || 'Interrompido.', {
+    appendMessage(threadId, 'assistant', assembled.trim() || 'Interrupted.', {
       sources: memorySources.length ? memorySources : undefined,
       graph_data:
         activeSkill || toolSteps.length
@@ -1902,9 +1846,12 @@ async function runVoiceCommand(payload = {}) {
   console.log('[VOICE-CMD] runVoiceCommand called with content:', payload.content)
   let content = String(payload.content || '').trim()
   if (!content) return
+  const originalContent = content
+
+  content = `[INSTRUCAO: Esta mensagem foi transcrita por reconhecimento de voz. Podem haver erros de transcricao em nomes proprios, lugares e palavras incomuns. Corrija silenciosamente quaisquer erros antes de responder.]\n${content}`
+
   const threadId = String(payload.thread_id || 'default')
   const speakResponse = payload.speak_response !== false
-  const originalContent = content
   debug(`[voice-cmd] runVoiceCommand called: content="${content.slice(0, 80)}", thread=${threadId}`)
 
   broadcast({ type: 'user', content: originalContent })
@@ -1928,46 +1875,6 @@ async function runVoiceCommand(payload = {}) {
       }
     } catch {}
     console.log('[VOICE-CMD] responda handled, falling through to LLM')
-  } else {
-    console.log('[VOICE-CMD] NOT responda, doing normal keyword routing')
-    const { routeByKeyword } = require('./keyword-router')
-    const skillRegistry = shared.skillRegistry
-    let keywordWebSources = null
-
-    if (skillRegistry) {
-      const match = routeByKeyword(content, skillRegistry)
-      if (match) {
-        broadcast({ type: 'assistant', data: { status: 'Executando skill...' } })
-        try {
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Skill execution timed out')), 10000)
-          )
-          const result = await Promise.race([
-            skillRegistry.execute(match.skillId, content, { searchWeb }),
-            timeoutPromise
-          ])
-
-          if (result?.directResponse) {
-            broadcast({ type: 'assistant', data: { status: 'responding' } })
-            for (const token of splitTokens(result.directResponse)) {
-              broadcast({ type: 'assistant', data: { token } })
-            }
-            if (result?.webSources) {
-              broadcast({ type: 'assistant', data: { webSources: result.webSources } })
-            }
-            broadcast({ type: 'assistant', data: { done: true } })
-            return
-          }
-
-          if (result?.instruction) {
-            content = `${content}\n\n[Resultado de skill já executada]\n${result.instruction}`
-          }
-          keywordWebSources = result?.webSources || null
-        } catch (err) {
-          debug(`[voice-cmd] Skill execution error: ${err.message}`)
-        }
-      }
-    }
   }
 
   broadcast({ type: 'assistant', data: { status: 'Pensando...' } })
