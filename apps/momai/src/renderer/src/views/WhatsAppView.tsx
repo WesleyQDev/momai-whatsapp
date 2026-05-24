@@ -246,6 +246,7 @@ export default function WhatsAppView() {
   const qrRequestInFlight = useRef(false)
   const [editingName, setEditingName] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [openMonitoringDropdown, setOpenMonitoringDropdown] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const syncingRef = useRef(false)
 
@@ -844,10 +845,44 @@ export default function WhatsAppView() {
             <div className="relative" ref={notificationDropdownRef}>
               <button
                 onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
-                className={`px-3 py-1.5 border border-white/10 bg-white/5 hover:bg-white/10 text-text-muted hover:text-text transition-all flex items-center gap-2 ${
-                  showNotificationDropdown ? 'rounded-t-lg border-b-white/5' : 'rounded-lg'
+                className={`py-2 px-3 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all flex items-center gap-2 group ${
+                  showNotificationDropdown ? 'bg-white/10' : ''
                 }`}
+                title={notificationsDisabled ? 'Notificações desativadas' : 'Notificações ativas'}
               >
+                {!notificationsDisabled ? (
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                  </svg>
+                ) : (
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-text-muted"
+                  >
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    <path d="M18.63 13A17.89 17.89 0 0 1 18 8" />
+                    <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
+                    <path d="M18 8a6 6 0 0 0-9.33-5" />
+                    <line x1="2" y1="2" x2="22" y2="22" />
+                  </svg>
+                )}
                 <svg
                   width="14"
                   height="14"
@@ -857,70 +892,65 @@ export default function WhatsAppView() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  className={`transition-transform duration-200 ${showNotificationDropdown ? 'rotate-180' : ''}`}
                 >
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                  <path d="M18.63 13A17.89 17.89 0 0 1 18 8a6 6 0 0 0-12 0 17.89 17.89 0 0 1-.63 5" />
-                  <path d="M3 17a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1c0-2 0-3-3-3H6c-3 0-3 1-3 3Z" />
+                  <path d="m6 9 6 6 6-6" />
                 </svg>
-                <span className="text-xs font-medium">
-                  {notificationsDisabled ? 'Desativada' : 'Ativa'}
-                </span>
               </button>
 
               {showNotificationDropdown && (
-                <div className="absolute top-full left-0 right-0 -mt-[1px] rounded-b-lg border border-white/10 bg-white/5 shadow-2xl z-[100] overflow-hidden animate-in fade-in zoom-in duration-200 backdrop-blur-xl">
-                  <div className="w-full border-t border-white/10" />
-                  {!notificationsDisabled ? (
-                    <button
-                      onClick={() => {
-                        toggleNotifications()
-                        setShowNotificationDropdown(false)
-                      }}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 text-[10px] text-center transition-colors text-text-muted hover:bg-white/5"
+                <div className="absolute top-full mt-2 right-0 w-48 rounded-xl border border-white/10 bg-zinc-900 shadow-2xl z-[100] py-2 overflow-hidden animate-in fade-in zoom-in duration-200">
+                  <button
+                    onClick={() => {
+                      if (notificationsDisabled) toggleNotifications()
+                      setShowNotificationDropdown(false)
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                      !notificationsDisabled ? 'bg-white/10 text-white' : 'text-text-muted hover:bg-white/5'
+                    }`}
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="opacity-50"
-                      >
-                        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                        <path d="M18.63 13A17.89 17.89 0 0 1 18 8a6 6 0 0 0-12 0 17.89 17.89 0 0 1-.63 5" />
-                        <path d="M3 17a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1c0-2 0-3-3-3H6c-3 0-3 1-3 3Z" />
-                      </svg>
-                      Desativada
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        toggleNotifications()
-                        setShowNotificationDropdown(false)
-                      }}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 text-[10px] text-center transition-colors text-text-muted hover:bg-white/5"
+                      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                    </svg>
+                    Ativa
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!notificationsDisabled) toggleNotifications()
+                      setShowNotificationDropdown(false)
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                      notificationsDisabled ? 'bg-white/10 text-white' : 'text-text-muted hover:bg-white/5'
+                    }`}
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="opacity-50"
-                      >
-                        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                        <path d="M18.63 13A17.89 17.89 0 0 1 18 8a6 6 0 0 0-12 0 17.89 17.89 0 0 1-.63 5" />
-                        <path d="M3 17a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1c0-2 0-3-3-3H6c-3 0-3 1-3 3Z" />
-                      </svg>
-                      Ativa
-                    </button>
-                  )}
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                      <path d="M18.63 13A17.89 17.89 0 0 1 18 8" />
+                      <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
+                      <path d="M18 8a6 6 0 0 0-9.33-5" />
+                      <line x1="2" y1="2" x2="22" y2="22" />
+                    </svg>
+                    Desativada
+                  </button>
                 </div>
               )}
             </div>
@@ -957,18 +987,31 @@ export default function WhatsAppView() {
               </svg>
             </button>
           )}
-          <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
-              connected ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
-            }`}
-          >
-            <div
-              className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}
-            />
-            {connected ? 'Conectado' : 'Desconectado'}
-          </div>
-        </div>
-      </div>
+          {connected && (
+            <button
+              onClick={disconnect}
+              className="px-3 py-1.5 rounded-lg border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 text-red-400 transition-colors flex items-center gap-2 group"
+              title="Desconectar sessão"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span className="text-xs font-medium">Desconectar</span>
+            </button>
+          )}
+        </div>      </div>
       </div>
 
       {!connected && (
@@ -1017,20 +1060,13 @@ export default function WhatsAppView() {
             <p className="text-xs text-text-muted">Monitorados</p>
           </div>
           <div className="rounded-xl border border-white/5 bg-card p-4">
-            <p className="text-2xl font-bold">Online</p>
-            <p className="text-xs text-text-muted">Status</p>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-white/5 bg-card">
-          <div className="px-4 py-3 flex items-center justify-between">
-            <span className="text-xs text-text-muted">Sessão ativa</span>
-            <button
-              onClick={disconnect}
-              className="px-3 py-1.5 text-xs rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
-            >
-              Desconectar
-            </button>
+            <p className="text-2xl font-bold">{connected ? 'Online' : 'Offline'}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <div
+                className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}
+              />
+              <p className="text-xs text-text-muted">{connected ? 'Conectado' : 'Desconectado'}</p>
+            </div>
           </div>
         </div>
 
@@ -1242,31 +1278,131 @@ export default function WhatsAppView() {
                         setEditingName(c.id)
                         setEditValue(c.displayName)
                       }}
-                      className="text-xs text-text-muted hover:text-text px-1.5 py-1 rounded-lg hover:bg-white/5"
+                      className="text-text-muted hover:text-text p-1.5 rounded-lg hover:bg-white/10 transition-colors"
                       title="Renomear"
                     >
-                      ✏️
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                      >
+                        <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
+                      </svg>
                     </button>
                   )}
 
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-xs ${c.monitoring ? 'text-green-400' : 'text-text-muted'}`}
-                    >
-                      {c.monitoring ? 'Monitorado' : 'Ignorado'}
-                    </span>
+                  <div className="relative">
                     <button
-                      onClick={() => toggleMonitoring(c.id)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        c.monitoring ? 'bg-green-500' : 'bg-white/10'
+                      onClick={() => setOpenMonitoringDropdown(openMonitoringDropdown === c.id ? null : c.id)}
+                      className={`py-1.5 px-3 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all flex items-center gap-2 group ${
+                        openMonitoringDropdown === c.id ? 'bg-white/10' : ''
                       }`}
+                      title={c.monitoring ? 'Monitorado' : 'Ignorado'}
                     >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          c.monitoring ? 'translate-x-4' : 'translate-x-0'
-                        }`}
-                      />
+                      {c.monitoring ? (
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                        </svg>
+                      ) : (
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-text-muted"
+                        >
+                          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                          <path d="M18.63 13A17.89 17.89 0 0 1 18 8" />
+                          <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
+                          <path d="M18 8a6 6 0 0 0-9.33-5" />
+                          <line x1="2" y1="2" x2="22" y2="22" />
+                        </svg>
+                      )}
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className={`transition-transform duration-200 ${openMonitoringDropdown === c.id ? 'rotate-180' : ''}`}
+                      >
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
                     </button>
+
+                    {openMonitoringDropdown === c.id && (
+                      <div className="absolute top-full mt-2 right-0 w-40 rounded-xl border border-white/10 bg-zinc-900 shadow-2xl z-[100] py-1.5 overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <button
+                          onClick={() => {
+                            if (!c.monitoring) toggleMonitoring(c.id)
+                            setOpenMonitoringDropdown(null)
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
+                            c.monitoring ? 'bg-white/10 text-white' : 'text-text-muted hover:bg-white/5'
+                          }`}
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                          </svg>
+                          Monitorado
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (c.monitoring) toggleMonitoring(c.id)
+                            setOpenMonitoringDropdown(null)
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
+                            !c.monitoring ? 'bg-white/10 text-white' : 'text-text-muted hover:bg-white/5'
+                          }`}
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                            <path d="M18.63 13A17.89 17.89 0 0 1 18 8" />
+                            <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
+                            <path d="M18 8a6 6 0 0 0-9.33-5" />
+                            <line x1="2" y1="2" x2="22" y2="22" />
+                          </svg>
+                          Ignorado
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1367,31 +1503,131 @@ export default function WhatsAppView() {
                         setEditingName(c.id)
                         setEditValue(c.displayName)
                       }}
-                      className="text-xs text-text-muted hover:text-text px-1.5 py-1 rounded-lg hover:bg-white/5"
+                      className="text-text-muted hover:text-text p-1.5 rounded-lg hover:bg-white/10 transition-colors"
                       title="Renomear"
                     >
-                      ✏️
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                      >
+                        <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
+                      </svg>
                     </button>
                   )}
 
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-xs ${c.monitoring ? 'text-green-400' : 'text-text-muted'}`}
-                    >
-                      {c.monitoring ? 'Monitorado' : 'Ignorado'}
-                    </span>
+                  <div className="relative">
                     <button
-                      onClick={() => toggleMonitoring(c.id)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        c.monitoring ? 'bg-green-500' : 'bg-white/10'
+                      onClick={() => setOpenMonitoringDropdown(openMonitoringDropdown === c.id ? null : c.id)}
+                      className={`py-1.5 px-3 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all flex items-center gap-2 group ${
+                        openMonitoringDropdown === c.id ? 'bg-white/10' : ''
                       }`}
+                      title={c.monitoring ? 'Monitorado' : 'Ignorado'}
                     >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          c.monitoring ? 'translate-x-4' : 'translate-x-0'
-                        }`}
-                      />
+                      {c.monitoring ? (
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                        </svg>
+                      ) : (
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-text-muted"
+                        >
+                          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                          <path d="M18.63 13A17.89 17.89 0 0 1 18 8" />
+                          <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
+                          <path d="M18 8a6 6 0 0 0-9.33-5" />
+                          <line x1="2" y1="2" x2="22" y2="22" />
+                        </svg>
+                      )}
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className={`transition-transform duration-200 ${openMonitoringDropdown === c.id ? 'rotate-180' : ''}`}
+                      >
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
                     </button>
+
+                    {openMonitoringDropdown === c.id && (
+                      <div className="absolute top-full mt-2 right-0 w-40 rounded-xl border border-white/10 bg-zinc-900 shadow-2xl z-[100] py-1.5 overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <button
+                          onClick={() => {
+                            if (!c.monitoring) toggleMonitoring(c.id)
+                            setOpenMonitoringDropdown(null)
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
+                            c.monitoring ? 'bg-white/10 text-white' : 'text-text-muted hover:bg-white/5'
+                          }`}
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                          </svg>
+                          Monitorado
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (c.monitoring) toggleMonitoring(c.id)
+                            setOpenMonitoringDropdown(null)
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
+                            !c.monitoring ? 'bg-white/10 text-white' : 'text-text-muted hover:bg-white/5'
+                          }`}
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                            <path d="M18.63 13A17.89 17.89 0 0 1 18 8" />
+                            <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
+                            <path d="M18 8a6 6 0 0 0-9.33-5" />
+                            <line x1="2" y1="2" x2="22" y2="22" />
+                          </svg>
+                          Ignorado
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
