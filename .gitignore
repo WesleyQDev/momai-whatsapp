@@ -154,7 +154,17 @@ nul
 
 .dev-data/
 
-
+# ====================
+# Runtime Data (app-generated JSON, never source)
+# ====================
+# WhatsApp extension runtime data
+apps/momai/data/extensions/whatsapp/
+# Messages and settings
+apps/momai/data/messages.json
+apps/momai/data/node-core-store.json
+# Root-level runtime data
+/data/node-core-store.json
+/data/semantic/
 
 # Worktrees
 .worktrees/
