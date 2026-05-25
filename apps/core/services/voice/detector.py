@@ -127,6 +127,7 @@ class WakeWordDetector:
         self.speech_chunk_count = 0 
         self.silence_counter = 0
         self.recorded_samples = 0
+        self.active_recording_had_tts = False
 
         # --- Cooldown ---
         self.last_trigger_time = 0
@@ -264,18 +265,18 @@ class WakeWordDetector:
 
                     # Post-TTS cooldown: ignore audio shortly after TTS stops
                     # to prevent self-recognition from speaker echo
-                    if in_call_mode and not tts_speaking:
+                    if not tts_speaking:
                         if self._tts_stop_time > 0 and (time.time() - self._tts_stop_time) < self.post_tts_cooldown:
                             if self.state == self.STATE_LISTENING:
                                 self._reset_state()
                             continue
 
                     # Track when TTS stops for cooldown
-                    if in_call_mode:
-                        if tts_speaking:
-                            self._tts_stop_time = 0.0
-                        elif self._tts_stop_time == 0.0:
-                            self._tts_stop_time = time.time()
+                    if tts_speaking:
+                        self._tts_stop_time = 0.0
+                        self.active_recording_had_tts = True # Mark that this recording overlap with TTS
+                    elif self._tts_stop_time == 0.0:
+                        self._tts_stop_time = time.time()
 
                     # In call mode: interrupt TTS when user speaks
                     # In normal mode: listen for wake word even when TTS is speaking
@@ -394,6 +395,7 @@ class WakeWordDetector:
         self.speech_chunk_count = 0
         self.silence_counter = 0
         self.recorded_samples = 0
+        self.active_recording_had_tts = False
 
     def flush_buffers(self):
         """Clears all pending audio data and resets the state machine.
@@ -420,12 +422,13 @@ class WakeWordDetector:
             return
 
         audio = np.concatenate(self.speech_buffer)
+        had_tts = self.active_recording_had_tts
         try:
-            self.processing_queue.put_nowait((audio, False))  # False = Not partial
+            self.processing_queue.put_nowait((audio, False, had_tts))  # False = Not partial
         except queue.Full:
             try:
                 self.processing_queue.get_nowait()
-                self.processing_queue.put_nowait((audio, False))
+                self.processing_queue.put_nowait((audio, False, had_tts))
             except Exception:
                 # Processing queue full and clear failed
                 pass
@@ -436,10 +439,11 @@ class WakeWordDetector:
             return
 
         audio = np.concatenate(self.speech_buffer)
+        had_tts = self.active_recording_had_tts
         try:
             # We don't want to overflow the queue with partials, so we use a non-blocking put
             # and if it's full we just skip this partial (the next one will come soon)
-            self.processing_queue.put_nowait((audio, True))  # True = Partial
+            self.processing_queue.put_nowait((audio, True, had_tts))  # True = Partial
         except queue.Full:
             pass
 
@@ -448,26 +452,31 @@ class WakeWordDetector:
         while self.running or not self.processing_queue.empty():
             try:
                 audio_data = self.processing_queue.get(timeout=0.5)
-                audio, is_partial = audio_data
+                # handle both old-style 2-tuple and new-style 3-tuple for robustness
+                if len(audio_data) == 3:
+                    audio, is_partial, had_tts = audio_data
+                else:
+                    audio, is_partial = audio_data
+                    had_tts = False
             except queue.Empty:
                 continue
 
             if not is_partial:
                 self._set_state(self.STATE_PROCESSING)
 
-            self._process_recording(audio, is_partial)
+            self._process_recording(audio, is_partial, had_tts)
 
             if not is_partial:
                 self._set_state(self.STATE_IDLE)
 
-    def _process_recording(self, audio, is_partial=False):
+    def _process_recording(self, audio, is_partial=False, had_tts=False):
         """Transcribe the recorded speech buffer and process the result."""
         if audio is None or len(audio) == 0:
             return
 
         duration = len(audio) / self.sample_rate
         logger.debug(
-            f"[WakeWord] Transcribing {duration:.1f}s of audio (partial={is_partial})..."
+            f"[WakeWord] Transcribing {duration:.1f}s of audio (partial={is_partial}, had_tts={had_tts})..."
         )
 
         try:
@@ -546,7 +555,9 @@ class WakeWordDetector:
 
             if is_partial:
                 if self.partial_callback:
-                    self.partial_callback(raw_text)
+                    # Don't show partials if they are just the assistant's own voice
+                    if not had_tts or (self.bypass_condition and self.bypass_condition()):
+                        self.partial_callback(raw_text)
                 
                 # To prevent premature triggering ("Luna..." cutting off the user), 
                 # we no longer perform early-exit on partials in the normal wake-word mode.
@@ -556,7 +567,7 @@ class WakeWordDetector:
 
             if not is_repeat:
                 logger.debug(f"[WakeWord] Transcribed: '{raw_text}'")
-                self._handle_transcription(text, raw_text)
+                self._handle_transcription(text, raw_text, had_tts)
                 self.last_text = text
                 self.last_text_time = now
 
@@ -634,9 +645,15 @@ class WakeWordDetector:
                     return True
         return False
 
-    def _handle_transcription(self, text, raw_text):
+    def _handle_transcription(self, text, raw_text, had_tts=False):
         """Processes a complete transcription to find the keyword or handle bypass."""
         now = time.time()
+
+        # Determine current mode for context
+        try:
+            in_call_mode = self.bypass_condition and self.bypass_condition()
+        except:
+            in_call_mode = False
 
         # Keyword detection with variants + fuzzy phonetic matching
         detected_variation = None
@@ -715,6 +732,13 @@ class WakeWordDetector:
                 # Small sleep to let the chime start before the UI reacts
                 time.sleep(0.1)
                 self.callback(final_cmd)
+            return
+
+        # NEW Logic: If TTS was active during this recording AND no wake word was found,
+        # we strictly block keyword/bypass routing unless in call mode.
+        # This prevents the assistant from triggering its own skills.
+        if had_tts and not in_call_mode:
+            logger.debug("[WakeWord] Blocking keyword/bypass check: audio captured during TTS in normal mode")
             return
 
         # 1.5. Keyword check: if text matches a skill keyword, route as command
