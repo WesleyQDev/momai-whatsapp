@@ -47,7 +47,10 @@ function normalizeTimestamp(ts: number): number {
 
 function formatTime(ts: number): string {
   const ms = normalizeTimestamp(ts)
-  return new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  if (!ms || isNaN(ms)) return '--:--'
+  return new Date(ms).toLocaleDateString('pt-BR') === new Date().toLocaleDateString('pt-BR')
+    ? new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    : new Date(ms).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
 function buildTurns(sorted: Message[]): ConversationTurn[] {
@@ -509,8 +512,8 @@ export default function WhatsAppView() {
   )
 
   const tryFinishContactSync = useCallback(
-    async (reportedCount?: number) => {
-      if (reportedCount === 0) {
+    async (reportedCount?: number, isFinal?: boolean) => {
+      if (reportedCount === 0 || isFinal) {
         setSyncing(false)
         return
       }
@@ -521,7 +524,9 @@ export default function WhatsAppView() {
       const total = data?.totalFiltered ?? 0
       const pageCount = data?.contacts?.length ?? 0
       if (pageCount > 0 || total === 0) {
-        setSyncing(false)
+        // If not final, only stop if we're not also waiting for the 10s timer
+        // For now, let's just rely on isFinal or reportedCount === 0
+        if (isFinal) setSyncing(false)
       }
     },
     [
@@ -565,7 +570,8 @@ export default function WhatsAppView() {
       if (data.syncedContacts !== undefined) {
         setSyncedContacts(data.syncedContacts)
       }
-      await tryFinishContactSync(data.syncedContacts)
+      // Manual sync is considered "final" for the UI response
+      await tryFinishContactSync(data.syncedContacts, true)
     } catch {
       setSyncing(false)
     }
@@ -788,7 +794,7 @@ export default function WhatsAppView() {
         } else if (event.eventType === 'contacts_synced') {
           setSyncedContacts(event.data?.count || 0)
           void loadStats()
-          void tryFinishContactSync(event.data?.count)
+          void tryFinishContactSync(event.data?.count, event.data?.isFinal)
         } else if (event.eventType === 'contacts_updated') {
           void loadStats()
           if (syncingRef.current) void tryFinishContactSync()
