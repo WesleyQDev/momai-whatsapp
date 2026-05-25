@@ -178,7 +178,8 @@ async function loadSkillFromDir({ dir, kind, expectedId }) {
     if (fs.existsSync(stateJsonPath)) {
       return null
     }
-    log(`[skills] Skip: No SKILL.md in ${dir}`)
+    // Changed to debug to avoid noise from data directories (e.g. whatsapp data)
+    // log(`[skills] Skip: No SKILL.md in ${dir}`)
     return null
   }
 

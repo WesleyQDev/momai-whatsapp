@@ -839,7 +839,8 @@ async function streamLlamaChat(req, res, payload) {
     enqueueAutoTts(chunk)
   }
 
-  let messages = [...history]
+  // Limit history messages to stay within local LLM context limits efficiently
+  let messages = history.length > 20 ? history.slice(-20) : [...history]
   const maxToolRounds = isUltra ? 3 : 1
   let round = 0
   let estimatedPromptTokens = estimateTokenCount(content) + estimateTokenCount(memoryContext)
@@ -962,27 +963,29 @@ async function streamLlamaChat(req, res, payload) {
       }
     }
 
-    /* Descobre as top 5 skills (sempre, sem threshold) */
+    /* Descobre as top 5 skills (ou 3 em tiers econômicos) */
     let discoveredSkillIds = []
     let topScores = {}
     let toolsPayload = []
     let toolSteps = []
     let activeSkill = null
 
+    const discoveryLimit = isUltra ? 3 : 5
+
     {
-      const top5 = await (async () => {
+      const topN = await (async () => {
         if (isUltra) {
           const semanticResults = await getTop5SkillsSemantic(content)
           if (semanticResults.length > 0) {
             semanticResults.forEach((r) => {
               topScores[r.id] = r.score
             })
-            return semanticResults.map((r) => r.id)
+            return semanticResults.slice(0, discoveryLimit).map((r) => r.id)
           }
           debug('[chat] Semantic empty, falling back to lexical')
         }
         if (skillRegistry && typeof skillRegistry.discoverTopN === 'function') {
-          const d = skillRegistry.discoverTopN(content, 5)
+          const d = skillRegistry.discoverTopN(content, discoveryLimit)
           if (d.length > 0) {
             d.forEach((x) => {
               topScores[x.id] = x.confidence
@@ -992,7 +995,7 @@ async function streamLlamaChat(req, res, payload) {
         }
         return []
       })()
-      discoveredSkillIds = top5
+      discoveredSkillIds = topN
     }
 
     let toolInstruction = null
@@ -1858,9 +1861,10 @@ async function runVoiceCommand(payload = {}) {
 
   let keywordWebSources = null
 
-  console.log('[VOICE-CMD] Checking responda in:', content)
-  const contentLower = content.toLowerCase()
-  if (contentLower.includes('responda') || contentLower.includes('responde')) {
+  console.log('[VOICE-CMD] Checking responda in:', originalContent)
+  const contentLower = originalContent.toLowerCase().trim()
+  // Check if it's a "reply" command directed at WhatsApp
+  if (contentLower.startsWith('responda') || contentLower.startsWith('responde')) {
     console.log('[VOICE-CMD] responda detected, fetching last contact')
     try {
       const hostManager = require('./extension-host-manager')
