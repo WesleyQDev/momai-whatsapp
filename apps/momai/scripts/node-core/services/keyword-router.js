@@ -31,15 +31,17 @@ function seedDefaultKeywords(skillRegistry) {
   for (const skill of skills) {
     const id = skill.manifest?.id || skill.id
     if (!id) continue
+
+    // If the skill already has an entry in skillKeywords (even if empty),
+    // we do NOT auto-seed. This respects user manual additions/deletions.
+    if (id in _store.skillKeywords) continue
+
     const newKeywords = (skill.manifest?.intents || skill.manifest?.triggers || []).filter(Boolean)
     if (newKeywords.length === 0) continue
 
-    const existing = _store.skillKeywords[id] || []
-    const merged = [...new Set([...existing, ...newKeywords])]
-    if (merged.length !== existing.length) {
-      _store.skillKeywords[id] = merged
-      console.log(`[keywords] Updated ${id}: ${existing.length} -> ${merged.length} keywords`)
-    }
+    // Seed only for new skills missing from the map
+    _store.skillKeywords[id] = [...new Set(newKeywords)]
+    console.log(`[keywords] Initialized ${id} with ${newKeywords.length} default keywords`)
   }
 }
 

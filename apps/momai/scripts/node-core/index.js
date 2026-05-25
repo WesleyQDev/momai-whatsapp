@@ -363,6 +363,7 @@ async function startServer() {
   try {
     if (typeof seedDefaultKeywords === 'function' && skillRegistry) {
       seedDefaultKeywords(skillRegistry)
+      saveStoreNow(store) // Force save immediately after seeding to persist updated keywords map
     }
   } catch (e) {
     info('[core] Keyword seeding failed:', e.message)

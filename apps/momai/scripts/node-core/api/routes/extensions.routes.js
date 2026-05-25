@@ -249,11 +249,11 @@ function createExtensionsRoutes(context) {
       }
       await skillRegistry.loadExtensions()
 
-      // Seed keywords from SKILL.md intents
+      // Seed keywords from SKILL.md intents only if the skill is brand new to the store
       const installedSkill = skillRegistry.getById(id)
       if (installedSkill && installedSkill.manifest?.intents?.length) {
         if (!store.skillKeywords) store.skillKeywords = {}
-        if (!store.skillKeywords[id] || store.skillKeywords[id].length === 0) {
+        if (!(id in store.skillKeywords)) {
           store.skillKeywords[id] = installedSkill.manifest.intents
           saveStore()
         }
