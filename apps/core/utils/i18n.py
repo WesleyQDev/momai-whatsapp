@@ -39,6 +39,10 @@ _STRINGS = {
 _ALIASES = {
     "en-US": "en",
     "en-GB": "en",
+    "es": "en",
+    "fr": "en",
+    "de": "en",
+    "it": "en",
 }
 
 

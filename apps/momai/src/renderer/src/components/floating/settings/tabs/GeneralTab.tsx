@@ -136,6 +136,10 @@ export const GeneralTab = React.memo(
               >
                 <option value="pt-BR">{t('settings.language.ptBR')}</option>
                 <option value="en-US">{t('settings.language.enUS')}</option>
+                <option value="es">{t('settings.language.es')}</option>
+                <option value="fr">{t('settings.language.fr')}</option>
+                <option value="de">{t('settings.language.de')}</option>
+                <option value="it">{t('settings.language.it')}</option>
               </select>
             </div>
           </div>

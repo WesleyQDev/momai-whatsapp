@@ -70,6 +70,22 @@ export const VoiceTab = React.memo(
           { id: 'if_sara', name: 'Sara', trait: 'female' },
           { id: 'im_nicola', name: 'Nicola', trait: 'male' }
         ]
+      },
+      {
+        langKey: 'settings.voice.lang.fr',
+        code: 'f',
+        voices: [
+          { id: 'ff_amelie', name: 'Amélie', trait: 'female' },
+          { id: 'fm_henri', name: 'Henri', trait: 'male' }
+        ]
+      },
+      {
+        langKey: 'settings.voice.lang.de',
+        code: 'd',
+        voices: [
+          { id: 'df_klara', name: 'Klara', trait: 'female' },
+          { id: 'dm_franz', name: 'Franz', trait: 'male' }
+        ]
       }
     ]
 

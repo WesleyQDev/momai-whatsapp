@@ -2,10 +2,18 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 import enUS from './locales/en-US.json'
 import ptBR from './locales/pt-BR.json'
+import es from './locales/es.json'
+import fr from './locales/fr.json'
+import de from './locales/de.json'
+import it from './locales/it.json'
 
 const dictionaries = {
   'pt-BR': ptBR,
-  'en-US': enUS
+  'en-US': enUS,
+  es,
+  fr,
+  de,
+  it
 }
 
 type Locale = keyof typeof dictionaries
@@ -27,6 +35,7 @@ const normalizeLocale = (value?: string | null): Locale => {
   if (!value) return DEFAULT_LOCALE
   if (value in dictionaries) return value as Locale
   if (value === 'en') return 'en-US'
+  if (value in dictionaries) return value as Locale
   return DEFAULT_LOCALE
 }
 

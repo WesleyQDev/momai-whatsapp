@@ -41,6 +41,38 @@ const VOICE_CATALOG: LanguageGroup[] = [
       { id: 'am_adam', name: 'Adam (Male)', trait: 'male' },
       { id: 'am_fenrir', name: 'Fenrir (Male)', trait: 'male' }
     ]
+  },
+  {
+    langName: 'English (UK)',
+    code: 'b',
+    voices: [
+      { id: 'bf_alice', name: 'Alice (Female)', trait: 'female' },
+      { id: 'bm_george', name: 'George (Male)', trait: 'male' }
+    ]
+  },
+  {
+    langName: 'Español',
+    code: 'e',
+    voices: [
+      { id: 'ef_dora', name: 'Dora (Female)', trait: 'female' },
+      { id: 'em_alex', name: 'Alex (Male)', trait: 'male' }
+    ]
+  },
+  {
+    langName: 'Français',
+    code: 'f',
+    voices: [
+      { id: 'ff_amelie', name: 'Amélie (Female)', trait: 'female' },
+      { id: 'fm_henri', name: 'Henri (Male)', trait: 'male' }
+    ]
+  },
+  {
+    langName: 'Deutsch',
+    code: 'd',
+    voices: [
+      { id: 'df_klara', name: 'Klara (Female)', trait: 'female' },
+      { id: 'dm_franz', name: 'Franz (Male)', trait: 'male' }
+    ]
   }
 ]
 
@@ -96,6 +128,22 @@ const EDGE_VOICE_CATALOG: LanguageGroup[] = [
     voices: [
       { id: 'it-IT-ElsaNeural', name: 'Elsa (Italian)', trait: 'female' },
       { id: 'it-IT-DiegoNeural', name: 'Diego (Italian)', trait: 'male' }
+    ]
+  },
+  {
+    langName: 'Français',
+    code: 'f',
+    voices: [
+      { id: 'fr-FR-DeniseNeural', name: 'Denise (French)', trait: 'female' },
+      { id: 'fr-FR-HenriNeural', name: 'Henri (French)', trait: 'male' }
+    ]
+  },
+  {
+    langName: 'Deutsch',
+    code: 'd',
+    voices: [
+      { id: 'de-DE-KatjaNeural', name: 'Katja (German)', trait: 'female' },
+      { id: 'de-DE-ConradNeural', name: 'Conrad (German)', trait: 'male' }
     ]
   }
 ]
@@ -192,7 +240,9 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
   const [langOpen, setLangOpen] = useState(false)
   const [selectedLang, setSelectedLang] = useState(() => {
     const navLang = navigator.language || 'en-US'
-    return navLang.split('-')[0].toLowerCase() === 'pt' ? 'p' : 'a'
+    const base = navLang.split('-')[0].toLowerCase()
+    const langMap: Record<string, string> = { pt: 'p', es: 'e', fr: 'f', de: 'd', it: 'i' }
+    return langMap[base] || 'a'
   })
   const [selectedTier, setSelectedTier] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -217,12 +267,15 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         if (!data) return
         if (data.user_name) setName(data.user_name)
         if (data.locale) {
-          const langCode = data.locale === 'pt-BR' ? 'p' : 'a'
+          const localeToCode: Record<string, string> = { 'pt-BR': 'p', 'en-US': 'a', es: 'e', fr: 'f', de: 'd', it: 'i' }
+          const langCode = localeToCode[data.locale] || 'a'
           setSelectedLang(langCode)
           setLocale(data.locale)
         } else {
           const navLang = navigator.language || 'en-US'
-          const detectedLocale = navLang.split('-')[0].toLowerCase() === 'pt' ? 'pt-BR' : 'en-US'
+          const base = navLang.split('-')[0].toLowerCase()
+          const localeMap: Record<string, string> = { pt: 'pt-BR', es: 'es', fr: 'fr', de: 'de', it: 'it' }
+          const detectedLocale = localeMap[base] || 'en-US'
           setLocale(detectedLocale as any)
         }
         if (data.tts_voice) setSelectedVoice(data.tts_voice)
@@ -383,47 +436,66 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
               onClick={() => setLangOpen(!langOpen)}
               className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/[0.05] transition-all active:scale-95"
             >
-              <svg
-                width="14"
-                height="10"
-                viewBox="0 0 720 504"
-                className={`rounded-[1px] ${selectedLang === 'p' ? 'opacity-100' : 'opacity-0 hidden'}`}
-              >
-                <rect width="720" height="504" fill="#009c3b" />
-                <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
-                <circle cx="360" cy="252" r="126" fill="#002776" />
-                <path d="M245 285a126 126 0 0 1 230-66 126 126 0 0 0-230 66z" fill="#fff" />
-              </svg>
-              <svg
-                width="14"
-                height="10"
-                viewBox="0 0 741 390"
-                className={`rounded-[1px] ${selectedLang === 'a' ? 'opacity-100' : 'opacity-0 hidden'}`}
-              >
-                <rect width="741" height="390" fill="#bf0a30" />
-                <path
-                  d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741"
-                  stroke="#fff"
-                  strokeWidth="30"
-                />
-                <rect width="296.4" height="210" fill="#002868" />
-                <g fill="#fff">
-                  <circle cx="25" cy="25" r="6" />
-                  <circle cx="75" cy="25" r="6" />
-                  <circle cx="125" cy="25" r="6" />
-                  <circle cx="175" cy="25" r="6" />
-                  <circle cx="225" cy="25" r="6" />
-                  <circle cx="50" cy="65" r="6" />
-                  <circle cx="100" cy="65" r="6" />
-                  <circle cx="150" cy="65" r="6" />
-                  <circle cx="200" cy="65" r="6" />
-                  <circle cx="25" cy="105" r="6" />
-                  <circle cx="75" cy="105" r="6" />
-                  <circle cx="125" cy="105" r="6" />
-                  <circle cx="175" cy="105" r="6" />
-                  <circle cx="225" cy="105" r="6" />
-                </g>
-              </svg>
+              {selectedLang === 'p' && (
+                <svg width="14" height="10" viewBox="0 0 720 504" className="rounded-[1px]">
+                  <rect width="720" height="504" fill="#009c3b" />
+                  <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
+                  <circle cx="360" cy="252" r="126" fill="#002776" />
+                  <path d="M245 285a126 126 0 0 1 230-66 126 126 0 0 0-230 66z" fill="#fff" />
+                </svg>
+              )}
+              {selectedLang === 'a' && (
+                <svg width="14" height="10" viewBox="0 0 741 390" className="rounded-[1px]">
+                  <rect width="741" height="390" fill="#bf0a30" />
+                  <path d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741" stroke="#fff" strokeWidth="30" />
+                  <rect width="296.4" height="210" fill="#002868" />
+                  <g fill="#fff">
+                    <circle cx="25" cy="25" r="6" /><circle cx="75" cy="25" r="6" />
+                    <circle cx="125" cy="25" r="6" /><circle cx="175" cy="25" r="6" />
+                    <circle cx="225" cy="25" r="6" /><circle cx="50" cy="65" r="6" />
+                    <circle cx="100" cy="65" r="6" /><circle cx="150" cy="65" r="6" />
+                    <circle cx="200" cy="65" r="6" /><circle cx="25" cy="105" r="6" />
+                    <circle cx="75" cy="105" r="6" /><circle cx="125" cy="105" r="6" />
+                    <circle cx="175" cy="105" r="6" /><circle cx="225" cy="105" r="6" />
+                  </g>
+                </svg>
+              )}
+              {selectedLang === 'b' && (
+                <svg width="14" height="10" viewBox="0 0 1200 600" className="rounded-[1px]">
+                  <rect width="1200" height="600" fill="#012169" />
+                  <path d="M0 0l600 300M1200 0L600 300M0 600l600-300M1200 600L600 300" stroke="#fff" strokeWidth="120" />
+                  <path d="M0 0l600 300M1200 0L600 300M0 600l600-300M1200 600L600 300" stroke="#c8102e" strokeWidth="60" />
+                  <path d="M600 0v600M0 300h1200" stroke="#fff" strokeWidth="120" />
+                  <path d="M600 0v600M0 300h1200" stroke="#c8102e" strokeWidth="60" />
+                </svg>
+              )}
+              {selectedLang === 'e' && (
+                <svg width="14" height="10" viewBox="0 0 900 600" className="rounded-[1px]">
+                  <rect width="900" height="600" fill="#c60b1e" />
+                  <rect y="133.3" width="900" height="333.4" fill="#ffc400" />
+                </svg>
+              )}
+              {selectedLang === 'f' && (
+                <svg width="14" height="10" viewBox="0 0 900 600" className="rounded-[1px]">
+                  <rect width="300" height="600" fill="#002395" />
+                  <rect x="300" width="300" height="600" fill="#fff" />
+                  <rect x="600" width="300" height="600" fill="#ED2939" />
+                </svg>
+              )}
+              {selectedLang === 'd' && (
+                <svg width="14" height="10" viewBox="0 0 900 600" className="rounded-[1px]">
+                  <rect width="900" height="200" fill="#000" />
+                  <rect y="200" width="900" height="200" fill="#DD0000" />
+                  <rect y="400" width="900" height="200" fill="#FFCE00" />
+                </svg>
+              )}
+              {selectedLang === 'i' && (
+                <svg width="14" height="10" viewBox="0 0 900 600" className="rounded-[1px]">
+                  <rect width="300" height="600" fill="#009246" />
+                  <rect x="300" width="300" height="600" fill="#fff" />
+                  <rect x="600" width="300" height="600" fill="#CE2B37" />
+                </svg>
+              )}
               <svg
                 width="8"
                 height="8"
@@ -438,72 +510,90 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
             </button>
             {langOpen && (
               <div className="absolute right-0 top-full mt-1 bg-zinc-900 border border-white/10 rounded-lg shadow-xl overflow-hidden z-[400] min-w-[160px]">
-                <button
-                  onClick={() => {
-                    setLangOpen(false)
-                    setSelectedLang('p')
-                    setLocale('pt-BR' as any)
-                    const group = getVoiceCatalog(selectedEngine).find((g) => g.code === 'p')
-                    if (group) setSelectedVoice(group.voices[0].id)
-                  }}
-                  className={`flex items-center gap-2.5 w-full px-3 py-2 hover:bg-white/[0.05] transition-all ${selectedLang === 'p' ? 'bg-white/[0.03]' : ''}`}
-                >
-                  <svg
-                    width="16"
-                    height="11"
-                    viewBox="0 0 720 504"
-                    className="rounded-[1px] shrink-0"
+                {[
+                  { code: 'p', locale: 'pt-BR', label: 'Português (BR)', badge: 'PT' },
+                  { code: 'a', locale: 'en-US', label: 'English (US)', badge: 'EN' },
+                  { code: 'b', locale: 'en-US', label: 'English (UK)', badge: 'EN' },
+                  { code: 'e', locale: 'es', label: 'Español', badge: 'ES' },
+                  { code: 'f', locale: 'fr', label: 'Français', badge: 'FR' },
+                  { code: 'd', locale: 'de', label: 'Deutsch', badge: 'DE' },
+                  { code: 'i', locale: 'it', label: 'Italiano', badge: 'IT' },
+                ].map((item) => (
+                  <button
+                    key={item.code}
+                    onClick={() => {
+                      setLangOpen(false)
+                      setSelectedLang(item.code)
+                      setLocale(item.locale as any)
+                      const group = getVoiceCatalog(selectedEngine).find((g) => g.code === item.code)
+                      if (group) setSelectedVoice(group.voices[0].id)
+                    }}
+                    className={`flex items-center gap-2.5 w-full px-3 py-2 hover:bg-white/[0.05] transition-all ${selectedLang === item.code ? 'bg-white/[0.03]' : ''}`}
                   >
-                    <rect width="720" height="504" fill="#009c3b" />
-                    <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
-                    <circle cx="360" cy="252" r="126" fill="#002776" />
-                    <path d="M245 285a126 126 0 0 1 230-66 126 126 0 0 0-230 66z" fill="#fff" />
-                  </svg>
-                  <span className="text-[11px] font-semibold text-text">Português (BR)</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setLangOpen(false)
-                    setSelectedLang('a')
-                    setLocale('en-US' as any)
-                    const group = getVoiceCatalog(selectedEngine).find((g) => g.code === 'a')
-                    if (group) setSelectedVoice(group.voices[0].id)
-                  }}
-                  className={`flex items-center gap-2.5 w-full px-3 py-2 hover:bg-white/[0.05] transition-all ${selectedLang === 'a' ? 'bg-white/[0.03]' : ''}`}
-                >
-                  <svg
-                    width="16"
-                    height="11"
-                    viewBox="0 0 741 390"
-                    className="rounded-[1px] shrink-0"
-                  >
-                    <rect width="741" height="390" fill="#bf0a30" />
-                    <path
-                      d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741"
-                      stroke="#fff"
-                      strokeWidth="30"
-                    />
-                    <rect width="296.4" height="210" fill="#002868" />
-                    <g fill="#fff">
-                      <circle cx="25" cy="25" r="6" />
-                      <circle cx="75" cy="25" r="6" />
-                      <circle cx="125" cy="25" r="6" />
-                      <circle cx="175" cy="25" r="6" />
-                      <circle cx="225" cy="25" r="6" />
-                      <circle cx="50" cy="65" r="6" />
-                      <circle cx="100" cy="65" r="6" />
-                      <circle cx="150" cy="65" r="6" />
-                      <circle cx="200" cy="65" r="6" />
-                      <circle cx="25" cy="105" r="6" />
-                      <circle cx="75" cy="105" r="6" />
-                      <circle cx="125" cy="105" r="6" />
-                      <circle cx="175" cy="105" r="6" />
-                      <circle cx="225" cy="105" r="6" />
-                    </g>
-                  </svg>
-                  <span className="text-[11px] font-semibold text-text">English (US)</span>
-                  <span className="ml-auto text-[9px] text-text-muted/50 font-medium">EN</span>
-                </button>
+                    {item.code === 'p' && (
+                      <svg width="16" height="11" viewBox="0 0 720 504" className="rounded-[1px] shrink-0">
+                        <rect width="720" height="504" fill="#009c3b" />
+                        <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
+                        <circle cx="360" cy="252" r="126" fill="#002776" />
+                        <path d="M245 285a126 126 0 0 1 230-66 126 126 0 0 0-230 66z" fill="#fff" />
+                      </svg>
+                    )}
+                    {item.code === 'a' && (
+                      <svg width="16" height="11" viewBox="0 0 741 390" className="rounded-[1px] shrink-0">
+                        <rect width="741" height="390" fill="#bf0a30" />
+                        <path d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741" stroke="#fff" strokeWidth="30" />
+                        <rect width="296.4" height="210" fill="#002868" />
+                        <g fill="#fff">
+                          <circle cx="25" cy="25" r="6" /><circle cx="75" cy="25" r="6" />
+                          <circle cx="125" cy="25" r="6" /><circle cx="175" cy="25" r="6" />
+                          <circle cx="225" cy="25" r="6" /><circle cx="50" cy="65" r="6" />
+                          <circle cx="100" cy="65" r="6" /><circle cx="150" cy="65" r="6" />
+                          <circle cx="200" cy="65" r="6" /><circle cx="25" cy="105" r="6" />
+                          <circle cx="75" cy="105" r="6" /><circle cx="125" cy="105" r="6" />
+                          <circle cx="175" cy="105" r="6" /><circle cx="225" cy="105" r="6" />
+                        </g>
+                      </svg>
+                    )}
+                    {item.code === 'b' && (
+                      <svg width="16" height="11" viewBox="0 0 1200 600" className="rounded-[1px] shrink-0">
+                        <rect width="1200" height="600" fill="#012169" />
+                        <path d="M0 0l600 300M1200 0L600 300M0 600l600-300M1200 600L600 300" stroke="#fff" strokeWidth="120" />
+                        <path d="M0 0l600 300M1200 0L600 300M0 600l600-300M1200 600L600 300" stroke="#c8102e" strokeWidth="60" />
+                        <path d="M600 0v600M0 300h1200" stroke="#fff" strokeWidth="120" />
+                        <path d="M600 0v600M0 300h1200" stroke="#c8102e" strokeWidth="60" />
+                      </svg>
+                    )}
+                    {item.code === 'e' && (
+                      <svg width="16" height="11" viewBox="0 0 900 600" className="rounded-[1px] shrink-0">
+                        <rect width="900" height="600" fill="#c60b1e" />
+                        <rect y="133.3" width="900" height="333.4" fill="#ffc400" />
+                      </svg>
+                    )}
+                    {item.code === 'f' && (
+                      <svg width="16" height="11" viewBox="0 0 900 600" className="rounded-[1px] shrink-0">
+                        <rect width="300" height="600" fill="#002395" />
+                        <rect x="300" width="300" height="600" fill="#fff" />
+                        <rect x="600" width="300" height="600" fill="#ED2939" />
+                      </svg>
+                    )}
+                    {item.code === 'd' && (
+                      <svg width="16" height="11" viewBox="0 0 900 600" className="rounded-[1px] shrink-0">
+                        <rect width="900" height="200" fill="#000" />
+                        <rect y="200" width="900" height="200" fill="#DD0000" />
+                        <rect y="400" width="900" height="200" fill="#FFCE00" />
+                      </svg>
+                    )}
+                    {item.code === 'i' && (
+                      <svg width="16" height="11" viewBox="0 0 900 600" className="rounded-[1px] shrink-0">
+                        <rect width="300" height="600" fill="#009246" />
+                        <rect x="300" width="300" height="600" fill="#fff" />
+                        <rect x="600" width="300" height="600" fill="#CE2B37" />
+                      </svg>
+                    )}
+                    <span className="text-[11px] font-semibold text-text">{item.label}</span>
+                    <span className="ml-auto text-[9px] text-text-muted/50 font-medium">{item.badge}</span>
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -767,7 +857,8 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                             )
                             if (group) {
                               setSelectedVoice(group.voices[0].id)
-                              setLocale(newLang === 'p' ? 'pt-BR' : ('en-US' as any))
+                              const localeByCode: Record<string, string> = { p: 'pt-BR', a: 'en-US', b: 'en-US', e: 'es', f: 'fr', d: 'de', i: 'it' }
+                              setLocale((localeByCode[newLang] || 'en-US') as any)
                             }
                           }}
                           className="no-drag w-full bg-input border border-border/20 rounded-lg pl-2.5 pr-8 py-1.5 text-xs font-bold text-text outline-none focus:border-accent/40 appearance-none cursor-pointer"
