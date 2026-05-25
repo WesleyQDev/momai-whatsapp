@@ -114,11 +114,11 @@ class WakeWordDetector:
         self.max_recording_duration = 15.0
 
         # --- Call mode parameters (higher thresholds to avoid false triggers) ---
-        self.call_energy_threshold = 0.03   # Less sensitive to background (was 0.012/0.02)
-        self.call_silence_chunks = 4        # Balanced end-of-speech (was 3/5)
-        self.call_min_speech_chunks = 3     # Better noise filtering (was 2/4)
-        self.call_interrupt_threshold = 0.04 # Harder to interrupt by noise (was 0.025)
-        self.post_tts_cooldown = 0.7        # More breathing room after smooth TTS (was 1.0)
+        self.call_energy_threshold = 0.02   # Balanced for call mode
+        self.call_silence_chunks = 4        # Balanced end-of-speech
+        self.call_min_speech_chunks = 2     # Allow shorter responses
+        self.call_interrupt_threshold = 0.06 # Higher to avoid echo interruption
+        self.post_tts_cooldown = 1.2        # More breathing room after smooth TTS
         self._tts_stop_time = 0.0
 
         # --- State machine ---
@@ -788,7 +788,6 @@ class WakeWordDetector:
                 "inscreva", "inscrever", "subscribe", "obrigada",
                 "tchau", "ate", "continue assistindo", "thank you",
                 "thanks for watching", "hum", "hmm", "ah", "oh",
-                "sim", "nao", "e", "a", "o", "ok",
             ]
             if text.strip() in call_hallucinations:
                 logger.debug(f"[WakeWord] Call mode: filtered hallucination: '{text}'")

@@ -279,6 +279,7 @@ const CallModeContent = ({
   const [displayedWords, setDisplayedWords] = useState<string[]>([])
   const [wordIndex, setWordIndex] = useState(0)
   const lastMsgRef = useRef<string | null>(null)
+  const wordsRef = useRef<string[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -286,24 +287,34 @@ const CallModeContent = ({
       setDisplayedWords([])
       setWordIndex(0)
       lastMsgRef.current = null
+      wordsRef.current = []
       return
     }
 
     const content = stripMarkdown(lastAssistant.content)
-    const words = content.split(/\s+/)
+    const words = content.split(/\s+/).filter(Boolean)
+    wordsRef.current = words
 
     // Detect if this is a NEW message (not just a streaming update)
-    // We check if the ID changed or if the new content doesn't start with the old one
-    const msgId = lastAssistant.id || content.slice(0, 30)
-    if (lastMsgRef.current !== msgId) {
+    // We prefer ID, but fallback to a stable prefix if ID is not available
+    const msgId = lastAssistant.id ?? content.slice(0, 50)
+    
+    // If the message is shorter than what we had, or ID changed, it's new
+    const isNewMessage = lastMsgRef.current !== msgId && 
+                         (!lastMsgRef.current || !content.startsWith(lastMsgRef.current.toString().slice(0, 20)))
+
+    if (isNewMessage) {
       setDisplayedWords([])
       setWordIndex(0)
       lastMsgRef.current = msgId
     }
+  }, [lastAssistant?.content, lastAssistant?.id])
 
-    // Smooth timer to add words one by one
+  // Independent animation timer
+  useEffect(() => {
     const timer = setInterval(() => {
       setWordIndex((prev) => {
+        const words = wordsRef.current
         if (prev < words.length) {
           const next = prev + 1
           setDisplayedWords(words.slice(0, next))
@@ -311,10 +322,10 @@ const CallModeContent = ({
         }
         return prev
       })
-    }, 380) // 380ms for an elegant, readable pace
+    }, 150) // Faster (150ms) for better responsiveness
 
     return () => clearInterval(timer)
-  }, [lastAssistant?.content])
+  }, [])
 
   // 2. Auto-scroll to bottom as words appear
   useEffect(() => {
@@ -385,6 +396,11 @@ const CallModeContent = ({
           }}
         >
           <div className="flex flex-wrap justify-center gap-x-2 gap-y-1.5 pt-12">
+            {status === 'processing' && displayedWords.length === 0 && (
+              <span className="text-xl font-semibold tracking-tight text-white/20 animate-pulse italic">
+                Pensando...
+              </span>
+            )}
             {displayedWords.map((word, idx) => {
               const isLatest = idx === displayedWords.length - 1
               const shouldHighlight = isLatest && isSpeaking

@@ -461,6 +461,21 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
     }
   })
 
+  async function notifyPythonTtsStatus(isSpeaking: boolean) {
+    try {
+      const url = `http://${PYTHON_SIDECAR_HOST}:${PYTHON_SIDECAR_PORT}/voice/tts-status`
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_speaking: isSpeaking })
+      })
+      logger.debug(`[CoreManager] Notified Python TTS status: is_speaking=${isSpeaking}`)
+    } catch (err) {
+      // Don't log full error to avoid spamming while dev core is down
+      logger.debug(`[CoreManager] Could not notify Python TTS status (sidecar offline?)`)
+    }
+  }
+
   async function handleTtsSpeak(requestId: string, text: string, voice: string, engine: TTSEngine) {
     try {
       const ttsService = getTTSService()
@@ -475,7 +490,12 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
       }
 
       logger.info('[CoreManager] Calling ttsService.speak()...')
+      
+      // Notify starting
+      await notifyPythonTtsStatus(true)
+      
       await ttsService.speak(text, engine || 'edge-tts')
+      
       logger.info('[CoreManager] ttsService.speak() DONE')
 
       if (child.connected) {
@@ -495,6 +515,9 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
           error: error?.message || String(error)
         })
       }
+    } finally {
+      // Always notify stopped
+      await notifyPythonTtsStatus(false)
     }
   }
 }
