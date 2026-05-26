@@ -20,6 +20,21 @@ function matchKeyword(inputTokens, keywordTokens) {
   return true
 }
 
+function countContiguousMatch(inputTokens, keywordTokens) {
+  if (!keywordTokens.length || keywordTokens.length > inputTokens.length) return 0
+  for (let i = 0; i <= inputTokens.length - keywordTokens.length; i++) {
+    let ok = true
+    for (let j = 0; j < keywordTokens.length; j++) {
+      if (inputTokens[i + j] !== keywordTokens[j]) {
+        ok = false
+        break
+      }
+    }
+    if (ok) return keywordTokens.length
+  }
+  return 0
+}
+
 let _store = null
 
 function setStore(storeRef) {
@@ -60,6 +75,7 @@ function routeByKeyword(text, skillRegistry) {
 
   const inputTokens = tokenize(normalized)
   const keywords = getKeywords()
+  let best = null
 
   for (const [skillId, words] of Object.entries(keywords)) {
     const skill = skillRegistry.getById(skillId)
@@ -67,13 +83,28 @@ function routeByKeyword(text, skillRegistry) {
 
     for (const kw of words) {
       const kwTokens = tokenize(kw)
-      if (matchKeyword(inputTokens, kwTokens)) {
-        return { skillId, keyword: kw }
+      if (!kwTokens.length) continue
+      if (!matchKeyword(inputTokens, kwTokens)) continue
+
+      const contiguous = countContiguousMatch(inputTokens, kwTokens)
+      const tokenLen = kwTokens.length
+      const charLen = normalizeAccents(kw).length
+      const score = contiguous * 10 + tokenLen * 3 + Math.min(8, Math.floor(charLen / 6))
+
+      if (!best || score > best.score) {
+        best = { skillId, keyword: kw, score }
       }
     }
   }
 
-  return null
+  if (!best) return null
+  return { skillId: best.skillId, keyword: best.keyword }
 }
 
-module.exports = { routeByKeyword, tokenize, matchKeyword, setStore, seedDefaultKeywords }
+module.exports = {
+  routeByKeyword,
+  tokenize,
+  matchKeyword,
+  setStore,
+  seedDefaultKeywords
+}

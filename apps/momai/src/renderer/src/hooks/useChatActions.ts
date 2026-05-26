@@ -131,11 +131,12 @@ export function useChatActions({
       setText('')
 
       if (isSilent) {
+        const messageThreadId = currentThreadRef.current || threadId
         try {
           const memoryPayload = await buildInjectedMemory(content)
           await sendChatMessage(
             content,
-            threadId,
+            messageThreadId,
             {
               onToken: () => {},
               onStatus: () => {},
@@ -166,14 +167,14 @@ export function useChatActions({
         updater: (prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '...' }]
       })
 
-      const messageThreadId = threadId
+      const messageThreadId = currentThreadRef.current || threadId
       const isFirstMessage = messagesRef.current.length <= 1
 
       try {
         const memoryPayload = await memoryPromise
         await sendChatMessage(
           content,
-          threadId,
+          messageThreadId,
           {
             onToken: (token) => {
               if (currentThreadRef.current !== messageThreadId) return

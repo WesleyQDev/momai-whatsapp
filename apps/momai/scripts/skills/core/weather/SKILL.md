@@ -11,6 +11,8 @@ version: 1.0.0
 intents:
   - clima
   - tempo
+  - tempo hoje
+  - clima hoje
   - tempo em
   - temperatura
   - temperatura em
@@ -31,6 +33,11 @@ intents:
   - umidade
   - vento
   - tempestade
+  - máxima
+  - minima
+  - mínima
+  - sensação térmica
+  - sensacao termica
   - vai chover
   - vai fazer sol
   - faz calor

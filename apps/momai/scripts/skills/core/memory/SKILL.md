@@ -10,10 +10,18 @@ author: MomAI Team
 version: 1.0.0
 intents:
   - memoria
+  - memória
   - anote
   - salve
   - guarde
   - nota
+  - anotar
+  - salvar nota
+  - guardar informação
+  - guardar informacao
+  - lembrar disso
+  - registrar
+  - lembrar depois
   - remember this
   - save this
 allowed-tools: save_note_memory search_note_memory

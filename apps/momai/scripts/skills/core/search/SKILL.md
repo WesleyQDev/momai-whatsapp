@@ -13,17 +13,36 @@ intents:
   - pesquisar
   - buscar
   - busque
+  - procurar na internet
+  - pesquisa na web
+  - buscar na internet
+  - procure
   - search
   - internet
   - web
   - noticias
   - news
+  - manchetes
+  - novidades
+  - atualizar
   - ultimas noticias
+  - últimas notícias
   - o que esta acontecendo
-  - Preço
-  - Price
-  - Dolar
-  - Cotação
+  - o que está acontecendo
+  - preço
+  - cotacao
+  - cotação
+  - valor do
+  - quanto está
+  - price
+  - dolar
+  - dólar
+  - câmbio
+  - cambio
+  - taxa
+  - llm news
+  - notícias llm
+  - novidades llm
 allowed-tools: web_search
 compatibility: MomAI Node Core Ultra
 ---

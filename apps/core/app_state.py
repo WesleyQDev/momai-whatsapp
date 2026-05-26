@@ -96,6 +96,11 @@ def set_external_tts_speaking(speaking: bool) -> None:
     global external_tts_speaking
     external_tts_speaking = speaking
     logger.debug("[Main] External TTS speaking: %s", speaking)
+    if ww:
+        try:
+            ww.flush_buffers()
+        except Exception:
+            logger.debug("[Main] Failed to flush WW buffers on TTS state change", exc_info=True)
     if not speaking and ww:
         try:
             import time

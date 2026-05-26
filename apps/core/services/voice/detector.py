@@ -140,6 +140,7 @@ class WakeWordDetector:
         self.wake_word_active = True
         self._stop_event = threading.Event()
         self._last_keyword_time = 0
+        self._seq_counter = 0
     
     def _load_model(self, retries=0):
         """Lazy load heavy dependencies and model."""
@@ -279,7 +280,7 @@ class WakeWordDetector:
                         self._tts_stop_time = time.time()
 
                     # In call mode: interrupt TTS when user speaks
-                    # In normal mode: listen for wake word even when TTS is speaking
+                    # In normal mode: ignore mic while TTS is speaking to avoid self-listening.
                     if tts_speaking:
                         if in_call_mode:
                             energy = self._get_chunk_energy(chunk)
@@ -297,30 +298,9 @@ class WakeWordDetector:
                             else:
                                 continue
                         else:
-                            # Normal mode: listen for wake word "Luna" even when TTS is speaking
-                            energy = self._get_chunk_energy(chunk)
-                            if energy > self.speech_energy_threshold:
-                                if self.state == self.STATE_IDLE:
-                                    self._set_state(self.STATE_LISTENING)
-                                    self.speech_buffer = [chunk]
-                                    self.speech_chunk_count = 1
-                                    self.silence_counter = 0
-                                    self.recorded_samples = len(chunk)
-                                elif self.state == self.STATE_LISTENING:
-                                    self.speech_buffer.append(chunk)
-                                    self.recorded_samples += len(chunk)
-                                    self.speech_chunk_count += 1
-                                    self.silence_counter = 0
-                            elif self.state == self.STATE_LISTENING:
-                                self.speech_buffer.append(chunk)
-                                self.recorded_samples += len(chunk)
-                                self.silence_counter += 1
-
-                                if self.silence_counter >= silence_req:
-                                    if self.speech_chunk_count >= min_speech:
-                                        self._set_state(self.STATE_PROCESSING)
-                                        self._enqueue_recording()
-                                        self._reset_state(silent=True)
+                            # Prevent stale/echo chunks from being queued while assistant speaks.
+                            if self.state == self.STATE_LISTENING:
+                                self._reset_state()
                             continue
 
                     energy = self._get_chunk_energy(chunk)
@@ -424,11 +404,13 @@ class WakeWordDetector:
         audio = np.concatenate(self.speech_buffer)
         had_tts = self.active_recording_had_tts
         try:
-            self.processing_queue.put_nowait((audio, False, had_tts))  # False = Not partial
+            self._seq_counter += 1
+            self.processing_queue.put_nowait((audio, False, had_tts, time.time(), self._seq_counter))  # False = Not partial
         except queue.Full:
             try:
                 self.processing_queue.get_nowait()
-                self.processing_queue.put_nowait((audio, False, had_tts))
+                self._seq_counter += 1
+                self.processing_queue.put_nowait((audio, False, had_tts, time.time(), self._seq_counter))
             except Exception:
                 # Processing queue full and clear failed
                 pass
@@ -443,7 +425,8 @@ class WakeWordDetector:
         try:
             # We don't want to overflow the queue with partials, so we use a non-blocking put
             # and if it's full we just skip this partial (the next one will come soon)
-            self.processing_queue.put_nowait((audio, True, had_tts))  # True = Partial
+            self._seq_counter += 1
+            self.processing_queue.put_nowait((audio, True, had_tts, time.time(), self._seq_counter))  # True = Partial
         except queue.Full:
             pass
 
@@ -452,13 +435,22 @@ class WakeWordDetector:
         while self.running or not self.processing_queue.empty():
             try:
                 audio_data = self.processing_queue.get(timeout=0.5)
-                # handle both old-style 2-tuple and new-style 3-tuple for robustness
-                if len(audio_data) == 3:
+                # handle legacy tuple layouts for robustness
+                if len(audio_data) == 5:
+                    audio, is_partial, had_tts, enqueued_at, seq = audio_data
+                elif len(audio_data) == 3:
                     audio, is_partial, had_tts = audio_data
+                    enqueued_at, seq = time.time(), 0
                 else:
                     audio, is_partial = audio_data
                     had_tts = False
+                    enqueued_at, seq = time.time(), 0
             except queue.Empty:
+                continue
+
+            # Drop stale transcriptions that sat in queue too long.
+            if (time.time() - enqueued_at) > 2.5:
+                logger.debug("[WakeWord] Dropping stale audio from processing queue")
                 continue
 
             if not is_partial:
@@ -699,6 +691,8 @@ class WakeWordDetector:
                             break
                     if detected_variation:
                         break
+                if detected_variation:
+                    break
 
         if detected_variation:
             if not self.wake_word_active:
@@ -732,6 +726,7 @@ class WakeWordDetector:
                 # Small sleep to let the chime start before the UI reacts
                 time.sleep(0.1)
                 self.callback(final_cmd)
+            self.flush_buffers()
             return
 
         # NEW Logic: If TTS was active during this recording AND no wake word was found,
@@ -767,6 +762,7 @@ class WakeWordDetector:
                                 self.last_trigger_time = now
                                 if self.callback:
                                     self.callback(raw_text)
+                                self.flush_buffers()
                                 return
                 except Exception as exc:
                     logger.debug("[WakeWord] Keyword check failed: %s", exc)
@@ -800,6 +796,7 @@ class WakeWordDetector:
             self.last_trigger_time = now
             if self.callback:
                 self.callback(raw_text)
+            self.flush_buffers()
             return
 
     def start(self):

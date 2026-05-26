@@ -11,10 +11,17 @@ version: 1.0.0
 intents:
   - lembrete
   - lembre
-  - Lembreze
+  - lembrar
   - me lembre
   - agenda
   - agendar
+  - compromisso
+  - evento
+  - tarefa
+  - criar lembrete
+  - listar lembretes
+  - remover lembrete
+  - apagar lembrete
   - reminder
   - remind me
   - lembre-se

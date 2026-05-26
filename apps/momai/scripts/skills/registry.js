@@ -403,6 +403,37 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     const q = String(query || '')
     const enabled = getEnabled()
     const lower = q.toLowerCase()
+    const stopwords = new Set([
+      'a',
+      'o',
+      'os',
+      'as',
+      'de',
+      'da',
+      'do',
+      'das',
+      'dos',
+      'e',
+      'em',
+      'no',
+      'na',
+      'nos',
+      'nas',
+      'para',
+      'por',
+      'com',
+      'um',
+      'uma',
+      'me',
+      'mim',
+      'que',
+      'sobre',
+      'the',
+      'and',
+      'for',
+      'with',
+      'you'
+    ])
     const scored = []
 
     for (const skill of enabled) {
@@ -420,6 +451,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
 
       for (const token of lower.split(/\s+/)) {
         if (token.length < 3) continue
+        if (stopwords.has(token)) continue
         if (description.includes(token)) score += 1
       }
 

@@ -269,38 +269,9 @@ function normalizeForMatch(value) {
 }
 
 function shouldExposeSkillTools(userText, selectedSkills, skillRegistry) {
-  const text = normalizeForMatch(userText)
-  if (!text) return false
-
-  // Automatic enable when keyword router strongly matches a specific enabled skill
-  try {
-    const match = routeByKeyword(userText, skillRegistry)
-    if (match?.skillId) {
-      const allowed = new Set((selectedSkills || []).map((s) => s?.id).filter(Boolean))
-      if (allowed.has(match.skillId)) return true
-    }
-  } catch {}
-
-  // Real-time intent heuristic for small/local models: allow a lightweight web/search tool path.
-  const realtimeIntentRegex =
-    /\b(dolar|dólar|cotacao|cotação|preco|preço|agora|hoje|ultimas|últimas|noticias|notícias|tempo real)\b/
-  if (realtimeIntentRegex.test(text)) {
-    const hasSearchSkill = (selectedSkills || []).some((s) => String(s?.id || '') === 'search')
-    if (hasSearchSkill) return true
-  }
-
-  const explicitIntentRegex =
-    /\b(usar|use|utilize|executar|execute|rodar|chamar|ativar|quero usar|tools?|ferramentas?)\b/
-  if (!explicitIntentRegex.test(text)) return false
-
-  for (const skill of selectedSkills || []) {
-    const skillId = normalizeForMatch(skill?.id || '')
-    const skillName = normalizeForMatch(skill?.manifest?.name || '')
-    if ((skillId && text.includes(skillId)) || (skillName && text.includes(skillName))) {
-      return true
-    }
-  }
-  return false
+  // Pure discovery-driven approach:
+  // if at least one relevant skill was discovered, expose tools for top-ranked skills.
+  return Array.isArray(selectedSkills) && selectedSkills.length > 0
 }
 
 function normalizeDiscoveryText(rawText) {

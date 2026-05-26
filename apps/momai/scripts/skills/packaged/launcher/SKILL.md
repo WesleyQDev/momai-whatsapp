@@ -18,6 +18,13 @@ intents:
   - abrir arquivo
   - executar
   - iniciar
+  - iniciar programa
+  - abrir aplicativo
+  - abrir app
+  - abrir diretorio
+  - abrir diretório
+  - localizar arquivo
+  - encontrar pasta
   - open
   - launch
   - run
