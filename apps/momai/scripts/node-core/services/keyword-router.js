@@ -1,3 +1,9 @@
+function normalizeAccents(str) {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
 function tokenize(text) {
   return String(text || '')
     .normalize('NFD')

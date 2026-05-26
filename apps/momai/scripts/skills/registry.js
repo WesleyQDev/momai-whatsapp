@@ -469,7 +469,11 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
 
   async function execute(skillId, input, context, args, toolName) {
     const skill = getById(skillId)
-    if (!skill || !skill.enabled || typeof skill.execute !== 'function') return null
+    if (!skill || !skill.enabled || typeof skill.execute !== 'function') {
+      console.log(`[registry-debug] execute: skill not found/disabled/no execute fn. skillId=${skillId}, exists=${!!skill}, enabled=${skill?.enabled}, hasFn=${typeof skill?.execute === 'function'}`)
+      return null
+    }
+    console.log(`[registry-debug] execute: skillId=${skillId}, kind=${skill.kind}, toolName=${toolName}, isBackground=${!!skill.manifest?.background}`)
 
     const permSchema = createPermissionSchema()
     const perms = skill.manifest.permissions

@@ -757,6 +757,7 @@ function buildCardPayload(query, scored) {
   }
 
   const folderQuery = isFolderQuery(query)
+  const fileQuery = isFileQuery(query)
   const folderCount = scored.filter((i) => i.type === 'Pasta').length
   const fileCount = scored.filter((i) => i.type === 'Arquivo').length
 
