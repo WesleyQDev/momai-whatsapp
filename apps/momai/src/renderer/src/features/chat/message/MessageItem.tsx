@@ -450,6 +450,12 @@ const MessageItem = memo(
     return (
       prev.message.id === next.message.id &&
       prev.message.content === next.message.content &&
+      prev.message.toolSteps === next.message.toolSteps &&
+      prev.message.activities === next.message.activities &&
+      prev.message.sources === next.message.sources &&
+      prev.message.snippets === next.message.snippets &&
+      prev.message.cards === next.message.cards &&
+      prev.message.structuredResponse === next.message.structuredResponse &&
       prev.isSpeaking === next.isSpeaking &&
       prev.isLoading === next.isLoading
     )

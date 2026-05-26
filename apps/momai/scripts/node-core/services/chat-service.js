@@ -21,6 +21,7 @@ const { isoNow } = require('../utils/time')
 const { ensureLlamaReady, getLlamaBaseUrl, saveStore } = require('./llama-manager')
 const { runSemanticMemoryRetrieval, getTop5SkillsSemantic } = require('./semantic-engine')
 const { isSkillEnabledByStore, getEnabledSkills } = require('./skill-orchestrator')
+const { routeByKeyword } = require('./keyword-router')
 const { triggerAutoTts, ensurePython, broadcast } = require('./tts-service')
 const { recordMetric } = require('./observability-service')
 const { DEFAULT_TIERS, loadTierConfig } = require('../config/tiers')
@@ -33,6 +34,7 @@ let stopGenerationRequested = false
 let stopVoiceRequested = false
 let generationId = 0
 const activeChatControllers = new Set()
+const activeGenerationThreads = new Set()
 
 function estimateTokenCount(text) {
   const safe = String(text || '')
@@ -257,6 +259,87 @@ function normalizeLanguageTag(tag) {
   if (short === 'hi') return 'hi'
 
   return 'pt-BR'
+}
+
+function normalizeForMatch(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
+function shouldExposeSkillTools(userText, selectedSkills, skillRegistry) {
+  const text = normalizeForMatch(userText)
+  if (!text) return false
+
+  // Automatic enable when keyword router strongly matches a specific enabled skill
+  try {
+    const match = routeByKeyword(userText, skillRegistry)
+    if (match?.skillId) {
+      const allowed = new Set((selectedSkills || []).map((s) => s?.id).filter(Boolean))
+      if (allowed.has(match.skillId)) return true
+    }
+  } catch {}
+
+  // Real-time intent heuristic for small/local models: allow a lightweight web/search tool path.
+  const realtimeIntentRegex =
+    /\b(dolar|dólar|cotacao|cotação|preco|preço|agora|hoje|ultimas|últimas|noticias|notícias|tempo real)\b/
+  if (realtimeIntentRegex.test(text)) {
+    const hasSearchSkill = (selectedSkills || []).some((s) => String(s?.id || '') === 'search')
+    if (hasSearchSkill) return true
+  }
+
+  const explicitIntentRegex =
+    /\b(usar|use|utilize|executar|execute|rodar|chamar|ativar|quero usar|tools?|ferramentas?)\b/
+  if (!explicitIntentRegex.test(text)) return false
+
+  for (const skill of selectedSkills || []) {
+    const skillId = normalizeForMatch(skill?.id || '')
+    const skillName = normalizeForMatch(skill?.manifest?.name || '')
+    if ((skillId && text.includes(skillId)) || (skillName && text.includes(skillName))) {
+      return true
+    }
+  }
+  return false
+}
+
+function normalizeDiscoveryText(rawText) {
+  const text = String(rawText || '').trim()
+  if (!text) return ''
+  // Remove internal voice/system instruction prefix from routing/discovery signals
+  return text.replace(/^\[INSTRUCAO:[^\]]+\]\s*/i, '').trim()
+}
+
+function buildToolResultPreview(result) {
+  try {
+    if (Array.isArray(result?.webSources) && result.webSources.length > 0) {
+      return result.webSources
+        .slice(0, 3)
+        .map((s) => String(s?.title || '').trim())
+        .filter(Boolean)
+        .join(' | ')
+    }
+    const instruction = String(result?.instruction || '').replace(/\s+/g, ' ').trim()
+    if (instruction) return instruction.slice(0, 220)
+  } catch {}
+  return ''
+}
+
+function pickToolSkillIds({ discoveredSkillIds, routedSkillId, topScores, maxSkills = 2 }) {
+  const ranked = [...new Set(discoveredSkillIds)]
+    .map((id) => ({ id, score: Number(topScores?.[id] || 0) }))
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.id)
+
+  if (!routedSkillId) return ranked.slice(0, maxSkills)
+
+  const out = [routedSkillId]
+  for (const id of ranked) {
+    if (id === routedSkillId) continue
+    out.push(id)
+    if (out.length >= maxSkills) break
+  }
+  return out
 }
 
 function detectLanguageTag(text) {
@@ -613,7 +696,15 @@ function parseLlamaDataLine(line) {
 
 async function streamLlamaChat(req, res, payload) {
   const content = String(payload.content || '')
+  const discoveryContent = normalizeDiscoveryText(payload.discovery_content || content)
   const threadId = String(payload.thread_id || 'default')
+
+  /* Evita geracoes concorrentes para a mesma thread */
+  if (activeGenerationThreads.has(threadId)) {
+    debug(`[chat] Duplicate generation prevented for thread=${threadId}`)
+    return
+  }
+  activeGenerationThreads.add(threadId)
   const responseLanguage = resolveResponseLanguage(content, threadId)
   const fallbackLanguage = normalizeLanguageTag(store.settings.locale || 'pt-BR')
   const speakResponse = payload.speak_response !== false
@@ -841,8 +932,7 @@ async function streamLlamaChat(req, res, payload) {
 
   // Limit history messages to stay within local LLM context limits efficiently
   let messages = history.length > 20 ? history.slice(-20) : [...history]
-  const maxToolRounds = isUltra ? 3 : 1
-  let round = 0
+  const hasHistory = messages.length > 0
   let estimatedPromptTokens = estimateTokenCount(content) + estimateTokenCount(memoryContext)
   let lastSystemMessage = null
   let lastCurrentMessages = []
@@ -963,29 +1053,54 @@ async function streamLlamaChat(req, res, payload) {
       }
     }
 
-    /* Descobre as top 5 skills (ou 3 em tiers econômicos) */
+    /* Descobre as top 5 skills */
     let discoveredSkillIds = []
     let topScores = {}
     let toolsPayload = []
     let toolSteps = []
     let activeSkill = null
 
-    const discoveryLimit = isUltra ? 3 : 5
+    const discoveryLimit = 5
 
     {
       const topN = await (async () => {
         if (isUltra) {
-          const semanticResults = await getTop5SkillsSemantic(content)
-          if (semanticResults.length > 0) {
-            semanticResults.forEach((r) => {
+          const semanticResults = await getTop5SkillsSemantic(discoveryContent)
+          const topSemanticScore = semanticResults[0]?.score || 0
+
+          let lexicalResults = []
+          if (skillRegistry && typeof skillRegistry.discoverTopN === 'function') {
+            lexicalResults = skillRegistry.discoverTopN(discoveryContent, discoveryLimit)
+          }
+
+          // If semantic confidence is weak, rely on lexical ranking
+          if (semanticResults.length > 0 && topSemanticScore >= 0.35) {
+            const blended = new Map()
+            for (const r of semanticResults) {
+              blended.set(r.id, { id: r.id, score: (r.score || 0) * 0.7 })
+            }
+            for (const r of lexicalResults) {
+              const prev = blended.get(r.id)
+              const add = (r.confidence || 0) * 0.3
+              blended.set(r.id, { id: r.id, score: (prev?.score || 0) + add })
+            }
+            const ranked = [...blended.values()].sort((a, b) => b.score - a.score).slice(0, discoveryLimit)
+            ranked.forEach((r) => {
               topScores[r.id] = r.score
             })
-            return semanticResults.slice(0, discoveryLimit).map((r) => r.id)
+            return ranked.map((r) => r.id)
           }
-          debug('[chat] Semantic empty, falling back to lexical')
+
+          if (lexicalResults.length > 0) {
+            lexicalResults.forEach((x) => {
+              topScores[x.id] = x.confidence
+            })
+            return lexicalResults.map((x) => x.id)
+          }
+          return semanticResults.slice(0, discoveryLimit).map((r) => r.id)
         }
         if (skillRegistry && typeof skillRegistry.discoverTopN === 'function') {
-          const d = skillRegistry.discoverTopN(content, discoveryLimit)
+          const d = skillRegistry.discoverTopN(discoveryContent, discoveryLimit)
           if (d.length > 0) {
             d.forEach((x) => {
               topScores[x.id] = x.confidence
@@ -1002,22 +1117,65 @@ async function streamLlamaChat(req, res, payload) {
     let directSkillResult = null
 
     /* Converte as top 5 skills em tools nativas pro LLM */
-    const allSelectedSkills = discoveredSkillIds
-      .map((id) => skillRegistry?.getById?.(id))
-      .filter(Boolean)
+    // If keyword routing found a strong match, ensure that skill is selectable even when
+    // semantic/lexical top-N did not rank it in this turn.
+    let routedSkillId = null
+    try {
+      const kwMatch = routeByKeyword(discoveryContent, skillRegistry)
+      if (kwMatch?.skillId && !discoveredSkillIds.includes(kwMatch.skillId)) {
+        const kwSkill = skillRegistry?.getById?.(kwMatch.skillId)
+        if (kwSkill?.enabled && isSkillEnabledByStore(kwSkill)) {
+          discoveredSkillIds = [kwMatch.skillId, ...discoveredSkillIds].slice(0, discoveryLimit)
+          topScores[kwMatch.skillId] = Math.max(Number(topScores[kwMatch.skillId] || 0), 1)
+          routedSkillId = kwMatch.skillId
+        }
+      } else if (kwMatch?.skillId) {
+        routedSkillId = kwMatch.skillId
+      }
+    } catch {}
+
+    const selectedSkills = discoveredSkillIds.map((id) => skillRegistry?.getById?.(id)).filter(Boolean)
+    const shouldSendTools = shouldExposeSkillTools(discoveryContent, selectedSkills, skillRegistry)
+    if (!shouldSendTools && selectedSkills.length > 0) {
+      debug(
+        `[chat] Tools withheld for context economy. Selected skills: ${selectedSkills
+          .map((s) => s.id)
+          .join(', ')}`
+      )
+    }
+
+    /* Converte skills em tools flat apenas quando o usuario pedir skill especifica */
     if (
-      allSelectedSkills.length > 0 &&
+      shouldSendTools &&
+      selectedSkills.length > 0 &&
       skillRegistry &&
       typeof skillRegistry.toOpenAITools === 'function'
     ) {
-      toolsPayload = skillRegistry.toOpenAITools(discoveredSkillIds)
+      const skillIdsForTools = pickToolSkillIds({
+        discoveredSkillIds,
+        routedSkillId,
+        topScores,
+        maxSkills: 2
+      })
+      toolsPayload = skillRegistry.toOpenAITools(skillIdsForTools)
+      if (toolsPayload.length > 4) {
+        debug(`[chat] Capping tools from ${toolsPayload.length} to 4`)
+        toolsPayload = toolsPayload.slice(0, 4)
+      }
     }
 
-    /* Skills disponiveis como tools para o LLM decidir uso e parametros */
-    if (allSelectedSkills.length > 0) {
-      const skillDesc = allSelectedSkills.length
-        ? `<available_skills>\n${allSelectedSkills.map((s) => `- ${s.manifest.name}: ${s.manifest.description}`).join('\n')}\n</available_skills>\n\nIMPORTANT: Use the tools above to get real data. Do NOT invent or hallucinate results.`
-        : null
+    /* Skills disponiveis e regras de prioridade para o LLM */
+    if (selectedSkills.length > 0) {
+      const skillsBlock = selectedSkills
+        .map((s) => `- ${s.manifest.name}: ${s.manifest.description}`)
+        .join('\n')
+      const toolPriority = hasHistory
+        ? '<no_greeting>NEVER start with a greeting. If the conversation is in progress, begin directly with your answer.</no_greeting>\n\n<tool_priority>\n- For weather, temperature, and forecasts: ALWAYS use get_weather. Do NOT use web_search.\n- web_search is for news, current events, prices, financial data, and real-time info. NOT for weather.\n</tool_priority>'
+        : '<tool_priority>\n- For weather, temperature, and forecasts: ALWAYS use get_weather. Do NOT use web_search.\n- web_search is for news, current events, prices, financial data, and real-time info. NOT for weather.\n</tool_priority>'
+      const toolAvailabilityNote = shouldSendTools
+        ? 'Tool schemas for these skills are available in this turn.'
+        : 'Only skill summaries are available in this turn. Request a specific skill by name if you need its tools and full SKILL.md details.'
+      const skillDesc = `<available_skills>\n${skillsBlock}\n</available_skills>\n\n${toolAvailabilityNote}\n\nIMPORTANT: Do NOT invent or hallucinate tool results.\n\n${toolPriority}`
       toolInstruction = skillDesc
     }
 
@@ -1031,7 +1189,8 @@ async function streamLlamaChat(req, res, payload) {
         memoryContext,
         toolInstruction,
         responseStyle,
-        responseLanguage
+        responseLanguage,
+        hasHistory
       })
     }
     if (extraSystemInstructions.length > 0) {
@@ -1044,7 +1203,7 @@ async function streamLlamaChat(req, res, payload) {
 
     /* Round loop: LLM ve tools, decide se chama alguma, resultado volta */
     let round = 0
-    const maxToolRounds = 3
+    const maxToolRounds = isUltra ? 3 : 2
 
     while (round < maxToolRounds) {
       round++
@@ -1066,7 +1225,7 @@ async function streamLlamaChat(req, res, payload) {
         ),
         messages: allMessages
       }
-      if (toolsPayload.length > 0 && round === 1) {
+      if (toolsPayload.length > 0) {
         requestBody.tools = toolsPayload
       }
       const tokenizePromise = tokenizePrompt(allMessages)
@@ -1082,7 +1241,7 @@ async function streamLlamaChat(req, res, payload) {
       lastToolsPayload = toolsPayload
 
       /* Show "Buscando..." during LLM thinking instead of just "Pensando..." */
-      if (allSelectedSkills.length > 0 && round === 1) {
+      if (selectedSkills.length > 0 && round === 1) {
         const _sse = writeSse(res, { status: 'Buscando...' })
         if (_sse instanceof Promise) await _sse
       }
@@ -1327,6 +1486,7 @@ async function streamLlamaChat(req, res, payload) {
             args = { content: rawArgs }
           }
 
+          /* Converte tools normais para execucao */
           let skillId = toolName
           const skillRegistryRef = getSkillRegistry()
           let skillObj = null
@@ -1458,6 +1618,30 @@ async function streamLlamaChat(req, res, payload) {
                 throw new Error('Skill registry not available')
               }
 
+              const toolStartedAt = Date.now()
+              const runningStep = {
+                skill_id: skillId,
+                skill_name: skillObj.manifest.name,
+                tool: toolName,
+                name: toolName,
+                description: String(
+                  (skillObj.manifest.tools || []).find((t) => t.name === toolName)?.description || ''
+                ),
+                status: 'running',
+                started_at: isoNow(),
+                args: args?.query || args?.content || null
+              }
+              toolSteps.push(runningStep)
+              activeSkill = skillId
+              {
+                const _sse = writeSse(res, { active_skill: activeSkill })
+                if (_sse instanceof Promise) await _sse
+              }
+              {
+                const _sse = writeSse(res, { tool_steps: toolSteps })
+                if (_sse instanceof Promise) await _sse
+              }
+
               const result = await skillRegistry.execute(
                 skillId,
                 args.content || content,
@@ -1482,25 +1666,11 @@ async function streamLlamaChat(req, res, payload) {
                 }
               }
 
-              const toolStep = {
-                skill_id: skillId,
-                skill_name: skillObj.manifest.name,
-                tool: toolName,
-                name: toolName,
-                description: String(
-                  (skillObj.manifest.tools || []).find((t) => t.name === toolName)?.description ||
-                    ''
-                ),
-                status: result ? 'success' : 'error',
-                started_at: isoNow(),
-                args: args?.query || args?.content || null
-              }
-              toolSteps.push(toolStep)
-              activeSkill = skillId
-              {
-                const _sse = writeSse(res, { active_skill: activeSkill })
-                if (_sse instanceof Promise) await _sse
-              }
+              runningStep.status = result ? 'success' : 'error'
+              runningStep.duration_ms = Date.now() - toolStartedAt
+              runningStep.finished_at = isoNow()
+              const preview = buildToolResultPreview(result)
+              if (preview) runningStep.result_preview = preview
               {
                 const _sse = writeSse(res, { tool_steps: toolSteps })
                 if (_sse instanceof Promise) await _sse
@@ -1540,6 +1710,17 @@ async function streamLlamaChat(req, res, payload) {
                 result: toolResultText || result?.directResponse || 'ok'
               })
             } catch (execError) {
+              if (toolSteps.length > 0) {
+                const last = toolSteps[toolSteps.length - 1]
+                if (last && last.name === toolName && last.status === 'running') {
+                  last.status = 'error'
+                  last.finished_at = isoNow()
+                  {
+                    const _sse = writeSse(res, { tool_steps: toolSteps })
+                    if (_sse instanceof Promise) await _sse
+                  }
+                }
+              }
               messages.push({
                 role: 'tool',
                 tool_call_id: tc.id || `call_${toolName}`,
@@ -1842,6 +2023,7 @@ async function streamLlamaChat(req, res, payload) {
     endSse(res)
   } finally {
     activeChatControllers.delete(controller)
+    activeGenerationThreads.delete(threadId)
   }
 }
 
@@ -1926,6 +2108,7 @@ async function runVoiceCommand(payload = {}) {
 
   await streamLlamaChat(reqMock, resMock, {
     content,
+    discovery_content: originalContent,
     thread_id: threadId,
     speak_response: speakResponse,
     memory_sources: keywordWebSources?.length ? keywordWebSources : undefined

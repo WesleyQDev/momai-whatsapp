@@ -1,5 +1,11 @@
 module.exports = {
-  tools: [{ name: 'web_search', description: 'Realiza busca web e retorna fontes resumidas.' }],
+  tools: [
+    {
+      name: 'web_search',
+      description:
+        'Busca na web por noticias, precos, cotacoes, dolar e informacoes atualizadas. NAO use para clima, temperatura ou previsao do tempo - use get_weather para esses casos.'
+    }
+  ],
 
   async execute({ content, context }) {
     const text = String(content || '').trim()

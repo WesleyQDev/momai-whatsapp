@@ -1,5 +1,11 @@
 function tokenize(text) {
-  return text.toLowerCase().trim().split(/\s+/).filter(Boolean)
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
 }
 
 function matchKeyword(inputTokens, keywordTokens) {
@@ -32,9 +38,12 @@ function seedDefaultKeywords(skillRegistry) {
     const id = skill.manifest?.id || skill.id
     if (!id) continue
 
-    // If the skill already has an entry in skillKeywords (even if empty),
-    // we do NOT auto-seed. This respects user manual additions/deletions.
-    if (id in _store.skillKeywords) continue
+    // Seed if missing OR currently empty.
+    // This recovers old stores that persisted empty arrays and blocked routing forever.
+    if (id in _store.skillKeywords) {
+      const existing = _store.skillKeywords[id]
+      if (Array.isArray(existing) && existing.length > 0) continue
+    }
 
     const newKeywords = (skill.manifest?.intents || skill.manifest?.triggers || []).filter(Boolean)
     if (newKeywords.length === 0) continue

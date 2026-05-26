@@ -399,7 +399,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     return result.length > 0 ? result[0] : null
   }
 
-  function discoverTopN(query, n = 3) {
+  function discoverTopN(query, n = 4) {
     const q = String(query || '')
     const enabled = getEnabled()
     const lower = q.toLowerCase()

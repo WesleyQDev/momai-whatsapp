@@ -29,6 +29,21 @@ export const ToolSteps: React.FC<ToolStepsProps> = ({
 }) => {
   const memSteps = segmentSteps.filter((s) => s.isMemory)
   const tSteps = segmentSteps.filter((s) => !s.isMemory)
+  const hasRunning = tSteps.some((s) => s.status === 'running')
+  const [autoOpen, setAutoOpen] = React.useState(hasRunning)
+
+  React.useEffect(() => {
+    if (hasRunning) {
+      setAutoOpen(true)
+      return
+    }
+    const timer = setTimeout(() => setAutoOpen(false), 700)
+    return () => clearTimeout(timer)
+  }, [hasRunning, tSteps.length])
+
+  const manualState = toolsBlockExpanded[segmentIdx]
+  const shouldExpandTools =
+    manualState === true ? true : manualState === false ? false : Boolean(autoOpen)
 
   return (
     <div className="flex flex-col mt-0.5 mb-0 gap-1.5">
@@ -40,7 +55,7 @@ export const ToolSteps: React.FC<ToolStepsProps> = ({
             onClick={() =>
               setToolsBlockExpanded((prev) => ({
                 ...prev,
-                [segmentIdx]: !prev[segmentIdx]
+                [segmentIdx]: shouldExpandTools ? false : true
               }))
             }
             className="flex items-center gap-2 text-[15px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors self-start mb-0.5"
@@ -101,10 +116,9 @@ export const ToolSteps: React.FC<ToolStepsProps> = ({
           >
             <span>
               {(() => {
-                const isRunning = tSteps.some((s) => s.status === 'running')
                 const count = tSteps.length
-                const verb = isRunning ? 'Executando' : 'Executou'
-                return `${verb} ${count} comando${count > 1 ? 's' : ''}${isRunning ? '...' : ''}`
+                const verb = hasRunning ? 'Executando' : 'Executou'
+                return `${verb} ${count} comando${count > 1 ? 's' : ''}${hasRunning ? '...' : ''}`
               })()}
             </span>
             <svg
@@ -114,7 +128,7 @@ export const ToolSteps: React.FC<ToolStepsProps> = ({
               fill="none"
               stroke="currentColor"
               strokeWidth="2.5"
-              className={`transition-transform duration-200 ${toolsBlockExpanded[segmentIdx] || tSteps.some((s) => s.status === 'running') ? 'rotate-180' : ''}`}
+              className={`transition-transform duration-400 ${shouldExpandTools ? 'rotate-180' : ''}`}
             >
               <polyline points="6 9 12 15 18 9" />
             </svg>
@@ -122,7 +136,7 @@ export const ToolSteps: React.FC<ToolStepsProps> = ({
         )}
 
         <div
-          className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out origin-top ${toolsBlockExpanded[segmentIdx] || tSteps.some((s) => s.status === 'running') ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+          className={`grid transition-[grid-template-rows,opacity] duration-500 ease-in-out origin-top ${shouldExpandTools ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
         >
           <div className="overflow-hidden">
             <div className="flex flex-col ml-1 relative">
@@ -134,7 +148,7 @@ export const ToolSteps: React.FC<ToolStepsProps> = ({
                   className="flex items-start gap-4 mb-5 relative group z-10 animate-in fade-in duration-300"
                 >
                   <div
-                    className={`mt-0.5 w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 bg-card border ${group.status === 'running' ? 'border-blue-400 text-blue-500' : 'border-zinc-300 dark:border-white/20 text-zinc-500 dark:text-zinc-400'} z-10`}
+                    className={`mt-0.5 w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 bg-card border ${group.status === 'running' ? 'border-zinc-300 dark:border-white/20 text-zinc-500 dark:text-zinc-400' : 'border-zinc-300 dark:border-white/20 text-zinc-500 dark:text-zinc-400'} z-10`}
                   >
                     {group.status === 'running' ? (
                       <svg
@@ -169,6 +183,11 @@ export const ToolSteps: React.FC<ToolStepsProps> = ({
                         {group.description}
                       </span>
                     )}
+                    {group.step?.result_preview && (
+                      <span className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2">
+                        {cleanUIMetadata(String(group.step.result_preview))}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -184,7 +203,7 @@ export const ToolSteps: React.FC<ToolStepsProps> = ({
                       </svg>
                     </div>
                     <span className="text-[13px] text-zinc-600 dark:text-zinc-400">
-                      Pesquisa <span className="font-medium">Busca na web</span>
+                      Fontes <span className="font-medium">consultadas</span>
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-x-2 ml-[22px]">
@@ -210,7 +229,7 @@ export const ToolSteps: React.FC<ToolStepsProps> = ({
 
               {/* Completion indicator */}
               {tSteps.every((s) => s.status !== 'running') && (
-                <div className="flex items-center gap-4 mt-1 relative z-10">
+                <div className="flex items-center gap-4 mt-1 relative z-10 animate-in fade-in duration-300">
                   <div className="w-[16px] h-[16px] rounded-full flex items-center justify-center flex-shrink-0 border-[1.5px] border-zinc-400 text-zinc-500 ml-[0.5px]">
                     <svg
                       width="8"

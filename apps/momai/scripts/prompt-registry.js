@@ -106,6 +106,16 @@ function createPromptRegistry({ promptsDir }) {
     const tierCfg =
       (prompts.tiers && prompts.tiers[tier]) || prompts.tiers.pro || prompts.tiers.lite || {}
 
+    /* Se ha historico, substitui a saudacao de inicio por instrucao de NAO saudar */
+    let rawInstructions = String(tierCfg.tier_instructions || '')
+    if (input.hasHistory) {
+      rawInstructions = rawInstructions
+        .replace(
+          /Greet( the user)? with a friendly sentence of at least 3 words and an emoji( only)? when starting( a conversation)?\./gi,
+          'The conversation is already in progress. NEVER greet or introduce yourself - respond directly.'
+        )
+    }
+
     const vars = {
       assistant_persona: sanitize(input.persona || prompts.default_persona || ''),
       response_style: sanitize(
@@ -114,7 +124,7 @@ function createPromptRegistry({ promptsDir }) {
       max_sentences: Number.isFinite(Number(tierCfg.max_sentences))
         ? Number(tierCfg.max_sentences)
         : Number(prompts.default_max_sentences || 6),
-      tier_instructions: sanitize(String(tierCfg.tier_instructions || '')),
+      tier_instructions: sanitize(rawInstructions),
       response_language_block: sanitize(formatResponseLanguageInstruction(input.responseLanguage)),
       runtime_clock: sanitize(buildRuntimeClockContext()),
       memory_block: input.memoryContext ? `MEMORY CONTEXT:\n${sanitize(input.memoryContext)}` : '',
