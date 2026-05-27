@@ -129,11 +129,8 @@ git tag vX.Y.Z
 #### 4. Release local (tudo num comando)
 
 ```powershell
-# Auto-detecta a versão do git tag
-.\scripts\release.ps1
-
-# Ou especifica manualmente
-.\scripts\release.ps1 -Version 1.5.0
+pnpm run release                  # auto-detecta do git tag
+pnpm run release -- -Version 1.5.0  # versão manual
 ```
 
 O que esse comando faz:
