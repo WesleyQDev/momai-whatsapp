@@ -54,6 +54,29 @@ function isDevPackage(name) {
   return DEV_SKIP_PREFIXES.some((p) => name.startsWith(p))
 }
 
+/* Recursive copy that works with ASAR paths (fs.cpSync fails inside ASAR) */
+function copyDirRecursiveSync(src, dest) {
+  const stack = [[src, dest]]
+  while (stack.length > 0) {
+    const [s, d] = stack.pop()
+    fs.mkdirSync(d, { recursive: true })
+    const entries = fs.readdirSync(s, { withFileTypes: true })
+    for (const entry of entries) {
+      const sPath = path.join(s, entry.name)
+      const dPath = path.join(d, entry.name)
+      if (entry.isDirectory()) {
+        stack.push([sPath, dPath])
+      } else {
+        try {
+          fs.writeFileSync(dPath, fs.readFileSync(sPath))
+        } catch (e) {
+          console.log(`[extensions]   file copy failed: ${entry.name}: ${e.message}`)
+        }
+      }
+    }
+  }
+}
+
 function copyDependency(name, nmPaths, targetNm, visited) {
   if (visited.has(name)) return
   visited.add(name)
@@ -73,9 +96,9 @@ function copyDependency(name, nmPaths, targetNm, visited) {
   if (fs.existsSync(dest)) return
 
   fs.mkdirSync(path.dirname(dest), { recursive: true })
-  console.log(`[extensions] Copying dep: ${name} from: ${src}`)
+  console.log(`[extensions] Copying dep: ${name}`)
   try {
-    fs.cpSync(src, dest, { recursive: true, force: true, dereference: true })
+    copyDirRecursiveSync(src, dest)
   } catch (cpErr) {
     console.log(`[extensions] Failed to copy ${name}: ${cpErr.message}`)
     return
