@@ -370,9 +370,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
 
   llamaState.startingPromise = (async () => {
     try {
-      if (forceRestart) {
-        await stopLlamaServer()
-      }
+      await stopLlamaServer()
       const myGeneration = llamaStartGeneration
       debug(
         `[llama] ensuring llama ready. tier: ${tierName}, file: ${tierConfig.file}, generation: ${myGeneration}`
