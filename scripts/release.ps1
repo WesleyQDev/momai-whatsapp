@@ -115,6 +115,11 @@ if ($LASTEXITCODE -ne 0) { Write-Host "  docker cp had issues, continuing..." -F
 docker rm $containerId | Out-Null
 Write-Host "  Artifacts extracted to $distDir"
 
+# ── Cleanup: remove Linux-only files downloaded by Docker hydrate ─
+foreach ($p in @("$rootDir/apps/momai/bin/llama", "$rootDir/apps/momai/bin/python/linux")) {
+  if (Test-Path $p) { Remove-Item -Recurse -Force $p -ErrorAction SilentlyContinue }
+}
+
 # ── Step 5: Collect and upload ──────────────────────────────────
 Write-Host "[5/5] Uploading to WesleyQDev/MomAI-App..."
 $artifacts = @(Get-ChildItem -Path $distDir -Include @('*.exe','*.AppImage','*.deb','*.yml','*.blockmap') -File)
