@@ -2,56 +2,6 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
-## 1.4.1 - 2026-05-27
-
-Correções na extensão WhatsApp e no pipeline de dependências
-
-## 🐛 Correções
-
-- **ASAR + cpSync**: Substituído `fs.cpSync` por cópia arquivo-por-arquivo (`readFileSync` + `writeFileSync`) para compatibilidade com Electron ASAR em builds empacotadas (APPX, NSIS)
-- **Resolução de dependências**: Adicionado `process.resourcesPath` + `require.resolve` fallback para encontrar deps dentro do ASAR
-- **Falha não-fatal**: Instalação de dependências não quebra mais a extensão se um dep opcional falhar
-- **Landing page**: Ícones de extensão com filtro `brightness-0 invert` para SVGs externos exibirem branco em fundo colorido
-- **.gitignore**: Corrigido conflito da regra `lib/` (Python template) com `apps/landing-page/src/lib/`
-
-## ✨ Melhorias
-
-- **WhatsApp extensão**: QR code funcional em builds APPX, dependências copiadas corretamente (230 pacotes, 8336 arquivos)
-- **Deploy landing page**: `git pull --rebase` antes do push para evitar race condition
-
-## 1.4.0 - 2026-05-10
-
-Integração WhatsApp, Extensões, Modo Economia e Desempenho
-
-## ✨ Novas Funcionalidades
-
-- **WhatsApp**: Integração completa via Baileys — overlay de notificações, comandos de voz ("responda"), card de chat, envio de mensagens, grupos e contatos
-- **Extensões**: Sistema de extensões com workers persistentes, dependências copiadas do app, NODE_PATH, eventos SSE, permissões granulares, painel lateral dinâmico
-- **Keyword Router**: Atalhos de voz para skills — "responda", "pesquise", comandos customizados por extensão
-- **Modo Economia**: Detecção automática de jogos (Steam/Epic), pausa do LLM durante jogos, overlay de RAM/VRAM liberados, catálogo com capas
-- **TTS Engine Selector**: Escolha entre edge-tts (cloud) e kokoro (local) no onboarding e configurações
-- **Observability**: Traços de execução, timeline, filtros, gráficos, persistência em disco
-- **Dev Tools**: Painel de desenvolvimento com toggles de logs, observability e context ring
-- **llama.cpp b9165**: Atualização massiva (+169 releases) do motor de inferência
-
-## ⚙️ Melhorias
-
-- **Performance**: SQLAlchemy assíncrono, httpx pool, cache TTL de settings, FFT condicional, WebSocket concorrente, SSE backpressure, TTS throttling, pruning de mensagens, consolidação de useReducer
-- **Testes**: Suite completa com ~30 arquivos de teste (hooks, componentes, serviços, utilitários)
-- **Overlay onboarding**: Transição suave de tier com overlay + loading, polling de status
-- **Deploy manual**: Substituída GitHub Pages action por script de deploy direto
-- **Regras .gitignore**: Adicionado `worktrees/`, `runtime-data/`
-
-## 🐛 Correções
-
-- **Call mode**: Rollback frontend, sync startup, ws resync, error feedback
-- **TTS**: Cleanup de AudioContext, speak handler não-bloqueante
-- **Reminders**: Limite de repeat_count, correção de triggers múltiplos
-- **Settings cache**: NameError de variável após import
-- **Economy**: Race conditions, toggle persistência, cobertura de jogos (Fortnite, Firestone)
-- **CORS**: PUT method adicionado para skills keywords API
-- **Various**: build, typecheck, lint fixes
-
 ## 1.3.0 - 2026-05-02
 
 ## 1.2.0 - 2026-04-22
