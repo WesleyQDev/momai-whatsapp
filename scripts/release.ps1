@@ -54,9 +54,34 @@ Write-Host "`u{1F680} Releasing $version"
 Write-Host "`n`u{1F4E6} Checking Docker..."
 docker ps > $null 2>&1
 if ($LASTEXITCODE -ne 0) {
-  Write-Host "`u{274C} Docker Desktop is not running." -ForegroundColor Red
-  Write-Host "   Start it manually and try again." -ForegroundColor Yellow
-  exit 1
+  Write-Host "  Docker not responding, starting Docker Desktop..."
+  $dockerPath = "${env:ProgramFiles}\Docker\Docker\Docker Desktop.exe"
+  if (Test-Path $dockerPath) {
+    Start-Process $dockerPath
+    Write-Host "  Waiting for Docker daemon (up to 120s)..."
+    $dockerReady = $false
+    $waited = 0
+    while ($waited -lt 120) {
+      Start-Sleep -Seconds 3
+      $waited += 3
+      docker ps > $null 2>&1
+      if ($LASTEXITCODE -eq 0) {
+        $dockerReady = $true
+        Write-Host "  Docker ready after ${waited}s"
+        break
+      }
+      Write-Host "  still waiting (${waited}s)..."
+    }
+    if (-not $dockerReady) {
+      Write-Host "`u{274C} Docker did not start in time." -ForegroundColor Red
+      Write-Host "   Start Docker Desktop manually and try again." -ForegroundColor Yellow
+      exit 1
+    }
+  } else {
+    Write-Host "`u{274C} Docker Desktop not found at $dockerPath" -ForegroundColor Red
+    Write-Host "   Install from https://docs.docker.com/desktop/setup/install/windows-install/" -ForegroundColor Yellow
+    exit 1
+  }
 }
 
 # ── Step 2: Sync version to apps/momai/package.json ─────────────
