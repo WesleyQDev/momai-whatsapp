@@ -58,6 +58,7 @@ function copyDependency(name, nmPaths, targetNm, visited) {
   const dest = path.join(targetNm, name)
   if (fs.existsSync(dest)) return
 
+  fs.mkdirSync(path.dirname(dest), { recursive: true })
   console.log(`[extensions] Copying dep: ${name}`)
   fs.cpSync(src, dest, { recursive: true, force: true, dereference: true })
 
