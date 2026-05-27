@@ -147,9 +147,7 @@ async function ensureEmbeddingReady() {
       const availableBackends = llamaManager.listAvailableBackends()
       const backend =
         preferred === 'auto'
-          ? availableBackends.includes('vulkan')
-            ? 'vulkan'
-            : availableBackends[0] || 'cpu'
+          ? 'cpu'
           : availableBackends.includes(preferred)
             ? preferred
             : 'cpu'
