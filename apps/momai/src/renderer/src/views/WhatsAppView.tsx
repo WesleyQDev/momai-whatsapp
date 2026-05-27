@@ -359,7 +359,8 @@ export default function WhatsAppView() {
     setHasCredentials(false)
     setQrUrl(null)
     qrRequestInFlight.current = false
-  }, [])
+    requestQr({ force: true }).catch(() => {})
+  }, [requestQr])
 
   const requestQr = useCallback(
     async (opts?: { force?: boolean }): Promise<boolean> => {
