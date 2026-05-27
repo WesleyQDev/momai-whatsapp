@@ -1,0 +1,11 @@
+# Ignore everything that would make the Docker build slow
+node_modules/
+.git/
+.dev-data/
+.worktrees/
+.act/
+.venv/
+__pycache__/
+*.pyc
+dist/
+.vscode/

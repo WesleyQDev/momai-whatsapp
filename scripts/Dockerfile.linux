@@ -1,20 +1,19 @@
 FROM node:20-bookworm
 
-# System deps for Electron Linux builds (same as release.yml)
 RUN apt-get update && apt-get install -y \
-  libgtk-3-dev \
-  libnotify-dev \
-  libnss3 \
-  libxss1 \
-  libxtst6 \
-  xvfb \
-  rpm \
-  fakeroot \
-  dos2unix \
+  libgtk-3-dev libnotify-dev libnss3 libxss1 libxtst6 \
+  xvfb rpm fakeroot \
   && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g pnpm
 
-WORKDIR /workspace
+WORKDIR /app
 
+COPY . .
 
+ARG VERSION
+RUN cd apps/momai && pnpm version "$VERSION" --no-git-tag-version --allow-same-version
+
+RUN pnpm install --no-frozen-lockfile --filter momai
+
+RUN pnpm --filter momai build:linux

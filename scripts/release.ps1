@@ -98,25 +98,17 @@ if ($LASTEXITCODE -ne 0) { throw "Windows build failed" }
 Pop-Location
 
 # ── Step 4: Build Linux (Docker) ────────────────────────────────
-Write-Host "[3/5] Building Linux builder image..."
-docker build -f "$rootDir/scripts/Dockerfile.linux" -t momai-linux-builder "$rootDir" 2>&1 | Out-Null
+Write-Host "[3/5] Building Linux (Docker build + container)..."
+docker build -f "$rootDir/scripts/Dockerfile.linux" `
+  -t momai-linux-builder `
+  --build-arg "VERSION=$cleanVersion" `
+  "$rootDir"
+if ($LASTEXITCODE -ne 0) { throw "Docker build failed" }
 
-Write-Host "[4/5] Building Linux (Docker container)..."
-docker run --rm `
-  -v "${rootDir}:/workspace" `
-  -w /workspace `
-  momai-linux-builder `
-  bash -c @"
-set -e
-echo '[container] Fixing CRLF in shell scripts (Windows -> Linux compat)...'
-find /workspace -name '*.sh' -exec dos2unix {} + 2>/dev/null || true
-echo '[container] Installing Linux dependencies...'
-pnpm install --no-frozen-lockfile --store-dir /tmp/pnpm-store 2>&1 | tail -5
-echo '[container] Building Linux...'
-pnpm --filter momai build:linux 2>&1
-echo '[container] Done.'
-"@
-if ($LASTEXITCODE -ne 0) { throw "Linux build failed" }
+Write-Host "[4/5] Extracting Linux artifacts..."
+docker create --name momai-temp momai-linux-builder | Out-Null
+docker cp momai-temp:/app/apps/momai/dist/. "$rootDir/apps/momai/dist/" 2>&1 | Out-String | Write-Host
+docker rm momai-temp | Out-Null
 
 # ── Step 5: Collect and upload ──────────────────────────────────
 Write-Host "[5/5] Uploading to WesleyQDev/MomAI-App..."
