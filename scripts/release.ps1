@@ -21,17 +21,17 @@
     # Override version:
     .\scripts\release.ps1 -Version 1.5.0
 #>
-param(
-  [string]$Version = ""
-)
-
 $ErrorActionPreference = "Stop"
 $rootDir = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 
 # ── Step 0: Detect version ──────────────────────────────────────
+$Version = ""
+for ($i = 0; $i -lt $args.Count; $i++) {
+  if ($args[$i] -eq '-Version' -and ($i + 1) -lt $args.Count) { $Version = $args[$i + 1] }
+}
 if ($Version) {
+  if (-not $Version.StartsWith('v')) { $Version = "v$Version" }
   $version = $Version
-  if (-not $version.StartsWith('v')) { $version = "v$version" }
   Write-Host "`u{1F4E6} Releasing $version (manual override)"
 } else {
   $version = git describe --tags --abbrev=0 --exact-match 2>$null
