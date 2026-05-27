@@ -543,7 +543,8 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
                 cwd: exeDir,
                 env: {
                   ...process.env,
-                  PATH: `${exeDir}${path.delimiter}${process.env.PATH || ''}`
+                  PATH: `${exeDir}${path.delimiter}${process.env.PATH || ''}`,
+                  GGML_VULKAN_DEVICE: '0'
                 },
                 shell: false,
                 stdio: ['ignore', 'pipe', 'pipe']
