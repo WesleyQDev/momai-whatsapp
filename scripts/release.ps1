@@ -103,7 +103,6 @@ docker build -f "$rootDir/scripts/Dockerfile.linux" -t momai-linux-builder "$roo
 
 Write-Host "[4/5] Building Linux (Docker container)..."
 docker run --rm `
-  -e PNPM_NODE_LINKER=hoisted `
   -v "${rootDir}:/workspace" `
   -w /workspace `
   momai-linux-builder `
@@ -111,11 +110,8 @@ docker run --rm `
 set -e
 echo '[container] Fixing CRLF in shell scripts (Windows -> Linux compat)...'
 find /workspace -name '*.sh' -exec dos2unix {} + 2>/dev/null || true
-echo '[container] Removing app node_modules for clean Linux install...'
-rm -rf /workspace/apps/momai/node_modules 2>/dev/null || true
 echo '[container] Installing Linux dependencies...'
-cd /workspace
-pnpm install --no-frozen-lockfile 2>&1 | tail -3
+pnpm install --no-frozen-lockfile --store-dir /tmp/pnpm-store 2>&1 | tail -5
 echo '[container] Building Linux...'
 pnpm --filter momai build:linux 2>&1
 echo '[container] Done.'
