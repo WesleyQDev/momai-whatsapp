@@ -95,6 +95,7 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
 export default function WhatsAppNotificationCard({ data }: { data: any }) {
   if (!data) return null
 
+  const senderName = data?.senderName
   const contact = data?.contact || data?.from || 'Desconhecido'
   const message = data?.message || data?.text || ''
   const conversationHistory: HistoryLine[] = data?.conversationHistory || []
@@ -137,6 +138,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
   const expandQuickReply = useCallback(
     async (intent: string) => {
+      const displayContact = senderName || contact
       try {
         const res = await fetch(`${API_URL}/extensions/llm/complete`, {
           method: 'POST',
@@ -144,7 +146,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           body: JSON.stringify({
             prompt: [
               'Escreva APENAS o texto de uma mensagem de WhatsApp a ser enviada.',
-              `Contato: ${contact}`,
+              `Contato: ${displayContact}`,
               isGroup ? `Grupo: ${groupName}` : '',
               conversationHistory.length > 0
                 ? `Historico recente:\n${conversationHistory
@@ -169,7 +171,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         return intent
       }
     },
-    [contact, message, isGroup, groupName, conversationHistory]
+    [contact, senderName, message, isGroup, groupName, conversationHistory]
   )
 
   const beginUserSend = useCallback(() => {
@@ -299,7 +301,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           </p>
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="text-[11px] text-text-muted font-medium">
-              {isGroup ? `${contact} no WhatsApp` : 'WhatsApp'}
+              {isGroup ? `${senderName || contact} no WhatsApp` : 'WhatsApp'}
             </span>
             <svg
               viewBox="0 0 24 24"

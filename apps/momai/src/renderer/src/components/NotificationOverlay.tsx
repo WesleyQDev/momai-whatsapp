@@ -145,7 +145,7 @@ export default function NotificationOverlay() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 contact: event.data.contact,
-                senderName: event.data.contact,
+                senderName: event.data.senderName || event.data.contact,
                 senderJid,
                 message: event.data.message,
                 contactJid,
@@ -343,6 +343,7 @@ function NotificationCard({
   onRespond: (message: string) => void
 }) {
   const { data, voice } = notification
+  const senderName = data?.senderName || data?.contact || data?.from || 'Desconhecido'
   const contact = data?.contact || data?.from || 'Desconhecido'
   const message = data?.message || data?.text || ''
   const quickReplies = data?.quickReplies || []
@@ -362,7 +363,7 @@ function NotificationCard({
           <p className="text-sm font-medium text-white truncate">{isGroup ? groupName : contact}</p>
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="text-xs text-text-muted">
-              {isGroup ? `${contact} no WhatsApp` : 'WhatsApp'}
+              {isGroup ? `${senderName} no WhatsApp` : 'WhatsApp'}
             </span>
             <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-[#25D366] shrink-0">
               <path d="M12.004 2C6.48 2 2 6.48 2 12.004c0 1.764.46 3.42 1.264 4.888L2 22l5.228-1.372a9.948 9.948 0 0 0 4.776 1.216c5.52 0 10.004-4.484 10.004-10.004C22.008 6.48 17.524 2 12.004 2zm5.728 14.18c-.248.704-1.44 1.284-1.984 1.34-.496.052-1.136.236-3.3-.62-2.764-1.092-4.512-3.904-4.652-4.088-.14-.184-1.12-1.48-1.12-2.824 0-1.344.704-2.008.956-2.272.248-.268.544-.336.728-.336h.548c.18 0 .42.064.64.584l1.112 2.684c.104.24.16.48.02.764-.1.2-.22.424-.36.564-.14.14-.28.3-.12.58.62 1.052 1.38 1.86 2.448 2.492.28.16.46.1.64-.1.18-.2.784-.9 1.004-1.2.22-.3.444-.24.764-.12.32.12 2.016.952 2.356 1.12.34.172.568.252.648.392.08.14.08.82-.168 1.52z" />

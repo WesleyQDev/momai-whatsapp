@@ -124,7 +124,10 @@ class WakeWordDetector:
         # --- State machine ---
         self.state = self.STATE_IDLE
         self.speech_buffer = []
-        self.speech_chunk_count = 0 
+        self.tts_buffer = []
+        self.tts_buffer_samples = 0
+        self._tts_bg_energy = 0.005  # rolling baseline for TTS background energy
+        self.speech_chunk_count = 0
         self.silence_counter = 0
         self.recorded_samples = 0
         self.active_recording_had_tts = False
@@ -279,8 +282,8 @@ class WakeWordDetector:
                     elif self._tts_stop_time == 0.0:
                         self._tts_stop_time = time.time()
 
-                    # In call mode: interrupt TTS when user speaks
-                    # In normal mode: ignore mic while TTS is speaking to avoid self-listening.
+                    # In call mode: interrupt TTS when user speaks (by energy threshold).
+                    # In normal mode: detect energy spike and immediately send for wake word check.
                     if tts_speaking:
                         if in_call_mode:
                             energy = self._get_chunk_energy(chunk)
@@ -297,11 +300,27 @@ class WakeWordDetector:
                                 continue
                             else:
                                 continue
-                        else:
-                            # Prevent stale/echo chunks from being queued while assistant speaks.
-                            if self.state == self.STATE_LISTENING:
-                                self._reset_state()
-                            continue
+                        # During TTS, accumulate audio and detect energy spike (user speaking).
+                        # Once we have enough samples OR an energy spike, send for transcription.
+                        energy = self._get_chunk_energy(chunk)
+                        self.tts_buffer.append(chunk)
+                        self.tts_buffer_samples += len(chunk)
+                        # Estimate TTS background energy from recent chunks
+                        self._tts_bg_energy = self._tts_bg_energy * 0.95 + energy * 0.05
+                        spike = energy > self._tts_bg_energy * 2.5 and energy > 0.01
+                        enough_samples = self.tts_buffer_samples >= self.sample_rate * 1.5
+                        if spike or enough_samples:
+                            audio = np.concatenate(self.tts_buffer)
+                            self.tts_buffer = []
+                            self.tts_buffer_samples = 0
+                            try:
+                                self._seq_counter += 1
+                                self.processing_queue.put_nowait(
+                                    (audio, False, True, time.time(), self._seq_counter)
+                                )
+                            except queue.Full:
+                                pass
+                        continue
 
                     energy = self._get_chunk_energy(chunk)
                     is_speech = energy > energy_thresh
@@ -393,6 +412,9 @@ class WakeWordDetector:
             except queue.Empty:
                 break
         # Reset the state machine
+        self.tts_buffer = []
+        self.tts_buffer_samples = 0
+        self._tts_bg_energy = 0.005
         self._reset_state()
         logger.debug("[WakeWord] Buffers flushed.")
 
@@ -473,19 +495,22 @@ class WakeWordDetector:
 
         try:
             # Optimized parameters for accuracy and low latency
+            # Disable VAD when TTS was speaking (audio may have mixed TTS echo +
+            # user voice that VAD would incorrectly filter as non-speech).
+            use_vad = not had_tts
             segments, info = self.model.transcribe(
                 audio,
                 language="pt",
                 beam_size=1 if is_partial else 2,
                 best_of=1,
                 initial_prompt="Luna. MomAI. Assistente virtual. Comandos em português brasileiro.",
-                vad_filter=True,
+                vad_filter=use_vad,
                 vad_parameters=dict(
-                    min_silence_duration_ms=400,  # More robust (was 350)
-                    speech_pad_ms=250,            
-                    threshold=0.5,                # Less sensitive (was 0.4)
+                    min_silence_duration_ms=400 if use_vad else 0,
+                    speech_pad_ms=250 if use_vad else 0,
+                    threshold=0.5 if use_vad else 0.0,
                 ),
-                no_speech_threshold=0.6,          # More aggressive on silence (was 0.4)
+                no_speech_threshold=0.6 if use_vad else 0.0,
                 log_prob_threshold=-1.0,
                 condition_on_previous_text=False,
                 suppress_blank=True,
@@ -551,10 +576,12 @@ class WakeWordDetector:
                     if not had_tts or (self.bypass_condition and self.bypass_condition()):
                         self.partial_callback(raw_text)
                 
-                # To prevent premature triggering ("Luna..." cutting off the user), 
-                # we no longer perform early-exit on partials in the normal wake-word mode.
-                # This ensures we wait for the silence timeout (_silence_chunks_required) 
-                # before processing the final command.
+                # During TTS, partial transcriptions from the sliding buffer need
+                # a wake word check to allow "Luna" to interrupt the assistant.
+                if had_tts and self._check_wake_word_fuzzy(raw_text):
+                    return  # wake word handled inside _check_wake_word_fuzzy (stops TTS etc.)
+                
+                # For non-TTS partials, return early to avoid premature triggering.
                 return
 
             if not is_repeat:

@@ -1090,41 +1090,23 @@ async function streamLlamaChat(req, res, payload) {
     /* Converte as top 5 skills em tools nativas pro LLM */
     // If keyword routing found a strong match, ensure that skill is selectable even when
     // semantic/lexical top-N did not rank it in this turn.
-    info(
-      `[chat-debug] discovery: discoveredSkillIds=[${discoveredSkillIds.join(', ')}], topScores=${JSON.stringify(topScores)}`
-    )
-
     let routedSkillId = null
     try {
       const kwMatch = routeByKeyword(discoveryContent, skillRegistry)
-      info(
-        `[chat-debug] keywordRouter: kwMatch=${JSON.stringify(kwMatch)}, discoveryContent="${discoveryContent}"`
-      )
       if (kwMatch?.skillId && !discoveredSkillIds.includes(kwMatch.skillId)) {
         const kwSkill = skillRegistry?.getById?.(kwMatch.skillId)
         if (kwSkill?.enabled && isSkillEnabledByStore(kwSkill)) {
           discoveredSkillIds = [kwMatch.skillId, ...discoveredSkillIds].slice(0, discoveryLimit)
           topScores[kwMatch.skillId] = Math.max(Number(topScores[kwMatch.skillId] || 0), 1)
           routedSkillId = kwMatch.skillId
-          info(`[chat-debug] keywordRouter: injected skill "${kwMatch.skillId}" into discoveredSkillIds`)
-        } else {
-          info(`[chat-debug] keywordRouter: skill "${kwMatch.skillId}" found but not enabled`)
         }
       } else if (kwMatch?.skillId) {
         routedSkillId = kwMatch.skillId
-        info(`[chat-debug] keywordRouter: routedSkillId="${kwMatch.skillId}" (already in discoveredSkillIds)`)
-      } else {
-        info(`[chat-debug] keywordRouter: no keyword match found`)
       }
-    } catch (e) {
-      info(`[chat-debug] keywordRouter error: ${e.message}`)
-    }
+    } catch {}
 
     const selectedSkills = discoveredSkillIds.map((id) => skillRegistry?.getById?.(id)).filter(Boolean)
     const shouldSendTools = shouldExposeSkillTools(discoveryContent, selectedSkills, skillRegistry)
-    info(
-      `[chat-debug] selectedSkills: [${selectedSkills.map((s) =>`${s.id}(${s.manifest?.name})`).join(', ')}], shouldSendTools=${shouldSendTools}`
-    )
     if (!shouldSendTools && selectedSkills.length > 0) {
       debug(
         `[chat] Tools withheld for context economy. Selected skills: ${selectedSkills
@@ -1146,13 +1128,7 @@ async function streamLlamaChat(req, res, payload) {
         topScores,
         maxSkills: 2
       })
-      info(
-        `[chat-debug] pickToolSkillIds: skillIdsForTools=[${skillIdsForTools.join(', ')}], routedSkillId=${routedSkillId}`
-      )
       toolsPayload = skillRegistry.toOpenAITools(skillIdsForTools)
-      info(
-        `[chat-debug] toOpenAITools: tools=[${toolsPayload.map((t) => t.function?.name).join(', ')}] (total=${toolsPayload.length})`
-      )
       const MAX_OPENAI_TOOLS = 8
       if (toolsPayload.length > MAX_OPENAI_TOOLS) {
         // Distribui tools entre as skills selecionadas em vez de cortar cegamente.
@@ -1460,9 +1436,6 @@ async function streamLlamaChat(req, res, payload) {
             continue
           }
           if (parsed.type === 'token') {
-            info(
-              `[chat-debug] LLM token: "${parsed.token.slice(0, 80).replace(/\n/g, '\\n')}" (roundText_len=${roundText.length}, toolCallsAccum=${toolCallsAccum.length})`
-            )
             if (!roundText) {
               tFirstToken = Date.now()
               lastTFirstToken = tFirstToken
@@ -1491,34 +1464,18 @@ async function streamLlamaChat(req, res, payload) {
         }
       }
 
-      info(
-        `[chat-debug] Round result: text_len=${roundText.length}, tool_calls=${toolCallsAccum.length}, finish_reason=${roundFinishReason}, assembled_len=${assembled.length}, assembled=(assembled || '').slice(0, 120).replace(/\n/g, '\\n')}`
+      debug(
+        `[chat] Round result: text_len=${roundText.length}, tool_calls=${toolCallsAccum.length}`
       )
-      if (toolCallsAccum.length > 0) {
-        info(
-          `[chat-debug] Tool calls detected: ${toolCallsAccum
-            .map((tc) => `${tc.function?.name}(${tc.function?.arguments?.slice(0, 80)})`)
-            .join(', ')}`
-        )
-      }
       lastFinishReason = roundFinishReason || lastFinishReason
-
-      info(
-        `[chat-debug] ToolCallsAccum condition: length=${toolCallsAccum.length}, hasFuncName=${!!toolCallsAccum[0]?.function?.name}, funcName=${toolCallsAccum[0]?.function?.name || 'null'}, firstTcKeys=${Object.keys(toolCallsAccum[0] || {}).join(',')}`
-      )
       if (toolCallsAccum.length > 0 && toolCallsAccum[0]?.function?.name) {
         const executedTools = []
         let skipLlmRound = false
-        info(`[chat-debug] ENTERED tool execution block, toolCallsAccum.length=${toolCallsAccum.length}`)
         for (const tc of toolCallsAccum) {
-          if (!tc?.function?.name) {
-            info(`[chat-debug] Skipping tool call: no function name, tc=${JSON.stringify(tc).slice(0, 200)}`)
-            continue
-          }
+          if (!tc?.function?.name) continue
 
           const toolName = tc.function.name
           const rawArgs = tc.function.arguments || '{}'
-          info(`[chat-debug] Processing tool: ${toolName}, rawArgs=${rawArgs.slice(0, 100)}`)
           let args
           try {
             args = JSON.parse(rawArgs)
@@ -1535,24 +1492,13 @@ async function streamLlamaChat(req, res, payload) {
           }
 
           if (!skillObj) {
-            info(
-              `[chat-debug] skillObj not found by getById("${skillId}"), searching enabled skills for tool "${toolName}"...`
-            )
-            const enabledSkills = getEnabledSkills()
-            info(`[chat-debug] enabledSkills count=${enabledSkills.length}, ids=[${enabledSkills.map((s) => s.id).join(', ')}]`)
-            for (const skill of enabledSkills) {
-              const toolNames = (skill.manifest.tools || []).map((t) => t.name)
-              const match = toolNames.find((n) => n === toolName)
-              info(`[chat-debug]   skill "${skill.id}" (kind=${skill.kind}, enabled=${skill.enabled}): tools=[${toolNames.join(', ')}], match=${match || 'none'}`)
+            for (const skill of getEnabledSkills()) {
+              const match = (skill.manifest.tools || []).find((t) => t.name === toolName)
               if (match) {
                 skillId = skill.id
                 skillObj = skill
-                info(`[chat-debug] FOUND skill "${skill.id}" for tool "${toolName}"`)
                 break
               }
-            }
-            if (!skillObj) {
-              info(`[chat-debug] TOOL "${toolName}" NOT FOUND in any enabled skill!`)
             }
           }
 
@@ -1693,18 +1639,12 @@ async function streamLlamaChat(req, res, payload) {
                 if (_sse instanceof Promise) await _sse
               }
 
-              info(
-                `[chat-debug] Calling skillRegistry.execute: skillId=${skillId}, toolName=${toolName}, kind=${skillObj?.kind}`
-              )
               const result = await skillRegistry.execute(
                 skillId,
                 args.content || content,
                 runtimeContext,
                 args,
                 toolName
-              )
-              info(
-                `[chat-debug] skillRegistry.execute returned: result=${typeof result === 'object' ? JSON.stringify(result).slice(0, 200) : String(result)}`
               )
               if (result?.directResponse) skipLlmRound = true
               const toolResultText = skipLlmRound
@@ -1766,13 +1706,7 @@ async function streamLlamaChat(req, res, payload) {
                 name: toolName,
                 result: toolResultText || result?.directResponse || 'ok'
               })
-              info(
-                `[chat-debug] executedTools AFTER push: length=${executedTools.length}, items=[${executedTools.map((e) => e.name).join(', ')}]`
-              )
             } catch (execError) {
-              info(
-                `[chat-debug] Tool execution error: tool=${toolName}, error="${execError?.message || 'tool execution failed'}"`
-              )
               if (toolSteps.length > 0) {
                 const last = toolSteps[toolSteps.length - 1]
                 if (last && last.name === toolName && last.status === 'running') {
@@ -1798,9 +1732,6 @@ async function streamLlamaChat(req, res, payload) {
             })
           }
         }
-        info(
-          `[chat-debug] After tool loop: skipLlmRound=${skipLlmRound}, executedTools.length=${executedTools.length}`
-        )
         if (skipLlmRound) break
         if (executedTools.length > 0) {
           info(
@@ -1809,7 +1740,6 @@ async function streamLlamaChat(req, res, payload) {
           continue
         }
       }
-      info(`[chat-debug] No tools executed, breaking while loop`)
       break
     }
 
@@ -1897,9 +1827,6 @@ async function streamLlamaChat(req, res, payload) {
     /* ── Retry: if LLM returned nothing usable (empty or only <think> tags),
        generate a contextual fallback so the user never sees a blank message ── */
     const visibleText = assembled.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
-    info(
-      `[chat-debug] Fallback check: visibleText="${visibleText.slice(0, 100)}", assembled_len=${assembled.length}, bufferedStructuredResponse=${!!bufferedStructuredResponse}, directSkillResult=${!!directSkillResult}`
-    )
     if (!visibleText && bufferedStructuredResponse && directSkillResult?.instruction) {
       const skillText = directSkillResult.instruction
       assembled = skillText
@@ -2108,6 +2035,19 @@ async function runVoiceCommand(payload = {}) {
   const threadId = String(payload.thread_id || 'default')
   const speakResponse = payload.speak_response !== false
   debug(`[voice-cmd] runVoiceCommand called: content="${content.slice(0, 80)}", thread=${threadId}`)
+
+  // Stop any ongoing generation and TTS before starting a new voice command.
+  // This prevents the previous LLM from mixing with the new command.
+  if (activeGenerationThreads.has(threadId)) {
+    info(`[voice-cmd] Stopping previous generation on thread ${threadId} for new voice command`)
+    for (const controller of activeChatControllers) {
+      try { controller.abort() } catch {}
+    }
+    activeChatControllers.clear()
+    activeGenerationThreads.delete(threadId)
+  }
+  stopGenerationRequested = false
+  stopVoiceRequested = false
 
   broadcast({ type: 'user', content: originalContent })
 

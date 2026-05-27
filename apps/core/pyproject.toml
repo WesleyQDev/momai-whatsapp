@@ -1,6 +1,6 @@
 [project]
 name = "core"
-version = "1.4.0"
+version = "1.4.1"
 description = "MomAI Core - Simplified Plugin Runner"
 readme = "README.md"
 requires-python = ">=3.12"

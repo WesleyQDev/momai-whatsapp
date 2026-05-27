@@ -536,6 +536,20 @@ export function useChatHandlers({
           })
         }
 
+        if (data.sources) {
+          dispatch({
+            type: 'UPDATE_MESSAGES',
+            updater: (prev) => {
+              const updated = [...prev]
+              const lastIdx = findLastAssistantIndex(updated)
+              if (lastIdx >= 0) {
+                updated[lastIdx] = { ...updated[lastIdx], sources: data.sources }
+              }
+              return updated
+            }
+          })
+        }
+
         if (data.tool_steps) {
           dispatch({
             type: 'UPDATE_MESSAGES',
@@ -579,6 +593,10 @@ export function useChatHandlers({
               return updated
             }
           })
+        }
+
+        if (data.error) {
+          dispatch({ type: 'SET_LOADING', isLoading: false })
         }
 
         if (data.done) {
