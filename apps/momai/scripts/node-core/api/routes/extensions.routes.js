@@ -18,8 +18,17 @@ function findAllNodeModules() {
     if (fs.existsSync(nm)) found.push(nm)
     if (path.dirname(dir) === dir) break
   }
-  found.reverse()
-  return found
+  // In Electron ASAR-packaged builds, also check resourcesPath
+  try {
+    if (process.resourcesPath) {
+      const asarNm = path.join(process.resourcesPath, 'app.asar', 'node_modules')
+      if (fs.existsSync(asarNm)) found.push(asarNm)
+      const unpackedNm = path.join(process.resourcesPath, 'app', 'node_modules')
+      if (fs.existsSync(unpackedNm)) found.push(unpackedNm)
+    }
+  } catch {}
+  // Deduplicate (Set preserves insertion order)
+  return [...new Set(found.reverse())]
 }
 
 function resolveDepPath(name, nmPaths) {
@@ -27,6 +36,11 @@ function resolveDepPath(name, nmPaths) {
     const p = path.join(nm, name)
     if (fs.existsSync(p)) return p
   }
+  // Fallback: try require.resolve (handles ASAR and pnpm resolution)
+  try {
+    const resolved = require.resolve(name + '/package.json', { paths: [__dirname] })
+    return path.dirname(resolved)
+  } catch {}
   return null
 }
 
@@ -59,8 +73,13 @@ function copyDependency(name, nmPaths, targetNm, visited) {
   if (fs.existsSync(dest)) return
 
   fs.mkdirSync(path.dirname(dest), { recursive: true })
-  console.log(`[extensions] Copying dep: ${name}`)
-  fs.cpSync(src, dest, { recursive: true, force: true, dereference: true })
+  console.log(`[extensions] Copying dep: ${name} from: ${src}`)
+  try {
+    fs.cpSync(src, dest, { recursive: true, force: true, dereference: true })
+  } catch (cpErr) {
+    console.log(`[extensions] Failed to copy ${name}: ${cpErr.message}`)
+    return
+  }
 
   const pkgJsonPath = path.join(src, 'package.json')
   if (!fs.existsSync(pkgJsonPath)) return
@@ -88,6 +107,8 @@ async function installExtensionDependencies(extDir) {
   if (deps.length === 0) return
 
   const nmPaths = findAllNodeModules()
+  console.log(`[extensions] Found ${nmPaths.length} node_modules paths for dep install`)
+  nmPaths.forEach((p) => console.log(`[extensions]   candidate: ${p}`))
   if (nmPaths.length === 0) {
     console.log('[extensions] Could not locate any node_modules for dep install')
     return
@@ -292,7 +313,11 @@ function createExtensionsRoutes(context) {
             fs.unlinkSync(zipPath)
           } catch {}
           flattenExtractedDir(extDir)
-          await installExtensionDependencies(extDir)
+          try {
+            await installExtensionDependencies(extDir)
+          } catch (depErr) {
+            console.log(`[extensions] Dep install failed (non-fatal): ${depErr.message}`)
+          }
         } catch (err) {
           try {
             fs.rmSync(extDir, { recursive: true, force: true })
