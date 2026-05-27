@@ -9,11 +9,17 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-COPY . .
+# Deps definition (rarely changes → cached in layer)
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY apps/momai/package.json apps/momai/electron-builder.yml apps/momai/
 
-ARG VERSION
-RUN cd apps/momai && pnpm version "$VERSION" --no-git-tag-version --allow-same-version
-
+# Install deps (cached unless lockfile changes)
 RUN pnpm install --no-frozen-lockfile --filter momai
 
+# Source code (changes often)
+COPY . .
+
+# Set version and build
+ARG VERSION
+RUN cd apps/momai && pnpm version "$VERSION" --no-git-tag-version --allow-same-version
 RUN pnpm --filter momai build:linux
