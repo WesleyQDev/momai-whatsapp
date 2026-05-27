@@ -9,6 +9,7 @@ const cpuDir = path.join(llamaDir, 'cpu')
 const vulkanDir = path.join(llamaDir, 'vulkan')
 
 const isWin = process.platform === 'win32'
+const isLinux = process.platform === 'linux'
 
 function exists(p) {
   try {
@@ -27,16 +28,16 @@ function runHydrate() {
   execSync(cmd, { cwd: rootDir, stdio: 'inherit' })
 }
 
-if (!isWin) {
-  process.exit(0)
-}
+const cpuName = isWin ? 'llama-server.exe' : 'llama-server'
+const vulkanName = isWin ? 'llama-server.exe' : 'llama-server'
 
-const cpuExe = path.join(cpuDir, 'llama-server.exe')
-const vulkanExe = path.join(vulkanDir, 'llama-server.exe')
+const cpuExe = path.join(cpuDir, cpuName)
+const vulkanExe = path.join(vulkanDir, vulkanName)
 
 const hasExpected = exists(cpuExe) && exists(vulkanExe)
 if (hasExpected) {
-  console.log('[MomAI] Dev binary check: OK (Windows llama CPU+Vulkan present).')
+  const label = isWin ? 'Windows' : isLinux ? 'Linux' : 'macOS'
+  console.log(`[MomAI] Dev binary check: OK (${label} llama CPU+Vulkan present).`)
   process.exit(0)
 }
 

@@ -1,0 +1,103 @@
+#!/usr/bin/env pwsh
+<#
+.SYNOPSIS
+  Builds MomAI for Windows (native) and Linux (Docker), then uploads
+  all artifacts to https://github.com/WesleyQDev/MomAI-App as a release.
+
+.DESCRIPTION
+  Prerequisites:
+    - Git tag on current HEAD (e.g. v1.4.1)
+    - Docker Desktop running (for Linux build)
+    - gh CLI authenticated with repo scope on WesleyQDev/MomAI-App
+    - pnpm, Node.js 20
+
+  Usage:
+    # After creating a tag:
+    git tag v1.5.0
+    .\scripts\release.ps1
+#>
+
+$ErrorActionPreference = "Stop"
+$rootDir = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+
+# ── Step 0: Validate ────────────────────────────────────────────
+$version = git describe --tags --abbrev=0 --exact-match 2>$null
+if (-not $version) {
+  Write-Host "`u{274C} No annotated tag on current HEAD." -ForegroundColor Red
+  Write-Host "   Create one first:  git tag vX.Y.Z" -ForegroundColor Yellow
+  exit 1
+}
+$cleanVersion = $version -replace '^v', ''
+Write-Host "`u{1F680} Releasing $version"
+
+# ── Step 1: Ensure Docker is running ─────────────────────────────
+Write-Host "`n`u{1F4E6} Checking Docker..."
+docker ps > $null 2>&1
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "`u{274C} Docker Desktop is not running." -ForegroundColor Red
+  Write-Host "   Start it manually and try again." -ForegroundColor Yellow
+  exit 1
+}
+
+# ── Step 2: Sync version to apps/momai/package.json ─────────────
+Write-Host "`n[1/5] Syncing version..."
+Push-Location "$rootDir/apps/momai"
+pnpm version $cleanVersion --no-git-tag-version --allow-same-version | Out-Null
+Pop-Location
+
+# ── Step 3: Build Windows ───────────────────────────────────────
+Write-Host "[2/5] Building Windows (native)..."
+Push-Location "$rootDir"
+pnpm --filter momai build:win
+if ($LASTEXITCODE -ne 0) { throw "Windows build failed" }
+Pop-Location
+
+# ── Step 4: Build Linux (Docker) ────────────────────────────────
+Write-Host "[3/5] Building Linux builder image..."
+docker build -f "$rootDir/scripts/Dockerfile.linux" -t momai-linux-builder "$rootDir" 2>&1 | Out-Null
+
+Write-Host "[4/5] Building Linux (Docker container)..."
+docker run --rm `
+  -e PNPM_NODE_LINKER=hoisted `
+  -v "${rootDir}:/workspace" `
+  -w /workspace `
+  momai-linux-builder `
+  bash -c @"
+set -e
+echo '[container] Installing dependencies...'
+pnpm install --no-frozen-lockfile 2>&1 | tail -1
+echo '[container] Building Linux...'
+pnpm --filter momai build:linux 2>&1
+echo '[container] Done.'
+"@
+if ($LASTEXITCODE -ne 0) { throw "Linux build failed" }
+
+# ── Step 5: Collect and upload ──────────────────────────────────
+Write-Host "[5/5] Uploading to WesleyQDev/MomAI-App..."
+$distDir = "$rootDir/apps/momai/dist"
+$artifacts = @(Get-ChildItem -Path $distDir -Include @('*.exe','*.AppImage','*.deb','*.yml','*.blockmap') -File)
+if ($artifacts.Count -eq 0) {
+  Write-Host "`u{274C} No artifacts found in $distDir" -ForegroundColor Red
+  exit 1
+}
+Write-Host "  Artifacts:" ($artifacts | ForEach-Object { "`n    $($_.Name)" })
+$paths = $artifacts | ForEach-Object { $_.FullName }
+
+$created = $false
+try {
+  gh release create $version `
+    --repo WesleyQDev/MomAI-App `
+    --title "MomAI $version" `
+    --latest `
+    --notes "Release automático local." `
+    $paths 2>&1 | Out-String | Write-Host
+  $created = $true
+} catch {
+  Write-Host "  Release already exists, uploading additional artifacts..."
+}
+
+if (-not $created) {
+  gh release upload $version --repo WesleyQDev/MomAI-App --clobber $paths 2>&1 | Out-String | Write-Host
+}
+
+Write-Host "`u{2705} Release $version completed!" -ForegroundColor Green

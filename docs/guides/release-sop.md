@@ -2,14 +2,13 @@
 
 ## Visão Geral
 
-| Etapa | Onde | Por que |
-|-------|------|---------|
-| CI (lint + typecheck) | act local + Docker | Evita consumir minutos do GitHub |
-| Build Windows (.exe) | act local (-self-hosted) | Build nativo no Windows |
-| Build Linux (.AppImage/.deb) | GitHub Actions | act não roda Linux com GPU/aceleração de build |
-| APPX (Microsoft Store) | Local manual (já faz) | Precisa de certificado + sign |
-| Upload release público | GitHub Actions | Só upload de arquivos — minutos mínimos |
-| Landing page deploy | act local + Docker | Evita minutos extras |
+| Etapa | Onde | Como |
+|-------|------|------|
+| CI (lint + typecheck) | act local + Docker | `gh act push -j lint-typescript` |
+| Build Windows (.exe) | scripts/release.ps1 | Nativo no Windows |
+| Build Linux (.AppImage/.deb) | scripts/release.ps1 | Docker Linux container |
+| APPX (Microsoft Store) | Local manual | `pnpm build:appx:test` |
+| Upload release público | scripts/release.ps1 | `gh release create` → WesleyQDev/MomAI-App |
 
 ---
 
@@ -85,20 +84,16 @@ $env:RELEASE_TOKEN = "ghp_xxxxxxxxxxxx"
 ## Ciclo de Release Completo
 
 ```
-Developer                        Local (act)                         GitHub
-    |                                |                                  |
-    |--- 1. Bump versão ------------>|                                  |
-    |--- 2. Roda CI local ---------->| act push (lint + typecheck)      |
-    |                                |                                  |
-    |--- 3. Commit + tag vX.Y.Z --->|                                  |
-    |                                |                                  |--- 4. CI automático (só minutos reais)
-    |--- 5. Build local ------------>| act -j build-win                 |
-    |                                | act -j build-linux (GitHub)      |
-    |                                |                                  |
-    |--- 6. APPX manual ------------>| pnpm build:appx:test             |
-    |                                |                                  |
-    |--- 7. Cria tag + push ------->|                                  |--- 8. release.yml sobe assets
-    |                                |                                  |     no WesleyQDev/MomAI-App
+Developer                            Local PC
+    |                                    |
+    |--- git tag vX.Y.Z (no HEAD) ------>|
+    |--- .\scripts\release.ps1 --------->|----+--- Windows build (nativo)
+    |                                    |    +--- Linux build (Docker)
+    |                                    |    +--- gh release create ---> WesleyQDev/MomAI-App
+    |                                    |
+    |--- pnpm build:appx:test ---------->|---- Microsoft Store (manual)
+    |                                    |
+    |--- git push origin main --tags --->|---- GitHub (não roda mais nada)
 ```
 
 ### Passo a Passo
@@ -107,111 +102,74 @@ Developer                        Local (act)                         GitHub
 
 ```powershell
 # Escolha o tipo:
-pnpm version patch   # 1.4.0 → 1.4.1 (bugfix)
-pnpm version minor   # 1.4.0 → 1.5.0 (nova feature)
-pnpm version major   # 1.4.0 → 2.0.0 (breaking change)
+pnpm version patch   # 1.4.1 → 1.4.2 (bugfix)
+pnpm version minor   # 1.4.1 → 1.5.0 (nova feature)
+pnpm version major   # 1.4.1 → 2.0.0 (breaking change)
 
-# Isso já altera o root package.json
-# Depois sincroniza apps/momai/package.json:
+# Sincroniza apps/momai/ e apps/core/:
 cd apps/momai
 pnpm version $(node -p "require('../../package.json').version") --no-git-tag-version --allow-same-version
 cd ../..
-
-# Sincroniza apps/core/pyproject.toml (se necessário)
+# Editar apps/core/pyproject.toml manualmente
 ```
 
-**Importante**: `apps/core/pyproject.toml` e `apps/momai/package.json` devem ter a mesma versão do root.
-
-#### 2. CI local (lint + typecheck)
+#### 2. CI local (opcional, só lint)
 
 ```powershell
-act push -j lint-typescript -s GITHUB_TOKEN="$(gh auth token)"
+gh act push -j lint-typescript
 ```
-
-Leva ~2-3 minutos. Garante que o código não está quebrado antes de commitar.
 
 #### 3. Commit e tag
 
 ```powershell
-git add -A
-git commit -m "chore: bump to v$(node -p 'require(\"./package.json\").version')"
-git tag "v$(node -p 'require(\"./package.json\").version')"
+git add -A && git commit -m "chore: bump to vX.Y.Z"
+git tag vX.Y.Z
 ```
 
-#### 4. CI automático no GitHub
-
-Quando der push, o GitHub roda o CI e o release.yml automaticamente. Mas para economizar minutos, fazemos o build local e só deixamos o upload pro GitHub.
-
-> **Pull request**: Se quiser testar antes de dar push na tag, crie um PR e o CI roda só lint (leve). O release.yml só executa com tag.
-
-#### 5A. Build Windows (.exe) via act local
+#### 4. Release local (tudo num comando)
 
 ```powershell
-act workflow_dispatch -j build-win `
-  -P windows-latest=-self-hosted `
-  -s GITHUB_TOKEN="$(gh auth token)" `
-  -e @- @"
-{
-  "ref": "refs/tags/v$(node -p 'require(\"./package.json\").version')"
-}
-"@
+.\scripts\release.ps1
 ```
 
-**O que o `-P windows-latest=-self-hosted` faz**: diz ao act para não usar Docker e rodar o job diretamente no Windows da sua máquina. Sem essa flag, act tentaria baixar uma imagem Docker para Windows (que não existe publicamente).
+O que esse comando faz:
 
-**Duração**: ~10-15 minutos. Gera `dist/MomAI-Installer.exe`, `dist/latest.yml`, `dist/*.blockmap`.
+1. **Valida** se há uma tag no HEAD
+2. **Verifica** se o Docker Desktop está rodando
+3. **Sincroniza** a versão no `apps/momai/package.json`
+4. **Build Windows** — `pnpm --filter momai build:win` (nativo, ~10-15 min)
+5. **Build Linux** — `docker run ...` container Linux com `pnpm --filter momai build:linux` (~10-15 min)
+6. **Upload** — `gh release create` para `WesleyQDev/MomAI-App`
 
-> **Nota**: act com `-self-hosted` executa os passos `run:` diretamente no seu shell atual. `uses: actions/checkout@v4` é substituído por uma simulação (não faz checkout real porque já está no repo). `uses: actions/upload-artifact@v4` salva localmente em `./act/artifacts/`.
+> **Nota**: O build Linux roda dentro de um container Docker usando a imagem `node:20-bookworm` com GTK e outras system deps. O `PNPM_NODE_LINKER=hoisted` evita problemas com hardlinks entre Windows e Docker.
 
-#### 5B. Build Linux via GitHub Actions (deixar rodar)
+#### 5. Push da tag (só para referência)
 
-O build Linux precisa de `libgtk-3-dev`, `libnotify-dev` e outras system deps. act no Windows não consegue simular Linux. Deixe esse rodar no GitHub.
-
-Para testar o build Linux localmente (se tiver WSL2 com Docker):
-
-```bash
-# Dentro do WSL2
-act workflow_dispatch -j build-linux \
-  -s GITHUB_TOKEN="$(gh auth token)"
+```powershell
+git push origin main --tags
 ```
 
-#### 6. APPX manual (já faz)
+O GitHub **não** roda mais nada automaticamente. O trigger de tag foi removido do `release.yml`. Se quiser rodar algum job no GitHub manualmente, vá em Actions → Release → Run workflow.
+
+#### 6. APPX manual (Store)
 
 ```powershell
 cd apps/momai
 pnpm build:appx:test
 ```
 
-Gera `dist/MomAI_x.y.z.0_x64__8wekyb3d8bbwe.appx`. Esse você faz upload manual na Microsoft Store.
+Gera `dist/MomAI_x.y.z.0_x64__8wekyb3d8bbwe.appx` — upload manual na Microsoft Store.
 
-#### 7. Push da tag
+---
 
-```powershell
-git push origin main --tags
-```
+## Arquivos do Pipeline Local
 
-#### 8. Release automático no GitHub
-
-Quando o push da tag bate no `release.yml`, o GitHub roda **só o job `release`** (builds estão nos artifacts locais mas o CI do GitHub vai rebuildar). Para evitar isso:
-
-**Opcional**: Modificar `release.yml` para aceitar `workflow_dispatch` com inputs que permitam pular builds:
-
-```yaml
-on:
-  workflow_dispatch:
-    inputs:
-      skip-builds:
-        description: "Skip win/linux builds (use pre-uploaded artifacts)"
-        type: boolean
-        default: false
-
-jobs:
-  build-win:
-    if: ${{ !inputs.skip-builds }}
-    ...
-```
-
-Ou então aceitar que o GitHub rebuilda — são 2 builds por release (~40 minutos totais), o que é bem menos que o limite mensal se você não fizer releases todo dia.
+| Arquivo | Função |
+|---------|--------|
+| `scripts/release.ps1` | Script principal (build win + linux + upload) |
+| `scripts/Dockerfile.linux` | Imagem Docker com deps para build Linux |
+| `.actrc.local` | Config opcional do act (renomear para `.actrc`) |
+| `.github/workflows/release.yml` | Só `workflow_dispatch` (trigger manual no GitHub) |
 
 ---
 
@@ -247,25 +205,22 @@ v1.4.0
 ## Resumo dos Comandos
 
 ```powershell
-# CI (lint + typecheck)
-act push -j lint-typescript -s GITHUB_TOKEN="$(gh auth token)"
+# Release completo (Windows + Linux + upload)
+.\scripts\release.ps1
 
-# Build Windows local
-$ver = node -p 'require("./package.json").version'
-$payload = @"
-{ "ref": "refs/tags/v$ver" }
-"@ | ConvertTo-Json -Compress
-$payload | act workflow_dispatch -j build-win -P windows-latest=-self-hosted -s GITHUB_TOKEN="$(gh auth token)"
+# APPX (Microsoft Store)
+cd apps\momai && pnpm build:appx:test
 
-# APPX
-cd apps/momai && pnpm build:appx:test
-
-# Deploy landing page local
-act push -j deploy -s GITHUB_TOKEN="$(gh auth token)"
+# CI local (lint + typecheck, opcional)
+gh act push -j lint-typescript
 
 # Bump + tag
 pnpm version minor
-cd apps/momai && pnpm version (node -p "require('../../package.json').version") --no-git-tag-version --allow-same-version
-git add -A && git commit -m "chore: bump version" && git tag v(node -p 'require(\"./package.json\").version')
+cd apps/momai
+pnpm version (node -p "require('../../package.json').version") --no-git-tag-version --allow-same-version
+cd ../..
+# Editar apps/core/pyproject.toml
+git add -A && git commit -m "chore: bump to vX.Y.Z"
+git tag v(node -p 'require(\"./package.json\").version')
 git push origin main --tags
 ```
