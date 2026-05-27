@@ -670,6 +670,12 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
           return false
         }
         if (i === 0 && backend === 'vulkan' && backendAttempts[i + 1] === 'cpu') {
+          /* Retry Vulkan once after a brief pause — transient port/GPU
+             contention (embedding server, stale process) can cause a
+             false-negative probe on AMD Windows drivers. */
+          await new Promise((r) => setTimeout(r, 2000))
+          const retry = await startAttempt(backend, true)
+          if (retry.ok) return true
           if (typeof process.send === 'function') {
             process.send({
               type: 'node-core-log',
