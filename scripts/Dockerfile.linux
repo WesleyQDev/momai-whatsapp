@@ -1,7 +1,6 @@
 FROM node:20-bookworm
 
 # System deps for Electron Linux builds (same as release.yml)
-# dos2unix: fix CRLF in scripts when mounted from Windows host
 RUN apt-get update && apt-get install -y \
   libgtk-3-dev \
   libnotify-dev \
@@ -18,5 +17,4 @@ RUN npm install -g pnpm
 
 WORKDIR /workspace
 
-# Fix CRLF in shell scripts mounted from Windows host
-RUN find /workspace -name '*.sh' -exec dos2unix {} + 2>/dev/null; exit 0
+
