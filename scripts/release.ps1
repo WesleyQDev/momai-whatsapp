@@ -109,6 +109,8 @@ docker run --rm `
   momai-linux-builder `
   bash -c @"
 set -e
+echo '[container] Fixing CRLF in shell scripts (Windows -> Linux compat)...'
+find /workspace -name '*.sh' -exec dos2unix {} + 2>/dev/null || true
 echo '[container] Installing dependencies...'
 pnpm install --no-frozen-lockfile 2>&1 | tail -1
 echo '[container] Building Linux...'
