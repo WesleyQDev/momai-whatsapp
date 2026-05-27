@@ -28,6 +28,37 @@ function runHydrate() {
   execSync(cmd, { cwd: rootDir, stdio: 'inherit' })
 }
 
+function removeRecursive(dir) {
+  if (!exists(dir)) return
+  try {
+    fs.rmSync(dir, { recursive: true, force: true })
+    console.log(`[MomAI] Removed stale: ${path.relative(rootDir, dir)}`)
+  } catch (e) {
+    console.log(`[MomAI] Could not remove ${dir}: ${e.message}`)
+  }
+}
+
+/* On Windows, clean up Linux-only files left by Docker builds */
+if (isWin) {
+  ['cpu', 'vulkan'].forEach((sub) => {
+    const d = path.join(llamaDir, sub)
+    if (!exists(d)) return
+    try {
+      for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+        if (entry.name.endsWith('.exe') || entry.name.endsWith('.dll')) continue
+        const fp = path.join(d, entry.name)
+        if (entry.isFile()) {
+          try {
+            fs.unlinkSync(fp)
+            console.log(`[MomAI] Removed Linux file: ${path.relative(rootDir, fp)}`)
+          } catch {}
+        }
+      }
+    } catch {}
+  })
+  removeRecursive(path.join(binDir, 'python', 'linux'))
+}
+
 const cpuName = isWin ? 'llama-server.exe' : 'llama-server'
 const vulkanName = isWin ? 'llama-server.exe' : 'llama-server'
 
