@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { GitHubIcon, YouTubeIcon } from "./Icons";
 import { useTranslation } from "react-i18next";
+import { GITHUB_REPO_URL } from "@/constants";
 
 export function Footer() {
   const { t } = useTranslation();
@@ -36,7 +37,7 @@ export function Footer() {
           YouTube
         </a>
         <a
-          href="https://github.com/WesleyQDev/MomAI"
+          href={GITHUB_REPO_URL}
           target="_blank"
           rel="noreferrer"
           className="text-[var(--text-secondary)] no-underline transition-colors hover:text-[var(--accent)]"
