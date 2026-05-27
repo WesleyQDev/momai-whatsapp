@@ -9,3 +9,7 @@ __pycache__/
 *.pyc
 dist/
 .vscode/
+apps/momai/bin/
+apps/momai/dist/
+apps/core/.venv/
+*.db
