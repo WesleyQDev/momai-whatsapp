@@ -24,7 +24,7 @@ export function getGradient(name: string): string {
 const ICON_MAP: Record<string, React.ReactNode> = {
   RocketLaunch: (
     <svg
-      className="h-6 w-6 text-white"
+      className="h-8 w-8 text-white"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -39,7 +39,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   ),
   CodeBracket: (
     <svg
-      className="h-6 w-6 text-white"
+      className="h-8 w-8 text-white"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -54,7 +54,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   ),
   GlobeAlt: (
     <svg
-      className="h-6 w-6 text-white"
+      className="h-8 w-8 text-white"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -69,7 +69,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   ),
   Cloud: (
     <svg
-      className="h-6 w-6 text-white"
+      className="h-8 w-8 text-white"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -84,7 +84,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   ),
   ChatBubbleLeftRight: (
     <svg
-      className="h-6 w-6 text-white"
+      className="h-8 w-8 text-white"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -99,7 +99,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   ),
   Sparkles: (
     <svg
-      className="h-6 w-6 text-white"
+      className="h-8 w-8 text-white"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -114,7 +114,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   ),
   Wrench: (
     <svg
-      className="h-6 w-6 text-white"
+      className="h-8 w-8 text-white"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -129,7 +129,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   ),
   PuzzlePiece: (
     <svg
-      className="h-6 w-6 text-white"
+      className="h-8 w-8 text-white"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -144,7 +144,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   ),
   ShieldCheck: (
     <svg
-      className="h-6 w-6 text-white"
+      className="h-8 w-8 text-white"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -159,7 +159,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   ),
   DocumentText: (
     <svg
-      className="h-6 w-6 text-white"
+      className="h-8 w-8 text-white"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -180,7 +180,7 @@ export function getIcon(iconName: string | undefined, iconUrl?: string): React.R
       <img
         src={iconUrl}
         alt=""
-        className="h-6 w-6 brightness-0 invert"
+        className="h-8 w-8 brightness-0 invert"
         loading="lazy"
       />
     );
@@ -190,7 +190,7 @@ export function getIcon(iconName: string | undefined, iconUrl?: string): React.R
   }
   return (
     <svg
-      className="h-6 w-6 text-white"
+      className="h-8 w-8 text-white"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
