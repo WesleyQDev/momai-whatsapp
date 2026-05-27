@@ -174,7 +174,17 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   ),
 };
 
-export function getIcon(iconName: string | undefined): React.ReactNode {
+export function getIcon(iconName: string | undefined, iconUrl?: string): React.ReactNode {
+  if (iconUrl) {
+    return (
+      <img
+        src={iconUrl}
+        alt=""
+        className="h-6 w-6"
+        loading="lazy"
+      />
+    );
+  }
   if (iconName && ICON_MAP[iconName]) {
     return ICON_MAP[iconName];
   }
@@ -202,6 +212,7 @@ interface ExtensionCardProps {
   author: string;
   version: string;
   icon?: string;
+  iconUrl?: string;
   onClick: () => void;
 }
 
@@ -212,6 +223,7 @@ export function ExtensionCard({
   author,
   version,
   icon,
+  iconUrl,
   onClick,
 }: ExtensionCardProps) {
   const gradClass = getGradient(name);
@@ -233,7 +245,7 @@ export function ExtensionCard({
             className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gradClass} shadow-lg shadow-black/20`}
           >
             <div className="absolute inset-0 rounded-xl bg-white/10" />
-            {getIcon(icon)}
+            {getIcon(icon, iconUrl)}
           </div>
           <span className="shrink-0 rounded-full border border-[rgba(var(--accent-rgb),0.15)] bg-[rgba(var(--accent-rgb),0.08)] px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--accent)] backdrop-blur-sm">
             {category}

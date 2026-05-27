@@ -14,6 +14,7 @@ interface Extension {
   description: string;
   category: string;
   icon?: string;
+  icon_url?: string;
   author: string;
   repo: string;
   download_url: string;
@@ -144,7 +145,7 @@ export function ExtensionsPage() {
           >
             <div className="absolute inset-0 rounded-2xl bg-white/[0.08]" />
             <div className="absolute -inset-2 rounded-2xl bg-gradient-to-br from-transparent via-white/5 to-transparent opacity-0 blur-xl transition-opacity duration-500 group-hover:opacity-100" />
-            {getIcon(selectedExtension.icon)}
+            {getIcon(selectedExtension.icon, selectedExtension.icon_url)}
           </div>
 
           <div className="flex-1">
@@ -440,16 +441,17 @@ export function ExtensionsPage() {
             {filteredExtensions.map((ext) => {
               const { name, description } = getLocalized(ext);
               return (
-                <ExtensionCard
-                  key={ext.id}
-                  name={name}
-                  description={description}
-                  category={ext.category}
-                  author={ext.author}
-                  version={ext.version}
-                  icon={ext.icon}
-                  onClick={() => setSelectedExtension(ext)}
-                />
+                  <ExtensionCard
+                    key={ext.id}
+                    name={name}
+                    description={description}
+                    category={ext.category}
+                    author={ext.author}
+                    version={ext.version}
+                    icon={ext.icon}
+                    iconUrl={ext.icon_url}
+                    onClick={() => setSelectedExtension(ext)}
+                  />
               );
             })}
           </div>

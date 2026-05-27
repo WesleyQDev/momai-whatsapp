@@ -6,6 +6,100 @@ const http = require('node:http')
 const https = require('node:https')
 const { exec } = require('node:child_process')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
+
+/* ── Extension dependency installer ── */
+
+function findAllNodeModules() {
+  const found = []
+  let dir = path.resolve(__dirname)
+  for (let i = 0; i < 20; i++) {
+    dir = path.dirname(dir)
+    const nm = path.join(dir, 'node_modules')
+    if (fs.existsSync(nm)) found.push(nm)
+    if (path.dirname(dir) === dir) break
+  }
+  found.reverse()
+  return found
+}
+
+function resolveDepPath(name, nmPaths) {
+  for (const nm of nmPaths) {
+    const p = path.join(nm, name)
+    if (fs.existsSync(p)) return p
+  }
+  return null
+}
+
+const DEV_SKIP_PREFIXES = [
+  '@typescript-eslint', 'eslint', '@eslint', 'typescript',
+  'jest', 'ts-jest', 'ts-node', 'typedoc', 'release-it',
+  'conventional-changelog', '@types/',
+]
+
+function isDevPackage(name) {
+  return DEV_SKIP_PREFIXES.some((p) => name.startsWith(p))
+}
+
+function copyDependency(name, nmPaths, targetNm, visited) {
+  if (visited.has(name)) return
+  visited.add(name)
+
+  if (isDevPackage(name)) {
+    console.log(`[extensions] Skipping dev-only dep: ${name}`)
+    return
+  }
+
+  const src = resolveDepPath(name, nmPaths)
+  if (!src) {
+    console.log(`[extensions] Dep '${name}' not found in any node_modules, skipping`)
+    return
+  }
+
+  const dest = path.join(targetNm, name)
+  if (fs.existsSync(dest)) return
+
+  console.log(`[extensions] Copying dep: ${name}`)
+  fs.cpSync(src, dest, { recursive: true, force: true, dereference: true })
+
+  const pkgJsonPath = path.join(src, 'package.json')
+  if (!fs.existsSync(pkgJsonPath)) return
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
+    const subDeps = { ...pkg.dependencies, ...pkg.peerDependencies }
+    for (const subDep of Object.keys(subDeps || {})) {
+      copyDependency(subDep, nmPaths, targetNm, visited)
+    }
+  } catch {}
+}
+
+async function installExtensionDependencies(extDir) {
+  const pkgPath = path.join(extDir, 'package.json')
+  if (!fs.existsSync(pkgPath)) return
+
+  let pkg
+  try {
+    pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+  } catch {
+    return
+  }
+
+  const deps = Object.keys(pkg.dependencies || {})
+  if (deps.length === 0) return
+
+  const nmPaths = findAllNodeModules()
+  if (nmPaths.length === 0) {
+    console.log('[extensions] Could not locate any node_modules for dep install')
+    return
+  }
+
+  const extNodeModules = path.join(extDir, 'node_modules')
+  fs.mkdirSync(extNodeModules, { recursive: true })
+
+  const visited = new Set()
+  for (const dep of deps) {
+    copyDependency(dep, nmPaths, extNodeModules, visited)
+  }
+}
 const { createPermissionSchema } = require('../../permissions/schema')
 const extensionEvents = require('../../services/extension-events')
 const { resolveWhatsAppChannel } = require('../../utils/whatsapp-channel')
@@ -197,6 +291,7 @@ function createExtensionsRoutes(context) {
             fs.unlinkSync(zipPath)
           } catch {}
           flattenExtractedDir(extDir)
+          await installExtensionDependencies(extDir)
         } catch (err) {
           try {
             fs.rmSync(extDir, { recursive: true, force: true })
@@ -628,8 +723,8 @@ function createExtensionsRoutes(context) {
       const body = await readJsonBody(req).catch(() => ({}))
       const { contactJid, isGroup, groupName } = resolveWhatsAppChannel(body)
 
-      // Use resolveContactName logic if potential JID is provided
-      const rawContact = body.contact || body.from || body.senderName || 'Alguem'
+      // Para grupos, senderName é o nome da pessoa que enviou; contact é o nome do grupo
+      const rawContact = body.senderName || body.contact || body.from || 'Alguem'
       let contact = rawContact
 
       try {

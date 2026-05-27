@@ -6,6 +6,7 @@
 
 const { fork } = require('node:child_process')
 const path = require('node:path')
+const fs = require('node:fs')
 const { EventEmitter } = require('node:events')
 const extensionEvents = require('./extension-events')
 
@@ -74,12 +75,17 @@ class ExtensionHostManager extends EventEmitter {
     const hostPath = path.join(skillPath, bgScript)
     const dataDir =
       process.env.MOMAI_NODE_CORE_DATA_DIR || process.env.MOMAI_DATA_DIR || ''
+
+    const extNodeModules = path.join(skillPath, 'node_modules')
+    const nodePath = fs.existsSync(extNodeModules) ? extNodeModules : undefined
+
     const child = fork(hostPath, [skillId, skillPath], {
       stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
       env: {
         ...process.env,
         MOMAI_EXTENSION_ID: skillId,
         MOMAI_PERSISTENT: 'true',
+        ...(nodePath !== undefined ? { NODE_PATH: nodePath } : {}),
         ...(dataDir ? { MOMAI_DATA_DIR: dataDir, MOMAI_NODE_CORE_DATA_DIR: dataDir } : {})
       }
     })
