@@ -4,28 +4,48 @@
   Builds MomAI for Windows (native) and Linux (Docker), then uploads
   all artifacts to https://github.com/WesleyQDev/MomAI-App as a release.
 
+.PARAMETER Version
+  Override version (default: auto-detect from nearest git tag).
+
 .DESCRIPTION
   Prerequisites:
-    - Git tag on current HEAD (e.g. v1.4.1)
     - Docker Desktop running (for Linux build)
     - gh CLI authenticated with repo scope on WesleyQDev/MomAI-App
     - pnpm, Node.js 20
 
   Usage:
-    # After creating a tag:
+    # Auto-detect from tag:
     git tag v1.5.0
     .\scripts\release.ps1
+
+    # Override version:
+    .\scripts\release.ps1 -Version 1.5.0
 #>
+param(
+  [string]$Version = ""
+)
 
 $ErrorActionPreference = "Stop"
 $rootDir = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 
-# ── Step 0: Validate ────────────────────────────────────────────
-$version = git describe --tags --abbrev=0 --exact-match 2>$null
-if (-not $version) {
-  Write-Host "`u{274C} No annotated tag on current HEAD." -ForegroundColor Red
-  Write-Host "   Create one first:  git tag vX.Y.Z" -ForegroundColor Yellow
-  exit 1
+# ── Step 0: Detect version ──────────────────────────────────────
+if ($Version) {
+  $version = $Version
+  if (-not $version.StartsWith('v')) { $version = "v$version" }
+  Write-Host "`u{1F4E6} Releasing $version (manual override)"
+} else {
+  $version = git describe --tags --abbrev=0 --exact-match 2>$null
+  if (-not $version) {
+    $version = git describe --tags --abbrev=0 2>$null
+    if (-not $version) {
+      Write-Host "`u{274C} No tags found." -ForegroundColor Red
+      Write-Host "   Use -Version flag or create a tag." -ForegroundColor Yellow
+      exit 1
+    }
+    Write-Host "`u{26A0} Warning: not on exact tag (nearest: $version)." -ForegroundColor Yellow
+    $confirm = Read-Host "Release $version anyway? (y/N)"
+    if ($confirm -ne 'y') { exit 0 }
+  }
 }
 $cleanVersion = $version -replace '^v', ''
 Write-Host "`u{1F680} Releasing $version"
