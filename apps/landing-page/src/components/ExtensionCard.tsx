@@ -180,7 +180,7 @@ export function getIcon(iconName: string | undefined, iconUrl?: string): React.R
       <img
         src={iconUrl}
         alt=""
-        className="h-6 w-6"
+        className="h-6 w-6 brightness-0 invert"
         loading="lazy"
       />
     );
