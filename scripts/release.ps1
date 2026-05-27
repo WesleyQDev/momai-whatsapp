@@ -111,8 +111,11 @@ docker run --rm `
 set -e
 echo '[container] Fixing CRLF in shell scripts (Windows -> Linux compat)...'
 find /workspace -name '*.sh' -exec dos2unix {} + 2>/dev/null || true
-echo '[container] Installing dependencies...'
-pnpm install --no-frozen-lockfile 2>&1 | tail -1
+echo '[container] Removing app node_modules for clean Linux install...'
+rm -rf /workspace/apps/momai/node_modules 2>/dev/null || true
+echo '[container] Installing Linux dependencies...'
+cd /workspace
+pnpm install --no-frozen-lockfile 2>&1 | tail -3
 echo '[container] Building Linux...'
 pnpm --filter momai build:linux 2>&1
 echo '[container] Done.'
