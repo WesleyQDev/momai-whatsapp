@@ -106,16 +106,22 @@ docker build -f "$rootDir/scripts/Dockerfile.linux" `
 if ($LASTEXITCODE -ne 0) { throw "Docker build failed" }
 
 Write-Host "[4/5] Extracting Linux artifacts..."
-docker create --name momai-temp momai-linux-builder | Out-Null
-docker cp momai-temp:/app/apps/momai/dist/. "$rootDir/apps/momai/dist/" 2>&1 | Out-String | Write-Host
-docker rm momai-temp | Out-Null
+$distDir = Join-Path $rootDir "apps" "momai" "dist"
+docker rm -f momai-temp 2>$null | Out-Null
+$containerId = docker create --name momai-temp momai-linux-builder 2>&1 | Out-String
+$containerId = $containerId.Trim()
+docker cp "${containerId}:/app/apps/momai/dist/." "${distDir}\" 2>&1 | Out-String | Write-Host
+if ($LASTEXITCODE -ne 0) { Write-Host "  docker cp had issues, continuing..." -ForegroundColor Yellow }
+docker rm $containerId | Out-Null
+Write-Host "  Artifacts extracted to $distDir"
 
 # ── Step 5: Collect and upload ──────────────────────────────────
 Write-Host "[5/5] Uploading to WesleyQDev/MomAI-App..."
-$distDir = "$rootDir/apps/momai/dist"
 $artifacts = @(Get-ChildItem -Path $distDir -Include @('*.exe','*.AppImage','*.deb','*.yml','*.blockmap') -File)
 if ($artifacts.Count -eq 0) {
   Write-Host "`u{274C} No artifacts found in $distDir" -ForegroundColor Red
+  Write-Host "  Contents:"
+  Get-ChildItem $distDir | ForEach-Object { Write-Host "    $($_.Name)" }
   exit 1
 }
 Write-Host "  Artifacts:" ($artifacts | ForEach-Object { "`n    $($_.Name)" })
