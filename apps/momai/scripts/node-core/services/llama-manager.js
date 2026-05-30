@@ -3,7 +3,7 @@ const path = require('node:path')
 const os = require('node:os')
 const { spawn } = require('node:child_process')
 const shared = require('./shared-state')
-const { store } = shared
+const { store, semanticState } = shared
 let { llamaState } = shared
 const { LLAMA_HOST, LLAMA_PORT, MODELS_DIR, LLAMA_BIN_CANDIDATES } = require('../config/constants')
 const { debug, info, warn } = require('../infrastructure/logger')
@@ -338,10 +338,8 @@ async function fetchLlamaRuntimeTelemetry(force = false) {
 async function stopLlamaServer() {
   llamaStartGeneration += 1
 
-  // Kill ALL main llama processes that we are tracking
-  await killOrphanLlamaServers('main')
-
-  // Clean up state
+  // Clean up state FIRST (synchronous) — before any async yield,
+  // so ensureLlamaReady called during the yield sees correct state.
   llamaState.process = null
   llamaState.ready = false
   llamaState.starting = false
@@ -350,6 +348,19 @@ async function stopLlamaServer() {
   llamaState.kvCacheUsedTokens = 0
   llamaState.vramUsedMb = 0
   telemetryCache = { ts: 0, data: null, pending: null }
+
+  // Kill ALL main llama processes that we are tracking
+  await killOrphanLlamaServers('main')
+
+  // Also kill embedding llama-server and clean up its state,
+  // so soneca frees all GPU resources, not just the main LLM.
+  await killOrphanLlamaServers('embedding')
+  if (semanticState.embedding) {
+    semanticState.embedding.process = null
+    semanticState.embedding.ready = false
+    semanticState.embedding.starting = false
+    semanticState.embedding.startingPromise = null
+  }
 }
 
 async function ensureLlamaReady(forceRestart = false, allowModelDownload = true) {

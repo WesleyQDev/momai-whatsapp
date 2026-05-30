@@ -77,6 +77,23 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
       return win ? win.isMinimized() : false
     })
 
+    let windowMinimizedAt = 0
+    economyService.setWindowMinimizedSeconds(() => {
+      if (windowMinimizedAt === 0) return 0
+      return (Date.now() - windowMinimizedAt) / 1000
+    })
+    const trackMinimize = () => {
+      windowMinimizedAt = Date.now()
+    }
+    const trackRestore = () => {
+      windowMinimizedAt = 0
+    }
+    const win = getMainWindow()
+    if (win) {
+      win.on('minimize', trackMinimize)
+      win.on('restore', trackRestore)
+    }
+
     const [gamingRes, configRes] = await Promise.all([
       fetch(`http://${apiHost}:${apiPort}/system/gaming-apps`),
       fetch(`http://${apiHost}:${apiPort}/economy/config`)

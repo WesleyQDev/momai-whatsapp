@@ -197,7 +197,7 @@ function createStatusRoutes(context) {
 
     if (pathname === '/llama/start' && req.method === 'POST') {
       const result = await context.ensureLlamaReady(false)
-      sendJson(res, 200, { ready: result.ready, is_loading: !!result.is_loading })
+      sendJson(res, 200, { ready: result, is_loading: !result })
       return true
     }
 

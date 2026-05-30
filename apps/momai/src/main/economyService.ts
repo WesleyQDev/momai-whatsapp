@@ -56,6 +56,7 @@ export class EconomyService {
   private gamePreferences: Record<string, boolean> = {}
   private getSystemIdleTime: () => number = () => 0
   private isWindowMinimized: () => boolean = () => false
+  private getWindowMinimizedSeconds: () => number = () => 0
 
   private idleTimeoutAppOpen = 5
   private idleTimeoutMinimized = 1
@@ -131,6 +132,10 @@ export class EconomyService {
 
   setIsWindowMinimized(fn: () => boolean): void {
     this.isWindowMinimized = fn
+  }
+
+  setWindowMinimizedSeconds(fn: () => number): void {
+    this.getWindowMinimizedSeconds = fn
   }
 
   setIdleTimeouts(appOpen: number, minimized: number): void {
@@ -267,13 +272,16 @@ export class EconomyService {
   }
 
   async checkForIdle(): Promise<boolean> {
-    const idleSeconds = this.getSystemIdleTime()
     const minimized = this.isWindowMinimized()
 
     const timeoutMinutes = minimized ? this.idleTimeoutMinimized : this.idleTimeoutAppOpen
     if (timeoutMinutes <= 0) return false
 
-    return idleSeconds >= timeoutMinutes * 60
+    const elapsedSeconds = minimized
+      ? this.getWindowMinimizedSeconds()
+      : this.getSystemIdleTime()
+
+    return elapsedSeconds >= timeoutMinutes * 60
   }
 
   async poll(processOverrides?: string[]): Promise<void> {

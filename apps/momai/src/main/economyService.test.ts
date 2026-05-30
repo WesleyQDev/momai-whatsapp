@@ -143,6 +143,7 @@ describe('EconomyService', () => {
     service.setGamingModeEnabled(false)
     service.setGetSystemIdleTime(() => 90) // 1min30s
     service.setIsWindowMinimized(() => true)
+    service.setWindowMinimizedSeconds(() => 61) // 1min+ para timeout minimizado
 
     await service.poll(['chrome.exe'])
 

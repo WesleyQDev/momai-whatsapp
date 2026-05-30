@@ -606,7 +606,7 @@ function createExtensionsRoutes(context) {
       sendJson(res, 200, {
         cpu_usage: 0,
         ram_usage: Math.round((mem.rss / os.totalmem()) * 100),
-        active_processes: (llamaState.process ? 2 : 1) + (semanticState.embedding.process ? 1 : 0),
+        active_processes: (llamaState.process ? 1 : 0) + (semanticState.embedding.process ? 1 : 0),
         vram_usage: 0
       })
       return true
