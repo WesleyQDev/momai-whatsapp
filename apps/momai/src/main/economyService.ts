@@ -57,6 +57,7 @@ export class EconomyService {
   private getSystemIdleTime: () => number = () => 0
   private isWindowMinimized: () => boolean = () => false
   private getWindowMinimizedSeconds: () => number = () => 0
+  private getAppFocusIdleSeconds: () => number = () => 0
 
   private idleTimeoutAppOpen = 5
   private idleTimeoutMinimized = 1
@@ -138,6 +139,10 @@ export class EconomyService {
     this.getWindowMinimizedSeconds = fn
   }
 
+  setAppFocusIdleSeconds(fn: () => number): void {
+    this.getAppFocusIdleSeconds = fn
+  }
+
   setIdleTimeouts(appOpen: number, minimized: number): void {
     this.idleTimeoutAppOpen = appOpen
     this.idleTimeoutMinimized = minimized
@@ -146,6 +151,13 @@ export class EconomyService {
   async dismiss(): Promise<void> {
     this.dismissed = true
     await this.deactivateEconomy()
+  }
+
+  reinstateSleep(): void {
+    if (this.currentState.active && this.currentState.reason === 'idle') {
+      console.log('[Economy] Reinstate sleep — re-stopping llama-server for idle mode')
+      this.httpPost(`${this.economyHost}/llama/stop`).catch(() => {})
+    }
   }
 
   reloadPreferences(): void {
@@ -279,7 +291,7 @@ export class EconomyService {
 
     const elapsedSeconds = minimized
       ? this.getWindowMinimizedSeconds()
-      : this.getSystemIdleTime()
+      : this.getAppFocusIdleSeconds()
 
     return elapsedSeconds >= timeoutMinutes * 60
   }

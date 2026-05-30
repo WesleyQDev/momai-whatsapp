@@ -1,4 +1,4 @@
-import { RefObject, JSX, useState, useEffect, useMemo, useRef } from 'react'
+import { RefObject, JSX, useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { MessageList, ChatInput, LoadingAnimation } from './chat'
 import {
   Message,
@@ -522,6 +522,11 @@ export default function ContainerChat({
   } | null>(null)
 
   const [localDismissed, setLocalDismissed] = useState(false)
+  const [wakingFromSoneca, setWakingFromSoneca] = useState(false)
+
+  useEffect(() => {
+    if (!economyState?.active) setWakingFromSoneca(false)
+  }, [economyState])
 
   useEffect(() => {
     const cleanup = (window as any).api?.onEconomyStateChange?.(
@@ -538,6 +543,18 @@ export default function ContainerChat({
   const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
   const isBrainReady = statusInfo?.brain_ready ?? false
   const isBrainLoading = statusInfo?.is_loading ?? false
+  const isIdleSoneca = !!economyState?.active && economyState.detectedGames.length === 0
+
+  const handleSendDuringSoneca = useCallback(
+    (content: string) => {
+      if (isIdleSoneca && !isBrainReady) {
+        setWakingFromSoneca(true)
+        ;(window as any).api?.dismissEconomy?.().catch(() => {})
+      }
+      onSendMessage(content)
+    },
+    [isIdleSoneca, isBrainReady, onSendMessage]
+  )
   const isSystemDone = initProgress >= 100 && !isBooting
 
   const [settings, setSettings] = useState<SettingsData | null>(null)
@@ -822,9 +839,9 @@ export default function ContainerChat({
                     isLoading={isLoading}
                     messagesEndRef={messagesEndRef}
                     scrollPositionRef={scrollPositionRef}
+                    onSendMessage={handleSendDuringSoneca}
                     onReopenGraph={onReopenGraph}
                     onGraphOption={onGraphOption}
-                    onSendMessage={onSendMessage}
                     onStopVoice={stopCurrentVoice}
                     onStopGeneration={stopCurrentGeneration}
                     onSpeakMessage={onSpeakMessage}
@@ -847,7 +864,7 @@ export default function ContainerChat({
                     <WelcomeHeader statusInfo={statusInfo} settings={settings} />
                     <div className="mb-10">
                       <WelcomeActions
-                        onSendMessage={onSendMessage}
+                        onSendMessage={handleSendDuringSoneca}
                         tier={tier}
                         dynamicSuggestion={dynamicSuggestion}
                         randomSuggestions={randomSuggestions}
@@ -863,12 +880,23 @@ export default function ContainerChat({
 
             {/* Fixed Input Area */}
             <div className="w-full max-w-3xl mx-auto z-30 pb-2">
+              {wakingFromSoneca && (
+                <div className="flex items-center justify-center gap-2 mb-2 animate-in fade-in slide-in-from-bottom-1 duration-300">
+                  <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                  <span className="text-xs font-medium text-accent">
+                    Saindo do modo soneca...
+                  </span>
+                </div>
+              )}
               <ChatInput
                 text={text}
-                onSend={onSendMessage}
+                onSend={handleSendDuringSoneca}
                 isLoading={isLoading}
-                isModeChanging={isModeChanging || !isBrainReady || isBrainLoading}
+                isModeChanging={isModeChanging}
                 statusInfo={statusInfo}
+                idleSonecaActive={
+                  !!economyState?.active && economyState.detectedGames.length === 0
+                }
                 onStopGeneration={stopCurrentGeneration}
                 onStopVoice={stopCurrentVoice}
                 isCallMode={isCallMode}

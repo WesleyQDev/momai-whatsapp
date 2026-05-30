@@ -39,6 +39,7 @@ export function useStatus() {
   const [initMessage, setInitMessage] = useState<string>('Iniciando...')
   const [initProgress, setInitProgress] = useState<number>(0)
   const [isBooting, setIsBooting] = useState(true)
+  const [wasEverBooted, setWasEverBooted] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [hasReceivedWSEvent, setHasReceivedWSEvent] = useState(false)
   const [backendOnline, setBackendOnline] = useState(false)
@@ -77,7 +78,8 @@ export function useStatus() {
       if (data.status === 'ok' && data.brain_ready && !data.is_loading && !isUpdating) {
         setIsBooting(false)
         setInitProgress(100)
-      } else if (isUpdating || data.is_loading || !data.brain_ready) {
+        if (!wasEverBooted) setWasEverBooted(true)
+      } else if ((isUpdating || data.is_loading || !data.brain_ready) && !wasEverBooted) {
         if (!isBooting) {
           setVisualProgress(2)
           setInitProgress(0)

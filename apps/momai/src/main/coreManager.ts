@@ -88,10 +88,29 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
     const trackRestore = () => {
       windowMinimizedAt = 0
     }
+
+    let lastFocusAt = Date.now()
+    let appInFocus = true
+    economyService.setAppFocusIdleSeconds(() => {
+      if (appInFocus) return 0
+      return (Date.now() - lastFocusAt) / 1000
+    })
+    const trackBlur = () => {
+      if (appInFocus) {
+        appInFocus = false
+        lastFocusAt = Date.now()
+      }
+    }
+    const trackFocus = () => {
+      appInFocus = true
+    }
+
     const win = getMainWindow()
     if (win) {
       win.on('minimize', trackMinimize)
       win.on('restore', trackRestore)
+      win.on('focus', trackFocus)
+      win.on('blur', trackBlur)
     }
 
     const [gamingRes, configRes] = await Promise.all([
@@ -120,6 +139,11 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
 
     ipcMain.handle('economy:dismiss', async () => {
       await economyService!.dismiss()
+      return true
+    })
+
+    ipcMain.handle('economy:reinstate-sleep', async () => {
+      economyService!.reinstateSleep()
       return true
     })
 

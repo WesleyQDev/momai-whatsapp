@@ -40,6 +40,7 @@ export default function OverlayView() {
   }, [])
 
   const handleClose = () => {
+    ;(window as any).api?.reinstateEconomySleep?.()
     // @ts-ignore
     window.electron.ipcRenderer.send('close-overlay')
   }

@@ -354,14 +354,6 @@ export default function WhatsAppView() {
     QRCode.toDataURL(qr, { width: 256, margin: 1 }).then(setQrUrl).catch(() => {})
   }, [])
 
-  const beginPairing = useCallback(() => {
-    setPairingActive(true)
-    setHasCredentials(false)
-    setQrUrl(null)
-    qrRequestInFlight.current = false
-    requestQr({ force: true }).catch(() => {})
-  }, [requestQr])
-
   const requestQr = useCallback(
     async (opts?: { force?: boolean }): Promise<boolean> => {
       if (qrRequestInFlight.current) return false
@@ -389,6 +381,14 @@ export default function WhatsAppView() {
     },
     [applyQrString, pairingActive]
   )
+
+  const beginPairing = useCallback(() => {
+    setPairingActive(true)
+    setHasCredentials(false)
+    setQrUrl(null)
+    qrRequestInFlight.current = false
+    requestQr({ force: true }).catch(() => {})
+  }, [requestQr])
 
   const loadAvatars = useCallback(async (jids: string[]) => {
     const unique = [...new Set(jids.filter((j) => typeof j === 'string' && j.includes('@')))]

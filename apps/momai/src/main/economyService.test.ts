@@ -127,7 +127,7 @@ describe('EconomyService', () => {
     const economyHost = 'http://localhost:12345'
     service.setEconomyHost(economyHost)
     service.setGamingModeEnabled(false)
-    service.setGetSystemIdleTime(() => 301) // 5min + 1s
+    service.setAppFocusIdleSeconds(() => 301) // 5min + 1s
     service.setIsWindowMinimized(() => false)
 
     await service.poll(['chrome.exe'])
@@ -156,13 +156,13 @@ describe('EconomyService', () => {
     const economyHost = 'http://localhost:12345'
     service.setEconomyHost(economyHost)
     service.setGamingModeEnabled(false)
-    service.setGetSystemIdleTime(() => 310)
+    service.setAppFocusIdleSeconds(() => 310)
     service.setIsWindowMinimized(() => false)
 
     await service.poll(['chrome.exe'])
     expect(service.getState().active).toBe(true)
 
-    service.setGetSystemIdleTime(() => 1) // user just interacted
+    service.setAppFocusIdleSeconds(() => 1) // user just focused the window
     await service.poll(['chrome.exe'])
     expect(service.getState().active).toBe(false)
     expect(service.httpPost).toHaveBeenLastCalledWith(`${economyHost}/llama/start`)
@@ -174,7 +174,7 @@ describe('EconomyService', () => {
       idle_timeout_app_open: 0,
       idle_timeout_minimized: 0
     })
-    service.setGetSystemIdleTime(() => 9999)
+    service.setAppFocusIdleSeconds(() => 9999)
     service.setIsWindowMinimized(() => false)
 
     await service.poll(['chrome.exe'])
@@ -190,7 +190,7 @@ describe('EconomyService', () => {
       { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' }
     ])
     // Idle conditions are met, but gaming should win
-    service.setGetSystemIdleTime(() => 9999)
+    service.setAppFocusIdleSeconds(() => 9999)
     service.setIsWindowMinimized(() => false)
 
     await service.poll(['chrome.exe', 'FortniteClient-Win64-Shipping.exe'])

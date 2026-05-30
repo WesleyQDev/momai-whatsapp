@@ -75,6 +75,8 @@ const api = {
   scanEconomyLibraries: (): Promise<any[]> =>
     electronAPI.ipcRenderer.invoke('economy:scan-libraries'),
   dismissEconomy: (): Promise<boolean> => electronAPI.ipcRenderer.invoke('economy:dismiss'),
+  reinstateEconomySleep: (): Promise<boolean> =>
+    electronAPI.ipcRenderer.invoke('economy:reinstate-sleep'),
   getEconomyPreferences: (): Promise<Record<string, boolean>> =>
     electronAPI.ipcRenderer.invoke('economy:get-preferences'),
   setEconomyGamePreference: (gameName: string, enabled: boolean): Promise<boolean> =>

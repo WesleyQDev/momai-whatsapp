@@ -1,4 +1,80 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
+
+function TimeoutCombobox({
+  value,
+  onChange,
+  presets
+}: {
+  value: number
+  onChange: (v: number) => void
+  presets: number[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [custom, setCustom] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const label = value === 0 ? 'Desligado' : `${value} min`
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-text w-22 outline-none cursor-pointer hover:bg-white/5 active:bg-white/10 transition-colors text-left"
+      >
+        {label}
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1 bg-zinc-800 border border-border rounded-lg shadow-xl z-50 min-w-[130px] overflow-hidden">
+          {presets.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => {
+                onChange(p)
+                setOpen(false)
+              }}
+              className={`block w-full text-left px-3 py-2 text-sm transition-colors ${
+                p === value
+                  ? 'text-accent bg-accent/10'
+                  : 'text-text hover:bg-white/5'
+              }`}
+            >
+              {p === 0 ? 'Desligado' : `${p} min`}
+            </button>
+          ))}
+          <div className="border-t border-border/30 px-3 py-2 flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              placeholder="Personalizado..."
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && custom) {
+                  onChange(Math.max(0, Number(custom)))
+                  setOpen(false)
+                  setCustom('')
+                }
+              }}
+              className="w-full bg-transparent text-sm text-text outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none placeholder:text-text-muted/40"
+              autoFocus
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface EconomyTabProps {
   t: (key: string) => string
@@ -137,49 +213,22 @@ export const EconomyTab = React.memo(
           <p className="text-xs text-text-muted">
             Define quando a IA deve ser pausada para economizar recursos.
           </p>
-          <div className="rounded-xl bg-white/[0.03] border border-border/40 overflow-hidden">
+          <div className="rounded-xl bg-white/[0.03] border border-border/40">
             <div className="flex items-center justify-between p-4 border-b border-border/30">
               <span className="text-xs font-semibold text-text">App aberto (ocioso)</span>
-              <select
+              <TimeoutCombobox
                 value={economyConfig?.idle_timeout_app_open ?? 5}
-                onChange={(e) =>
-                  onUpdateConfig?.({ idle_timeout_app_open: Number(e.target.value) })
-                }
-                className="bg-input border border-border rounded-lg px-3 py-1.5 pr-8 text-sm text-text outline-none appearance-none"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff44' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                  backgroundPosition: 'right 8px center',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundSize: '14px'
-                }}
-              >
-                <option value={0}>Desligado</option>
-                <option value={1}>1 min</option>
-                <option value={5}>5 min</option>
-                <option value={10}>10 min</option>
-                <option value={30}>30 min</option>
-              </select>
+                onChange={(v) => onUpdateConfig?.({ idle_timeout_app_open: v })}
+                presets={[0, 1, 5, 10, 30]}
+              />
             </div>
             <div className="flex items-center justify-between p-4">
               <span className="text-xs font-semibold text-text">App minimizado</span>
-              <select
+              <TimeoutCombobox
                 value={economyConfig?.idle_timeout_minimized ?? 1}
-                onChange={(e) =>
-                  onUpdateConfig?.({ idle_timeout_minimized: Number(e.target.value) })
-                }
-                className="bg-input border border-border rounded-lg px-3 py-1.5 pr-8 text-sm text-text outline-none appearance-none"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff44' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                  backgroundPosition: 'right 8px center',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundSize: '14px'
-                }}
-              >
-                <option value={0}>Desligado</option>
-                <option value={1}>1 min</option>
-                <option value={5}>5 min</option>
-                <option value={10}>10 min</option>
-              </select>
+                onChange={(v) => onUpdateConfig?.({ idle_timeout_minimized: v })}
+                presets={[0, 1, 5, 10]}
+              />
             </div>
           </div>
         </div>

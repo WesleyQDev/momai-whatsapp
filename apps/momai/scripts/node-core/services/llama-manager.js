@@ -535,12 +535,15 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
             llamaState.modelPath = modelPath
             llamaState.configuredModelFile = configuredModelFile
             llamaState.usingFallbackModel = usingFallbackModel
+            const wasRestart = llamaState.currentTier !== null
             llamaState.currentTier = tierName
             llamaState.currentModelName = tierConfig.name || null
             llamaState.port = selectedPort
             llamaState.parallelSlots = parallelSlots
 
-            setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 80, null)
+            if (!wasRestart) {
+              setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 80, null)
+            }
 
             let child = null
             await acquireSpawnLock()

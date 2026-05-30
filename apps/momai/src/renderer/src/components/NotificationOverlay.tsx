@@ -49,7 +49,7 @@ export default function NotificationOverlay() {
   /** Uma geracao por mensagem (evita TTS errado quando varias pessoas mandam no mesmo grupo) */
   const notificationGenByKeyRef = useRef<Map<string, number>>(new Map())
 
-  const removeNotification = useCallback((id: string) => {
+  const removeNotification = useCallback((id: string, reinstateSleep = false) => {
     const controller = voiceAbortRef.current.get(id)
     if (controller) {
       controller.abort()
@@ -60,6 +60,9 @@ export default function NotificationOverlay() {
     if (timer) {
       clearTimeout(timer)
       timersRef.current.delete(id)
+    }
+    if (reinstateSleep) {
+      ;(window as any).api?.reinstateEconomySleep?.()
     }
   }, [])
 
@@ -114,7 +117,7 @@ export default function NotificationOverlay() {
 
         if (text) {
           await sendToWhatsApp(contactJid, contactName, text)
-          removeNotification(id)
+          removeNotification(id, true)
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') return
@@ -199,7 +202,7 @@ export default function NotificationOverlay() {
               }
               setNotifications((prev) => [...prev, newNotif])
 
-              const timer = setTimeout(() => removeNotification(id), NOTIFICATION_TIMEOUT)
+              const timer = setTimeout(() => removeNotification(id, true), NOTIFICATION_TIMEOUT)
               timersRef.current.set(id, timer)
 
               const jid = event.data.contactJid || event.data.contact || ''
@@ -249,7 +252,7 @@ export default function NotificationOverlay() {
         >
           <NotificationCard
             notification={notification}
-            onDismiss={() => removeNotification(notification.id)}
+            onDismiss={() => removeNotification(notification.id, true)}
             onRespond={async (message: string) => {
               if (message === '__open_chat__') {
                 removeNotification(notification.id)
@@ -264,7 +267,7 @@ export default function NotificationOverlay() {
               } catch (err) {
                 console.error('Failed to send:', err)
               }
-              removeNotification(notification.id)
+              removeNotification(notification.id, true)
             }}
           />
         </div>
