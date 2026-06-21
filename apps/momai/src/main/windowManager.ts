@@ -6,17 +6,14 @@ import {
   Menu,
   nativeImage,
   app,
-  Tray,
   Notification
 } from 'electron'
 import { join } from 'path'
-import { readFileSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
 import {
   state,
   setMainWindow,
   setOverlayWindow,
-  setTray,
   setIpcHandlersRegistered,
   setIsQuitting
 } from './state'
@@ -35,17 +32,6 @@ async function controlWakeWord(enabled: boolean): Promise<void> {
     logger.info(`[WindowManager] Wake word ${enabled ? 'enabled' : 'disabled'}`)
   } catch (err) {
     logger.error('[WindowManager] Failed to control wake word:', err)
-  }
-}
-
-function readKeepInTraySetting(): boolean {
-  try {
-    const storePath = join(app.getPath('userData'), 'data', 'node-core-store.json')
-    const raw = readFileSync(storePath, 'utf-8')
-    const data = JSON.parse(raw)
-    return data.settings?.keep_in_tray !== false
-  } catch {
-    return true // Default to keeping in tray
   }
 }
 
@@ -392,29 +378,6 @@ function createMainWindow(): BrowserWindow {
     }
   })
 
-  mainWindow.on('close', (event) => {
-    if (process.platform === 'darwin') return
-    if (state.isQuitting) return
-    event.preventDefault()
-
-    // Check if should keep in tray
-    const keepInTray = readKeepInTraySetting()
-    if (keepInTray) {
-      mainWindow.hide()
-      // Stop llama server to free resources (sleep mode)
-      fetch(`${API_BASE_URL}/llama/stop`, { method: 'POST' }).catch(() => {})
-      return
-    }
-
-    // Full quit path: let before-quit handle cleanup
-    if (state.tray) {
-      state.tray.destroy()
-      setTray(null as any)
-    }
-
-    app.quit()
-  })
-
   mainWindow.on('show', () => {
     if (!isWindowMinimizing) {
       mainWindow.webContents.send('check-wake-word-on-show')
@@ -429,7 +392,6 @@ function createMainWindow(): BrowserWindow {
     mainWindow.webContents.send('window-state-changed', { maximized: false })
   })
 
-  setupTray()
   setupContextMenu()
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -476,49 +438,6 @@ function createMainWindow(): BrowserWindow {
   }
 
   return mainWindow
-}
-
-function setupTray(): void {
-  if (state.tray) return
-
-  const tray = new Tray(nativeImage.createFromPath(ICON_PATH))
-  tray.setToolTip('MomAI')
-
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Abrir',
-      click: () => {
-        const win = getMainWindow()
-        if (win) {
-          win.show()
-          win.focus()
-          fetch(`${API_BASE_URL}/llama/start`, { method: 'POST' }).catch(() => {})
-        }
-      }
-    },
-    {
-      label: 'Sair',
-      click: () => app.quit()
-    }
-  ])
-
-  tray.setContextMenu(contextMenu)
-
-  tray.on('click', () => {
-    const win = getMainWindow()
-    if (!win) return
-
-    if (win.isVisible()) {
-      win.hide()
-    } else {
-      win.show()
-      win.focus()
-      // Restart llama server when restoring from tray
-      fetch(`${API_BASE_URL}/llama/start`, { method: 'POST' }).catch(() => {})
-    }
-  })
-
-  setTray(tray)
 }
 
 function setupContextMenu(): void {
@@ -587,6 +506,7 @@ export function toggleWindow(): void {
       win.setSize(450, 670)
       win.center()
       // Restart llama if waking from tray
+      // TODO: integrate with TrayService — this Alt+Space shortcut path is not yet covered by TrayService
       fetch(`${API_BASE_URL}/llama/start`, { method: 'POST' }).catch(() => {})
       win.webContents.send('focus-input')
     }

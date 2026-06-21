@@ -1,4 +1,4 @@
-import { BrowserWindow, Tray } from 'electron'
+import { BrowserWindow } from 'electron'
 
 export type BootstrapErrorType =
   | 'python_not_found'
@@ -19,7 +19,6 @@ export interface BootstrapError {
 export interface AppState {
   nodeCoreProcess: ReturnType<typeof import('child_process').spawn> | null
   pythonProcess: ReturnType<typeof import('child_process').spawn> | null
-  tray: Tray | null
   mainWindow: BrowserWindow | null
   overlayWindow: BrowserWindow | null
   isQuitting: boolean
@@ -32,7 +31,6 @@ export interface AppState {
 export const state: AppState = {
   nodeCoreProcess: null,
   pythonProcess: null,
-  tray: null,
   mainWindow: null,
   overlayWindow: null,
   isQuitting: false,
@@ -64,10 +62,6 @@ export function setPythonProcess(proc: AppState['pythonProcess']): void {
 
 export function setNodeCoreProcess(proc: AppState['nodeCoreProcess']): void {
   state.nodeCoreProcess = proc
-}
-
-export function setTray(t: Tray | null): void {
-  state.tray = t
 }
 
 export function setIsQuitting(value: boolean): void {
