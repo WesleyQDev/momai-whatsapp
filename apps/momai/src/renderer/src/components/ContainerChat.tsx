@@ -298,10 +298,11 @@ const CallModeContent = ({
     // Detect if this is a NEW message (not just a streaming update)
     // We prefer ID, but fallback to a stable prefix if ID is not available
     const msgId = lastAssistant.id ?? content.slice(0, 50)
-    
+
     // If the message is shorter than what we had, or ID changed, it's new
-    const isNewMessage = lastMsgRef.current !== msgId && 
-                         (!lastMsgRef.current || !content.startsWith(lastMsgRef.current.toString().slice(0, 20)))
+    const isNewMessage =
+      lastMsgRef.current !== msgId &&
+      (!lastMsgRef.current || !content.startsWith(lastMsgRef.current.toString().slice(0, 20)))
 
     if (isNewMessage) {
       setDisplayedWords([])
@@ -883,9 +884,7 @@ export default function ContainerChat({
               {wakingFromSoneca && (
                 <div className="flex items-center justify-center gap-2 mb-2 animate-in fade-in slide-in-from-bottom-1 duration-300">
                   <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                  <span className="text-xs font-medium text-accent">
-                    Saindo do modo soneca...
-                  </span>
+                  <span className="text-xs font-medium text-accent">Saindo do modo soneca...</span>
                 </div>
               )}
               <ChatInput
@@ -894,9 +893,7 @@ export default function ContainerChat({
                 isLoading={isLoading}
                 isModeChanging={isModeChanging}
                 statusInfo={statusInfo}
-                idleSonecaActive={
-                  !!economyState?.active && economyState.detectedGames.length === 0
-                }
+                idleSonecaActive={!!economyState?.active && economyState.detectedGames.length === 0}
                 onStopGeneration={stopCurrentGeneration}
                 onStopVoice={stopCurrentVoice}
                 isCallMode={isCallMode}

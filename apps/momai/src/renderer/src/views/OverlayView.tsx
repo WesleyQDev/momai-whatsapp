@@ -65,13 +65,13 @@ export default function OverlayView() {
           onClick={handleBackdropClick}
         >
           <div className="max-h-full flex flex-col min-h-0" onClick={(e) => e.stopPropagation()}>
-          {createElement(Renderer, {
-            data: {
-              ...data.structuredResponse.data,
-              onClose: handleClose,
-              onSend: data.structuredResponse.data?.onSend
-            }
-          })}
+            {createElement(Renderer, {
+              data: {
+                ...data.structuredResponse.data,
+                onClose: handleClose,
+                onSend: data.structuredResponse.data?.onSend
+              }
+            })}
           </div>
         </div>
       )

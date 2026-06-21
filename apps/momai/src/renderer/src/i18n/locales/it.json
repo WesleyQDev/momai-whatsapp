@@ -232,6 +232,8 @@
   "settings.general.localAiDesc": "Avvia all'apertura dell'app",
   "settings.general.skipIntroLabel": "Salta introduzione",
   "settings.general.skipIntroDesc": "Salta l'animazione di apertura all'avvio dell'app",
+  "settings.general.keepInTrayLabel": "Mantieni in background",
+  "settings.general.keepInTrayDesc": "Alla chiusura, minimizza nella barra delle applicazioni invece di uscire",
   "settings.general.localAiTooltipOn": "Consuma più RAM/VRAM, ma la prima risposta è immediata.",
   "settings.general.localAiTooltipOff": "Libera RAM/VRAM, ma il primo messaggio può richiedere più tempo.",
   "settings.general.assistantModeLabel": "Modalità dell'Assistente",

@@ -10,7 +10,7 @@ import {
   Notification
 } from 'electron'
 import { join } from 'path'
-import { existsSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
 import {
   state,
@@ -35,6 +35,17 @@ async function controlWakeWord(enabled: boolean): Promise<void> {
     logger.info(`[WindowManager] Wake word ${enabled ? 'enabled' : 'disabled'}`)
   } catch (err) {
     logger.error('[WindowManager] Failed to control wake word:', err)
+  }
+}
+
+function readKeepInTraySetting(): boolean {
+  try {
+    const storePath = join(app.getPath('userData'), 'data', 'node-core-store.json')
+    const raw = readFileSync(storePath, 'utf-8')
+    const data = JSON.parse(raw)
+    return data.settings?.keep_in_tray !== false
+  } catch {
+    return true // Default to keeping in tray
   }
 }
 
@@ -124,7 +135,12 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.on('window-close', () => {
-    app.quit()
+    const win = getMainWindow()
+    if (win) {
+      win.close()
+    } else {
+      app.quit()
+    }
   })
 
   ipcMain.on('window-set-resizable', (_, resizable: boolean) => {
@@ -257,7 +273,9 @@ export function registerIpcHandlers(): void {
   })
 }
 
-function getOverlayDimensions(data?: { structuredResponse?: { type?: string; data?: { conversationHistory?: unknown[] } } }) {
+function getOverlayDimensions(data?: {
+  structuredResponse?: { type?: string; data?: { conversationHistory?: unknown[] } }
+}) {
   const isWhatsApp = data?.structuredResponse?.type === 'whatsapp_notification'
   const historyLen = data?.structuredResponse?.data?.conversationHistory?.length ?? 0
   const width = 440
@@ -400,8 +418,17 @@ function createMainWindow(): BrowserWindow {
     if (process.platform === 'darwin') return
     if (state.isQuitting) return
     event.preventDefault()
-    setIsQuitting(true)
 
+    // Check if should keep in tray
+    const keepInTray = readKeepInTraySetting()
+    if (keepInTray) {
+      mainWindow.hide()
+      // Stop llama server to free resources (sleep mode)
+      fetch(`${API_BASE_URL}/llama/stop`, { method: 'POST' }).catch(() => {})
+      return
+    }
+
+    // Full quit path: let before-quit handle cleanup
     if (state.tray) {
       state.tray.destroy()
       setTray(null as any)
@@ -487,6 +514,7 @@ function setupTray(): void {
         if (win) {
           win.show()
           win.focus()
+          fetch(`${API_BASE_URL}/llama/start`, { method: 'POST' }).catch(() => {})
         }
       }
     },
@@ -507,6 +535,8 @@ function setupTray(): void {
     } else {
       win.show()
       win.focus()
+      // Restart llama server when restoring from tray
+      fetch(`${API_BASE_URL}/llama/start`, { method: 'POST' }).catch(() => {})
     }
   })
 
@@ -578,6 +608,8 @@ export function toggleWindow(): void {
       win.focus()
       win.setSize(450, 670)
       win.center()
+      // Restart llama if waking from tray
+      fetch(`${API_BASE_URL}/llama/start`, { method: 'POST' }).catch(() => {})
       win.webContents.send('focus-input')
     }
   } else {

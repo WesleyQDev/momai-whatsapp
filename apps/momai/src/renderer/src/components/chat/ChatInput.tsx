@@ -551,13 +551,13 @@ export default function ChatInput({
                 <button
                   type="button"
                   onClick={handleMicClick}
-                    disabled={
-                      isLoading ||
-                      isModeChanging ||
-                      (isBrainUnavailable && !idleSonecaActive) ||
-                      aiTier !== 'ultra' ||
-                      !pythonStatus.online
-                    }
+                  disabled={
+                    isLoading ||
+                    isModeChanging ||
+                    (isBrainUnavailable && !idleSonecaActive) ||
+                    aiTier !== 'ultra' ||
+                    !pythonStatus.online
+                  }
                   className={`flex items-center justify-center rounded-full w-8 h-8 transition-all duration-200 ${
                     isQuickRecording
                       ? 'bg-red-500 text-white animate-pulse'
@@ -603,7 +603,9 @@ export default function ChatInput({
                   type="button"
                   className="bg-transparent text-text-muted rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-110 hover:text-text hover:bg-white/5 active:scale-90 disabled:opacity-40"
                   onClick={handleSend}
-                  disabled={isLoading || isModeChanging || (isBrainUnavailable && !idleSonecaActive)}
+                  disabled={
+                    isLoading || isModeChanging || (isBrainUnavailable && !idleSonecaActive)
+                  }
                   title="Enviar mensagem"
                 >
                   <PaperAirplaneIcon className="w-5 h-5" />

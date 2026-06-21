@@ -45,9 +45,17 @@ function resolveDepPath(name, nmPaths) {
 }
 
 const DEV_SKIP_PREFIXES = [
-  '@typescript-eslint', 'eslint', '@eslint', 'typescript',
-  'jest', 'ts-jest', 'ts-node', 'typedoc', 'release-it',
-  'conventional-changelog', '@types/',
+  '@typescript-eslint',
+  'eslint',
+  '@eslint',
+  'typescript',
+  'jest',
+  'ts-jest',
+  'ts-node',
+  'typedoc',
+  'release-it',
+  'conventional-changelog',
+  '@types/'
 ]
 
 function isDevPackage(name) {
@@ -810,16 +818,14 @@ function createExtensionsRoutes(context) {
           user: `Canal: ${channelLabel}\nRemetente desta mensagem (use so este nome): ${displayContact}\nMensagem recebida: "${message}"`
         })
         const text = (result.text || '').trim()
-        const opts = text
-          .split('|')
-          .flatMap(function (s) {
-            return s
-              .split(/[,;]/)
-              .map(function (x) {
-                return x.trim()
-              })
-              .filter(Boolean)
-          })
+        const opts = text.split('|').flatMap(function (s) {
+          return s
+            .split(/[,;]/)
+            .map(function (x) {
+              return x.trim()
+            })
+            .filter(Boolean)
+        })
         if (opts.length >= 1) quickReplies = opts.slice(0, 3)
       } catch {}
 

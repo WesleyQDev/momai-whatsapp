@@ -290,7 +290,9 @@ function buildToolResultPreview(result) {
         .filter(Boolean)
         .join(' | ')
     }
-    const instruction = String(result?.instruction || '').replace(/\s+/g, ' ').trim()
+    const instruction = String(result?.instruction || '')
+      .replace(/\s+/g, ' ')
+      .trim()
     if (instruction) return instruction.slice(0, 220)
   } catch {}
   return ''
@@ -1055,7 +1057,9 @@ async function streamLlamaChat(req, res, payload) {
               const add = (r.confidence || 0) * 0.3
               blended.set(r.id, { id: r.id, score: (prev?.score || 0) + add })
             }
-            const ranked = [...blended.values()].sort((a, b) => b.score - a.score).slice(0, discoveryLimit)
+            const ranked = [...blended.values()]
+              .sort((a, b) => b.score - a.score)
+              .slice(0, discoveryLimit)
             ranked.forEach((r) => {
               topScores[r.id] = r.score
             })
@@ -1105,7 +1109,9 @@ async function streamLlamaChat(req, res, payload) {
       }
     } catch {}
 
-    const selectedSkills = discoveredSkillIds.map((id) => skillRegistry?.getById?.(id)).filter(Boolean)
+    const selectedSkills = discoveredSkillIds
+      .map((id) => skillRegistry?.getById?.(id))
+      .filter(Boolean)
     const shouldSendTools = shouldExposeSkillTools(discoveryContent, selectedSkills, skillRegistry)
     if (!shouldSendTools && selectedSkills.length > 0) {
       debug(
@@ -1154,7 +1160,10 @@ async function streamLlamaChat(req, res, payload) {
         })
         debug(
           `[chat] Capping tools from ${toolsPayload.length} to ${MAX_OPENAI_TOOLS} (distributed: ${skillNames
-            .map((n) => `${n}=${Math.min(toolsBySkill[n].length, perSkill + (skillNames.indexOf(n) < extra ? 1 : 0))}`)
+            .map(
+              (n) =>
+                `${n}=${Math.min(toolsBySkill[n].length, perSkill + (skillNames.indexOf(n) < extra ? 1 : 0))}`
+            )
             .join(', ')})`
         )
         toolsPayload = redistributed
@@ -1172,7 +1181,8 @@ async function streamLlamaChat(req, res, payload) {
       const toolAvailabilityNote = shouldSendTools
         ? 'Tool schemas for these skills are available in this turn.'
         : 'Only skill summaries are available in this turn. Request a specific skill by name if you need its tools and full SKILL.md details.'
-      const toolMandate = '<tool_mandate>CRITICAL: You MUST use the appropriate tool from the available skills whenever one exists for the user request. Do NOT answer from your training data. Call the tool first, then use its result to answer.</tool_mandate>'
+      const toolMandate =
+        '<tool_mandate>CRITICAL: You MUST use the appropriate tool from the available skills whenever one exists for the user request. Do NOT answer from your training data. Call the tool first, then use its result to answer.</tool_mandate>'
       const skillDesc = `<available_skills>\n${skillsBlock}\n</available_skills>\n\n${toolAvailabilityNote}\n\n${toolMandate}\n\n${toolPriority}`
       toolInstruction = skillDesc
     }
@@ -1622,7 +1632,8 @@ async function streamLlamaChat(req, res, payload) {
                 tool: toolName,
                 name: toolName,
                 description: String(
-                  (skillObj.manifest.tools || []).find((t) => t.name === toolName)?.description || ''
+                  (skillObj.manifest.tools || []).find((t) => t.name === toolName)?.description ||
+                    ''
                 ),
                 status: 'running',
                 started_at: isoNow(),
@@ -2041,7 +2052,9 @@ async function runVoiceCommand(payload = {}) {
   if (activeGenerationThreads.has(threadId)) {
     info(`[voice-cmd] Stopping previous generation on thread ${threadId} for new voice command`)
     for (const controller of activeChatControllers) {
-      try { controller.abort() } catch {}
+      try {
+        controller.abort()
+      } catch {}
     }
     activeChatControllers.clear()
     activeGenerationThreads.delete(threadId)

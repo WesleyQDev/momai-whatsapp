@@ -232,6 +232,8 @@
   "settings.general.localAiDesc": "Démarrer à l'ouverture de l'app",
   "settings.general.skipIntroLabel": "Sauter l'intro",
   "settings.general.skipIntroDesc": "Ignore l'animation d'ouverture au lancement de l'app",
+  "settings.general.keepInTrayLabel": "Garder en arrière-plan",
+  "settings.general.keepInTrayDesc": "Lors de la fermeture, réduit dans la barre des tâches au lieu de quitter",
   "settings.general.localAiTooltipOn": "Consomme plus de RAM/VRAM, mais la première réponse est immédiate.",
   "settings.general.localAiTooltipOff": "Libère de la RAM/VRAM, mais le premier message peut prendre plus de temps.",
   "settings.general.assistantModeLabel": "Mode de l'Assistante",

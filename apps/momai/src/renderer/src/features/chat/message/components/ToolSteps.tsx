@@ -197,7 +197,14 @@ export const ToolSteps: React.FC<ToolStepsProps> = ({
                 <div className="flex flex-col gap-2 mb-5 relative z-10 animate-in fade-in duration-300">
                   <div className="flex items-center gap-2">
                     <div className="w-[16px] h-[16px] rounded flex items-center justify-center flex-shrink-0 bg-card border border-zinc-300 dark:border-white/20 text-zinc-500 dark:text-zinc-400">
-                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <svg
+                        width="9"
+                        height="9"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                      >
                         <circle cx="11" cy="11" r="8" />
                         <path d="m21 21-4.35-4.35" />
                       </svg>
@@ -215,12 +222,20 @@ export const ToolSteps: React.FC<ToolStepsProps> = ({
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 text-[12px] !text-zinc-600 dark:!text-zinc-400 hover:!text-zinc-800 dark:hover:!text-zinc-200 transition-colors no-underline"
                       >
-                        <svg className="w-2.5 h-2.5 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg
+                          className="w-2.5 h-2.5 flex-shrink-0 opacity-50"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
                           <circle cx="12" cy="12" r="10" />
                           <ellipse cx="12" cy="12" rx="3" ry="8" />
                           <path d="M2 12h20" />
                         </svg>
-                        <span className="truncate max-w-[120px]">{cleanUIMetadata(s.title || s.url)}</span>
+                        <span className="truncate max-w-[120px]">
+                          {cleanUIMetadata(s.title || s.url)}
+                        </span>
                       </a>
                     ))}
                   </div>

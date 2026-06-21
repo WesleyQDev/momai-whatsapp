@@ -127,7 +127,7 @@ describe('EconomyService', () => {
     const economyHost = 'http://localhost:12345'
     service.setEconomyHost(economyHost)
     service.setGamingModeEnabled(false)
-    service.setAppFocusIdleSeconds(() => 301) // 5min + 1s
+    service.setGetSystemIdleTime(() => 301) // 5min + 1s of system idle
     service.setIsWindowMinimized(() => false)
 
     await service.poll(['chrome.exe'])
@@ -156,13 +156,13 @@ describe('EconomyService', () => {
     const economyHost = 'http://localhost:12345'
     service.setEconomyHost(economyHost)
     service.setGamingModeEnabled(false)
-    service.setAppFocusIdleSeconds(() => 310)
+    service.setGetSystemIdleTime(() => 310)
     service.setIsWindowMinimized(() => false)
 
     await service.poll(['chrome.exe'])
     expect(service.getState().active).toBe(true)
 
-    service.setAppFocusIdleSeconds(() => 1) // user just focused the window
+    service.setGetSystemIdleTime(() => 1) // user just typed/moved mouse
     await service.poll(['chrome.exe'])
     expect(service.getState().active).toBe(false)
     expect(service.httpPost).toHaveBeenLastCalledWith(`${economyHost}/llama/start`)
@@ -174,12 +174,27 @@ describe('EconomyService', () => {
       idle_timeout_app_open: 0,
       idle_timeout_minimized: 0
     })
-    service.setAppFocusIdleSeconds(() => 9999)
+    service.setGetSystemIdleTime(() => 9999)
     service.setIsWindowMinimized(() => false)
 
     await service.poll(['chrome.exe'])
 
     expect(service.getState().active).toBe(false)
+  })
+
+  it('activates economy using system idle time when app is focused but user is AFK', async () => {
+    const economyHost = 'http://localhost:12345'
+    service.setEconomyHost(economyHost)
+    service.setGamingModeEnabled(false)
+    // App is focused and not minimized, but user has been AFK for 5min+
+    service.setGetSystemIdleTime(() => 301) // 5min + 1s of system idle
+    service.setIsWindowMinimized(() => false)
+
+    await service.poll(['chrome.exe'])
+
+    expect(service.httpPost).toHaveBeenCalledWith(`${economyHost}/llama/stop`)
+    expect(service.getState().active).toBe(true)
+    expect(service.getState().reason).toBe('idle')
   })
 
   it('gaming mode takes priority over idle', async () => {
@@ -190,7 +205,7 @@ describe('EconomyService', () => {
       { id: 1, name: 'Fortnite', executable: 'FortniteClient-Win64-Shipping.exe' }
     ])
     // Idle conditions are met, but gaming should win
-    service.setAppFocusIdleSeconds(() => 9999)
+    service.setGetSystemIdleTime(() => 9999)
     service.setIsWindowMinimized(() => false)
 
     await service.poll(['chrome.exe', 'FortniteClient-Win64-Shipping.exe'])
@@ -198,5 +213,54 @@ describe('EconomyService', () => {
     expect(service.getState().active).toBe(true)
     expect(service.getState().reason).toBe('gaming')
     expect(service.getState().detectedGames[0].name).toBe('Fortnite')
+  })
+
+  it('does not reactivate idle soneca after dismiss while user remains idle', async () => {
+    const economyHost = 'http://localhost:12345'
+    service.setEconomyHost(economyHost)
+    service.setGamingModeEnabled(false)
+    service.setGetSystemIdleTime(() => 310)
+    service.setIsWindowMinimized(() => false)
+
+    await service.poll(['chrome.exe'])
+    expect(service.getState().active).toBe(true)
+    expect(service.getState().reason).toBe('idle')
+
+    // User sends a message during soneca — dismisses and restarts llama
+    await service.dismiss()
+    expect(service.getState().active).toBe(false)
+
+    // Next poll: user is still idle, but dismissal must prevent re-activation
+    await service.poll(['chrome.exe'])
+    expect(service.getState().active).toBe(false)
+
+    // Subsequent polls while still idle: still no re-activation
+    await service.poll(['chrome.exe'])
+    expect(service.getState().active).toBe(false)
+  })
+
+  it('reactivates idle soneca after dismiss once user becomes active again', async () => {
+    const economyHost = 'http://localhost:12345'
+    service.setEconomyHost(economyHost)
+    service.setGamingModeEnabled(false)
+    service.setGetSystemIdleTime(() => 310)
+    service.setIsWindowMinimized(() => false)
+
+    await service.poll(['chrome.exe'])
+    expect(service.getState().active).toBe(true)
+
+    await service.dismiss()
+    expect(service.getState().active).toBe(false)
+
+    // User becomes active (types/moves mouse) — dismissed flag should clear
+    service.setGetSystemIdleTime(() => 1)
+    await service.poll(['chrome.exe'])
+    expect(service.getState().active).toBe(false)
+
+    // User goes idle again — soneca should now activate (dismissed was cleared)
+    service.setGetSystemIdleTime(() => 310)
+    await service.poll(['chrome.exe'])
+    expect(service.getState().active).toBe(true)
+    expect(service.getState().reason).toBe('idle')
   })
 })

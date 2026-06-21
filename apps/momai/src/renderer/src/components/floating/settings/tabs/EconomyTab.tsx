@@ -44,9 +44,7 @@ function TimeoutCombobox({
                 setOpen(false)
               }}
               className={`block w-full text-left px-3 py-2 text-sm transition-colors ${
-                p === value
-                  ? 'text-accent bg-accent/10'
-                  : 'text-text hover:bg-white/5'
+                p === value ? 'text-accent bg-accent/10' : 'text-text hover:bg-white/5'
               }`}
             >
               {p === 0 ? 'Desligado' : `${p} min`}

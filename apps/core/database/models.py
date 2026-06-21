@@ -36,6 +36,7 @@ class Settings(Base):
     # UI/Locale
     locale = Column(String, default="pt-BR")
     skip_intro = Column(Boolean, default=False)
+    keep_in_tray = Column(Boolean, default=True)
 
     ai_tier = Column(String, default=None)  # lite, pro, ultra
 
@@ -79,6 +80,10 @@ def init_db():
         if "skip_intro" not in cols:
             conn.execute(
                 text("ALTER TABLE settings ADD COLUMN skip_intro BOOLEAN DEFAULT 0")
+            )
+        if "keep_in_tray" not in cols:
+            conn.execute(
+                text("ALTER TABLE settings ADD COLUMN keep_in_tray BOOLEAN DEFAULT 1")
             )
         if "min_interface_chars" not in cols:
             conn.execute(

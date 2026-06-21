@@ -89,28 +89,10 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
       windowMinimizedAt = 0
     }
 
-    let lastFocusAt = Date.now()
-    let appInFocus = true
-    economyService.setAppFocusIdleSeconds(() => {
-      if (appInFocus) return 0
-      return (Date.now() - lastFocusAt) / 1000
-    })
-    const trackBlur = () => {
-      if (appInFocus) {
-        appInFocus = false
-        lastFocusAt = Date.now()
-      }
-    }
-    const trackFocus = () => {
-      appInFocus = true
-    }
-
     const win = getMainWindow()
     if (win) {
       win.on('minimize', trackMinimize)
       win.on('restore', trackRestore)
-      win.on('focus', trackFocus)
-      win.on('blur', trackBlur)
     }
 
     const [gamingRes, configRes] = await Promise.all([
@@ -531,12 +513,12 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
       }
 
       logger.info('[CoreManager] Calling ttsService.speak()...')
-      
+
       // Notify starting
       await notifyPythonTtsStatus(true)
-      
+
       await ttsService.speak(text, engine || 'edge-tts')
-      
+
       logger.info('[CoreManager] ttsService.speak() DONE')
 
       if (child.connected) {

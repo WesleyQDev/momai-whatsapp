@@ -37,6 +37,7 @@ function defaultStore() {
       tutorial_completed: false,
       ai_tier: null,
       skip_intro: false,
+      keep_in_tray: true,
       context_window_mode: 'min',
       context_window_tokens: 2048
     },

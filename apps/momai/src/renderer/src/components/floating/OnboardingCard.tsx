@@ -267,14 +267,27 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
         if (!data) return
         if (data.user_name) setName(data.user_name)
         if (data.locale) {
-          const localeToCode: Record<string, string> = { 'pt-BR': 'p', 'en-US': 'a', es: 'e', fr: 'f', de: 'd', it: 'i' }
+          const localeToCode: Record<string, string> = {
+            'pt-BR': 'p',
+            'en-US': 'a',
+            es: 'e',
+            fr: 'f',
+            de: 'd',
+            it: 'i'
+          }
           const langCode = localeToCode[data.locale] || 'a'
           setSelectedLang(langCode)
           setLocale(data.locale)
         } else {
           const navLang = navigator.language || 'en-US'
           const base = navLang.split('-')[0].toLowerCase()
-          const localeMap: Record<string, string> = { pt: 'pt-BR', es: 'es', fr: 'fr', de: 'de', it: 'it' }
+          const localeMap: Record<string, string> = {
+            pt: 'pt-BR',
+            es: 'es',
+            fr: 'fr',
+            de: 'de',
+            it: 'it'
+          }
           const detectedLocale = localeMap[base] || 'en-US'
           setLocale(detectedLocale as any)
         }
@@ -447,24 +460,43 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
               {selectedLang === 'a' && (
                 <svg width="14" height="10" viewBox="0 0 741 390" className="rounded-[1px]">
                   <rect width="741" height="390" fill="#bf0a30" />
-                  <path d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741" stroke="#fff" strokeWidth="30" />
+                  <path
+                    d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741"
+                    stroke="#fff"
+                    strokeWidth="30"
+                  />
                   <rect width="296.4" height="210" fill="#002868" />
                   <g fill="#fff">
-                    <circle cx="25" cy="25" r="6" /><circle cx="75" cy="25" r="6" />
-                    <circle cx="125" cy="25" r="6" /><circle cx="175" cy="25" r="6" />
-                    <circle cx="225" cy="25" r="6" /><circle cx="50" cy="65" r="6" />
-                    <circle cx="100" cy="65" r="6" /><circle cx="150" cy="65" r="6" />
-                    <circle cx="200" cy="65" r="6" /><circle cx="25" cy="105" r="6" />
-                    <circle cx="75" cy="105" r="6" /><circle cx="125" cy="105" r="6" />
-                    <circle cx="175" cy="105" r="6" /><circle cx="225" cy="105" r="6" />
+                    <circle cx="25" cy="25" r="6" />
+                    <circle cx="75" cy="25" r="6" />
+                    <circle cx="125" cy="25" r="6" />
+                    <circle cx="175" cy="25" r="6" />
+                    <circle cx="225" cy="25" r="6" />
+                    <circle cx="50" cy="65" r="6" />
+                    <circle cx="100" cy="65" r="6" />
+                    <circle cx="150" cy="65" r="6" />
+                    <circle cx="200" cy="65" r="6" />
+                    <circle cx="25" cy="105" r="6" />
+                    <circle cx="75" cy="105" r="6" />
+                    <circle cx="125" cy="105" r="6" />
+                    <circle cx="175" cy="105" r="6" />
+                    <circle cx="225" cy="105" r="6" />
                   </g>
                 </svg>
               )}
               {selectedLang === 'b' && (
                 <svg width="14" height="10" viewBox="0 0 1200 600" className="rounded-[1px]">
                   <rect width="1200" height="600" fill="#012169" />
-                  <path d="M0 0l600 300M1200 0L600 300M0 600l600-300M1200 600L600 300" stroke="#fff" strokeWidth="120" />
-                  <path d="M0 0l600 300M1200 0L600 300M0 600l600-300M1200 600L600 300" stroke="#c8102e" strokeWidth="60" />
+                  <path
+                    d="M0 0l600 300M1200 0L600 300M0 600l600-300M1200 600L600 300"
+                    stroke="#fff"
+                    strokeWidth="120"
+                  />
+                  <path
+                    d="M0 0l600 300M1200 0L600 300M0 600l600-300M1200 600L600 300"
+                    stroke="#c8102e"
+                    strokeWidth="60"
+                  />
                   <path d="M600 0v600M0 300h1200" stroke="#fff" strokeWidth="120" />
                   <path d="M600 0v600M0 300h1200" stroke="#c8102e" strokeWidth="60" />
                 </svg>
@@ -517,7 +549,7 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                   { code: 'e', locale: 'es', label: 'Español', badge: 'ES' },
                   { code: 'f', locale: 'fr', label: 'Français', badge: 'FR' },
                   { code: 'd', locale: 'de', label: 'Deutsch', badge: 'DE' },
-                  { code: 'i', locale: 'it', label: 'Italiano', badge: 'IT' },
+                  { code: 'i', locale: 'it', label: 'Italiano', badge: 'IT' }
                 ].map((item) => (
                   <button
                     key={item.code}
@@ -525,13 +557,20 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                       setLangOpen(false)
                       setSelectedLang(item.code)
                       setLocale(item.locale as any)
-                      const group = getVoiceCatalog(selectedEngine).find((g) => g.code === item.code)
+                      const group = getVoiceCatalog(selectedEngine).find(
+                        (g) => g.code === item.code
+                      )
                       if (group) setSelectedVoice(group.voices[0].id)
                     }}
                     className={`flex items-center gap-2.5 w-full px-3 py-2 hover:bg-white/[0.05] transition-all ${selectedLang === item.code ? 'bg-white/[0.03]' : ''}`}
                   >
                     {item.code === 'p' && (
-                      <svg width="16" height="11" viewBox="0 0 720 504" className="rounded-[1px] shrink-0">
+                      <svg
+                        width="16"
+                        height="11"
+                        viewBox="0 0 720 504"
+                        className="rounded-[1px] shrink-0"
+                      >
                         <rect width="720" height="504" fill="#009c3b" />
                         <path d="M360 432L648 252 360 72 72 252z" fill="#ffdf00" />
                         <circle cx="360" cy="252" r="126" fill="#002776" />
@@ -539,59 +578,110 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                       </svg>
                     )}
                     {item.code === 'a' && (
-                      <svg width="16" height="11" viewBox="0 0 741 390" className="rounded-[1px] shrink-0">
+                      <svg
+                        width="16"
+                        height="11"
+                        viewBox="0 0 741 390"
+                        className="rounded-[1px] shrink-0"
+                      >
                         <rect width="741" height="390" fill="#bf0a30" />
-                        <path d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741" stroke="#fff" strokeWidth="30" />
+                        <path
+                          d="M0 30h741M0 90h741M0 150h741M0 210h741M0 270h741M0 330h741"
+                          stroke="#fff"
+                          strokeWidth="30"
+                        />
                         <rect width="296.4" height="210" fill="#002868" />
                         <g fill="#fff">
-                          <circle cx="25" cy="25" r="6" /><circle cx="75" cy="25" r="6" />
-                          <circle cx="125" cy="25" r="6" /><circle cx="175" cy="25" r="6" />
-                          <circle cx="225" cy="25" r="6" /><circle cx="50" cy="65" r="6" />
-                          <circle cx="100" cy="65" r="6" /><circle cx="150" cy="65" r="6" />
-                          <circle cx="200" cy="65" r="6" /><circle cx="25" cy="105" r="6" />
-                          <circle cx="75" cy="105" r="6" /><circle cx="125" cy="105" r="6" />
-                          <circle cx="175" cy="105" r="6" /><circle cx="225" cy="105" r="6" />
+                          <circle cx="25" cy="25" r="6" />
+                          <circle cx="75" cy="25" r="6" />
+                          <circle cx="125" cy="25" r="6" />
+                          <circle cx="175" cy="25" r="6" />
+                          <circle cx="225" cy="25" r="6" />
+                          <circle cx="50" cy="65" r="6" />
+                          <circle cx="100" cy="65" r="6" />
+                          <circle cx="150" cy="65" r="6" />
+                          <circle cx="200" cy="65" r="6" />
+                          <circle cx="25" cy="105" r="6" />
+                          <circle cx="75" cy="105" r="6" />
+                          <circle cx="125" cy="105" r="6" />
+                          <circle cx="175" cy="105" r="6" />
+                          <circle cx="225" cy="105" r="6" />
                         </g>
                       </svg>
                     )}
                     {item.code === 'b' && (
-                      <svg width="16" height="11" viewBox="0 0 1200 600" className="rounded-[1px] shrink-0">
+                      <svg
+                        width="16"
+                        height="11"
+                        viewBox="0 0 1200 600"
+                        className="rounded-[1px] shrink-0"
+                      >
                         <rect width="1200" height="600" fill="#012169" />
-                        <path d="M0 0l600 300M1200 0L600 300M0 600l600-300M1200 600L600 300" stroke="#fff" strokeWidth="120" />
-                        <path d="M0 0l600 300M1200 0L600 300M0 600l600-300M1200 600L600 300" stroke="#c8102e" strokeWidth="60" />
+                        <path
+                          d="M0 0l600 300M1200 0L600 300M0 600l600-300M1200 600L600 300"
+                          stroke="#fff"
+                          strokeWidth="120"
+                        />
+                        <path
+                          d="M0 0l600 300M1200 0L600 300M0 600l600-300M1200 600L600 300"
+                          stroke="#c8102e"
+                          strokeWidth="60"
+                        />
                         <path d="M600 0v600M0 300h1200" stroke="#fff" strokeWidth="120" />
                         <path d="M600 0v600M0 300h1200" stroke="#c8102e" strokeWidth="60" />
                       </svg>
                     )}
                     {item.code === 'e' && (
-                      <svg width="16" height="11" viewBox="0 0 900 600" className="rounded-[1px] shrink-0">
+                      <svg
+                        width="16"
+                        height="11"
+                        viewBox="0 0 900 600"
+                        className="rounded-[1px] shrink-0"
+                      >
                         <rect width="900" height="600" fill="#c60b1e" />
                         <rect y="133.3" width="900" height="333.4" fill="#ffc400" />
                       </svg>
                     )}
                     {item.code === 'f' && (
-                      <svg width="16" height="11" viewBox="0 0 900 600" className="rounded-[1px] shrink-0">
+                      <svg
+                        width="16"
+                        height="11"
+                        viewBox="0 0 900 600"
+                        className="rounded-[1px] shrink-0"
+                      >
                         <rect width="300" height="600" fill="#002395" />
                         <rect x="300" width="300" height="600" fill="#fff" />
                         <rect x="600" width="300" height="600" fill="#ED2939" />
                       </svg>
                     )}
                     {item.code === 'd' && (
-                      <svg width="16" height="11" viewBox="0 0 900 600" className="rounded-[1px] shrink-0">
+                      <svg
+                        width="16"
+                        height="11"
+                        viewBox="0 0 900 600"
+                        className="rounded-[1px] shrink-0"
+                      >
                         <rect width="900" height="200" fill="#000" />
                         <rect y="200" width="900" height="200" fill="#DD0000" />
                         <rect y="400" width="900" height="200" fill="#FFCE00" />
                       </svg>
                     )}
                     {item.code === 'i' && (
-                      <svg width="16" height="11" viewBox="0 0 900 600" className="rounded-[1px] shrink-0">
+                      <svg
+                        width="16"
+                        height="11"
+                        viewBox="0 0 900 600"
+                        className="rounded-[1px] shrink-0"
+                      >
                         <rect width="300" height="600" fill="#009246" />
                         <rect x="300" width="300" height="600" fill="#fff" />
                         <rect x="600" width="300" height="600" fill="#CE2B37" />
                       </svg>
                     )}
                     <span className="text-[11px] font-semibold text-text">{item.label}</span>
-                    <span className="ml-auto text-[9px] text-text-muted/50 font-medium">{item.badge}</span>
+                    <span className="ml-auto text-[9px] text-text-muted/50 font-medium">
+                      {item.badge}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -857,7 +947,15 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                             )
                             if (group) {
                               setSelectedVoice(group.voices[0].id)
-                              const localeByCode: Record<string, string> = { p: 'pt-BR', a: 'en-US', b: 'en-US', e: 'es', f: 'fr', d: 'de', i: 'it' }
+                              const localeByCode: Record<string, string> = {
+                                p: 'pt-BR',
+                                a: 'en-US',
+                                b: 'en-US',
+                                e: 'es',
+                                f: 'fr',
+                                d: 'de',
+                                i: 'it'
+                              }
                               setLocale((localeByCode[newLang] || 'en-US') as any)
                             }
                           }}

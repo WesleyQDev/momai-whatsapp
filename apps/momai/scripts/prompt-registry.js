@@ -109,11 +109,10 @@ function createPromptRegistry({ promptsDir }) {
     /* Se ha historico, substitui a saudacao de inicio por instrucao de NAO saudar */
     let rawInstructions = String(tierCfg.tier_instructions || '')
     if (input.hasHistory) {
-      rawInstructions = rawInstructions
-        .replace(
-          /Greet( the user)? with a friendly sentence of at least 3 words and an emoji( only)? when starting( a conversation)?\./gi,
-          'The conversation is already in progress. NEVER greet or introduce yourself - respond directly.'
-        )
+      rawInstructions = rawInstructions.replace(
+        /Greet( the user)? with a friendly sentence of at least 3 words and an emoji( only)? when starting( a conversation)?\./gi,
+        'The conversation is already in progress. NEVER greet or introduce yourself - respond directly.'
+      )
     }
 
     const vars = {

@@ -73,8 +73,7 @@ class ExtensionHostManager extends EventEmitter {
 
     const bgScript = manifest.backgroundScript || 'runtime.js'
     const hostPath = path.join(skillPath, bgScript)
-    const dataDir =
-      process.env.MOMAI_NODE_CORE_DATA_DIR || process.env.MOMAI_DATA_DIR || ''
+    const dataDir = process.env.MOMAI_NODE_CORE_DATA_DIR || process.env.MOMAI_DATA_DIR || ''
 
     const extNodeModules = path.join(skillPath, 'node_modules')
     const nodePath = fs.existsSync(extNodeModules) ? extNodeModules : undefined

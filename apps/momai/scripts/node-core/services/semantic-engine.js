@@ -352,9 +352,7 @@ function buildMemoryContextAndSources(hits) {
   for (const hit of hits.slice(0, 4)) {
     const txt = String(hit.text || '').trim()
     if (!txt) continue
-    sections.push(
-      `--- [NOTE: ${String(hit.title || 'Note').toUpperCase()}] ---\n${txt}\n`
-    )
+    sections.push(`--- [NOTE: ${String(hit.title || 'Note').toUpperCase()}] ---\n${txt}\n`)
     memorySources.push({
       url: `momai://note/${hit.note_id}`,
       title: `Note: ${hit.title || 'Untitled'}`,

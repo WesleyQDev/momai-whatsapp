@@ -29,7 +29,7 @@ function createSkillsRoutes(context) {
 
       if (!store.skillKeywords) store.skillKeywords = {}
       store.skillKeywords[skillId] = normalized
-      
+
       // Fix: Ensure we call the correct save function from context
       if (typeof context.saveStoreNow === 'function') {
         context.saveStoreNow()

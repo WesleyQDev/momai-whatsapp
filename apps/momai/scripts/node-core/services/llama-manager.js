@@ -542,7 +542,12 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
             llamaState.parallelSlots = parallelSlots
 
             if (!wasRestart) {
-              setInitStatus('loading', `Loading local model (${tierName.toUpperCase()})...`, 80, null)
+              setInitStatus(
+                'loading',
+                `Loading local model (${tierName.toUpperCase()})...`,
+                80,
+                null
+              )
             }
 
             let child = null

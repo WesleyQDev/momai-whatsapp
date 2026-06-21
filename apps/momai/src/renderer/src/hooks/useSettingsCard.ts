@@ -34,6 +34,7 @@ export interface Settings {
   context_window_mode?: 'min' | 'medium' | 'max' | 'custom'
   context_window_tokens?: number
   skip_intro?: boolean
+  keep_in_tray?: boolean
   onboarding_completed?: boolean
 }
 
@@ -92,7 +93,8 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     auto_start_llm: true,
     context_window_mode: 'min',
     context_window_tokens: 2048,
-    skip_intro: false
+    skip_intro: false,
+    keep_in_tray: true
   })
 
   const settingsRef = useRef(settings)

@@ -245,6 +245,28 @@ export const GeneralTab = React.memo(
                 />
               </button>
             </div>
+            <div className="flex items-center justify-between p-4">
+              <div className="flex flex-col gap-0.5 pr-4">
+                <span className="text-xs font-semibold text-text">
+                  {t('settings.general.keepInTrayLabel')}
+                </span>
+                <span className="text-[11px] text-text-muted font-medium">
+                  {t('settings.general.keepInTrayDesc')}
+                </span>
+              </div>
+              <button
+                onClick={() => updateField('keep_in_tray', !settings.keep_in_tray, true)}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  settings.keep_in_tray !== false ? 'bg-accent/80' : 'bg-white/10'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    settings.keep_in_tray !== false ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
           {/* Modalidade da Assistente - AI Tiers */}
           <div className="space-y-3 pt-4 border-t border-border/40">

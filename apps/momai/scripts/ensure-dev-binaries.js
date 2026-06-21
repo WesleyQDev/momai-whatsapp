@@ -40,7 +40,7 @@ function removeRecursive(dir) {
 
 /* On Windows, clean up Linux-only files left by Docker builds */
 if (isWin) {
-  ['cpu', 'vulkan'].forEach((sub) => {
+  ;['cpu', 'vulkan'].forEach((sub) => {
     const d = path.join(llamaDir, sub)
     if (!exists(d)) return
     try {

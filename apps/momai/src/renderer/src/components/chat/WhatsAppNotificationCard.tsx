@@ -348,9 +348,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                 <div
                   key={`${line.timestamp}-${i}`}
                   className={
-                    line.direction === 'outgoing'
-                      ? 'pl-3 border-l-2 border-accent/40'
-                      : 'pl-0.5'
+                    line.direction === 'outgoing' ? 'pl-3 border-l-2 border-accent/40' : 'pl-0.5'
                   }
                 >
                   <div className="flex items-center gap-2">
@@ -379,7 +377,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         {isAdminsOnly ? (
           <div className="flex items-center justify-center py-2 px-3 rounded-lg bg-black/10 border border-white/5">
             <p className="text-[11px] text-text-muted">
-              Somente <span className="text-green-500 font-bold">admins</span> podem enviar mensagens
+              Somente <span className="text-green-500 font-bold">admins</span> podem enviar
+              mensagens
             </p>
           </div>
         ) : (

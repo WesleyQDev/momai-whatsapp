@@ -146,11 +146,7 @@ async function ensureEmbeddingReady() {
       const preferred = llamaManager.normalizeBackendMode(store.settings.local_backend || 'auto')
       const availableBackends = llamaManager.listAvailableBackends()
       const backend =
-        preferred === 'auto'
-          ? 'cpu'
-          : availableBackends.includes(preferred)
-            ? preferred
-            : 'cpu'
+        preferred === 'auto' ? 'cpu' : availableBackends.includes(preferred) ? preferred : 'cpu'
       const exePath = llamaManager.llamaBackendExePath(backend)
 
       info(

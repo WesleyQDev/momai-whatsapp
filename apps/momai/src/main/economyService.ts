@@ -57,7 +57,6 @@ export class EconomyService {
   private getSystemIdleTime: () => number = () => 0
   private isWindowMinimized: () => boolean = () => false
   private getWindowMinimizedSeconds: () => number = () => 0
-  private getAppFocusIdleSeconds: () => number = () => 0
 
   private idleTimeoutAppOpen = 5
   private idleTimeoutMinimized = 1
@@ -68,6 +67,7 @@ export class EconomyService {
 
   private preferencesPath: string | null = null
   private dismissed = false
+  private dismissedFor: EconomyState['reason'] = null
 
   private currentState: EconomyState = {
     active: false,
@@ -139,10 +139,6 @@ export class EconomyService {
     this.getWindowMinimizedSeconds = fn
   }
 
-  setAppFocusIdleSeconds(fn: () => number): void {
-    this.getAppFocusIdleSeconds = fn
-  }
-
   setIdleTimeouts(appOpen: number, minimized: number): void {
     this.idleTimeoutAppOpen = appOpen
     this.idleTimeoutMinimized = minimized
@@ -150,6 +146,7 @@ export class EconomyService {
 
   async dismiss(): Promise<void> {
     this.dismissed = true
+    this.dismissedFor = this.currentState.reason
     await this.deactivateEconomy()
   }
 
@@ -291,7 +288,7 @@ export class EconomyService {
 
     const elapsedSeconds = minimized
       ? this.getWindowMinimizedSeconds()
-      : this.getAppFocusIdleSeconds()
+      : this.getSystemIdleTime()
 
     return elapsedSeconds >= timeoutMinutes * 60
   }
@@ -320,8 +317,7 @@ export class EconomyService {
       const detected = await this.checkForGames(processOverrides)
       const hasGames = detected.length > 0
 
-      if (hasGames && !this.currentState.active) {
-        this.dismissed = false
+      if (hasGames && !this.currentState.active && !this.dismissed) {
         await this.activateEconomy('gaming', detected)
         return
       }
@@ -329,17 +325,30 @@ export class EconomyService {
       if (!hasGames && this.currentState.active && this.currentState.reason === 'gaming') {
         await this.deactivateEconomy()
       }
-
-      // When dismissed: check if games truly stopped before clearing the flag
-      if (this.dismissed) {
-        const stillRunning = await this.checkForGames(processOverrides, true)
-        if (stillRunning.length === 0) this.dismissed = false
-        return
-      }
     }
 
     // Soneca da IA: idle timeout check
     const isIdle = await this.checkForIdle()
+
+    if (this.dismissed) {
+      // User explicitly dismissed soneca. Clear the flag only when the
+      // trigger condition has lifted (idle: user became active;
+      // gaming: game process actually stopped).
+      let shouldClear = false
+      if (this.dismissedFor === 'gaming' && this.gamingModeEnabled) {
+        const stillRunning = await this.checkForGames(processOverrides, true)
+        shouldClear = stillRunning.length === 0
+      } else if (this.dismissedFor === 'idle') {
+        shouldClear = !isIdle
+      } else {
+        shouldClear = true
+      }
+      if (shouldClear) {
+        this.dismissed = false
+        this.dismissedFor = null
+      }
+      return
+    }
 
     if (isIdle && !this.currentState.active) {
       await this.activateEconomy('idle', [])

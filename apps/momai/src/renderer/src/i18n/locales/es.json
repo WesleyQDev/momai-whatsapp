@@ -232,6 +232,8 @@
   "settings.general.localAiDesc": "Iniciar al abrir la app",
   "settings.general.skipIntroLabel": "Saltar introducción",
   "settings.general.skipIntroDesc": "Omite la animación de apertura al iniciar la app",
+  "settings.general.keepInTrayLabel": "Mantener en segundo plano",
+  "settings.general.keepInTrayDesc": "Al cerrar, minimiza a la bandeja en lugar de salir",
   "settings.general.localAiTooltipOn": "Consume más RAM/VRAM, pero la primera respuesta es inmediata.",
   "settings.general.localAiTooltipOff": "Libera RAM/VRAM, pero el primer mensaje puede tardar más.",
   "settings.general.assistantModeLabel": "Modalidad de la Asistente",
