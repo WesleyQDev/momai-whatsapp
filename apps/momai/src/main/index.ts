@@ -1,10 +1,9 @@
-// Apply variant env vars BEFORE any other module reads them.
-// Must be the first import in this file.
+// Apply variant env vars and userData path BEFORE any other module reads them.
+// Must be the first import in this file — see apply-variant-env.ts for details.
 import './apply-variant-env'
 
 import { app, globalShortcut, BrowserWindow, ipcMain, shell } from 'electron'
 import { optimizer } from '@electron-toolkit/utils'
-import { join } from 'path'
 import { state, setIsQuitting, getMainWindow } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
 import { saveOnboardingCompleted, isOnboardingCompleted } from './python'
@@ -37,12 +36,6 @@ import { CURRENT_VARIANT } from './variants'
 import { TrayService } from './services/tray-service'
 import { HttpLlamaControl } from './services/llama-control'
 import { FileKeepInTrayReader } from './services/keep-in-tray-reader'
-
-// Apply variant identity BEFORE app.whenReady so userData path and
-// single-instance lock are scoped to this build.
-app.setName(CURRENT_VARIANT.appName)
-app.setAppUserModelId(CURRENT_VARIANT.appId)
-app.setPath('userData', join(app.getPath('appData'), CURRENT_VARIANT.userDataSubdir))
 
 // Initialize first launch state correctly at startup
 state.isFirstLaunch = !isOnboardingCompleted()
