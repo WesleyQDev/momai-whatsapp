@@ -20,7 +20,7 @@ import {
 import { logger } from './logger'
 import { restartCoreBackend } from './coreManager'
 import { scanInstalledGames } from './economyScanner'
-import { API_BASE_URL, ICON_PATH } from './constants'
+import { API_BASE_URL, WS_BASE_URL, ICON_PATH } from './constants'
 
 async function controlWakeWord(enabled: boolean): Promise<void> {
   try {
@@ -324,7 +324,8 @@ function createMainWindow(): BrowserWindow {
     ...(process.platform === 'linux' ? { icon: nativeImage.createFromPath(ICON_PATH) } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      additionalArguments: [`--momai-api-url=${API_BASE_URL}`, `--momai-ws-url=${WS_BASE_URL}`]
     }
   })
 

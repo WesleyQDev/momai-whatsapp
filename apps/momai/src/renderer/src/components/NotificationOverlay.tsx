@@ -3,8 +3,7 @@ import { XMarkIcon, MicrophoneIcon } from '@heroicons/react/24/outline'
 import { useExtensionEvents } from '../hooks/useExtensionEvents'
 import { getTTSServiceRenderer } from '../services/ttsService'
 import { resolveWhatsAppChannel } from '../utils/whatsappChannel'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+import { API_URL } from '../constants'
 
 interface VoiceState {
   status: 'idle' | 'listening' | 'detected' | 'complete' | 'error' | 'timeout'

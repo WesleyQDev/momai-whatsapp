@@ -1,7 +1,22 @@
 import { contextBridge } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
+// Read variant API URLs passed from main process via additionalArguments.
+// The renderer needs the same port as node-core, which is determined by
+// the build variant (dev=8050, nsis=8100, etc.) — see variants.ts.
+function getArgValue(prefix: string, fallback: string): string {
+  const arg = process.argv.find((a) => a.startsWith(prefix))
+  return arg ? arg.slice(prefix.length) : fallback
+}
+
+const FALLBACK_API_URL = 'http://127.0.0.1:8000'
+const FALLBACK_WS_URL = 'ws://127.0.0.1:8000/ws'
+const API_BASE_URL = getArgValue('--momai-api-url=', FALLBACK_API_URL)
+const WS_BASE_URL = getArgValue('--momai-ws-url=', FALLBACK_WS_URL)
+
 const api = {
+  getApiBaseUrl: (): string => API_BASE_URL,
+  getWsBaseUrl: (): string => WS_BASE_URL,
   minimize: (): void => electronAPI.ipcRenderer.send('window-minimize'),
   focus: (): void => electronAPI.ipcRenderer.send('window-focus'),
   maximize: (): void => electronAPI.ipcRenderer.send('window-maximize'),
