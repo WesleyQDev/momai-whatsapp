@@ -1,7 +1,7 @@
-import './env'
 import { app, globalShortcut, BrowserWindow, ipcMain, shell } from 'electron'
-import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { state, setIsQuitting } from './state'
+import { optimizer } from '@electron-toolkit/utils'
+import { join } from 'path'
+import { state, setIsQuitting, getMainWindow } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
 import { saveOnboardingCompleted, isOnboardingCompleted } from './python'
 import {
@@ -29,6 +29,18 @@ import {
   searchNotes,
   updateNote
 } from './notesService'
+import { CURRENT_VARIANT } from './variants'
+import { TrayService } from './services/tray-service'
+import { HttpLlamaControl } from './services/llama-control'
+import { FileKeepInTrayReader } from './services/keep-in-tray-reader'
+
+// Apply variant identity BEFORE app.whenReady so userData path and
+// single-instance lock are scoped to this build.
+app.setName(CURRENT_VARIANT.appName)
+app.setAppUserModelId(CURRENT_VARIANT.appId)
+app.setPath('userData', join(app.getPath('appData'), CURRENT_VARIANT.userDataSubdir))
+process.env.PORT = String(CURRENT_VARIANT.corePort)
+process.env.MOMAI_PYTHON_SIDECAR_PORT = String(CURRENT_VARIANT.pythonPort)
 
 // Initialize first launch state correctly at startup
 state.isFirstLaunch = !isOnboardingCompleted()
@@ -221,8 +233,6 @@ ipcMain.handle('notes:search', async (_, query: string, limit?: number) =>
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.wesleyqdev.momai')
-
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
@@ -232,6 +242,17 @@ app.whenReady().then(() => {
   setupUpdater()
 
   createWindow()
+  const mainWindow = getMainWindow()
+  if (mainWindow) {
+    const trayService = new TrayService({
+      window: mainWindow,
+      llama: new HttpLlamaControl(),
+      keepInTray: new FileKeepInTrayReader(),
+      isQuitting: () => state.isQuitting,
+      variant: CURRENT_VARIANT
+    })
+    trayService.start()
+  }
   startCoreBackend().catch((error) => {
     logger.error('[Electron] Failed to start core backend:', error)
   })
