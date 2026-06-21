@@ -243,7 +243,7 @@ Create `apps/momai/src/main/services/llama-control.test.ts`:
 ```typescript
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { HttpLlamaControl } from './llama-control'
-import { API_BASE_URL } from '../../constants'
+import { API_BASE_URL } from '../constants'
 
 describe('HttpLlamaControl', () => {
   const originalFetch = global.fetch
