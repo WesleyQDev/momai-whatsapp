@@ -6,3 +6,5 @@ export const API_PORT = parseInt(process.env.PORT || String(DEFAULT_PORT))
 
 export const API_BASE_URL = `http://${API_HOST}:${API_PORT}`
 export const WS_BASE_URL = `ws://${API_HOST}:${API_PORT}/ws`
+
+export const ICON_PATH = ''
