@@ -43,6 +43,8 @@ describe('variants', () => {
     expect(CURRENT_VARIANT.appName).toBe('MomAI')
     expect(CURRENT_VARIANT.corePort).toBe(8100)
     expect(CURRENT_VARIANT.pythonPort).toBe(8101)
+    expect(CURRENT_VARIANT.llamaPort).toBe(8102)
+    expect(CURRENT_VARIANT.embeddingPort).toBe(8103)
   })
 
   it('picks the appx-store entry when MOMAI_VARIANT=appx-store', async () => {
@@ -71,10 +73,12 @@ describe('variants', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('no two variants share the same (corePort, pythonPort) pair', async () => {
+  it('no two variants share the same (corePort, pythonPort, llamaPort, embeddingPort) tuple', async () => {
     const { VARIANTS } = await loadFresh()
-    const pairs = Object.values(VARIANTS).map((v: any) => `${v.corePort}/${v.pythonPort}`)
-    expect(new Set(pairs).size).toBe(pairs.length)
+    const tuples = Object.values(VARIANTS).map(
+      (v: any) => `${v.corePort}/${v.pythonPort}/${v.llamaPort}/${v.embeddingPort}`
+    )
+    expect(new Set(tuples).size).toBe(tuples.length)
   })
 
   it('isValidVariant returns true for known variants and false otherwise', async () => {

@@ -31,6 +31,8 @@ const baseVariant: VariantConfig = {
   userDataSubdir: 'MomAI-Dev',
   corePort: 8050,
   pythonPort: 8051,
+  llamaPort: 8052,
+  embeddingPort: 8053,
   displayLabel: 'Dev'
 }
 

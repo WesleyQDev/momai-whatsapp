@@ -39,8 +39,10 @@ import { FileKeepInTrayReader } from './services/keep-in-tray-reader'
 app.setName(CURRENT_VARIANT.appName)
 app.setAppUserModelId(CURRENT_VARIANT.appId)
 app.setPath('userData', join(app.getPath('appData'), CURRENT_VARIANT.userDataSubdir))
-process.env.PORT = String(CURRENT_VARIANT.corePort)
+process.env.MOMAI_NODE_CORE_PORT = String(CURRENT_VARIANT.corePort)
 process.env.MOMAI_PYTHON_SIDECAR_PORT = String(CURRENT_VARIANT.pythonPort)
+process.env.MOMAI_LLAMA_PORT = String(CURRENT_VARIANT.llamaPort)
+process.env.MOMAI_EMBEDDING_PORT = String(CURRENT_VARIANT.embeddingPort)
 
 // Initialize first launch state correctly at startup
 state.isFirstLaunch = !isOnboardingCompleted()
