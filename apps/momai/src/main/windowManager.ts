@@ -10,7 +10,7 @@ import {
   Notification
 } from 'electron'
 import { join } from 'path'
-import { existsSync, readFileSync } from 'fs'
+import { readFileSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
 import {
   state,
@@ -23,7 +23,7 @@ import {
 import { logger } from './logger'
 import { restartCoreBackend } from './coreManager'
 import { scanInstalledGames } from './economyScanner'
-import { API_BASE_URL } from './constants'
+import { API_BASE_URL, ICON_PATH } from './constants'
 
 async function controlWakeWord(enabled: boolean): Promise<void> {
   try {
@@ -48,28 +48,6 @@ function readKeepInTraySetting(): boolean {
     return true // Default to keeping in tray
   }
 }
-
-function resolveIconPath(): string {
-  const ext = process.platform === 'win32' ? 'ico' : 'png'
-
-  if (is.dev) {
-    const devPath = join(__dirname, `../../resources/icon.${ext}`)
-    return existsSync(devPath) ? devPath : join(__dirname, '../../resources/icon.png')
-  }
-
-  // Em produção, os arquivos de 'resources' estão na raiz do process.resourcesPath
-  // por conta da config 'from: resources, to: .' no electron-builder.yml
-  const prodPath = join(process.resourcesPath, `icon.${ext}`)
-  if (existsSync(prodPath)) return prodPath
-
-  const prodPngPath = join(process.resourcesPath, 'icon.png')
-  if (existsSync(prodPngPath)) return prodPngPath
-
-  // Fallback
-  return join(app.getAppPath(), `resources/icon.${ext}`)
-}
-
-const ICON_PATH = resolveIconPath()
 
 let isWindowMinimizing = false
 
