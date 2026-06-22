@@ -1,5 +1,6 @@
 const http = require('node:http')
 const { authMiddleware } = require('../middleware/auth.js')
+const { createRateLimiter } = require('../middleware/rate-limit.js')
 
 const PUBLIC_PATHS = new Set(['/health', '/extensions/events'])
 
@@ -11,6 +12,8 @@ function isPublicPath(pathname, method) {
 module.exports = { PUBLIC_PATHS, isPublicPath }
 
 function createRouter(context, routeHandlers) {
+  const writeLimiter = createRateLimiter({ capacity: 30, refillPerSecond: 1 })
+  const readLimiter = createRateLimiter({ capacity: 120, refillPerSecond: 4 })
   const {
     sendJson,
     sendNoContent,
@@ -83,9 +86,12 @@ function createRouter(context, routeHandlers) {
       return
     }
     authMiddleware(req, res, () => {
-      handleRequest(req, res).catch((err) => {
-        error('[NodeCore] Unexpected request error:', err)
-        sendJson(res, 500, { detail: 'Internal server error' })
+      const limiter = (req.method === 'GET' || req.method === 'HEAD') ? readLimiter : writeLimiter
+      limiter(req, res, () => {
+        handleRequest(req, res).catch((err) => {
+          error('[NodeCore] Unexpected request error:', err)
+          sendJson(res, 500, { detail: 'Internal server error' })
+        })
       })
     })
   })
