@@ -96,6 +96,12 @@ These were found during Phase 1 implementation but not in the original plan. All
 | B3 | **Fixed** | `/extensions/events` (SSE) can't send Authorization header (EventSource limitation). Exempted from auth: it is GET-only and server-to-client, so an unauthenticated subscriber can only listen to events, not send commands. | `apps/momai/scripts/node-core/api/router.js`, `tests/router-public-paths.test.js` (new) | `7b4ab568` |
 | B4 | **False positive** | Re-investigated: the "4x in 1 second" observation is normal parallel mounts of `LateralBar`, `ExtensionsView`, and `useAppInitialization`, not an infinite loop. `loadExtensions` in `LateralBar.tsx:162-195` is bounded (initial mount + `momai_backend_ready` event + 3s timeout fallback). No fix needed. | n/a | n/a |
 
+## H8 follow-up: persistent-host fork still spreads process.env
+
+Task 7 (H8) replaced `{ ...process.env, ... }` with an explicit 6-key allowlist in `_spawnHost` (non-persistent extensions), but the parallel `startPersistent` fork at `apps/momai/scripts/node-core/services/extension-host-manager.js:91-97` still does `env: { ...process.env, MOMAI_EXTENSION_ID: skillId, MOMAI_PERSISTENT: 'true', ... }`. Background extensions (e.g., WhatsApp/Baileys) still inherit the full Node Core env, including `HOME`/`USERPROFILE` and any sibling-extension secrets. This is the same H8 vulnerability on a parallel code path.
+
+The plan intentionally scoped Task 7 to `_spawnHost` only, so this is not a regression — but it is a real follow-up. The fix is mechanical: apply the same 6-key allowlist + `MOMAI_PERSISTENT: 'true'` to the persistent fork. Needs smoke-testing of background extensions (WhatsApp) to confirm they don't need additional env vars (e.g., `BAILEYS_*`, locale data paths).
+
 ---
 
 ## Pre-existing test failures (unrelated to security)
