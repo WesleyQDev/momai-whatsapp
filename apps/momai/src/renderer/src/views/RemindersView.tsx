@@ -79,6 +79,170 @@ const isFuture = (date: Date) => {
   return date > tomorrow
 }
 
+// --- Sub Components (module scope to avoid "Cannot create components during render") ---
+
+type SectionId = 'overdue' | 'today' | 'tomorrow' | 'upcoming'
+
+interface TaskItemProps {
+  r: Reminder
+  onDelete: (id: number) => void
+  onEdit: (r: Reminder) => void
+}
+
+function TaskItem({ r, onDelete, onEdit }: TaskItemProps) {
+  const { t, formatDate, formatTime } = useI18n()
+  const date = new Date(r.scheduled_time)
+  const overdue = isOverdue(date)
+
+  return (
+    <div className="group flex items-start gap-3 p-3 hover:bg-white/5 border-b border-border/5 transition-all">
+      <button
+        onClick={() => onDelete(r.id)}
+        className="mt-0.5 shrink-0 relative flex items-center justify-center w-5 h-5 rounded-full border border-text/10 group-hover:border-accent/40 transition-all hover:scale-110"
+      >
+        <CheckCircleIcon className="w-4 h-4 text-transparent" />
+        <CheckCircleSolid className="absolute inset-0 w-[18px] h-[18px] m-auto text-accent opacity-0 scale-50 group-hover:opacity-20 group-hover:scale-90 active:opacity-100 transition-all" />
+      </button>
+
+      <div className="flex-1 min-w-0" onClick={() => onEdit(r)}>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-[13px] font-medium text-text group-hover:text-accent transition-colors cursor-pointer truncate">
+            {r.title}
+          </h3>
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit(r)
+              }}
+              className="p-1 hover:bg-accent/10 rounded text-text-muted hover:text-accent transition-all"
+            >
+              <PencilSquareIcon className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(r.id)
+              }}
+              className="p-1 hover:bg-rose-500/10 rounded text-text-muted hover:text-rose-500 transition-all"
+            >
+              <TrashIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {r.content && (
+          <p className="text-[11px] text-text-muted/60 mt-0.5 line-clamp-1 leading-relaxed">
+            {r.content}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3 mt-1.5">
+          <div
+            className={`flex items-center gap-1 text-[10px] font-bold ${overdue ? 'text-rose-500' : 'text-text-muted/40'}`}
+          >
+            <CalendarIcon className="w-3 h-3" />
+            <span>{formatDate(date, { day: 'numeric', month: 'short' })}</span>
+            <span className="mx-0.5 opacity-30">•</span>
+            <ClockIcon className="w-3 h-3" />
+            <span>{formatTime(date, { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+
+          {r.repeat_interval && (
+            <div className="flex items-center gap-1 text-[10px] uppercase font-black tracking-widest text-emerald-500/70">
+              <ArrowPathIcon className="w-3 h-3" />
+              <span>
+                R:{r.repeat_value} {r.repeat_interval}
+                {r.repeat_count ? ` ${r.trigger_count}/${r.repeat_count}` : ''}
+              </span>
+            </div>
+          )}
+
+          <div
+            className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest ${r.action_type === 'cron' ? 'text-indigo-400' : 'text-accent/60'}`}
+          >
+            {r.action_type === 'cron' ? (
+              <>
+                <CommandLineIcon className="w-3 h-3" />
+                <span>{t('reminders.type.scheduler')}</span>
+              </>
+            ) : (
+              <>
+                <SpeakerWaveIcon className="w-3 h-3" />
+                <span>{t('reminders.type.reminder')}</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface SectionProps {
+  title: string
+  items: Reminder[]
+  id: SectionId
+  isExpanded: boolean
+  onToggle: () => void
+  color?: string
+  isOverdue?: boolean
+  onItemDelete: (id: number) => void
+  onItemEdit: (r: Reminder) => void
+}
+
+function Section({
+  title,
+  items,
+  id,
+  isExpanded,
+  onToggle,
+  color = 'text-text',
+  isOverdue = false,
+  onItemDelete,
+  onItemEdit
+}: SectionProps) {
+  const { t } = useI18n()
+  if (items.length === 0 && id !== 'today') return null
+
+  return (
+    <div className="mb-4">
+      <div
+        className="flex items-center justify-between py-1.5 cursor-pointer group select-none px-1"
+        onClick={onToggle}
+      >
+        <div className="flex items-center gap-1.5">
+          <div className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
+            <ChevronRightIcon className="w-3 h-3 text-text-muted/30" />
+          </div>
+          <h2
+            className={`text-xs font-black uppercase tracking-widest ${isOverdue ? 'text-rose-500' : color} opacity-80`}
+          >
+            {title}
+          </h2>
+          <span className="text-[9px] font-black text-text-muted/20 ml-1">{items.length}</span>
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div className="mt-1 bg-white/[0.01] rounded-lg border border-white/5 overflow-hidden">
+          {items.length > 0 ? (
+            items.map((r) => (
+              <TaskItem key={r.id} r={r} onDelete={onItemDelete} onEdit={onItemEdit} />
+            ))
+          ) : (
+            <div className="p-8 text-center bg-transparent">
+              <p className="text-xs text-text-muted/30 uppercase font-black tracking-widest">
+                {t('reminders.emptyToday')}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // --- Main Component ---
 
 export default function RemindersView() {
@@ -199,148 +363,6 @@ export default function RemindersView() {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }))
   }
 
-  const TaskItem = ({ r }: { r: Reminder }) => {
-    const date = new Date(r.scheduled_time)
-    const overdue = isOverdue(date)
-
-    return (
-      <div className="group flex items-start gap-3 p-3 hover:bg-white/5 border-b border-border/5 transition-all">
-        <button
-          onClick={() => handleDelete(r.id)}
-          className="mt-0.5 shrink-0 relative flex items-center justify-center w-5 h-5 rounded-full border border-text/10 group-hover:border-accent/40 transition-all hover:scale-110"
-        >
-          <CheckCircleIcon className="w-4 h-4 text-transparent" />
-          <CheckCircleSolid className="absolute inset-0 w-[18px] h-[18px] m-auto text-accent opacity-0 scale-50 group-hover:opacity-20 group-hover:scale-90 active:opacity-100 transition-all" />
-        </button>
-
-        <div className="flex-1 min-w-0" onClick={() => handleOpenEdit(r)}>
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-[13px] font-medium text-text group-hover:text-accent transition-colors cursor-pointer truncate">
-              {r.title}
-            </h3>
-            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleOpenEdit(r)
-                }}
-                className="p-1 hover:bg-accent/10 rounded text-text-muted hover:text-accent transition-all"
-              >
-                <PencilSquareIcon className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDelete(r.id)
-                }}
-                className="p-1 hover:bg-rose-500/10 rounded text-text-muted hover:text-rose-500 transition-all"
-              >
-                <TrashIcon className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {r.content && (
-            <p className="text-[11px] text-text-muted/60 mt-0.5 line-clamp-1 leading-relaxed">
-              {r.content}
-            </p>
-          )}
-
-          <div className="flex flex-wrap items-center gap-3 mt-1.5">
-            <div
-              className={`flex items-center gap-1 text-[10px] font-bold ${overdue ? 'text-rose-500' : 'text-text-muted/40'}`}
-            >
-              <CalendarIcon className="w-3 h-3" />
-              <span>{formatDate(date, { day: 'numeric', month: 'short' })}</span>
-              <span className="mx-0.5 opacity-30">•</span>
-              <ClockIcon className="w-3 h-3" />
-              <span>{formatTime(date, { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-
-            {r.repeat_interval && (
-              <div className="flex items-center gap-1 text-[10px] uppercase font-black tracking-widest text-emerald-500/70">
-                <ArrowPathIcon className="w-3 h-3" />
-                <span>
-                  R:{r.repeat_value} {r.repeat_interval}
-                  {r.repeat_count ? ` ${r.trigger_count}/${r.repeat_count}` : ''}
-                </span>
-              </div>
-            )}
-
-            <div
-              className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest ${r.action_type === 'cron' ? 'text-indigo-400' : 'text-accent/60'}`}
-            >
-              {r.action_type === 'cron' ? (
-                <>
-                  <CommandLineIcon className="w-3 h-3" />
-                  <span>{t('reminders.type.scheduler')}</span>
-                </>
-              ) : (
-                <>
-                  <SpeakerWaveIcon className="w-3 h-3" />
-                  <span>{t('reminders.type.reminder')}</span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const Section = ({
-    title,
-    items,
-    id,
-    color = 'text-text',
-    isOverdue = false
-  }: {
-    title: string
-    items: Reminder[]
-    id: keyof typeof expandedSections
-    color?: string
-    isOverdue?: boolean
-  }) => {
-    if (items.length === 0 && id !== 'today') return null
-
-    return (
-      <div className="mb-4">
-        <div
-          className="flex items-center justify-between py-1.5 cursor-pointer group select-none px-1"
-          onClick={() => toggleSection(id)}
-        >
-          <div className="flex items-center gap-1.5">
-            <div
-              className={`transition-transform duration-200 ${expandedSections[id] ? 'rotate-90' : ''}`}
-            >
-              <ChevronRightIcon className="w-3 h-3 text-text-muted/30" />
-            </div>
-            <h2
-              className={`text-xs font-black uppercase tracking-widest ${isOverdue ? 'text-rose-500' : color} opacity-80`}
-            >
-              {title}
-            </h2>
-            <span className="text-[9px] font-black text-text-muted/20 ml-1">{items.length}</span>
-          </div>
-        </div>
-
-        {expandedSections[id] && (
-          <div className="mt-1 bg-white/[0.01] rounded-lg border border-white/5 overflow-hidden">
-            {items.length > 0 ? (
-              items.map((r) => <TaskItem key={r.id} r={r} />)
-            ) : (
-              <div className="p-8 text-center bg-transparent">
-                <p className="text-xs text-text-muted/30 uppercase font-black tracking-widest">
-                  {t('reminders.emptyToday')}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
     <div className="flex h-full w-full bg-bg font-sans overflow-hidden">
       <main className="flex-1 overflow-y-auto custom-scrollbar bg-bg relative">
@@ -379,6 +401,10 @@ export default function RemindersView() {
             title={t('reminders.sections.overdue')}
             items={groupedReminders.overdue}
             id="overdue"
+            isExpanded={expandedSections.overdue}
+            onToggle={() => toggleSection('overdue')}
+            onItemDelete={handleDelete}
+            onItemEdit={handleOpenEdit}
             isOverdue
           />
 
@@ -386,6 +412,10 @@ export default function RemindersView() {
             title={t('reminders.sections.today')}
             items={groupedReminders.today}
             id="today"
+            isExpanded={expandedSections.today}
+            onToggle={() => toggleSection('today')}
+            onItemDelete={handleDelete}
+            onItemEdit={handleOpenEdit}
             color="text-accent"
           />
 
@@ -393,6 +423,10 @@ export default function RemindersView() {
             title={t('reminders.sections.tomorrow')}
             items={groupedReminders.tomorrow}
             id="tomorrow"
+            isExpanded={expandedSections.tomorrow}
+            onToggle={() => toggleSection('tomorrow')}
+            onItemDelete={handleDelete}
+            onItemEdit={handleOpenEdit}
             color="text-emerald-500"
           />
 
@@ -400,6 +434,10 @@ export default function RemindersView() {
             title={t('reminders.sections.upcoming')}
             items={groupedReminders.upcoming}
             id="upcoming"
+            isExpanded={expandedSections.upcoming}
+            onToggle={() => toggleSection('upcoming')}
+            onItemDelete={handleDelete}
+            onItemEdit={handleOpenEdit}
             color="text-violet-500"
           />
 
