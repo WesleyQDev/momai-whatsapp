@@ -1,6 +1,6 @@
 import { app as _app } from 'electron'
 import { join } from 'path'
-import { existsSync, mkdirSync, realpathSync } from 'fs'
+import { existsSync, mkdirSync, realpathSync, cpSync } from 'fs'
 import { cp } from 'fs/promises'
 import { logger } from '../../logger'
 
@@ -113,7 +113,7 @@ export async function getWritableCorePath(originalCorePath: string): Promise<str
         throw new Error(`robocopy failed with exit code ${result.status}: ${result.stderr || ''}`)
       }
     } else {
-      execSync(`cp -r "${originalCorePath}" "${tempDir}"`, { stdio: 'ignore' })
+      cpSync(originalCorePath, tempDir, { recursive: true })
     }
     sendInitProgress('Arquivos prontos.', 9)
 
@@ -127,6 +127,6 @@ export async function getWritableCorePath(originalCorePath: string): Promise<str
 
 // Import from other modules to avoid circular dependency
 import { readdirSync, rmSync } from 'fs'
-import { spawnSync, execSync } from 'child_process'
+import { spawnSync } from 'child_process'
 import { sendInitProgress } from '../utils/process-helpers'
 import { checkWritePermission } from '../utils/fs-helpers'

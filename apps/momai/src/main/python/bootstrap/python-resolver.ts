@@ -68,16 +68,25 @@ export function verifyManagedPython(pythonDir: string): boolean {
   const pythonExePath = join(pythonDir, pythonBin)
   if (!existsSync(pythonExePath)) return false
   try {
-    execSync(`"${pythonExePath}" -c "import sys; print(sys.version)"`, {
-      stdio: 'pipe',
-      timeout: 10000,
-      env: {
-        ...process.env,
-        PYTHONHOME: undefined,
-        PYTHONPATH: undefined,
-        VIRTUAL_ENV: undefined
-      } as NodeJS.ProcessEnv
-    })
+    const result = spawnSync(
+      pythonExePath,
+      ['-c', 'import sys; print(sys.version)'],
+      {
+        stdio: 'pipe',
+        timeout: 10000,
+        env: {
+          ...process.env,
+          PYTHONHOME: undefined,
+          PYTHONPATH: undefined,
+          VIRTUAL_ENV: undefined
+        } as NodeJS.ProcessEnv
+      }
+    )
+    if (result.status !== 0) {
+      throw new Error(
+        `python verification failed with status ${result.status}: ${result.stderr || result.error?.message || ''}`
+      )
+    }
     logger.info('[Bootstrap] Managed Python verification passed')
     return true
   } catch (e) {
@@ -89,4 +98,4 @@ export function verifyManagedPython(pythonDir: string): boolean {
 // Need to import app from electron
 import { app } from 'electron'
 import { getUserDataPath } from './index'
-import { execSync } from 'child_process'
+import { spawnSync } from 'child_process'

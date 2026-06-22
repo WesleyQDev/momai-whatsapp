@@ -1,6 +1,5 @@
 import { join } from 'path'
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, rmSync } from 'fs'
-import { execSync } from 'child_process'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, rmSync, chmodSync } from 'fs'
 import { createConnection } from 'net'
 import { app } from 'electron'
 import { is } from '@electron-toolkit/utils'
@@ -234,12 +233,12 @@ export async function bootstrapPython(
   // On Linux/macOS, ensure the uv and python binaries are executable
   if (process.platform !== 'win32' && !isUvCommand && existsSync(uvExe)) {
     try {
-      execSync(`chmod +x "${uvExe}"`, { stdio: 'ignore' })
+      chmodSync(uvExe, 0o755)
       logger.info(`[Bootstrap] chmod +x applied to ${uvExe}`)
 
       const bundledPython = join(process.resourcesPath, 'bin', 'python', 'bin', 'python3')
       if (existsSync(bundledPython)) {
-        execSync(`chmod +x "${bundledPython}"`, { stdio: 'ignore' })
+        chmodSync(bundledPython, 0o755)
         logger.info(`[Bootstrap] chmod +x applied to bundled python`)
       }
     } catch (e) {
