@@ -63,6 +63,13 @@ logger = logging.getLogger("momai.main")
 logger.info("[Python] Interpreter started")
 
 
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "file://",
+]
+
+
 def create_app():
     from dotenv import load_dotenv
     load_dotenv()
@@ -77,16 +84,11 @@ def create_app():
 
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:3000",
-            "http://127.0.0.1:8000",
-        ],
-        allow_origin_regex="http://localhost:.*",
+        allow_origins=ALLOWED_ORIGINS,
+        allow_origin_regex=None,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization"],
     )
 
     application.include_router(api_router)
