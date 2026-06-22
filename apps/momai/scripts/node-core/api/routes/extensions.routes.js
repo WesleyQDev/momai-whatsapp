@@ -8,6 +8,7 @@ const dns = require('node:dns').promises
 const { exec, spawn } = require('node:child_process')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { isPrivateIp } = require('../../utils/ip-check')
+const { verifyChecksum } = require('../../utils/extension-checksum')
 
 /* ── Community registry allowlist (SSRF defense) ── */
 
@@ -400,6 +401,26 @@ function createExtensionsRoutes(context) {
           await downloadFile(downloadUrl, zipPath, (percent, speed) =>
             sendStatus('Baixando...', percent, speed)
           )
+          let zipBuffer
+          try {
+            zipBuffer = fs.readFileSync(zipPath)
+          } catch (readErr) {
+            throw new Error(`Failed to read downloaded zip: ${readErr.message}`)
+          }
+          const checksumResult = verifyChecksum(zipBuffer, payload.expected_sha256)
+          if (!checksumResult.ok) {
+            if (checksumResult.reason === 'mismatch') {
+              console.log(`[ExtensionsAPI] Checksum mismatch for ${id} — aborting install`)
+              throw new Error('extension checksum mismatch')
+            }
+            if (checksumResult.reason === 'invalid_format') {
+              console.log(`[ExtensionsAPI] Invalid expected_sha256 format for ${id} — aborting install`)
+              throw new Error('invalid expected_sha256 format')
+            }
+            if (checksumResult.reason === 'missing') {
+              console.warn(`[extensions] install without expected_sha256 — backward compat path`)
+            }
+          }
           console.log(`[ExtensionsAPI] Extracting ${id}...`)
           sendStatus('Extraindo...', 100, '-')
           await extractZip(zipPath, extDir)
@@ -417,7 +438,7 @@ function createExtensionsRoutes(context) {
             fs.rmSync(extDir, { recursive: true, force: true })
           } catch {}
           res.write(
-            JSON.stringify({ ok: false, error: `Failed to download/extract: ${err.message}` }) +
+            JSON.stringify({ ok: false, error: `Extension install failed: ${err.message}` }) +
               '\n'
           )
           res.end()
