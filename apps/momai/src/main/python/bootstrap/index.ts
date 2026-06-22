@@ -66,13 +66,20 @@ export function getSyncLock(corePath: string): SyncResult | null {
     if (!existsSync(file)) return null
     const data = JSON.parse(readFileSync(file, 'utf-8'))
 
-    // Check if pyproject.toml was modified since last successful check
+    // Re-sync if either pyproject.toml OR the bootstrap installer
+    // (uv-runner.ts) was modified since last successful check. The
+    // installer is the source of truth for the hardcoded pip package
+    // list — if a new package is added there (e.g. slowapi in M5),
+    // we need to re-install even if pyproject.toml is unchanged.
     const pyprojectPath = join(corePath, 'pyproject.toml')
-    if (existsSync(pyprojectPath)) {
-      const stats = statSync(pyprojectPath)
-      if (stats.mtimeMs <= data.lastChecked) {
-        return { success: true, needsSync: false, lastChecked: data.lastChecked }
-      }
+    const installerPath = join(__dirname, 'uv-runner.ts')
+    const sources = [pyprojectPath, installerPath].filter((p) => existsSync(p))
+    const newestMtime = sources.reduce(
+      (max, p) => Math.max(max, statSync(p).mtimeMs),
+      0
+    )
+    if (sources.length > 0 && newestMtime <= data.lastChecked) {
+      return { success: true, needsSync: false, lastChecked: data.lastChecked }
     }
 
     return null
