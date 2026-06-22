@@ -20,6 +20,10 @@ import { getTTSService, type TTSEngine } from './ttsService'
 import { EconomyService } from './economyService'
 import { broadcastEconomyState } from './windowManager'
 import { authFetch } from './security/authenticated-fetch'
+import {
+  decideNodeCoreStartup,
+  type NodeCoreHttpStatus
+} from './node-core-startup-decision'
 
 const PYTHON_SIDECAR_HOST = API_HOST
 const PYTHON_SIDECAR_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
@@ -222,7 +226,10 @@ function isPortReachable(port: number, host: string, timeoutMs = 400): Promise<b
   })
 }
 
-async function isMomaiNodeCoreReachable(host: string, port: number): Promise<boolean> {
+async function isMomaiNodeCoreReachable(
+  host: string,
+  port: number
+): Promise<NodeCoreHttpStatus> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 1200)
 
@@ -232,11 +239,17 @@ async function isMomaiNodeCoreReachable(host: string, port: number): Promise<boo
       signal: controller.signal
     })
 
-    if (!response.ok) return false
+    if (response.status === 401) {
+      return 'stale'
+    }
+    if (!response.ok) return 'foreign'
     const data = await response.json().catch(() => null)
-    return Boolean(data && data.status === 'ok' && typeof data.mode === 'string')
+    if (data && data.status === 'ok' && typeof data.mode === 'string') {
+      return 'reachable'
+    }
+    return 'foreign'
   } catch {
-    return false
+    return 'foreign'
   } finally {
     clearTimeout(timeout)
   }
@@ -623,23 +636,35 @@ export async function startCoreBackend(): Promise<void> {
   emitInitProgress('Starting local Node core...', 10)
   isStoppingCore = false
 
-  // If something is already serving this port, default to fresh-starting node-core.
+  // If something is already serving this port, decide what to do:
+  //   - reuse an in-session Node Core (REUSE_NODE_CORE=1 + same token)
+  //   - kill a stale Node Core (different token from a previous run)
+  //   - fail on a true port conflict (foreign process)
+  //   - start fresh if the port is free
   if (await isPortReachable(API_PORT, API_HOST, 350)) {
-    if (await isMomaiNodeCoreReachable(API_HOST, API_PORT)) {
-      if (REUSE_NODE_CORE) {
-        logger.info(`[CoreManager] Reusing existing Node core on ${API_HOST}:${API_PORT}.`)
-        emitInitProgress('Node core online. Loading local model...', 32)
-        const mainWindow = getMainWindow()
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('backend-online')
-        }
+    const httpStatus = await isMomaiNodeCoreReachable(API_HOST, API_PORT)
+    const action = decideNodeCoreStartup({
+      tcpReachable: true,
+      httpStatus,
+      reuseEnabled: REUSE_NODE_CORE
+    })
 
-        void ensureNodeCoreLlamaWarmup(API_HOST, API_PORT)
-        void ensurePythonSidecar()
-        void startEconomyService(API_HOST, API_PORT)
-        return
+    if (action === 'reuse') {
+      logger.info(`[CoreManager] Reusing existing Node core on ${API_HOST}:${API_PORT}.`)
+      emitInitProgress('Node core online. Loading local model...', 32)
+      const mainWindow = getMainWindow()
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('backend-online')
       }
 
+      void ensureNodeCoreLlamaWarmup(API_HOST, API_PORT)
+      void ensurePythonSidecar()
+      void startEconomyService(API_HOST, API_PORT)
+      return
+    }
+
+    if (action === 'start_fresh') {
+      // Reachable and ours but we don't want to reuse: ask it to shut down.
       logger.info(
         `[CoreManager] Existing Node core found on ${API_HOST}:${API_PORT}; requesting shutdown for fresh start.`
       )
@@ -656,6 +681,22 @@ export async function startCoreBackend(): Promise<void> {
       }
 
       logger.info('[CoreManager] Previous Node core stopped. Starting a fresh instance.')
+    } else if (action === 'kill_and_restart') {
+      // Stale: previous MomAI instance with a different session token.
+      // The shutdown endpoint also requires the new token, so we can't
+      // ask it to stop politely. Kill the process on the port instead.
+      logger.warn(
+        `[CoreManager] Stale Node core on ${API_HOST}:${API_PORT} (auth mismatch). Killing it.`
+      )
+      emitInitProgress('Stopping stale local core...', 15)
+      await killProcessOnPort(API_PORT)
+      const closed = await waitForPortToClose(API_HOST, API_PORT, 8000)
+      if (!closed) {
+        const message = `Failed to stop stale Node core on ${API_HOST}:${API_PORT}.`
+        logger.error(`[CoreManager] ${message}`)
+        throw new Error(message)
+      }
+      logger.info('[CoreManager] Stale Node core killed. Starting a fresh instance.')
     } else {
       const conflictMessage =
         `Port ${API_PORT} is already in use by another process on ${API_HOST}. ` +
