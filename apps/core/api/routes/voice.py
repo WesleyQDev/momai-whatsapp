@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import logging
 
 from services.voice.whatsapp_reply import WhatsAppReplyDetector
+from api.middleware.auth import verify_ws_token
 
 logger = logging.getLogger("momai.api.voice")
 
@@ -15,6 +16,9 @@ router = APIRouter(prefix="/voice", tags=["voice"])
 async def websocket_endpoint(websocket: WebSocket):
     import app_state
 
+    if not verify_ws_token(websocket):
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     app_state.active_websockets.append(websocket)
     logger.debug("[VoiceWS] New connection accepted")
