@@ -1,6 +1,6 @@
 const fs = require('node:fs')
 const path = require('node:path')
-const { exec } = require('node:child_process')
+const { spawn } = require('node:child_process')
 
 /* ──────────────────────────────────────────────
    Scan Cache
@@ -678,13 +678,25 @@ function openItem(itemPath) {
     if (!fs.existsSync(normalized))
       return resolve({ ok: false, error: 'Caminho nao encontrado no disco' })
 
-    const cmd = process.platform === 'win32' ? `start "" "${normalized}"` : `open "${normalized}"`
+    let command, args
+    if (process.platform === 'win32') {
+      command = 'cmd'
+      args = ['/c', 'start', '""', normalized]
+    } else if (process.platform === 'darwin') {
+      command = 'open'
+      args = [normalized]
+    } else {
+      command = 'xdg-open'
+      args = [normalized]
+    }
 
-    exec(cmd, (err) => {
-      if (err) return resolve({ ok: false, error: err.message })
-      openedInSession.add(normalized)
-      return resolve({ ok: true, path: normalized })
+    const child = spawn(command, args, { detached: true, stdio: 'ignore' })
+    child.on('error', (err) => {
+      console.error('openItem failed:', err.message)
     })
+    child.unref()
+    openedInSession.add(normalized)
+    return resolve({ ok: true, path: normalized })
   })
 }
 
