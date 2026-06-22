@@ -2,8 +2,8 @@
 // Must be the first import in this file — see apply-variant-env.ts for details.
 import './apply-variant-env'
 
-import { app, globalShortcut, BrowserWindow, ipcMain, shell } from 'electron'
-import { optimizer } from '@electron-toolkit/utils'
+import { app, globalShortcut, BrowserWindow, ipcMain, shell, Menu } from 'electron'
+import { optimizer, is } from '@electron-toolkit/utils'
 import { state, setIsQuitting, getMainWindow } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
 import { saveOnboardingCompleted, isOnboardingCompleted } from './python'
@@ -230,6 +230,11 @@ ipcMain.handle('notes:search', async (_, query: string, limit?: number) =>
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
 app.whenReady().then(() => {
+  // M3: Hide native menu bar in production to remove the "View > Toggle Developer Tools" entry
+  if (!is.dev) {
+    Menu.setApplicationMenu(null)
+  }
+
   // Generate a per-session token before any backend is spawned.
   // The token is inherited by Node Core / Python via process.env and
   // forwarded to the renderer via webPreferences.additionalArguments

@@ -24,6 +24,7 @@ import { API_BASE_URL, WS_BASE_URL, ICON_PATH } from './constants'
 import { getOrCreateSessionToken } from './security/session-token'
 import { authFetch } from './security/authenticated-fetch'
 import { isSafeExternalUrl } from './security/safe-external-url'
+import { shouldBlockDevToolsShortcut } from './security/devtools-block'
 
 async function controlWakeWord(enabled: boolean): Promise<void> {
   try {
@@ -420,6 +421,21 @@ function createMainWindow(): BrowserWindow {
 
   // Tratamento de CTRL+R: em dev reinicia frontend+backend, em prod bloqueia
   mainWindow.webContents.on('before-input-event', async (event, input) => {
+    // M3: Block DevTools shortcuts in production
+    if (
+      shouldBlockDevToolsShortcut({
+        isDev: is.dev,
+        key: input.key,
+        control: input.control,
+        shift: input.shift,
+        alt: input.alt,
+        meta: input.meta
+      })
+    ) {
+      event.preventDefault()
+      return
+    }
+
     // CTRL+R ou F5
     const isReloadKey = (input.control && input.key.toLowerCase() === 'r') || input.key === 'F5'
     const isHardReload = input.control && input.shift && input.key.toLowerCase() === 'r'
