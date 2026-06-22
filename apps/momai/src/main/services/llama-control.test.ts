@@ -16,13 +16,21 @@ describe('HttpLlamaControl', () => {
   it('stop() POSTs to /llama/stop', async () => {
     const ctrl = new HttpLlamaControl()
     await ctrl.stop()
-    expect(global.fetch).toHaveBeenCalledWith(`${API_BASE_URL}/llama/stop`, { method: 'POST' })
+    const mock = global.fetch as unknown as ReturnType<typeof vi.fn>
+    expect(mock).toHaveBeenCalledTimes(1)
+    const [url, init] = mock.mock.calls[0]
+    expect(url).toBe(`${API_BASE_URL}/llama/stop`)
+    expect((init as RequestInit).method).toBe('POST')
   })
 
   it('start() POSTs to /llama/start', async () => {
     const ctrl = new HttpLlamaControl()
     await ctrl.start()
-    expect(global.fetch).toHaveBeenCalledWith(`${API_BASE_URL}/llama/start`, { method: 'POST' })
+    const mock = global.fetch as unknown as ReturnType<typeof vi.fn>
+    expect(mock).toHaveBeenCalledTimes(1)
+    const [url, init] = mock.mock.calls[0]
+    expect(url).toBe(`${API_BASE_URL}/llama/start`)
+    expect((init as RequestInit).method).toBe('POST')
   })
 
   it('stop() resolves even when fetch rejects (fire-and-forget)', async () => {

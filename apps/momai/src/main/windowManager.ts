@@ -22,10 +22,11 @@ import { restartCoreBackend } from './coreManager'
 import { scanInstalledGames } from './economyScanner'
 import { API_BASE_URL, WS_BASE_URL, ICON_PATH } from './constants'
 import { getOrCreateSessionToken } from './security/session-token'
+import { authFetch } from './security/authenticated-fetch'
 
 async function controlWakeWord(enabled: boolean): Promise<void> {
   try {
-    await fetch(`${API_BASE_URL}/voice/wake-word`, {
+    await authFetch(`${API_BASE_URL}/voice/wake-word`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled })
@@ -363,7 +364,7 @@ function createMainWindow(): BrowserWindow {
   mainWindow.on('restore', async () => {
     isWindowMinimizing = false
     try {
-      const response = await fetch(`${API_BASE_URL}/settings`)
+      const response = await authFetch(`${API_BASE_URL}/settings`)
       if (response.ok) {
         const settings = await response.json()
         // Re-enable detector if wake word is enabled OR call mode is active
@@ -372,7 +373,7 @@ function createMainWindow(): BrowserWindow {
         } else {
           // Check if call mode is active — detector must stay running for it
           try {
-            const callModeResp = await fetch(`${API_BASE_URL}/mode/call-mode/status`)
+            const callModeResp = await authFetch(`${API_BASE_URL}/mode/call-mode/status`)
             if (callModeResp.ok) {
               const callMode = await callModeResp.json()
               if (callMode.call_mode) {
@@ -518,7 +519,7 @@ export function toggleWindow(): void {
       win.center()
       // Restart llama if waking from tray
       // TODO: integrate with TrayService — this Alt+Space shortcut path is not yet covered by TrayService
-      fetch(`${API_BASE_URL}/llama/start`, { method: 'POST' }).catch(() => {})
+      authFetch(`${API_BASE_URL}/llama/start`, { method: 'POST' }).catch(() => {})
       win.webContents.send('focus-input')
     }
   } else {

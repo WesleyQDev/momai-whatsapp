@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../constants'
+import { authFetch } from '../security/authenticated-fetch'
 
 export interface LlamaControl {
   start(): Promise<void>
@@ -16,7 +17,7 @@ export class HttpLlamaControl implements LlamaControl {
 
   private async post(path: string): Promise<void> {
     try {
-      await fetch(`${API_BASE_URL}${path}`, { method: 'POST' })
+      await authFetch(`${API_BASE_URL}${path}`, { method: 'POST' })
     } catch {
       // Fire-and-forget: tray close must not block on network errors
     }

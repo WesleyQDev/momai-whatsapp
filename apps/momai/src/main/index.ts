@@ -37,6 +37,7 @@ import { TrayService } from './services/tray-service'
 import { HttpLlamaControl } from './services/llama-control'
 import { FileKeepInTrayReader } from './services/keep-in-tray-reader'
 import { getOrCreateSessionToken } from './security/session-token'
+import { authFetch } from './security/authenticated-fetch'
 
 // Initialize first launch state correctly at startup
 state.isFirstLaunch = !isOnboardingCompleted()
@@ -280,7 +281,7 @@ app.on('before-quit', (e) => {
     try {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 2500)
-      await fetch(`http://${API_HOST}:${API_PORT}/extensions/whatsapp/flush-history`, {
+      await authFetch(`http://${API_HOST}:${API_PORT}/extensions/whatsapp/flush-history`, {
         method: 'POST',
         signal: controller.signal
       }).catch(() => null)

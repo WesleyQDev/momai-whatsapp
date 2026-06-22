@@ -19,6 +19,7 @@ import {
 import { getTTSService, type TTSEngine } from './ttsService'
 import { EconomyService } from './economyService'
 import { broadcastEconomyState } from './windowManager'
+import { authFetch } from './security/authenticated-fetch'
 
 const PYTHON_SIDECAR_HOST = API_HOST
 const PYTHON_SIDECAR_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
@@ -96,8 +97,8 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
     }
 
     const [gamingRes, configRes] = await Promise.all([
-      fetch(`http://${apiHost}:${apiPort}/system/gaming-apps`),
-      fetch(`http://${apiHost}:${apiPort}/economy/config`)
+      authFetch(`http://${apiHost}:${apiPort}/system/gaming-apps`),
+      authFetch(`http://${apiHost}:${apiPort}/economy/config`)
     ])
     const gamingApps = await gamingRes.json()
     economyService.setGamingApps(gamingApps)
@@ -226,7 +227,7 @@ async function isMomaiNodeCoreReachable(host: string, port: number): Promise<boo
   const timeout = setTimeout(() => controller.abort(), 1200)
 
   try {
-    const response = await fetch(`http://${host}:${port}/status`, {
+    const response = await authFetch(`http://${host}:${port}/status`, {
       method: 'GET',
       signal: controller.signal
     })
@@ -246,7 +247,7 @@ async function ensureNodeCoreLlamaWarmup(host: string, port: number): Promise<vo
   const timeout = setTimeout(() => controller.abort(), 45000)
 
   try {
-    const response = await fetch(`http://${host}:${port}/llama/ensure`, {
+    const response = await authFetch(`http://${host}:${port}/llama/ensure`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal
@@ -287,7 +288,7 @@ async function requestNodeCoreShutdown(host: string, port: number): Promise<bool
   const timeout = setTimeout(() => controller.abort(), 4000)
 
   try {
-    const response = await fetch(`http://${host}:${port}/internal/shutdown`, {
+    const response = await authFetch(`http://${host}:${port}/internal/shutdown`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal
@@ -487,7 +488,7 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
   async function notifyPythonTtsStatus(isSpeaking: boolean) {
     try {
       const url = `http://${PYTHON_SIDECAR_HOST}:${PYTHON_SIDECAR_PORT}/voice/tts-status`
-      await fetch(url, {
+      await authFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_speaking: isSpeaking })

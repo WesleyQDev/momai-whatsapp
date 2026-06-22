@@ -1,4 +1,5 @@
 import { execSync as execSyncNode } from 'child_process'
+import { authFetch } from './security/authenticated-fetch'
 
 export function parseProcessList(out: string): string[] {
   const names: string[] = []
@@ -78,12 +79,12 @@ export class EconomyService {
   private broadcastCallback: ((state: EconomyState) => void) | null = null
 
   httpGet: (url: string) => Promise<any> = async (url: string) => {
-    const res = await fetch(url)
+    const res = await authFetch(url)
     return res.json()
   }
 
   httpPost: (url: string) => Promise<any> = async (url: string) => {
-    const res = await fetch(url, { method: 'POST' })
+    const res = await authFetch(url, { method: 'POST' })
     return { ok: res.ok, status: res.status }
   }
 
