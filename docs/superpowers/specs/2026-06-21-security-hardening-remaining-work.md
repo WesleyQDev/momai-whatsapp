@@ -85,16 +85,16 @@
 
 ---
 
-## Known bugs introduced by Phase 1 (not yet fixed)
+## Known bugs introduced by Phase 1 — stabilization fix (all resolved)
 
-These were found during Phase 1 implementation but not in the original plan. Should be addressed before Phase 2.
+These were found during Phase 1 implementation but not in the original plan. All four were investigated and three were fixed in commits `f960f7b2`, `e5d8d3ab`, and `7b4ab568`.
 
-| Bug | Description | File |
-|-----|-------------|------|
-| B1 | Main process `fetch` calls to Node Core don't include Authorization header (e.g., `coreManager.ts:99-100` calls `/system/gaming-apps` and `/economy/config`). These fail silently in main process but should be authenticated. | `apps/momai/src/main/coreManager.ts` |
-| B2 | Node Core reuse logic: if an existing Node Core is on the port, it's reused (possibly from a prior session with a different token). Force-restart on every app start to ensure token match. | `apps/momai/src/main/coreManager.ts:626-639` |
-| B3 | `/extensions/events` (SSE) can't send Authorization header (EventSource limitation). Either use a token-as-cookie approach, switch to WebSocket, or exempt this endpoint from auth. | `scripts/node-core/api/routes/extensions.routes.js` |
-| B4 | Some renderer code may loop on failed requests (saw `[ExtensionsAPI] GET /extensions` called 4x in 1 second during smoke test). Investigate `useEffect` dependencies. | TBD |
+| Bug | Status | Description | File | Fix commit |
+|-----|--------|-------------|------|------------|
+| B1 | **Fixed** | Main process `fetch` calls to Node Core don't include Authorization header (e.g., `coreManager.ts:99-100` calls `/system/gaming-apps` and `/economy/config`). These fail silently in main process but should be authenticated. | `apps/momai/src/main/security/authenticated-fetch.ts` (new), 5 call-site files | `f960f7b2` |
+| B2 | **Fixed** | Node Core reuse logic: if an existing Node Core is on the port, it's reused (possibly from a prior session with a different token). Now detected via 401 on `/status` and the stale process is killed before restart. | `apps/momai/src/main/node-core-startup-decision.ts` (new), `coreManager.ts` | `e5d8d3ab` |
+| B3 | **Fixed** | `/extensions/events` (SSE) can't send Authorization header (EventSource limitation). Exempted from auth: it is GET-only and server-to-client, so an unauthenticated subscriber can only listen to events, not send commands. | `apps/momai/scripts/node-core/api/router.js`, `tests/router-public-paths.test.js` (new) | `7b4ab568` |
+| B4 | **False positive** | Re-investigated: the "4x in 1 second" observation is normal parallel mounts of `LateralBar`, `ExtensionsView`, and `useAppInitialization`, not an infinite loop. `loadExtensions` in `LateralBar.tsx:162-195` is bounded (initial mount + `momai_backend_ready` event + 3s timeout fallback). No fix needed. | n/a | n/a |
 
 ---
 
