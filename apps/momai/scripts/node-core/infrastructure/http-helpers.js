@@ -1,19 +1,25 @@
+const { isOriginAllowed } = require('../config/cors.js')
+
+function corsHeaders(req) {
+  const origin = req && req.headers ? req.headers['origin'] : undefined
+  return {
+    'Access-Control-Allow-Origin': isOriginAllowed(origin) ? origin : 'null',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '86400'
+  }
+}
+
 function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
+    ...corsHeaders(res.req)
   })
   res.end(JSON.stringify(payload))
 }
 
 function sendNoContent(res) {
-  res.writeHead(204, {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
-  })
+  res.writeHead(204, corsHeaders(res.req))
   res.end()
 }
 
@@ -22,7 +28,7 @@ function sendSseHeaders(res) {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
-    'Access-Control-Allow-Origin': '*'
+    ...corsHeaders(res.req)
   })
 }
 
@@ -74,6 +80,7 @@ function readJsonBody(req) {
 }
 
 module.exports = {
+  corsHeaders,
   sendJson,
   sendNoContent,
   sendSseHeaders,

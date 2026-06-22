@@ -23,6 +23,7 @@ const constants = require('./config/constants')
 const { loadTierConfig } = require('./config/tiers')
 const { log, debug, info, warn, error } = require('./infrastructure/logger')
 const {
+  corsHeaders,
   sendJson,
   sendNoContent,
   sendSseHeaders,
@@ -290,7 +291,7 @@ async function proxyToPython(req, res, pathname) {
   const text = await response.text()
   res.writeHead(response.status, {
     'Content-Type': response.headers.get('content-type') || 'application/json',
-    'Access-Control-Allow-Origin': '*'
+    ...corsHeaders(res.req)
   })
   res.end(text)
 }

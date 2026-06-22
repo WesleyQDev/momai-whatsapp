@@ -1,3 +1,5 @@
+const { corsHeaders } = require('../../infrastructure/http-helpers')
+
 function createChatRoutes(context) {
   const {
     ensurePython,
@@ -41,7 +43,7 @@ function createChatRoutes(context) {
         const text = await response.text()
         res.writeHead(response.status, {
           'Content-Type': response.headers.get('content-type') || 'application/json',
-          'Access-Control-Allow-Origin': '*'
+          ...corsHeaders(res.req)
         })
         res.end(text)
       } catch (error) {
