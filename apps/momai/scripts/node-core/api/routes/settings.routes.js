@@ -1,4 +1,31 @@
 const { filterToEditableSettings } = require('../../config/settings-allowlist.js')
+const keychain = require('../../services/keychain.js')
+
+async function encryptApiKeys(plainApiKeys) {
+  const out = {}
+  for (const provider of Object.keys(plainApiKeys || {})) {
+    const value = plainApiKeys[provider]
+    if (typeof value !== 'string' || value === '') {
+      out[provider] = ''
+    } else {
+      out[provider] = await keychain.encryptForStorage(value)
+    }
+  }
+  return out
+}
+
+async function decryptApiKeys(encryptedApiKeys) {
+  const out = {}
+  for (const provider of Object.keys(encryptedApiKeys || {})) {
+    const value = encryptedApiKeys[provider]
+    if (typeof value !== 'string' || value === '') {
+      out[provider] = ''
+    } else {
+      out[provider] = await keychain.decryptFromStorage(value)
+    }
+  }
+  return out
+}
 
 function createSettingsRoutes(context) {
   const {
@@ -31,7 +58,16 @@ function createSettingsRoutes(context) {
       store.settings.context_window_tokens = clampContextTokens(
         store.settings.context_window_tokens || 2048
       )
-      sendJson(res, 200, store.settings)
+      const response = { ...store.settings }
+      if (response.api_keys && typeof response.api_keys === 'object') {
+        try {
+          response.api_keys = await decryptApiKeys(response.api_keys)
+        } catch (err) {
+          console.error('[NodeCore] Failed to decrypt api_keys:', err?.message || err)
+          response.api_keys = {}
+        }
+      }
+      sendJson(res, 200, response)
       return true
     }
 
@@ -50,6 +86,18 @@ function createSettingsRoutes(context) {
         }
 
         const safePayload = filterToEditableSettings(payload)
+        if (payload.api_keys && typeof payload.api_keys === 'object') {
+          try {
+            safePayload.api_keys = await encryptApiKeys(payload.api_keys)
+          } catch (err) {
+            console.error('[NodeCore] Failed to encrypt api_keys:', err?.message || err)
+            sendJson(res, 503, {
+              status: 'error',
+              message: 'Failed to encrypt API keys: ' + (err?.message || 'keychain unavailable')
+            })
+            return true
+          }
+        }
         Object.assign(store.settings, safePayload)
         if (payload.tts_engine) {
           const tier = store.settings.ai_tier || 'pro'
@@ -111,7 +159,16 @@ function createSettingsRoutes(context) {
           return true
         }
         void syncWakeWordState('settings_patch')
-        sendJson(res, 200, store.settings)
+        const response = { ...store.settings }
+        if (response.api_keys && typeof response.api_keys === 'object') {
+          try {
+            response.api_keys = await decryptApiKeys(response.api_keys)
+          } catch (err) {
+            console.error('[NodeCore] Failed to decrypt api_keys for response:', err?.message || err)
+            response.api_keys = {}
+          }
+        }
+        sendJson(res, 200, response)
       } catch (error) {
         console.error('[NodeCore] Error in PATCH /settings:', error)
         sendJson(res, 500, { status: 'error', message: 'Internal server error' })
