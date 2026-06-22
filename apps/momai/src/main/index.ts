@@ -38,6 +38,7 @@ import { HttpLlamaControl } from './services/llama-control'
 import { FileKeepInTrayReader } from './services/keep-in-tray-reader'
 import { getOrCreateSessionToken } from './security/session-token'
 import { authFetch } from './security/authenticated-fetch'
+import { shouldBlockWebviewAttachment } from './security/webview-block'
 
 // Initialize first launch state correctly at startup
 state.isFirstLaunch = !isOnboardingCompleted()
@@ -228,6 +229,14 @@ ipcMain.handle('notes:search', async (_, query: string, limit?: number) =>
 )
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
+app.on('web-contents-created', (_event, contents) => {
+  if (shouldBlockWebviewAttachment()) {
+    contents.on('will-attach-webview', (event) => {
+      event.preventDefault()
+    })
+  }
+})
 
 app.whenReady().then(() => {
   // M3: Hide native menu bar in production to remove the "View > Toggle Developer Tools" entry
