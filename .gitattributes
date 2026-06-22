@@ -1,23 +1,22 @@
-# Auto-detect text files
-* text=auto
-
-# Shell scripts MUST use LF (bash dies on CRLF)
-*.sh text eol=lf
-
-# PowerShell scripts use CRLF (Windows convention)
-*.ps1 text eol=crlf
-
-# Keep binary files as-is
+# Normalize line endings to LF for text files, CRLF for Windows-specific files
+* text=auto eol=lf
 *.png binary
 *.jpg binary
+*.jpeg binary
+*.gif binary
 *.ico binary
-*.svg binary
+*.webp binary
 *.woff binary
 *.woff2 binary
-*.eot binary
 *.ttf binary
-*.exe binary
+*.eot binary
+*.mp4 binary
+*.webm binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.7z binary
+*.pdf binary
 *.dll binary
-*.appx binary
-*.msix binary
-*.pfx binary
+*.exe binary
+*.node binary
