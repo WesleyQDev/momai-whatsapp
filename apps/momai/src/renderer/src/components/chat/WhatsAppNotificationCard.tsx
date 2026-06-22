@@ -92,8 +92,6 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
 }
 
 export default function WhatsAppNotificationCard({ data }: { data: any }) {
-  if (!data) return null
-
   const senderName = data?.senderName
   const contact = data?.contact || data?.from || 'Desconhecido'
   const message = data?.message || data?.text || ''
@@ -275,6 +273,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       controller.abort()
     }
   }, [contactJid, sendReply])
+
+  if (!data) return null
 
   const voiceLabel = VOICE_LABELS[voiceStatus]
 
