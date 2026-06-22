@@ -292,6 +292,17 @@ export function createOverlayWindow(data?: any): void {
     } else {
       overlayWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'overlay' })
     }
+
+    overlayWindow.webContents.setWindowOpenHandler((details) => {
+      if (isSafeExternalUrl(details.url)) {
+        shell.openExternal(details.url)
+      } else {
+        logger.warn(
+          `[WindowManager] Blocked setWindowOpenHandler URL with unsafe protocol (overlay): ${details.url}`
+        )
+      }
+      return { action: 'deny' }
+    })
   }
 
   const overlayWin = state.overlayWindow
