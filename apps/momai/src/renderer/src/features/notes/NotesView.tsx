@@ -75,7 +75,16 @@ export default function NotesView() {
   } = useFolders(filteredNotes)
 
   // Auto-save hook
-  const { setupAutoSave } = useAutoSave()
+  useAutoSave({
+    activeId,
+    title,
+    content,
+    isLoading,
+    setIsSaving,
+    setError,
+    t,
+    setNotes
+  })
 
   // Editor extensions hook
   const { editorViewRef, slashMenu, setSlashMenu, editorExtensions, handleSelectSlashCommand } =
@@ -107,8 +116,7 @@ export default function NotesView() {
   const titleInputRef = useRef<HTMLInputElement | null>(null)
   const shouldSelectTitleRef = useRef(false)
 
-  // Setup auto-save
-  setupAutoSave(activeId, title, content, isLoading, setIsSaving, setError, t, notes, setNotes)
+  // Setup auto-save (handled by useAutoSave hook above)
 
   // Focus and select title
   const focusAndSelectTitle = () => {
@@ -221,6 +229,8 @@ export default function NotesView() {
         )
         if (activeId === renamingId) {
           setTitle(renameValue)
+          // Sync the useNotes tracking ref with the renamed title so the next render doesn't treat it as unsaved.
+          // eslint-disable-next-line react-hooks/immutability
           lastSaved.current.title = renameValue
         }
 

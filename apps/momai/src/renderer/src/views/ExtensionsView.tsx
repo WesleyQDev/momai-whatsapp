@@ -1,25 +1,27 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 
 /* ─── Hook: Drag to Scroll ─── */
-function useDragScroll() {
-  const scrollRef = useRef<HTMLDivElement>(null)
+function useDragScroll(scrollRef: React.RefObject<HTMLDivElement | null>) {
   const isDragging = useRef(false)
   const hasDragged = useRef(false)
   const initialX = useRef(0)
   const initialScrollLeft = useRef(0)
   const onMouseUpRef = useRef<(() => void) | null>(null)
 
-  const onMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging.current) return
-    const deltaX = Math.abs(e.pageX - initialX.current)
-    if (deltaX > 5) {
-      hasDragged.current = true
-    }
-    const walk = e.pageX - initialX.current
-    if (scrollRef.current) {
-      scrollRef.current.scrollLeft = initialScrollLeft.current - walk
-    }
-  }, [])
+  const onMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging.current) return
+      const deltaX = Math.abs(e.pageX - initialX.current)
+      if (deltaX > 5) {
+        hasDragged.current = true
+      }
+      const walk = e.pageX - initialX.current
+      if (scrollRef.current) {
+        scrollRef.current.scrollLeft = initialScrollLeft.current - walk
+      }
+    },
+    [scrollRef]
+  )
 
   const onMouseUp = useCallback(() => {
     isDragging.current = false
@@ -31,7 +33,7 @@ function useDragScroll() {
       scrollRef.current.style.cursor = 'grab'
       scrollRef.current.style.userSelect = ''
     }
-  }, [onMouseMove])
+  }, [onMouseMove, scrollRef])
 
   useEffect(() => {
     onMouseUpRef.current = onMouseUp
@@ -49,37 +51,42 @@ function useDragScroll() {
       window.addEventListener('mousemove', onMouseMove)
       window.addEventListener('mouseup', onMouseUp)
     },
-    [onMouseMove, onMouseUp]
+    [onMouseMove, onMouseUp, scrollRef]
   )
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    hasDragged.current = false
-    initialX.current = e.touches[0].pageX
-    initialScrollLeft.current = scrollRef.current?.scrollLeft || 0
-  }, [])
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      hasDragged.current = false
+      initialX.current = e.touches[0].pageX
+      initialScrollLeft.current = scrollRef.current?.scrollLeft || 0
+    },
+    [scrollRef]
+  )
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    const deltaX = Math.abs(e.touches[0].pageX - initialX.current)
-    if (deltaX > 5) {
-      hasDragged.current = true
-    }
-    const walk = e.touches[0].pageX - initialX.current
-    if (scrollRef.current) {
-      scrollRef.current.scrollLeft = initialScrollLeft.current - walk
-    }
-  }, [])
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      const deltaX = Math.abs(e.touches[0].pageX - initialX.current)
+      if (deltaX > 5) {
+        hasDragged.current = true
+      }
+      const walk = e.touches[0].pageX - initialX.current
+      if (scrollRef.current) {
+        scrollRef.current.scrollLeft = initialScrollLeft.current - walk
+      }
+    },
+    [scrollRef]
+  )
 
   const isDraggingScroll = useCallback(() => {
     return hasDragged.current
   }, [])
 
   return {
-    scrollRef,
     mouseDown: handleMouseDown,
     touchStart: handleTouchStart,
     touchMove: handleTouchMove,
     isDraggingScroll,
-    grabCursor: 'grab'
+    grabCursor: 'grab' as const
   }
 }
 import { useLocation } from 'react-router-dom'
@@ -286,26 +293,27 @@ function FeaturedCarousel({
   skills: Extension[]
   onSelect: (s: Extension) => void
 }) {
-  const dragScroll = useDragScroll()
+  const dragScrollRef = useRef<HTMLDivElement | null>(null)
+  const dragScroll = useDragScroll(dragScrollRef)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(true)
 
   const checkScroll = () => {
-    if (!dragScroll.scrollRef.current) return
-    const { scrollLeft, scrollWidth, clientWidth } = dragScroll.scrollRef.current
+    if (!dragScrollRef.current) return
+    const { scrollLeft, scrollWidth, clientWidth } = dragScrollRef.current
     setCanScrollLeft(scrollLeft > 0)
     setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10)
   }
 
   useEffect(() => {
     checkScroll()
-    const el = dragScroll.scrollRef.current
+    const el = dragScrollRef.current
     el?.addEventListener('scroll', checkScroll)
     return () => el?.removeEventListener('scroll', checkScroll)
   }, [skills])
 
   const scroll = (dir: 'left' | 'right') => {
-    dragScroll.scrollRef.current?.scrollBy({
+    dragScrollRef.current?.scrollBy({
       left: dir === 'left' ? -320 : 320,
       behavior: 'smooth'
     })
@@ -333,7 +341,7 @@ function FeaturedCarousel({
       )}
 
       <div
-        ref={dragScroll.scrollRef}
+        ref={dragScrollRef}
         onMouseDown={dragScroll.mouseDown}
         onTouchStart={dragScroll.touchStart}
         onTouchMove={dragScroll.touchMove}
@@ -812,7 +820,8 @@ export default function ExtensionsView() {
   const [selectedSkill, setSelectedSkill] = useState<Extension | null>(null)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const tagsDragScroll = useDragScroll()
+  const tagsDragScrollRef = useRef<HTMLDivElement | null>(null)
+  const tagsDragScroll = useDragScroll(tagsDragScrollRef)
 
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true)
@@ -998,7 +1007,7 @@ export default function ExtensionsView() {
               {/* Tag Filters */}
               {allTags.length > 0 && (
                 <div
-                  ref={tagsDragScroll.scrollRef}
+                  ref={tagsDragScrollRef}
                   onMouseDown={tagsDragScroll.mouseDown}
                   onTouchStart={tagsDragScroll.touchStart}
                   onTouchMove={tagsDragScroll.touchMove}

@@ -1,75 +1,60 @@
 import { useEffect, useRef } from 'react'
-import { updateMemoryNote } from '../../../services/api'
-import { NoteSummary } from '../../../services/api'
+import { updateMemoryNote, NoteSummary } from '../../../services/api'
 
-export interface UseAutoSaveReturn {
-  saveTimer: React.MutableRefObject<number | null>
-  lastSaved: React.MutableRefObject<{ title: string; content: string }>
-  setupAutoSave: (
-    activeId: string | null,
-    title: string,
-    content: string,
-    isLoading: boolean,
-    setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
-    setError: React.Dispatch<React.SetStateAction<string | null>>,
-    t: (key: string) => string,
-    notes: NoteSummary[],
-    setNotes: React.Dispatch<React.SetStateAction<NoteSummary[]>>
-  ) => void
+export interface UseAutoSaveParams {
+  activeId: string | null
+  title: string
+  content: string
+  isLoading: boolean
+  setIsSaving: React.Dispatch<React.SetStateAction<boolean>>
+  setError: React.Dispatch<React.SetStateAction<string | null>>
+  t: (key: string) => string
+  setNotes: React.Dispatch<React.SetStateAction<NoteSummary[]>>
 }
 
-export function useAutoSave() {
+export function useAutoSave({
+  activeId,
+  title,
+  content,
+  isLoading,
+  setIsSaving,
+  setError,
+  t,
+  setNotes
+}: UseAutoSaveParams) {
   const saveTimer = useRef<number | null>(null)
   const lastSaved = useRef({ title: '', content: '' })
 
-  const setupAutoSave = (
-    activeId: string | null,
-    title: string,
-    content: string,
-    isLoading: boolean,
-    setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
-    setError: React.Dispatch<React.SetStateAction<string | null>>,
-    t: (key: string) => string,
-    notes: NoteSummary[],
-    setNotes: React.Dispatch<React.SetStateAction<NoteSummary[]>>
-  ) => {
-    useEffect(() => {
-      if (!activeId || isLoading) return
-      if (title === lastSaved.current.title && content === lastSaved.current.content) return
+  useEffect(() => {
+    if (!activeId || isLoading) return
+    if (title === lastSaved.current.title && content === lastSaved.current.content) return
 
-      if (saveTimer.current) window.clearTimeout(saveTimer.current)
+    if (saveTimer.current) window.clearTimeout(saveTimer.current)
 
-      const currentId = activeId
-      saveTimer.current = window.setTimeout(async () => {
-        try {
-          setIsSaving(true)
-          const updated = await updateMemoryNote(currentId, { title, content })
-          if (activeId === currentId) {
-            lastSaved.current = { title: updated.title, content: updated.content }
-          }
-          setNotes((prev) =>
-            prev.map((n) =>
-              n.id === updated.id
-                ? { ...n, title: updated.title, updated_at: new Date().toISOString() }
-                : n
-            )
-          )
-        } catch (err) {
-          setError(t('notes.errors.save'))
-        } finally {
-          setIsSaving(false)
+    const currentId = activeId
+    saveTimer.current = window.setTimeout(async () => {
+      try {
+        setIsSaving(true)
+        const updated = await updateMemoryNote(currentId, { title, content })
+        if (activeId === currentId) {
+          lastSaved.current = { title: updated.title, content: updated.content }
         }
-      }, 1000)
-
-      return () => {
-        if (saveTimer.current) window.clearTimeout(saveTimer.current)
+        setNotes((prev) =>
+          prev.map((n) =>
+            n.id === updated.id
+              ? { ...n, title: updated.title, updated_at: new Date().toISOString() }
+              : n
+          )
+        )
+      } catch (err) {
+        setError(t('notes.errors.save'))
+      } finally {
+        setIsSaving(false)
       }
-    }, [activeId, title, content, isLoading])
-  }
+    }, 1000)
 
-  return {
-    saveTimer,
-    lastSaved,
-    setupAutoSave
-  }
+    return () => {
+      if (saveTimer.current) window.clearTimeout(saveTimer.current)
+    }
+  }, [activeId, title, content, isLoading, setIsSaving, setError, t, setNotes])
 }
