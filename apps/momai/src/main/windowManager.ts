@@ -275,7 +275,7 @@ export function createOverlayWindow(data?: any): void {
       icon: ICON_PATH,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
-        sandbox: false,
+        sandbox: true,
         additionalArguments: [
           `--momai-api-url=${API_BASE_URL}`,
           `--momai-ws-url=${WS_BASE_URL}`,
@@ -332,7 +332,7 @@ function createMainWindow(): BrowserWindow {
     ...(process.platform === 'linux' ? { icon: nativeImage.createFromPath(ICON_PATH) } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: true,
       additionalArguments: [
         `--momai-api-url=${API_BASE_URL}`,
         `--momai-ws-url=${WS_BASE_URL}`,
