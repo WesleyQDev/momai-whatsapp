@@ -69,6 +69,7 @@ declare global {
       }
       apiFetch: (url: string, options?: RequestInit) => Promise<Response>
       apiWebSocket: (url: string) => WebSocket
+      getSessionToken: () => string
     }
   }
 }

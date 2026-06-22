@@ -149,18 +149,21 @@ const api = {
     search: (query: string, limit = 6): Promise<any[]> =>
       electronAPI.ipcRenderer.invoke('notes:search', query, limit)
   },
-  apiFetch: (url: string, options: RequestInit = {}): Promise<Response> => {
-    const headers = new Headers(options.headers)
-    if (SESSION_TOKEN) {
-      headers.set('Authorization', `Bearer ${SESSION_TOKEN}`)
-    }
-    return fetch(url, { ...options, headers })
+    apiFetch: (url: string, options: RequestInit = {}): Promise<Response> => {
+    // NOTE: This wrapper exists for API symmetry but delegates to the
+    // global `fetch` (which in this preload context is undici). It is
+    // kept for backward compatibility; new code should use the
+    // renderer's fetch via getSessionToken() + native fetch.
+    return fetch(url, options)
   },
   apiWebSocket: (url: string): WebSocket => {
-    if (!SESSION_TOKEN) return new WebSocket(url)
-    const sep = url.includes('?') ? '&' : '?'
-    return new WebSocket(`${url}${sep}token=${encodeURIComponent(SESSION_TOKEN)}`)
-  }
+    // NOTE: WebSocket objects cannot be safely proxied through the
+    // contextBridge (methods like .close() are stripped). Kept for
+    // backward compatibility; new code should create the WebSocket in
+    // the renderer and pass the token via getSessionToken().
+    return new WebSocket(url)
+  },
+  getSessionToken: (): string => SESSION_TOKEN
 }
 
 if (process.contextIsolated) {

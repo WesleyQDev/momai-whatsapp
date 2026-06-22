@@ -1,11 +1,41 @@
 import { cleanMomaiActions, stripEmojisAndMarkdown } from '../utils/text'
 import { API_URL } from '../constants'
 
-async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
-  const res = await window.api.apiFetch(`${API_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options
-  })
+async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  // Use the renderer's native fetch (Chromium's) instead of
+  // window.api.apiFetch. The preload's fetch in Electron 42 is undici
+  // (Node.js), which sends user-agent "node" and ignores the origin's
+  // CORS context. Adding the Authorization header here is the single
+  // point of token injection for all renderer→backend requests.
+  const token = window.api.getSessionToken()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  }
+  if (options.headers) {
+    const h = options.headers as Record<string, string> | Headers
+    if (h instanceof Headers) {
+      h.forEach((v, k) => { headers[k] = v })
+    } else {
+      Object.assign(headers, h)
+    }
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  // If the path is already a full URL (some callers construct the URL
+  // themselves), use it as-is. Otherwise prepend API_URL.
+  const url = /^https?:\/\//.test(path) ? path : `${API_URL}${path}`
+  return fetch(url, { ...options, headers })
+}
+
+// Wrapper that returns a parsed envelope. Use this for simple JSON
+// request/response endpoints where you want .ok/.data/.status.
+async function apiCall(path: string, options: RequestInit = {}): Promise<{
+  ok: boolean
+  status: number
+  data: any
+}> {
+  const res = await apiFetch(path, options)
   const text = await res.text()
   const data = text ? JSON.parse(text) : undefined
   if (!res.ok) {
@@ -13,16 +43,16 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
     err.response = { status: res.status, statusText: res.statusText, data }
     throw err
   }
-  return { data, status: res.status, statusText: res.statusText }
+  return { ok: res.ok, status: res.status, data }
 }
 
 export const api = {
-  get: (path: string) => apiFetch(path),
+  get: (path: string) => apiCall(path),
   post: (path: string, body?: any) =>
-    apiFetch(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+    apiCall(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   patch: (path: string, body?: any) =>
-    apiFetch(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
-  delete: (path: string) => apiFetch(path, { method: 'DELETE' })
+    apiCall(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
+  delete: (path: string) => apiCall(path, { method: 'DELETE' })
 }
 
 export interface StructuredResponse {
@@ -112,7 +142,7 @@ export async function sendChatMessage(
   callbacks: ChatStreamCallbacks,
   options?: ChatMessageOptions
 ): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/chat/stream`, {
+  const response = await apiFetch(`/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content, thread_id: threadId, ...options })
@@ -193,7 +223,7 @@ export async function sendChatMessage(
 }
 
 export async function fetchStatus(): Promise<StatusData> {
-  const response = await window.api.apiFetch(`${API_URL}/status`, {
+  const response = await apiFetch(`/status`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' }
   })
@@ -201,7 +231,7 @@ export async function fetchStatus(): Promise<StatusData> {
 }
 
 export async function stopGeneration(): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/chat/stop`, {
+  const response = await apiFetch(`/chat/stop`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' }
   })
@@ -209,7 +239,7 @@ export async function stopGeneration(): Promise<void> {
 }
 
 export async function resetChatContextUsage(): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/chat/context/reset`, {
+  const response = await apiFetch(`/chat/context/reset`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' }
   })
@@ -222,7 +252,7 @@ export async function stopVoice(): Promise<void> {
     getTTSServiceRenderer().stop()
   } catch {}
   try {
-    const response = await window.api.apiFetch(`${API_URL}/chat/stop-voice`, {
+    const response = await apiFetch(`/chat/stop-voice`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     })
@@ -244,7 +274,7 @@ export async function speakText(text: string, engine?: string): Promise<void> {
     return
   }
 
-  const response = await window.api.apiFetch(`${API_URL}/chat/speak`, {
+  const response = await apiFetch(`/chat/speak`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: cleanText })
@@ -254,7 +284,7 @@ export async function speakText(text: string, engine?: string): Promise<void> {
 
 export async function updateTtsStatus(isSpeaking: boolean): Promise<void> {
   try {
-    const response = await window.api.apiFetch(`${API_URL}/voice/tts-status`, {
+    const response = await apiFetch(`/voice/tts-status`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_speaking: isSpeaking })
@@ -269,13 +299,13 @@ export async function fetchInitStatus(): Promise<{
   progress: number
   error?: string | null
 }> {
-  const response = await window.api.apiFetch(`${API_URL}/init-status`)
+  const response = await apiFetch(`/init-status`)
   if (!response.ok) throw new Error('Erro ao buscar status de inicialização')
   return response.json()
 }
 
 export async function updateMode(mode: string): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/mode`, {
+  const response = await apiFetch(`/mode`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mode })
@@ -293,7 +323,7 @@ export function safeJsonParse(str: string | null | undefined): any {
 }
 
 export async function fetchChatHistory(threadId: string = 'default'): Promise<Message[]> {
-  const response = await window.api.apiFetch(`${API_URL}/chat/history?thread_id=${threadId}`)
+  const response = await apiFetch(`/chat/history?thread_id=${threadId}`)
   if (!response.ok) throw new Error('Erro ao buscar histórico')
   const messages = await response.json()
   if (!Array.isArray(messages)) return []
@@ -317,14 +347,14 @@ export interface ChatSession {
 }
 
 export async function fetchSessions(): Promise<ChatSession[]> {
-  const response = await window.api.apiFetch(`${API_URL}/chat/sessions`)
+  const response = await apiFetch(`/chat/sessions`)
   if (!response.ok) throw new Error('Erro ao buscar sessoes')
   const data = await response.json()
   return data.sessions || []
 }
 
 export async function clearChatHistory(threadId: string = 'default'): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/chat/history?thread_id=${threadId}`, {
+  const response = await apiFetch(`/chat/history?thread_id=${threadId}`, {
     method: 'DELETE'
   })
   if (!response.ok) throw new Error('Erro ao limpar histórico')
@@ -336,7 +366,7 @@ export async function generateSessionTitle(
   assistantMessage?: string
 ): Promise<string | null> {
   try {
-    const response = await window.api.apiFetch(`${API_URL}/chat/title`, {
+    const response = await apiFetch(`/chat/title`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -355,7 +385,7 @@ export async function generateSessionTitle(
 }
 
 export async function deleteMessage(messageId: number): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/chat/message/${messageId}`, {
+  const response = await apiFetch(`/chat/message/${messageId}`, {
     method: 'DELETE'
   })
   if (!response.ok) throw new Error('Erro ao excluir mensagem')
@@ -397,7 +427,7 @@ export interface Extension {
 
 export async function fetchExtensions(lang?: string): Promise<Extension[]> {
   const url = lang ? `${API_URL}/extensions?lang=${lang}` : `${API_URL}/extensions`
-  const response = await window.api.apiFetch(url)
+  const response = await apiFetch(url)
   if (!response.ok) throw new Error('Erro ao buscar extensões instaladas')
   return response.json()
 }
@@ -406,7 +436,7 @@ export async function fetchExtensionRegistry(lang?: string): Promise<any[]> {
   const url = lang
     ? `${API_URL}/extensions/registry?lang=${lang}`
     : `${API_URL}/extensions/registry`
-  const response = await window.api.apiFetch(url)
+  const response = await apiFetch(url)
   if (!response.ok) throw new Error('Erro ao buscar registro de extensões')
   return response.json()
 }
@@ -416,7 +446,7 @@ export async function installExtension(
   downloadUrl: string,
   onProgress?: (progress: { percent: number; speed: string; status: string }) => void
 ): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/extensions/install`, {
+  const response = await apiFetch(`/extensions/install`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, download_url: downloadUrl })
@@ -460,7 +490,7 @@ export async function installExtension(
 }
 
 export async function toggleExtension(id: string, enabled: boolean): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/extensions/toggle`, {
+  const response = await apiFetch(`/extensions/toggle`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, enabled })
@@ -469,7 +499,7 @@ export async function toggleExtension(id: string, enabled: boolean): Promise<voi
 }
 
 export async function uninstallExtension(id: string): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/extensions/uninstall`, {
+  const response = await apiFetch(`/extensions/uninstall`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, enabled: false }) // Reusing ExtensionToggle schema
@@ -478,7 +508,7 @@ export async function uninstallExtension(id: string): Promise<void> {
 }
 
 export async function sendExtensionAction(id: string, action: string, payload: any): Promise<any> {
-  const response = await window.api.apiFetch(`${API_URL}/extensions/${id}/action`, {
+  const response = await apiFetch(`/extensions/${id}/action`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, payload })
@@ -488,13 +518,13 @@ export async function sendExtensionAction(id: string, action: string, payload: a
 }
 
 export async function fetchSkillKeywords(): Promise<Record<string, string[]>> {
-  const response = await window.api.apiFetch(`${API_URL}/skills/keywords`)
+  const response = await apiFetch(`/skills/keywords`)
   if (!response.ok) throw new Error('Erro ao buscar palavras-chave')
   return response.json()
 }
 
 export async function updateSkillKeywords(skillId: string, keywords: string[]): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/skills/keywords/${skillId}`, {
+  const response = await apiFetch(`/skills/keywords/${skillId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ keywords })
@@ -512,13 +542,13 @@ export interface GamingApp {
 }
 
 export async function fetchGamingApps(): Promise<GamingApp[]> {
-  const response = await window.api.apiFetch(`${API_URL}/system/gaming-apps`)
+  const response = await apiFetch(`/system/gaming-apps`)
   if (!response.ok) throw new Error('Erro ao buscar apps de jogo')
   return response.json()
 }
 
 export async function addGamingApp(name: string, executable: string): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/system/gaming-apps`, {
+  const response = await apiFetch(`/system/gaming-apps`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, executable })
@@ -527,20 +557,20 @@ export async function addGamingApp(name: string, executable: string): Promise<vo
 }
 
 export async function deleteGamingApp(id: number): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/system/gaming-apps/${id}`, {
+  const response = await apiFetch(`/system/gaming-apps/${id}`, {
     method: 'DELETE'
   })
   if (!response.ok) throw new Error('Erro ao remover app de jogo')
 }
 
 export async function fetchEconomyConfig(): Promise<any> {
-  const response = await window.api.apiFetch(`${API_URL}/economy/config`)
+  const response = await apiFetch(`/economy/config`)
   if (!response.ok) throw new Error('Erro ao buscar config economia')
   return response.json()
 }
 
 export async function updateEconomyConfig(config: Record<string, any>): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/economy/config`, {
+  const response = await apiFetch(`/economy/config`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config)
@@ -568,13 +598,13 @@ export interface SettingsData {
 }
 
 export async function fetchSettings(): Promise<SettingsData> {
-  const response = await window.api.apiFetch(`${API_URL}/settings`)
+  const response = await apiFetch(`/settings`)
   if (!response.ok) throw new Error('Erro ao buscar configuracoes')
   return response.json()
 }
 
 export async function updateSettingsPartial(payload: Partial<SettingsData>): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/settings`, {
+  const response = await apiFetch(`/settings`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -583,7 +613,7 @@ export async function updateSettingsPartial(payload: Partial<SettingsData>): Pro
 }
 
 export async function setCallMode(enabled: boolean): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/mode/call-mode`, {
+  const response = await apiFetch(`/mode/call-mode`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ enabled })
@@ -599,7 +629,7 @@ export interface QuickTranscriptionResponse {
 }
 
 export async function quickTranscribe(): Promise<QuickTranscriptionResponse> {
-  const response = await window.api.apiFetch(`${API_URL}/voice/quick-transcribe`, {
+  const response = await apiFetch(`/voice/quick-transcribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' }
   })
@@ -608,7 +638,7 @@ export async function quickTranscribe(): Promise<QuickTranscriptionResponse> {
 }
 
 export async function stopQuickTranscribe(): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/voice/stop-quick-transcribe`, {
+  const response = await apiFetch(`/voice/stop-quick-transcribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' }
   })
@@ -736,13 +766,13 @@ export interface ActiveReminder {
 }
 
 export async function fetchReminders(): Promise<Reminder[]> {
-  const response = await window.api.apiFetch(`${API_URL}/reminders`)
+  const response = await apiFetch(`/reminders`)
   if (!response.ok) throw new Error('Erro ao buscar lembretes')
   return response.json()
 }
 
 export async function fetchActiveReminders(): Promise<ActiveReminder[]> {
-  const response = await window.api.apiFetch(`${API_URL}/reminders/active`)
+  const response = await apiFetch(`/reminders/active`)
   if (!response.ok) throw new Error('Erro ao buscar lembretes ativos')
   return response.json()
 }
@@ -758,7 +788,7 @@ export async function createReminder(payload: {
   action_type?: 'reminder' | 'cron'
   voice_response?: boolean
 }): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/reminders`, {
+  const response = await apiFetch(`/reminders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -781,7 +811,7 @@ export async function updateReminder(
     voice_response?: boolean
   }
 ): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/reminders/${id}`, {
+  const response = await apiFetch(`/reminders/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -790,7 +820,7 @@ export async function updateReminder(
 }
 
 export async function deleteReminder(id: number): Promise<void> {
-  const response = await window.api.apiFetch(`${API_URL}/reminders/${id}`, { method: 'DELETE' })
+  const response = await apiFetch(`/reminders/${id}`, { method: 'DELETE' })
   if (!response.ok) throw new Error('Erro ao deletar lembrete')
 }
 
@@ -804,7 +834,7 @@ export interface HardwareStats {
 }
 
 export async function fetchHardwareStats(): Promise<HardwareStats> {
-  const response = await window.api.apiFetch(`${API_URL}/extensions/hardware-stats`)
+  const response = await apiFetch(`/extensions/hardware-stats`)
   if (!response.ok) throw new Error('Erro ao buscar stats de hardware')
   return response.json()
 }

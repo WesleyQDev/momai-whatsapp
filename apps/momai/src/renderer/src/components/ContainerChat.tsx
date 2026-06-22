@@ -59,7 +59,14 @@ function ContextUsageRing() {
 
     const connect = () => {
       try {
-        ws = window.api.apiWebSocket(WS_URL)
+        // Create the WebSocket in the renderer's context (Chromium's
+        // WebSocket). The contextBridge cannot safely proxy WebSocket
+        // objects (methods like .close() are stripped).
+        const token = window.api.getSessionToken()
+        const wsUrl = token
+          ? `${WS_URL}${WS_URL.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
+          : WS_URL
+        ws = new WebSocket(wsUrl)
       } catch {
         return
       }

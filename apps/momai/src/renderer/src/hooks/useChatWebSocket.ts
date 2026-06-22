@@ -57,7 +57,14 @@ export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocket
       if (isUnmounting) return
 
       try {
-        wsRef.current = window.api.apiWebSocket(WS_URL)
+        // Create the WebSocket in the renderer's context (window.WebSocket is
+        // Chromium's). The contextBridge cannot safely proxy WebSocket objects
+        // (methods like .close() are stripped), so we don't use apiWebSocket.
+        const token = window.api.getSessionToken()
+        const wsUrl = token
+          ? `${WS_URL}${WS_URL.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
+          : WS_URL
+        wsRef.current = new WebSocket(wsUrl)
       } catch (e) {
         console.error('Erro ao criar WebSocket:', e)
         scheduleReconnect()
