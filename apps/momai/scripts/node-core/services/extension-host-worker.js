@@ -8,6 +8,12 @@ const path = require('node:path')
 const fs = require('node:fs/promises')
 const [skillId, skillPath] = process.argv.slice(2)
 
+const { createRequireInterceptor } = require('../config/extension-allowlist.js')
+
+const Module = require('node:module')
+const originalRequire = Module.prototype.require
+Module.prototype.require = createRequireInterceptor(originalRequire)
+
 const dataDir = process.env.MOMAI_DATA_DIR || path.resolve(__dirname, '..', '..', 'data')
 
 const storageBase = path.join(dataDir, 'extensions', skillId)
