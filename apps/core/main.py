@@ -76,11 +76,15 @@ def create_app():
     
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
+    from slowapi.errors import RateLimitExceeded
+    from api.middleware.rate_limit import build_limiter, rate_limit_exceeded_handler
     from api.router import api_router, include_routes
     include_routes()
 
     from startup import lifespan
     application = FastAPI(lifespan=lifespan)
+    application.state.limiter = build_limiter()
+    application.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
     application.add_middleware(
         CORSMiddleware,
