@@ -296,11 +296,12 @@ export default function WhatsAppView() {
 
   // Load notifications state
   useEffect(() => {
-    window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ toolName: 'get_settings' })
-    })
+    window.api
+      .apiFetch(`${API_URL}/extensions/whatsapp/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolName: 'get_settings' })
+      })
       .then((r) => r.json())
       .then((data) => {
         if (data.settings?.notificationsDisabled !== undefined) {
@@ -655,17 +656,20 @@ export default function WhatsAppView() {
 
     let quickReplies: string[] = []
     try {
-      const llmRes = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/process-notification`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contact: contextMsg.from,
-          message: recentIncoming || contextMsg.text,
-          contactJid,
-          isGroup,
-          groupName
-        })
-      })
+      const llmRes = await window.api.apiFetch(
+        `${API_URL}/extensions/whatsapp/process-notification`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contact: contextMsg.from,
+            message: recentIncoming || contextMsg.text,
+            contactJid,
+            isGroup,
+            groupName
+          })
+        }
+      )
       const llmData = await llmRes.json()
       quickReplies = llmData.quickReplies || []
     } catch {}
@@ -1149,17 +1153,19 @@ export default function WhatsAppView() {
                                 e.stopPropagation()
                                 const newName = prompt('Digite o nome para este contato:', '')
                                 if (newName?.trim()) {
-                                  window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      toolName: 'set_contact_name',
-                                      args: {
-                                        contact: convo.jid.split('@')[0],
-                                        name: newName.trim()
-                                      }
+                                  window.api
+                                    .apiFetch(`${API_URL}/extensions/whatsapp/command`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        toolName: 'set_contact_name',
+                                        args: {
+                                          contact: convo.jid.split('@')[0],
+                                          name: newName.trim()
+                                        }
+                                      })
                                     })
-                                  }).then(() => refresh())
+                                    .then(() => refresh())
                                 }
                               }}
                               className="text-xs text-accent hover:text-accent/80 px-1.5 py-0.5 rounded bg-accent/10 hover:bg-accent/20 shrink-0"
