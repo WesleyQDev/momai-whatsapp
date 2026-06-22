@@ -1,7 +1,14 @@
 const http = require('node:http')
 const { authMiddleware } = require('../middleware/auth.js')
 
-const PUBLIC_PATHS = new Set(['/health'])
+const PUBLIC_PATHS = new Set(['/health', '/extensions/events'])
+
+function isPublicPath(pathname, method) {
+  if (method === 'OPTIONS') return true
+  return PUBLIC_PATHS.has(pathname)
+}
+
+module.exports = { PUBLIC_PATHS, isPublicPath }
 
 function createRouter(context, routeHandlers) {
   const {
@@ -68,7 +75,7 @@ function createRouter(context, routeHandlers) {
 
   const server = http.createServer((req, res) => {
     const pathname = (req.url || '').split('?')[0]
-    if (req.method === 'OPTIONS' || PUBLIC_PATHS.has(pathname)) {
+    if (isPublicPath(pathname, req.method)) {
       handleRequest(req, res).catch((err) => {
         error('[NodeCore] Unexpected request error:', err)
         sendJson(res, 500, { detail: 'Internal server error' })
@@ -201,4 +208,4 @@ function createRouter(context, routeHandlers) {
   return { handleRequest, server, shutdownAll }
 }
 
-module.exports = { createRouter }
+module.exports = { createRouter, PUBLIC_PATHS, isPublicPath }
