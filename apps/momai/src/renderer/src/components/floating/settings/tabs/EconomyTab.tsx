@@ -495,3 +495,5 @@ export const EconomyTab = React.memo(
     )
   }
 )
+
+EconomyTab.displayName = 'EconomyTab'

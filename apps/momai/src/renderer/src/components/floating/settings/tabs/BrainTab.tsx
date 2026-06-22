@@ -538,3 +538,5 @@ export const BrainTab = React.memo(
     )
   }
 )
+
+BrainTab.displayName = 'BrainTab'

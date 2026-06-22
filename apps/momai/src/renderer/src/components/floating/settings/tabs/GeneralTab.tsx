@@ -447,3 +447,5 @@ export const GeneralTab = React.memo(
     )
   }
 )
+
+GeneralTab.displayName = 'GeneralTab'

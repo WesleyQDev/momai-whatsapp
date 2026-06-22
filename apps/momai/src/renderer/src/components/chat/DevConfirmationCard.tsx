@@ -45,7 +45,7 @@ const DevConfirmationCard = ({ data }: { data?: DevConfirmationData }) => {
       return 'Permissao para criar arquivo no diretorio autorizado'
     }
     return `Permissao para ${actionLabel}`
-  }, [data?.summary, data?.action, actionLabel])
+  }, [data, actionLabel])
 
   const execute = async (action: 'confirm_mutation' | 'cancel_mutation') => {
     if (!data?.mutationId) return

@@ -676,3 +676,5 @@ export const VoiceTab = React.memo(
     )
   }
 )
+
+VoiceTab.displayName = 'VoiceTab'

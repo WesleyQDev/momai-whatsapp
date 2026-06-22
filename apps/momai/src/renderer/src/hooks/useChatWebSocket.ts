@@ -28,7 +28,10 @@ function extractJsonObjects(text: string): string[] {
 export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocketProps) {
   const wsRef = useRef<WebSocket | null>(null)
   const handleWsMessageRef = useRef(handleWsMessage)
-  handleWsMessageRef.current = handleWsMessage
+
+  useEffect(() => {
+    handleWsMessageRef.current = handleWsMessage
+  }, [handleWsMessage])
 
   useEffect(() => {
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null

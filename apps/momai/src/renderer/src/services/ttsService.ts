@@ -36,7 +36,7 @@ function on(channel: string, listener: (...args: any[]) => void): () => void {
 import { updateTtsStatus } from './api'
 
 class TTSServiceRenderer {
-  private listeners: Map<string, Set<Function>> = new Map()
+  private listeners: Map<string, Set<(...args: any[]) => any>> = new Map()
   private cleanupFns: (() => void)[] = []
   private audioCtx: AudioContext | null = null
   private nextScheduleTime = 0
@@ -163,14 +163,14 @@ class TTSServiceRenderer {
     }
   }
 
-  on(event: string, callback: Function) {
+  on(event: string, callback: (...args: any[]) => any) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set())
     }
     this.listeners.get(event)!.add(callback)
   }
 
-  off(event: string, callback: Function) {
+  off(event: string, callback: (...args: any[]) => any) {
     const listeners = this.listeners.get(event)
     if (listeners) {
       listeners.delete(callback)

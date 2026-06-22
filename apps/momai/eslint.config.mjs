@@ -48,5 +48,11 @@ export default defineConfig(
       '@typescript-eslint/no-require-imports': 'off'
     }
   },
+  {
+    files: ['src/main/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off'
+    }
+  },
   eslintConfigPrettier
 )

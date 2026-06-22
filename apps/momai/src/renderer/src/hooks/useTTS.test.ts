@@ -263,8 +263,8 @@ describe('useTTS', () => {
   })
 
   it('handles engine-changed event by loading voices', async () => {
-    let engineChangedCb: Function = () => {}
-    mockTtsService.on.mockImplementation((_event: string, cb: Function) => {
+    let engineChangedCb: (...args: any[]) => any = () => {}
+    mockTtsService.on.mockImplementation((_event: string, cb: (...args: any[]) => any) => {
       if (_event === 'engine-changed') engineChangedCb = cb
     })
 

@@ -119,3 +119,5 @@ export const UpdatesTab = React.memo(
     )
   }
 )
+
+UpdatesTab.displayName = 'UpdatesTab'
