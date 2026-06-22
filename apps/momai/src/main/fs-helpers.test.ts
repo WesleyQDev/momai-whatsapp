@@ -24,6 +24,21 @@ describe('buildEnv', () => {
     const result = buildEnv('/test/venv', '/test/data', '/test/uv')
     expect(result.MOMAI_UV_BIN).toBe('/test/uv')
   })
+
+  it('forwards MOMAI_SESSION_TOKEN from process.env so Python backend inherits it', () => {
+    const original = process.env.MOMAI_SESSION_TOKEN
+    try {
+      process.env.MOMAI_SESSION_TOKEN = 'test-token-abc123'
+      const result = buildEnv('/fake/venv', '/fake/data', '/fake/uv')
+      expect(result.MOMAI_SESSION_TOKEN).toBe('test-token-abc123')
+    } finally {
+      if (original === undefined) {
+        delete process.env.MOMAI_SESSION_TOKEN
+      } else {
+        process.env.MOMAI_SESSION_TOKEN = original
+      }
+    }
+  })
 })
 
 describe('checkWritePermission', () => {

@@ -87,6 +87,7 @@ export function buildEnv(venvPath: string, dataDir: string, uvExe: string) {
     VIRTUAL_ENV: venvPath,
     MOMAI_DATA_DIR: dataDir,
     MOMAI_UV_BIN: uvExe,
+    MOMAI_SESSION_TOKEN: process.env.MOMAI_SESSION_TOKEN,
     PYTHONIOENCODING: 'utf-8',
     PYTHONUTF8: '1',
     PYTHONUNBUFFERED: '1',
