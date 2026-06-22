@@ -4,7 +4,7 @@ const crypto = require('node:crypto')
 const os = require('node:os')
 const http = require('node:http')
 const https = require('node:https')
-const { exec } = require('node:child_process')
+const { exec, spawn } = require('node:child_process')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
 
 /* ── Extension dependency installer ── */
@@ -596,16 +596,29 @@ function createExtensionsRoutes(context) {
         return true
       }
 
-      const cmd = process.platform === 'win32' ? `start "" "${targetPath}"` : `open "${targetPath}"`
+      let command, args
+      if (process.platform === 'win32') {
+        command = 'cmd'
+        args = ['/c', 'start', '""', targetPath]
+      } else if (process.platform === 'darwin') {
+        command = 'open'
+        args = [targetPath]
+      } else {
+        command = 'xdg-open'
+        args = [targetPath]
+      }
 
-      const { exec } = require('node:child_process')
-      exec(cmd, (err) => {
-        if (err) {
-          sendJson(res, 500, { ok: false, error: err.message })
-        } else {
-          sendJson(res, 200, { ok: true, path: targetPath })
-        }
+      const child = spawn(command, args, { detached: true, stdio: 'ignore' })
+      let responded = false
+      child.on('error', (err) => {
+        if (responded) return
+        responded = true
+        sendJson(res, 500, { ok: false, error: err.message })
       })
+      child.unref()
+      if (!responded) {
+        sendJson(res, 200, { ok: true, path: targetPath })
+      }
       return true
     }
 
