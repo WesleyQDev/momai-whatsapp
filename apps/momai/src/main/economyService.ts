@@ -287,9 +287,7 @@ export class EconomyService {
     const timeoutMinutes = minimized ? this.idleTimeoutMinimized : this.idleTimeoutAppOpen
     if (timeoutMinutes <= 0) return false
 
-    const elapsedSeconds = minimized
-      ? this.getWindowMinimizedSeconds()
-      : this.getSystemIdleTime()
+    const elapsedSeconds = minimized ? this.getWindowMinimizedSeconds() : this.getSystemIdleTime()
 
     return elapsedSeconds >= timeoutMinutes * 60
   }

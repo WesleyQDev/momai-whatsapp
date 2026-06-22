@@ -14,7 +14,9 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
   if (options.headers) {
     const h = options.headers as Record<string, string> | Headers
     if (h instanceof Headers) {
-      h.forEach((v, k) => { headers[k] = v })
+      h.forEach((v, k) => {
+        headers[k] = v
+      })
     } else {
       Object.assign(headers, h)
     }
@@ -30,7 +32,10 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
 
 // Wrapper that returns a parsed envelope. Use this for simple JSON
 // request/response endpoints where you want .ok/.data/.status.
-async function apiCall(path: string, options: RequestInit = {}): Promise<{
+async function apiCall(
+  path: string,
+  options: RequestInit = {}
+): Promise<{
   ok: boolean
   status: number
   data: any

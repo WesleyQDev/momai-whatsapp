@@ -46,7 +46,10 @@ function makeDeps(overrides: Partial<TrayServiceDeps> = {}): TrayServiceDeps {
       focus: vi.fn(),
       on: vi.fn()
     } as any,
-    llama: { start: vi.fn().mockResolvedValue(undefined), stop: vi.fn().mockResolvedValue(undefined) },
+    llama: {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined)
+    },
     keepInTray: { isEnabled: vi.fn(() => true) },
     isQuitting: vi.fn(() => false),
     variant: baseVariant,

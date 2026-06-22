@@ -20,10 +20,7 @@ import { getTTSService, type TTSEngine } from './ttsService'
 import { EconomyService } from './economyService'
 import { broadcastEconomyState } from './windowManager'
 import { authFetch } from './security/authenticated-fetch'
-import {
-  decideNodeCoreStartup,
-  type NodeCoreHttpStatus
-} from './node-core-startup-decision'
+import { decideNodeCoreStartup, type NodeCoreHttpStatus } from './node-core-startup-decision'
 import {
   encryptForStorage,
   decryptFromStorage,
@@ -231,10 +228,7 @@ function isPortReachable(port: number, host: string, timeoutMs = 400): Promise<b
   })
 }
 
-async function isMomaiNodeCoreReachable(
-  host: string,
-  port: number
-): Promise<NodeCoreHttpStatus> {
+async function isMomaiNodeCoreReachable(host: string, port: number): Promise<NodeCoreHttpStatus> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 1200)
 
