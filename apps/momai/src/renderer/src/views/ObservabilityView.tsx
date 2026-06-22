@@ -240,7 +240,7 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
     let cancelled = false
     const fetchStats = async () => {
       try {
-        const res = await fetch(`${API_URL}/observability/stats`)
+        const res = await window.api.apiFetch(`${API_URL}/observability/stats`)
         if (res.ok && !cancelled) setStats(await res.json())
       } catch (_) {}
     }
@@ -261,7 +261,7 @@ export default function ObservabilityView({ initialTraces }: ObservabilityViewPr
 
     const fetchTraces = async () => {
       try {
-        const res = await fetch(`${API_URL}/observability/traces`)
+        const res = await window.api.apiFetch(`${API_URL}/observability/traces`)
         if (res.ok) {
           const data = await res.json()
           if (data?.traces?.length && !cancelled) {

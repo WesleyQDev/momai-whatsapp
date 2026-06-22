@@ -67,6 +67,8 @@ declare global {
         openFolder: (noteId: string) => Promise<boolean>
         search: (query: string, limit?: number) => Promise<any[]>
       }
+      apiFetch: (url: string, options?: RequestInit) => Promise<Response>
+      apiWebSocket: (url: string) => WebSocket
     }
   }
 }

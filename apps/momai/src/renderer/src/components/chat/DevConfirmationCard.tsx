@@ -67,7 +67,7 @@ const DevConfirmationCard = ({ data }: { data?: DevConfirmationData }) => {
       )
     }
     try {
-      const response = await fetch(`${API_URL}${endpoint}`, {
+      const response = await window.api.apiFetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

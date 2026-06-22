@@ -90,7 +90,7 @@ export default function ResourceFooter(): React.JSX.Element {
 
     const connect = (): void => {
       try {
-        ws = new WebSocket(WS_URL)
+        ws = window.api.apiWebSocket(WS_URL)
 
         ws.onopen = () => {
           setConnected(true)

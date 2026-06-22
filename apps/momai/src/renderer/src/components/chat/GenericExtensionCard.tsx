@@ -216,7 +216,7 @@ async function executeAction(
   if (!action.endpoint) return false
 
   try {
-    const response = await fetch(`${API_URL}${action.endpoint}`, {
+    const response = await window.api.apiFetch(`${API_URL}${action.endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(action.payload || {})

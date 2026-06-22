@@ -31,12 +31,15 @@ describe('useChatWebSocket', () => {
         }, 0)
       }
     }
-    vi.stubGlobal('WebSocket', TestWS)
+    ;(window as any).api = {
+      ...((window as any).api ?? {}),
+      apiWebSocket: (url: string) => new TestWS(url)
+    }
   })
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
+    delete (window as any).api
   })
 
   it('connects WebSocket on mount', () => {

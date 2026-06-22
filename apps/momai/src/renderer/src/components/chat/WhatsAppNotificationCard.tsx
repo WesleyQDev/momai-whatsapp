@@ -139,7 +139,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     async (intent: string) => {
       const displayContact = senderName || contact
       try {
-        const res = await fetch(`${API_URL}/extensions/llm/complete`, {
+        const res = await window.api.apiFetch(`${API_URL}/extensions/llm/complete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -189,7 +189,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
       setSending(true)
       try {
-        const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+        const res = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -243,7 +243,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     setVoiceStatus('listening')
     ;(async () => {
       try {
-        const res = await fetch(`${API_URL}/voice/whatsapp-reply/wait`, {
+        const res = await window.api.apiFetch(`${API_URL}/voice/whatsapp-reply/wait`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contact_jid: contactJid }),

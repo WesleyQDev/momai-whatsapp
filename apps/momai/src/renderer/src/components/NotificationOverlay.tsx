@@ -28,7 +28,7 @@ const VOICE_STATUS_LABELS: Record<string, string> = {
 }
 
 function sendToWhatsApp(contactJid: string, contact: string, message: string) {
-  return fetch(`${API_URL}/extensions/whatsapp/command`, {
+  return window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -77,7 +77,7 @@ export default function NotificationOverlay() {
       )
 
       try {
-        const response = await fetch(`${API_URL}/voice/whatsapp-reply/wait`, {
+        const response = await window.api.apiFetch(`${API_URL}/voice/whatsapp-reply/wait`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contact_jid: contactJid }),
@@ -142,7 +142,7 @@ export default function NotificationOverlay() {
 
         const processMsg = async () => {
           try {
-            const llmRes = await fetch(`${API_URL}/extensions/whatsapp/process-notification`, {
+            const llmRes = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/process-notification`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({

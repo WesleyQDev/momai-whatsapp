@@ -31,7 +31,7 @@ export default function ExtensionPanel({
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`${API_URL}${panelEndpoint}`, {
+      const res = await window.api.apiFetch(`${API_URL}${panelEndpoint}`, {
         method: 'GET',
         headers: { Accept: 'application/json' }
       })

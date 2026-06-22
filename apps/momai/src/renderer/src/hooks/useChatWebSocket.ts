@@ -57,7 +57,7 @@ export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocket
       if (isUnmounting) return
 
       try {
-        wsRef.current = new WebSocket(WS_URL)
+        wsRef.current = window.api.apiWebSocket(WS_URL)
       } catch (e) {
         console.error('Erro ao criar WebSocket:', e)
         scheduleReconnect()

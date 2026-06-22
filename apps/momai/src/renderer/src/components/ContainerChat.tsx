@@ -59,7 +59,7 @@ function ContextUsageRing() {
 
     const connect = () => {
       try {
-        ws = new WebSocket(WS_URL)
+        ws = window.api.apiWebSocket(WS_URL)
       } catch {
         return
       }

@@ -296,7 +296,7 @@ export default function WhatsAppView() {
 
   // Load notifications state
   useEffect(() => {
-    fetch(`${API_URL}/extensions/whatsapp/command`, {
+    window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ toolName: 'get_settings' })
@@ -314,7 +314,7 @@ export default function WhatsAppView() {
     const newState = !notificationsDisabled
     setNotificationsDisabled(newState)
     try {
-      await fetch(`${API_URL}/extensions/whatsapp/command`, {
+      await window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -361,7 +361,7 @@ export default function WhatsAppView() {
       if (qrRequestInFlight.current) return false
       qrRequestInFlight.current = true
       try {
-        const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+        const res = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -396,7 +396,7 @@ export default function WhatsAppView() {
     const unique = [...new Set(jids.filter((j) => typeof j === 'string' && j.includes('@')))]
     if (unique.length === 0) return
     try {
-      const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+      const res = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolName: 'get_avatars', args: { jids: unique } })
@@ -410,7 +410,7 @@ export default function WhatsAppView() {
 
   const loadStats = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+      const res = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolName: 'get_stats', args: {} })
@@ -436,7 +436,7 @@ export default function WhatsAppView() {
 
   const loadHistory = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+      const res = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolName: 'get_history', args: {} })
@@ -456,7 +456,7 @@ export default function WhatsAppView() {
     async (page: number, search: string) => {
       setContactsLoading(true)
       try {
-        const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+        const res = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -488,7 +488,7 @@ export default function WhatsAppView() {
     async (page: number, search: string) => {
       setGroupsLoading(true)
       try {
-        const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+        const res = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -566,7 +566,7 @@ export default function WhatsAppView() {
     if (syncing) return
     setSyncing(true)
     try {
-      const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+      const res = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolName: 'sync_contacts', args: {} })
@@ -584,7 +584,7 @@ export default function WhatsAppView() {
 
   const toggleMonitoring = async (contactId: string) => {
     try {
-      const res = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+      const res = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolName: 'toggle_monitoring', args: { contact: contactId } })
@@ -603,7 +603,7 @@ export default function WhatsAppView() {
   const saveContactName = async (contactId: string) => {
     if (!editValue.trim()) return
     try {
-      await fetch(`${API_URL}/extensions/whatsapp/command`, {
+      await window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -620,7 +620,7 @@ export default function WhatsAppView() {
     beginPairing()
     setConnected(false)
     try {
-      await fetch(`${API_URL}/extensions/whatsapp/disconnect`, { method: 'POST' })
+      await window.api.apiFetch(`${API_URL}/extensions/whatsapp/disconnect`, { method: 'POST' })
     } catch {}
   }, [beginPairing])
 
@@ -628,7 +628,7 @@ export default function WhatsAppView() {
     try {
       beginPairing()
       setConnected(false)
-      await fetch(`${API_URL}/extensions/whatsapp/restart`, { method: 'POST' })
+      await window.api.apiFetch(`${API_URL}/extensions/whatsapp/restart`, { method: 'POST' })
     } catch {}
   }, [beginPairing])
 
@@ -655,7 +655,7 @@ export default function WhatsAppView() {
 
     let quickReplies: string[] = []
     try {
-      const llmRes = await fetch(`${API_URL}/extensions/whatsapp/process-notification`, {
+      const llmRes = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/process-notification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -674,7 +674,7 @@ export default function WhatsAppView() {
     const avatarJids = [...new Set([jid, replyJid, contactJid].filter((j) => j?.includes('@')))]
     if (!contactAvatar && avatarJids.length > 0) {
       try {
-        const avRes = await fetch(`${API_URL}/extensions/whatsapp/command`, {
+        const avRes = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ toolName: 'get_avatars', args: { jids: avatarJids } })
@@ -1149,7 +1149,7 @@ export default function WhatsAppView() {
                                 e.stopPropagation()
                                 const newName = prompt('Digite o nome para este contato:', '')
                                 if (newName?.trim()) {
-                                  fetch(`${API_URL}/extensions/whatsapp/command`, {
+                                  window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({

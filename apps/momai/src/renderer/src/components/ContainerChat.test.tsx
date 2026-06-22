@@ -71,6 +71,21 @@ describe('ContainerChat', () => {
       lineTo: vi.fn(),
       createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() }))
     } as unknown as CanvasRenderingContext2D)
+    ;(window as any).api = {
+      ...((window as any).api ?? {}),
+      apiWebSocket: () => ({
+        onopen: null,
+        onclose: null,
+        onmessage: null,
+        onerror: null,
+        send: vi.fn(),
+        close: vi.fn()
+      })
+    }
+  })
+
+  afterEach(() => {
+    delete (window as any).api
   })
 
   it('renders welcome tips when no messages', async () => {

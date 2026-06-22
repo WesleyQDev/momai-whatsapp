@@ -144,7 +144,9 @@ const api = {
       electronAPI.ipcRenderer.invoke('notes:open-folder', noteId),
     search: (query: string, limit = 6): Promise<any[]> =>
       electronAPI.ipcRenderer.invoke('notes:search', query, limit)
-  }
+  },
+  apiFetch: (url: string, options: RequestInit = {}): Promise<Response> => fetch(url, options),
+  apiWebSocket: (url: string): WebSocket => new WebSocket(url)
 }
 
 if (process.contextIsolated) {
