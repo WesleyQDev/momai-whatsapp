@@ -23,6 +23,7 @@ import { scanInstalledGames } from './economyScanner'
 import { API_BASE_URL, WS_BASE_URL, ICON_PATH } from './constants'
 import { getOrCreateSessionToken } from './security/session-token'
 import { authFetch } from './security/authenticated-fetch'
+import { isSafeExternalUrl } from './security/safe-external-url'
 
 async function controlWakeWord(enabled: boolean): Promise<void> {
   try {
@@ -407,7 +408,13 @@ function createMainWindow(): BrowserWindow {
   setupContextMenu()
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    if (isSafeExternalUrl(details.url)) {
+      shell.openExternal(details.url)
+    } else {
+      logger.warn(
+        `[WindowManager] Blocked setWindowOpenHandler URL with unsafe protocol: ${details.url}`
+      )
+    }
     return { action: 'deny' }
   })
 
