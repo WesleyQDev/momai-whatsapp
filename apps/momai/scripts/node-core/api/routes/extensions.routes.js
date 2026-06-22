@@ -214,6 +214,7 @@ const { createPermissionSchema } = require('../../permissions/schema')
 const extensionEvents = require('../../services/extension-events')
 const { resolveWhatsAppChannel } = require('../../utils/whatsapp-channel')
 const { DATA_DIR } = require('../../config/constants')
+const { sanitizeError } = require('../../utils/error-sanitizer.js')
 
 let _cachedExtensionsPayload = null
 let _lastExtensionsRefresh = 0
@@ -655,7 +656,11 @@ function createExtensionsRoutes(context) {
           sendJson(res, 200, result || { ok: true })
           return true
         } catch (err) {
-          sendJson(res, 500, { ok: false, error: err.message })
+          console.error('[extensions] Unhandled skill action error:', err)
+          const { status, body } = sanitizeError(err, {
+            isDev: process.env.NODE_ENV !== 'production'
+          })
+          sendJson(res, status, body)
           return true
         }
       }
@@ -697,7 +702,11 @@ function createExtensionsRoutes(context) {
       child.on('error', (err) => {
         if (responded) return
         responded = true
-        sendJson(res, 500, { ok: false, error: err.message })
+        console.error('[extensions] Launcher child process error:', err)
+        const { status, body } = sanitizeError(err, {
+          isDev: process.env.NODE_ENV !== 'production'
+        })
+        sendJson(res, status, body)
       })
       child.unref()
       if (!responded) {

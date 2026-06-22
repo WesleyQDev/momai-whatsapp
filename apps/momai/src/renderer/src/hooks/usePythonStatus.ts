@@ -9,12 +9,9 @@ export function usePythonStatus() {
   const [status, setStatus] = useState<PythonStatus>({ online: true, detail: '' })
 
   useEffect(() => {
-    const removeListener = window.momaiAPI.on(
-      'python-status',
-      (_event: any, payload: PythonStatus) => {
-        setStatus(payload)
-      }
-    )
+    const removeListener = window.momaiAPI.onPythonStatus((payload) => {
+      setStatus(payload)
+    })
     return () => removeListener()
   }, [])
 

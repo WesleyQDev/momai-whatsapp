@@ -362,8 +362,7 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     // Clear chat session
     window.dispatchEvent(new CustomEvent('momai_new_session'))
 
-    // @ts-ignore
-    window.momaiAPI.send('reset-onboarding')
+    window.momaiAPI.resetOnboarding()
 
     onClose()
   }, [onClose])

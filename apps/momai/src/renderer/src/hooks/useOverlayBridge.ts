@@ -4,14 +4,14 @@ export function useOverlayBridge(graphState: any) {
   useEffect(() => {
     const checkAndTriggerOverlay = async () => {
       if (graphState.view) {
-        const state = await window.momaiAPI.invoke('get-window-state')
+        const state = await window.momaiAPI.getWindowState()
         if (state.minimized || !state.visible) {
-          window.momaiAPI.send('open-overlay', graphState)
+          window.momaiAPI.openOverlay(graphState)
         } else {
-          window.momaiAPI.send('close-overlay')
+          window.momaiAPI.closeOverlay()
         }
       } else {
-        window.momaiAPI.send('close-overlay')
+        window.momaiAPI.closeOverlay()
       }
     }
     checkAndTriggerOverlay()

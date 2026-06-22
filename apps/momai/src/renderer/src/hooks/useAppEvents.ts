@@ -34,13 +34,12 @@ export function useAppEvents({ openSettings, handleGraphOption }: AppEventsProps
     }
     window.addEventListener('momai_open_settings_ultra', handleOpenUltra)
 
-    const removeTrigger = window.momaiAPI.on('trigger-action', (_, action) => {
+    const removeTrigger = window.momaiAPI.onTriggerAction((action) => {
       handleGraphOption(action)
     })
 
-    const removeNotificationClick = window.momaiAPI.on(
-      'notification-clicked',
-      (_, { title, body, voice_response }) => {
+    const removeNotificationClick = window.momaiAPI.onNotificationClicked(
+      ({ title, body, voice_response }) => {
         // If voice_response was enabled for this reminder, or if the user clicked it (selection)
         // we speak the content.
         if (voice_response !== false) {

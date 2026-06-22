@@ -15,7 +15,7 @@ export function useAudioFallback() {
       }
     }
 
-    const handleAudioChunk = (_: any, base64Data: string) => {
+    const handleAudioChunk = (base64Data: string) => {
       try {
         if (!audioCtx) {
           audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
@@ -47,7 +47,7 @@ export function useAudioFallback() {
       }
     }
 
-    const remove = window.momaiAPI.on('play-audio-chunk', handleAudioChunk)
+    const remove = window.momaiAPI.onPlayAudioChunk(handleAudioChunk)
 
     return () => {
       remove()

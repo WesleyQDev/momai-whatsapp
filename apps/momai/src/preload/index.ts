@@ -17,7 +17,7 @@ const WS_BASE_URL = getArgValue('--momai-ws-url=', FALLBACK_WS_URL)
 // to authenticate renderer-initiated calls (Authorization header / ?token=).
 const SESSION_TOKEN = getArgValue('--momai-session-token=', '')
 
-const api = {
+const momaiAPI = {
   getApiBaseUrl: (): string => API_BASE_URL,
   getWsBaseUrl: (): string => WS_BASE_URL,
   minimize: (): void => ipcRenderer.send('window-minimize'),
@@ -134,12 +134,14 @@ const api = {
     createFolder: (path: string): Promise<void> => ipcRenderer.invoke('notes:folders:create', path),
     renameFolder: (oldPath: string, newPath: string): Promise<boolean> =>
       ipcRenderer.invoke('notes:folders:rename', oldPath, newPath),
-    deleteFolder: (path: string): Promise<boolean> => ipcRenderer.invoke('notes:folders:delete', path),
-    openFolder: (noteId: string): Promise<boolean> => ipcRenderer.invoke('notes:open-folder', noteId),
+    deleteFolder: (path: string): Promise<boolean> =>
+      ipcRenderer.invoke('notes:folders:delete', path),
+    openFolder: (noteId: string): Promise<boolean> =>
+      ipcRenderer.invoke('notes:open-folder', noteId),
     search: (query: string, limit = 6): Promise<any[]> =>
       ipcRenderer.invoke('notes:search', query, limit)
   },
-    apiFetch: (url: string, options: RequestInit = {}): Promise<Response> => {
+  apiFetch: (url: string, options: RequestInit = {}): Promise<Response> => {
     // NOTE: This wrapper exists for API symmetry but delegates to the
     // global `fetch` (which in this preload context is undici). It is
     // kept for backward compatibility; new code should use the
@@ -153,29 +155,51 @@ const api = {
     // the renderer and pass the token via getSessionToken().
     return new WebSocket(url)
   },
-  getSessionToken: (): string => SESSION_TOKEN
-}
-
-const momaiAPI = {
-  send: (channel: string, ...args: any[]): void => {
-    ipcRenderer.send(channel, ...args)
+  getSessionToken: (): string => SESSION_TOKEN,
+  // M2 follow-up: named functions for the channels the renderer used
+  // to call via the generic send/invoke/on passthrough. The generic
+  // surface is removed — every channel must be explicitly exposed here.
+  getWindowState: (): Promise<{ minimized: boolean; visible: boolean }> =>
+    ipcRenderer.invoke('get-window-state'),
+  onTriggerAction: (callback: (action: any) => void) => {
+    const handler = (_: any, action: any) => callback(action)
+    ipcRenderer.on('trigger-action', handler)
+    return () => ipcRenderer.removeListener('trigger-action', handler)
   },
-  invoke: (channel: string, ...args: any[]): Promise<any> => {
-    return ipcRenderer.invoke(channel, ...args)
+  onNotificationClicked: (
+    callback: (data: { title: string; body: string; voice_response?: boolean }) => void
+  ) => {
+    const handler = (_: any, data: any) => callback(data)
+    ipcRenderer.on('notification-clicked', handler)
+    return () => ipcRenderer.removeListener('notification-clicked', handler)
   },
-  on: (
-    channel: string,
-    listener: (event: any, ...args: any[]) => void
-  ): (() => void) => {
-    ipcRenderer.on(channel, listener)
-    return () => ipcRenderer.removeListener(channel, listener)
-  }
+  onPlayAudioChunk: (callback: (base64Data: string) => void) => {
+    const handler = (_: any, base64Data: string) => callback(base64Data)
+    ipcRenderer.on('play-audio-chunk', handler)
+    return () => ipcRenderer.removeListener('play-audio-chunk', handler)
+  },
+  onPythonStatus: (callback: (status: { online: boolean; detail: string }) => void) => {
+    const handler = (_: any, status: any) => callback(status)
+    ipcRenderer.on('python-status', handler)
+    return () => ipcRenderer.removeListener('python-status', handler)
+  },
+  onUpdateOverlayContent: (callback: (data: any) => void) => {
+    const handler = (_: any, data: any) => callback(data)
+    ipcRenderer.on('update-overlay-content', handler)
+    return () => ipcRenderer.removeListener('update-overlay-content', handler)
+  },
+  markAppReady: (): void => ipcRenderer.send('app-ready'),
+  resetOnboarding: (): void => ipcRenderer.send('reset-onboarding'),
+  markOverlayReady: (): void => ipcRenderer.send('overlay-ready')
 }
 
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('momaiAPI', momaiAPI)
-    contextBridge.exposeInMainWorld('api', api)
+    // Backward compat: existing renderer code still references
+    // `window.api.<namedFn>()`. Both names point to the same
+    // curated surface — no generic send/invoke/on is exposed.
+    contextBridge.exposeInMainWorld('api', momaiAPI)
   } catch (error) {
     console.error(error)
   }
@@ -183,5 +207,5 @@ if (process.contextIsolated) {
   // @ts-ignore (define in dts)
   window.momaiAPI = momaiAPI
   // @ts-ignore (define in dts)
-  window.api = api
+  window.api = momaiAPI
 }

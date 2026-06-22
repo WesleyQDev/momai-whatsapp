@@ -74,8 +74,9 @@ def create_app():
     from dotenv import load_dotenv
     load_dotenv()
     
-    from fastapi import FastAPI
+    from fastapi import FastAPI, Request
     from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import JSONResponse
     from slowapi.errors import RateLimitExceeded
     from api.middleware.rate_limit import build_limiter, rate_limit_exceeded_handler
     from api.router import api_router, include_routes
@@ -85,6 +86,18 @@ def create_app():
     application = FastAPI(lifespan=lifespan)
     application.state.limiter = build_limiter()
     application.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+    async def global_exception_handler(request: Request, exc: Exception):
+        import logging
+        logging.getLogger("momai.api").exception(
+            "Unhandled exception in route", exc_info=exc
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": "Internal server error"},
+        )
+
+    application.add_exception_handler(Exception, global_exception_handler)
 
     application.add_middleware(
         CORSMiddleware,

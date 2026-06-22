@@ -14,21 +14,15 @@ export default function OverlayView() {
     const root = document.getElementById('root')
     if (root) root.style.setProperty('background', 'transparent', 'important')
 
-    // @ts-ignore
-    const removeListener = window.momaiAPI.on(
-      'update-overlay-content',
-      (_, contentData) => {
-        setData(contentData)
-      }
-    )
+    const removeListener = window.momaiAPI.onUpdateOverlayContent((contentData) => {
+      setData(contentData)
+    })
 
-    // @ts-ignore
-    window.momaiAPI.send('overlay-ready')
+    window.momaiAPI.markOverlayReady()
 
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        // @ts-ignore
-        window.momaiAPI.send('close-overlay')
+        window.momaiAPI.closeOverlay()
       }
     }
     window.addEventListener('keydown', handleEsc)
@@ -41,8 +35,7 @@ export default function OverlayView() {
 
   const handleClose = () => {
     ;(window as any).api?.reinstateEconomySleep?.()
-    // @ts-ignore
-    window.momaiAPI.send('close-overlay')
+    window.momaiAPI.closeOverlay()
   }
 
   const handleBackdropClick = (e: React.MouseEvent) => {
