@@ -13,6 +13,10 @@ const FALLBACK_API_URL = 'http://127.0.0.1:8000'
 const FALLBACK_WS_URL = 'ws://127.0.0.1:8000/ws'
 const API_BASE_URL = getArgValue('--momai-api-url=', FALLBACK_API_URL)
 const WS_BASE_URL = getArgValue('--momai-ws-url=', FALLBACK_WS_URL)
+// Session token is generated in the main process and forwarded via
+// webPreferences.additionalArguments. Used by apiFetch / apiWebSocket
+// to authenticate renderer-initiated calls (Authorization header / ?token=).
+const SESSION_TOKEN = getArgValue('--momai-session-token=', '')
 
 const api = {
   getApiBaseUrl: (): string => API_BASE_URL,
@@ -145,8 +149,18 @@ const api = {
     search: (query: string, limit = 6): Promise<any[]> =>
       electronAPI.ipcRenderer.invoke('notes:search', query, limit)
   },
-  apiFetch: (url: string, options: RequestInit = {}): Promise<Response> => fetch(url, options),
-  apiWebSocket: (url: string): WebSocket => new WebSocket(url)
+  apiFetch: (url: string, options: RequestInit = {}): Promise<Response> => {
+    const headers = new Headers(options.headers)
+    if (SESSION_TOKEN) {
+      headers.set('Authorization', `Bearer ${SESSION_TOKEN}`)
+    }
+    return fetch(url, { ...options, headers })
+  },
+  apiWebSocket: (url: string): WebSocket => {
+    if (!SESSION_TOKEN) return new WebSocket(url)
+    const sep = url.includes('?') ? '&' : '?'
+    return new WebSocket(`${url}${sep}token=${encodeURIComponent(SESSION_TOKEN)}`)
+  }
 }
 
 if (process.contextIsolated) {

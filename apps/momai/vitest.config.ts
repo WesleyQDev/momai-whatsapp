@@ -43,6 +43,19 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'preload',
+          root: resolve(__dirname, 'src/preload'),
+          environment: 'node',
+          include: ['**/*.test.ts'],
+          setupFiles: [resolve(__dirname, 'src/preload/test-setup.ts')],
+          coverage: {
+            include: ['src/preload/**/*.ts'],
+            exclude: ['src/preload/**/*.test.ts', 'src/preload/test-setup.ts']
+          }
+        }
+      },
+      {
+        test: {
           name: 'renderer',
           root: resolve(__dirname, 'src/renderer/src'),
           environment: 'jsdom',

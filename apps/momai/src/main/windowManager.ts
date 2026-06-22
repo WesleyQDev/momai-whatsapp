@@ -21,6 +21,7 @@ import { logger } from './logger'
 import { restartCoreBackend } from './coreManager'
 import { scanInstalledGames } from './economyScanner'
 import { API_BASE_URL, WS_BASE_URL, ICON_PATH } from './constants'
+import { getOrCreateSessionToken } from './security/session-token'
 
 async function controlWakeWord(enabled: boolean): Promise<void> {
   try {
@@ -272,7 +273,12 @@ export function createOverlayWindow(data?: any): void {
       icon: ICON_PATH,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
-        sandbox: false
+        sandbox: false,
+        additionalArguments: [
+          `--momai-api-url=${API_BASE_URL}`,
+          `--momai-ws-url=${WS_BASE_URL}`,
+          `--momai-session-token=${getOrCreateSessionToken()}`
+        ]
       }
     })
 
@@ -325,7 +331,11 @@ function createMainWindow(): BrowserWindow {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
-      additionalArguments: [`--momai-api-url=${API_BASE_URL}`, `--momai-ws-url=${WS_BASE_URL}`]
+      additionalArguments: [
+        `--momai-api-url=${API_BASE_URL}`,
+        `--momai-ws-url=${WS_BASE_URL}`,
+        `--momai-session-token=${getOrCreateSessionToken()}`
+      ]
     }
   })
 

@@ -36,6 +36,7 @@ import { CURRENT_VARIANT } from './variants'
 import { TrayService } from './services/tray-service'
 import { HttpLlamaControl } from './services/llama-control'
 import { FileKeepInTrayReader } from './services/keep-in-tray-reader'
+import { getOrCreateSessionToken } from './security/session-token'
 
 // Initialize first launch state correctly at startup
 state.isFirstLaunch = !isOnboardingCompleted()
@@ -228,6 +229,13 @@ ipcMain.handle('notes:search', async (_, query: string, limit?: number) =>
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
 app.whenReady().then(() => {
+  // Generate a per-session token before any backend is spawned.
+  // The token is inherited by Node Core / Python via process.env and
+  // forwarded to the renderer via webPreferences.additionalArguments
+  // (see windowManager.ts). It lives only in memory for the process
+  // lifetime; a new one is generated on every app restart.
+  process.env.MOMAI_SESSION_TOKEN = getOrCreateSessionToken()
+
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
