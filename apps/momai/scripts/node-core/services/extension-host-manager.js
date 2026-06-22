@@ -25,7 +25,15 @@ class ExtensionHostManager extends EventEmitter {
     const hostPath = path.join(__dirname, 'extension-host-worker.js')
     return fork(hostPath, [skillId, skillPath], {
       stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-      env: { ...process.env, MOMAI_EXTENSION_ID: skillId, ...extraEnv }
+      env: {
+        PATH: process.env.PATH,
+        NODE_PATH: process.env.NODE_PATH,
+        LANG: process.env.LANG,
+        MOMAI_DATA_DIR: process.env.MOMAI_DATA_DIR,
+        MOMAI_EXTENSION_ID: skillId,
+        MOMAI_SESSION_TOKEN: process.env.MOMAI_SESSION_TOKEN,
+        ...extraEnv
+      }
     })
   }
 
