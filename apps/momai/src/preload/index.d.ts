@@ -1,8 +1,13 @@
-import { ElectronAPI } from '@electron-toolkit/preload'
-
 declare global {
   interface Window {
-    electron: ElectronAPI
+    momaiAPI: {
+      send: (channel: string, ...args: any[]) => void
+      invoke: (channel: string, ...args: any[]) => Promise<any>
+      on: (
+        channel: string,
+        listener: (event: any, ...args: any[]) => void
+      ) => () => void
+    }
     api: {
       minimize: () => void
       focus: () => void
@@ -73,3 +78,5 @@ declare global {
     }
   }
 }
+
+export {}

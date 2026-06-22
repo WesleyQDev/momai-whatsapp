@@ -40,7 +40,7 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
       .then(setAppVersion)
       .catch(() => {})
 
-    const removeBootError = window.electron.ipcRenderer.on(
+    const removeBootError = window.momaiAPI.on(
       'bootstrap-error',
       (_event: any, error: { type: string; message: string; details?: string }) => {
         setBootstrapError(error)
@@ -173,7 +173,7 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
   // App ready trigger
   useEffect(() => {
     if (isReady && settingsLoaded && !showOnboarding && !bootstrapError) {
-      window.electron.ipcRenderer.send('app-ready')
+      window.momaiAPI.send('app-ready')
 
       // Briefing automático ao iniciar
       if (settings?.daily_briefing_enabled) {

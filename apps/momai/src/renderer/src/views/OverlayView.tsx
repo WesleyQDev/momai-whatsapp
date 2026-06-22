@@ -15,7 +15,7 @@ export default function OverlayView() {
     if (root) root.style.setProperty('background', 'transparent', 'important')
 
     // @ts-ignore
-    const removeListener = window.electron.ipcRenderer.on(
+    const removeListener = window.momaiAPI.on(
       'update-overlay-content',
       (_, contentData) => {
         setData(contentData)
@@ -23,12 +23,12 @@ export default function OverlayView() {
     )
 
     // @ts-ignore
-    window.electron.ipcRenderer.send('overlay-ready')
+    window.momaiAPI.send('overlay-ready')
 
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         // @ts-ignore
-        window.electron.ipcRenderer.send('close-overlay')
+        window.momaiAPI.send('close-overlay')
       }
     }
     window.addEventListener('keydown', handleEsc)
@@ -42,7 +42,7 @@ export default function OverlayView() {
   const handleClose = () => {
     ;(window as any).api?.reinstateEconomySleep?.()
     // @ts-ignore
-    window.electron.ipcRenderer.send('close-overlay')
+    window.momaiAPI.send('close-overlay')
   }
 
   const handleBackdropClick = (e: React.MouseEvent) => {

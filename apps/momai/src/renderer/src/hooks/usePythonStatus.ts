@@ -9,7 +9,7 @@ export function usePythonStatus() {
   const [status, setStatus] = useState<PythonStatus>({ online: true, detail: '' })
 
   useEffect(() => {
-    const removeListener = window.electron.ipcRenderer.on(
+    const removeListener = window.momaiAPI.on(
       'python-status',
       (_event: any, payload: PythonStatus) => {
         setStatus(payload)

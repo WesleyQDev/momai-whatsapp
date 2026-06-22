@@ -47,7 +47,7 @@ export function useAudioFallback() {
       }
     }
 
-    const remove = window.electron.ipcRenderer.on('play-audio-chunk', handleAudioChunk)
+    const remove = window.momaiAPI.on('play-audio-chunk', handleAudioChunk)
 
     return () => {
       remove()

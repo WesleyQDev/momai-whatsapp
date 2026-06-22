@@ -363,7 +363,7 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     window.dispatchEvent(new CustomEvent('momai_new_session'))
 
     // @ts-ignore
-    window.electron.ipcRenderer.send('reset-onboarding')
+    window.momaiAPI.send('reset-onboarding')
 
     onClose()
   }, [onClose])

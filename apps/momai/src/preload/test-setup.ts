@@ -7,20 +7,13 @@ vi.mock('electron', () => ({
     exposeInMainWorld: (key: string, value: unknown) => {
       exposed[key] = value
     }
-  }
-}))
-
-vi.mock('@electron-toolkit/preload', () => ({
-  electronAPI: {
-    ipcRenderer: {
-      send: vi.fn(),
-      invoke: vi.fn(),
-      on: vi.fn(() => () => {}),
-      removeListener: vi.fn()
-    },
-    webFrame: {},
-    webUtils: {},
-    process: { platform: process.platform, versions: process.versions, env: { ...process.env } }
+  },
+  ipcRenderer: {
+    send: vi.fn(),
+    invoke: vi.fn(),
+    on: vi.fn(() => () => {}),
+    removeListener: vi.fn(),
+    removeAllListeners: vi.fn()
   }
 }))
 
