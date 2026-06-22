@@ -35,7 +35,7 @@ The user explicitly excluded the code-signing PFX certificate issue (item #5 in 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Electron renderer                                          │
-│  - Preload reads token from userData/session-token file    │
+│  - Preload reads token from process.argv (passed by main)   │
 │  - contextBridge exposes apiFetch() / apiWebSocket()        │
 │    wrappers that auto-attach "Authorization: Bearer <tok>"  │
 │  - Renderer never sees the raw token                       │
@@ -44,10 +44,11 @@ The user explicitly excluded the code-signing PFX certificate issue (item #5 in 
               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Electron main process                                      │
-│  - Generates 32-byte random token on app start              │
-│  - Writes to userData/session-token with mode 0600          │
+│  - Generates 32-byte random token on app start (in memory)  │
 │  - Sets process.env.MOMAI_SESSION_TOKEN                     │
 │  - Spawns Node Core and Python with the env var inherited   │
+│  - Passes --momai-session-token=<token> to BrowserWindow    │
+│    via webPreferences.additionalArguments                  │
 └─────────────────────────────────────────────────────────────┘
               │ MOMAI_SESSION_TOKEN env var
               ▼
@@ -174,30 +175,18 @@ POST /extensions/install { id, download_url }
 ### 1.1 Session token (`apps/momai/src/main/security/session-token.ts`)
 
 ```ts
-import { app } from 'electron'
 import { randomBytes } from 'node:crypto'
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
-
-const TOKEN_FILE = 'session-token'
-const FILE_MODE = 0o600
 
 export function generateSessionToken(): string {
   return randomBytes(32).toString('hex')
 }
-
-export function getOrCreateSessionToken(): string {
-  const tokenPath = join(app.getPath('userData'), TOKEN_FILE)
-  if (existsSync(tokenPath)) {
-    return readFileSync(tokenPath, 'utf8').trim()
-  }
-  const token = generateSessionToken()
-  writeFileSync(tokenPath, token, { mode: FILE_MODE })
-  return token
-}
 ```
 
-Called from `app.whenReady()` in `index.ts` before spawning Node Core / Python. The result is assigned to `process.env.MOMAI_SESSION_TOKEN`.
+Called from `app.whenReady()` in `index.ts` before spawning Node Core / Python. The token is:
+1. Assigned to `process.env.MOMAI_SESSION_TOKEN` (inherited by Node Core and Python)
+2. Passed to `BrowserWindow` via `webPreferences.additionalArguments: ['--momai-session-token=' + token]`
+
+The token is kept in memory only. It is never written to disk. When the app restarts, a new token is generated. This means the auth window is per-session (matches the security model).
 
 ### 1.3 Node Core auth middleware (`apps/momai/scripts/node-core/middleware/auth.js`)
 
@@ -321,17 +310,9 @@ async function validateInstallUrl(id, downloadUrl) {
 
 ```ts
 import { contextBridge } from 'electron'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 
-let token: string | null = null
-try {
-  // userData path is passed via env or derived from process.execPath
-  const userData = process.env.MOMAI_USER_DATA_PATH
-  if (userData) {
-    token = readFileSync(join(userData, 'session-token'), 'utf8').trim()
-  }
-} catch {}
+const tokenArg = process.argv.find(a => a.startsWith('--momai-session-token='))
+const token = tokenArg ? tokenArg.split('=')[1] : null
 
 contextBridge.exposeInMainWorld('api', {
   apiFetch: (url: string, options: RequestInit = {}) => {
@@ -345,6 +326,8 @@ contextBridge.exposeInMainWorld('api', {
   },
 })
 ```
+
+Token arrives via `process.argv` (the same mechanism used for `--momai-api-url` and `--momai-ws-url` from the previous variant refactor). The preload parses it once at startup and never exposes the raw value — only uses it inside the `apiFetch` / `apiWebSocket` wrappers.
 
 Renderer migrates `fetch(url)` → `window.api.apiFetch(url)` and `new WebSocket(url)` → `window.api.apiWebSocket(url)`. The raw token is never exposed.
 
@@ -397,7 +380,7 @@ After each phase:
 |------|----------|------------|
 | Community extensions calling API directly break | Medium | Document in release notes; provide migration helper |
 | Performance impact of token validation per request | Low | Constant-time string compare; ~0.1ms overhead, negligible |
-| Token file corruption / deletion | Low | Middleware returns 401; renderer can show a "restart app" prompt |
+| Token reset on app restart invalidates open WebSockets | Low | Reconnect logic in renderer (already exists for app restarts) |
 | CORS allowlist missing a legitimate origin | Low | Test all 4 variants (dev, NSIS, Store, APPX-test) manually |
 | `safeStorage` unavailable on some Linux setups | Low | Phase 3: fall back to encrypted file with key derived from machine ID |
 | Extension require interceptor breaks legitimate extension | Medium | Phase 2: maintain allowlist of safe modules; test with existing extensions |
@@ -408,7 +391,7 @@ Each phase is a separate PR. If a phase breaks something:
 - `git revert <merge-commit>` on main
 - Or close the PR and ship a hotfix
 
-The token file is regenerated on next app start, so reverting the auth middleware does not leave the system in a bad state.
+The token is regenerated on each app start, so reverting the auth middleware does not leave the system in a bad state.
 
 ## Out of Scope (explicit)
 
