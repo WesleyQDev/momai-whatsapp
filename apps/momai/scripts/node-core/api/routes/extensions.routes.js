@@ -4,8 +4,64 @@ const crypto = require('node:crypto')
 const os = require('node:os')
 const http = require('node:http')
 const https = require('node:https')
+const dns = require('node:dns').promises
 const { exec, spawn } = require('node:child_process')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
+const { isPrivateIp } = require('../../utils/ip-check')
+
+/* ── Community registry allowlist (SSRF defense) ── */
+
+function getRegistryPath() {
+  return path.resolve(__dirname, '..', '..', '..', '..', 'registry.json')
+}
+
+let _cachedRegistry = null
+
+function loadRegistry() {
+  if (_cachedRegistry) return _cachedRegistry
+  const registryPath = getRegistryPath()
+  const raw = fs.readFileSync(registryPath, 'utf8')
+  _cachedRegistry = JSON.parse(raw)
+  return _cachedRegistry
+}
+
+function _setRegistry(registry) {
+  _cachedRegistry = registry
+}
+
+async function validateInstallUrl(id, downloadUrl) {
+  const registry = loadRegistry()
+  const ext = (registry.extensions || []).find((e) => e.id === id)
+  if (!ext) {
+    const err = new Error('extension not in registry')
+    err.status = 403
+    throw err
+  }
+  if (ext.download_url !== downloadUrl) {
+    const err = new Error('download_url does not match registry entry')
+    err.status = 403
+    throw err
+  }
+  let url
+  try {
+    url = new URL(downloadUrl)
+  } catch {
+    const err = new Error('invalid URL')
+    err.status = 403
+    throw err
+  }
+  if (url.protocol !== 'https:') {
+    const err = new Error('only https URLs allowed')
+    err.status = 403
+    throw err
+  }
+  const { address } = await dns.lookup(url.hostname)
+  if (isPrivateIp(address)) {
+    const err = new Error(`hostname resolves to private IP: ${address}`)
+    err.status = 403
+    throw err
+  }
+}
 
 /* ── Extension dependency installer ── */
 
@@ -329,6 +385,13 @@ function createExtensionsRoutes(context) {
 
       const downloadUrl = String(payload.download_url || '').trim()
       if (downloadUrl) {
+        try {
+          await validateInstallUrl(id, downloadUrl)
+        } catch (err) {
+          res.write(JSON.stringify({ ok: false, error: err.message }) + '\n')
+          res.end()
+          return true
+        }
         ensureDir(extDir)
         console.log(`[ExtensionsAPI] Downloading extension ${id} from ${downloadUrl}...`)
         const zipPath = path.join(extDir, 'archive.zip')
@@ -910,4 +973,4 @@ function createExtensionsRoutes(context) {
   }
 }
 
-module.exports = { createExtensionsRoutes }
+module.exports = { createExtensionsRoutes, validateInstallUrl, _setRegistry }
