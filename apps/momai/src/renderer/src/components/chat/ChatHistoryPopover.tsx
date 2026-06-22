@@ -25,6 +25,18 @@ export function ChatHistoryPopover({
   const panelRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
+  const loadSessions = async () => {
+    try {
+      setIsLoading(true)
+      const data = await fetchSessions()
+      setSessions(data)
+    } catch (e) {
+      console.error('Failed to load sessions', e)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (isOpen) {
       loadSessions()
@@ -70,18 +82,6 @@ export function ChatHistoryPopover({
         handleTitleGenerated as EventListener
       )
   }, [isOpen])
-
-  const loadSessions = async () => {
-    try {
-      setIsLoading(true)
-      const data = await fetchSessions()
-      setSessions(data)
-    } catch (e) {
-      console.error('Failed to load sessions', e)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation()

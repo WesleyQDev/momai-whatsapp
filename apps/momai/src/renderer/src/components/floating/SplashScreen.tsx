@@ -69,6 +69,9 @@ export default function SplashScreen({
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [elapsedTime, setElapsedTime] = useState(0)
   const [bootstrapError, setBootstrapError] = useState<BootstrapError | null>(null)
+  const [visualProgress, setVisualProgress] = useState(0)
+  const [localIsStalled, setLocalIsStalled] = useState(false)
+  const [localIsRetrying, setLocalIsRetrying] = useState(false)
 
   useEffect(() => {
     if (!window.api?.onBootstrapError) return
@@ -132,10 +135,6 @@ export default function SplashScreen({
     }, 1000)
     return () => clearInterval(interval)
   }, [isFullyReady, bootstrapError])
-
-  const [visualProgress, setVisualProgress] = useState(0)
-  const [localIsStalled, setLocalIsStalled] = useState(false)
-  const [localIsRetrying, setLocalIsRetrying] = useState(false)
 
   useEffect(() => {
     if (isStalled) {

@@ -47,25 +47,6 @@ export default function DynamicDashboard({
     }
   }
 
-  useEffect(() => {
-    fetchData()
-    // Solicita o estado inicial da extensão (como a lista de apps)
-    if (extensionId) {
-      handleAction('get_initial_state')
-    }
-    if (hasSourceWidgets) {
-      const interval = setInterval(fetchData, 3000)
-      return () => clearInterval(interval)
-    }
-    return () => {}
-  }, [hasSourceWidgets, extensionId])
-
-  useEffect(() => {
-    if (!status) return
-    const timeout = setTimeout(() => setStatus(null), 4000)
-    return () => clearTimeout(timeout)
-  }, [status])
-
   const handleAction = async (action: string, payload: any = {}) => {
     if (!extensionId) return
     try {
@@ -96,6 +77,25 @@ export default function DynamicDashboard({
       setIsRefreshing(false)
     }
   }
+
+  useEffect(() => {
+    fetchData()
+    // Solicita o estado inicial da extensão (como a lista de apps)
+    if (extensionId) {
+      handleAction('get_initial_state')
+    }
+    if (hasSourceWidgets) {
+      const interval = setInterval(fetchData, 3000)
+      return () => clearInterval(interval)
+    }
+    return () => {}
+  }, [hasSourceWidgets, extensionId])
+
+  useEffect(() => {
+    if (!status) return
+    const timeout = setTimeout(() => setStatus(null), 4000)
+    return () => clearTimeout(timeout)
+  }, [status])
 
   const getGridColsClass = (columns: number | undefined) => {
     if (columns === 1) return 'grid-cols-1'

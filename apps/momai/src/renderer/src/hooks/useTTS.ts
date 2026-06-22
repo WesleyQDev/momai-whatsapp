@@ -11,6 +11,21 @@ export function useTTS() {
 
   const ttsService = getTTSServiceRenderer()
 
+  const loadVoicesForEngine = useCallback(
+    async (engine: TTSEngine) => {
+      try {
+        const response = await ttsService.getVoices(engine)
+        if (response.success && response.data) {
+          setAvailableVoices(response.data)
+        }
+      } catch (err) {
+        console.error('[useTTS] Erro ao carregar vozes:', err)
+        setError(String(err))
+      }
+    },
+    [ttsService]
+  )
+
   useEffect(() => {
     // Carregar configuração inicial
     const loadInitialConfig = async () => {
@@ -50,22 +65,7 @@ export function useTTS() {
       ttsService.off('error', handleError)
       ttsService.off('engine-changed', handleEngineChanged)
     }
-  }, [])
-
-  const loadVoicesForEngine = useCallback(
-    async (engine: TTSEngine) => {
-      try {
-        const response = await ttsService.getVoices(engine)
-        if (response.success && response.data) {
-          setAvailableVoices(response.data)
-        }
-      } catch (err) {
-        console.error('[useTTS] Erro ao carregar vozes:', err)
-        setError(String(err))
-      }
-    },
-    [ttsService]
-  )
+  }, [loadVoicesForEngine])
 
   const speak = useCallback(
     async (text: string, engine?: TTSEngine) => {

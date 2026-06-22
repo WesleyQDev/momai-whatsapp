@@ -7,6 +7,7 @@ function useDragScroll() {
   const hasDragged = useRef(false)
   const initialX = useRef(0)
   const initialScrollLeft = useRef(0)
+  const onMouseUpRef = useRef<(() => void) | null>(null)
 
   const onMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging.current) return
@@ -23,12 +24,18 @@ function useDragScroll() {
   const onMouseUp = useCallback(() => {
     isDragging.current = false
     window.removeEventListener('mousemove', onMouseMove)
-    window.removeEventListener('mouseup', onMouseUp)
+    if (onMouseUpRef.current) {
+      window.removeEventListener('mouseup', onMouseUpRef.current)
+    }
     if (scrollRef.current) {
       scrollRef.current.style.cursor = 'grab'
       scrollRef.current.style.userSelect = ''
     }
   }, [onMouseMove])
+
+  useEffect(() => {
+    onMouseUpRef.current = onMouseUp
+  }, [onMouseUp])
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {

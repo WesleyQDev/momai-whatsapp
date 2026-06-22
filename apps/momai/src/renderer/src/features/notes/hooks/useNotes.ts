@@ -66,6 +66,7 @@ export function useNotes(): UseNotesReturn {
   const saveTimer = useRef<number | null>(null)
   const notesLoadRetryTimer = useRef<number | null>(null)
   const isCreatingDefaultNote = useRef(false)
+  const loadNotesRef = useRef<(() => Promise<void>) | null>(null)
 
   const isNotesUiLocked = isBootstrappingNotes || isCreatingWelcomeNote
 
@@ -95,6 +96,30 @@ export function useNotes(): UseNotesReturn {
       throw lastError instanceof Error ? lastError : new Error('Failed to list memory notes')
     },
     []
+  )
+
+  const selectNote = useCallback(
+    async (noteId: string, forceNewTab = false, selectTitleOnOpen = false) => {
+      if (selectTitleOnOpen) {
+        // This will be handled by the component using a ref
+      }
+      if (activeId === noteId && title !== '') return
+
+      setActiveId(noteId)
+      setIsLoading(true)
+      setError(null)
+      try {
+        const note = await getMemoryNote(noteId)
+        setTitle(note.title)
+        setContent(note.content.replace(/\\n/g, '\n'))
+        lastSaved.current = { title: note.title, content: note.content.replace(/\\n/g, '\n') }
+      } catch (err) {
+        setError(t('notes.errors.open'))
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [activeId, title, t]
   )
 
   const loadNotes = useCallback(async () => {
@@ -159,7 +184,7 @@ export function useNotes(): UseNotesReturn {
       setNotesInitProgress(nextProgress)
 
       notesLoadRetryTimer.current = window.setTimeout(() => {
-        void loadNotes()
+        void loadNotesRef.current?.()
       }, 1800)
     } finally {
       if (shouldKeepLoading) {
@@ -170,31 +195,18 @@ export function useNotes(): UseNotesReturn {
         setIsBootstrappingNotes(false)
       }
     }
-  }, [activeId, notesInitProgress, listMemoryNotesWithRetry, welcomeNoteTitle, welcomeNoteContent])
+  }, [
+    activeId,
+    notesInitProgress,
+    listMemoryNotesWithRetry,
+    selectNote,
+    welcomeNoteTitle,
+    welcomeNoteContent
+  ])
 
-  const selectNote = useCallback(
-    async (noteId: string, forceNewTab = false, selectTitleOnOpen = false) => {
-      if (selectTitleOnOpen) {
-        // This will be handled by the component using a ref
-      }
-      if (activeId === noteId && title !== '') return
-
-      setActiveId(noteId)
-      setIsLoading(true)
-      setError(null)
-      try {
-        const note = await getMemoryNote(noteId)
-        setTitle(note.title)
-        setContent(note.content.replace(/\\n/g, '\n'))
-        lastSaved.current = { title: note.title, content: note.content.replace(/\\n/g, '\n') }
-      } catch (err) {
-        setError(t('notes.errors.open'))
-      } finally {
-        setIsLoading(false)
-      }
-    },
-    [activeId, title, t]
-  )
+  useEffect(() => {
+    loadNotesRef.current = loadNotes
+  }, [loadNotes])
 
   const silentDeleteIfEmpty = useCallback(
     async (noteId: string, noteTitle: string, noteContent: string) => {
