@@ -554,7 +554,8 @@ export default function ContainerChat({
   const isIdleSoneca = !!economyState?.active && economyState.detectedGames.length === 0
 
   const handleSendDuringSoneca = useCallback(
-    (content: string) => {
+    (content?: string) => {
+      if (content === undefined) return
       if (isIdleSoneca && !isBrainReady) {
         setWakingFromSoneca(true)
         ;(window as any).api?.dismissEconomy?.().catch(() => {})

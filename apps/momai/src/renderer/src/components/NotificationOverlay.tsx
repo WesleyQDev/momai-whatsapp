@@ -142,19 +142,22 @@ export default function NotificationOverlay() {
 
         const processMsg = async () => {
           try {
-            const llmRes = await window.api.apiFetch(`${API_URL}/extensions/whatsapp/process-notification`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contact: event.data.contact,
-                senderName: event.data.senderName || event.data.contact,
-                senderJid,
-                message: event.data.message,
-                contactJid,
-                isGroup,
-                groupName
-              })
-            })
+            const llmRes = await window.api.apiFetch(
+              `${API_URL}/extensions/whatsapp/process-notification`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contact: event.data.contact,
+                  senderName: event.data.senderName || event.data.contact,
+                  senderJid,
+                  message: event.data.message,
+                  contactJid,
+                  isGroup,
+                  groupName
+                })
+              }
+            )
             const llmData = await llmRes.json()
 
             if (notificationGenByKeyRef.current.get(msgKey) !== gen) return
