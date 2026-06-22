@@ -137,9 +137,16 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
   if (WebSocketServer && server) {
     wss = new WebSocketServer({ noServer: true })
 
+    const { isValidWsUpgrade } = require('../middleware/ws-auth.js')
+
     server.on('upgrade', (req, socket, head) => {
       const url = new URL(req.url || '/', `http://${HOST}:${PORT}`)
       if (url.pathname !== '/ws') {
+        socket.destroy()
+        return
+      }
+      if (!isValidWsUpgrade(url)) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
         socket.destroy()
         return
       }
