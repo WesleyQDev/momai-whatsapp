@@ -24,7 +24,7 @@ const HtmlPreviewCard = ({ data }: { data?: HtmlPreviewData }) => {
         <iframe
           title="MomAI HTML Preview"
           srcDoc={html}
-          sandbox="allow-scripts allow-forms allow-modals"
+          sandbox="allow-popups"
           className="w-full h-[340px] rounded-xl border border-white/10 bg-white"
         />
       </div>

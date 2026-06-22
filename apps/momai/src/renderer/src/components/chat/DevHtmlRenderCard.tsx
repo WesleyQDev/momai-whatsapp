@@ -45,7 +45,7 @@ const DevHtmlRenderCard = ({ data }: { data?: DevHtmlRenderData }) => {
           <iframe
             title="Dev HTML Render"
             srcDoc={html}
-            sandbox="allow-scripts allow-forms allow-modals"
+            sandbox="allow-popups"
             className="w-full h-[360px] rounded-xl border border-white/10 bg-white"
           />
         </div>
