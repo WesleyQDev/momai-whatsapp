@@ -1,4 +1,7 @@
 const http = require('node:http')
+const { authMiddleware } = require('../middleware/auth.js')
+
+const PUBLIC_PATHS = new Set(['/health'])
 
 function createRouter(context, routeHandlers) {
   const {
@@ -64,9 +67,19 @@ function createRouter(context, routeHandlers) {
   }
 
   const server = http.createServer((req, res) => {
-    handleRequest(req, res).catch((err) => {
-      error('[NodeCore] Unexpected request error:', err)
-      sendJson(res, 500, { detail: 'Internal server error' })
+    const pathname = (req.url || '').split('?')[0]
+    if (req.method === 'OPTIONS' || PUBLIC_PATHS.has(pathname)) {
+      handleRequest(req, res).catch((err) => {
+        error('[NodeCore] Unexpected request error:', err)
+        sendJson(res, 500, { detail: 'Internal server error' })
+      })
+      return
+    }
+    authMiddleware(req, res, () => {
+      handleRequest(req, res).catch((err) => {
+        error('[NodeCore] Unexpected request error:', err)
+        sendJson(res, 500, { detail: 'Internal server error' })
+      })
     })
   })
 

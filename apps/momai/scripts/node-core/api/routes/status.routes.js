@@ -21,6 +21,11 @@ function createStatusRoutes(context) {
   } = context
 
   return async function handleStatusRoutes(req, res, pathname, parsedUrl) {
+    if (pathname === '/health' && req.method === 'GET') {
+      sendJson(res, 200, { ok: true, status: 'healthy' })
+      return true
+    }
+
     if (pathname === '/status' && req.method === 'GET') {
       const autoStart = store.settings.auto_start_llm !== false
       sendJson(res, 200, {
