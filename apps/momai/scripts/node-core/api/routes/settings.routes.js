@@ -1,3 +1,5 @@
+const { filterToEditableSettings } = require('../../config/settings-allowlist.js')
+
 function createSettingsRoutes(context) {
   const {
     store,
@@ -47,7 +49,8 @@ function createSettingsRoutes(context) {
           return true
         }
 
-        Object.assign(store.settings, payload)
+        const safePayload = filterToEditableSettings(payload)
+        Object.assign(store.settings, safePayload)
         if (payload.tts_engine) {
           const tier = store.settings.ai_tier || 'pro'
           if (tier === 'lite') {
