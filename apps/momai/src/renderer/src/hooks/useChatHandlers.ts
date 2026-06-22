@@ -365,8 +365,8 @@ export function useChatHandlers({
       } else if (msg.type === 'reminders_updated') {
         window.dispatchEvent(new CustomEvent('momai_reminders_updated'))
       } else if (msg.type === 'reminder_trigger') {
-        if ((window as any).electron) {
-          ;(window as any).electron.ipcRenderer.send('show-notification', {
+        if ((window as any).momaiAPI) {
+          ;(window as any).momaiAPI.send('show-notification', {
             title: `\ud83d\udd14 Lembrete: ${msg.data.title}`,
             body: msg.data.content || '',
             voice_response: msg.data.voice_response

@@ -22,15 +22,11 @@ export interface TTSResponse<T = any> {
 }
 
 function invoke(channel: string, ...args: any[]): Promise<any> {
-  return (window as any).electron.ipcRenderer.invoke(channel, ...args)
+  return (window as any).momaiAPI.invoke(channel, ...args)
 }
 
 function on(channel: string, listener: (...args: any[]) => void): () => void {
-  const subscription = (event: any, ...args: any[]) => listener(...args)
-  ;(window as any).electron.ipcRenderer.on(channel, subscription)
-  return () => {
-    ;(window as any).electron.ipcRenderer.removeListener(channel, subscription)
-  }
+  return (window as any).momaiAPI.on(channel, listener)
 }
 
 import { updateTtsStatus } from './api'

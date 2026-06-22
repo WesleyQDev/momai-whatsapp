@@ -190,7 +190,19 @@ const momaiAPI = {
   },
   markAppReady: (): void => ipcRenderer.send('app-ready'),
   resetOnboarding: (): void => ipcRenderer.send('reset-onboarding'),
-  markOverlayReady: (): void => ipcRenderer.send('overlay-ready')
+  markOverlayReady: (): void => ipcRenderer.send('overlay-ready'),
+  // Generic IPC helpers for renderer code that uses dynamic channels
+  // (e.g., ttsService subscribes to 'tts:speaking-start', etc.). These
+  // are still routed through the curated surface — no raw `ipcRenderer`
+  // is exposed to the renderer. Prefer the named functions above when
+  // the channel is known at compile time.
+  invoke: (channel: string, ...args: any[]): Promise<any> => ipcRenderer.invoke(channel, ...args),
+  send: (channel: string, ...args: any[]): void => ipcRenderer.send(channel, ...args),
+  on: (channel: string, listener: (...args: any[]) => void): (() => void) => {
+    const subscription = (_event: any, ...args: any[]) => listener(...args)
+    ipcRenderer.on(channel, subscription)
+    return () => ipcRenderer.removeListener(channel, subscription)
+  }
 }
 
 if (process.contextIsolated) {

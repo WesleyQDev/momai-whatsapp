@@ -343,7 +343,8 @@ export async function syncDependencies(
       'kokoro-onnx',
       'sqlalchemy',
       'python-dotenv',
-      'onnxruntime'
+      'onnxruntime',
+      'slowapi'
     )
 
     installArgs.push('rapidfuzz')
