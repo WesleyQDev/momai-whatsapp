@@ -2,13 +2,48 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { getExposed, resetExposed } from './test-setup'
 
 const originalArgv = process.argv
-const originalFetch = global.fetch
-const originalWebSocket = global.WebSocket
 
-let mockFetch: ReturnType<typeof vi.fn>
-let mockWebSocket: ReturnType<typeof vi.fn>
+describe('preload getSessionToken', () => {
+  beforeEach(() => {
+    resetExposed()
+    Object.defineProperty(process, 'contextIsolated', {
+      value: true,
+      configurable: true,
+      writable: true
+    })
+  })
 
-describe('preload apiFetch wrapper', () => {
+  afterEach(() => {
+    process.argv = originalArgv
+    vi.resetModules()
+  })
+
+  it('returns the session token from --momai-session-token argv', async () => {
+    process.argv = [...originalArgv, '--momai-session-token=deadbeef1234']
+    await import('./index')
+    const api = getExposed().api as { getSessionToken: () => string }
+    expect(api).toBeDefined()
+    expect(api.getSessionToken()).toBe('deadbeef1234')
+  })
+
+  it('returns empty string when --momai-session-token is missing', async () => {
+    await import('./index')
+    const api = getExposed().api as { getSessionToken: () => string }
+    expect(api.getSessionToken()).toBe('')
+  })
+
+  it('returns empty string when argv has the flag with no value', async () => {
+    process.argv = [...originalArgv, '--momai-session-token=']
+    await import('./index')
+    const api = getExposed().api as { getSessionToken: () => string }
+    expect(api.getSessionToken()).toBe('')
+  })
+})
+
+describe('preload apiFetch (backward-compat passthrough)', () => {
+  const originalFetch = global.fetch
+  let mockFetch: ReturnType<typeof vi.fn>
+
   beforeEach(() => {
     resetExposed()
     mockFetch = vi.fn().mockResolvedValue(new Response('ok'))
@@ -26,32 +61,7 @@ describe('preload apiFetch wrapper', () => {
     vi.resetModules()
   })
 
-  it('attaches Authorization header when token is in argv', async () => {
-    process.argv = [...originalArgv, '--momai-session-token=deadbeef1234']
-    await import('./index')
-    const api = getExposed().api as {
-      apiFetch: (url: string, options?: RequestInit) => Promise<Response>
-    }
-    expect(api).toBeDefined()
-    await api.apiFetch('http://127.0.0.1:8000/test')
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-    const [, options] = mockFetch.mock.calls[0] as [string, RequestInit]
-    const headers = options.headers as Headers
-    expect(headers.get('Authorization')).toBe('Bearer deadbeef1234')
-  })
-
-  it('does not attach Authorization header when token is missing', async () => {
-    await import('./index')
-    const api = getExposed().api as {
-      apiFetch: (url: string, options?: RequestInit) => Promise<Response>
-    }
-    await api.apiFetch('http://127.0.0.1:8000/test')
-    const [, options] = mockFetch.mock.calls[0] as [string, RequestInit]
-    const headers = options.headers as Headers
-    expect(headers.has('Authorization')).toBe(false)
-  })
-
-  it('preserves caller-provided headers', async () => {
+  it('delegates to global fetch without modifying headers', async () => {
     process.argv = [...originalArgv, '--momai-session-token=deadbeef1234']
     await import('./index')
     const api = getExposed().api as {
@@ -60,28 +70,19 @@ describe('preload apiFetch wrapper', () => {
     await api.apiFetch('http://127.0.0.1:8000/test', {
       headers: { 'Content-Type': 'application/json' }
     })
-    const [, options] = mockFetch.mock.calls[0] as [string, RequestInit]
-    const headers = options.headers as Headers
-    expect(headers.get('Authorization')).toBe('Bearer deadbeef1234')
-    expect(headers.get('Content-Type')).toBe('application/json')
-  })
-
-  it('caller-supplied Authorization header is overwritten by token', async () => {
-    process.argv = [...originalArgv, '--momai-session-token=deadbeef1234']
-    await import('./index')
-    const api = getExposed().api as {
-      apiFetch: (url: string, options?: RequestInit) => Promise<Response>
-    }
-    await api.apiFetch('http://127.0.0.1:8000/test', {
-      headers: { Authorization: 'Bearer attacker' }
-    })
-    const [, options] = mockFetch.mock.calls[0] as [string, RequestInit]
-    const headers = options.headers as Headers
-    expect(headers.get('Authorization')).toBe('Bearer deadbeef1234')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    const [url, options] = mockFetch.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('http://127.0.0.1:8000/test')
+    // apiFetch is now a passthrough; auth is handled by the renderer's
+    // api.ts wrapper which calls getSessionToken() + renderer's fetch.
+    expect((options.headers as Record<string, string>)['Content-Type']).toBe('application/json')
   })
 })
 
-describe('preload apiWebSocket wrapper', () => {
+describe('preload apiWebSocket (backward-compat passthrough)', () => {
+  const originalWebSocket = global.WebSocket
+  let mockWebSocket: ReturnType<typeof vi.fn>
+
   beforeEach(() => {
     resetExposed()
     mockWebSocket = vi.fn()
@@ -99,26 +100,13 @@ describe('preload apiWebSocket wrapper', () => {
     vi.resetModules()
   })
 
-  it('appends token query param when token is in argv', async () => {
+  it('delegates to global WebSocket without modifying URL', async () => {
     process.argv = [...originalArgv, '--momai-session-token=deadbeef1234']
     await import('./index')
     const api = getExposed().api as { apiWebSocket: (url: string) => WebSocket }
     api.apiWebSocket('ws://127.0.0.1:8000/ws')
-    expect(mockWebSocket).toHaveBeenCalledWith('ws://127.0.0.1:8000/ws?token=deadbeef1234')
-  })
-
-  it('preserves existing query params and uses & separator', async () => {
-    process.argv = [...originalArgv, '--momai-session-token=deadbeef1234']
-    await import('./index')
-    const api = getExposed().api as { apiWebSocket: (url: string) => WebSocket }
-    api.apiWebSocket('ws://127.0.0.1:8000/ws?foo=bar')
-    expect(mockWebSocket).toHaveBeenCalledWith('ws://127.0.0.1:8000/ws?foo=bar&token=deadbeef1234')
-  })
-
-  it('does not append token when missing', async () => {
-    await import('./index')
-    const api = getExposed().api as { apiWebSocket: (url: string) => WebSocket }
-    api.apiWebSocket('ws://127.0.0.1:8000/ws')
+    // apiWebSocket is a passthrough; auth is handled by the renderer's
+    // useChatWebSocket hook which appends the token to the URL itself.
     expect(mockWebSocket).toHaveBeenCalledWith('ws://127.0.0.1:8000/ws')
   })
 })

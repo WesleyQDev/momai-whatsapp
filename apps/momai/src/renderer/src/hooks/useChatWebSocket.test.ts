@@ -5,6 +5,7 @@ import { WS_URL } from '../constants'
 
 describe('useChatWebSocket', () => {
   let wsConstructorSpy: ReturnType<typeof vi.fn>
+  const TEST_TOKEN = 'test-token-abc123'
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -31,23 +32,30 @@ describe('useChatWebSocket', () => {
         }, 0)
       }
     }
+    // The hook now uses window.api.getSessionToken() + the renderer's
+    // native WebSocket (the contextBridge cannot safely proxy WebSocket
+    // objects, so we expose getSessionToken and let the renderer
+    // construct the WebSocket itself).
     ;(window as any).api = {
       ...((window as any).api ?? {}),
-      apiWebSocket: (url: string) => new TestWS(url)
+      getSessionToken: () => TEST_TOKEN
     }
+    // Replace the global WebSocket with our spy.
+    vi.stubGlobal('WebSocket', TestWS as unknown as typeof WebSocket)
   })
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllGlobals()
     delete (window as any).api
   })
 
-  it('connects WebSocket on mount', () => {
+  it('connects WebSocket on mount with token in URL', () => {
     const handleWsMessage = vi.fn()
     renderHook(() => useChatWebSocket({ threadId: 'test-thread', handleWsMessage }))
 
     expect(wsConstructorSpy).toHaveBeenCalledTimes(1)
-    expect(wsConstructorSpy).toHaveBeenCalledWith(WS_URL)
+    expect(wsConstructorSpy).toHaveBeenCalledWith(`${WS_URL}?token=${TEST_TOKEN}`)
   })
 
   it('calls onMessage when message received', async () => {
