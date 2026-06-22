@@ -50,7 +50,11 @@
     "overrides": {
       "@codemirror/state": "^6.6.0",
       "@codemirror/language": "^6.12.3",
-      "@codemirror/commands": "^6.10.3"
+      "@codemirror/commands": "^6.10.3",
+      "axios": ">=1.18.0",
+      "ws": ">=8.21.0",
+      "form-data": ">=4.0.6",
+      "rollup": ">=4.62.2"
     }
   }
 }
