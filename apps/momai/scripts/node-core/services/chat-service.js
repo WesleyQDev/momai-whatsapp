@@ -30,6 +30,9 @@ const { saveMemoryNoteFromContent, ensureNotesIndexExists } = require('../domain
 
 const tiersConfig = loadTierConfig()
 
+const DEFAULT_SYSTEM_PROMPT =
+  'You are MomAI, a helpful local-first AI assistant. Be concise, accurate, and friendly. Respond in the user\'s language.'
+
 let stopGenerationRequested = false
 let stopVoiceRequested = false
 let generationId = 0
@@ -1188,6 +1191,7 @@ async function streamLlamaChat(req, res, payload) {
     }
 
     /* Rebuild system message with tool instructions */
+    let promptText = ''
     if (promptRegistry && typeof promptRegistry.buildSystemPrompt === 'function') {
       promptText = promptRegistry.buildSystemPrompt({
         tier: tierName,
@@ -1204,9 +1208,10 @@ async function streamLlamaChat(req, res, payload) {
     if (extraSystemInstructions.length > 0) {
       promptText += `\n\n${extraSystemInstructions.join('\n\n')}`
     }
+    const finalPrompt = promptText || DEFAULT_SYSTEM_PROMPT
     const systemMessage = {
       role: 'system',
-      content: sanitizePromptText(promptText)
+      content: sanitizePromptText(finalPrompt)
     }
 
     /* Round loop: LLM ve tools, decide se chama alguma, resultado volta */
