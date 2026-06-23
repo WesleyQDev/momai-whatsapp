@@ -2,10 +2,11 @@ import { app, shell } from 'electron'
 import { randomUUID } from 'crypto'
 import { dirname, join, relative } from 'path'
 import { mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'fs/promises'
-import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync } from 'fs'
 
 import { runLexicalNoteSearch as runLexicalNoteSearchShared } from './lexical-search'
 import { encryptNote, decryptNote } from './security/note-crypto'
+import { secureWriteFileSync } from './security/fs-permissions'
 import { logger } from './logger'
 
 const NOTES_DIR_NAME = 'notes'
@@ -141,7 +142,7 @@ async function writeIndexToDisk(items: NoteIndexRecord[]): Promise<void> {
 
 function writeIndexToDiskSync(items: NoteIndexRecord[]): void {
   ensureNotesDirSync()
-  writeFileSync(getIndexPath(), JSON.stringify(items, null, 2), 'utf8')
+  secureWriteFileSync(getIndexPath(), JSON.stringify(items, null, 2))
 }
 
 /**
