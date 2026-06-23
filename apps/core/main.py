@@ -79,6 +79,7 @@ def create_app():
     from fastapi.responses import JSONResponse
     from slowapi.errors import RateLimitExceeded
     from api.middleware.rate_limit import build_limiter, rate_limit_exceeded_handler
+    from api.middleware.error_handler import sanitize_message
     from api.router import api_router, include_routes
     include_routes()
 
@@ -94,7 +95,7 @@ def create_app():
         )
         return JSONResponse(
             status_code=500,
-            content={"ok": False, "error": "Internal server error"},
+            content={"ok": False, "error": sanitize_message(str(exc))},
         )
 
     application.add_exception_handler(Exception, global_exception_handler)
