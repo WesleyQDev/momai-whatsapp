@@ -17,6 +17,7 @@ import {
   type PythonBackendStartOptions
 } from './python'
 import { getTTSService, type TTSEngine } from './ttsService'
+import { isNodeCoreMessage } from './core-message-types'
 import { EconomyService } from './economyService'
 import { broadcastEconomyState } from './windowManager'
 import { authFetch } from './security/authenticated-fetch'
@@ -147,11 +148,6 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
   } catch (err) {
     logger.error('[Economy] Failed to start EconomyService:', err)
   }
-}
-
-type EnsurePythonRequest = {
-  type: 'ensure-python'
-  requestId: string
 }
 
 let coreReadyResolve: (() => void) | null = null
@@ -433,101 +429,114 @@ export async function ensurePythonSidecar(): Promise<{
 
 function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
   child.on('message', async (raw: unknown) => {
-    const msg = raw as any
-    if (!msg || typeof msg !== 'object') return
+    if (!isNodeCoreMessage(raw)) return
+    const msg = raw
 
-    if (msg.type === 'node-core-ready') {
-      const brainReady = msg.brainReady !== false
-      const isLoading = msg.isLoading === true
-      logger.info(
-        `[CoreManager] Node core reported ready (brainReady=${brainReady}, isLoading=${isLoading}).`
-      )
+    switch (msg.type) {
+      case 'node-core-ready': {
+        const brainReady = msg.brainReady !== false
+        const isLoading = msg.isLoading === true
+        logger.info(
+          `[CoreManager] Node core reported ready (brainReady=${brainReady}, isLoading=${isLoading}).`
+        )
 
-      if (brainReady && !isLoading) {
-        emitInitProgress('System ready.', 100)
-      } else {
-        emitInitProgress('Node core online. Loading local model...', 65)
-      }
-
-      const mainWindow = getMainWindow()
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('backend-online')
-      }
-      if (coreReadyResolve) coreReadyResolve()
-      return
-    }
-
-    if (msg.type === 'node-core-log' && msg.message) {
-      if (!shouldLogNodeCoreLine(String(msg.message))) return
-      logger.info(`[NodeCore] ${msg.message}`)
-      return
-    }
-
-    if (msg.type === 'node-core-error' && msg.error) {
-      logger.error(`[NodeCore] ${msg.error}`)
-      return
-    }
-
-    if ((msg as EnsurePythonRequest).type === 'ensure-python') {
-      const req = msg as EnsurePythonRequest
-      const result = await ensurePythonSidecar()
-      child.send({
-        type: 'ensure-python-result',
-        requestId: req.requestId,
-        ...result
-      })
-      return
-    }
-
-    if (msg.type === 'tts-speak') {
-      if (state.isQuitting || isStoppingCore) {
-        if (child.connected) {
-          child.send({
-            type: 'tts-speak-result',
-            requestId: msg.requestId,
-            ok: false,
-            error: 'app is shutting down'
-          })
+        if (brainReady && !isLoading) {
+          emitInitProgress('System ready.', 100)
+        } else {
+          emitInitProgress('Node core online. Loading local model...', 65)
         }
+
+        const mainWindow = getMainWindow()
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('backend-online')
+        }
+        if (coreReadyResolve) coreReadyResolve()
         return
       }
-      const { requestId, text, voice, engine } = msg as any
-      logger.info(
-        `[CoreManager] Received tts-speak IPC requestId=${requestId} engine=${engine} text="${text?.slice(0, 40)}"`
-      )
-      if (!requestId || !text) {
-        logger.warn('[CoreManager] tts-speak missing requestId or text')
+
+      case 'node-core-log': {
+        if (!msg.message) return
+        if (!shouldLogNodeCoreLine(String(msg.message))) return
+        logger.info(`[NodeCore] ${msg.message}`)
         return
       }
 
-      // Don't await — let TTS run in background to avoid blocking IPC
-      handleTtsSpeak(requestId, text, voice, engine).catch((err) =>
-        logger.error('[CoreManager] Unhandled TTS error:', err)
-      )
-      return
-    }
+      case 'node-core-error': {
+        if (!msg.error) return
+        logger.error(`[NodeCore] ${msg.error}`)
+        return
+      }
 
-    if (msg.type === 'keychain:encrypt' && msg.requestId) {
-      // Keychain IPC client removed along with unused cloud API key flow.
-      // See apps/momai/src/main/security/keychain.ts for the generic wrapper
-      // if a future feature needs to encrypt/decrypt secrets.
-      child.send({
-        type: 'keychain:encrypt-result',
-        requestId: msg.requestId,
-        ok: false,
-        error: 'Keychain IPC channel is no longer available'
-      })
-      return
-    }
+      case 'ensure-python': {
+        const result = await ensurePythonSidecar()
+        child.send({
+          type: 'ensure-python-result',
+          requestId: msg.requestId,
+          ...result
+        })
+        return
+      }
 
-    if (msg.type === 'keychain:decrypt' && msg.requestId) {
-      child.send({
-        type: 'keychain:decrypt-result',
-        requestId: msg.requestId,
-        ok: false,
-        error: 'Keychain IPC channel is no longer available'
-      })
-      return
+      case 'tts-speak': {
+        if (state.isQuitting || isStoppingCore) {
+          if (child.connected) {
+            child.send({
+              type: 'tts-speak-result',
+              requestId: msg.requestId,
+              ok: false,
+              error: 'app is shutting down'
+            })
+          }
+          return
+        }
+        const { requestId, text, voice, engine } = msg
+        logger.info(
+          `[CoreManager] Received tts-speak IPC requestId=${requestId} engine=${engine} text="${text?.slice(0, 40)}"`
+        )
+        if (!requestId || !text) {
+          logger.warn('[CoreManager] tts-speak missing requestId or text')
+          return
+        }
+        // Re-bind to non-nullable locals — TS does not narrow destructured optional fields.
+        const reqId: string = requestId
+        const ttsText: string = text
+
+        // Don't await — let TTS run in background to avoid blocking IPC
+        handleTtsSpeak(reqId, ttsText, voice, engine).catch((err) =>
+          logger.error('[CoreManager] Unhandled TTS error:', err)
+        )
+        return
+      }
+
+      case 'keychain:encrypt': {
+        if (!msg.requestId) return
+        // Keychain IPC client removed along with unused cloud API key flow.
+        // See apps/momai/src/main/security/keychain.ts for the generic wrapper
+        // if a future feature needs to encrypt/decrypt secrets.
+        child.send({
+          type: 'keychain:encrypt-result',
+          requestId: msg.requestId,
+          ok: false,
+          error: 'Keychain IPC channel is no longer available'
+        })
+        return
+      }
+
+      case 'keychain:decrypt': {
+        if (!msg.requestId) return
+        child.send({
+          type: 'keychain:decrypt-result',
+          requestId: msg.requestId,
+          ok: false,
+          error: 'Keychain IPC channel is no longer available'
+        })
+        return
+      }
+
+      default: {
+        const _exhaustive: never = msg
+        return _exhaustive
+      }
     }
   })
 
@@ -546,7 +555,12 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
     }
   }
 
-  async function handleTtsSpeak(requestId: string, text: string, voice: string, engine: TTSEngine) {
+  async function handleTtsSpeak(
+    requestId: string,
+    text: string,
+    voice?: string,
+    engine?: TTSEngine
+  ) {
     try {
       const ttsService = getTTSService()
 
