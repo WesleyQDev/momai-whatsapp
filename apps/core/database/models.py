@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, event, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
+from sqlalchemy.pool import NullPool
 from datetime import datetime
 import os
 
@@ -58,9 +59,22 @@ else:
     DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "momai.db")
 engine = create_engine(
     f"sqlite:///{DB_PATH}",
-    pool_pre_ping=True,
-    connect_args={"timeout": 10},
+    poolclass=NullPool,
+    connect_args={"check_same_thread": False, "timeout": 10},
 )
+
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, connection_record):
+    """Enable WAL mode on every new SQLite connection for better concurrent access."""
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+    finally:
+        cursor.close()
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
