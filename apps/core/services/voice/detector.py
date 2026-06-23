@@ -159,28 +159,26 @@ class WakeWordDetector:
                     logger.debug("[WakeWord] Stop requested during model load retry")
                     return False
                 return self._load_model(retries + 1)
-            
+
             logger.warning("[WakeWord] Dependencies (ctranslate2/faster-whisper) not ready. Skipping model load.")
             return False
 
-        # Faster-Whisper Configuration
+        # Faster-Whisper Configuration (singleton: shared across all call sites)
         try:
-            device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
-            compute_type = "float16" if device == "cuda" else "int8"
-
-            logger.info("[WakeWord] Loading model: base (device=%s, compute=%s)", device, compute_type)
-            self.model = WhisperModel("base", device=device, compute_type=compute_type)
-            logger.info("[WakeWord] Model ready (device=%s)", device)
+            self.model = app_state.get_whisper_model_singleton("base")
+            logger.info("[WakeWord] Model ready: base")
             return True
         except Exception as e:
             logger.warning(
                 f"[WakeWord] Could not load 'base' Whisper ({e}). Falling back to 'tiny' on CPU."
             )
-            if WhisperModel:
-                self.model = WhisperModel("tiny", device="cpu", compute_type="int8")
+            try:
+                self.model = app_state.get_whisper_model_singleton("tiny")
                 return True
-            else:
-                logger.error("[WakeWord] Cannot even load tiny model (WhisperModel is None)")
+            except Exception as e2:
+                logger.error(
+                    f"[WakeWord] Cannot even load tiny model: {e2}"
+                )
                 return False
 
 

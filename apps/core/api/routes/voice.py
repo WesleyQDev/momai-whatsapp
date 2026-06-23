@@ -106,16 +106,8 @@ def get_transcriber():
                 "[VoiceAPI] Using existing Whisper model from wake word detector"
             )
         else:
-            # Fallback: carrega modelo tiny para transcrição rápida
-            import ctranslate2
-            from faster_whisper import WhisperModel
-
-            device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
-            compute_type = "float16" if device == "cuda" else "int8"
-            logger.info(
-                f"[VoiceAPI] Loading Whisper tiny on {device}"
-            )
-            model = WhisperModel("tiny", device=device, compute_type=compute_type)
+            # Fallback: usa o singleton de Whisper tiny
+            model = app_state.get_whisper_model_singleton("tiny")
 
         _transcriber = QuickTranscriber(model)
 
@@ -288,14 +280,7 @@ def _get_whisper_model():
     if _transcriber is not None:
         return _transcriber.model
 
-    import ctranslate2
-    from faster_whisper import WhisperModel
-
-    device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
-    compute_type = "float16" if device == "cuda" else "int8"
-    logger.info(f"[VoiceAPI] Loading Whisper tiny for WhatsApp reply on {device}")
-    model = WhisperModel("tiny", device=device, compute_type=compute_type)
-    return model
+    return app_state.get_whisper_model_singleton("tiny")
 
 
 @router.post("/whatsapp-reply/wait")

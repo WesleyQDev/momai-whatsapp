@@ -14,6 +14,8 @@ _http_client: httpx.AsyncClient | None = None
 
 active_websockets: list[WebSocket] = []
 _ws_lock = threading.Lock()
+_whisper_model_cache: dict[str, Any] = {}
+_whisper_lock = threading.Lock()
 main_loop: asyncio.AbstractEventLoop | None = None
 ww = None
 system_ready = asyncio.Event()
@@ -200,6 +202,36 @@ def snapshot_websockets() -> list[WebSocket]:
     """Return a thread-safe snapshot of the active WebSocket list."""
     with _ws_lock:
         return list(active_websockets)
+
+
+def _load_whisper(size: str) -> Any:
+    """Load a Faster-Whisper model of the given size. Internal helper."""
+    import ctranslate2
+    from faster_whisper import WhisperModel
+
+    device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
+    compute_type = "float16" if device == "cuda" else "int8"
+    logger.info(
+        "[Whisper] Loading model '%s' on %s (compute_type=%s)",
+        size, device, compute_type,
+    )
+    return WhisperModel(size, device=device, compute_type=compute_type)
+
+
+def get_whisper_model_singleton(size: str = "tiny") -> Any:
+    """
+    Return a process-wide shared Faster-Whisper model for the given size.
+
+    Caches one instance per size so the 3 load paths (wake-word detector,
+    quick transcriber, WhatsApp reply) don't each spin up a separate copy.
+    """
+    if size in _whisper_model_cache:
+        return _whisper_model_cache[size]
+    with _whisper_lock:
+        if size in _whisper_model_cache:
+            return _whisper_model_cache[size]
+        _whisper_model_cache[size] = _load_whisper(size)
+        return _whisper_model_cache[size]
 
 
 async def send_init_event(stage: str, message: str, progress: int | None = None) -> None:
