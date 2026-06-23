@@ -14,8 +14,8 @@
       "name": "WhatsApp",
       "description": "Monitore e responda mensagens do WhatsApp",
       "author": "WesleyQDev",
-      "version": "0.1.0",
-      "download_url": "https://github.com/WesleyQDev/momai-whatsapp-extension/archive/refs/tags/v0.1.0.zip",
+      "version": "0.2.0",
+      "download_url": "https://github.com/WesleyQDev/momai-whatsapp-extension/archive/refs/tags/v0.2.0.zip",
       "is_official": true
     }
   ]
