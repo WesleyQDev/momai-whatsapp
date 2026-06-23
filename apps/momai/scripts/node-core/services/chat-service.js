@@ -1033,8 +1033,6 @@ async function streamLlamaChat(req, res, payload) {
     let discoveredSkillIds = []
     let topScores = {}
     let toolsPayload = []
-    let toolSteps = []
-    let activeSkill = null
 
     const discoveryLimit = 5
 
