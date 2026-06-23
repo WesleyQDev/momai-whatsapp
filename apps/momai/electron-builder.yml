@@ -155,6 +155,13 @@ linux:
       to: 'diagnostic.sh'
 appImage:
   artifactName: MomAI-${version}.${ext}
+# Disable electron-builder's automatic `npm rebuild` step during packaging.
+# Native modules (better-sqlite3, node-llama-cpp, @whiskeysockets/baileys,
+# keytar, etc.) are already rebuilt against the Electron ABI by the
+# `electron-builder install-app-deps` step in apps/momai/package.json's
+# `postinstall` script, which runs after `pnpm install` and before any
+# packaging command. Running it again here would just slow down the build
+# without changing the binaries.
 npmRebuild: false
 publish:
   provider: github
