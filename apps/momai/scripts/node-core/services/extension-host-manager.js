@@ -10,6 +10,22 @@ const fs = require('node:fs')
 const { EventEmitter } = require('node:events')
 const extensionEvents = require('./extension-events')
 
+const SAFE_ENV = {
+  PATH: process.env.PATH,
+  HOME: process.env.HOME,
+  USERPROFILE: process.env.USERPROFILE,
+  LANG: process.env.LANG,
+  LC_ALL: process.env.LC_ALL,
+  NODE_ENV: process.env.NODE_ENV,
+  NODE_PATH: process.env.NODE_PATH,
+  TMP: process.env.TMP,
+  TEMP: process.env.TEMP,
+  SystemRoot: process.env.SystemRoot,
+  WINDIR: process.env.WINDIR,
+  APPDATA: process.env.APPDATA,
+  LOCALAPPDATA: process.env.LOCALAPPDATA
+}
+
 class ExtensionHostManager extends EventEmitter {
   constructor() {
     super()
@@ -26,12 +42,9 @@ class ExtensionHostManager extends EventEmitter {
     return fork(hostPath, [skillId, skillPath], {
       stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
       env: {
-        PATH: process.env.PATH,
-        NODE_PATH: process.env.NODE_PATH,
-        LANG: process.env.LANG,
+        ...SAFE_ENV,
         MOMAI_DATA_DIR: process.env.MOMAI_DATA_DIR,
         MOMAI_EXTENSION_ID: skillId,
-        MOMAI_SESSION_TOKEN: process.env.MOMAI_SESSION_TOKEN,
         ...extraEnv
       }
     })
@@ -89,7 +102,7 @@ class ExtensionHostManager extends EventEmitter {
     const child = fork(hostPath, [skillId, skillPath], {
       stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
       env: {
-        ...process.env,
+        ...SAFE_ENV,
         MOMAI_EXTENSION_ID: skillId,
         MOMAI_PERSISTENT: 'true',
         ...(nodePath !== undefined ? { NODE_PATH: nodePath } : {}),
