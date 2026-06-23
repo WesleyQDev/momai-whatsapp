@@ -63,6 +63,15 @@ export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocket
         // Create the WebSocket in the renderer's context (window.WebSocket is
         // Chromium's). The contextBridge cannot safely proxy WebSocket objects
         // (methods like .close() are stripped), so we don't use apiWebSocket.
+        // SECURITY: the browser WebSocket API does not support custom request
+        // headers, so the session token is sent as a `?token=...` query
+        // parameter. This is a known limitation: the token will appear in any
+        // process or proxy that observes the WS URL. The token is bound to
+        // the local Electron session, accepted only on loopback, and rotated
+        // on every app restart, which limits the blast radius.
+        // TODO(audit-S006): migrate to a sub-protocol header or a post-open
+        // auth handshake once we have a way to gate the server on a message
+        // sent right after the upgrade.
         const token = window.api.getSessionToken()
         const wsUrl = token
           ? `${WS_URL}${WS_URL.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
