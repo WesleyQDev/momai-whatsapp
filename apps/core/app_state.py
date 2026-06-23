@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import threading
@@ -38,7 +39,7 @@ call_mode = False
 last_thread_id = "default"
 
 
-from database.models import SessionLocal, Settings
+from database.models import Settings
 
 _settings_cache: Settings | None = None
 _settings_cache_time: float = 0
@@ -46,23 +47,43 @@ _settings_cache_ttl: float = 10.0
 _settings_lock = asyncio.Lock()
 
 
-async def get_settings_async() -> Settings | None:
-    """Fetch settings from DB in a thread pool to avoid blocking the event loop."""
-    def _query():
-        db = SessionLocal()
-        try:
-            return db.query(Settings).first()
-        finally:
-            db.close()
-    try:
-        return await asyncio.wait_for(asyncio.to_thread(_query), timeout=5.0)
-    except asyncio.TimeoutError:
-        logger.warning("Settings query timed out after 5s")
+def _load_settings_from_json() -> Settings | None:
+    """Read settings from node-core-store.json (single source of truth).
+
+    Returns a Settings object built from the JSON store, or None if the
+    store file is missing, malformed, or has no `settings` block. Unknown
+    keys in the JSON are ignored so the JSON may carry forward-compat
+    fields without breaking the read path.
+    """
+    data_dir = Path(os.environ.get("MOMAI_DATA_DIR", "."))
+    store_path = data_dir / "data" / "node-core-store.json"
+    if not store_path.exists():
         return None
+    try:
+        store = json.loads(store_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to read node-core-store.json: %s", exc)
+        return None
+    settings_data = store.get("settings")
+    if not settings_data:
+        return None
+    s = Settings()
+    for key, value in settings_data.items():
+        if hasattr(s, key):
+            setattr(s, key, value)
+    return s
 
 
 async def get_settings_cached() -> Settings | None:
-    """Fetch settings with TTL caching to avoid repeated DB queries."""
+    """Fetch settings from node-core-store.json with TTL caching.
+
+    This is the chokepoint for all settings reads (chat_voice, voice,
+    i18n, startup). After the U001 cutover, it reads from
+    node-core-store.json (the file the Node-core sidecar writes) instead
+    of the legacy SQLite Settings table. The legacy SQLAlchemy Settings
+    model is kept for read-only backwards compatibility but is no longer
+    the source of truth.
+    """
     global _settings_cache, _settings_cache_time
     now = time.monotonic()
     if _settings_cache is not None and (now - _settings_cache_time) < _settings_cache_ttl:
@@ -70,7 +91,7 @@ async def get_settings_cached() -> Settings | None:
     async with _settings_lock:
         if _settings_cache is not None and (now - _settings_cache_time) < _settings_cache_ttl:
             return _settings_cache
-        settings = await get_settings_async()
+        settings = await asyncio.to_thread(_load_settings_from_json)
         _settings_cache = settings
         _settings_cache_time = now
         return settings
