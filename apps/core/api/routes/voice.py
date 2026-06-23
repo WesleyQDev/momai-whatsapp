@@ -20,20 +20,18 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=1008)
         return
     await websocket.accept()
-    app_state.active_websockets.append(websocket)
+    app_state.add_websocket(websocket)
     logger.debug("[VoiceWS] New connection accepted")
     try:
         while True:
             # Keep connection alive and wait for client to close
             await websocket.receive_text()
     except WebSocketDisconnect:
-        if websocket in app_state.active_websockets:
-            app_state.active_websockets.remove(websocket)
+        app_state.remove_websocket(websocket)
         logger.debug("[VoiceWS] Connection closed")
     except Exception as e:
         logger.error("[VoiceWS] Error: %s", e)
-        if websocket in app_state.active_websockets:
-            app_state.active_websockets.remove(websocket)
+        app_state.remove_websocket(websocket)
 
 
 class TranscriptionResponse(BaseModel):
@@ -126,14 +124,14 @@ def get_transcriber():
 
 
 @router.post("/quick-transcribe", response_model=TranscriptionResponse)
-def quick_transcribe():
+async def quick_transcribe():
     """
     Grava áudio até detectar silêncio (~1s) e retorna a transcrição.
     Usado para input de voz rápido no chat.
     """
     try:
         transcriber = get_transcriber()
-        text = transcriber.record_and_transcribe()
+        text = await asyncio.to_thread(transcriber.record_and_transcribe)
 
         if not text:
             return TranscriptionResponse(text="", success=False)
@@ -146,13 +144,13 @@ def quick_transcribe():
 
 
 @router.post("/stop-quick-transcribe")
-def stop_quick_transcribe():
+async def stop_quick_transcribe():
     """
     Interrompe manualmente a gravação do quick_transcribe.
     """
     try:
         transcriber = get_transcriber()
-        transcriber.stop_recording()
+        await asyncio.to_thread(transcriber.stop_recording)
         return {"success": True}
     except Exception as e:
         logger.error(f"[VoiceAPI] Stop quick transcribe error: {e}")

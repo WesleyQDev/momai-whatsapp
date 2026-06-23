@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import threading
 import time
 from typing import Any
 
@@ -12,6 +13,7 @@ logger = logging.getLogger("momai.app_state")
 _http_client: httpx.AsyncClient | None = None
 
 active_websockets: list[WebSocket] = []
+_ws_lock = threading.Lock()
 main_loop: asyncio.AbstractEventLoop | None = None
 ww = None
 system_ready = asyncio.Event()
@@ -165,20 +167,39 @@ def get_wake_word_detector_class():
 
 async def broadcast_to_sockets(message: dict) -> None:
     """Broadcasts a JSON message to all connected WebSockets concurrently."""
-    if not active_websockets:
+    sockets = snapshot_websockets()
+    if not sockets:
         return
 
     async def _safe_send(ws):
         try:
             await asyncio.wait_for(ws.send_json(message), timeout=2.0)
         except Exception:
-            try:
-                active_websockets.remove(ws)
-            except (ValueError, KeyError):
-                pass
+            remove_websocket(ws)
 
-    tasks = [asyncio.create_task(_safe_send(ws)) for ws in list(active_websockets)]
+    tasks = [asyncio.create_task(_safe_send(ws)) for ws in sockets]
     await asyncio.gather(*tasks, return_exceptions=True)
+
+
+def add_websocket(ws: WebSocket) -> None:
+    """Thread-safe append of a WebSocket to the active list."""
+    with _ws_lock:
+        active_websockets.append(ws)
+
+
+def remove_websocket(ws: WebSocket) -> None:
+    """Thread-safe removal of a WebSocket from the active list."""
+    with _ws_lock:
+        try:
+            active_websockets.remove(ws)
+        except ValueError:
+            pass
+
+
+def snapshot_websockets() -> list[WebSocket]:
+    """Return a thread-safe snapshot of the active WebSocket list."""
+    with _ws_lock:
+        return list(active_websockets)
 
 
 async def send_init_event(stage: str, message: str, progress: int | None = None) -> None:
