@@ -113,7 +113,6 @@ function saveStore(store) {
       if (Date.now() - start > 100) {
         warn(`[Store] saveStore took ${Date.now() - start}ms (${data.length} bytes)`)
       }
-      saveMessages()
     } catch (err) {
       error('[Store] Failed to save store:', err)
     }
@@ -134,7 +133,6 @@ function saveStoreNow(store) {
     if (Date.now() - start > 100) {
       warn(`[Store] saveStoreNow took ${Date.now() - start}ms (${data.length} bytes)`)
     }
-    saveMessages()
   } catch (err) {
     error('[Store] Failed to save store:', err)
   }
@@ -171,25 +169,6 @@ function pruneThread(threadId) {
   }
 }
 
-function saveMessages() {
-  const msgData = {}
-  for (const threadId of Object.keys(store.thread_messages || {})) {
-    msgData[threadId] = store.thread_messages[threadId]
-  }
-  fs.writeFileSync(path.join(DATA_DIR, 'messages.json'), JSON.stringify(msgData))
-}
-
-function loadMessages() {
-  const msgPath = path.join(DATA_DIR, 'messages.json')
-  if (fs.existsSync(msgPath)) {
-    try {
-      store.thread_messages = JSON.parse(fs.readFileSync(msgPath, 'utf8'))
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
 function getThreadMessages(store, threadId) {
   if (!store.thread_messages[threadId]) {
     store.thread_messages[threadId] = []
@@ -220,7 +199,6 @@ function listSessions(store) {
 
 // Initialize store on module load
 const store = loadStore()
-loadMessages()
 
 // Sync with shared-state so service modules see the loaded store
 try {
@@ -239,7 +217,5 @@ module.exports = {
   appendMessage,
   getThreadMessages,
   listSessions,
-  pruneThread,
-  saveMessages,
-  loadMessages
+  pruneThread
 }
