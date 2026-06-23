@@ -53,6 +53,7 @@ const EMBEDDING_TIMEOUT_MS = 8000
 const SEMANTIC_SYNC_INTERVAL_MS = 30 * 1000
 
 const THREAD_RETENTION_DAYS = Number(process.env.MOMAI_THREAD_RETENTION_DAYS) || 90
+const REMINDER_RETENTION_DAYS = Number(process.env.MOMAI_REMINDER_RETENTION_DAYS) || 30
 
 function resolveModelsDir() {
   const envPath = String(process.env.MOMAI_MODELS_DIR || '').trim()
@@ -93,5 +94,6 @@ module.exports = {
   EMBEDDING_TIMEOUT_MS,
   SEMANTIC_SYNC_INTERVAL_MS,
   THREAD_RETENTION_DAYS,
+  REMINDER_RETENTION_DAYS,
   resolveModelsDir
 }

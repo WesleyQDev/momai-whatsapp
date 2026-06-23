@@ -2,7 +2,7 @@ const fs = require('node:fs')
 const { store } = require('./shared-state')
 const { isoNow, parseTime } = require('../utils/time')
 const { debug } = require('../infrastructure/logger')
-const { STORE_FILE } = require('../config/constants')
+const { STORE_FILE, REMINDER_RETENTION_DAYS } = require('../config/constants')
 
 let _saveTimer = null
 
@@ -64,6 +64,24 @@ function advanceReminder(reminder) {
   else reminder.is_active = false
 
   reminder.scheduled_time = current.toISOString()
+}
+
+// R003 (privacy plan): retain inactive reminders for at most
+// REMINDER_RETENTION_DAYS before auto-purging them. Configurable via
+// MOMAI_REMINDER_RETENTION_DAYS (defaults to 30 days).
+const REMINDER_RETENTION_MS = REMINDER_RETENTION_DAYS * 24 * 60 * 60 * 1000
+
+function purgeExpiredReminders(reminders, now = Date.now()) {
+  const cutoff = now - REMINDER_RETENTION_MS
+  return reminders.filter((r) => {
+    if (r.is_active) return true
+    // Use `expires_at` if the reminder has one (schema-reserved for future writers — e.g., recurring reminders that should auto-expire). Fall back to `scheduled_time` for current single-shot reminders.
+    const end = r.expires_at || r.scheduled_time
+    if (!end) return true
+    const endMs = new Date(end).getTime()
+    if (!Number.isFinite(endMs)) return true
+    return endMs > cutoff
+  })
 }
 
 function catchUpReminders() {
@@ -192,5 +210,6 @@ module.exports = {
   catchUpReminders,
   parseRelativeReminder,
   validDateCheck,
-  extractReminderTitle
+  extractReminderTitle,
+  purgeExpiredReminders
 }

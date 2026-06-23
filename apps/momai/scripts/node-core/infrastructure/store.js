@@ -1,8 +1,9 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { info, error, warn } = require('./logger')
-const { THREAD_RETENTION_DAYS } = require('../config/constants')
+const { THREAD_RETENTION_DAYS, REMINDER_RETENTION_DAYS } = require('../config/constants')
 const { pruneStaleThreads } = require('./retention')
+const { purgeExpiredReminders } = require('../services/reminder-service')
 
 const DATA_DIR = process.env.MOMAI_NODE_CORE_DATA_DIR || path.join(process.cwd(), 'data')
 const STORE_FILE = path.join(DATA_DIR, 'node-core-store.json')
@@ -209,6 +210,18 @@ if (_prunedThreadIds.length > 0) {
   info(
     `[retention] Pruned ${_prunedThreadIds.length} stale threads (>${THREAD_RETENTION_DAYS} days)`
   )
+  saveStoreNow(store)
+}
+
+// R003 (privacy plan): purge inactive reminders older than
+// MOMAI_REMINDER_RETENTION_DAYS on startup. Reminders that have already
+// fired accumulate as `is_active: false` entries; without TTL they
+// grow unbounded.
+const _beforeReminders = store.reminders.length
+store.reminders = purgeExpiredReminders(store.reminders)
+const _purgedReminders = _beforeReminders - store.reminders.length
+if (_purgedReminders > 0) {
+  info(`[retention] Pruned ${_purgedReminders} expired reminders (>${REMINDER_RETENTION_DAYS} days)`)
   saveStoreNow(store)
 }
 
