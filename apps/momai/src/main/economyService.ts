@@ -1,6 +1,8 @@
 import { execSync as execSyncNode } from 'child_process'
 import { authFetch } from './security/authenticated-fetch'
 
+const POLL_INTERVAL_MS = 15000
+
 export function parseProcessList(out: string): string[] {
   const names: string[] = []
   for (const rawLine of out.split('\n')) {
@@ -182,7 +184,7 @@ export class EconomyService {
     this.poll().catch(() => {})
     this.pollTimer = setInterval(() => {
       this.poll().catch(() => {})
-    }, 5000)
+    }, POLL_INTERVAL_MS)
   }
 
   async stop(): Promise<void> {
