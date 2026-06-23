@@ -27,6 +27,34 @@ log.transports.console.level = 'debug'
 // Format file logs without colors (plain text)
 log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}'
 
+// ── PII redaction (R005) ────────────────────────────────────
+const REDACT_PATTERNS: RegExp[] = [
+  /(\buser[_-]?name[=:]\s*)["']?([^"',\s}]+)/gi,
+  /(\bapi[_-]?key[=:]\s*)["']?([^"',\s}]+)/gi,
+  /(\bpassword[=:]\s*)["']?([^"',\s}]+)/gi,
+  /((?<![A-Za-z_])token[=:]\s*)["']?([^"',\s}]+)/gi,
+  /((?<![A-Za-z_])(?:auth_token|access_token|refresh_token|id_token|session_token)[=:]\s*)["']?([^"',\s}]+)/gi,
+  /(Bearer\s+)[A-Za-z0-9._-]+/g,
+  /("user_name"\s*:\s*)"([^"]+)"/gi,
+  /("api_key"\s*:\s*)"([^"]+)"/gi,
+  /("password"\s*:\s*)"([^"]+)"/gi,
+  /("token"\s*:\s*)"([^"]+)"/gi,
+  /("Bearer"\s*:\s*)"([^"]+)"/gi
+]
+
+export function sanitizeLog(input: string): string {
+  let out = input
+  for (const pat of REDACT_PATTERNS) {
+    out = out.replace(pat, '$1[REDACTED]')
+  }
+  return out
+}
+
+const sanitizingTransform = ({ data }: { data: unknown[] }) =>
+  data.map((d) => (typeof d === 'string' ? sanitizeLog(d) : d))
+
+log.transports.file.transforms = [sanitizingTransform, ...(log.transports.file.transforms ?? [])]
+
 // ── Component-based visual logging ──────────────────────────
 const COMPONENT_STYLES: Record<string, { icon: string; color: string }> = {
   model: { icon: '♦', color: '\x1b[35m' },
