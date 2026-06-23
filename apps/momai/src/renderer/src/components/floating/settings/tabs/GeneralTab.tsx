@@ -1,5 +1,6 @@
 import { Settings, Theme } from '../../../../hooks/useSettingsCard'
 import React, { useEffect, useState } from 'react'
+import ConfirmDialog from '../../ConfirmDialog'
 
 interface GeneralTabProps {
   t: any
@@ -27,6 +28,8 @@ export const GeneralTab = React.memo(
   }: GeneralTabProps) => {
     const [autoStartWindows, setAutoStartWindows] = useState(false)
     const [showIaTooltip, setShowIaTooltip] = useState(false)
+    const [showResetConfirm, setShowResetConfirm] = useState(false)
+    const [isResetting, setIsResetting] = useState(false)
 
     useEffect(() => {
       window.api
@@ -41,6 +44,23 @@ export const GeneralTab = React.memo(
         setAutoStartWindows(result ?? enabled)
       } catch (error) {
         console.error('Failed to set auto-start:', error)
+      }
+    }
+
+    const handleResetAllData = async () => {
+      setIsResetting(true)
+      try {
+        const result = await window.momaiAPI?.privacy?.deleteAll?.()
+        if (!result || result.ok !== true) {
+          throw new Error(result?.error || 'unknown error')
+        }
+        setShowResetConfirm(false)
+        window.location.reload()
+      } catch (e) {
+        console.error('Reset all data failed:', e)
+        throw e
+      } finally {
+        setIsResetting(false)
       }
     }
 
@@ -421,6 +441,51 @@ export const GeneralTab = React.memo(
             </div>
           </div>
 
+          {/* Danger Zone */}
+          <div className="rounded-xl border border-red-500/20 bg-red-500/[0.04] overflow-hidden">
+            <div className="p-4 border-b border-red-500/15">
+              <h3 className="text-[11px] font-semibold text-red-400 uppercase tracking-wide">
+                {t('settings.privacy.dangerZoneTitle')}
+              </h3>
+              <p className="text-[11px] text-text-muted font-medium mt-1">
+                {t('settings.privacy.dangerZoneSubtitle')}
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-4 p-4">
+              <div className="flex flex-col gap-0.5 pr-4 min-w-0">
+                <span className="text-xs font-semibold text-text">
+                  {t('settings.privacy.resetAllDataButton')}
+                </span>
+                <span className="text-[11px] text-text-muted font-medium">
+                  {t('settings.privacy.resetAllDataDesc')}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(true)}
+                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-500/40 bg-red-500/10 text-[11px] font-semibold text-red-400 uppercase tracking-wide hover:bg-red-500/20 hover:text-red-300 transition-colors active:scale-95"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6" />
+                  <path d="M14 11v6" />
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                </svg>
+                {t('settings.privacy.resetAllDataButton')}
+              </button>
+            </div>
+          </div>
+
           {/* Manutencao Sutil */}
           <div className="pt-3 flex justify-end items-center">
             <button
@@ -442,6 +507,19 @@ export const GeneralTab = React.memo(
               {t('settings.general.resetOnboarding')}
             </button>
           </div>
+
+          {showResetConfirm && (
+            <ConfirmDialog
+              variant="destructive"
+              title={t('settings.privacy.confirmTitle')}
+              description={t('settings.privacy.confirmDescription')}
+              confirmText={t('settings.privacy.confirmButton')}
+              cancelText={t('settings.privacy.cancelButton')}
+              isLoading={isResetting}
+              onConfirm={handleResetAllData}
+              onCancel={() => !isResetting && setShowResetConfirm(false)}
+            />
+          )}
         </div>
       </div>
     )
