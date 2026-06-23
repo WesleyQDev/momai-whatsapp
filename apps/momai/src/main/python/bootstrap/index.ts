@@ -74,10 +74,7 @@ export function getSyncLock(corePath: string): SyncResult | null {
     const pyprojectPath = join(corePath, 'pyproject.toml')
     const installerPath = join(__dirname, 'uv-runner.ts')
     const sources = [pyprojectPath, installerPath].filter((p) => existsSync(p))
-    const newestMtime = sources.reduce(
-      (max, p) => Math.max(max, statSync(p).mtimeMs),
-      0
-    )
+    const newestMtime = sources.reduce((max, p) => Math.max(max, statSync(p).mtimeMs), 0)
     if (sources.length > 0 && newestMtime <= data.lastChecked) {
       return { success: true, needsSync: false, lastChecked: data.lastChecked }
     }

@@ -908,7 +908,10 @@ export function forceKillAllSync(): void {
         process.kill(nodeChild.pid!, 'SIGKILL')
       }
     } catch (err) {
-      logger.warn(`[CoreManager] forceKillAllSync failed to kill node core PID ${nodeChild.pid}:`, err)
+      logger.warn(
+        `[CoreManager] forceKillAllSync failed to kill node core PID ${nodeChild.pid}:`,
+        err
+      )
     }
   }
   setNodeCoreProcess(null)

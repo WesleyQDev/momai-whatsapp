@@ -303,8 +303,7 @@ export function useChatActions({
               if (currentThreadRef.current !== messageThreadId) return
               dispatch({
                 type: 'UPDATE_LAST_MESSAGE',
-                updater: (last) =>
-                  last.role === 'assistant' ? { ...last, toolSteps } : last
+                updater: (last) => (last.role === 'assistant' ? { ...last, toolSteps } : last)
               })
             },
             onActiveSkill: (skillName) => {
