@@ -2,6 +2,8 @@ import { existsSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 
+import { decryptNote } from './security/note-crypto'
+
 const MAX_CONCURRENT_READS = 5
 
 function lexicalScore(source: string | null | undefined, query: string): number {
@@ -78,7 +80,9 @@ export async function runLexicalNoteSearch(
         if (!item || typeof item.id !== 'string' || typeof item.path !== 'string') return null
         const absPath = join(dataDir, item.path)
         try {
-          const content = await readFile(absPath, 'utf8')
+          const raw = await readFile(absPath, 'utf8')
+          const isEncrypted = item.path.toLowerCase().endsWith('.md.enc')
+          const content = isEncrypted ? (decryptNote(raw, dataDir) ?? '') : raw
           return { item, content }
         } catch {
           return null

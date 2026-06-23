@@ -1,15 +1,20 @@
 import { app, shell } from 'electron'
 import { randomUUID } from 'crypto'
-import { dirname, extname, join, relative } from 'path'
+import { dirname, join, relative } from 'path'
 import { mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'fs/promises'
 import { existsSync, mkdirSync, writeFileSync } from 'fs'
 
 import { runLexicalNoteSearch as runLexicalNoteSearchShared } from './lexical-search'
+import { encryptNote, decryptNote } from './security/note-crypto'
+import { logger } from './logger'
 
 const NOTES_DIR_NAME = 'notes'
+const PENDING_DIR_NAME = '.pending'
 const INDEX_FILE_NAME = '.index.json'
 const MAX_PREVIEW_LENGTH = 220
 const INDEX_DEBOUNCE_MS = 1500
+const ENCRYPTED_EXT = '.md.enc'
+const PLAIN_EXT = '.md'
 
 export interface NoteSummary {
   id: string
@@ -48,6 +53,8 @@ const getNotesDir = () => join(getDataDir(), NOTES_DIR_NAME)
 
 const getIndexPath = () => join(getNotesDir(), INDEX_FILE_NAME)
 
+const getPendingDir = () => join(getNotesDir(), PENDING_DIR_NAME)
+
 const sanitizeFolderPath = (value: string | null | undefined): string => {
   const normalized = normalizeSlashes((value || '').trim())
     .replace(/^notes\//i, '')
@@ -65,6 +72,22 @@ const sanitizeFolderPath = (value: string | null | undefined): string => {
 
 const toNoteRelativePath = (folder: string, fileName: string) =>
   folder ? `notes/${folder}/${fileName}` : `notes/${fileName}`
+
+const encryptedFileName = (id: string) => `${id}${ENCRYPTED_EXT}`
+
+const isEncryptedRelativePath = (relPath: string) => relPath.toLowerCase().endsWith(ENCRYPTED_EXT)
+
+async function readNoteContent(absolutePath: string, relPath: string): Promise<string> {
+  const raw = await readFile(absolutePath, 'utf8')
+  if (isEncryptedRelativePath(relPath)) {
+    const plain = decryptNote(raw, getDataDir())
+    if (plain === null) {
+      throw new Error(`Failed to decrypt note at ${relPath} (key mismatch or corrupted)`)
+    }
+    return plain
+  }
+  return raw
+}
 
 const extractTitleFromContent = (content: string, fallback: string) => {
   const heading = content.match(/^\s*#\s+(.+)$/m)?.[1]?.trim()
@@ -128,12 +151,134 @@ function writeIndexToDiskSync(items: NoteIndexRecord[]): void {
 export async function loadIndexCache(): Promise<void> {
   if (indexCache !== null) return
   if (!indexLoadPromise) {
-    indexLoadPromise = readIndexFromDisk().then((items) => {
+    indexLoadPromise = (async () => {
+      await migratePlainNotesToEncrypted()
+      const items = await readIndexFromDisk()
       indexCache = items
       return items
-    })
+    })()
   }
   await indexLoadPromise
+}
+
+async function collectPlainNoteFiles(dirPath: string, out: string[]): Promise<void> {
+  const entries = await readdir(dirPath, { withFileTypes: true })
+  for (const entry of entries) {
+    if (entry.name === INDEX_FILE_NAME) continue
+    if (entry.name === PENDING_DIR_NAME) continue
+    const fullPath = join(dirPath, entry.name)
+    if (entry.isDirectory()) {
+      await collectPlainNoteFiles(fullPath, out)
+      continue
+    }
+    if (entry.isFile() && entry.name.toLowerCase().endsWith(PLAIN_EXT)) {
+      out.push(fullPath)
+    }
+  }
+}
+
+async function collectPendingNoteFiles(): Promise<string[]> {
+  const pendingDir = getPendingDir()
+  if (!existsSync(pendingDir)) return []
+  const out: string[] = []
+  const walk = async (dir: string) => {
+    const entries = await readdir(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        await walk(fullPath)
+      } else if (entry.isFile() && entry.name.toLowerCase().endsWith(PLAIN_EXT)) {
+        out.push(fullPath)
+      }
+    }
+  }
+  await walk(pendingDir)
+  return out
+}
+
+async function encryptNoteFile(absolutePath: string): Promise<string | null> {
+  const plain = await readFile(absolutePath, 'utf8')
+  const enc = encryptNote(plain, getDataDir())
+  if (enc === null) return null
+  const dir = dirname(absolutePath)
+  const fileName = absolutePath.split(/[\\/]/).pop() || ''
+  const id = fileName.replace(/\.md$/i, '')
+  const encryptedAbs = join(dir, encryptedFileName(id))
+  await writeFile(encryptedAbs, enc, 'utf8')
+  await unlink(absolutePath)
+  return encryptedAbs
+}
+
+async function encryptAndRelocateFromPending(absolutePath: string): Promise<string | null> {
+  const plain = await readFile(absolutePath, 'utf8')
+  const enc = encryptNote(plain, getDataDir())
+  if (enc === null) return null
+  const fileName = absolutePath.split(/[\\/]/).pop() || ''
+  const id = fileName.replace(/\.md$/i, '')
+  const notesRoot = getNotesDir()
+  await ensureNotesDir()
+  const encryptedAbs = join(notesRoot, encryptedFileName(id))
+  await writeFile(encryptedAbs, enc, 'utf8')
+  await unlink(absolutePath)
+  return encryptedAbs
+}
+
+/**
+ * One-shot migration: encrypt any plain .md files in the notes directory,
+ * and process any pending .md files written by the sidecar (note-manager.js).
+ * Updates the index in-memory; the caller is responsible for persisting it.
+ *
+ * Returns the set of relative paths that were migrated (caller can rebuild
+ * the index if needed).
+ */
+export async function migratePlainNotesToEncrypted(): Promise<string[]> {
+  await ensureNotesDir()
+  const dataDir = getDataDir()
+  const migrated: string[] = []
+
+  const plainFiles: string[] = []
+  await collectPlainNoteFiles(getNotesDir(), plainFiles)
+
+  for (const abs of plainFiles) {
+    try {
+      const encAbs = await encryptNoteFile(abs)
+      if (encAbs) {
+        const rel = normalizeSlashes(relative(dataDir, encAbs))
+        migrated.push(rel)
+      }
+    } catch (e) {
+      logger.warn(`[notes] Failed to encrypt ${abs}:`, e)
+    }
+  }
+
+  const pendingFiles = await collectPendingNoteFiles()
+  for (const abs of pendingFiles) {
+    try {
+      const encAbs = await encryptAndRelocateFromPending(abs)
+      if (encAbs) {
+        const rel = normalizeSlashes(relative(dataDir, encAbs))
+        migrated.push(rel)
+      }
+    } catch (e) {
+      logger.warn(`[notes] Failed to process pending ${abs}:`, e)
+    }
+  }
+
+  if (pendingFiles.length > 0) {
+    try {
+      await rm(getPendingDir(), { recursive: true, force: true })
+    } catch {
+      // ignore: best effort
+    }
+  }
+
+  if (migrated.length > 0) {
+    logger.info(`[notes] Migrated ${migrated.length} note(s) to encrypted format`)
+    indexCache = null
+    indexLoadPromise = null
+  }
+
+  return migrated
 }
 
 async function getIndex(): Promise<NoteIndexRecord[]> {
@@ -195,20 +340,23 @@ function flushIndexCacheSync(): void {
 
 process.on('exit', flushIndexCacheSync)
 
-async function walkMarkdownFiles(dirPath: string): Promise<string[]> {
+async function walkNoteFiles(dirPath: string): Promise<string[]> {
   const entries = await readdir(dirPath, { withFileTypes: true })
   const files: string[] = []
 
   for (const entry of entries) {
     if (entry.name === INDEX_FILE_NAME) continue
+    if (entry.name === PENDING_DIR_NAME) continue
     const fullPath = join(dirPath, entry.name)
     if (entry.isDirectory()) {
-      const nested = await walkMarkdownFiles(fullPath)
+      const nested = await walkNoteFiles(fullPath)
       files.push(...nested)
       continue
     }
 
-    if (entry.isFile() && extname(entry.name).toLowerCase() === '.md') {
+    if (!entry.isFile()) continue
+    const lower = entry.name.toLowerCase()
+    if (lower.endsWith(ENCRYPTED_EXT) || lower.endsWith(PLAIN_EXT)) {
       files.push(fullPath)
     }
   }
@@ -218,21 +366,31 @@ async function walkMarkdownFiles(dirPath: string): Promise<string[]> {
 
 async function rebuildIndexFromFilesystem(): Promise<NoteIndexRecord[]> {
   await ensureNotesDir()
-  const files = await walkMarkdownFiles(getNotesDir())
+  const files = await walkNoteFiles(getNotesDir())
   const records: NoteIndexRecord[] = []
 
   for (const absolutePath of files) {
     const fileStat = await stat(absolutePath)
-    const fileContent = await readFile(absolutePath, 'utf8')
     const fileName = absolutePath.split(/[\\/]/).pop() || ''
-    const id = fileName.replace(/\.md$/i, '')
-    const dataRelative = normalizeSlashes(relative(getDataDir(), absolutePath))
-    const fallbackTitle = fileName.replace(/\.md$/i, '')
+    const relPath = normalizeSlashes(relative(getDataDir(), absolutePath))
+    let fileContent: string
+    try {
+      fileContent = await readNoteContent(absolutePath, relPath)
+    } catch (e) {
+      logger.warn(
+        `[notes] Skipping unreadable note ${relPath}: ${e instanceof Error ? e.message : String(e)}. ` +
+          'If you recently changed OS accounts or reinstalled the OS, the note-encryption.key may have been lost. ' +
+          'The original note cannot be recovered.'
+      )
+      continue
+    }
+    const id = fileName.replace(/\.md(\.enc)?$/i, '')
+    const fallbackTitle = fileName.replace(/\.md(\.enc)?$/i, '')
 
     records.push({
       id,
       title: extractTitleFromContent(fileContent, fallbackTitle),
-      path: dataRelative,
+      path: relPath,
       source: 'local',
       created_at: fileStat.birthtime?.toISOString?.() || fileStat.ctime.toISOString(),
       updated_at: fileStat.mtime.toISOString(),
@@ -256,7 +414,7 @@ export async function getNote(noteId: string): Promise<NoteDetail | null> {
   const found = index.find((item) => item.id === noteId)
   if (!found) return null
 
-  const content = await readFile(getNoteAbsolutePath(found), 'utf8')
+  const content = await readNoteContent(getNoteAbsolutePath(found), found.path)
   return { ...found, content }
 }
 
@@ -267,12 +425,18 @@ export async function createNote(
 ): Promise<NoteDetail> {
   const folder = sanitizeFolderPath(path)
   const noteId = randomUUID()
-  const fileName = `${noteId}.md`
+  const fileName = encryptedFileName(noteId)
   const relativePath = toNoteRelativePath(folder, fileName)
   const absolutePath = join(getDataDir(), relativePath)
 
+  const plain = content || ''
+  const enc = encryptNote(plain, getDataDir())
+  if (enc === null) {
+    throw new Error('Failed to encrypt note: OS keychain unavailable')
+  }
+
   await mkdir(dirname(absolutePath), { recursive: true })
-  await writeFile(absolutePath, content || '', 'utf8')
+  await writeFile(absolutePath, enc, 'utf8')
 
   const createdAt = nowIso()
   const record: NoteIndexRecord = {
@@ -282,14 +446,14 @@ export async function createNote(
     source: 'local',
     created_at: createdAt,
     updated_at: createdAt,
-    preview: makePreview(content || '')
+    preview: makePreview(plain)
   }
 
   const index = await getIndex()
   index.push(record)
   scheduleIndexWrite(index)
 
-  return { ...record, content: content || '' }
+  return { ...record, content: plain }
 }
 
 export async function updateNote(
@@ -302,12 +466,12 @@ export async function updateNote(
 
   const current = index[noteIdx]
   const currentAbs = getNoteAbsolutePath(current)
-  const currentContent = await readFile(currentAbs, 'utf8')
+  const currentContent = await readNoteContent(currentAbs, current.path)
 
   let nextPath = current.path
   if (payload.path !== undefined) {
     const folder = sanitizeFolderPath(payload.path)
-    const targetRel = toNoteRelativePath(folder, `${noteId}.md`)
+    const targetRel = toNoteRelativePath(folder, encryptedFileName(noteId))
     if (normalizeSlashes(targetRel) !== normalizeSlashes(current.path)) {
       const targetAbs = join(getDataDir(), targetRel)
       await mkdir(dirname(targetAbs), { recursive: true })
@@ -320,7 +484,11 @@ export async function updateNote(
   const nextContent = payload.content !== undefined ? payload.content : currentContent
 
   if (payload.content !== undefined) {
-    await writeFile(nextAbs, nextContent, 'utf8')
+    const enc = encryptNote(nextContent, getDataDir())
+    if (enc === null) {
+      throw new Error('Failed to encrypt note: OS keychain unavailable')
+    }
+    await writeFile(nextAbs, enc, 'utf8')
   }
 
   const updatedAt = nowIso()
