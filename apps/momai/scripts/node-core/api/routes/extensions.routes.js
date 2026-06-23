@@ -5,7 +5,8 @@ const os = require('node:os')
 const http = require('node:http')
 const https = require('node:https')
 const dns = require('node:dns').promises
-const { exec, spawn } = require('node:child_process')
+const { spawn } = require('node:child_process')
+const { extractZip } = require('../../utils/zip-extract')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { isPrivateIp } = require('../../utils/ip-check')
 const { verifyChecksum } = require('../../utils/extension-checksum')
@@ -285,26 +286,6 @@ function downloadFile(url, destPath, onProgress) {
       } catch {}
       reject(new Error('Download timeout'))
     })
-  })
-}
-
-function extractZip(zipPath, destDir) {
-  return new Promise((resolve, reject) => {
-    if (process.platform === 'win32') {
-      exec(
-        `powershell -NoProfile -Command "Expand-Archive -Path '${zipPath.replace(/'/g, "''")}' -DestinationPath '${destDir.replace(/'/g, "''")}' -Force"`,
-        { timeout: 30000 },
-        (err) => {
-          if (err) reject(err)
-          else resolve()
-        }
-      )
-    } else {
-      exec(`unzip -o "${zipPath}" -d "${destDir}"`, { timeout: 30000 }, (err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    }
   })
 }
 
