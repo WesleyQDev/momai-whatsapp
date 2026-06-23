@@ -152,6 +152,7 @@ function App(): React.JSX.Element {
     '/agenda': 'RemindersDashboard',
     '/about': 'AboutDashboard',
     '/observability': 'ObservabilityDashboard',
+    '/privacy': 'PrivacyDashboard',
     '/': 'ChatDashboard'
   }
 
