@@ -31,7 +31,7 @@ function createSettingsRoutes(context) {
       store.settings.context_window_tokens = clampContextTokens(
         store.settings.context_window_tokens || 2048
       )
-      const response = { ...store.settings }
+      const response = filterToEditableSettings(store.settings)
       sendJson(res, 200, response)
       return true
     }
