@@ -1,5 +1,8 @@
-import { existsSync, readFileSync } from 'fs'
+import { existsSync } from 'fs'
+import { readFile } from 'fs/promises'
 import { join } from 'path'
+
+const MAX_CONCURRENT_READS = 5
 
 function lexicalScore(source: string | null | undefined, query: string): number {
   const src = String(source || '').toLowerCase()
@@ -41,19 +44,19 @@ export interface SearchResult {
   vector_score: number
 }
 
-export function runLexicalNoteSearch(
+export async function runLexicalNoteSearch(
   query: string,
   limit: number = 6,
   dataDir: string,
   notesIndexFile: string
-): SearchResult[] {
+): Promise<SearchResult[]> {
   const term = String(query || '').trim()
   if (!term) return []
 
   let index: Array<{ id: string; title: string; path: string }> = []
   try {
     if (existsSync(notesIndexFile)) {
-      const raw = readFileSync(notesIndexFile, 'utf8')
+      const raw = await readFile(notesIndexFile, 'utf8')
       index = JSON.parse(raw)
     }
   } catch {
@@ -62,18 +65,33 @@ export function runLexicalNoteSearch(
 
   if (!Array.isArray(index)) return []
 
-  const out: SearchResult[] = []
-  for (const item of index) {
-    if (!item || typeof item.id !== 'string' || typeof item.path !== 'string') continue
+  type LoadedItem = {
+    item: { id: string; title: string; path: string }
+    content: string
+  }
 
-    const absPath = join(dataDir, item.path)
-    let content = ''
-    try {
-      content = readFileSync(absPath, 'utf8')
-    } catch {
-      continue
+  const loaded: LoadedItem[] = []
+  for (let i = 0; i < index.length; i += MAX_CONCURRENT_READS) {
+    const batch = index.slice(i, i + MAX_CONCURRENT_READS)
+    const batchResults = await Promise.all(
+      batch.map(async (item) => {
+        if (!item || typeof item.id !== 'string' || typeof item.path !== 'string') return null
+        const absPath = join(dataDir, item.path)
+        try {
+          const content = await readFile(absPath, 'utf8')
+          return { item, content }
+        } catch {
+          return null
+        }
+      })
+    )
+    for (const result of batchResults) {
+      if (result) loaded.push(result)
     }
+  }
 
+  const out: SearchResult[] = []
+  for (const { item, content } of loaded) {
     const title = String(item.title || 'Nota')
     const titleScore = lexicalScore(title, term)
     const bodyScore = lexicalScore(content, term)
