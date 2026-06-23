@@ -1,9 +1,28 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { info } = require('../infrastructure/logger')
+const { DATA_DIR, METRICS_FILE } = require('../config/constants')
 
-const DATA_DIR = process.env.MOMAI_NODE_CORE_DATA_DIR || path.join(process.cwd(), 'data')
-const METRICS_FILE = path.join(DATA_DIR, 'observability-metrics.json')
+// R004 (privacy plan): legacy metrics file used to live at
+// <DATA_DIR>/observability-metrics.json. It's purely diagnostic data, so
+// it now lives under <DATA_DIR>/cache/ alongside other non-essential
+// cached data. Move any existing file on startup (idempotent, guarded).
+function migrateLegacyMetricsFile(legacyPath, newPath) {
+  if (!legacyPath || !newPath) return false
+  if (!fs.existsSync(legacyPath) || fs.existsSync(newPath)) return false
+  try {
+    fs.mkdirSync(path.dirname(newPath), { recursive: true })
+    fs.renameSync(legacyPath, newPath)
+    info('[observability] migrated legacy metrics file to cache/')
+    return true
+  } catch (err) {
+    info(`[observability] legacy metrics migration skipped: ${err.message}`)
+    return false
+  }
+}
+
+migrateLegacyMetricsFile(path.join(DATA_DIR, 'observability-metrics.json'), METRICS_FILE)
+
 let metricsCache = null
 let saveTimer = null
 
@@ -131,4 +150,10 @@ function computeStats() {
   }
 }
 
-module.exports = { recordMetric, computeStats, loadMetrics, getMetricsPath }
+module.exports = {
+  recordMetric,
+  computeStats,
+  loadMetrics,
+  getMetricsPath,
+  migrateLegacyMetricsFile
+}
