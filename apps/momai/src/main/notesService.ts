@@ -2,13 +2,14 @@ import { app, shell } from 'electron'
 import { randomUUID } from 'crypto'
 import { dirname, extname, join, relative } from 'path'
 import { mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'fs/promises'
-import { existsSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync } from 'fs'
 
 import { runLexicalNoteSearch as runLexicalNoteSearchShared } from './lexical-search'
 
 const NOTES_DIR_NAME = 'notes'
 const INDEX_FILE_NAME = '.index.json'
 const MAX_PREVIEW_LENGTH = 220
+const INDEX_DEBOUNCE_MS = 1500
 
 export interface NoteSummary {
   id: string
@@ -77,13 +78,24 @@ async function ensureNotesDir(): Promise<void> {
   await mkdir(getNotesDir(), { recursive: true })
 }
 
-async function readIndex(): Promise<NoteIndexRecord[]> {
+function ensureNotesDirSync(): void {
+  if (!existsSync(getNotesDir())) {
+    mkdirSync(getNotesDir(), { recursive: true })
+  }
+}
+
+let indexCache: NoteIndexRecord[] | null = null
+let indexLoadPromise: Promise<NoteIndexRecord[]> | null = null
+let indexWriteTimer: ReturnType<typeof setTimeout> | null = null
+let indexWritePending: NoteIndexRecord[] | null = null
+
+async function readIndexFromDisk(): Promise<NoteIndexRecord[]> {
   await ensureNotesDir()
   const indexPath = getIndexPath()
 
   if (!existsSync(indexPath)) {
     const rebuilt = await rebuildIndexFromFilesystem()
-    await writeIndex(rebuilt)
+    await writeIndexToDisk(rebuilt)
     return rebuilt
   }
 
@@ -94,15 +106,94 @@ async function readIndex(): Promise<NoteIndexRecord[]> {
     return parsed
   } catch {
     const rebuilt = await rebuildIndexFromFilesystem()
-    await writeIndex(rebuilt)
+    await writeIndexToDisk(rebuilt)
     return rebuilt
   }
 }
 
-async function writeIndex(items: NoteIndexRecord[]): Promise<void> {
+async function writeIndexToDisk(items: NoteIndexRecord[]): Promise<void> {
   await ensureNotesDir()
   await writeFile(getIndexPath(), JSON.stringify(items, null, 2), 'utf8')
 }
+
+function writeIndexToDiskSync(items: NoteIndexRecord[]): void {
+  ensureNotesDirSync()
+  writeFileSync(getIndexPath(), JSON.stringify(items, null, 2), 'utf8')
+}
+
+/**
+ * Load the notes index into the in-memory cache. Call this at app startup
+ * (optional — operations will lazy-load on first access if not pre-loaded).
+ */
+export async function loadIndexCache(): Promise<void> {
+  if (indexCache !== null) return
+  if (!indexLoadPromise) {
+    indexLoadPromise = readIndexFromDisk().then((items) => {
+      indexCache = items
+      return items
+    })
+  }
+  await indexLoadPromise
+}
+
+async function getIndex(): Promise<NoteIndexRecord[]> {
+  if (indexCache === null) {
+    await loadIndexCache()
+  }
+  return JSON.parse(JSON.stringify(indexCache)) as NoteIndexRecord[]
+}
+
+function scheduleIndexWrite(items: NoteIndexRecord[]): void {
+  indexCache = items
+  indexWritePending = items
+  if (indexWriteTimer) {
+    clearTimeout(indexWriteTimer)
+  }
+  indexWriteTimer = setTimeout(() => {
+    indexWriteTimer = null
+    const pending = indexWritePending
+    indexWritePending = null
+    if (pending) {
+      void writeIndexToDisk(pending).catch(() => {
+        // Best-effort: if the debounced write fails, the in-memory cache
+        // still holds the latest value so subsequent operations work.
+      })
+    }
+  }, INDEX_DEBOUNCE_MS)
+}
+
+/**
+ * Flush any pending debounced index write to disk. Call this on app
+ * shutdown to make sure the latest state is persisted.
+ */
+export async function flushIndexCache(): Promise<void> {
+  if (indexWriteTimer) {
+    clearTimeout(indexWriteTimer)
+    indexWriteTimer = null
+  }
+  if (indexWritePending !== null) {
+    const pending = indexWritePending
+    indexWritePending = null
+    await writeIndexToDisk(pending)
+  }
+}
+
+function flushIndexCacheSync(): void {
+  if (indexWriteTimer) {
+    clearTimeout(indexWriteTimer)
+    indexWriteTimer = null
+  }
+  if (indexWritePending !== null) {
+    try {
+      writeIndexToDiskSync(indexWritePending)
+      indexWritePending = null
+    } catch {
+      // Best-effort sync flush during process exit.
+    }
+  }
+}
+
+process.on('exit', flushIndexCacheSync)
 
 async function walkMarkdownFiles(dirPath: string): Promise<string[]> {
   const entries = await readdir(dirPath, { withFileTypes: true })
@@ -156,12 +247,12 @@ async function rebuildIndexFromFilesystem(): Promise<NoteIndexRecord[]> {
 const getNoteAbsolutePath = (record: Pick<NoteSummary, 'path'>) => join(getDataDir(), record.path)
 
 export async function listNotes(): Promise<NoteSummary[]> {
-  const index = await readIndex()
+  const index = await getIndex()
   return [...index].sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''))
 }
 
 export async function getNote(noteId: string): Promise<NoteDetail | null> {
-  const index = await readIndex()
+  const index = await getIndex()
   const found = index.find((item) => item.id === noteId)
   if (!found) return null
 
@@ -194,9 +285,9 @@ export async function createNote(
     preview: makePreview(content || '')
   }
 
-  const index = await readIndex()
+  const index = await getIndex()
   index.push(record)
-  await writeIndex(index)
+  scheduleIndexWrite(index)
 
   return { ...record, content: content || '' }
 }
@@ -205,7 +296,7 @@ export async function updateNote(
   noteId: string,
   payload: { title?: string; content?: string; path?: string }
 ): Promise<NoteDetail | null> {
-  const index = await readIndex()
+  const index = await getIndex()
   const noteIdx = index.findIndex((item) => item.id === noteId)
   if (noteIdx === -1) return null
 
@@ -242,13 +333,13 @@ export async function updateNote(
   }
 
   index[noteIdx] = updated
-  await writeIndex(index)
+  scheduleIndexWrite(index)
 
   return { ...updated, content: nextContent }
 }
 
 export async function deleteNote(noteId: string): Promise<boolean> {
-  const index = await readIndex()
+  const index = await getIndex()
   const found = index.find((item) => item.id === noteId)
   if (!found) return false
 
@@ -259,7 +350,7 @@ export async function deleteNote(noteId: string): Promise<boolean> {
   }
 
   const next = index.filter((item) => item.id !== noteId)
-  await writeIndex(next)
+  scheduleIndexWrite(next)
   return true
 }
 
@@ -299,7 +390,7 @@ export async function renameFolder(oldPath: string, newPath: string): Promise<bo
   await mkdir(dirname(newAbs), { recursive: true })
   await rename(oldAbs, newAbs)
 
-  const index = await readIndex()
+  const index = await getIndex()
   const oldPrefix = `notes/${oldFolder}/`
   const nextPrefix = `notes/${newFolder}/`
   const updated = index.map((item) => {
@@ -311,7 +402,7 @@ export async function renameFolder(oldPath: string, newPath: string): Promise<bo
     }
   })
 
-  await writeIndex(updated)
+  scheduleIndexWrite(updated)
   return true
 }
 
@@ -325,9 +416,9 @@ export async function deleteFolder(pathValue: string): Promise<boolean> {
   await rm(abs, { recursive: true, force: true })
 
   const prefix = `notes/${folder}/`
-  const index = await readIndex()
+  const index = await getIndex()
   const updated = index.filter((item) => !item.path.startsWith(prefix))
-  await writeIndex(updated)
+  scheduleIndexWrite(updated)
   return true
 }
 
@@ -341,7 +432,7 @@ export async function importNotes(files: { name: string; content: string }[]): P
 }
 
 export async function openNoteFolder(noteId: string): Promise<boolean> {
-  const index = await readIndex()
+  const index = await getIndex()
   const found = index.find((item) => item.id === noteId)
   if (!found) return false
   const result = await shell.openPath(dirname(getNoteAbsolutePath(found)))
