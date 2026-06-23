@@ -18,6 +18,7 @@ import { API_HOST, API_PORT } from './constants'
 import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
 import { setupTTSHandlers, cleanupTTSHandlers } from './ttsIpcHandlers'
+import { registerSecureStorageHandlers } from './ipc/secure-storage-handler'
 import {
   createFolder,
   createNote,
@@ -258,6 +259,7 @@ app.whenReady().then(() => {
 
   registerIpcHandlers()
   setupTTSHandlers()
+  registerSecureStorageHandlers()
   setupUpdater()
 
   createWindow()

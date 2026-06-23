@@ -39,6 +39,18 @@ export type KeychainDecryptMessage = {
   requestId?: string
 }
 
+export type SecureStorageEncryptMessage = {
+  type: 'secure-storage:encrypt'
+  requestId?: string
+  payload?: { plain?: string }
+}
+
+export type SecureStorageDecryptMessage = {
+  type: 'secure-storage:decrypt'
+  requestId?: string
+  payload?: { encryptedBase64?: string }
+}
+
 export type NodeCoreMessage =
   | NodeCoreReadyMessage
   | NodeCoreLogMessage
@@ -47,6 +59,8 @@ export type NodeCoreMessage =
   | TtsSpeakMessage
   | KeychainEncryptMessage
   | KeychainDecryptMessage
+  | SecureStorageEncryptMessage
+  | SecureStorageDecryptMessage
 
 export function isNodeCoreMessage(value: unknown): value is NodeCoreMessage {
   if (!value || typeof value !== 'object') return false
@@ -60,6 +74,8 @@ export function isNodeCoreMessage(value: unknown): value is NodeCoreMessage {
     case 'tts-speak':
     case 'keychain:encrypt':
     case 'keychain:decrypt':
+    case 'secure-storage:encrypt':
+    case 'secure-storage:decrypt':
       return true
     default:
       return false

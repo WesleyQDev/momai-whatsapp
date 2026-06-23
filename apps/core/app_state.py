@@ -3,10 +3,16 @@ import logging
 import os
 import threading
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
 from fastapi import WebSocket
+
+if "MOMAI_DATA_DIR" in os.environ and "HF_HOME" not in os.environ:
+    _hf_home = Path(os.environ["MOMAI_DATA_DIR"]) / "cache" / "huggingface"
+    _hf_home.mkdir(parents=True, exist_ok=True)
+    os.environ["HF_HOME"] = str(_hf_home)
 
 logger = logging.getLogger("momai.app_state")
 

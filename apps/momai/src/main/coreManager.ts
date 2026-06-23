@@ -1,4 +1,4 @@
-import { app, ipcMain, powerMonitor } from 'electron'
+import { app, ipcMain, powerMonitor, safeStorage } from 'electron'
 import { existsSync, mkdirSync, readFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { spawn, execSync } from 'child_process'
@@ -529,6 +529,64 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
           requestId: msg.requestId,
           ok: false,
           error: 'Keychain IPC channel is no longer available'
+        })
+        return
+      }
+
+      case 'secure-storage:encrypt': {
+        if (!msg.requestId) return
+        const plain = msg.payload?.plain
+        if (typeof plain !== 'string') {
+          child.send({
+            type: 'secure-storage:encrypt-result',
+            requestId: msg.requestId,
+            ack: { ok: false }
+          })
+          return
+        }
+        let encrypted: string | null = null
+        if (!safeStorage.isEncryptionAvailable()) {
+          logger.warn('[CoreManager] safeStorage unavailable, refusing to encrypt')
+        } else {
+          try {
+            encrypted = safeStorage.encryptString(plain).toString('base64')
+          } catch (err) {
+            logger.error('[CoreManager] safeStorage.encryptString failed', err)
+          }
+        }
+        child.send({
+          type: 'secure-storage:encrypt-result',
+          requestId: msg.requestId,
+          ack: encrypted !== null ? { ok: true, encrypted } : { ok: false }
+        })
+        return
+      }
+
+      case 'secure-storage:decrypt': {
+        if (!msg.requestId) return
+        const encryptedBase64 = msg.payload?.encryptedBase64
+        if (typeof encryptedBase64 !== 'string') {
+          child.send({
+            type: 'secure-storage:decrypt-result',
+            requestId: msg.requestId,
+            ack: { ok: false }
+          })
+          return
+        }
+        let plain: string | null = null
+        if (!safeStorage.isEncryptionAvailable()) {
+          logger.warn('[CoreManager] safeStorage unavailable, refusing to decrypt')
+        } else {
+          try {
+            plain = safeStorage.decryptString(Buffer.from(encryptedBase64, 'base64'))
+          } catch (err) {
+            logger.error('[CoreManager] safeStorage.decryptString failed', err)
+          }
+        }
+        child.send({
+          type: 'secure-storage:decrypt-result',
+          requestId: msg.requestId,
+          ack: plain !== null ? { ok: true, plain } : { ok: false }
         })
         return
       }

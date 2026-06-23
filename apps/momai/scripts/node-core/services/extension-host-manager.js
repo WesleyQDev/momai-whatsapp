@@ -10,6 +10,78 @@ const fs = require('node:fs')
 const { EventEmitter } = require('node:events')
 const extensionEvents = require('./extension-events')
 
+// Secure-storage bridge: forward safeStorage requests from extension workers
+// to the Electron main process, which holds the OS keychain handle.
+//
+// Flow: worker → host (this file) → main (coreManager.ts) → safeStorage → back.
+// We translate the worker's requestId to a host-local id so multiple workers
+// can have concurrent in-flight requests without colliding.
+const secureStoragePending = new Map() // hostRequestId → { child, workerRequestId, type }
+let secureStorageNextId = 1
+const SECURE_STORAGE_FORWARD_TIMEOUT_MS = 7000
+
+if (typeof process !== 'undefined' && typeof process.on === 'function') {
+  process.on('message', (msg) => {
+    if (!msg || typeof msg !== 'object') return
+    if (
+      msg.type === 'secure-storage:encrypt-result' ||
+      msg.type === 'secure-storage:decrypt-result'
+    ) {
+      const entry = secureStoragePending.get(msg.requestId)
+      if (!entry) return
+      secureStoragePending.delete(msg.requestId)
+      clearTimeout(entry.timeout)
+      try {
+        entry.child.send({
+          type: msg.type,
+          requestId: entry.workerRequestId,
+          ack: msg.ack || null
+        })
+      } catch {
+        // worker may have died; nothing we can do
+      }
+    }
+  })
+}
+
+function _forwardSecureStorageRequest(child, msg) {
+  // No main process IPC (e.g. running standalone for tests) — fail fast.
+  if (typeof process === 'undefined' || typeof process.send !== 'function') {
+    try {
+      child.send({ type: `${msg.type}-result`, requestId: msg.requestId, ack: null })
+    } catch {}
+    return
+  }
+  const hostRequestId = `sstorage-${secureStorageNextId++}-${Date.now()}`
+  const timeout = setTimeout(() => {
+    const entry = secureStoragePending.get(hostRequestId)
+    if (!entry) return
+    secureStoragePending.delete(hostRequestId)
+    try {
+      entry.child.send({
+        type: `${entry.type}-result`,
+        requestId: entry.workerRequestId,
+        ack: null
+      })
+    } catch {}
+  }, SECURE_STORAGE_FORWARD_TIMEOUT_MS)
+  secureStoragePending.set(hostRequestId, {
+    child,
+    workerRequestId: msg.requestId,
+    type: msg.type,
+    timeout
+  })
+  try {
+    process.send({ type: msg.type, requestId: hostRequestId, payload: msg.payload })
+  } catch {
+    secureStoragePending.delete(hostRequestId)
+    clearTimeout(timeout)
+    try {
+      child.send({ type: `${msg.type}-result`, requestId: msg.requestId, ack: null })
+    } catch {}
+  }
+}
+
 const SAFE_ENV = {
   PATH: process.env.PATH,
   HOME: process.env.HOME,
@@ -68,6 +140,11 @@ class ExtensionHostManager extends EventEmitter {
         this._resolvePending(msg.requestId, msg.result)
       } else if (msg.type === 'log') {
         console.log(`[ext:${skillId}] ${msg.message}`)
+      } else if (
+        msg.type === 'secure-storage:encrypt' ||
+        msg.type === 'secure-storage:decrypt'
+      ) {
+        _forwardSecureStorageRequest(child, msg)
       }
     })
 
@@ -132,6 +209,10 @@ class ExtensionHostManager extends EventEmitter {
           break
         case 'log':
           console.log(`[ext:${skillId}]`, msg.message)
+          break
+        case 'secure-storage:encrypt':
+        case 'secure-storage:decrypt':
+          _forwardSecureStorageRequest(child, msg)
           break
       }
     })

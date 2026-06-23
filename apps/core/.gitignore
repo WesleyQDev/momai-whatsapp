@@ -10,6 +10,11 @@ __pycache__/
 *$py.class
 *.pyo
 
+# Environment files (never commit secrets)
+.env
+.env.*
+!.env.example
+
 # Distribution
 dist/
 build/

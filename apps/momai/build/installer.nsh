@@ -99,15 +99,24 @@ Var MomAIInstalledDetected
     nsExec::ExecToLog 'taskkill /f /im llama-server.exe'
     Sleep 2000
 
-    ; clear old installations data
+    ; clear old installations data (all variants)
     RMDir /r "$APPDATA\desktop"
     RMDir /r "$LOCALAPPDATA\desktop"
-    
-    ; userData path: %APPDATA%\MomAI (from package.json "productName": "MomAI")
+
+    ; userData path: %APPDATA%\MomAI and all variants
     RMDir /r "$APPDATA\MomAI"
+    RMDir /r "$APPDATA\MomAI-Dev"
+    RMDir /r "$APPDATA\MomAI-Store"
+    RMDir /r "$APPDATA\MomAI-Teste"
     RMDir /r "$LOCALAPPDATA\MomAI"
-    ; Also clean other MomAI-named folders (updater, or future migration)
+    RMDir /r "$LOCALAPPDATA\MomAI-Dev"
+    RMDir /r "$LOCALAPPDATA\MomAI-Store"
+    RMDir /r "$LOCALAPPDATA\MomAI-Teste"
     RMDir /r "$LOCALAPPDATA\MomAI-updater"
+
+    ; Global HuggingFace cache
+    RMDir /r "$LOCALAPPDATA\huggingface"
+    RMDir /r "$APPDATA\huggingface"
   ${EndIf}
 !macroend
 
@@ -173,6 +182,7 @@ Var MomAIInstalledDetected
 
 ; ========================
 ; UNINSTALLER — User data cleanup
+; Cleans: all variants, HF cache, auto-start registry, updater cache
 ; ========================
 !macro customUnInstall
   ; Kill MomAI and related processes before removing anything
@@ -181,6 +191,7 @@ Var MomAIInstalledDetected
   nsExec::ExecToLog 'taskkill /f /im llama-server.exe'
   Sleep 2000
 
+  ; Detect update via electron-updater flag (preserves userData)
   ${GetParameters} $R0
   ${GetOptions} $R0 "--updated" $R1
   ${IfNot} ${Errors}
@@ -188,13 +199,54 @@ Var MomAIInstalledDetected
     Return
   ${EndIf}
 
-  ; Remove all user data
+  ; Detect manual update: if installed version != current, it's an upgrade → preserve
+  ReadRegStr $R2 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai" "DisplayVersion"
+  ${If} $R2 == ""
+    ReadRegStr $R2 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai" "DisplayVersion"
+  ${EndIf}
+  ${If} $R2 == ""
+    ReadRegStr $R2 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai_is1" "DisplayVersion"
+  ${EndIf}
+  ${If} $R2 == ""
+    ReadRegStr $R2 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai_is1" "DisplayVersion"
+  ${EndIf}
+  ${If} $R2 == ""
+    ReadRegStr $R2 HKLM "Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai" "DisplayVersion"
+  ${EndIf}
+  ${If} $R2 == ""
+    ReadRegStr $R2 HKLM "Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\com.wesleyqdev.momai_is1" "DisplayVersion"
+  ${EndIf}
+  ${If} $R2 != ""
+  ${AndIf} $R2 != "${VERSION}"
+    ; Manual upgrade (different version, no --updated flag) → preserve userData
+    Return
+  ${EndIf}
+
+  ; Real uninstall: clean ALL variants
   RMDir /r "$APPDATA\desktop"
   RMDir /r "$LOCALAPPDATA\desktop"
-  
-  ; Real data path: %APPDATA%\MomAI (from package.json "productName": "MomAI")
+
+  ; All userData variants (NSIS + Dev + Store + Teste)
   RMDir /r "$APPDATA\MomAI"
+  RMDir /r "$APPDATA\MomAI-Dev"
+  RMDir /r "$APPDATA\MomAI-Store"
+  RMDir /r "$APPDATA\MomAI-Teste"
+
   RMDir /r "$LOCALAPPDATA\MomAI"
-  ; Also clean MomAI-named folders (updater, or future migration)
+  RMDir /r "$LOCALAPPDATA\MomAI-Dev"
+  RMDir /r "$LOCALAPPDATA\MomAI-Store"
+  RMDir /r "$LOCALAPPDATA\MomAI-Teste"
+
+  ; Updater cache (any variant suffix)
   RMDir /r "$LOCALAPPDATA\MomAI-updater"
+
+  ; Auto-start registry cleanup (defense-in-depth)
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "MomAI"
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "com.wesleyqdev.momai"
+  DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "MomAI"
+  DeleteRegValue HKLM "Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run" "MomAI"
+
+  ; Global HuggingFace cache (defense-in-depth in case HF_HOME redirect didn't apply)
+  RMDir /r "$LOCALAPPDATA\huggingface"
+  RMDir /r "$APPDATA\huggingface"
 !macroend
