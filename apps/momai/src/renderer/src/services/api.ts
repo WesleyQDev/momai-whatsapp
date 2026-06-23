@@ -121,6 +121,7 @@ export interface ChatStreamCallbacks {
 export interface ChatMessageOptions {
   memory_context?: string
   memory_sources?: Source[]
+  signal?: AbortSignal
 }
 
 export interface Source {
@@ -147,10 +148,12 @@ export async function sendChatMessage(
   callbacks: ChatStreamCallbacks,
   options?: ChatMessageOptions
 ): Promise<void> {
+  const { signal, ...bodyOptions } = options ?? {}
   const response = await apiFetch(`/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content, thread_id: threadId, ...options })
+    body: JSON.stringify({ content, thread_id: threadId, ...bodyOptions }),
+    ...(signal ? { signal } : {})
   })
 
   if (!response.ok) {
@@ -163,67 +166,74 @@ export async function sendChatMessage(
 
   if (!reader) throw new Error('Stream não disponível')
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
 
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() || ''
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
 
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (!trimmed.startsWith('data:')) continue
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (!trimmed.startsWith('data:')) continue
 
-      const payload = trimmed.replace(/^data:\s*/, '').trim()
-      if (!payload) continue
+        const payload = trimmed.replace(/^data:\s*/, '').trim()
+        if (!payload) continue
 
-      try {
-        const data = JSON.parse(payload)
+        try {
+          const data = JSON.parse(payload)
 
-        if (data.token) {
-          callbacks.onToken(data.token)
+          if (data.token) {
+            callbacks.onToken(data.token)
+          }
+
+          if (data.status) {
+            callbacks.onStatus(data.status)
+          }
+
+          if (data.sources && callbacks.onSources) {
+            callbacks.onSources(data.sources)
+          }
+
+          if (data.snippets && callbacks.onSnippets) {
+            callbacks.onSnippets(data.snippets)
+          }
+
+          if (data.cards && callbacks.onCards) {
+            callbacks.onCards(data.cards)
+          }
+
+          if (data.tool_steps && callbacks.onToolSteps) {
+            callbacks.onToolSteps(data.tool_steps)
+          }
+
+          if (data.active_skill && callbacks.onActiveSkill) {
+            callbacks.onActiveSkill(data.active_skill)
+          }
+
+          if (data.structured_response && callbacks.onStructuredResponse) {
+            callbacks.onStructuredResponse(data.structured_response)
+          }
+
+          if (data.error) {
+            callbacks.onError(data.error)
+          }
+
+          if (data.done) {
+            callbacks.onDone()
+          }
+        } catch (e) {
+          console.error('Erro ao processar JSON do stream:', e, 'Linha:', line)
         }
-
-        if (data.status) {
-          callbacks.onStatus(data.status)
-        }
-
-        if (data.sources && callbacks.onSources) {
-          callbacks.onSources(data.sources)
-        }
-
-        if (data.snippets && callbacks.onSnippets) {
-          callbacks.onSnippets(data.snippets)
-        }
-
-        if (data.cards && callbacks.onCards) {
-          callbacks.onCards(data.cards)
-        }
-
-        if (data.tool_steps && callbacks.onToolSteps) {
-          callbacks.onToolSteps(data.tool_steps)
-        }
-
-        if (data.active_skill && callbacks.onActiveSkill) {
-          callbacks.onActiveSkill(data.active_skill)
-        }
-
-        if (data.structured_response && callbacks.onStructuredResponse) {
-          callbacks.onStructuredResponse(data.structured_response)
-        }
-
-        if (data.error) {
-          callbacks.onError(data.error)
-        }
-
-        if (data.done) {
-          callbacks.onDone()
-        }
-      } catch (e) {
-        console.error('Erro ao processar JSON do stream:', e, 'Linha:', line)
       }
     }
+  } catch (err) {
+    if (signal?.aborted) {
+      return
+    }
+    throw err
   }
 }
 

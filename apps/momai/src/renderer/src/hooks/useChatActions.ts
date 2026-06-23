@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import {
   Message,
   sendChatMessage,
@@ -42,6 +42,15 @@ export function useChatActions({
   isCallModeRef,
   setText
 }: UseChatActionsProps) {
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort()
+      abortControllerRef.current = null
+    }
+  }, [])
+
   const buildInjectedMemory = useCallback(async (content: string) => {
     const query = content.trim()
     if (!query || query.length < 3) {
@@ -112,6 +121,10 @@ export function useChatActions({
     async (content: string, isSilent: boolean = false, skipUserMessage: boolean = false) => {
       if (!content.trim()) return
 
+      abortControllerRef.current?.abort()
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
+
       stopVoiceApi().catch(() => {})
       dispatch({ type: 'SET_SPEAKING', messageId: null })
 
@@ -147,9 +160,10 @@ export function useChatActions({
               onDone: () => {},
               onError: (err) => console.error('[SilentTool] Error:', err)
             },
-            memoryPayload
+            { ...memoryPayload, signal: abortController.signal }
           )
         } catch (err) {
+          if (abortController.signal.aborted) return
           console.error('[SilentTool] Error:', err)
         }
         return
@@ -398,9 +412,10 @@ export function useChatActions({
               })
             }
           },
-          memoryPayload
+          { ...memoryPayload, signal: abortController.signal }
         )
       } catch (err) {
+        if (abortController.signal.aborted) return
         dispatch({ type: 'SET_LOADING', isLoading: false })
         console.error('Erro ao enviar mensagem:', err)
       }
