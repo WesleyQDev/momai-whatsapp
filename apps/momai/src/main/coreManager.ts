@@ -20,6 +20,7 @@ import { getTTSService, type TTSEngine } from './ttsService'
 import { EconomyService } from './economyService'
 import { broadcastEconomyState } from './windowManager'
 import { authFetch } from './security/authenticated-fetch'
+import { getOrCreateSessionToken } from './security/session-token'
 import { decideNodeCoreStartup, type NodeCoreHttpStatus } from './node-core-startup-decision'
 
 const PYTHON_SIDECAR_HOST = API_HOST
@@ -597,8 +598,11 @@ function spawnNodeCore(): ReturnType<typeof spawn> {
     throw new Error(`Node core script not found at ${scriptPath}`)
   }
 
+  const sessionToken = getOrCreateSessionToken()
+  const { MOMAI_SESSION_TOKEN: _omit, ...parentEnv } = process.env
+
   const env = {
-    ...process.env,
+    ...parentEnv,
     ELECTRON_RUN_AS_NODE: '1',
     MOMAI_NODE_CORE_HOST: API_HOST,
     MOMAI_NODE_CORE_PORT: String(API_PORT),
@@ -612,7 +616,7 @@ function spawnNodeCore(): ReturnType<typeof spawn> {
     MOMAI_AI_TIER: getCurrentTier() || 'lite'
   }
 
-  const child = spawn(process.execPath, [scriptPath], {
+  const child = spawn(process.execPath, [scriptPath, `--momai-session-token=${sessionToken}`], {
     env,
     shell: false,
     stdio: ['ignore', 'pipe', 'pipe', 'ipc']

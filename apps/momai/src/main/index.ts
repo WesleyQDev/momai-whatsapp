@@ -245,10 +245,11 @@ app.whenReady().then(() => {
   }
 
   // Generate a per-session token before any backend is spawned.
-  // The token is inherited by Node Core / Python via process.env and
-  // forwarded to the renderer via webPreferences.additionalArguments
-  // (see windowManager.ts). It lives only in memory for the process
-  // lifetime; a new one is generated on every app restart.
+  // The token is forwarded to Node Core via the --momai-session-token CLI arg
+  // (see coreManager.ts) and to the renderer via webPreferences.additionalArguments
+  // (see windowManager.ts). It also remains in process.env so the Python sidecar
+  // (spawned via buildEnv) can inherit it. A new token is generated on every
+  // app restart and lives only in memory.
   process.env.MOMAI_SESSION_TOKEN = getOrCreateSessionToken()
 
   app.on('browser-window-created', (_, window) => {

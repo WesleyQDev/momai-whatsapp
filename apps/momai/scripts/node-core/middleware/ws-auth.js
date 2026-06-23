@@ -1,3 +1,5 @@
+const { getSessionToken } = require('../config/security.js')
+
 function extractWsToken(url) {
   const token = url.searchParams.get('token')
   if (!token || token.length === 0) return null
@@ -5,7 +7,7 @@ function extractWsToken(url) {
 }
 
 function isValidWsUpgrade(url) {
-  const expected = process.env.MOMAI_SESSION_TOKEN
+  const expected = getSessionToken()
   if (!expected) return false
   const provided = extractWsToken(url)
   if (!provided) return false
