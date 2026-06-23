@@ -19,6 +19,7 @@ import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
 import { setupTTSHandlers, cleanupTTSHandlers } from './ttsIpcHandlers'
 import { registerSecureStorageHandlers } from './ipc/secure-storage-handler'
+import { registerPrivacyHandlers } from './ipc/privacy-handler'
 import {
   createFolder,
   createNote,
@@ -260,6 +261,7 @@ app.whenReady().then(() => {
   registerIpcHandlers()
   setupTTSHandlers()
   registerSecureStorageHandlers()
+  registerPrivacyHandlers()
   setupUpdater()
 
   createWindow()

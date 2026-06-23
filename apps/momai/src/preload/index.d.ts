@@ -69,6 +69,21 @@ interface MomaiAPI {
     openFolder: (noteId: string) => Promise<boolean>
     search: (query: string, limit?: number) => Promise<any[]>
   }
+  privacy: {
+    exportData: () => Promise<{
+      ok: boolean
+      canceled?: boolean
+      filePath?: string
+      size?: number
+      error?: string
+    }>
+    deleteAll: () => Promise<{
+      ok: boolean
+      removed?: string[]
+      keepModels?: boolean
+      error?: string
+    }>
+  }
   apiFetch: (url: string, options?: RequestInit) => Promise<Response>
   apiWebSocket: (url: string) => WebSocket
   getSessionToken: () => string
