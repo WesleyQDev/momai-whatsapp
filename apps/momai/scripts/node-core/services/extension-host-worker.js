@@ -19,9 +19,13 @@ const dataDir = process.env.MOMAI_DATA_DIR || path.resolve(__dirname, '..', '..'
 const storageBase = path.join(dataDir, 'extensions', skillId)
 
 // Storage API for extensions
+const SAFE_KEY = /^[a-zA-Z0-9_-]+$/
 const storage = {
   storageDir: storageBase,
   async get(key) {
+    if (typeof key !== 'string' || !SAFE_KEY.test(key)) {
+      throw new Error('Invalid storage key')
+    }
     const filePath = path.join(storageBase, `${key}.json`)
     try {
       const content = await fs.readFile(filePath, 'utf-8')
@@ -32,6 +36,9 @@ const storage = {
   },
 
   async set(key, value) {
+    if (typeof key !== 'string' || !SAFE_KEY.test(key)) {
+      throw new Error('Invalid storage key')
+    }
     await fs.mkdir(storageBase, { recursive: true })
     const serialized = JSON.stringify(value, null, 2)
     if (serialized.length > 1024 * 1024) {
