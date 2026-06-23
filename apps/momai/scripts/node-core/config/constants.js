@@ -45,12 +45,17 @@ const NOTES_DIR = path.join(DATA_DIR, 'notes')
 const NOTES_INDEX_FILE = path.join(NOTES_DIR, '.index.json')
 const SEMANTIC_DIR = path.join(DATA_DIR, 'semantic')
 const SEMANTIC_DB_DIR = path.join(SEMANTIC_DIR, 'lancedb')
+const CACHE_DIR = path.join(DATA_DIR, 'cache')
+const METRICS_FILE = path.join(CACHE_DIR, 'observability-metrics.json')
 const PROMPTS_DIR = path.resolve(__dirname, '..', '..', '..', 'prompts')
 
 const MAX_EMBEDDING_CACHE_SIZE = 512
 const EMBEDDING_CACHE_TTL_MS = 10 * 60 * 1000
 const EMBEDDING_TIMEOUT_MS = 8000
 const SEMANTIC_SYNC_INTERVAL_MS = 30 * 1000
+
+const THREAD_RETENTION_DAYS = Number(process.env.MOMAI_THREAD_RETENTION_DAYS) || 90
+const REMINDER_RETENTION_DAYS = Number(process.env.MOMAI_REMINDER_RETENTION_DAYS) || 30
 
 function resolveModelsDir() {
   const envPath = String(process.env.MOMAI_MODELS_DIR || '').trim()
@@ -85,10 +90,14 @@ module.exports = {
   NOTES_INDEX_FILE,
   SEMANTIC_DIR,
   SEMANTIC_DB_DIR,
+  CACHE_DIR,
+  METRICS_FILE,
   PROMPTS_DIR,
   MAX_EMBEDDING_CACHE_SIZE,
   EMBEDDING_CACHE_TTL_MS,
   EMBEDDING_TIMEOUT_MS,
   SEMANTIC_SYNC_INTERVAL_MS,
+  THREAD_RETENTION_DAYS,
+  REMINDER_RETENTION_DAYS,
   resolveModelsDir
 }

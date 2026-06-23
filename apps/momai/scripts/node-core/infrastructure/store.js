@@ -1,6 +1,9 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { info, error, warn } = require('./logger')
+const { THREAD_RETENTION_DAYS, REMINDER_RETENTION_DAYS } = require('../config/constants')
+const { pruneStaleThreads } = require('./retention')
+const { purgeExpiredReminders } = require('../services/reminder-service')
 
 const DATA_DIR = process.env.MOMAI_NODE_CORE_DATA_DIR || path.join(process.cwd(), 'data')
 const STORE_FILE = path.join(DATA_DIR, 'node-core-store.json')
@@ -113,7 +116,6 @@ function saveStore(store) {
       if (Date.now() - start > 100) {
         warn(`[Store] saveStore took ${Date.now() - start}ms (${data.length} bytes)`)
       }
-      saveMessages()
     } catch (err) {
       error('[Store] Failed to save store:', err)
     }
@@ -134,7 +136,6 @@ function saveStoreNow(store) {
     if (Date.now() - start > 100) {
       warn(`[Store] saveStoreNow took ${Date.now() - start}ms (${data.length} bytes)`)
     }
-    saveMessages()
   } catch (err) {
     error('[Store] Failed to save store:', err)
   }
@@ -171,25 +172,6 @@ function pruneThread(threadId) {
   }
 }
 
-function saveMessages() {
-  const msgData = {}
-  for (const threadId of Object.keys(store.thread_messages || {})) {
-    msgData[threadId] = store.thread_messages[threadId]
-  }
-  fs.writeFileSync(path.join(DATA_DIR, 'messages.json'), JSON.stringify(msgData))
-}
-
-function loadMessages() {
-  const msgPath = path.join(DATA_DIR, 'messages.json')
-  if (fs.existsSync(msgPath)) {
-    try {
-      store.thread_messages = JSON.parse(fs.readFileSync(msgPath, 'utf8'))
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
 function getThreadMessages(store, threadId) {
   if (!store.thread_messages[threadId]) {
     store.thread_messages[threadId] = []
@@ -220,7 +202,28 @@ function listSessions(store) {
 
 // Initialize store on module load
 const store = loadStore()
-loadMessages()
+
+// R002 (privacy plan): prune threads older than THREAD_RETENTION_DAYS
+// on startup so chat history doesn't accumulate forever.
+const _prunedThreadIds = pruneStaleThreads(store)
+if (_prunedThreadIds.length > 0) {
+  info(
+    `[retention] Pruned ${_prunedThreadIds.length} stale threads (>${THREAD_RETENTION_DAYS} days)`
+  )
+  saveStoreNow(store)
+}
+
+// R003 (privacy plan): purge inactive reminders older than
+// MOMAI_REMINDER_RETENTION_DAYS on startup. Reminders that have already
+// fired accumulate as `is_active: false` entries; without TTL they
+// grow unbounded.
+const _beforeReminders = store.reminders.length
+store.reminders = purgeExpiredReminders(store.reminders)
+const _purgedReminders = _beforeReminders - store.reminders.length
+if (_purgedReminders > 0) {
+  info(`[retention] Pruned ${_purgedReminders} expired reminders (>${REMINDER_RETENTION_DAYS} days)`)
+  saveStoreNow(store)
+}
 
 // Sync with shared-state so service modules see the loaded store
 try {
@@ -239,7 +242,5 @@ module.exports = {
   appendMessage,
   getThreadMessages,
   listSessions,
-  pruneThread,
-  saveMessages,
-  loadMessages
+  pruneThread
 }

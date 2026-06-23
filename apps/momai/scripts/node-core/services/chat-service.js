@@ -1583,6 +1583,10 @@ async function streamLlamaChat(req, res, payload) {
                 return changed
               },
               removeAllReminders() {
+                // R003 (privacy plan): run purge before clearing so the
+                // saved list always respects the retention window.
+                const { purgeExpiredReminders } = require('./reminder-service')
+                store.reminders = purgeExpiredReminders(store.reminders)
                 const changed = store.reminders.length > 0
                 if (changed) {
                   store.reminders = []
