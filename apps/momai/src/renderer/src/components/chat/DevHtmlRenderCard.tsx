@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
+import DOMPurify from 'dompurify'
 
 type DevHtmlRenderData = {
   title?: string
@@ -8,8 +9,12 @@ type DevHtmlRenderData = {
 }
 
 const DevHtmlRenderCard = ({ data }: { data?: DevHtmlRenderData }) => {
-  const html = String(data?.html || '').trim()
-  const code = String(data?.code || html || '')
+  const rawHtml = String(data?.html || '').trim()
+  const html = useMemo(() => {
+    if (!rawHtml) return ''
+    return DOMPurify.sanitize(rawHtml, { USE_PROFILES: { html: true } })
+  }, [rawHtml])
+  const code = String(data?.code || rawHtml || '')
   const [showRender, setShowRender] = useState(false)
   const [showCode, setShowCode] = useState(false)
 

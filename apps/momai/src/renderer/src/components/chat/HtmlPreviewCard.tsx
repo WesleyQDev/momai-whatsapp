@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useMemo } from 'react'
+import DOMPurify from 'dompurify'
 
 type HtmlPreviewData = {
   html?: string
@@ -6,7 +7,11 @@ type HtmlPreviewData = {
 }
 
 const HtmlPreviewCard = ({ data }: { data?: HtmlPreviewData }) => {
-  const html = String(data?.html || '').trim()
+  const rawHtml = String(data?.html || '').trim()
+  const html = useMemo(() => {
+    if (!rawHtml) return ''
+    return DOMPurify.sanitize(rawHtml, { USE_PROFILES: { html: true } })
+  }, [rawHtml])
   if (!html) return null
 
   return (

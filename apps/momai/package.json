@@ -66,6 +66,7 @@
     "yauzl": "^2.10.0",
     "zod": "^4.4.3",
     "@whiskeysockets/baileys": "^6.7.9",
+    "dompurify": "^3.2.4",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
