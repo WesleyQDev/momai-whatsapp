@@ -65,6 +65,27 @@ function runLexicalNoteSearch(query, limit = 6, dataDir, notesIndexFile) {
   for (const item of index) {
     if (!item || typeof item.id !== 'string' || typeof item.path !== 'string') continue
 
+    // U002 (privacy plan): skip encrypted notes — the sidecar has no
+    // access to safeStorage and cannot decrypt .md.enc content. The
+    // title is still searchable so users can find notes by their
+    // visible name even when body is encrypted.
+    if (item.path.toLowerCase().endsWith('.md.enc')) {
+      const title = String(item.title || 'Nota')
+      const titleScore = lexicalScore(title, term)
+      if (titleScore <= 0) continue
+      out.push({
+        note_id: item.id,
+        chunk_id: `${item.id}:lexical`,
+        title,
+        path: item.path,
+        text: '',
+        score: titleScore * 3,
+        keyword_score: titleScore * 3,
+        vector_score: 0
+      })
+      continue
+    }
+
     const absPath = path.join(dataDir, item.path)
     let content = ''
     try {

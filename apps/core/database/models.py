@@ -10,6 +10,21 @@ Base = declarative_base()
 
 
 class Settings(Base):
+    """
+    DEPRECATED for new writes (privacy plan Task 3.1 / U001).
+
+    The single source of truth for user settings is now
+    ``node-core-store.json`` (written by the Node-core sidecar) and
+    exposed to the Python sidecar via the FastAPI ``/settings`` endpoint
+    in ``api/routes/settings.py``.
+
+    This SQLAlchemy model is still used as the *typed shape* that
+    ``app_state.get_settings_cached`` builds from the JSON file, and the
+    table is kept in place for legacy / migration use only. No new writes
+    should target the table — use the JSON bridge in
+    ``api/routes/settings.py`` instead.
+    """
+
     __tablename__ = "settings"
 
     id = Column(Integer, primary_key=True)

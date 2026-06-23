@@ -141,6 +141,21 @@ const momaiAPI = {
     search: (query: string, limit = 6): Promise<any[]> =>
       ipcRenderer.invoke('notes:search', query, limit)
   },
+  privacy: {
+    exportData: (): Promise<{
+      ok: boolean
+      canceled?: boolean
+      filePath?: string
+      size?: number
+      error?: string
+    }> => ipcRenderer.invoke('privacy:export'),
+    deleteAll: (): Promise<{
+      ok: boolean
+      removed?: string[]
+      keepModels?: boolean
+      error?: string
+    }> => ipcRenderer.invoke('privacy:delete-all')
+  },
   apiFetch: (url: string, options: RequestInit = {}): Promise<Response> => {
     // NOTE: This wrapper exists for API symmetry but delegates to the
     // global `fetch` (which in this preload context is undici). It is

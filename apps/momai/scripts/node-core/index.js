@@ -474,6 +474,7 @@ async function startServer() {
   const { createSystemRoutes } = require('./api/routes/system.routes')
   const { createSkillsRoutes } = require('./api/routes/skills.routes')
   const { createEconomyRoutes } = require('./api/routes/economy.routes')
+  const { createPrivacyRoutes } = require('./api/routes/privacy')
 
   // Inline observability route
   async function handleObservabilityRoute(req, res, pathname) {
@@ -502,7 +503,17 @@ async function startServer() {
     createStatusRoutes(context),
     createSystemRoutes(context),
     createSkillsRoutes(context),
-    createEconomyRoutes(context)
+    createEconomyRoutes(context),
+    createPrivacyRoutes({
+      store,
+      sendJson: context.sendJson,
+      readJsonBody,
+      saveStore: () => saveStore(store),
+      dataDir: DATA_DIR,
+      getTempPath: () =>
+        path.join(os.tmpdir(), `momai-export-${Date.now()}-${process.pid}.zip`),
+      extensionHostManager
+    })
   ])
 
   // Setup WebSocket and update context with real functions
