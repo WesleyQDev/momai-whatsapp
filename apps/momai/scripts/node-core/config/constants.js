@@ -52,6 +52,8 @@ const EMBEDDING_CACHE_TTL_MS = 10 * 60 * 1000
 const EMBEDDING_TIMEOUT_MS = 8000
 const SEMANTIC_SYNC_INTERVAL_MS = 30 * 1000
 
+const THREAD_RETENTION_DAYS = Number(process.env.MOMAI_THREAD_RETENTION_DAYS) || 90
+
 function resolveModelsDir() {
   const envPath = String(process.env.MOMAI_MODELS_DIR || '').trim()
   if (envPath) return envPath
@@ -90,5 +92,6 @@ module.exports = {
   EMBEDDING_CACHE_TTL_MS,
   EMBEDDING_TIMEOUT_MS,
   SEMANTIC_SYNC_INTERVAL_MS,
+  THREAD_RETENTION_DAYS,
   resolveModelsDir
 }

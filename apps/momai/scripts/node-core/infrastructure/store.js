@@ -1,6 +1,8 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { info, error, warn } = require('./logger')
+const { THREAD_RETENTION_DAYS } = require('../config/constants')
+const { pruneStaleThreads } = require('./retention')
 
 const DATA_DIR = process.env.MOMAI_NODE_CORE_DATA_DIR || path.join(process.cwd(), 'data')
 const STORE_FILE = path.join(DATA_DIR, 'node-core-store.json')
@@ -199,6 +201,16 @@ function listSessions(store) {
 
 // Initialize store on module load
 const store = loadStore()
+
+// R002 (privacy plan): prune threads older than THREAD_RETENTION_DAYS
+// on startup so chat history doesn't accumulate forever.
+const _prunedThreadIds = pruneStaleThreads(store)
+if (_prunedThreadIds.length > 0) {
+  info(
+    `[retention] Pruned ${_prunedThreadIds.length} stale threads (>${THREAD_RETENTION_DAYS} days)`
+  )
+  saveStoreNow(store)
+}
 
 // Sync with shared-state so service modules see the loaded store
 try {
