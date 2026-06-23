@@ -93,8 +93,16 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
 
     const win = getMainWindow()
     if (win) {
+      if (windowListeners && windowListeners.win === win) {
+        win.removeListener('minimize', windowListeners.onMinimize)
+        win.removeListener('restore', windowListeners.onRestore)
+      } else if (windowListeners && windowListeners.win && !windowListeners.win.isDestroyed()) {
+        windowListeners.win.removeListener('minimize', windowListeners.onMinimize)
+        windowListeners.win.removeListener('restore', windowListeners.onRestore)
+      }
       win.on('minimize', trackMinimize)
       win.on('restore', trackRestore)
+      windowListeners = { win, onMinimize: trackMinimize, onRestore: trackRestore }
     }
 
     const [gamingRes, configRes] = await Promise.all([
@@ -151,6 +159,11 @@ let coreReadyPromise: Promise<void> | null = null
 let restartAttempts = 0
 let isStoppingCore = false
 let economyService: EconomyService | null = null
+let windowListeners: {
+  win: ReturnType<typeof getMainWindow>
+  onMinimize: () => void
+  onRestore: () => void
+} | null = null
 
 const LLAMA_LOG_NOISE_PATTERNS = [
   'slot update_slots:',
@@ -842,6 +855,15 @@ export async function shutdownCoreBackend(): Promise<void> {
   if (economyService) {
     await economyService.stop()
     economyService = null
+  }
+
+  if (windowListeners) {
+    const { win, onMinimize, onRestore } = windowListeners
+    if (win && !win.isDestroyed()) {
+      win.removeListener('minimize', onMinimize)
+      win.removeListener('restore', onRestore)
+    }
+    windowListeners = null
   }
 
   logger.info('[CoreManager] Iniciando shutdown...')
