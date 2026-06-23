@@ -31,6 +31,7 @@ export type ChatAction =
   | { type: 'SET_MESSAGES'; messages: Message[] }
   | { type: 'APPEND_MESSAGE'; message: Message }
   | { type: 'UPDATE_MESSAGES'; updater: (prev: Message[]) => Message[] }
+  | { type: 'UPDATE_LAST_MESSAGE'; updater: (last: Message) => Message }
   | { type: 'SET_THREAD_ID'; threadId: string }
   | { type: 'SET_LOADING'; isLoading: boolean }
   | { type: 'SET_HISTORY_LOADED'; loaded: boolean }
@@ -74,6 +75,14 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, messages: [...state.messages, action.message] }
     case 'UPDATE_MESSAGES':
       return { ...state, messages: action.updater(state.messages) }
+    case 'UPDATE_LAST_MESSAGE': {
+      const msgs = state.messages
+      if (msgs.length === 0) return state
+      const last = msgs[msgs.length - 1]
+      const updated = action.updater(last)
+      if (updated === last) return state
+      return { ...state, messages: msgs.slice(0, -1).concat(updated) }
+    }
     case 'SET_THREAD_ID':
       return { ...state, threadId: action.threadId }
     case 'SET_LOADING':

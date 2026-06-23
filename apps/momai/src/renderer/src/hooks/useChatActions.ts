@@ -193,39 +193,29 @@ export function useChatActions({
             onToken: (token) => {
               if (currentThreadRef.current !== messageThreadId) return
               dispatch({
-                type: 'UPDATE_MESSAGES',
-                updater: (prev) => {
-                  const updated = [...prev]
-                  const lastIdx = updated.length - 1
-                  if (
-                    updated[lastIdx]?.role === 'assistant' &&
-                    !updated[lastIdx].content.startsWith('Cérebro alterado')
-                  ) {
-                    const currentContent = updated[lastIdx].content
-                    const newBase = currentContent === '...' ? '' : currentContent
-
-                    if (isToolTraceMessage(updated[lastIdx])) {
-                      const parsed = splitToolTraceContent(updated[lastIdx].content)
-                      let traceData: any = null
-                      const textPart = parsed?.textPart || ''
-                      try {
-                        traceData = parsed?.jsonPart ? JSON.parse(parsed.jsonPart) : null
-                      } catch {
-                        traceData = null
-                      }
-                      updated[lastIdx] = {
-                        ...updated[lastIdx],
-                        content: buildToolTraceContent(traceData || {}, textPart + token)
-                      }
-                    } else {
-                      updated[lastIdx] = {
-                        ...updated[lastIdx],
-                        content: newBase + token
-                      }
-                    }
-                    return updated
+                type: 'UPDATE_LAST_MESSAGE',
+                updater: (last) => {
+                  if (last.role !== 'assistant' || last.content.startsWith('Cérebro alterado')) {
+                    return last
                   }
-                  return updated
+                  const currentContent = last.content
+                  const newBase = currentContent === '...' ? '' : currentContent
+
+                  if (isToolTraceMessage(last)) {
+                    const parsed = splitToolTraceContent(last.content)
+                    let traceData: any = null
+                    const textPart = parsed?.textPart || ''
+                    try {
+                      traceData = parsed?.jsonPart ? JSON.parse(parsed.jsonPart) : null
+                    } catch {
+                      traceData = null
+                    }
+                    return {
+                      ...last,
+                      content: buildToolTraceContent(traceData || {}, textPart + token)
+                    }
+                  }
+                  return { ...last, content: newBase + token }
                 }
               })
 
@@ -269,112 +259,68 @@ export function useChatActions({
             onStatus: (status) => {
               if (currentThreadRef.current !== messageThreadId) return
               dispatch({
-                type: 'UPDATE_MESSAGES',
-                updater: (prev) => {
-                  const updated = [...prev]
-                  const lastIdx = updated.length - 1
-                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                    const currentActivities = updated[lastIdx].activities || []
-                    const buscandoIdx = currentActivities.findIndex((a: string) =>
-                      a.startsWith('Buscando')
-                    )
-                    if (buscandoIdx !== -1 && status.startsWith('Buscando')) {
-                      const updatedActivities = [...currentActivities]
-                      updatedActivities[buscandoIdx] = status
-                      updated[lastIdx] = { ...updated[lastIdx], activities: updatedActivities }
-                    } else if (!currentActivities.includes(status)) {
-                      updated[lastIdx] = {
-                        ...updated[lastIdx],
-                        activities: [...currentActivities, status]
-                      }
-                    }
+                type: 'UPDATE_LAST_MESSAGE',
+                updater: (last) => {
+                  if (last.role !== 'assistant') return last
+                  const currentActivities = last.activities || []
+                  const buscandoIdx = currentActivities.findIndex((a: string) =>
+                    a.startsWith('Buscando')
+                  )
+                  if (buscandoIdx !== -1 && status.startsWith('Buscando')) {
+                    const updatedActivities = [...currentActivities]
+                    updatedActivities[buscandoIdx] = status
+                    return { ...last, activities: updatedActivities }
                   }
-                  return updated
+                  if (!currentActivities.includes(status)) {
+                    return { ...last, activities: [...currentActivities, status] }
+                  }
+                  return last
                 }
               })
             },
             onSources: (sources) => {
               if (currentThreadRef.current !== messageThreadId) return
               dispatch({
-                type: 'UPDATE_MESSAGES',
-                updater: (prev) => {
-                  const updated = [...prev]
-                  const lastIdx = updated.length - 1
-                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                    updated[lastIdx] = { ...updated[lastIdx], sources }
-                  }
-                  return updated
-                }
+                type: 'UPDATE_LAST_MESSAGE',
+                updater: (last) => (last.role === 'assistant' ? { ...last, sources } : last)
               })
             },
             onSnippets: (snippets) => {
               if (currentThreadRef.current !== messageThreadId) return
               dispatch({
-                type: 'UPDATE_MESSAGES',
-                updater: (prev) => {
-                  const updated = [...prev]
-                  const lastIdx = updated.length - 1
-                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                    updated[lastIdx] = { ...updated[lastIdx], snippets }
-                  }
-                  return updated
-                }
+                type: 'UPDATE_LAST_MESSAGE',
+                updater: (last) => (last.role === 'assistant' ? { ...last, snippets } : last)
               })
             },
             onCards: (cards) => {
               if (currentThreadRef.current !== messageThreadId) return
               dispatch({
-                type: 'UPDATE_MESSAGES',
-                updater: (prev) => {
-                  const updated = [...prev]
-                  const lastIdx = updated.length - 1
-                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                    updated[lastIdx] = { ...updated[lastIdx], cards }
-                  }
-                  return updated
-                }
+                type: 'UPDATE_LAST_MESSAGE',
+                updater: (last) => (last.role === 'assistant' ? { ...last, cards } : last)
               })
             },
             onToolSteps: (toolSteps) => {
               if (currentThreadRef.current !== messageThreadId) return
               dispatch({
-                type: 'UPDATE_MESSAGES',
-                updater: (prev) => {
-                  const updated = [...prev]
-                  const lastIdx = updated.length - 1
-                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                    updated[lastIdx] = { ...updated[lastIdx], toolSteps }
-                  }
-                  return updated
-                }
+                type: 'UPDATE_LAST_MESSAGE',
+                updater: (last) =>
+                  last.role === 'assistant' ? { ...last, toolSteps } : last
               })
             },
             onActiveSkill: (skillName) => {
               if (currentThreadRef.current !== messageThreadId) return
               dispatch({
-                type: 'UPDATE_MESSAGES',
-                updater: (prev) => {
-                  const updated = [...prev]
-                  const lastIdx = updated.length - 1
-                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                    updated[lastIdx] = { ...updated[lastIdx], activeSkill: skillName }
-                  }
-                  return updated
-                }
+                type: 'UPDATE_LAST_MESSAGE',
+                updater: (last) =>
+                  last.role === 'assistant' ? { ...last, activeSkill: skillName } : last
               })
             },
             onStructuredResponse: (response) => {
               if (currentThreadRef.current !== messageThreadId) return
               dispatch({
-                type: 'UPDATE_MESSAGES',
-                updater: (prev) => {
-                  const updated = [...prev]
-                  const lastIdx = updated.length - 1
-                  if (lastIdx >= 0 && updated[lastIdx].role === 'assistant') {
-                    updated[lastIdx] = { ...updated[lastIdx], structuredResponse: response }
-                  }
-                  return updated
-                }
+                type: 'UPDATE_LAST_MESSAGE',
+                updater: (last) =>
+                  last.role === 'assistant' ? { ...last, structuredResponse: response } : last
               })
             },
             onDone: () => {
@@ -400,15 +346,8 @@ export function useChatActions({
               if (currentThreadRef.current !== messageThreadId) return
               dispatch({ type: 'SET_LOADING', isLoading: false })
               dispatch({
-                type: 'UPDATE_MESSAGES',
-                updater: (prev) => {
-                  const updated = [...prev]
-                  const lastIdx = updated.length - 1
-                  if (lastIdx >= 0) {
-                    updated[lastIdx].content = `Erro: ${err}`
-                  }
-                  return updated
-                }
+                type: 'UPDATE_LAST_MESSAGE',
+                updater: (last) => ({ ...last, content: `Erro: ${err}` })
               })
             }
           },
