@@ -119,7 +119,9 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
         economyService.setGamePreferences(prefs)
       }
       economyService.setPreferencesPath(prefsPath)
-    } catch {}
+    } catch (err) {
+      logger.warn('[CoreManager] Failed to load economy preferences:', err)
+    }
 
     ipcMain.handle('economy:dismiss', async () => {
       await economyService!.dismiss()
@@ -802,13 +804,17 @@ async function killNodeCore(): Promise<void> {
   if (process.platform === 'win32') {
     try {
       execSync(`taskkill /pid ${pid} /t /f`, { stdio: 'ignore' })
-    } catch {}
+    } catch (err) {
+      logger.warn(`[CoreManager] taskkill failed for node core PID ${pid}:`, err)
+    }
   } else {
     await new Promise<void>((resolve) => {
       const timer = setTimeout(() => {
         try {
           child.kill('SIGKILL')
-        } catch {}
+        } catch (err) {
+          logger.warn(`[CoreManager] SIGKILL failed for node core PID ${pid}:`, err)
+        }
         resolve()
       }, 3000)
 
@@ -819,7 +825,8 @@ async function killNodeCore(): Promise<void> {
 
       try {
         child.kill('SIGTERM')
-      } catch {
+      } catch (err) {
+        logger.warn(`[CoreManager] SIGTERM failed for node core PID ${pid}:`, err)
         clearTimeout(timer)
         resolve()
       }
@@ -860,7 +867,9 @@ export function forceKillAllSync(): void {
       } else {
         process.kill(nodeChild.pid!, 'SIGKILL')
       }
-    } catch {}
+    } catch (err) {
+      logger.warn(`[CoreManager] forceKillAllSync failed to kill node core PID ${nodeChild.pid}:`, err)
+    }
   }
   setNodeCoreProcess(null)
 
@@ -872,7 +881,9 @@ export function forceKillAllSync(): void {
       } else {
         process.kill(pid, 'SIGKILL')
       }
-    } catch {}
+    } catch (err) {
+      logger.warn(`[CoreManager] forceKillAllSync failed to kill python PID ${pid}:`, err)
+    }
     setPythonProcess(null)
   }
 

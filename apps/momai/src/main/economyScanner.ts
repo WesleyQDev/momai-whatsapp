@@ -1,6 +1,7 @@
 import { readFileSync, existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { execSync } from 'child_process'
+import { logger } from './logger'
 
 export interface ScannedGame {
   name: string
@@ -30,7 +31,9 @@ function findSteamPath(): string | null {
       const p = match[1].trim().replace(/\\\\/g, '\\')
       if (existsSync(p)) candidates.unshift(p)
     }
-  } catch {}
+  } catch (err) {
+    logger.debug('[EconomyScanner] Steam registry query failed (non-Steam or restricted):', err)
+  }
   for (const p of candidates) {
     if (existsSync(join(p, 'steam.exe')) || existsSync(join(p, 'config', 'libraryfolders.vdf'))) {
       return p
@@ -57,7 +60,9 @@ function readLibraryPaths(steamPath: string): string[] {
       if (!paths.includes(p) && existsSync(join(p, 'steamapps'))) paths.push(p)
       idx = endQuote + 1
     }
-  } catch {}
+  } catch (err) {
+    logger.warn('[EconomyScanner] Failed to parse Steam libraryfolders.vdf:', err)
+  }
   return paths
 }
 
@@ -86,7 +91,9 @@ function scanSteamFolder(appsDir: string, seen: Set<string>): ScannedGame[] {
         launcher: 'steam',
         coverUrl: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`
       })
-    } catch {}
+    } catch (err) {
+      logger.debug(`[EconomyScanner] Failed to read Steam appmanifest ${file}:`, err)
+    }
   }
   return games
 }
@@ -114,7 +121,9 @@ function scanEpicDatFallback(seen: Set<string>): ScannedGame[] {
         seen.add(key)
         games.push({ name: a.DisplayName, appId: 0, launcher: 'epic', coverUrl: '' })
       }
-    } catch {}
+    } catch (err) {
+      logger.debug(`[EconomyScanner] Failed to read Epic LauncherInstalled.dat at ${datPath}:`, err)
+    }
   }
   return games
 }
