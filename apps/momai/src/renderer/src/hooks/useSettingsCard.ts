@@ -17,7 +17,6 @@ export interface Settings {
   ai_provider: string
   ai_model: string
   local_backend: string
-  api_keys: { groq: string; gemini: string }
   tts_engine: string
   tts_voice: string
   tts_enabled: boolean
@@ -77,7 +76,6 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     ai_provider: 'local',
     ai_model: '',
     local_backend: 'auto',
-    api_keys: { groq: '', gemini: '' },
     tts_engine: 'edge-tts',
     tts_voice: '',
     tts_enabled: true,

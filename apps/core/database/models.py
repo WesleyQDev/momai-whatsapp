@@ -20,9 +20,8 @@ class Settings(Base):
     )
 
     # IA Provider
-    ai_provider = Column(String, default="local")  # local, groq, gemini
+    ai_provider = Column(String, default="local")
     ai_model = Column(String, default="Qwen 3 4B Instruct")
-    api_keys = Column(String, default="{}")  # JSON string {"groq": "", "gemini": ""}
     local_backend = Column(String, default="auto")  # auto, cuda, vulkan, cpu
     auto_start_llm = Column(Boolean, default=True)
 

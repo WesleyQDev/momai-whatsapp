@@ -21,11 +21,6 @@ import { EconomyService } from './economyService'
 import { broadcastEconomyState } from './windowManager'
 import { authFetch } from './security/authenticated-fetch'
 import { decideNodeCoreStartup, type NodeCoreHttpStatus } from './node-core-startup-decision'
-import {
-  encryptForStorage,
-  decryptFromStorage,
-  isEncryptionAvailable as isKeychainAvailable
-} from './security/keychain'
 
 const PYTHON_SIDECAR_HOST = API_HOST
 const PYTHON_SIDECAR_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
@@ -497,65 +492,25 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
     }
 
     if (msg.type === 'keychain:encrypt' && msg.requestId) {
-      try {
-        if (!isKeychainAvailable()) {
-          child.send({
-            type: 'keychain:encrypt-result',
-            requestId: msg.requestId,
-            ok: false,
-            error: 'OS keychain is not available'
-          })
-          return
-        }
-        const plain = typeof msg.payload === 'string' ? msg.payload : ''
-        const encrypted = encryptForStorage(plain).toString('base64')
-        child.send({
-          type: 'keychain:encrypt-result',
-          requestId: msg.requestId,
-          ok: true,
-          payload: encrypted
-        })
-      } catch (error: any) {
-        logger.error('[CoreManager] keychain:encrypt failed:', error?.message || error)
-        child.send({
-          type: 'keychain:encrypt-result',
-          requestId: msg.requestId,
-          ok: false,
-          error: error?.message || String(error)
-        })
-      }
+      // Keychain IPC client removed along with unused cloud API key flow.
+      // See apps/momai/src/main/security/keychain.ts for the generic wrapper
+      // if a future feature needs to encrypt/decrypt secrets.
+      child.send({
+        type: 'keychain:encrypt-result',
+        requestId: msg.requestId,
+        ok: false,
+        error: 'Keychain IPC channel is no longer available'
+      })
       return
     }
 
     if (msg.type === 'keychain:decrypt' && msg.requestId) {
-      try {
-        if (!isKeychainAvailable()) {
-          child.send({
-            type: 'keychain:decrypt-result',
-            requestId: msg.requestId,
-            ok: false,
-            error: 'OS keychain is not available'
-          })
-          return
-        }
-        const encryptedB64 = typeof msg.payload === 'string' ? msg.payload : ''
-        const buffer = Buffer.from(encryptedB64, 'base64')
-        const plain = decryptFromStorage(buffer)
-        child.send({
-          type: 'keychain:decrypt-result',
-          requestId: msg.requestId,
-          ok: true,
-          payload: plain
-        })
-      } catch (error: any) {
-        logger.error('[CoreManager] keychain:decrypt failed:', error?.message || error)
-        child.send({
-          type: 'keychain:decrypt-result',
-          requestId: msg.requestId,
-          ok: false,
-          error: error?.message || String(error)
-        })
-      }
+      child.send({
+        type: 'keychain:decrypt-result',
+        requestId: msg.requestId,
+        ok: false,
+        error: 'Keychain IPC channel is no longer available'
+      })
       return
     }
   })

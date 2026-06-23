@@ -8,7 +8,7 @@ describe('keychain helpers', () => {
 
   it('round-trip (skipped if encryption unavailable in test env)', () => {
     if (!isEncryptionAvailable()) return
-    const plain = 'sk-groq-12345'
+    const plain = 'test-secret-value'
     const enc = encryptForStorage(plain)
     expect(enc).toBeInstanceOf(Buffer)
     expect(enc.toString('utf8')).not.toBe(plain)
