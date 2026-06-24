@@ -15,22 +15,15 @@ export default function ExtensionPageRoute({ fallback: Fallback }: Props) {
   const [Component, setComponent] = useState<React.ComponentType<any> | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  console.log(
-    '[ExtensionPageRoute] id=',
-    id,
-    'skill=',
-    skill ? { id: skill.id, ui: skill.ui, manifest: skill.manifest } : null
-  )
-
   useEffect(() => {
     if (!id) return
-    if (!skill?.manifest?.ui?.page) {
+    if (!skill?.ui?.page) {
       setComponent(null)
       return
     }
     setComponent(null)
     setError(null)
-    const ui = skill.manifest.ui
+    const ui = skill.ui
     loadSkillRenderer(skill.id, ui, `/extensions/${skill.id}/dist`)
       .then(() => {
         const Renderer = getRenderer(ui.pageType!)
@@ -54,7 +47,7 @@ export default function ExtensionPageRoute({ fallback: Fallback }: Props) {
     return <div className="p-8 text-text-muted">Extensão não encontrada: {id}</div>
   }
 
-  if (!skill.manifest?.ui?.page) {
+  if (!skill.ui?.page) {
     return Fallback ? <Fallback extensionId={skill.id} /> : <div className="p-8 text-text-muted">Esta extensão não tem UI full-page</div>
   }
 
@@ -66,5 +59,5 @@ export default function ExtensionPageRoute({ fallback: Fallback }: Props) {
     )
   }
 
-  return <Component extensionId={skill.id} manifest={skill.manifest} />
+  return <Component extensionId={skill.id} manifest={skill} />
 }

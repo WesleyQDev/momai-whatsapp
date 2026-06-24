@@ -56,13 +56,6 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
       const locales = manifest.locales || {}
       const localized = locales[lang] || {}
 
-      console.log(
-        `[SkillOrchestrator] DEBUG skill=${skill.id} ` +
-        `ui=${JSON.stringify(manifest.ui)} ` +
-        `eventTypes=${JSON.stringify(manifest.eventTypes)} ` +
-        `theme=${JSON.stringify(manifest.theme)}`
-      )
-
       // Determine the best name and description
       const name = localized.name || manifest.name || skill.id
       const description = localized.description || manifest.description || ''
