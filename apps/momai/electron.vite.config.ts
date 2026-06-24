@@ -1,4 +1,4 @@
-import { existsSync, createReadStream } from 'fs'
+import { existsSync, createReadStream, readFileSync } from 'fs'
 import { resolve, extname, join } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
@@ -13,6 +13,16 @@ const MIME_BY_EXT: Record<string, string> = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png'
 }
+
+const BARE_TO_ABS: Record<string, string> = {
+  react: '/node_modules/react/index.js',
+  'react-dom': '/node_modules/react-dom/index.js',
+  'react-dom/client': '/node_modules/react-dom/client.js',
+  'react/jsx-runtime': '/node_modules/react/jsx-runtime.js',
+  'react/jsx-dev-runtime': '/node_modules/react/jsx-dev-runtime.js'
+}
+
+const BARE_IMPORT_RE = /((?:from|import)\s*['"])([^'"./][^'"]*)(['"])/g
 
 function skillBundlesPlugin() {
   return {
@@ -41,9 +51,21 @@ function skillBundlesPlugin() {
           res.statusCode = 404
           return res.end('file_not_found')
         }
-        const mime = MIME_BY_EXT[extname(fullPath).toLowerCase()] || 'application/octet-stream'
+        const ext = extname(fullPath).toLowerCase()
+        const mime = MIME_BY_EXT[ext] || 'application/octet-stream'
         res.setHeader('Content-Type', mime)
         res.setHeader('Cache-Control', 'no-cache')
+        if (ext === '.js' || ext === '.mjs') {
+          const rewritten = readFileSync(fullPath, 'utf8').replace(
+            BARE_IMPORT_RE,
+            (match, prefix, specifier, suffix) => {
+              const abs = BARE_TO_ABS[specifier]
+              return abs ? `${prefix}${abs}${suffix}` : match
+            }
+          )
+          res.end(rewritten)
+          return
+        }
         createReadStream(fullPath).pipe(res)
       })
     }
