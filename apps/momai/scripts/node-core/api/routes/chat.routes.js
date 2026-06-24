@@ -15,15 +15,35 @@ function createChatRoutes(context) {
     llamaState,
     getThreadMessages,
     saveStore,
-    listSessions
+    listSessions,
+    extensionHostManager,
+    skillRegistry
   } = context
 
   return async function handleChatRoutes(req, res, pathname, parsedUrl) {
-    if (pathname === '/voice/whatsapp-reply/wait' && req.method === 'POST') {
+    const replyMatch = pathname.match(/^\/voice\/([^/]+)\/reply\/wait$/)
+    if (replyMatch && req.method === 'POST') {
+      const skillId = replyMatch[1]
+      const skill =
+        skillRegistry && typeof skillRegistry.getById === 'function' ? skillRegistry.getById(skillId) : null
+      if (!skill) {
+        sendJson(res, 404, { ok: false, error: 'skill_not_found' })
+        return true
+      }
+      const replyHook = skill.manifest?.voiceHooks?.reply
+      if (!replyHook || !replyHook.tool) {
+        sendJson(res, 400, { ok: false, error: 'no_voice_reply_hook' })
+        return true
+      }
+      const body = await context.readJsonBody(req).catch(() => ({}))
       try {
-        await proxyToPython(req, res, pathname)
-      } catch (error) {
-        sendVoiceSidecarFallback(res, pathname, error)
+        const result = await extensionHostManager.sendToPersistent(skillId, {
+          toolName: replyHook.tool,
+          args: body || {}
+        })
+        sendJson(res, 200, result || { ok: true })
+      } catch (err) {
+        sendJson(res, 500, { ok: false, error: err?.message || 'voice_reply_error' })
       }
       return true
     }

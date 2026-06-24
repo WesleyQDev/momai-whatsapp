@@ -244,7 +244,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     setVoiceStatus('listening')
     ;(async () => {
       try {
-        const res = await window.api.apiFetch(`${API_URL}/voice/whatsapp-reply/wait`, {
+        const res = await window.api.apiFetch(`${API_URL}/voice/whatsapp/reply/wait`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contact_jid: contactJid }),
