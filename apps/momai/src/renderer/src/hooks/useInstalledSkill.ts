@@ -14,7 +14,8 @@ export function useInstalledSkill(id: string | undefined): Extension | null {
     fetchExtensions()
       .then((all) => {
         if (cancelled) return
-        setSkill(all.find((s) => s.id === id) || null)
+        const found = all.find((s) => s.id === id)
+        setSkill(found ? { manifest: {}, ...found } : null)
       })
       .catch(() => {
         if (!cancelled) setSkill(null)

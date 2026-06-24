@@ -17,16 +17,17 @@ export default function ExtensionPageRoute({ fallback: Fallback }: Props) {
 
   useEffect(() => {
     if (!id) return
-    if (!skill?.manifest.ui?.page) {
+    if (!skill?.manifest?.ui?.page) {
       setComponent(null)
       return
     }
     setComponent(null)
     setError(null)
-    loadSkillRenderer(skill.id, skill.manifest.ui, `/extensions/${skill.id}/dist`)
+    const ui = skill.manifest.ui
+    loadSkillRenderer(skill.id, ui, `/extensions/${skill.id}/dist`)
       .then(() => {
-        const Renderer = getRenderer(skill.manifest.ui.pageType!)
-        if (!Renderer) throw new Error(`Renderer not registered: ${skill.manifest.ui.pageType}`)
+        const Renderer = getRenderer(ui.pageType!)
+        if (!Renderer) throw new Error(`Renderer not registered: ${ui.pageType}`)
         setComponent(() => Renderer)
       })
       .catch((err) => setError(err.message || 'Failed to load extension'))
