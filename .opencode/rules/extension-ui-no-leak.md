@@ -207,19 +207,22 @@ Aliases do esbuild (`momai:registry`, `momai:events`, `momai:api`, `momai:consta
 Em dev (`pnpm dev`), o renderer (Electron) fala com o **Vite dev server** (porta 5173). O node-core (porta 8050) **não** está no path do renderer em dev. Por isso, o middleware em `apps/momai/electron.vite.config.ts` (`skillBundlesPlugin`) serve os bundles da skill diretamente do Vite:
 
 1. **Strip query string** antes do match: `req.url.split('?')[0]` (Vite adiciona `?import` aos dynamic imports)
-2. **Rewrite bare specifiers** para paths absolutos de `node_modules` com o marker `?import`:
+2. **Rewrite bare specifiers** para `/@id/<pkg>` (Vite's special URL prefix for npm modules):
    ```ts
    const BARE_TO_ABS: Record<string, string> = {
-     react: '/node_modules/react/index.js?import',
-     'react-dom': '/node_modules/react-dom/index.js?import',
-     'react-dom/client': '/node_modules/react-dom/client.js?import',
-     'react/jsx-runtime': '/node_modules/react/jsx-runtime.js?import',
-     'react/jsx-dev-runtime': '/node_modules/react/jsx-dev-runtime.js?import'
+     react: '/@id/react',
+     'react-dom': '/@id/react-dom',
+     'react-dom/client': '/@id/react-dom/client',
+     'react/jsx-runtime': '/@id/react/jsx-runtime',
+     'react/jsx-dev-runtime': '/@id/react/jsx-dev-runtime'
    }
    ```
-   O `?import` marker é essencial — sem ele, o Vite retorna 404 (pnpm symlink layout não expõe os paths como arquivos diretamente servíveis).
+
+   **Por que `/@id/<pkg>` (sem `/index.js`)?** Vite resolve o pacote via `exports` field do `package.json`. Apontar para `/@id/react/index.js` retorna 500 (`Missing "./index.js" specifier in "react" package`) porque React 19 não exporta `./index.js`. Apontar para `/node_modules/react/index.js` serve o source CJS raw (`module.exports = require(...)`) que o browser não pode usar como ESM. Apenas `/@id/react` (sem subpath) funciona corretamente — Vite retorna um wrapper ESM válido (704 bytes para react).
 
 Se você adicionar uma nova dep externa em `build.mjs` (ex: `external: ['lodash']`), adicione também no `BARE_TO_ABS`.
+
+**Diagnóstico**: se os bundles falham ao carregar, rode `node apps/momai/scripts/test-vite-skill-bundles.mjs` (inicia um Vite standalone na porta 5174 e faz requests para vários paths de teste). Não inicia o Electron.
 
 ---
 
