@@ -343,6 +343,34 @@ function createExtensionsRoutes(context) {
   return async function handleExtensionsRoutes(req, res, pathname, parsedUrl) {
     const lang = parsedUrl.searchParams?.get('lang') || 'pt-BR'
 
+    const distMatch = pathname.match(/^\/extensions\/([^/]+)\/dist\/(.+)$/)
+    if (distMatch && req.method === 'GET') {
+      const extId = distMatch[1]
+      const filePath = distMatch[2]
+      if (filePath.includes('..')) {
+        sendJson(res, 400, { ok: false, error: 'invalid_path' })
+        return true
+      }
+      const skill = typeof skillRegistry.getById === 'function' ? skillRegistry.getById(extId) : null
+      if (!skill || !skill.dir) {
+        sendJson(res, 404, { ok: false, error: 'skill_not_found' })
+        return true
+      }
+      const fullPath = path.join(skill.dir, 'dist', filePath)
+      if (!fs.existsSync(fullPath)) {
+        sendJson(res, 404, { ok: false, error: 'file_not_found' })
+        return true
+      }
+      const ext = path.extname(fullPath).toLowerCase()
+      const mime = ext === '.js' ? 'application/javascript'
+        : ext === '.map' ? 'application/json'
+        : ext === '.css' ? 'text/css'
+        : 'application/octet-stream'
+      res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'no-cache' })
+      fs.createReadStream(fullPath).pipe(res)
+      return true
+    }
+
     for (const mounted of mountedSkillRoutes) {
       if (mounted.path === pathname && mounted.method === req.method) {
         const body = await readJsonBody(req).catch(() => ({}))
