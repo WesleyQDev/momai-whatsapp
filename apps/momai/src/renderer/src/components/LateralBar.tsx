@@ -78,16 +78,20 @@ const iconMap: Record<string, any> = {
 
 function InlineSvgIcon({ svg, className }: { svg: string; className?: string }) {
   // Strip width/height from the root <svg> (caller controls size via
-  // className) and force fill="currentColor" so the icon inherits the
-  // theme color instead of the SVG default (black).
+  // className). Respect an explicit fill="none" on the root (used for
+  // outline icons like WhatsApp) — only force fill="currentColor" when
+  // the root has no fill or has a solid fill.
   const cleaned = svg.replace(/<svg([^>]*)>/i, (_match, attrs) => {
-    const stripped = attrs
-      .replace(/\s(width|height)=("[^"]*"|'[^']*')/gi, '')
-      .replace(/\sfill=("[^"]*"|'[^']*')/gi, ' fill="currentColor"')
-    if (!/\sfill=/i.test(stripped)) {
-      return `<svg${stripped} fill="currentColor">`
+    const noSize = attrs.replace(/\s(width|height)=("[^"]*"|'[^']*')/gi, '')
+    const fillMatch = noSize.match(/\sfill=("[^"]*"|'[^']*')/i)
+    if (fillMatch) {
+      if (fillMatch[1] === '"none"' || fillMatch[1] === "'none'") {
+        return `<svg${noSize}>`
+      }
+      const replaced = noSize.replace(/\sfill=("[^"]*"|'[^']*')/i, ' fill="currentColor"')
+      return `<svg${replaced}>`
     }
-    return `<svg${stripped}>`
+    return `<svg${noSize} fill="currentColor">`
   })
   return (
     <span
