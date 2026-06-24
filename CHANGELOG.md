@@ -2,6 +2,40 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## Unreleased
+
+### ✨ Novas Funcionalidades
+
+- **Self-Contained Extension UI**: Extensões (skills) agora podem embarcar seu próprio UI React (full-page e side-panel) sem que o app principal tenha hardcode. Bundle gerado por esbuild por skill, carregado dinamicamente via `loadSkillRenderer()` e auto-registrado no `SkillResponseRegistry`. A WhatsApp extension foi migrada como prova de conceito — a UI continua com a mesma aparência.
+
+- **Manifest routes mounting**: Skills declaram rotas HTTP adicionais em `manifest.json` (campo `routes`) que o node-core monta dinamicamente em `/extensions/<id><path>`. Substitui as rotas hardcoded `/extensions/whatsapp/*` que existiam no app principal.
+
+- **Manifest voice hooks**: Skills declaram hooks de comando de voz em `manifest.voiceHooks` (ex: "responda" no WhatsApp). O chat-service agora resolve o hook iterando skills habilitadas, sem hardcoded `sendToPersistent('whatsapp', ...)`.
+
+- **Dynamic tool priority**: O system prompt agora gera o bloco `<tool_priority>` dinamicamente a partir de `manifest.toolPriority` de cada skill habilitada, em vez de uma string hardcoded.
+
+- **Generic storage endpoint**: A Privacy View agora itera `manifest.storage` de cada skill instalada, em vez de ter um bloco JSX dedicado para WhatsApp.
+
+- **Generic persist-on-quit**: O app quit agora chama `manifest.persistOnQuit` (ex: `flush_history`) para cada skill habilitada, em vez de hardcoded para WhatsApp.
+
+### ⚙️ Refatorações
+
+- **WhatsApp UI migrada para a skill**: `WhatsAppView.tsx` (1.1k linhas) e `WhatsAppNotificationCard.tsx` (16k linhas) foram movidos para `apps/momai/scripts/skills/packaged/whatsapp/src/{page,panel}.tsx`. A skill agora é totalmente auto-contida — pode ser publicada como ZIP sem que o app precise conhecê-la.
+
+- **Roteamento genérico `/extensions/:id`**: Adicionada rota genérica `ExtensionPageRoute` que descobre o renderer pelo `manifest.ui.pageType` e o carrega dinamicamente. Substitui a rota hardcoded `/extensions/whatsapp`.
+
+- **LateralBar e ExtensionsView genéricos**: Removidos `if (id === 'whatsapp' || id === 'launcher')` para ícones e gradientes. Agora lêem `manifest.icon` e `manifest.theme` com whitelist de gradientes Tailwind.
+
+- **NotificationOverlay genérico**: Despacha eventos por `eventTypes` declarados pela skill, em vez de hardcoded para `whatsapp_notification`.
+
+- **API de extensões com tipos completos**: `Extension` interface em `api.ts` agora inclui `ui`, `eventTypes`, `storage`, `routes`, `theme`, `voiceHooks`, `persistOnQuit`, `toolPriority`.
+
+### 🐛 Correções
+
+- **Path depth em aliases esbuild**: Corrigido `tsconfig.json` e `build.mjs` da skill WhatsApp para apontar ao host app (4 níveis acima, não 3).
+
+- **Deps faltantes no package.json da skill**: Restauradas `@whiskeysockets/baileys` e `pino` (deps de runtime do `background-worker.js`) que foram omitidas do plano original.
+
 ## 1.3.0 - 2026-05-02
 
 ## 1.2.0 - 2026-04-22
