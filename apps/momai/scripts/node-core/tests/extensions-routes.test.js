@@ -1,16 +1,19 @@
-const mockSpawn = vi.fn(() => ({
-  on: vi.fn(),
-  unref: vi.fn()
-}))
-
-const cp = require('node:child_process')
-const realSpawn = cp.spawn
-cp.spawn = mockSpawn
-
 const { createExtensionsRoutes } = require('../api/routes/extensions.routes')
 
-function restoreSpawn() {
-  cp.spawn = realSpawn
+function makeMockRes() {
+  const res = {
+    statusCode: 200,
+    body: undefined,
+    status(code) {
+      res.statusCode = code
+      return res
+    },
+    json(data) {
+      res.body = data
+      return res
+    }
+  }
+  return res
 }
 
 function makeCtx(overrides = {}) {
@@ -43,69 +46,113 @@ function makeCtx(overrides = {}) {
   return { ctx, calls }
 }
 
-describe('launcher/open handler', () => {
-  beforeEach(() => {
-    mockSpawn.mockClear()
-  })
+const fakeSkillManifest = {
+  name: 'Fake Skill',
+  routes: [{ method: 'POST', path: '/disconnect', tool: 'disconnect' }]
+}
 
-  afterAll(() => {
-    restoreSpawn()
-  })
+function makeRegistryWithSkill(skill) {
+  return {
+    refresh: async () => {},
+    extensionsDir: '/tmp/exts',
+    getById: (id) => (id === skill.id ? skill : null),
+    getAll: () => [skill],
+    loadExtensions: async () => {},
+    executeHook: async () => {}
+  }
+}
 
-  it('uses spawn with arg array, never exec with string interpolation', async () => {
-    const maliciousPath = 'C:\\test"; calc.exe; "'
-    const { ctx, calls } = makeCtx({
-      readJsonBody: async () => ({ path: maliciousPath })
+describe('dynamic skill route mounting', () => {
+  it('mounts POST /extensions/<id>/<path> from manifest.routes and dispatches to hostManager', async () => {
+    const sendToPersistent = vi.fn().mockResolvedValue({ ok: true, message: 'done' })
+    const { ctx } = makeCtx({
+      skillRegistry: makeRegistryWithSkill({ id: 'fake-skill', manifest: fakeSkillManifest }),
+      extensionHostManager: { sendToPersistent },
+      readJsonBody: async () => ({ force: true })
     })
-    const fs = require('node:fs')
-    const origExistsSync = fs.existsSync
-    fs.existsSync = () => true
-    try {
-      const handler = createExtensionsRoutes(ctx)
+    const handler = createExtensionsRoutes(ctx)
+    const res = makeMockRes()
 
-      await handler({ method: 'POST' }, {}, '/launcher/open', {
-        searchParams: new URLSearchParams()
-      })
+    const handled = await handler(
+      { method: 'POST' },
+      res,
+      '/extensions/fake-skill/disconnect',
+      { searchParams: new URLSearchParams() }
+    )
 
-      expect(mockSpawn).toHaveBeenCalled()
-      const args = mockSpawn.mock.calls[0][1]
-      expect(Array.isArray(args)).toBe(true)
-      expect(args).toContain(maliciousPath)
-      const command = mockSpawn.mock.calls[0][0]
-      expect(command).not.toContain('calc')
-      expect(command).not.toContain('&')
-      expect(command).not.toContain(';')
-      expect(calls.status).toBe(200)
-    } finally {
-      fs.existsSync = origExistsSync
-    }
+    expect(handled).toBe(true)
+    expect(sendToPersistent).toHaveBeenCalledWith('fake-skill', {
+      toolName: 'disconnect',
+      args: { force: true }
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toEqual({ ok: true, message: 'done' })
   })
 
-  it('returns 400 when path is missing', async () => {
+  it('mounts GET /extensions/<id>/panel and wraps the result in a structured response', async () => {
+    const sendToPersistent = vi.fn().mockResolvedValue({
+      connected: true,
+      whitelist: [{ name: 'Pai', number: '5511' }]
+    })
     const { ctx, calls } = makeCtx({
-      readJsonBody: async () => ({})
+      skillRegistry: makeRegistryWithSkill({ id: 'fake-skill', manifest: fakeSkillManifest }),
+      extensionHostManager: { sendToPersistent }
     })
     const handler = createExtensionsRoutes(ctx)
 
-    await handler({ method: 'POST' }, {}, '/launcher/open', {
-      searchParams: new URLSearchParams()
-    })
+    const handled = await handler(
+      { method: 'GET' },
+      {},
+      '/extensions/fake-skill/panel',
+      { searchParams: new URLSearchParams() }
+    )
 
-    expect(mockSpawn).not.toHaveBeenCalled()
-    expect(calls.status).toBe(400)
+    expect(handled).toBe(true)
+    expect(sendToPersistent).toHaveBeenCalledWith('fake-skill', {
+      toolName: 'panel',
+      args: {}
+    })
+    expect(calls.status).toBe(200)
+    expect(calls.data.connected).toBe(true)
+    expect(calls.data.structuredResponse.type).toBe('generic-extension')
   })
 
-  it('returns 400 when path does not exist on disk', async () => {
-    const { ctx, calls } = makeCtx({
-      readJsonBody: async () => ({ path: 'C:\\nonexistent\\does-not-exist-xyz' })
+  it('returns 500 on hostManager.sendToPersistent error for mounted route', async () => {
+    const sendToPersistent = vi.fn().mockRejectedValue(new Error('boom'))
+    const { ctx } = makeCtx({
+      skillRegistry: makeRegistryWithSkill({ id: 'fake-skill', manifest: fakeSkillManifest }),
+      extensionHostManager: { sendToPersistent }
     })
     const handler = createExtensionsRoutes(ctx)
+    const res = makeMockRes()
 
-    await handler({ method: 'POST' }, {}, '/launcher/open', {
-      searchParams: new URLSearchParams()
+    const handled = await handler(
+      { method: 'POST' },
+      res,
+      '/extensions/fake-skill/disconnect',
+      { searchParams: new URLSearchParams() }
+    )
+
+    expect(handled).toBe(true)
+    expect(res.statusCode).toBe(500)
+    expect(res.body).toEqual({ ok: false, error: 'boom' })
+  })
+
+  it('falls through to the next handler when no skill declares the route', async () => {
+    const { ctx } = makeCtx({
+      skillRegistry: makeRegistryWithSkill({ id: 'fake-skill', manifest: {} })
     })
+    const handler = createExtensionsRoutes(ctx)
+    const res = makeMockRes()
 
-    expect(mockSpawn).not.toHaveBeenCalled()
-    expect(calls.status).toBe(400)
+    const handled = await handler(
+      { method: 'POST' },
+      res,
+      '/launcher/open',
+      { searchParams: new URLSearchParams() }
+    )
+
+    expect(handled).toBe(false)
+    expect(res.statusCode).toBe(200)
   })
 })
