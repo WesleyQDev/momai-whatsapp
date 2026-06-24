@@ -216,6 +216,7 @@ const extensionEvents = require('../../services/extension-events')
 const { resolveWhatsAppChannel } = require('../../utils/whatsapp-channel')
 const { DATA_DIR } = require('../../config/constants')
 const { sanitizeError } = require('../../utils/error-sanitizer.js')
+const { mountSkillRoutes } = require('../../services/manifest-routes')
 
 let _cachedExtensionsPayload = null
 let _lastExtensionsRefresh = 0
@@ -334,8 +335,24 @@ function createExtensionsRoutes(context) {
     return payload
   }
 
+  const mountedSkillRoutes = []
+  const skillRouteApp = {
+    get: (path, handler) => mountedSkillRoutes.push({ method: 'GET', path, handler }),
+    post: (path, handler) => mountedSkillRoutes.push({ method: 'POST', path, handler })
+  }
+  const allSkills = typeof skillRegistry.getAll === 'function' ? skillRegistry.getAll() : []
+  mountSkillRoutes(skillRouteApp, allSkills, extensionHostManager)
+
   return async function handleExtensionsRoutes(req, res, pathname, parsedUrl) {
     const lang = parsedUrl.searchParams?.get('lang') || 'pt-BR'
+
+    for (const mounted of mountedSkillRoutes) {
+      if (mounted.path === pathname && mounted.method === req.method) {
+        const body = await readJsonBody(req).catch(() => ({}))
+        await mounted.handler({ ...req, body }, res)
+        return true
+      }
+    }
 
     if (pathname === '/extensions' && req.method === 'GET') {
       console.log(`[ExtensionsAPI] GET /extensions (lang: ${lang})`)
