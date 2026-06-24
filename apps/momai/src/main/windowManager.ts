@@ -245,16 +245,12 @@ export function registerIpcHandlers(): void {
 function getOverlayDimensions(data?: {
   structuredResponse?: { type?: string; data?: { conversationHistory?: unknown[] } }
 }) {
-  const isWhatsApp = data?.structuredResponse?.type === 'whatsapp_notification'
   const historyLen = data?.structuredResponse?.data?.conversationHistory?.length ?? 0
   const width = 440
-  if (isWhatsApp && historyLen > 0) {
+  if (historyLen > 0) {
     return { width, height: 540 }
   }
-  if (isWhatsApp) {
-    return { width, height: 400 }
-  }
-  return { width: 500, height: 350 }
+  return { width, height: 400 }
 }
 
 export function createOverlayWindow(data?: any): void {

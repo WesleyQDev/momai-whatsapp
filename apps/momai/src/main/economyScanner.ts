@@ -6,7 +6,7 @@ import { logger } from './logger'
 export interface ScannedGame {
   name: string
   appId: number
-  launcher: 'steam' | 'epic'
+  platform: 'steam' | 'epic'
   coverUrl: string
   catalogItemId?: string
   sandboxId?: string
@@ -88,7 +88,7 @@ function scanSteamFolder(appsDir: string, seen: Set<string>): ScannedGame[] {
       games.push({
         name,
         appId: parseInt(appId, 10),
-        launcher: 'steam',
+        platform: 'steam',
         coverUrl: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`
       })
     } catch (err) {
@@ -119,7 +119,7 @@ function scanEpicDatFallback(seen: Set<string>): ScannedGame[] {
         const key = a.DisplayName.toLowerCase()
         if (seen.has(key)) continue
         seen.add(key)
-        games.push({ name: a.DisplayName, appId: 0, launcher: 'epic', coverUrl: '' })
+        games.push({ name: a.DisplayName, appId: 0, platform: 'epic', coverUrl: '' })
       }
     } catch (err) {
       logger.debug(`[EconomyScanner] Failed to read Epic LauncherInstalled.dat at ${datPath}:`, err)
@@ -156,7 +156,7 @@ function scanEpicManifests(seen: Set<string>): ScannedGame[] {
       games.push({
         name,
         appId: 0,
-        launcher: 'epic',
+        platform: 'epic',
         coverUrl: item.VaultThumbnailUrl || '',
         catalogItemId: item.CatalogItemId,
         sandboxId: item.SandboxId || item.CatalogNamespace
