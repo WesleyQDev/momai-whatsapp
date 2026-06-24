@@ -24,7 +24,7 @@ export default function ExtensionPageRoute({ fallback: Fallback }: Props) {
     setComponent(null)
     setError(null)
     const ui = skill.ui
-    loadSkillRenderer(skill.id, ui, `/extensions/${skill.id}/dist`)
+    loadSkillRenderer(skill.id, ui, `/extensions/${skill.id}`)
       .then(() => {
         const Renderer = getRenderer(ui.pageType!)
         if (!Renderer) throw new Error(`Renderer not registered: ${ui.pageType}`)
