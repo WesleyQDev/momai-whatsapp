@@ -46,7 +46,7 @@ export default function ExtensionPageRoute({ fallback: Fallback }: Props) {
     return <div className="p-8 text-text-muted">Extensão não encontrada: {id}</div>
   }
 
-  if (!skill.manifest.ui?.page) {
+  if (!skill.manifest?.ui?.page) {
     return Fallback ? <Fallback extensionId={skill.id} /> : <div className="p-8 text-text-muted">Esta extensão não tem UI full-page</div>
   }
 
