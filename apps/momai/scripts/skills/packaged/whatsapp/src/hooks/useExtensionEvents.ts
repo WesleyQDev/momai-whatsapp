@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { API_URL } from '../constants'
+import { API_URL } from 'momai:constants'
 
 interface ExtensionEvent {
   eventType: string

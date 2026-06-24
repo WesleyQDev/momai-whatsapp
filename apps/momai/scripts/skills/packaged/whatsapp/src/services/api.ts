@@ -1,5 +1,5 @@
-import { cleanMomaiActions, stripEmojisAndMarkdown } from '../utils/text'
-import { API_URL } from '../constants'
+import { cleanMomaiActions, stripEmojisAndMarkdown } from 'momai:text'
+import { API_URL } from 'momai:constants'
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   // Use the renderer's native fetch (Chromium's) instead of
@@ -275,7 +275,7 @@ export async function stopVoice(): Promise<void> {
   } catch {}
 }
 
-import { getTTSServiceRenderer } from './ttsService'
+import { getTTSServiceRenderer } from 'momai:tts-service'
 
 export async function speakText(text: string, engine?: string): Promise<void> {
   const cleanText = stripEmojisAndMarkdown(text)
