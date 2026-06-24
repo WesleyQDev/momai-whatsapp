@@ -27,13 +27,26 @@ export async function loadSkillRenderer(
     window.__skillRendererRegistry = { registerRenderer }
   }
   if (ui.page && ui.pageType) {
-    const mod = await import(/* @vite-ignore */ `${baseUrl}/${ui.page}`)
+    const key = `${skillId}:${ui.page}`
+    let mod = pageCache.get(key)
+    if (!mod) {
+      mod = (await import(/* @vite-ignore */ `${baseUrl}/${ui.page}`)) as any
+      pageCache.set(key, mod)
+    }
     registerRenderer(ui.pageType, mod.default)
   }
   if (ui.panel && ui.panelType) {
-    const mod = await import(/* @vite-ignore */ `${baseUrl}/${ui.panel}`)
+    const key = `${skillId}:${ui.panel}`
+    let mod = panelCache.get(key)
+    if (!mod) {
+      mod = (await import(/* @vite-ignore */ `${baseUrl}/${ui.panel}`)) as any
+      panelCache.set(key, mod)
+    }
     registerRenderer(ui.panelType, mod.default)
   }
 }
+
+const pageCache = new Map<string, any>()
+const panelCache = new Map<string, any>()
 
 export { GenericExtensionCard }

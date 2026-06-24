@@ -76,8 +76,8 @@ const iconMap: Record<string, any> = {
   Launcher: LauncherIcon
 }
 
-function resolveSkillIcon(manifest: any): React.ComponentType<any> | string {
-  const icon = manifest?.icon
+function resolveSkillIcon(ext: any): React.ComponentType<any> | string {
+  const icon = ext?.icon ?? ext?.manifest?.icon
   if (!icon) return PuzzlePieceIcon
   if (iconMap[icon]) return iconMap[icon]
   if (typeof icon === 'string' && icon.length <= 4) return icon
@@ -212,7 +212,7 @@ export default function LateralBar({
             const route = isChat ? '/' : `/extensions/${ext.id}`
             const isActive = isChat ? activeRoute === '/' : activeRoute === `/extensions/${ext.id}`
 
-            const Icon = resolveSkillIcon(ext.manifest)
+            const Icon = resolveSkillIcon(ext)
             const isNew = ext.name !== 'responder' && !seenPanels.includes(ext.id)
 
             return (
@@ -303,7 +303,12 @@ export default function LateralBar({
           return (
             <>
               {renderExt(
-                chatIcon || { id: 'com.momai.builtin.responder', name: 'responder', enabled: true }
+                chatIcon || {
+                  id: 'com.momai.builtin.responder',
+                  name: 'responder',
+                  enabled: true,
+                  icon: 'MessageSquare'
+                }
               )}
               {renderNotes()}
               {renderScheduler()}
