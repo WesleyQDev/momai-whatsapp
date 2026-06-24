@@ -441,6 +441,26 @@ export interface Extension {
     panel?: string
     panelType?: string
   }
+  routes?: Array<{
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+    path: string
+    tool: string
+  }>
+  theme?: {
+    gradient?: string
+    accent?: string
+  }
+  voiceHooks?: {
+    reply?: {
+      tool: string
+      promptTemplate: string
+    }
+  }
+  persistOnQuit?: string
+  toolPriority?: {
+    label: string
+    rule: string
+  }
   features?: {
     sidebar?: boolean
     sidebarPanel?: {
