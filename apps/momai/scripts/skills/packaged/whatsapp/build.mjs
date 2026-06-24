@@ -33,9 +33,9 @@ const options = {
   logLevel: 'info',
   external: ['react', 'react-dom', 'react/jsx-runtime'],
   alias: {
-    'momai:registry': path.resolve(__dirname, '../../../src/renderer/src/components/chat/SkillResponseRegistry.ts'),
-    'momai:events':    path.resolve(__dirname, '../../../src/renderer/src/hooks/useExtensionEvents.ts'),
-    'momai:api':       path.resolve(__dirname, '../../../src/renderer/src/services/api.ts')
+    'momai:registry': path.resolve(__dirname, '../../../../src/renderer/src/components/chat/SkillResponseRegistry.ts'),
+    'momai:events':    path.resolve(__dirname, '../../../../src/renderer/src/hooks/useExtensionEvents.ts'),
+    'momai:api':       path.resolve(__dirname, '../../../../src/renderer/src/services/api.ts')
   },
   banner: {
     js: `;(function(){if(typeof window!=='undefined'&&!window.__skillRendererRegistry){window.__skillRendererRegistry={registerRenderer:function(){}};}})();`

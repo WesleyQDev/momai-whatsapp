@@ -4,10 +4,17 @@
   "private": true,
   "type": "module",
   "description": "Extensão WhatsApp para MomAI",
+  "author": "WesleyQDev",
+  "license": "MIT",
+  "main": "background-worker.js",
   "scripts": {
     "build": "node build.mjs",
     "watch": "node build.mjs --watch",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.0.0",
+    "pino": "^8.0.0"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",
