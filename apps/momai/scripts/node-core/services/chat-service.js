@@ -2075,20 +2075,13 @@ async function runVoiceCommand(payload = {}) {
 
   console.log('[VOICE-CMD] Checking responda in:', originalContent)
   const contentLower = originalContent.toLowerCase().trim()
-  // Check if it's a "reply" command directed at WhatsApp
   if (contentLower.startsWith('responda') || contentLower.startsWith('responde')) {
-    console.log('[VOICE-CMD] responda detected, fetching last contact')
+    console.log('[VOICE-CMD] responda detected, resolving via voice hook')
     try {
       const hostManager = require('./extension-host-manager')
-      const histResult = await hostManager.sendToPersistent('whatsapp', {
-        toolName: 'get_history',
-        args: {}
-      })
-      if (histResult?.history?.length) {
-        const last = histResult.history[0]
-        const contactName = last.from
-        content = `[INSTRUCAO: O usuario esta respondendo a "${contactName}" no WhatsApp. A ultima mensagem dele foi: "${last.text}". Use a ferramenta send_message para enviar a resposta. NAO responda no chat, apenas execute o send_message.]\n${content}`
-      }
+      const { resolveVoiceReply } = require('./manifest-voice-hooks')
+      const injected = await resolveVoiceReply(originalContent, getEnabledSkills(), hostManager)
+      if (injected) content = injected
     } catch {}
     console.log('[VOICE-CMD] responda handled, falling through to LLM')
   }
