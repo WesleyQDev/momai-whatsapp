@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createElement } from 'react'
-import { getRenderer, registerRenderer } from '../components/chat/SkillResponseRegistry'
-import WhatsAppNotificationCard from '../components/chat/WhatsAppNotificationCard'
-
-registerRenderer('whatsapp_notification', WhatsAppNotificationCard)
+import { getRenderer, hasRenderer } from '../components/chat/SkillResponseRegistry'
 
 export default function OverlayView() {
   const [data, setData] = useState<any>(null)
@@ -39,8 +36,9 @@ export default function OverlayView() {
   }
 
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (data?.structuredResponse?.type === 'whatsapp_notification') {
-      // Bloqueia clique no backdrop para WhatsApp
+    const type = data?.structuredResponse?.type
+    // Bloqueia clique no backdrop quando há um renderer registrado para este tipo
+    if (type && hasRenderer(type)) {
       return
     }
     handleClose()
