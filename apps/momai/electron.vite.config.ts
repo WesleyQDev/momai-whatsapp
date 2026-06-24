@@ -15,11 +15,11 @@ const MIME_BY_EXT: Record<string, string> = {
 }
 
 const BARE_TO_ABS: Record<string, string> = {
-  react: '/node_modules/react/index.js?import',
-  'react-dom': '/node_modules/react-dom/index.js?import',
-  'react-dom/client': '/node_modules/react-dom/client.js?import',
-  'react/jsx-runtime': '/node_modules/react/jsx-runtime.js?import',
-  'react/jsx-dev-runtime': '/node_modules/react/jsx-dev-runtime.js?import'
+  react: '/@id/react',
+  'react-dom': '/@id/react-dom',
+  'react-dom/client': '/@id/react-dom/client',
+  'react/jsx-runtime': '/@id/react/jsx-runtime',
+  'react/jsx-dev-runtime': '/@id/react/jsx-dev-runtime'
 }
 
 const BARE_IMPORT_RE = /((?:from|import)\s*['"])([^'"./][^'"]*)(['"])/g
