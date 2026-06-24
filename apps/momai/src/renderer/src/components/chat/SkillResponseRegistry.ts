@@ -18,3 +18,5 @@ export const hasRenderer = (type) => {
 export const listRendererTypes = () => {
   return Array.from(renderers.keys())
 }
+
+export const resetForTest = () => renderers.clear()
