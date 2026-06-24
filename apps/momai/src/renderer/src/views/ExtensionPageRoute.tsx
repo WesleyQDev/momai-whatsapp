@@ -6,11 +6,13 @@ import { getRenderer } from '../components/chat/SkillResponseRegistry'
 import { ArrowPathIcon } from '@heroicons/react/24/outline'
 
 interface Props {
+  extensionId?: string
   fallback?: React.ComponentType<{ extensionId: string }>
 }
 
-export default function ExtensionPageRoute({ fallback: Fallback }: Props) {
-  const { id } = useParams<{ id: string }>()
+export default function ExtensionPageRoute({ extensionId: propId, fallback: Fallback }: Props) {
+  const params = useParams<{ id: string }>()
+  const id = propId ?? params.id
   const skill = useInstalledSkill(id)
   const [Component, setComponent] = useState<React.ComponentType<any> | null>(null)
   const [error, setError] = useState<string | null>(null)

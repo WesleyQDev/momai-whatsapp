@@ -217,6 +217,7 @@ function App(): React.JSX.Element {
               >
                 {extensionPageId ? (
                   <ExtensionPageRoute
+                    extensionId={extensionPageId}
                     fallback={({ extensionId }) => (
                       <div className="p-8 text-text-muted">
                         Extensão "{extensionId}" não tem UI full-page
