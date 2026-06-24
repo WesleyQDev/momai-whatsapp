@@ -15,7 +15,7 @@
 </head>
 <body>
     <h1>Política de Privacidade</h1>
-    <p><strong>Última atualização:</strong> 24 de maio de 2026</p>
+    <p><strong>Última atualização:</strong> 23 de junho de 2026</p>
 
     <p>Esta política de privacidade se aplica ao aplicativo <strong>MomAI</strong> para desktop (doravante referido como "Aplicação") desenvolvido por <strong>Wesley Developer Studios</strong>. Esta Aplicação é fornecida gratuitamente e destina-se ao uso "COMO ESTÁ".</p>
 
@@ -74,12 +74,41 @@
     <p>Você também pode a qualquer momento excluir todos os seus dados localmente desinstalando a Aplicação ou apagando manualmente a pasta de dados da MomAI em seu computador.</p>
 
     <h2>Retenção de Dados</h2>
-    <p>Seus dados permanecem armazenados localmente no seu computador pelo tempo que você desejar utilizar a Aplicação. Você pode removê-los a qualquer momento:</p>
+    <p>Seus dados permanecem armazenados localmente no seu computador. A Aplicação aplica as seguintes políticas automáticas de retenção (configuráveis apenas pelos prazos indicados, não pelo conteúdo):</p>
+    <ul>
+        <li><strong>Histórico de conversas:</strong> threads e mensagens são removidas automaticamente após <strong>90 dias de inatividade</strong> (ajustável pela variável de ambiente <code>MOMAI_THREAD_RETENTION_DAYS</code>);</li>
+        <li><strong>Lembretes:</strong> lembretes inativos (concluídos ou expirados) são purgados automaticamente após <strong>30 dias</strong> (ajustável por <code>MOMAI_REMINDER_RETENTION_DAYS</code>). Lembretes ativos são mantidos enquanto estiverem marcados como tal;</li>
+        <li><strong>Notas:</strong> mantidas indefinidamente, sob seu controle. São criptografadas em repouso e podem ser excluídas individualmente pela interface ou em lote pela tela "Privacidade e Dados";</li>
+        <li><strong>Configurações e preferências:</strong> mantidas indefinidamente enquanto a Aplicação estiver instalada;</li>
+        <li><strong>Métricas de observabilidade:</strong> traces de desempenho armazenados em <code>&lt;userData&gt;/cache/observability-metrics.json</code>, em um buffer rotativo limitado às últimas <strong>2.000 entradas</strong>;</li>
+        <li><strong>Credenciais de autenticação do WhatsApp (extensão):</strong> criptografadas em repouso e retidas enquanto a extensão estiver instalada. São removidas quando você desinstala a extensão ou usa "Apagar todos os meus dados".</li>
+    </ul>
+    <p>Além da retenção automática, você pode remover seus dados a qualquer momento:</p>
     <ul>
         <li>Excluindo conversas, notas e lembretes individualmente pela interface da Aplicação;</li>
-        <li>Desinstalando a Aplicação (os dados podem ser preservados ou removidos conforme sua escolha);</li>
-        <li>Apagando manualmente a pasta de dados da MomAI.</li>
+        <li>Usando o botão "Apagar todos os meus dados" em <em>Configurações &rarr; Zona de perigo</em> ou na tela <em>Privacidade e Dados</em>;</li>
+        <li>Solicitando a exportação dos dados (ver seção "Exportação e Exclusão de Dados (LGPD)") e, em seguida, desinstalando a Aplicação;</li>
+        <li>Desinstalando a Aplicação pelo instalador (remove automaticamente todos os vestígios de dados — ver "Limpeza na Desinstalação").</li>
     </ul>
+
+    <h2>Limpeza na Desinstalação</h2>
+    <p>O instalador oficial (NSIS no Windows, AppImage no Linux) é configurado para <strong>remover completamente todos os dados do usuário</strong> quando a Aplicação é desinstalada — incluindo todas as variants e caches que a Aplicação possa ter criado durante o uso:</p>
+    <ul>
+        <li><code>%APPDATA%\MomAI</code>, <code>%APPDATA%\MomAI-Dev</code>, <code>%APPDATA%\MomAI-Store</code>, <code>%APPDATA%\MomAI-Teste</code> e equivalentes em <code>%LOCALAPPDATA%</code>;</li>
+        <li>Cache do atualizador automático (<code>MomAI-updater</code>);</li>
+        <li>Cache local do HuggingFace (<code>huggingface/</code> usado por modelos de voz);</li>
+        <li>Entradas de autoinicialização no Registro do Windows (defesa em profundidade).</li>
+    </ul>
+    <p>Atualizações de versão (que usam o parâmetro <code>--updated</code> ou detectam uma versão anterior registrada) <strong>preservam</strong> a pasta de dados para que suas notas, histórico e configurações não sejam perdidos entre versões. Apenas uma desinstalação manual remove tudo.</p>
+    <p>Se você não quiser desinstalar a Aplicação, pode obter o mesmo efeito clicando em <strong>"Apagar todos os meus dados"</strong> em <em>Configurações &rarr; Zona de perigo</em> ou na tela <em>Privacidade e Dados</em>. Esse botão invoca o mesmo procedimento de limpeza, sem desinstalar o software.</p>
+
+    <h2>Exportação e Exclusão de Dados (LGPD)</h2>
+    <p>Em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), a Aplicação oferece dois controles diretos sobre seus dados:</p>
+    <ul>
+        <li><strong>Exportar meus dados:</strong> gera um arquivo ZIP contendo todas as categorias de dados armazenadas no dispositivo — <em>settings.json</em>, <em>reminders.json</em>, mensagens de cada thread, notas (descriptografadas), extensões, métricas e um <em>README.md</em> com instruções. Disponível na tela <em>Privacidade e Dados</em> e via ponte IPC (<code>window.momaiAPI.privacy.exportData()</code>);</li>
+        <li><strong>Apagar todos os meus dados:</strong> remove permanentemente os arquivos de dados locais (incluindo o banco unificado, notas, sessões, índice semântico, métricas, modelos LLM baixados, ambiente Python e credenciais criptografadas). Requer uma etapa de confirmação explícita digitando <code>DELETE_ALL_MY_DATA</code>. Disponível na tela <em>Privacidade e Dados</em>, em <em>Configurações &rarr; Zona de perigo</em> e via ponte IPC (<code>window.momaiAPI.privacy.deleteAll()</code>).</li>
+    </ul>
+    <p>Ambos os controles funcionam <strong>inteiramente offline</strong> e geram um arquivo temporário que é apagado após a entrega ou a confirmação de exclusão. Nenhuma cópia é enviada a servidores externos.</p>
 
     <h2>Medidas de Segurança</h2>
     <p>A Controladora adota as seguintes medidas para proteger seus dados:</p>
@@ -90,12 +119,22 @@
         <li>Não é necessário criar conta ou fornecer dados pessoais para utilizar a Aplicação.</li>
     </ul>
 
+    <div class="highlight">
+        <h3>Criptografia em repouso (at rest)</h3>
+        <p>Os dados mais sensíveis são criptografados antes de serem gravados em disco:</p>
+        <ul>
+            <li><strong>Notas:</strong> cada nota é cifrada com <strong>AES-256-GCM</strong> (modo autenticado). A chave de criptografia é derivada por <code>scrypt</code> a partir de um marcador secreto armazenado no cofre do sistema operacional via <code>safeStorage</code> (DPAPI no Windows, Keychain no macOS, libsecret no Linux). O IV é aleatório por gravação, e cada nota inclui um <em>authentication tag</em> que detecta adulteração;</li>
+            <li><strong>Credenciais de autenticação do WhatsApp (extensão Baileys):</strong> o arquivo <code>creds.json</code> (chaves do protocolo Signal) é mantido cifrado em <code>creds.json.enc</code> usando o mesmo <code>safeStorage</code> do sistema operacional. Durante a execução ativa, o conteúdo é descriptografado em memória para a biblioteca Baileys e re-cifrado assim que a sessão é encerrada.</li>
+        </ul>
+        <p><strong>Sobre as chaves:</strong> as chaves de criptografia são <em>por-instalação</em>, derivadas e protegidas pelo cofre do sistema operacional. <strong>Elas não podem ser recuperadas</strong> se o cofre do SO for perdido, reinstalado ou ficar inacessível (por exemplo, após trocar de usuário do sistema ou reinstalar o sistema operacional). Nessa situação, o conteúdo cifrado torna-se irrecuperável — por design, nem a Controladora possui uma cópia da chave.</p>
+    </div>
+
     <h2>Transferência Internacional de Dados</h2>
     <p>As conexões externas realizadas pela Aplicação (GitHub, PyPI, Microsoft, DuckDuckGo) podem envolver a transferência de dados para servidores localizados fora do Brasil. Ao utilizar a Aplicação, você consente com estas transferências para as finalidades descritas nesta Política. Cada serviço de terceiros possui sua própria política de privacidade que rege o tratamento dos dados.</p>
 
     <h2>Alterações nesta Política</h2>
     <p>Esta Política de Privacidade pode ser atualizada periodicamente para refletir mudanças na Aplicação ou na legislação aplicável. Recomendamos a consulta regular desta página para tomar conhecimento de qualquer alteração.</p>
-    <p><em>Atualizada em: 24 de maio de 2026.</em></p>
+    <p><em>Atualizada em: 23 de junho de 2026.</em></p>
 
     <h2>Encarregado (DPO)</h2>
     <p>Para assuntos relacionados à proteção de dados, entre em contato com o encarregado pelo e-mail abaixo.</p>
