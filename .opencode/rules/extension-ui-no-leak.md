@@ -136,6 +136,25 @@ launcher: 'steam' | 'epic'  // ❌ renomear para `platform: 'steam' | 'epic'`
 | Structured response | `getRenderer(data.structuredResponse.type)` (registry dinâmico) |
 | Tool dispatch | `extensionHostManager.sendToPersistent(skill.id, { toolName, args })` |
 
+### ✅ Onde os campos vivem no payload da API
+
+`buildExtensionsPayload` em `apps/momai/scripts/node-core/services/skill-orchestrator.js` promove os novos campos para o **top level** do objeto retornado por `/extensions`. O tipo `Extension` em `apps/momai/src/renderer/src/services/api.ts` declara esses campos no top level. Portanto:
+
+```ts
+// ✅ CORRETO — ler do top level
+const page = skill.ui?.page
+const events = skill.eventTypes
+const grad = skill.theme?.gradient
+const storage = skill.storage
+
+// ❌ ERRADO — `manifest` é o objeto fallback vazio do useInstalledSkill
+//   e o backend não envia `manifest` no top level, então seria sempre {}
+const page = skill.manifest?.ui?.page  // ← sempre undefined!
+const events = skill.manifest?.eventTypes
+```
+
+**Regra:** ler os novos campos sempre do top level (`skill.ui`, `skill.eventTypes`, etc). Se precisar do manifest inteiro, passe `skill` (o objeto inteiro) como prop.
+
 ### ✅ Helpers já disponíveis no monorepo
 
 ```ts
