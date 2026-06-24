@@ -97,7 +97,19 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
           sidebarPanel: manifest.sidebarPanel || null,
           agent_name: manifest.id
         },
-        keywords: store.skillKeywords?.[manifest.id || skill.id] || []
+        keywords: store.skillKeywords?.[manifest.id || skill.id] || [],
+
+        // Self-contained UI fields. Promoted from manifest to top level so the
+        // renderer can read them via skill.ui / skill.eventTypes / etc.
+        // (The Extension type in the renderer expects them flat.)
+        ui: manifest.ui || null,
+        eventTypes: manifest.eventTypes || [],
+        routes: manifest.routes || [],
+        storage: manifest.storage || null,
+        voiceHooks: manifest.voiceHooks || null,
+        persistOnQuit: manifest.persistOnQuit || null,
+        theme: manifest.theme || null,
+        toolPriority: manifest.toolPriority || null
       }
     } catch (err) {
       console.error(`[SkillOrchestrator] Error mapping skill ${skill?.id}:`, err)

@@ -15,7 +15,13 @@ export function useInstalledSkill(id: string | undefined): Extension | null {
       .then((all) => {
         if (cancelled) return
         const found = all.find((s) => s.id === id)
-        setSkill(found ? { manifest: {}, ...found } : null)
+        if (!found) {
+          setSkill(null)
+          return
+        }
+        // Ensure manifest is always an object so consumers (e.g. ExtensionPageRoute)
+        // can safely access skill.manifest.ui without null checks.
+        setSkill({ manifest: {}, ...found })
       })
       .catch(() => {
         if (!cancelled) setSkill(null)
