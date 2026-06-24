@@ -22,6 +22,7 @@ const { ensureLlamaReady, getLlamaBaseUrl, saveStore } = require('./llama-manage
 const { runSemanticMemoryRetrieval, getTop5SkillsSemantic } = require('./semantic-engine')
 const { isSkillEnabledByStore, getEnabledSkills } = require('./skill-orchestrator')
 const { routeByKeyword } = require('./keyword-router')
+const { buildToolPriority } = require('./tool-priority')
 const { triggerAutoTts, ensurePython, broadcast } = require('./tts-service')
 const { recordMetric } = require('./observability-service')
 const { DEFAULT_TIERS, loadTierConfig } = require('../config/tiers')
@@ -1176,9 +1177,13 @@ async function streamLlamaChat(req, res, payload) {
       const skillsBlock = selectedSkills
         .map((s) => `- ${s.manifest.name}: ${s.manifest.description}`)
         .join('\n')
+      const toolPriorityBody = buildToolPriority(selectedSkills)
+      const toolPriorityBlock = toolPriorityBody
+        ? `<tool_priority>\n${toolPriorityBody}\n</tool_priority>`
+        : ''
       const toolPriority = hasHistory
-        ? '<no_greeting>NEVER start with a greeting. If the conversation is in progress, begin directly with your answer.</no_greeting>\n\n<tool_priority>\n- WEATHER/CLIMA/TEMPO: ANY question about weather, temperature, rain, forecast -> call get_weather. NEVER answer weather from memory.\n- NEWS/NOTICIAS: web_search is for news, current events, prices, financial data, and real-time info.\n- REMINDERS/LEMBRETES: use scheduler tools for reminders.\n- OPEN/ABRIR: use launcher tools to find and open files/programs.\n- MEMORY: use memory tools for notes.\n</tool_priority>'
-        : '<tool_priority>\n- WEATHER/CLIMA/TEMPO: ANY question about weather, temperature, rain, forecast -> call get_weather. NEVER answer weather from memory.\n- NEWS/NOTICIAS: web_search is for news, current events, prices, financial data, and real-time info.\n- REMINDERS/LEMBRETES: use scheduler tools for reminders.\n- OPEN/ABRIR: use launcher tools to find and open files/programs.\n- MEMORY: use memory tools for notes.\n</tool_priority>'
+        ? `<no_greeting>NEVER start with a greeting. If the conversation is in progress, begin directly with your answer.</no_greeting>\n\n${toolPriorityBlock}`
+        : toolPriorityBlock
       const toolAvailabilityNote = shouldSendTools
         ? 'Tool schemas for these skills are available in this turn.'
         : 'Only skill summaries are available in this turn. Request a specific skill by name if you need its tools and full SKILL.md details.'
