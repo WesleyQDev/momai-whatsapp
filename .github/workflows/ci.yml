@@ -12,6 +12,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  block-env-files:
+    name: Block .env files from being committed
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Block .env files from being committed
+        run: |
+          # Determine the base commit (merge base for PR, previous commit for push)
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="HEAD~1"
+          fi
+          # Fallback to the empty tree SHA for the very first commit
+          if ! git rev-parse --verify "$BASE" 2>/dev/null; then
+            BASE="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+          fi
+          ENV_FILES=$(git diff --name-only "$BASE" HEAD | grep -E "(^|/)(\.env|\.env\.[^/]+)$" | grep -v "\.env\.example$" || true)
+          if [ -n "$ENV_FILES" ]; then
+            echo "ERROR: .env files cannot be committed:"
+            echo "$ENV_FILES"
+            exit 1
+          fi
+
   lint-typescript:
     name: Lint and Typecheck MomAI
     runs-on: ubuntu-latest
