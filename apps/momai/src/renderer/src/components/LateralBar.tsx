@@ -76,9 +76,34 @@ const iconMap: Record<string, any> = {
   Launcher: LauncherIcon
 }
 
+function InlineSvgIcon({ svg, className }: { svg: string; className?: string }) {
+  // Strip any width/height attributes from the root <svg> so the
+  // caller can control sizing via className. The <svg> is rendered
+  // with dangerouslySetInnerHTML — the extension manifest is the
+  // source of truth for the icon, same as emoji/name icons.
+  const cleaned = svg
+    .replace(/<svg([^>]*)>/i, (_match, attrs) => {
+      const stripped = attrs
+        .replace(/\s(width|height)=("[^"]*"|'[^']*')/gi, '')
+        .replace(/\sfill=("[^"]*"|'[^']*')/gi, '')
+      return `<svg${stripped}>`
+    })
+    .replace(/<svg([^>]*)\sfill=/i, '<svg$1 fill="currentColor"')
+  return (
+    <span
+      className={className}
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: cleaned }}
+    />
+  )
+}
+
 function resolveSkillIcon(ext: any): React.ComponentType<any> | string {
   const icon = ext?.icon ?? ext?.manifest?.icon
   if (!icon) return PuzzlePieceIcon
+  if (typeof icon === 'string' && icon.trim().toLowerCase().startsWith('<svg')) {
+    return { __svg: icon } as any
+  }
   if (iconMap[icon]) return iconMap[icon]
   if (typeof icon === 'string' && icon.length <= 4) return icon
   return PuzzlePieceIcon
@@ -231,7 +256,12 @@ export default function LateralBar({
                     className={`absolute ${isCompact ? '-left-2 h-4' : '-left-3 h-6'} w-1 bg-accent rounded-r-full animate-fade-in`}
                   />
                 )}
-                {typeof Icon === 'string' ? (
+                {(Icon as any)?.__svg ? (
+                  <InlineSvgIcon
+                    svg={(Icon as any).__svg}
+                    className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110 [&>svg]:w-full [&>svg]:h-full`}
+                  />
+                ) : typeof Icon === 'string' ? (
                   <span
                     className={`${isCompact ? 'text-sm' : 'text-base'} transition-all duration-300 ease-out group-hover:scale-110`}
                   >
