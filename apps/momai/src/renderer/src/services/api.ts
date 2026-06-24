@@ -430,6 +430,17 @@ export interface Extension {
   repo?: string
   stars?: number
   compatibility?: string
+  eventTypes?: string[]
+  storage?: {
+    description?: string
+    locations?: string[]
+  }
+  ui?: {
+    page?: string
+    pageType?: string
+    panel?: string
+    panelType?: string
+  }
   features?: {
     sidebar?: boolean
     sidebarPanel?: {

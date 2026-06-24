@@ -151,7 +151,7 @@ describe('PrivacyView', () => {
     expect(await screen.findByText(/settings.privacy.resetError/)).toBeTruthy()
   })
 
-  it('shows WhatsApp card when extension is installed', async () => {
+  it('shows skill card when extension declares manifest.storage', async () => {
     vi.mocked(fetchExtensions).mockResolvedValueOnce([
       {
         id: 'whatsapp',
@@ -159,10 +159,17 @@ describe('PrivacyView', () => {
         name: 'WhatsApp',
         description: 'WhatsApp extension',
         category: 'messaging',
-        enabled: true
+        enabled: true,
+        icon: '💚',
+        storage: {
+          description: 'Sessão WhatsApp criptografada',
+          locations: ['baileys-auth/', '*.json']
+        }
       }
     ])
     render(<PrivacyView />)
-    expect(await screen.findByText('privacy.stored.whatsapp.title')).toBeTruthy()
+    expect(await screen.findByText('WhatsApp')).toBeTruthy()
+    expect(await screen.findByText('Sessão WhatsApp criptografada')).toBeTruthy()
+    expect(await screen.findByText('baileys-auth/')).toBeTruthy()
   })
 })

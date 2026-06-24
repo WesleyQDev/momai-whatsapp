@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useI18n } from '../i18n'
 import ConfirmDialog from '../components/floating/ConfirmDialog'
-import { fetchExtensions } from '../services/api'
+import { fetchExtensions, type Extension } from '../services/api'
 
 const PRIVACY_POLICY_URL = 'https://momaiassistente.studio/politicas-privacidade-momai.html'
 
@@ -126,7 +126,9 @@ function formatBytes(bytes?: number): string {
 
 export default function PrivacyView() {
   const { t } = useI18n()
-  const [whatsappInstalled, setWhatsappInstalled] = useState(false)
+  const [skillsWithStorage, setSkillsWithStorage] = useState<
+    Array<Extension & { storageDescription: string; storageLocations: string[] }>
+  >([])
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -135,23 +137,19 @@ export default function PrivacyView() {
   )
 
   useEffect(() => {
-    let cancelled = false
     fetchExtensions()
-      .then((list) => {
-        if (cancelled) return
-        const found = list.some(
-          (e) =>
-            (e.id === 'whatsapp' || e.id?.includes('whatsapp')) &&
-            (e.installed === true || e.enabled === true)
+      .then((all) =>
+        setSkillsWithStorage(
+          all
+            .filter((s) => s.storage?.description)
+            .map((s) => ({
+              ...s,
+              storageDescription: s.storage!.description!,
+              storageLocations: s.storage!.locations || []
+            }))
         )
-        setWhatsappInstalled(found)
-      })
-      .catch(() => {
-        if (!cancelled) setWhatsappInstalled(false)
-      })
-    return () => {
-      cancelled = true
-    }
+      )
+      .catch(() => setSkillsWithStorage([]))
   }, [])
 
   const handleExport = async () => {
@@ -323,24 +321,34 @@ export default function PrivacyView() {
                 </div>
               </div>
 
-              {/* WhatsApp auth — only if installed */}
-              {whatsappInstalled && (
-                <div className="p-4 rounded-2xl bg-card/30 border border-white/5">
+              {/* Extension storage — one card per skill that declares manifest.storage */}
+              {skillsWithStorage.map((skill) => (
+                <div
+                  key={skill.id}
+                  className="p-4 rounded-2xl bg-card/30 border border-white/5"
+                >
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center text-accent shrink-0">
-                      <CheckIcon />
+                      <span className="text-base leading-none">
+                        {skill.icon || '🔌'}
+                      </span>
                     </div>
                     <div className="min-w-0">
-                      <h4 className="text-xs font-bold text-text">
-                        {t('privacy.stored.whatsapp.title')}
-                      </h4>
+                      <h4 className="text-xs font-bold text-text">{skill.name}</h4>
                       <p className="text-[11px] text-text-muted leading-relaxed mt-1">
-                        {t('privacy.stored.whatsapp.desc')}
+                        {skill.storageDescription}
                       </p>
+                      {skill.storageLocations.length > 0 && (
+                        <ul className="text-[10px] text-text-muted/80 list-disc pl-4 mt-2 space-y-0.5">
+                          {skill.storageLocations.map((loc, i) => (
+                            <li key={i}>{loc}</li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   </div>
                 </div>
-              )}
+              ))}
             </div>
           </section>
 
