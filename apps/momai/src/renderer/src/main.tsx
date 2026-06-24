@@ -8,7 +8,6 @@ import OverlayView from './views/OverlayView'
 import ErrorBoundary from './components/ErrorBoundary'
 import { I18nProvider } from './i18n'
 import ExtensionPageRoute from './views/ExtensionPageRoute'
-import WhatsAppView from './views/WhatsAppView'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -17,17 +16,15 @@ createRoot(document.getElementById('root')!).render(
         <HashRouter>
           <Routes>
             <Route path="/overlay" element={<OverlayView />} />
-            <Route path="/extensions/whatsapp" element={<App />} />
             <Route
               path="/extensions/:id"
               element={
                 <ExtensionPageRoute
-                  fallback={({ extensionId }) => {
-                    if (extensionId === 'whatsapp') return <WhatsAppView />
-                    return (
-                      <div className="p-8 text-text-muted">Extensão não tem UI full-page</div>
-                    )
-                  }}
+                  fallback={({ extensionId }) => (
+                    <div className="p-8 text-text-muted">
+                      Extensão "{extensionId}" não tem UI full-page
+                    </div>
+                  )}
                 />
               }
             />
