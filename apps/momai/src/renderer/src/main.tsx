@@ -7,7 +7,6 @@ import App from './App'
 import OverlayView from './views/OverlayView'
 import ErrorBoundary from './components/ErrorBoundary'
 import { I18nProvider } from './i18n'
-import ExtensionPageRoute from './views/ExtensionPageRoute'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -16,18 +15,6 @@ createRoot(document.getElementById('root')!).render(
         <HashRouter>
           <Routes>
             <Route path="/overlay" element={<OverlayView />} />
-            <Route
-              path="/extensions/:id"
-              element={
-                <ExtensionPageRoute
-                  fallback={({ extensionId }) => (
-                    <div className="p-8 text-text-muted">
-                      Extensão "{extensionId}" não tem UI full-page
-                    </div>
-                  )}
-                />
-              }
-            />
             <Route path="/*" element={<App />} />
           </Routes>
         </HashRouter>

@@ -43,10 +43,11 @@ describe('mountSkillRoutes', () => {
       { id: 'whatsapp', manifest: { routes: [{ method: 'POST', path: '/disconnect', tool: 'disconnect' }] } }
     ]
     mountSkillRoutes(app, skills, hostManager)
-    const fakeRes = { json: vi.fn(), status: vi.fn().mockReturnThis() }
+    const fakeRes = { writeHead: vi.fn(), end: vi.fn(), req: { headers: {} } }
     await app.routes[0].handler({ body: { force: true } }, fakeRes)
     expect(hostManager.sendToPersistent).toHaveBeenCalledWith('whatsapp', { toolName: 'disconnect', args: { force: true } })
-    expect(fakeRes.json).toHaveBeenCalledWith({ ok: true, message: 'done' })
+    expect(fakeRes.writeHead).toHaveBeenCalledWith(200, expect.objectContaining({ 'Content-Type': 'application/json; charset=utf-8' }))
+    expect(fakeRes.end).toHaveBeenCalledWith(JSON.stringify({ ok: true, message: 'done' }))
   })
 
   it('handler returns 500 on hostManager error', async () => {
@@ -56,9 +57,9 @@ describe('mountSkillRoutes', () => {
       { id: 'whatsapp', manifest: { routes: [{ method: 'POST', path: '/disconnect', tool: 'disconnect' }] } }
     ]
     mountSkillRoutes(app, skills, hostManager)
-    const fakeRes = { json: vi.fn(), status: vi.fn().mockReturnThis() }
+    const fakeRes = { writeHead: vi.fn(), end: vi.fn(), req: { headers: {} } }
     await app.routes[0].handler({}, fakeRes)
-    expect(fakeRes.status).toHaveBeenCalledWith(500)
-    expect(fakeRes.json).toHaveBeenCalledWith({ ok: false, error: 'boom' })
+    expect(fakeRes.writeHead).toHaveBeenCalledWith(500, expect.objectContaining({ 'Content-Type': 'application/json; charset=utf-8' }))
+    expect(fakeRes.end).toHaveBeenCalledWith(JSON.stringify({ ok: false, error: 'boom' }))
   })
 })

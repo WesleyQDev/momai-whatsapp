@@ -20,6 +20,7 @@ import BootstrapError from './components/BootstrapError'
 import InfoPanel from './components/InfoPanel'
 import ExtensionPanel from './components/ExtensionPanel'
 import NotificationOverlay from './components/NotificationOverlay'
+import ExtensionPageRoute from './views/ExtensionPageRoute'
 import { useAudioFallback } from './hooks/useAudioFallback'
 import { useInitTtsRenderer } from './hooks/useInitTtsRenderer'
 import { useAppTheme } from './hooks/useAppTheme'
@@ -155,6 +156,9 @@ function App(): React.JSX.Element {
     '/': 'ChatDashboard'
   }
 
+  const extensionPageMatch = location.pathname.match(/^\/extensions\/([^/]+)$/)
+  const extensionPageId = extensionPageMatch ? extensionPageMatch[1] : null
+
   const uiView = viewMapping[location.pathname] || 'ChatDashboard'
   const isChat = uiView === 'ChatDashboard'
   const showSidebar = uiView === 'ChatDashboard'
@@ -211,22 +215,32 @@ function App(): React.JSX.Element {
               <div
                 className={`w-full h-full flex ${isCompact ? 'flex-col' : `flex-row ${isChat ? 'p-4 xl:p-4 gap-4 xl:gap-8 justify-center w-full max-w-[1500px] mx-auto overflow-x-auto overflow-y-hidden' : ''}`}`}
               >
-                <MainViewRenderer
-                  viewName={uiView}
-                  isCompact={isCompact}
-                  onOpenSettings={openSettings}
-                  extensionData={currentExtension}
-                  chat={chat}
-                  statusInfo={statusInfo}
-                  initProgress={initProgress}
-                  visualProgress={visualProgress}
-                  initMessage={initMessage}
-                  isBooting={isBooting}
-                  isUpdating={isUpdating}
-                  isTierChanging={isTierChanging}
-                  setHistoryOpen={setHistoryOpen}
-                  isFirstLaunch={isFirstLaunch}
-                />
+                {extensionPageId ? (
+                  <ExtensionPageRoute
+                    fallback={({ extensionId }) => (
+                      <div className="p-8 text-text-muted">
+                        Extensão "{extensionId}" não tem UI full-page
+                      </div>
+                    )}
+                  />
+                ) : (
+                  <MainViewRenderer
+                    viewName={uiView}
+                    isCompact={isCompact}
+                    onOpenSettings={openSettings}
+                    extensionData={currentExtension}
+                    chat={chat}
+                    statusInfo={statusInfo}
+                    initProgress={initProgress}
+                    visualProgress={visualProgress}
+                    initMessage={initMessage}
+                    isBooting={isBooting}
+                    isUpdating={isUpdating}
+                    isTierChanging={isTierChanging}
+                    setHistoryOpen={setHistoryOpen}
+                    isFirstLaunch={isFirstLaunch}
+                  />
+                )}
 
                 {graphState.view === 'side' && !isCompact && (
                   <div className="flex-1 min-w-[280px] xl:min-w-[380px] max-w-[650px] rounded-xl bg-card border border-border/10 shadow-2xl overflow-hidden relative animate-in slide-in-from-right duration-500 shrink">

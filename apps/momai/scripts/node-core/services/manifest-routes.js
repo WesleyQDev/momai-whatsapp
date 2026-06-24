@@ -1,3 +1,5 @@
+const { sendJson } = require('../infrastructure/http-helpers')
+
 function mountSkillRoutes(app, skills, hostManager) {
   if (!Array.isArray(skills)) return
   for (const skill of skills) {
@@ -13,9 +15,9 @@ function mountSkillRoutes(app, skills, hostManager) {
             toolName: route.tool,
             args: req.body || {}
           })
-          res.json(result || { ok: true })
+          sendJson(res, 200, result || { ok: true })
         } catch (err) {
-          res.status(500).json({ ok: false, error: err && err.message ? err.message : 'error' })
+          sendJson(res, 500, { ok: false, error: err && err.message ? err.message : 'error' })
         }
       }
       app[method](fullPath, handler)
