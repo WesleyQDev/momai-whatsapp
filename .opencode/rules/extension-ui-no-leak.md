@@ -198,6 +198,29 @@ Skills com UI têm seu próprio `package.json`, `tsconfig.json`, `build.mjs` (es
 
 Aliases do esbuild (`momai:registry`, `momai:events`, `momai:api`, `momai:constants`, `momai:text`, `momai:tts-service`, `momai:image-viewer`) apontam para arquivos do host app (4 níveis acima do skill).
 
+**Formato do bundle**: sempre `format: 'esm'`. Nunca use `iife` (gera `require()` que o browser não suporta).
+
+**Bundle deve ser ESM** com `external: ['react', 'react-dom', 'react/jsx-runtime']`. Esses pacotes são fornecidos pelo host (Vite em dev, bundle do electron-vite em prod).
+
+### Dev Mode: Serving Skill Bundles via Vite
+
+Em dev (`pnpm dev`), o renderer (Electron) fala com o **Vite dev server** (porta 5173). O node-core (porta 8050) **não** está no path do renderer em dev. Por isso, o middleware em `apps/momai/electron.vite.config.ts` (`skillBundlesPlugin`) serve os bundles da skill diretamente do Vite:
+
+1. **Strip query string** antes do match: `req.url.split('?')[0]` (Vite adiciona `?import` aos dynamic imports)
+2. **Rewrite bare specifiers** para paths absolutos de `node_modules` com o marker `?import`:
+   ```ts
+   const BARE_TO_ABS: Record<string, string> = {
+     react: '/node_modules/react/index.js?import',
+     'react-dom': '/node_modules/react-dom/index.js?import',
+     'react-dom/client': '/node_modules/react-dom/client.js?import',
+     'react/jsx-runtime': '/node_modules/react/jsx-runtime.js?import',
+     'react/jsx-dev-runtime': '/node_modules/react/jsx-dev-runtime.js?import'
+   }
+   ```
+   O `?import` marker é essencial — sem ele, o Vite retorna 404 (pnpm symlink layout não expõe os paths como arquivos diretamente servíveis).
+
+Se você adicionar uma nova dep externa em `build.mjs` (ex: `external: ['lodash']`), adicione também no `BARE_TO_ABS`.
+
 ---
 
 ## Code Review Checklist
