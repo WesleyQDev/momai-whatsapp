@@ -27,6 +27,17 @@ MomAI é um assistente virtual local-first focado em privacidade, combinando LLM
 - **Pipeline voz**: WakeWordDetector → STT → LLM → TTS
 - **Streaming SSE**: `scripts/node-core.js`
 
+## ⚠️ Regra: Skills Auto-Contidas (LEIA ANTES DE TOCAR NO APP PRINCIPAL)
+
+Skills são artefatos ZIP auto-contidos. O app principal (`apps/momai/src/`, `apps/momai/scripts/node-core/`, `apps/momai/src/main/`) NUNCA deve conhecer uma skill específica pelo nome, ID, rota, evento, tool, ícone, cor ou caminho.
+
+**Regras detalhadas:** ver `.opencode/rules/extension-ui-no-leak.md`.
+
+**Resumo rápido:**
+- ❌ Proibido: `if (id === 'whatsapp' || id === 'launcher')`, `/extensions/whatsapp/*`, `'whatsapp_notification'`, system prompt com tools de skill, import de `src/page.tsx` da skill
+- ✅ Usar: `manifest.ui`, `manifest.eventTypes`, `manifest.routes`, `manifest.storage`, `manifest.voiceHooks`, `manifest.persistOnQuit`, `manifest.theme`, `manifest.toolPriority` + helpers genéricos (`mountSkillRoutes`, `collectStoredData`, `resolveVoiceReply`, `buildToolPriority`)
+- ✅ Build: cada skill com UI tem `build.mjs` (esbuild) próprio em `apps/momai/scripts/skills/packaged/<id>/`
+
 ## Convenções
 
 - **TS/React:** PascalCase componentes, camelCase hooks/utils, kebab-case arquivos
