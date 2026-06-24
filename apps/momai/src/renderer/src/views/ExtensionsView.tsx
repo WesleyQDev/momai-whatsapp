@@ -212,62 +212,75 @@ const iconMap: Record<string, React.ElementType> = {
   Launcher: LauncherIcon
 }
 
-function getSkillGradient(name: string, id?: string) {
-  const normalizedName = name ? name.toLowerCase().trim() : ''
-  const normalizedId = id ? id.toLowerCase().trim() : ''
+const ALLOWED_GRADIENTS = new Set([
+  'from-emerald-500 to-green-600',
+  'from-blue-500 to-indigo-600',
+  'from-violet-600 to-purple-500',
+  'from-rose-600 to-pink-500',
+  'from-cyan-600 to-blue-500',
+  'from-emerald-600 to-teal-500',
+  'from-amber-600 to-orange-500',
+  'from-fuchsia-600 to-pink-500',
+  'from-indigo-600 to-violet-500',
+  'from-lime-600 to-green-500',
+  'from-sky-600 to-cyan-500',
+  'from-red-600 to-rose-500'
+])
 
-  if (normalizedName === 'whatsapp' || normalizedId === 'whatsapp') {
-    return 'from-emerald-500 to-green-600'
-  }
-  if (normalizedName === 'launcher' || normalizedId === 'launcher') {
-    return 'from-blue-500 to-indigo-600'
-  }
-
-  const gradients = [
-    'from-violet-600 to-purple-500',
-    'from-rose-600 to-pink-500',
-    'from-cyan-600 to-blue-500',
-    'from-emerald-600 to-teal-500',
-    'from-amber-600 to-orange-500',
-    'from-fuchsia-600 to-pink-500',
-    'from-indigo-600 to-violet-500',
-    'from-lime-600 to-green-500',
-    'from-sky-600 to-cyan-500',
-    'from-red-600 to-rose-500'
-  ]
+function getSkillGradient(name: string, manifest?: any): string {
+  const claimed = manifest?.theme?.gradient
+  if (claimed && ALLOWED_GRADIENTS.has(claimed)) return claimed
+  const gradients = Array.from(ALLOWED_GRADIENTS)
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
   return gradients[Math.abs(hash) % gradients.length]
 }
 
-function getSkillIcon(name: string, skillId?: string, skillName?: string) {
-  const normalizedIcon = name ? name.trim() : ''
-  const normalizedId = skillId ? skillId.toLowerCase().trim() : ''
-  const normalizedName = skillName ? skillName.toLowerCase().trim() : ''
-
-  if (
-    normalizedIcon === 'whatsapp' ||
-    normalizedId === 'whatsapp' ||
-    normalizedName === 'whatsapp' ||
-    normalizedIcon === '💚'
-  ) {
-    return WhatsAppIcon
-  }
-
-  if (
-    normalizedIcon === 'launcher' ||
-    normalizedId === 'launcher' ||
-    normalizedName === 'launcher'
-  ) {
-    return LauncherIcon
-  }
-
+function getSkillIcon(name: string, skillId?: string, skillName?: string, manifest?: any) {
+  const icon = manifest?.icon
+  if (icon && iconMap[icon]) return iconMap[icon]
+  if (icon && typeof icon === 'string' && icon.length <= 4) return PuzzlePieceIcon
   return (
     iconMap[name] ||
     (skillId && iconMap[skillId]) ||
     (skillName && iconMap[skillName]) ||
     PuzzlePieceIcon
   )
+}
+
+function getAccentClasses(manifest?: any) {
+  const accent: string = manifest?.theme?.accent || 'violet'
+  return (
+    {
+      emerald: {
+        shadow: 'shadow-emerald-500/15',
+        button: 'bg-emerald-600 hover:bg-emerald-500',
+        progress: 'bg-emerald-400/30',
+        border: 'hover:border-emerald-500/50',
+        text: 'group-hover:text-emerald-400'
+      },
+      blue: {
+        shadow: 'shadow-blue-500/15',
+        button: 'bg-blue-600 hover:bg-blue-500',
+        progress: 'bg-blue-400/30',
+        border: 'hover:border-blue-500/50',
+        text: 'group-hover:text-blue-400'
+      },
+      violet: {
+        shadow: 'shadow-violet-500/10',
+        button: 'bg-violet-600 hover:bg-violet-500',
+        progress: 'bg-violet-400/30',
+        border: 'hover:border-violet-500/50',
+        text: 'group-hover:text-violet-400'
+      }
+    } as const
+  )[accent as 'emerald' | 'blue' | 'violet'] || {
+    shadow: 'shadow-violet-500/10',
+    button: 'bg-violet-600 hover:bg-violet-500',
+    progress: 'bg-violet-400/30',
+    border: 'hover:border-violet-500/50',
+    text: 'group-hover:text-violet-400'
+  }
 }
 
 /* ─── Star Rating ─── */
@@ -349,17 +362,21 @@ function FeaturedCarousel({
         style={{ cursor: dragScroll.grabCursor }}
       >
         {skills.map((skill) => {
-          const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece', skill.id, skill.name)
-          const isWhatsapp = skill.id === 'whatsapp' || skill.name.toLowerCase() === 'whatsapp'
-          const isLauncher = skill.id === 'launcher' || skill.name.toLowerCase() === 'launcher'
+          const IconComponent = getSkillIcon(
+            skill.icon || 'PuzzlePiece',
+            skill.id,
+            skill.name,
+            skill.manifest
+          )
+          const accentClasses = getAccentClasses(skill.manifest)
           return (
             <div
               key={skill.id}
               onClick={() => !dragScroll.isDraggingScroll() && onSelect(skill)}
-              className={`shrink-0 w-72 h-40 rounded-xl overflow-hidden cursor-pointer group/card relative border border-zinc-700/50 transition-all hover:-translate-y-0.5 hover:shadow-lg ${isWhatsapp ? 'hover:border-emerald-500/50' : isLauncher ? 'hover:border-blue-500/50' : 'hover:border-zinc-600'}`}
+              className={`shrink-0 w-72 h-40 rounded-xl overflow-hidden cursor-pointer group/card relative border border-zinc-700/50 transition-all hover:-translate-y-0.5 hover:shadow-lg ${accentClasses.border}`}
             >
               <div
-                className={`absolute inset-0 bg-gradient-to-br ${getSkillGradient(skill.name, skill.id)} opacity-30`}
+                className={`absolute inset-0 bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)} opacity-30`}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/40 to-transparent" />
               <div className="absolute inset-0 p-4 flex flex-col justify-between">
@@ -396,20 +413,24 @@ function FeaturedCarousel({
 
 /* ─── Skill Card ─── */
 function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extension) => void }) {
-  const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece', skill.id, skill.name)
-  const isWhatsapp = skill.id === 'whatsapp' || skill.name.toLowerCase() === 'whatsapp'
-  const isLauncher = skill.id === 'launcher' || skill.name.toLowerCase() === 'launcher'
+  const IconComponent = getSkillIcon(
+    skill.icon || 'PuzzlePiece',
+    skill.id,
+    skill.name,
+    skill.manifest
+  )
+  const accentClasses = getAccentClasses(skill.manifest)
   const isInstalled =
     skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
   return (
     <div
       onClick={() => onSelect(skill)}
-      className={`group bg-zinc-800/40 border border-zinc-700/50 rounded-2xl overflow-hidden cursor-pointer hover:bg-zinc-800/80 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl active:scale-[0.98] ${isWhatsapp ? 'hover:border-emerald-500/50' : isLauncher ? 'hover:border-blue-500/50' : 'hover:border-violet-500/50'}`}
+      className={`group bg-zinc-800/40 border border-zinc-700/50 rounded-2xl overflow-hidden cursor-pointer hover:bg-zinc-800/80 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl active:scale-[0.98] ${accentClasses.border}`}
     >
       <div className="p-5">
         <div className="flex items-start justify-between mb-4">
           <div
-            className={`p-3 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name, skill.id)} shadow-lg ${isWhatsapp ? 'shadow-emerald-500/15' : isLauncher ? 'shadow-blue-500/15' : 'shadow-violet-500/10'}`}
+            className={`p-3 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)} shadow-lg ${accentClasses.shadow}`}
           >
             {React.createElement(IconComponent, { className: 'w-6 h-6 text-white' })}
           </div>
@@ -442,7 +463,7 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
           </div>
         </div>
         <h3
-          className={`text-base font-bold text-zinc-100 mb-1.5 transition-colors ${isWhatsapp ? 'group-hover:text-emerald-400' : isLauncher ? 'group-hover:text-blue-400' : 'group-hover:text-violet-400'}`}
+          className={`text-base font-bold text-zinc-100 mb-1.5 transition-colors ${accentClasses.text}`}
         >
           {skill.name}
         </h3>
@@ -504,11 +525,16 @@ function SkillDetailView({
   installing: string | null
   installProgress?: { percent: number; speed: string; status: string } | null
 }) {
-  const IconComponent = getSkillIcon(skill.icon || 'PuzzlePiece', skill.id, skill.name)
+  const IconComponent = getSkillIcon(
+    skill.icon || 'PuzzlePiece',
+    skill.id,
+    skill.name,
+    skill.manifest
+  )
+  const accentClasses = getAccentClasses(skill.manifest)
   const isInstalled =
     skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
   const isBuiltin = skill.category === 'core'
-  const isLauncher = skill.id === 'launcher' || skill.name.toLowerCase() === 'launcher'
 
   return (
     <div className="animate-fade-in max-w-6xl mx-auto px-6 pb-20">
@@ -524,7 +550,7 @@ function SkillDetailView({
       {/* Tighter Hero Header */}
       <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-6 pb-6 border-b border-zinc-800/50">
         <div
-          className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name, skill.id)} shadow-xl ${skill.id === 'whatsapp' || skill.name.toLowerCase() === 'whatsapp' ? 'shadow-emerald-500/15' : isLauncher ? 'shadow-blue-500/15' : 'shadow-violet-500/10'} flex items-center justify-center shrink-0 border-2 border-zinc-800 relative overflow-hidden`}
+          className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)} shadow-xl ${accentClasses.shadow} flex items-center justify-center shrink-0 border-2 border-zinc-800 relative overflow-hidden`}
         >
           <div className="absolute inset-0 bg-white/5" />
           {React.createElement(IconComponent, {
@@ -618,11 +644,11 @@ function SkillDetailView({
                 <button
                   onClick={() => onInstall(skill)}
                   disabled={installing === skill.id}
-                  className={`px-8 py-2.5 text-white rounded-xl text-xs font-black disabled:opacity-50 transition-all uppercase tracking-widest relative overflow-hidden ${skill.id === 'whatsapp' || skill.name.toLowerCase() === 'whatsapp' ? 'bg-emerald-600 hover:bg-emerald-500' : isLauncher ? 'bg-blue-600 hover:bg-blue-500' : 'bg-violet-600 hover:bg-violet-500'}`}
+                  className={`px-8 py-2.5 text-white rounded-xl text-xs font-black disabled:opacity-50 transition-all uppercase tracking-widest relative overflow-hidden ${accentClasses.button}`}
                 >
                   {installing === skill.id && installProgress && (
                     <div
-                      className={`absolute left-0 top-0 bottom-0 transition-all duration-300 ${skill.id === 'whatsapp' || skill.name.toLowerCase() === 'whatsapp' ? 'bg-emerald-400/30' : isLauncher ? 'bg-blue-400/30' : 'bg-violet-400/30'}`}
+                      className={`absolute left-0 top-0 bottom-0 transition-all duration-300 ${accentClasses.progress}`}
                       style={{ width: `${installProgress.percent}%` }}
                     />
                   )}
