@@ -19,7 +19,7 @@ function skillBundlesPlugin() {
     name: 'skill-bundles-dev',
     configureServer(server: { middlewares: Connect.Server }) {
       server.middlewares.use('/extensions', (req, res, next) => {
-        const url = req.url || ''
+        const url = (req.url || '').split('?')[0]
         const match = url.match(/^\/([^/]+)\/dist\/(.+)$/)
         if (!match) return next()
         const [, skillId, filePath] = match
