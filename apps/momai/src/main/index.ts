@@ -300,10 +300,32 @@ app.on('before-quit', (e) => {
     try {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 2500)
-      await authFetch(`http://${API_HOST}:${API_PORT}/extensions/whatsapp/flush-history`, {
-        method: 'POST',
-        signal: controller.signal
-      }).catch(() => null)
+      try {
+        const res = await authFetch(`http://${API_HOST}:${API_PORT}/extensions`, {
+          method: 'GET',
+          signal: controller.signal
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const skills = Array.isArray(data?.extensions)
+            ? data.extensions
+            : Array.isArray(data)
+              ? data
+              : []
+          for (const skill of skills) {
+            const toolName = skill?.persistOnQuit
+            if (!toolName) continue
+            await authFetch(
+              `http://${API_HOST}:${API_PORT}/extensions/${skill.id}/command`,
+              {
+                method: 'POST',
+                body: JSON.stringify({ toolName, args: {} }),
+                signal: controller.signal
+              }
+            ).catch(() => {})
+          }
+        }
+      } catch {}
       clearTimeout(timer)
     } catch {}
 
