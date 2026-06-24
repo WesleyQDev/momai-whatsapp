@@ -14,8 +14,6 @@
   "privacy.stored.chat.desc": "Threads and messages. Automatically pruned after 90 days of inactivity.",
   "privacy.stored.notes.title": "Notes",
   "privacy.stored.notes.desc": "Your notes, encrypted at rest with AES-256-GCM (key derived from safeStorage).",
-  "privacy.stored.whatsapp.title": "WhatsApp session",
-  "privacy.stored.whatsapp.desc": "Authentication credentials for the WhatsApp extension, encrypted with safeStorage (OS keychain).",
   "privacy.stored.reminders.title": "Reminders",
   "privacy.stored.reminders.desc": "Tasks and agenda items. Inactive reminders are auto-purged after 30 days.",
   "privacy.stored.observability.title": "Observability metrics",

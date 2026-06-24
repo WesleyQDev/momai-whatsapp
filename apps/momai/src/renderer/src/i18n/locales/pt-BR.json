@@ -14,8 +14,6 @@
   "privacy.stored.chat.desc": "Threads e mensagens. Removidos automaticamente após 90 dias de inatividade.",
   "privacy.stored.notes.title": "Notas",
   "privacy.stored.notes.desc": "Suas notas, criptografadas em repouso com AES-256-GCM (chave derivada do safeStorage).",
-  "privacy.stored.whatsapp.title": "Sessão do WhatsApp",
-  "privacy.stored.whatsapp.desc": "Credenciais de autenticação da extensão WhatsApp, criptografadas com safeStorage (cofre do SO).",
   "privacy.stored.reminders.title": "Lembretes",
   "privacy.stored.reminders.desc": "Tarefas e itens da agenda. Lembretes inativos são removidos após 30 dias.",
   "privacy.stored.observability.title": "Métricas de observabilidade",
