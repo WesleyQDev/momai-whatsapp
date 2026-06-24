@@ -159,7 +159,9 @@ function App(): React.JSX.Element {
   const extensionPageMatch = location.pathname.match(/^\/extensions\/([^/]+)$/)
   const extensionPageId = extensionPageMatch ? extensionPageMatch[1] : null
 
-  const uiView = viewMapping[location.pathname] || 'ChatDashboard'
+  const uiView = extensionPageId
+    ? 'ExtensionPage'
+    : viewMapping[location.pathname] || 'ChatDashboard'
   const isChat = uiView === 'ChatDashboard'
   const showSidebar = uiView === 'ChatDashboard'
 
