@@ -77,18 +77,18 @@ const iconMap: Record<string, any> = {
 }
 
 function InlineSvgIcon({ svg, className }: { svg: string; className?: string }) {
-  // Strip any width/height attributes from the root <svg> so the
-  // caller can control sizing via className. The <svg> is rendered
-  // with dangerouslySetInnerHTML — the extension manifest is the
-  // source of truth for the icon, same as emoji/name icons.
-  const cleaned = svg
-    .replace(/<svg([^>]*)>/i, (_match, attrs) => {
-      const stripped = attrs
-        .replace(/\s(width|height)=("[^"]*"|'[^']*')/gi, '')
-        .replace(/\sfill=("[^"]*"|'[^']*')/gi, '')
-      return `<svg${stripped}>`
-    })
-    .replace(/<svg([^>]*)\sfill=/i, '<svg$1 fill="currentColor"')
+  // Strip width/height from the root <svg> (caller controls size via
+  // className) and force fill="currentColor" so the icon inherits the
+  // theme color instead of the SVG default (black).
+  const cleaned = svg.replace(/<svg([^>]*)>/i, (_match, attrs) => {
+    const stripped = attrs
+      .replace(/\s(width|height)=("[^"]*"|'[^']*')/gi, '')
+      .replace(/\sfill=("[^"]*"|'[^']*')/gi, ' fill="currentColor"')
+    if (!/\sfill=/i.test(stripped)) {
+      return `<svg${stripped} fill="currentColor">`
+    }
+    return `<svg${stripped}>`
+  })
   return (
     <span
       className={className}
