@@ -512,7 +512,8 @@ async function startServer() {
       dataDir: DATA_DIR,
       getTempPath: () =>
         path.join(os.tmpdir(), `momai-export-${Date.now()}-${process.pid}.zip`),
-      extensionHostManager
+      extensionHostManager,
+      skillRegistry: _skillRegistry
     })
   ])
 

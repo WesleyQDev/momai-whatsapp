@@ -32,6 +32,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
 const { createZipFromFiles } = require('../../utils/zip-writer')
+const { collectStoredData } = require('../../services/manifest-storage')
 
 const CONFIRMATION_TOKEN = 'DELETE_ALL_MY_DATA'
 
@@ -327,7 +328,7 @@ function performDeleteAll(dataDir, { keepModels = false } = {}) {
 }
 
 function createPrivacyRoutes(context) {
-  const { sendJson, readJsonBody, saveStore, dataDir, getTempPath } = context
+  const { sendJson, readJsonBody, saveStore, dataDir, getTempPath, skillRegistry } = context
   if (!dataDir) {
     throw new Error('createPrivacyRoutes requires context.dataDir')
   }
@@ -335,6 +336,12 @@ function createPrivacyRoutes(context) {
     typeof getTempPath === 'function' ? getTempPath : () => path.join(os.tmpdir(), 'momai-export.zip')
 
   return async function handlePrivacyRoutes(req, res, pathname, parsedUrl) {
+    if (pathname === '/privacy/stored' && req.method === 'GET') {
+      const skills = skillRegistry && typeof skillRegistry.getAll === 'function' ? skillRegistry.getAll() : []
+      sendJson(res, 200, { items: collectStoredData(skills) })
+      return true
+    }
+
     if (pathname === '/privacy/export' && req.method === 'GET') {
       const keepModels = parsedUrl.searchParams?.get('keepModels') === 'true'
       let tempPath
