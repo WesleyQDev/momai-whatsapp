@@ -160,6 +160,11 @@ export default function NotificationOverlay() {
     (event: { eventType: string; data: any }) => {
       const skill = findSkillForEvent(event.eventType)
       if (!skill) return
+      // Only message notifications (with text/sender) should open the overlay.
+      // Status events like qr_code, connection_status, authenticated,
+      // contacts_synced, history_loaded are consumed by the skill's own
+      // UI (full-page or side panel) and must NOT open the global overlay.
+      if (!event.data?.message && !event.data?.text) return
       const { contactJid, isGroup, groupName } = resolveChannel(event.data)
       const senderJid = event.data.senderJid || ''
       const msgKey = `${contactJid}:${senderJid}:${event.data.timestamp}:${event.data.message}`
