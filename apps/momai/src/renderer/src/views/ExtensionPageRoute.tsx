@@ -15,6 +15,13 @@ export default function ExtensionPageRoute({ fallback: Fallback }: Props) {
   const [Component, setComponent] = useState<React.ComponentType<any> | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  console.log(
+    '[ExtensionPageRoute] id=',
+    id,
+    'skill=',
+    skill ? { id: skill.id, ui: skill.ui, manifest: skill.manifest } : null
+  )
+
   useEffect(() => {
     if (!id) return
     if (!skill?.manifest?.ui?.page) {
