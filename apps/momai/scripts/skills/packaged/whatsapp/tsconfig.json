@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "momai:registry": ["../../../src/renderer/src/components/chat/SkillResponseRegistry.ts"],
+      "momai:events": ["../../../src/renderer/src/hooks/useExtensionEvents.ts"],
+      "momai:api": ["../../../src/renderer/src/services/api.ts"]
+    }
+  },
+  "include": ["src/**/*"]
+}
