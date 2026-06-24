@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { XMarkIcon, MicrophoneIcon } from '@heroicons/react/24/outline'
 import { useExtensionEvents } from '../hooks/useExtensionEvents'
 import { getTTSServiceRenderer } from '../services/ttsService'
-import { resolveWhatsAppChannel } from '../utils/whatsappChannel'
+import { fetchExtensions, type Extension } from '../services/api'
 import { API_URL } from '../constants'
 
 interface VoiceState {
@@ -13,6 +13,7 @@ interface VoiceState {
 interface Notification {
   id: string
   eventType: string
+  skillId: string
   data: any
   receivedAt: number
   voice: VoiceState
@@ -27,8 +28,8 @@ const VOICE_STATUS_LABELS: Record<string, string> = {
   timeout: 'Clique para responder'
 }
 
-function sendToWhatsApp(contactJid: string, contact: string, message: string) {
-  return window.api.apiFetch(`${API_URL}/extensions/whatsapp/command`, {
+function sendToSkill(skillId: string, contactJid: string, contact: string, message: string) {
+  return window.api.apiFetch(`${API_URL}/extensions/${skillId}/command`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -41,12 +42,37 @@ function sendToWhatsApp(contactJid: string, contact: string, message: string) {
   })
 }
 
+function resolveChannel(data: any) {
+  const contactJid = String(data?.contactJid || data?.jid || '').trim()
+  const isGroup =
+    typeof data?.isGroup === 'boolean' ? data.isGroup : contactJid.endsWith('@g.us')
+  const groupName = isGroup ? String(data?.groupName || 'Grupo') : ''
+  return { contactJid, isGroup, groupName }
+}
+
+function getPanelType(skill: Extension | undefined, fallback: string) {
+  return skill?.manifest?.ui?.panelType || fallback
+}
+
 export default function NotificationOverlay() {
+  const [installed, setInstalled] = useState<Extension[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const voiceAbortRef = useRef<Map<string, AbortController>>(new Map())
   /** Uma geracao por mensagem (evita TTS errado quando varias pessoas mandam no mesmo grupo) */
   const notificationGenByKeyRef = useRef<Map<string, number>>(new Map())
+
+  useEffect(() => {
+    fetchExtensions()
+      .then(setInstalled)
+      .catch(() => setInstalled([]))
+  }, [])
+
+  const findSkillForEvent = useCallback(
+    (eventType: string) =>
+      installed.find((s) => (s.eventTypes || []).includes(eventType)),
+    [installed]
+  )
 
   const removeNotification = useCallback((id: string, reinstateSleep = false) => {
     const controller = voiceAbortRef.current.get(id)
@@ -66,7 +92,7 @@ export default function NotificationOverlay() {
   }, [])
 
   const startVoiceDetection = useCallback(
-    async (id: string, contactJid: string, contactName: string) => {
+    async (id: string, skillId: string, contactJid: string, contactName: string) => {
       const controller = new AbortController()
       voiceAbortRef.current.set(id, controller)
 
@@ -77,7 +103,7 @@ export default function NotificationOverlay() {
       )
 
       try {
-        const response = await window.api.apiFetch(`${API_URL}/voice/whatsapp-reply/wait`, {
+        const response = await window.api.apiFetch(`${API_URL}/voice/${skillId}/reply/wait`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contact_jid: contactJid }),
@@ -115,7 +141,7 @@ export default function NotificationOverlay() {
         )
 
         if (text) {
-          await sendToWhatsApp(contactJid, contactName, text)
+          await sendToSkill(skillId, contactJid, contactName, text)
           removeNotification(id, true)
         }
       } catch (err: any) {
@@ -132,22 +158,26 @@ export default function NotificationOverlay() {
 
   const handleEvent = useCallback(
     (event: { eventType: string; data: any }) => {
-      if (event.eventType === 'whatsapp_notification' || event.eventType === 'notification') {
-        const { contactJid, isGroup, groupName } = resolveWhatsAppChannel(event.data)
-        const senderJid = event.data.senderJid || ''
-        const msgKey = `${contactJid}:${senderJid}:${event.data.timestamp}:${event.data.message}`
-        const prevGen = notificationGenByKeyRef.current.get(msgKey) || 0
-        const gen = prevGen + 1
-        notificationGenByKeyRef.current.set(msgKey, gen)
+      const skill = findSkillForEvent(event.eventType)
+      if (!skill) return
+      const { contactJid, isGroup, groupName } = resolveChannel(event.data)
+      const senderJid = event.data.senderJid || ''
+      const msgKey = `${contactJid}:${senderJid}:${event.data.timestamp}:${event.data.message}`
+      const prevGen = notificationGenByKeyRef.current.get(msgKey) || 0
+      const gen = prevGen + 1
+      notificationGenByKeyRef.current.set(msgKey, gen)
+      const panelType = getPanelType(skill, event.eventType)
 
-        const processMsg = async () => {
-          try {
-            const llmRes = await window.api.apiFetch(
-              `${API_URL}/extensions/whatsapp/process-notification`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+      const processMsg = async () => {
+        try {
+          const llmRes = await window.api.apiFetch(
+            `${API_URL}/extensions/${skill.id}/command`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                toolName: 'process_notification',
+                args: {
                   contact: event.data.contact,
                   senderName: event.data.senderName || event.data.contact,
                   senderJid,
@@ -155,79 +185,80 @@ export default function NotificationOverlay() {
                   contactJid,
                   isGroup,
                   groupName
-                })
-              }
-            )
-            const llmData = await llmRes.json()
-
-            if (notificationGenByKeyRef.current.get(msgKey) !== gen) return
-
-            if (llmData.tts) {
-              try {
-                const tts = getTTSServiceRenderer()
-                await tts.stop()
-                await tts.speak(llmData.tts)
-              } catch {}
-            }
-
-            if (notificationGenByKeyRef.current.get(msgKey) !== gen) return
-
-            const overlayData = {
-              structuredResponse: {
-                type: 'whatsapp_notification',
-                data: {
-                  ...event.data,
-                  contactJid,
-                  isGroup,
-                  groupName,
-                  quickReplies: llmData.quickReplies || [],
-                  tts: llmData.tts || ''
                 }
-              }
+              })
             }
+          )
+          const llmData = await llmRes.json()
 
-            if ((window as any).api?.openOverlay) {
-              ;(window as any).api.openOverlay(overlayData)
-            } else {
-              const id = `${event.eventType}-${Date.now()}`
-              const notifData = {
+          if (notificationGenByKeyRef.current.get(msgKey) !== gen) return
+
+          if (llmData.tts) {
+            try {
+              const tts = getTTSServiceRenderer()
+              await tts.stop()
+              await tts.speak(llmData.tts)
+            } catch {}
+          }
+
+          if (notificationGenByKeyRef.current.get(msgKey) !== gen) return
+
+          const overlayData = {
+            structuredResponse: {
+              type: panelType,
+              data: {
                 ...event.data,
+                contactJid,
+                isGroup,
+                groupName,
                 quickReplies: llmData.quickReplies || [],
                 tts: llmData.tts || ''
               }
-              const newNotif: Notification = {
-                id,
-                eventType: event.eventType,
-                data: notifData,
-                receivedAt: Date.now(),
-                voice: { status: 'listening', abortController: null }
-              }
-              setNotifications((prev) => [...prev, newNotif])
-
-              const timer = setTimeout(() => removeNotification(id, true), NOTIFICATION_TIMEOUT)
-              timersRef.current.set(id, timer)
-
-              const jid = event.data.contactJid || event.data.contact || ''
-              if (jid) {
-                startVoiceDetection(id, jid, event.data.contact || '')
-              }
-            }
-          } catch {
-            const rawData = {
-              structuredResponse: {
-                type: 'whatsapp_notification',
-                data: { ...event.data, quickReplies: [] }
-              }
-            }
-            if ((window as any).api?.openOverlay) {
-              ;(window as any).api.openOverlay(rawData)
             }
           }
+
+          if ((window as any).api?.openOverlay) {
+            ;(window as any).api.openOverlay(overlayData)
+          } else {
+            const id = `${event.eventType}-${Date.now()}`
+            const notifData = {
+              ...event.data,
+              quickReplies: llmData.quickReplies || [],
+              tts: llmData.tts || ''
+            }
+            const newNotif: Notification = {
+              id,
+              eventType: event.eventType,
+              skillId: skill.id,
+              data: notifData,
+              receivedAt: Date.now(),
+              voice: { status: 'listening', abortController: null }
+            }
+            setNotifications((prev) => [...prev, newNotif])
+
+            const timer = setTimeout(() => removeNotification(id, true), NOTIFICATION_TIMEOUT)
+            timersRef.current.set(id, timer)
+
+            const jid = event.data.contactJid || event.data.contact || ''
+            if (jid) {
+              startVoiceDetection(id, skill.id, jid, event.data.contact || '')
+            }
+          }
+        } catch {
+          const rawData = {
+            structuredResponse: {
+              type: panelType,
+              data: { ...event.data, quickReplies: [] }
+            }
+          }
+          if ((window as any).api?.openOverlay) {
+            ;(window as any).api.openOverlay(rawData)
+          }
         }
-        processMsg()
       }
+      processMsg()
     },
-    [removeNotification, startVoiceDetection]
+    [findSkillForEvent, removeNotification, startVoiceDetection]
   )
 
   useExtensionEvents({ onEvent: handleEvent })
@@ -261,7 +292,8 @@ export default function NotificationOverlay() {
                 return
               }
               try {
-                await sendToWhatsApp(
+                await sendToSkill(
+                  notification.skillId,
                   notification.data.contactJid || notification.data.contact,
                   notification.data.contact,
                   message
