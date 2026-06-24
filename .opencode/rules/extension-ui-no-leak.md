@@ -204,25 +204,36 @@ Aliases do esbuild (`momai:registry`, `momai:events`, `momai:api`, `momai:consta
 
 ### Dev Mode: Serving Skill Bundles via Vite
 
-Em dev (`pnpm dev`), o renderer (Electron) fala com o **Vite dev server** (porta 5173). O node-core (porta 8050) **não** está no path do renderer em dev. Por isso, o middleware em `apps/momai/electron.vite.config.ts` (`skillBundlesPlugin`) serve os bundles da skill diretamente do Vite:
+Em dev (`pnpm dev`), o renderer (Electron) fala com o **Vite dev server** (porta 5173). O node-core (porta 8050) **não** está no path do renderer em dev. Por isso, o plugin `skillBundlesPlugin` em `apps/momai/electron.vite.config.ts` serve os bundles da skill através de hooks Vite nativos (`resolveId` + `load`):
 
-1. **Strip query string** antes do match: `req.url.split('?')[0]` (Vite adiciona `?import` aos dynamic imports)
-2. **Rewrite bare specifiers** para `/@id/<pkg>` (Vite's special URL prefix for npm modules):
-   ```ts
-   const BARE_TO_ABS: Record<string, string> = {
-     react: '/@id/react',
-     'react-dom': '/@id/react-dom',
-     'react-dom/client': '/@id/react-dom/client',
-     'react/jsx-runtime': '/@id/react/jsx-runtime',
-     'react/jsx-dev-runtime': '/@id/react/jsx-dev-runtime'
-   }
-   ```
+```ts
+function skillBundlesPlugin(): Plugin {
+  return {
+    name: 'skill-bundles-dev',
+    enforce: 'pre',
+    resolveId(source) {
+      // Intercepta /extensions/<skillId>/dist/<file>
+      const match = source.match(/^\/extensions\/([^/]+)\/dist\/(.+)$/)
+      if (match) return source
+      return null
+    },
+    load(id) {
+      // Lê o arquivo do dist/ da skill e retorna o conteúdo
+      // Vite's import analysis faz o resto (rewrite + CJS interop)
+    }
+  }
+}
+```
 
-   **Por que `/@id/<pkg>` (sem `/index.js`)?** Vite resolve o pacote via `exports` field do `package.json`. Apontar para `/@id/react/index.js` retorna 500 (`Missing "./index.js" specifier in "react" package`) porque React 19 não exporta `./index.js`. Apontar para `/node_modules/react/index.js` serve o source CJS raw (`module.exports = require(...)`) que o browser não pode usar como ESM. Apenas `/@id/react` (sem subpath) funciona corretamente — Vite retorna um wrapper ESM válido (704 bytes para react).
+**Por que `resolveId` + `load` (não middleware)?** Vite's import analysis precisa processar o bundle para:
+1. **Rewrite bare specifiers** (`react` → `/node_modules/.vite/deps/react.js?v=...`)
+2. **CJS interop** — converter `import { Fragment } from "react/jsx-runtime"` (named import) em `import __cjs from "/node_modules/.vite/deps/react_jsx-runtime.js"; const Fragment = __cjs["Fragment"]` (default + property access)
 
-Se você adicionar uma nova dep externa em `build.mjs` (ex: `external: ['lodash']`), adicione também no `BARE_TO_ABS`.
+Um middleware que lê o arquivo e envia raw **bypassa** Vite's import analysis. O bundle tem `import { Fragment, jsx, jsxs } from "react/jsx-runtime"` (named imports), mas Vite's pre-bundled `react/jsx-runtime` só tem `export default require_jsx_runtime()` (sem named exports). Sem o CJS interop do Vite, o browser falha com `does not provide an export named 'Fragment'`.
 
-**Diagnóstico**: se os bundles falham ao carregar, rode `node apps/momai/scripts/test-vite-skill-bundles.mjs` (inicia um Vite standalone na porta 5174 e faz requests para vários paths de teste). Não inicia o Electron.
+Com `resolveId` + `load`, Vite processa o bundle através do seu pipeline de transformação completo, incluindo import analysis e CJS interop.
+
+**Diagnóstico**: se os bundles falham ao carregar, rode `node apps/momai/scripts/test-vite-skill-bundles.mjs` (inicia um Vite standalone na porta 5174 e faz requests para validar o transform). Não inicia o Electron.
 
 ---
 

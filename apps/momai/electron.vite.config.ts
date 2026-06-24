@@ -1,73 +1,34 @@
-import { existsSync, createReadStream, readFileSync } from 'fs'
-import { resolve, extname, join } from 'path'
+import { existsSync, readFileSync } from 'fs'
+import { resolve, join } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
-import type { Connect } from 'vite'
+import type { Plugin } from 'vite'
 
-const MIME_BY_EXT: Record<string, string> = {
-  '.js': 'application/javascript',
-  '.mjs': 'application/javascript',
-  '.map': 'application/json',
-  '.css': 'text/css',
-  '.json': 'application/json',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png'
-}
-
-const BARE_TO_ABS: Record<string, string> = {
-  react: '/@id/react',
-  'react-dom': '/@id/react-dom',
-  'react-dom/client': '/@id/react-dom/client',
-  'react/jsx-runtime': '/@id/react/jsx-runtime',
-  'react/jsx-dev-runtime': '/@id/react/jsx-dev-runtime'
-}
-
-const BARE_IMPORT_RE = /((?:from|import)\s*['"])([^'"./][^'"]*)(['"])/g
-
-function skillBundlesPlugin() {
+function skillBundlesPlugin(): Plugin {
   return {
     name: 'skill-bundles-dev',
-    configureServer(server: { middlewares: Connect.Server }) {
-      server.middlewares.use('/extensions', (req, res, next) => {
-        const url = (req.url || '').split('?')[0]
-        const match = url.match(/^\/([^/]+)\/dist\/(.+)$/)
-        if (!match) return next()
-        const [, skillId, filePath] = match
-        if (filePath.includes('..') || filePath.includes('\\')) {
-          res.statusCode = 400
-          return res.end('invalid_path')
-        }
-        const candidates = [
-          resolve(__dirname, 'scripts/skills/packaged', skillId),
-          resolve(__dirname, 'data/extensions', skillId)
-        ]
-        const skillDir = candidates.find((d) => existsSync(d))
-        if (!skillDir) {
-          res.statusCode = 404
-          return res.end('skill_not_found')
-        }
-        const fullPath = join(skillDir, 'dist', filePath)
-        if (!existsSync(fullPath)) {
-          res.statusCode = 404
-          return res.end('file_not_found')
-        }
-        const ext = extname(fullPath).toLowerCase()
-        const mime = MIME_BY_EXT[ext] || 'application/octet-stream'
-        res.setHeader('Content-Type', mime)
-        res.setHeader('Cache-Control', 'no-cache')
-        if (ext === '.js' || ext === '.mjs') {
-          const rewritten = readFileSync(fullPath, 'utf8').replace(
-            BARE_IMPORT_RE,
-            (match, prefix, specifier, suffix) => {
-              const abs = BARE_TO_ABS[specifier]
-              return abs ? `${prefix}${abs}${suffix}` : match
-            }
-          )
-          res.end(rewritten)
-          return
-        }
-        createReadStream(fullPath).pipe(res)
-      })
+    enforce: 'pre',
+    resolveId(source) {
+      const clean = source.split('?')[0]
+      const match = clean.match(/^\/extensions\/([^/]+)\/dist\/(.+)$/)
+      if (match) return clean
+      return null
+    },
+    load(id) {
+      const clean = id.split('?')[0]
+      const match = clean.match(/^\/extensions\/([^/]+)\/dist\/(.+)$/)
+      if (!match) return null
+      const [, skillId, filePath] = match
+      if (filePath.includes('..') || filePath.includes('\\')) return null
+      const candidates = [
+        resolve(__dirname, 'scripts/skills/packaged', skillId),
+        resolve(__dirname, 'data/extensions', skillId)
+      ]
+      const skillDir = candidates.find((d) => existsSync(d))
+      if (!skillDir) return null
+      const fullPath = join(skillDir, 'dist', filePath)
+      if (!existsSync(fullPath)) return null
+      return readFileSync(fullPath, 'utf-8')
     }
   }
 }
