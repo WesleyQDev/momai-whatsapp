@@ -8,6 +8,7 @@ declare global {
 interface MomaiAPI {
   getApiBaseUrl: () => string
   getWsBaseUrl: () => string
+  isDev: () => boolean
   minimize: () => void
   focus: () => void
   maximize: () => void
@@ -49,6 +50,7 @@ interface MomaiAPI {
   isWindowMaximized: () => Promise<boolean>
   onWindowStateChanged: (callback: (state: { maximized: boolean }) => void) => () => void
   setResizable?: (resizable: boolean) => void
+  stopTts: () => Promise<{ success: boolean }>
   openOverlay: (data: any) => void
   closeOverlay: () => void
   onOverlayAction: (callback: (action: any) => void) => () => void
@@ -81,6 +83,12 @@ interface MomaiAPI {
       ok: boolean
       removed?: string[]
       keepModels?: boolean
+      error?: string
+    }>
+    devReset: () => Promise<{
+      ok: boolean
+      removed?: string[]
+      mode?: string
       error?: string
     }>
   }

@@ -21,6 +21,7 @@ export interface AppState {
   pythonProcess: ReturnType<typeof import('child_process').spawn> | null
   mainWindow: BrowserWindow | null
   overlayWindow: BrowserWindow | null
+  pendingOverlayData: any | null
   isQuitting: boolean
   pythonStartTime: number
   ipcHandlersRegistered: boolean
@@ -33,6 +34,7 @@ export const state: AppState = {
   pythonProcess: null,
   mainWindow: null,
   overlayWindow: null,
+  pendingOverlayData: null,
   isQuitting: false,
   pythonStartTime: 0,
   ipcHandlersRegistered: false,
@@ -74,4 +76,14 @@ export function setPythonStartTime(time: number): void {
 
 export function setIpcHandlersRegistered(value: boolean): void {
   state.ipcHandlersRegistered = value
+}
+
+export function setPendingOverlayData(data: any | null): void {
+  state.pendingOverlayData = data
+}
+
+export function consumePendingOverlayData(): any | null {
+  const data = state.pendingOverlayData
+  state.pendingOverlayData = null
+  return data
 }

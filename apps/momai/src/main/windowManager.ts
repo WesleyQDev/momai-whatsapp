@@ -15,7 +15,9 @@ import {
   setMainWindow,
   setOverlayWindow,
   setIpcHandlersRegistered,
-  setIsQuitting
+  setIsQuitting,
+  setPendingOverlayData,
+  consumePendingOverlayData
 } from './state'
 import { logger } from './logger'
 import { restartCoreBackend } from './coreManager'
@@ -154,7 +156,16 @@ export function registerIpcHandlers(): void {
   })
 
   ipcMain.on('open-overlay', (_, data) => {
+    logger.info(`[WindowManager] open-overlay IPC received, creating overlay window`)
     createOverlayWindow(data)
+  })
+
+  ipcMain.on('overlay-ready', () => {
+    logger.info(`[WindowManager] overlay-ready IPC received, sending pending data`)
+    const pendingData = consumePendingOverlayData()
+    if (pendingData && state.overlayWindow && !state.overlayWindow.isDestroyed()) {
+      state.overlayWindow.webContents.send('update-overlay-content', pendingData)
+    }
   })
 
   ipcMain.on('close-overlay', () => {
@@ -257,6 +268,10 @@ export function createOverlayWindow(data?: any): void {
   let isNew = false
   const { width, height } = getOverlayDimensions(data)
 
+  if (data) {
+    setPendingOverlayData(data)
+  }
+
   if (!state.overlayWindow || state.overlayWindow.isDestroyed()) {
     isNew = true
     const overlayWindow = new BrowserWindow({
@@ -277,7 +292,8 @@ export function createOverlayWindow(data?: any): void {
         additionalArguments: [
           `--momai-api-url=${API_BASE_URL}`,
           `--momai-ws-url=${WS_BASE_URL}`,
-          `--momai-session-token=${getOrCreateSessionToken()}`
+          `--momai-session-token=${getOrCreateSessionToken()}`,
+          `--momai-is-dev=${is.dev}`
         ]
       }
     })
@@ -304,6 +320,7 @@ export function createOverlayWindow(data?: any): void {
 
   const overlayWin = state.overlayWindow
   if (overlayWin) {
+    logger.info(`[WindowManager] Overlay window exists, showing at center of screen (${width}x${height})`)
     overlayWin.setSize(width, height)
     const primaryDisplay = screen.getPrimaryDisplay()
     const { workArea } = primaryDisplay
@@ -315,14 +332,11 @@ export function createOverlayWindow(data?: any): void {
     overlayWin.setAlwaysOnTop(true, 'screen-saver')
     overlayWin.focus()
 
-    const sendData = (): void => {
-      if (data) overlayWin.webContents.send('update-overlay-content', data)
-    }
-
-    if (isNew || overlayWin.webContents.isLoading()) {
-      overlayWin.webContents.once('did-finish-load', sendData)
-    } else {
-      sendData()
+    if (!isNew && !overlayWin.webContents.isLoading()) {
+      const pendingData = consumePendingOverlayData()
+      if (pendingData) {
+        overlayWin.webContents.send('update-overlay-content', pendingData)
+      }
     }
   }
 }
@@ -345,7 +359,8 @@ function createMainWindow(): BrowserWindow {
       additionalArguments: [
         `--momai-api-url=${API_BASE_URL}`,
         `--momai-ws-url=${WS_BASE_URL}`,
-        `--momai-session-token=${getOrCreateSessionToken()}`
+        `--momai-session-token=${getOrCreateSessionToken()}`,
+        `--momai-is-dev=${is.dev}`
       ]
     }
   })

@@ -16,10 +16,14 @@ const WS_BASE_URL = getArgValue('--momai-ws-url=', FALLBACK_WS_URL)
 // webPreferences.additionalArguments. Used by apiFetch / apiWebSocket
 // to authenticate renderer-initiated calls (Authorization header / ?token=).
 const SESSION_TOKEN = getArgValue('--momai-session-token=', '')
+// Dev-mode flag forwarded from main process (true when running via `pnpm run dev`).
+// Used by the renderer to gate dev-only UI (e.g. the "Reset to Zero" button).
+const IS_DEV = getArgValue('--momai-is-dev=', 'false') === 'true'
 
 const momaiAPI = {
   getApiBaseUrl: (): string => API_BASE_URL,
   getWsBaseUrl: (): string => WS_BASE_URL,
+  isDev: (): boolean => IS_DEV,
   minimize: (): void => ipcRenderer.send('window-minimize'),
   focus: (): void => ipcRenderer.send('window-focus'),
   maximize: (): void => ipcRenderer.send('window-maximize'),
@@ -86,6 +90,7 @@ const momaiAPI = {
   restartApp: (): void => ipcRenderer.send('restart-app'),
   resetWindowSize: (): void => ipcRenderer.send('window-reset-size'),
   isWindowMaximized: (): Promise<boolean> => ipcRenderer.invoke('is-window-maximized'),
+  stopTts: (): Promise<{ success: boolean }> => ipcRenderer.invoke('tts:stop'),
   getEconomyState: (): Promise<any> => ipcRenderer.invoke('economy:get-state'),
   getEconomyCatalog: (): Promise<any[]> => ipcRenderer.invoke('economy:get-catalog'),
   scanEconomyLibraries: (): Promise<any[]> => ipcRenderer.invoke('economy:scan-libraries'),
@@ -154,7 +159,13 @@ const momaiAPI = {
       removed?: string[]
       keepModels?: boolean
       error?: string
-    }> => ipcRenderer.invoke('privacy:delete-all')
+    }> => ipcRenderer.invoke('privacy:delete-all'),
+    devReset: (): Promise<{
+      ok: boolean
+      removed?: string[]
+      mode?: string
+      error?: string
+    }> => ipcRenderer.invoke('privacy:dev-reset')
   },
   apiFetch: (url: string, options: RequestInit = {}): Promise<Response> => {
     // NOTE: This wrapper exists for API symmetry but delegates to the

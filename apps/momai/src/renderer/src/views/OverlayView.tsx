@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { createElement } from 'react'
 import { getRenderer, hasRenderer } from '../components/chat/SkillResponseRegistry'
+import { loadSkillRenderer } from '../components/chat/ExtensionRendererLoader'
 
 export default function OverlayView() {
   const [data, setData] = useState<any>(null)
+  const [loadingRenderer, setLoadingRenderer] = useState(false)
 
   useEffect(() => {
     document.documentElement.style.setProperty('background', 'transparent', 'important')
@@ -11,8 +13,24 @@ export default function OverlayView() {
     const root = document.getElementById('root')
     if (root) root.style.setProperty('background', 'transparent', 'important')
 
-    const removeListener = window.momaiAPI.onUpdateOverlayContent((contentData) => {
+    const removeListener = window.momaiAPI.onUpdateOverlayContent(async (contentData) => {
       setData(contentData)
+
+      const type = contentData?.structuredResponse?.type
+      const skillId = contentData?.skillId
+      const panelPath = contentData?.panel
+      const panelType = contentData?.panelType
+
+      if (type && skillId && panelPath && panelType && !hasRenderer(type)) {
+        setLoadingRenderer(true)
+        try {
+          await loadSkillRenderer(skillId, { panel: panelPath, panelType }, `/extensions/${skillId}`)
+        } catch (err) {
+          console.error('[OverlayView] Failed to load skill renderer:', err)
+        } finally {
+          setLoadingRenderer(false)
+        }
+      }
     })
 
     window.momaiAPI.markOverlayReady()
@@ -37,7 +55,6 @@ export default function OverlayView() {
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     const type = data?.structuredResponse?.type
-    // Bloqueia clique no backdrop quando há um renderer registrado para este tipo
     if (type && hasRenderer(type)) {
       return
     }
@@ -46,7 +63,6 @@ export default function OverlayView() {
 
   if (!data) return <div className="w-screen h-screen bg-transparent" />
 
-  // Render structured responses generically via SkillResponseRegistry
   if (data?.structuredResponse) {
     const Renderer = getRenderer(data.structuredResponse.type)
     if (Renderer) {
@@ -63,6 +79,16 @@ export default function OverlayView() {
                 onSend: data.structuredResponse.data?.onSend
               }
             })}
+          </div>
+        </div>
+      )
+    }
+
+    if (loadingRenderer) {
+      return (
+        <div className="w-screen h-screen flex items-center justify-center bg-transparent">
+          <div className="rounded-2xl border border-white/10 bg-zinc-900/95 p-4">
+            <p className="text-sm text-gray-300">Carregando...</p>
           </div>
         </div>
       )

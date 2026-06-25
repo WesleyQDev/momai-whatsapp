@@ -5,6 +5,27 @@ import { getTTSServiceRenderer } from '../services/ttsService'
 import { fetchExtensions, type Extension } from '../services/api'
 import { API_URL } from '../constants'
 
+async function rendererFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const token = window.api.getSessionToken()
+  const headers: Record<string, any> = {
+    'Content-Type': 'application/json'
+  }
+  if (options.headers) {
+    const h = options.headers as Record<string, any> | Headers
+    if (h instanceof Headers) {
+      h.forEach((v, k) => {
+        headers[k] = v
+      })
+    } else {
+      Object.assign(headers, h)
+    }
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return fetch(path, { ...options, headers })
+}
+
 interface VoiceState {
   status: 'idle' | 'listening' | 'detected' | 'complete' | 'error' | 'timeout'
   abortController: AbortController | null
@@ -29,7 +50,7 @@ const VOICE_STATUS_LABELS: Record<string, string> = {
 }
 
 function sendToSkill(skillId: string, contactJid: string, contact: string, message: string) {
-  return window.api.apiFetch(`${API_URL}/extensions/${skillId}/command`, {
+  return rendererFetch(`${API_URL}/extensions/${skillId}/command`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -51,7 +72,7 @@ function resolveChannel(data: any) {
 }
 
 function getPanelType(skill: Extension | undefined, fallback: string) {
-  return skill?.manifest?.ui?.panelType || fallback
+  return skill?.ui?.panelType || fallback
 }
 
 export default function NotificationOverlay() {
@@ -103,7 +124,7 @@ export default function NotificationOverlay() {
       )
 
       try {
-        const response = await window.api.apiFetch(`${API_URL}/voice/${skillId}/reply/wait`, {
+        const response = await rendererFetch(`${API_URL}/voice/${skillId}/reply/wait`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contact_jid: contactJid }),
@@ -158,6 +179,7 @@ export default function NotificationOverlay() {
 
   const handleEvent = useCallback(
     (event: { eventType: string; data: any }) => {
+      console.log('[NotificationOverlay] Event received:', event.eventType, event.data?.contact, event.data?.message)
       const skill = findSkillForEvent(event.eventType)
       if (!skill) return
       // Only message notifications (with text/sender) should open the overlay.
@@ -174,8 +196,37 @@ export default function NotificationOverlay() {
       const panelType = getPanelType(skill, event.eventType)
 
       const processMsg = async () => {
+        // Open overlay immediately with raw data (don't block on LLM call)
+        const openOverlayWithData = (extraData: Record<string, any> = {}) => {
+          const overlayData = {
+            skillId: skill.id,
+            panel: skill.ui?.panel,
+            panelType: skill.ui?.panelType,
+            structuredResponse: {
+              type: panelType,
+              data: {
+                ...event.data,
+                contactJid,
+                isGroup,
+                groupName,
+                quickReplies: [],
+                tts: '',
+                ...extraData
+              }
+            }
+          }
+          if ((window as any).api?.openOverlay) {
+            ;(window as any).api.openOverlay(overlayData)
+          }
+        }
+
+        if ((window as any).api?.openOverlay) {
+          console.log('[NotificationOverlay] Opening overlay immediately')
+          openOverlayWithData()
+        }
+
         try {
-          const llmRes = await window.api.apiFetch(
+          const llmRes = await rendererFetch(
             `${API_URL}/extensions/${skill.id}/command`,
             {
               method: 'POST',
@@ -189,6 +240,7 @@ export default function NotificationOverlay() {
                   message: event.data.message,
                   contactJid,
                   isGroup,
+                  isNoteToSelf: !!event.data.isNoteToSelf,
                   groupName
                 }
               })
@@ -208,57 +260,12 @@ export default function NotificationOverlay() {
 
           if (notificationGenByKeyRef.current.get(msgKey) !== gen) return
 
-          const overlayData = {
-            structuredResponse: {
-              type: panelType,
-              data: {
-                ...event.data,
-                contactJid,
-                isGroup,
-                groupName,
-                quickReplies: llmData.quickReplies || [],
-                tts: llmData.tts || ''
-              }
-            }
-          }
-
-          if ((window as any).api?.openOverlay) {
-            ;(window as any).api.openOverlay(overlayData)
-          } else {
-            const id = `${event.eventType}-${Date.now()}`
-            const notifData = {
-              ...event.data,
-              quickReplies: llmData.quickReplies || [],
-              tts: llmData.tts || ''
-            }
-            const newNotif: Notification = {
-              id,
-              eventType: event.eventType,
-              skillId: skill.id,
-              data: notifData,
-              receivedAt: Date.now(),
-              voice: { status: 'listening', abortController: null }
-            }
-            setNotifications((prev) => [...prev, newNotif])
-
-            const timer = setTimeout(() => removeNotification(id, true), NOTIFICATION_TIMEOUT)
-            timersRef.current.set(id, timer)
-
-            const jid = event.data.contactJid || event.data.contact || ''
-            if (jid) {
-              startVoiceDetection(id, skill.id, jid, event.data.contact || '')
-            }
-          }
+          // Re-open overlay with quick replies (overlay window will re-render)
+          openOverlayWithData({
+            quickReplies: llmData.quickReplies || []
+          })
         } catch {
-          const rawData = {
-            structuredResponse: {
-              type: panelType,
-              data: { ...event.data, quickReplies: [] }
-            }
-          }
-          if ((window as any).api?.openOverlay) {
-            ;(window as any).api.openOverlay(rawData)
-          }
+          // Overlay already opened with raw data; nothing to do
         }
       }
       processMsg()
