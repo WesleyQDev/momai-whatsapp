@@ -189,7 +189,9 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
         />
       )}
 
-      {activeTab === 'developer' && <DeveloperTab t={t} handleDevMode={handleDevMode} />}
+      {activeTab === 'developer' && (
+        <DeveloperTab t={t} handleDevMode={handleDevMode} onClose={onClose} />
+      )}
 
       {activeTab === 'logs' && <LogsCard onClose={() => setActiveTab('general')} />}
     </div>

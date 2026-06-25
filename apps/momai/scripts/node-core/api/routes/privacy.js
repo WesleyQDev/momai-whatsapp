@@ -245,8 +245,10 @@ function rmIfExists(target) {
   }
 }
 
-function performDeleteAll(dataDir, { keepModels = false } = {}) {
+function performDeleteAll(dataDir, { keepModels = false, keepExtensions = false } = {}) {
   const removed = []
+  // dataDir = userData/data, dataParent = userData
+  const dataParent = path.dirname(dataDir)
 
   // Core store
   if (rmIfExists(path.join(dataDir, 'node-core-store.json'))) {
@@ -261,22 +263,25 @@ function performDeleteAll(dataDir, { keepModels = false } = {}) {
     removed.push('notes/')
   }
   // Extensions (top-level dirs under data/extensions)
-  const extRoot = path.join(dataDir, 'extensions')
-  if (fs.existsSync(extRoot)) {
-    let dirs
-    try {
-      dirs = fs.readdirSync(extRoot, { withFileTypes: true })
-    } catch {
-      dirs = []
-    }
-    for (const e of dirs) {
-      if (e.isDirectory()) {
-        if (rmIfExists(path.join(extRoot, e.name))) {
-          removed.push(`extensions/${e.name}/`)
-        }
-      } else if (e.isFile()) {
-        if (rmIfExists(path.join(extRoot, e.name))) {
-          removed.push(`extensions/${e.name}`)
+  // Skip if keepExtensions=true (preserves skill data like WhatsApp auth/contacts)
+  if (!keepExtensions) {
+    const extRoot = path.join(dataDir, 'extensions')
+    if (fs.existsSync(extRoot)) {
+      let dirs
+      try {
+        dirs = fs.readdirSync(extRoot, { withFileTypes: true })
+      } catch {
+        dirs = []
+      }
+      for (const e of dirs) {
+        if (e.isDirectory()) {
+          if (rmIfExists(path.join(extRoot, e.name))) {
+            removed.push(`extensions/${e.name}/`)
+          }
+        } else if (e.isFile()) {
+          if (rmIfExists(path.join(extRoot, e.name))) {
+            removed.push(`extensions/${e.name}`)
+          }
         }
       }
     }
@@ -316,8 +321,7 @@ function performDeleteAll(dataDir, { keepModels = false } = {}) {
     }
   }
 
-  // Python sidecar cache
-  const dataParent = path.dirname(dataDir) // /userData
+  // Python sidecar cache (dataParent declared at top of function)
   for (const target of ['python_env', 'uv_cache', 'uv_python']) {
     if (rmIfExists(path.join(dataParent, target))) {
       removed.push(`${target}/`)
@@ -368,6 +372,7 @@ function createPrivacyRoutes(context) {
         return true
       }
       const keepModels = body.keepModels === true
+      const keepExtensions = body.keepExtensions === true
 
       // Stop persistent workers so they don't write back to disk while we wipe.
       try {
@@ -387,9 +392,52 @@ function createPrivacyRoutes(context) {
         console.warn('[privacy] saveStore before delete failed:', e?.message || e)
       }
 
-      const removed = performDeleteAll(dataDir, { keepModels })
+      const removed = performDeleteAll(dataDir, { keepModels, keepExtensions })
 
-      sendJson(res, 200, { ok: true, removed, keepModels })
+      sendJson(res, 200, { ok: true, removed, keepModels, keepExtensions })
+      return true
+    }
+
+    // Dev-only reset: wipes everything EXCEPT skill data (auth/contacts).
+    // Used by the "Reset to Zero" button in the Developer tab when running
+    // via `pnpm run dev`. The skill code lives in the monorepo
+    // (apps/momai/scripts/skills/) and is never on the disk we wipe, so
+    // keeping the data dir preserves the session (e.g. WhatsApp QR pairing).
+    if (pathname === '/privacy/dev-reset' && req.method === 'POST') {
+      const body = (await readJsonBody(req).catch(() => ({}))) || {}
+      if (body.confirmation !== 'DEV_RESET_TO_ZERO') {
+        sendJson(res, 400, {
+          ok: false,
+          error: 'confirmation required: send { "confirmation": "DEV_RESET_TO_ZERO" }'
+        })
+        return true
+      }
+
+      // Stop persistent workers so they don't write back to disk while we wipe.
+      try {
+        if (context.extensionHostManager?.stopAllPersistent) {
+          await context.extensionHostManager.stopAllPersistent()
+        }
+      } catch (e) {
+        console.warn('[privacy] stopAllPersistent failed:', e?.message || e)
+      }
+
+      try {
+        if (typeof saveStore === 'function') saveStore()
+      } catch (e) {
+        console.warn('[privacy] saveStore before delete failed:', e?.message || e)
+      }
+
+      // Wipe everything including extension data (auth, contacts, history).
+      // The skill CODE in apps/momai/scripts/skills/packaged/ is in the
+      // monorepo and is never on this disk, so it survives the reset.
+      const removed = performDeleteAll(dataDir, {
+        keepModels: false,
+        keepExtensions: false
+      })
+
+      console.log(`[privacy] dev-reset wiped: ${removed.join(', ')}`)
+      sendJson(res, 200, { ok: true, removed, mode: 'dev-reset' })
       return true
     }
 

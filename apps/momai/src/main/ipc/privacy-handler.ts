@@ -113,4 +113,40 @@ export function registerPrivacyHandlers(
       return { ok: false, error: String((err as Error)?.message || err) }
     }
   })
+
+  // Dev-only: wipes everything (DB, messages, LLMs, cache, python_env)
+  // including skill data. Only registered when running via `pnpm run dev`.
+  // The renderer is responsible for triggering the onboarding flow after
+  // the wipe (same pattern as `resetOnboarding` in useSettingsCard):
+  // call this endpoint, then call `window.momaiAPI.resetOnboarding()`
+  // to mark first launch and show the welcome screen.
+  ipcMain.handle('privacy:dev-reset', async () => {
+    try {
+      const res = await authFetch(`${API_BASE_URL}/privacy/dev-reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: 'DEV_RESET_TO_ZERO' })
+      })
+      const payload = (await res.json().catch(() => ({}))) as {
+        ok: boolean
+        removed?: string[]
+        mode?: string
+        error?: string
+      }
+      if (!res.ok || !payload.ok) {
+        return {
+          ok: false,
+          error: payload.error || `dev-reset failed: HTTP ${res.status}`,
+          status: res.status
+        }
+      }
+      logger.info(
+        `[privacy] dev-reset succeeded, removed ${payload.removed?.length || 0} entries`
+      )
+      return { ok: true, removed: payload.removed || [], mode: payload.mode }
+    } catch (err) {
+      logger.error('[privacy] dev-reset failed:', err)
+      return { ok: false, error: String((err as Error)?.message || err) }
+    }
+  })
 }

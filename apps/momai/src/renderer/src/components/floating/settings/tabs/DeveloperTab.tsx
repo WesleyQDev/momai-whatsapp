@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { FunnelIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
+import { FunnelIcon, ArrowPathIcon, TrashIcon } from '@heroicons/react/24/outline'
+import ConfirmDialog from '../../ConfirmDialog'
 
 interface LogEntry {
   timestamp: string
@@ -35,9 +36,10 @@ const LEVEL_ICONS: Record<string, string> = {
 interface DeveloperTabProps {
   t: any
   handleDevMode: () => void
+  onClose?: () => void
 }
 
-export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
+export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTabProps) {
   const [isDevMode, setIsDevMode] = useState(
     () => localStorage.getItem('momai_dev_mode') === 'true'
   )
@@ -50,6 +52,75 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
   const [logsEnabled, setLogsEnabled] = useState(
     () => localStorage.getItem('momai_logs_enabled') === 'true'
   )
+  const [showDevResetConfirm, setShowDevResetConfirm] = useState(false)
+  const [isDevResetting, setIsDevResetting] = useState(false)
+  const isElectronDev = (window as any).momaiAPI?.isDev?.() === true
+
+  const handleDevReset = async () => {
+    setIsDevResetting(true)
+    try {
+      // Stop any TTS that's currently speaking and close the overlay window
+      // so the reset state is clean (no audio continuing, no popups lingering).
+      try {
+        await (window as any).momaiAPI?.stopTts?.()
+      } catch {}
+      try {
+        ;(window as any).momaiAPI?.closeOverlay?.()
+      } catch {}
+
+      const result = await (window as any).momaiAPI?.privacy?.devReset?.()
+      if (!result || result.ok !== true) {
+        throw new Error(result?.error || 'unknown error')
+      }
+
+      // Clear renderer-side per-user state so the next session is truly fresh
+      // (user name, AI tier, dev-mode flag, etc). Mirrors what a fresh install
+      // would have.
+      try {
+        localStorage.removeItem('momai_user_name')
+        localStorage.removeItem('momai_ai_tier')
+        localStorage.removeItem('momai_skip_intro')
+        localStorage.removeItem('momai_dev_mode')
+        localStorage.removeItem('momai_show_context_ring')
+        localStorage.removeItem('momai_observability_enabled')
+        localStorage.removeItem('momai_logs_enabled')
+        localStorage.removeItem('momai_seen_panels')
+        localStorage.removeItem('momai_mode_changing')
+        localStorage.removeItem('momai_default_note_created')
+      } catch (e) {
+        console.warn('Failed to clear localStorage on dev reset:', e)
+      }
+
+      // PATCH /settings with onboarding_completed:false. This is the step
+      // that actually triggers the welcome screen — the settings sync event
+      // handler in useAppInitialization listens for `onboarding_completed ===
+      // false` and shows the welcome/onboarding. Without this PATCH the IPC
+      // resetOnboarding alone is not enough.
+      try {
+        const apiMod = await import('../../../../services/api')
+        await apiMod.api.patch('/settings', { onboarding_completed: false })
+        window.dispatchEvent(
+          new CustomEvent('momai_settings_sync', {
+            detail: { onboarding_completed: false }
+          })
+        )
+      } catch (e) {
+        console.error('Dev reset: PATCH /settings failed:', e)
+      }
+
+      // Mirror the rest of useSettingsCard.resetOnboarding for consistency.
+      setShowDevResetConfirm(false)
+      window.dispatchEvent(new CustomEvent('momai_new_session'))
+      ;(window as any).momaiAPI?.resetOnboarding?.()
+      // Close the settings panel so the welcome screen is visible.
+      onClose?.()
+    } catch (e) {
+      console.error('Dev reset failed:', e)
+      throw e
+    } finally {
+      setIsDevResetting(false)
+    }
+  }
 
   useEffect(() => {
     const syncDevMode = (event: Event) => {
@@ -253,6 +324,49 @@ export default function DeveloperTab({ t, handleDevMode }: DeveloperTabProps) {
       )}
 
       {isDevMode && logsEnabled && <LogsPanel />}
+
+      {/* Danger Zone — only visible when running via `pnpm run dev` */}
+      {isElectronDev && (
+        <div className="bg-red-500/[0.04] rounded-xl border border-red-500/30 overflow-hidden">
+          <div className="flex items-center justify-between p-4 gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <TrashIcon className="shrink-0 text-red-400" width={20} height={20} />
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <span className="text-xs font-semibold text-red-300">
+                  Reset to Zero (dev only)
+                </span>
+                <span className="text-[11px] text-text-muted font-medium">
+                  Apaga TUDO: banco, mensagens, LLMs locais, cache, Python env
+                  e dados das skills (auth/QR do WhatsApp, contatos, histórico).
+                  <br />
+                  O código das skills em <code>apps/momai/scripts/skills/</code> é
+                  preservado (está no monorepo).
+                </span>
+              </div>
+            </div>
+            <button
+              data-testid="dev-reset-button"
+              onClick={() => setShowDevResetConfirm(true)}
+              className="shrink-0 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-white bg-red-500/80 hover:bg-red-500 rounded-lg border border-red-400/50 transition-colors"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showDevResetConfirm && (
+        <ConfirmDialog
+          variant="destructive"
+          title="Reset to Zero?"
+          description="This will permanently delete EVERYTHING: database, all messages, local LLMs, semantic index, cache, Python env, AND skill data (WhatsApp auth, contacts, history). You will need to re-scan the WhatsApp QR code after. The welcome screen will appear automatically. The skill code in the monorepo is preserved. This action cannot be undone."
+          confirmText="Yes, reset everything"
+          cancelText="Cancel"
+          isLoading={isDevResetting}
+          onConfirm={handleDevReset}
+          onCancel={() => !isDevResetting && setShowDevResetConfirm(false)}
+        />
+      )}
     </div>
   )
 }
