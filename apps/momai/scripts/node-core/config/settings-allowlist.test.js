@@ -8,6 +8,7 @@ describe('SETTINGS_EDITABLE_KEYS', () => {
     expect(SETTINGS_EDITABLE_KEYS.has('local_backend')).toBe(true)
     expect(SETTINGS_EDITABLE_KEYS.has('theme')).toBe(true)
     expect(SETTINGS_EDITABLE_KEYS.has('language')).toBe(true)
+    expect(SETTINGS_EDITABLE_KEYS.has('keep_in_tray')).toBe(true)
   })
 
   it('does NOT contain sensitive keys', () => {

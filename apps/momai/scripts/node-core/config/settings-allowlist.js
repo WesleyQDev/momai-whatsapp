@@ -20,7 +20,8 @@ const SETTINGS_EDITABLE_KEYS = new Set([
   'idle_timeout_app_open',
   'idle_timeout_minimized',
   'auto_detect_known_games',
-  'developer_mode'
+  'developer_mode',
+  'keep_in_tray'
 ])
 
 function filterToEditableSettings(payload) {
