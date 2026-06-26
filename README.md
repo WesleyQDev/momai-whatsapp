@@ -26,7 +26,7 @@ MomAI é uma assistente virtual **local-first** e focada em privacidade. Ela com
 - **Privacidade** - Seus dados ficam no seu computador.
 - **Extensível** - Adicione apenas as funcionalidades (agentes e ferramentas) que você precisa.
 - **Gratuito** - Uso pessoal sem custos.
-- **Multiplataforma** - Windows, Linux e Mac.
+- **Multiplataforma** - Windows e Linux.
 
 ## Funcionalidades
 
