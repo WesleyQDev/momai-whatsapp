@@ -93,11 +93,13 @@ function loadStore() {
     }
   }
 
-  return {
+  const loaded = {
     ...defaultStore(),
     ...parsed,
     settings: { ...defaultStore().settings, ...(parsed.settings || {}) }
   }
+  loaded.call_mode = false // Transient session state should not persist across restarts
+  return loaded
 }
 
 let _saveTimer = null

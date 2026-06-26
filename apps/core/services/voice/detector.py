@@ -789,10 +789,14 @@ class WakeWordDetector:
                 logger.debug("[WakeWord] Keyword check URL=%s text='%s'", self.keyword_check_url, raw_text)
                 try:
                     import httpx
+                    import os
+                    token = os.getenv("MOMAI_SESSION_TOKEN", "")
+                    headers = {"Authorization": f"Bearer {token}"} if token else {}
                     with httpx.Client() as client:
                         resp = client.get(
                             self.keyword_check_url,
                             params={"text": raw_text},
+                            headers=headers,
                             timeout=2.0,
                         )
                         if resp.status_code == 200:
