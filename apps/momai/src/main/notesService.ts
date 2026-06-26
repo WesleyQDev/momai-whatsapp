@@ -162,9 +162,7 @@ function healIndexPaths(items: NoteIndexRecord[]): boolean {
       const candidate = entry.path.replace(/\.md$/i, ENCRYPTED_EXT)
       const candidateAbs = getNoteAbsolutePath({ path: candidate })
       if (existsSync(candidateAbs)) {
-        logger.info(
-          `[notes] Healed index path for id=${entry.id}: ${entry.path} -> ${candidate}`
-        )
+        logger.info(`[notes] Healed index path for id=${entry.id}: ${entry.path} -> ${candidate}`)
         entry.path = candidate
         updated = true
       }

@@ -140,10 +140,7 @@ class ExtensionHostManager extends EventEmitter {
         this._resolvePending(msg.requestId, msg.result)
       } else if (msg.type === 'log') {
         console.log(`[ext:${skillId}] ${msg.message}`)
-      } else if (
-        msg.type === 'secure-storage:encrypt' ||
-        msg.type === 'secure-storage:decrypt'
-      ) {
+      } else if (msg.type === 'secure-storage:encrypt' || msg.type === 'secure-storage:decrypt') {
         _forwardSecureStorageRequest(child, msg)
       }
     })

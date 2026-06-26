@@ -16,7 +16,8 @@ const GRADIENTS = [
 export function getGradient(name: string): string {
   const lower = name.toLowerCase().trim();
   if (lower === "whatsapp") return "from-emerald-500 to-green-600";
-  if (lower === "lançador" || lower === "launcher") return "from-blue-500 to-indigo-600";
+  if (lower === "lançador" || lower === "launcher")
+    return "from-blue-500 to-indigo-600";
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -179,7 +180,10 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   ),
 };
 
-export function getIcon(iconName: string | undefined, iconUrl?: string): React.ReactNode {
+export function getIcon(
+  iconName: string | undefined,
+  iconUrl?: string,
+): React.ReactNode {
   if (iconUrl) {
     return (
       <img

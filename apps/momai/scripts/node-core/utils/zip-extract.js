@@ -54,7 +54,9 @@ function extractZip(zipPath, destDir, options = {}) {
         if (aborted) return
         aborted = true
         clearTimeout(timer)
-        try { zipfile.close() } catch {}
+        try {
+          zipfile.close()
+        } catch {}
         reject(e)
       }
 

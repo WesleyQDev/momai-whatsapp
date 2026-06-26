@@ -48,7 +48,7 @@ const CallModeContent = ({
       const height = canvas.height
       ctx.clearRect(0, 0, width, height)
 
-      const isActive = status !== 'idle' || isSpeaking
+      const isActive = status !== 'processing' || isSpeaking
       phaseRef.current += 0.04 + (isActive ? 0.04 : 0)
 
       // Smooth the bands for fluid motion

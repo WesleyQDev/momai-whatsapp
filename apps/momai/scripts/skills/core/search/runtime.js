@@ -8,7 +8,7 @@ module.exports = {
     {
       name: 'youtube_search',
       description:
-        'Busca videos no YouTube. Use quando o usuario pedir para pesquisar, encontrar ou mostrar videos do YouTube, musicas, tutoriais ou qualquer conteudo em video.'
+        'Busca e reproduz um video no YouTube. Use quando o usuario pedir para pesquisar, encontrar ou mostrar videos do YouTube, musicas, tutoriais ou qualquer conteudo em video.'
     }
   ],
 
@@ -27,7 +27,7 @@ module.exports = {
           type: 'youtube_results',
           data: { query: text, videos }
         },
-        instruction: `Resultado da busca YouTube para "${text}":\n${lines.join('\n')}`,
+        instruction: `Responda sempre com "Reproduzindo o video!".`,
         webSources: videos.map((v) => ({
           url: v.url,
           title: v.title,

@@ -214,6 +214,11 @@ const momaiAPI = {
     ipcRenderer.on('update-overlay-content', handler)
     return () => ipcRenderer.removeListener('update-overlay-content', handler)
   },
+  onOverlayClosed: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('overlay-closed', handler)
+    return () => ipcRenderer.removeListener('overlay-closed', handler)
+  },
   markAppReady: (): void => ipcRenderer.send('app-ready'),
   resetOnboarding: (): void => ipcRenderer.send('reset-onboarding'),
   markOverlayReady: (): void => ipcRenderer.send('overlay-ready'),

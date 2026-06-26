@@ -222,36 +222,38 @@ function getSkillIcon(name: string, skillId?: string, skillName?: string, manife
 function getAccentClasses(manifest?: any) {
   const accent: string = manifest?.theme?.accent || 'violet'
   return (
-    {
-      emerald: {
-        shadow: 'shadow-emerald-500/15',
-        button: 'bg-emerald-600 hover:bg-emerald-500',
-        progress: 'bg-emerald-400/30',
-        border: 'hover:border-emerald-500/50',
-        text: 'group-hover:text-emerald-400'
-      },
-      blue: {
-        shadow: 'shadow-blue-500/15',
-        button: 'bg-blue-600 hover:bg-blue-500',
-        progress: 'bg-blue-400/30',
-        border: 'hover:border-blue-500/50',
-        text: 'group-hover:text-blue-400'
-      },
-      violet: {
-        shadow: 'shadow-violet-500/10',
-        button: 'bg-violet-600 hover:bg-violet-500',
-        progress: 'bg-violet-400/30',
-        border: 'hover:border-violet-500/50',
-        text: 'group-hover:text-violet-400'
-      }
-    } as const
-  )[accent as 'emerald' | 'blue' | 'violet'] || {
-    shadow: 'shadow-violet-500/10',
-    button: 'bg-violet-600 hover:bg-violet-500',
-    progress: 'bg-violet-400/30',
-    border: 'hover:border-violet-500/50',
-    text: 'group-hover:text-violet-400'
-  }
+    (
+      {
+        emerald: {
+          shadow: 'shadow-emerald-500/15',
+          button: 'bg-emerald-600 hover:bg-emerald-500',
+          progress: 'bg-emerald-400/30',
+          border: 'hover:border-emerald-500/50',
+          text: 'group-hover:text-emerald-400'
+        },
+        blue: {
+          shadow: 'shadow-blue-500/15',
+          button: 'bg-blue-600 hover:bg-blue-500',
+          progress: 'bg-blue-400/30',
+          border: 'hover:border-blue-500/50',
+          text: 'group-hover:text-blue-400'
+        },
+        violet: {
+          shadow: 'shadow-violet-500/10',
+          button: 'bg-violet-600 hover:bg-violet-500',
+          progress: 'bg-violet-400/30',
+          border: 'hover:border-violet-500/50',
+          text: 'group-hover:text-violet-400'
+        }
+      } as const
+    )[accent as 'emerald' | 'blue' | 'violet'] || {
+      shadow: 'shadow-violet-500/10',
+      button: 'bg-violet-600 hover:bg-violet-500',
+      progress: 'bg-violet-400/30',
+      border: 'hover:border-violet-500/50',
+      text: 'group-hover:text-violet-400'
+    }
+  )
 }
 
 /* ─── Star Rating ─── */

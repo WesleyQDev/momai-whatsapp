@@ -96,7 +96,7 @@ function createRouter(context, routeHandlers) {
       return
     }
     authMiddleware(req, res, () => {
-      const limiter = (req.method === 'GET' || req.method === 'HEAD') ? readLimiter : writeLimiter
+      const limiter = req.method === 'GET' || req.method === 'HEAD' ? readLimiter : writeLimiter
       limiter(req, res, () => {
         handleRequest(req, res).catch((err) => {
           error('[NodeCore] Unexpected request error:', err)

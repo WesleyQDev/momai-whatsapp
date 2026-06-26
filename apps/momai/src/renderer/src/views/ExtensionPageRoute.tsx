@@ -50,7 +50,11 @@ export default function ExtensionPageRoute({ extensionId: propId, fallback: Fall
   }
 
   if (!skill.ui?.page) {
-    return Fallback ? <Fallback extensionId={skill.id} /> : <div className="p-8 text-text-muted">Esta extensão não tem UI full-page</div>
+    return Fallback ? (
+      <Fallback extensionId={skill.id} />
+    ) : (
+      <div className="p-8 text-text-muted">Esta extensão não tem UI full-page</div>
+    )
   }
 
   if (!Component) {

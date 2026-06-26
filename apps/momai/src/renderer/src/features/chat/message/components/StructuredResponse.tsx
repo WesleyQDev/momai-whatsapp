@@ -3,14 +3,15 @@ import StructuredResponseRenderer from '../../../../components/chat/StructuredRe
 
 interface StructuredResponseProps {
   response: any
+  isSpeaking?: boolean
 }
 
-export const StructuredResponse: React.FC<StructuredResponseProps> = ({ response }) => {
+export const StructuredResponse: React.FC<StructuredResponseProps> = ({ response, isSpeaking = false }) => {
   if (!response) return null
 
   return (
-    <div className="transition-all duration-500 animate-in fade-in py-0.5">
-      <StructuredResponseRenderer response={response} />
+    <div data-structured-response className="transition-all duration-500 animate-in fade-in py-0.5">
+      <StructuredResponseRenderer response={response} isSpeaking={isSpeaking} />
     </div>
   )
 }

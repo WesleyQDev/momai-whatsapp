@@ -2,7 +2,9 @@ const { sanitizeError, isSafeErrorMessage } = require('./error-sanitizer.js')
 
 describe('sanitizeError', () => {
   it('returns generic message for production', () => {
-    const out = sanitizeError(new Error("ENOENT: no such file or directory, open '/etc/passwd'"), { isDev: false })
+    const out = sanitizeError(new Error("ENOENT: no such file or directory, open '/etc/passwd'"), {
+      isDev: false
+    })
     expect(out.status).toBe(500)
     expect(out.body).toEqual({ ok: false, error: 'Internal server error' })
   })

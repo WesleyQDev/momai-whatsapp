@@ -335,6 +335,7 @@ export async function syncDependencies(
     }
     installArgs.push(
       'fastapi[standard]',
+      'annotated-doc',
       'huggingface-hub',
       'httpx',
       'numpy',

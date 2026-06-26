@@ -23,8 +23,9 @@ describe('verifyChecksum', () => {
 
   it('returns { ok: false, reason: "mismatch" } when the checksum differs', () => {
     const data = Buffer.from('actual content')
-    expect(verifyChecksum(data, '0000000000000000000000000000000000000000000000000000000000000000'))
-      .toEqual({ ok: false, reason: 'mismatch' })
+    expect(
+      verifyChecksum(data, '0000000000000000000000000000000000000000000000000000000000000000')
+    ).toEqual({ ok: false, reason: 'mismatch' })
   })
 
   it('returns { ok: false, reason: "missing" } when expected is null/undefined/empty', () => {
@@ -34,9 +35,13 @@ describe('verifyChecksum', () => {
   })
 
   it('returns { ok: false, reason: "invalid_format" } when expected is not 64 hex chars', () => {
-    expect(verifyChecksum(Buffer.from('x'), 'too-short'))
-      .toEqual({ ok: false, reason: 'invalid_format' })
-    expect(verifyChecksum(Buffer.from('x'), 'Z'.repeat(64)))
-      .toEqual({ ok: false, reason: 'invalid_format' })
+    expect(verifyChecksum(Buffer.from('x'), 'too-short')).toEqual({
+      ok: false,
+      reason: 'invalid_format'
+    })
+    expect(verifyChecksum(Buffer.from('x'), 'Z'.repeat(64))).toEqual({
+      ok: false,
+      reason: 'invalid_format'
+    })
   })
 })

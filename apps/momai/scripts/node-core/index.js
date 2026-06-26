@@ -511,8 +511,7 @@ async function startServer() {
       readJsonBody,
       saveStore: () => saveStore(store),
       dataDir: DATA_DIR,
-      getTempPath: () =>
-        path.join(os.tmpdir(), `momai-export-${Date.now()}-${process.pid}.zip`),
+      getTempPath: () => path.join(os.tmpdir(), `momai-export-${Date.now()}-${process.pid}.zip`),
       extensionHostManager,
       skillRegistry: _skillRegistry
     })

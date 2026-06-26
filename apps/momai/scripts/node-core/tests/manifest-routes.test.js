@@ -14,10 +14,15 @@ describe('mountSkillRoutes', () => {
     const app = makeApp()
     const hostManager = { sendToPersistent: vi.fn().mockResolvedValue({ ok: true }) }
     const skills = [
-      { id: 'whatsapp', manifest: { routes: [{ method: 'POST', path: '/disconnect', tool: 'disconnect' }] } }
+      {
+        id: 'whatsapp',
+        manifest: { routes: [{ method: 'POST', path: '/disconnect', tool: 'disconnect' }] }
+      }
     ]
     mountSkillRoutes(app, skills, hostManager)
-    expect(app.routes).toEqual([{ method: 'POST', path: '/extensions/whatsapp/disconnect', handler: expect.any(Function) }])
+    expect(app.routes).toEqual([
+      { method: 'POST', path: '/extensions/whatsapp/disconnect', handler: expect.any(Function) }
+    ])
   })
 
   it('skips skills without routes', () => {
@@ -38,15 +43,26 @@ describe('mountSkillRoutes', () => {
 
   it('handler dispatches to hostManager.sendToPersistent with correct args', async () => {
     const app = makeApp()
-    const hostManager = { sendToPersistent: vi.fn().mockResolvedValue({ ok: true, message: 'done' }) }
+    const hostManager = {
+      sendToPersistent: vi.fn().mockResolvedValue({ ok: true, message: 'done' })
+    }
     const skills = [
-      { id: 'whatsapp', manifest: { routes: [{ method: 'POST', path: '/disconnect', tool: 'disconnect' }] } }
+      {
+        id: 'whatsapp',
+        manifest: { routes: [{ method: 'POST', path: '/disconnect', tool: 'disconnect' }] }
+      }
     ]
     mountSkillRoutes(app, skills, hostManager)
     const fakeRes = { writeHead: vi.fn(), end: vi.fn(), req: { headers: {} } }
     await app.routes[0].handler({ body: { force: true } }, fakeRes)
-    expect(hostManager.sendToPersistent).toHaveBeenCalledWith('whatsapp', { toolName: 'disconnect', args: { force: true } })
-    expect(fakeRes.writeHead).toHaveBeenCalledWith(200, expect.objectContaining({ 'Content-Type': 'application/json; charset=utf-8' }))
+    expect(hostManager.sendToPersistent).toHaveBeenCalledWith('whatsapp', {
+      toolName: 'disconnect',
+      args: { force: true }
+    })
+    expect(fakeRes.writeHead).toHaveBeenCalledWith(
+      200,
+      expect.objectContaining({ 'Content-Type': 'application/json; charset=utf-8' })
+    )
     expect(fakeRes.end).toHaveBeenCalledWith(JSON.stringify({ ok: true, message: 'done' }))
   })
 
@@ -54,12 +70,18 @@ describe('mountSkillRoutes', () => {
     const app = makeApp()
     const hostManager = { sendToPersistent: vi.fn().mockRejectedValue(new Error('boom')) }
     const skills = [
-      { id: 'whatsapp', manifest: { routes: [{ method: 'POST', path: '/disconnect', tool: 'disconnect' }] } }
+      {
+        id: 'whatsapp',
+        manifest: { routes: [{ method: 'POST', path: '/disconnect', tool: 'disconnect' }] }
+      }
     ]
     mountSkillRoutes(app, skills, hostManager)
     const fakeRes = { writeHead: vi.fn(), end: vi.fn(), req: { headers: {} } }
     await app.routes[0].handler({}, fakeRes)
-    expect(fakeRes.writeHead).toHaveBeenCalledWith(500, expect.objectContaining({ 'Content-Type': 'application/json; charset=utf-8' }))
+    expect(fakeRes.writeHead).toHaveBeenCalledWith(
+      500,
+      expect.objectContaining({ 'Content-Type': 'application/json; charset=utf-8' })
+    )
     expect(fakeRes.end).toHaveBeenCalledWith(JSON.stringify({ ok: false, error: 'boom' }))
   })
 })

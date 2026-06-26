@@ -441,17 +441,17 @@ export function ExtensionsPage() {
             {filteredExtensions.map((ext) => {
               const { name, description } = getLocalized(ext);
               return (
-                  <ExtensionCard
-                    key={ext.id}
-                    name={name}
-                    description={description}
-                    category={ext.category}
-                    author={ext.author}
-                    version={ext.version}
-                    icon={ext.icon}
-                    iconUrl={ext.icon_url}
-                    onClick={() => setSelectedExtension(ext)}
-                  />
+                <ExtensionCard
+                  key={ext.id}
+                  name={name}
+                  description={description}
+                  category={ext.category}
+                  author={ext.author}
+                  version={ext.version}
+                  icon={ext.icon}
+                  iconUrl={ext.icon_url}
+                  onClick={() => setSelectedExtension(ext)}
+                />
               );
             })}
           </div>

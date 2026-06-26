@@ -104,25 +104,45 @@ export default function MainViewRenderer({
   }
 
   return (
-    <div
-      className={`flex min-h-0 ${isChat && !isCompact ? 'basis-[clamp(280px,46vw,820px)] min-w-[280px] lg:min-w-[420px] max-w-[820px] rounded-xl bg-card border border-border/10 shadow-2xl relative overflow-hidden shrink' : 'flex-1 w-full h-full'}`}
-    >
-      <Component
-        onOpenSettings={onOpenSettings}
-        title={extensionData?.name}
-        description={extensionData?.description}
-        extensionId={extensionData?.id}
-        chat={chat}
-        statusInfo={statusInfo}
-        initProgress={initProgress}
-        visualProgress={visualProgress}
-        initMessage={initMessage}
-        isBooting={isBooting}
-        isUpdating={isUpdating}
-        isTierChanging={isTierChanging}
-        setHistoryOpen={setHistoryOpen}
-        isFirstLaunch={isFirstLaunch}
-      />
-    </div>
+    <>
+      <div
+        className={`min-h-0 ${!isCompact ? 'basis-[clamp(280px,46vw,820px)] min-w-[280px] lg:min-w-[420px] max-w-[820px] rounded-xl bg-card border border-border/10 shadow-2xl relative overflow-hidden shrink' : 'flex-1 w-full h-full'}`}
+        style={{ display: isChat ? 'flex' : 'none' }}
+      >
+        <ChatView
+          chat={chat}
+          statusInfo={statusInfo}
+          initProgress={initProgress}
+          visualProgress={visualProgress}
+          initMessage={initMessage}
+          isBooting={isBooting}
+          isUpdating={isUpdating}
+          isTierChanging={isTierChanging}
+          setHistoryOpen={setHistoryOpen}
+          isFirstLaunch={isFirstLaunch}
+        />
+      </div>
+
+      {!isChat && Component && (
+        <div className="flex-1 w-full h-full min-h-0">
+          <Component
+            onOpenSettings={onOpenSettings}
+            title={extensionData?.name}
+            description={extensionData?.description}
+            extensionId={extensionData?.id}
+            chat={chat}
+            statusInfo={statusInfo}
+            initProgress={initProgress}
+            visualProgress={visualProgress}
+            initMessage={initMessage}
+            isBooting={isBooting}
+            isUpdating={isUpdating}
+            isTierChanging={isTierChanging}
+            setHistoryOpen={setHistoryOpen}
+            isFirstLaunch={isFirstLaunch}
+          />
+        </div>
+      )}
+    </>
   )
 }

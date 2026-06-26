@@ -35,18 +35,34 @@ describe('resolveVoiceReply', () => {
   it('returns null when hostManager returns no history', async () => {
     hostManager.sendToPersistent = vi.fn().mockResolvedValue({ history: [] })
     const skills = [
-      { id: 'whatsapp', manifest: { voiceHooks: { reply: { tool: 'get_history', promptTemplate: '{contactName}' } } } }
+      {
+        id: 'whatsapp',
+        manifest: {
+          voiceHooks: { reply: { tool: 'get_history', promptTemplate: '{contactName}' } }
+        }
+      }
     ]
     expect(await resolveVoiceReply('x', skills, hostManager)).toBeNull()
   })
 
   it('skips skills that throw and tries the next one', async () => {
-    const send = vi.fn()
+    const send = vi
+      .fn()
       .mockRejectedValueOnce(new Error('first failed'))
       .mockResolvedValueOnce({ history: [{ from: 'Maria', text: 'oi' }] })
     const skills = [
-      { id: 'a', manifest: { voiceHooks: { reply: { tool: 'h', promptTemplate: '{contactName}: {lastMessage}' } } } },
-      { id: 'b', manifest: { voiceHooks: { reply: { tool: 'h', promptTemplate: '{contactName}: {lastMessage}' } } } }
+      {
+        id: 'a',
+        manifest: {
+          voiceHooks: { reply: { tool: 'h', promptTemplate: '{contactName}: {lastMessage}' } }
+        }
+      },
+      {
+        id: 'b',
+        manifest: {
+          voiceHooks: { reply: { tool: 'h', promptTemplate: '{contactName}: {lastMessage}' } }
+        }
+      }
     ]
     const result = await resolveVoiceReply('x', skills, { sendToPersistent: send })
     expect(result).toContain('Maria: oi')

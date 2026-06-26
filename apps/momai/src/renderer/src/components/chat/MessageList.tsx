@@ -69,6 +69,26 @@ const MessageList = memo(function MessageList({
     lastMessagesLength.current = messages.length
 
     if (isNewMessage || isAtBottomRef.current) {
+      const lastMsg = messages[messages.length - 1]
+      const hasStructuredCard = lastMsg?.role === 'assistant' && lastMsg?.structuredResponse
+
+      if (hasStructuredCard && containerRef.current) {
+        setTimeout(() => {
+          if (!containerRef.current) return
+          const cardEls = containerRef.current.querySelectorAll('[data-structured-response]')
+          const cardEl = cardEls[cardEls.length - 1]
+          if (cardEl) {
+            cardEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          } else {
+            messagesEndRef.current?.scrollIntoView({
+              behavior: isNewMessage ? 'smooth' : 'auto'
+            })
+          }
+        }, 100)
+        if (isNewMessage) isAtBottomRef.current = true
+        return
+      }
+
       messagesEndRef.current?.scrollIntoView({
         behavior: isNewMessage ? 'smooth' : 'auto'
       })

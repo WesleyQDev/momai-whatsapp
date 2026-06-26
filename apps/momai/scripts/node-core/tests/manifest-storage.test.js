@@ -5,7 +5,10 @@ describe('collectStoredData', () => {
     const skills = [
       {
         id: 'whatsapp',
-        manifest: { name: 'WhatsApp', storage: { description: 'Sessão criptografada', locations: ['baileys-auth/'] } }
+        manifest: {
+          name: 'WhatsApp',
+          storage: { description: 'Sessão criptografada', locations: ['baileys-auth/'] }
+        }
       },
       {
         id: 'launcher',
@@ -14,7 +17,12 @@ describe('collectStoredData', () => {
     ]
     const result = collectStoredData(skills)
     expect(result).toEqual([
-      { skillId: 'whatsapp', skillName: 'WhatsApp', description: 'Sessão criptografada', locations: ['baileys-auth/'] }
+      {
+        skillId: 'whatsapp',
+        skillName: 'WhatsApp',
+        description: 'Sessão criptografada',
+        locations: ['baileys-auth/']
+      }
     ])
   })
 

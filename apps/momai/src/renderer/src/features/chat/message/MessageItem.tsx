@@ -310,16 +310,16 @@ const MessageItem = memo(
                     </div>
                   )}
 
-                  {/* Structured Response */}
-                  {isLastPart && message.structuredResponse && (
-                    <StructuredResponse response={message.structuredResponse} />
-                  )}
-
                   {/* Markdown Content */}
                   {part.cleanText && part.cleanText.length > 0 && (
                     <div className="transition-all duration-500 animate-in fade-in py-0.5">
                       <MarkdownRenderer>{part.cleanText}</MarkdownRenderer>
                     </div>
+                  )}
+
+                  {/* Structured Response */}
+                  {isLastPart && message.structuredResponse && (
+                    <StructuredResponse response={message.structuredResponse} isSpeaking={isSpeaking} />
                   )}
                 </React.Fragment>
               )

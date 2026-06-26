@@ -20,7 +20,9 @@ describe('extractWsToken', () => {
 describe('isValidWsUpgrade', () => {
   const originalToken = process.env.MOMAI_SESSION_TOKEN
 
-  beforeEach(() => { process.env.MOMAI_SESSION_TOKEN = 'tok-xyz' })
+  beforeEach(() => {
+    process.env.MOMAI_SESSION_TOKEN = 'tok-xyz'
+  })
   afterEach(() => {
     if (originalToken === undefined) delete process.env.MOMAI_SESSION_TOKEN
     else process.env.MOMAI_SESSION_TOKEN = originalToken

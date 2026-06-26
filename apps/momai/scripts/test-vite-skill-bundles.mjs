@@ -93,7 +93,8 @@ async function main() {
       const len = res.body.length
       const hasBareImport = /from\s+["']react["']/.test(res.body)
       const hasViteRewrite = /from\s+["']\/.*react/.test(res.body)
-      const hasCjsInterop = /__vite__cjsImport|import\s+\{[^}]*\}\s+from\s+["']\/node_modules\/\.vite/.test(res.body)
+      const hasCjsInterop =
+        /__vite__cjsImport|import\s+\{[^}]*\}\s+from\s+["']\/node_modules\/\.vite/.test(res.body)
       const preview =
         res.body.length > 200
           ? res.body.slice(0, 200).replace(/\n/g, ' ') + '…'

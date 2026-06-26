@@ -8,7 +8,7 @@ const skillCache = new Map<string, Extension>()
 
 export function useInstalledSkill(id: string | undefined): Extension | null {
   const [skill, setSkill] = useState<Extension | null>(() => {
-    return id ? skillCache.get(id) ?? null : null
+    return id ? (skillCache.get(id) ?? null) : null
   })
 
   useEffect(() => {

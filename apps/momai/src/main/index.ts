@@ -148,6 +148,7 @@ ipcMain.on('reset-onboarding', async () => {
   logger.info('[Electron] Resetting onboarding status')
   state.isFirstLaunch = true
   saveOnboardingCompleted(false)
+  setIsQuitting(false)
 
   // Notify renderer to reset its boot/loading state. Without this, the
   // renderer's `wasEverBooted` and `animationFinished` flags stay sticky

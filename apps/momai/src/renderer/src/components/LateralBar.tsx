@@ -18,7 +18,7 @@ import { useI18n } from '../i18n'
 
 interface LateralBarProps {
   activeRoute: string
-  onNavigate: (path: string) => void
+  onNavigate: (path: string, state?: Record<string, any>) => void
   onOpenSettings?: () => void
   onOpenPanel?: (extensionId: string | null) => void
   isCompact?: boolean
@@ -93,11 +93,7 @@ function InlineSvgIcon({ svg, className }: { svg: string; className?: string }) 
     return `<svg${noSize} fill="currentColor">`
   })
   return (
-    <span
-      className={className}
-      aria-hidden="true"
-      dangerouslySetInnerHTML={{ __html: cleaned }}
-    />
+    <span className={className} aria-hidden="true" dangerouslySetInnerHTML={{ __html: cleaned }} />
   )
 }
 
@@ -345,6 +341,27 @@ export default function LateralBar({
               )}
               {renderNotes()}
               {renderScheduler()}
+
+              {/* YouTube Search Shortcut */}
+              <button
+                onClick={() => onNavigate('/', { prefillText: 'Pesquisar no Youtube: ' })}
+                title="YouTube"
+                className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 text-text-muted hover:text-text`}
+              >
+                <svg
+                  className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="2" y="4" width="20" height="16" rx="4" />
+                  <polygon points="10,8.5 16,12 10,15.5" fill="currentColor" stroke="none" />
+                </svg>
+              </button>
+
               {otherExtensions.map((ext) => renderExt(ext))}
 
               {/* Extension Panels Section */}

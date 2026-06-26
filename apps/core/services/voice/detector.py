@@ -491,15 +491,18 @@ class WakeWordDetector:
             # Drop stale transcriptions that sat in queue too long.
             if (time.time() - enqueued_at) > 2.5:
                 logger.warning("[WakeWord] Dropping stale audio from processing queue (age=%.1fs)", time.time() - enqueued_at)
+                if not is_partial:
+                    self._set_state(self.STATE_IDLE)
                 continue
 
             if not is_partial:
                 self._set_state(self.STATE_PROCESSING)
 
-            self._process_recording(audio, is_partial, had_tts)
-
-            if not is_partial:
-                self._set_state(self.STATE_IDLE)
+            try:
+                self._process_recording(audio, is_partial, had_tts)
+            finally:
+                if not is_partial:
+                    self._set_state(self.STATE_IDLE)
 
     def _process_recording(self, audio, is_partial=False, had_tts=False):
         """Transcribe the recorded speech buffer and process the result."""

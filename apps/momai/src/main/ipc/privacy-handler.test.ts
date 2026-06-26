@@ -35,6 +35,10 @@ vi.mock('../security/authenticated-fetch', () => ({
   authFetch: vi.fn()
 }))
 
+vi.mock('../python', () => ({
+  shutdownPython: vi.fn().mockResolvedValue(undefined)
+}))
+
 import { ipcMain, dialog } from 'electron'
 import { authFetch } from '../security/authenticated-fetch'
 import { registerPrivacyHandlers } from './privacy-handler'

@@ -13,6 +13,10 @@ function replaceAll(template, vars) {
   for (const [key, value] of Object.entries(vars)) {
     out = out.split(`{{${key}}}`).join(String(value ?? ''))
   }
+  // Run a second pass to resolve any nested placeholders introduced by variables
+  for (const [key, value] of Object.entries(vars)) {
+    out = out.split(`{{${key}}}`).join(String(value ?? ''))
+  }
   return out
 }
 
@@ -64,7 +68,7 @@ function createPromptRegistry({ promptsDir }) {
       default_max_sentences: 6,
       memory_context_header: '{{sections}}',
       system_template:
-        'Persona: {{assistant_persona}}\nStyle: {{response_style}}\nMax sentences: {{max_sentences}}\n{{memory_block}}\n{{tool_instruction}}',
+        'Persona: {{assistant_persona}}\nUser name: {{user_name}}\nStyle: {{response_style}}\nMax sentences: {{max_sentences}}\n{{memory_block}}\n{{tool_instruction}}',
       tiers: {
         lite: { response_style: 'balanced', max_sentences: 6, tier_instructions: '' },
         pro: { response_style: 'balanced', max_sentences: 6, tier_instructions: '' },
@@ -110,13 +114,14 @@ function createPromptRegistry({ promptsDir }) {
     let rawInstructions = String(tierCfg.tier_instructions || '')
     if (input.hasHistory) {
       rawInstructions = rawInstructions.replace(
-        /Greet( the user)? with a friendly sentence of at least 3 words and an emoji( only)? when starting( a conversation)?\./gi,
+        /Greet( the user)?.*? when starting( a conversation)?\./gi,
         'The conversation is already in progress. NEVER greet or introduce yourself - respond directly.'
       )
     }
 
     const vars = {
       assistant_persona: sanitize(input.persona || prompts.default_persona || ''),
+      user_name: sanitize(input.userName || 'Usuário'),
       response_style: sanitize(
         input.responseStyle || tierCfg.response_style || prompts.default_style || 'balanced'
       ),
@@ -166,7 +171,8 @@ function createPromptRegistry({ promptsDir }) {
     const template = String(templates[key] || templates.default || 'Fallback: {{summary}}.')
     return replaceAll(template, {
       summary: sanitize(input?.summary || ''),
-      reason: sanitize(input?.reason || '')
+      reason: sanitize(input?.reason || ''),
+      user_name: sanitize(input?.userName || 'Usuário')
     })
   }
 

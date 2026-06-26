@@ -25,7 +25,9 @@ function createChatRoutes(context) {
     if (replyMatch && req.method === 'POST') {
       const skillId = replyMatch[1]
       const skill =
-        skillRegistry && typeof skillRegistry.getById === 'function' ? skillRegistry.getById(skillId) : null
+        skillRegistry && typeof skillRegistry.getById === 'function'
+          ? skillRegistry.getById(skillId)
+          : null
       if (!skill) {
         sendJson(res, 404, { ok: false, error: 'skill_not_found' })
         return true

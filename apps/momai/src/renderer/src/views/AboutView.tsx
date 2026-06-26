@@ -237,9 +237,7 @@ export default function AboutView() {
             {/* Export */}
             <div className="flex items-center justify-between gap-4 p-4 border-b border-white/5">
               <div className="flex flex-col gap-0.5 pr-4 min-w-0">
-                <span className="text-xs font-semibold text-text">
-                  {t('privacy.export.title')}
-                </span>
+                <span className="text-xs font-semibold text-text">{t('privacy.export.title')}</span>
                 <span className="text-[11px] text-text-muted font-medium leading-relaxed">
                   {t('privacy.export.desc')}
                 </span>

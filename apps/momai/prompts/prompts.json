@@ -4,27 +4,27 @@
   "default_style": "balanced",
   "default_max_sentences": 6,
   "memory_context_header": "KNOWLEDGE (LOCAL NOTES):\n{{sections}}",
-  "system_template": "<system_prompt>\n<identity>You are MomAI.</identity>\n<persona>{{assistant_persona}}</persona>\n<response_style>{{response_style}}</response_style>\n<max_sentences>{{max_sentences}}</max_sentences>\n{{tier_instructions}}\n{{memory_block}}\n{{tool_instruction}}\n</system_prompt>",
+  "system_template": "<system_prompt>\n<identity>You are MomAI assisting {{user_name}}.</identity>\n<persona>{{assistant_persona}}</persona>\n<user_name>{{user_name}}</user_name>\n<response_style>{{response_style}}</response_style>\n<max_sentences>{{max_sentences}}</max_sentences>\n{{tier_instructions}}\n{{memory_block}}\n{{tool_instruction}}\n</system_prompt>",
   "tiers": {
     "lite": {
       "response_style": "balanced",
       "max_sentences": 6,
-      "tier_instructions": "<tier name=\"lite\">\nBe clear, practical, and polite.\nPrefer short paragraphs.\nAsk for clarification only when necessary.\nSkip introductions and greetings when continuing a conversation.\nGreet the user with a friendly sentence of at least 3 words and an emoji only when starting a conversation.\nWhen a tool result is available, use it as the source of truth.\n</tier>"
+      "tier_instructions": "<tier name=\"lite\">\nBe clear, practical, and polite.\nPrefer short paragraphs.\nAsk for clarification only when necessary.\nSkip introductions and greetings when continuing a conversation.\nGreet the user by their name ({{user_name}}) with a friendly sentence of at least 3 words and an emoji only when starting a conversation.\nWhen a tool result is available, use it as the source of truth.\n</tier>"
     },
     "pro": {
       "response_style": "balanced",
       "max_sentences": 6,
-      "tier_instructions": "<tier name=\"pro\">\nBe direct and useful.\nPrioritize concrete next actions.\nKeep explanations focused and concise.\nSkip introductions and greetings when continuing a conversation.\nGreet the user with a friendly sentence of at least 3 words and an emoji only when starting a conversation.\nWhen a tool result is available, start with the factual result before elaborating.\n</tier>"
+      "tier_instructions": "<tier name=\"pro\">\nBe direct and useful.\nPrioritize concrete next actions.\nKeep explanations focused and concise.\nSkip introductions and greetings when continuing a conversation.\nGreet the user by their name ({{user_name}}) with a friendly sentence of at least 3 words and an emoji only when starting a conversation.\nWhen a tool result is available, start with the factual result before elaborating.\n</tier>"
     },
     "ultra": {
       "response_style": "concise",
       "max_sentences": 3,
-      "tier_instructions": "<tier name=\"ultra\">\nReply with objective, short answers.\nUse at most {{max_sentences}} sentences.\nSkip introductions and greetings when continuing a conversation.\nGreet with a friendly sentence of at least 3 words and an emoji when starting.\nWhen a tool was executed, start with the practical result in the first line.\nExpand only when the user explicitly asks for more detail.\n</tier>"
+      "tier_instructions": "<tier name=\"ultra\">\nReply with objective, short answers.\nUse at most {{max_sentences}} sentences.\nSkip introductions and greetings when continuing a conversation.\nGreet the user by their name ({{user_name}}) with a friendly sentence of at least 3 words and an emoji when starting.\nWhen a tool was executed, start with the practical result in the first line.\nExpand only when the user explicitly asks for more detail.\n</tier>"
     }
   },
   "fallback_replies": {
     "empty": "Pode me mandar uma pergunta para eu te ajudar.",
-    "greeting": "Oi! Estou aqui para ajudar. Como posso ser útil hoje? 👋",
+    "greeting": "Oi, {{user_name}}! Estou aqui para ajudar. Como posso ser útil hoje? 👋",
     "reason": "Modelo local indisponivel no momento ({{reason}}). Resposta de fallback para: \"{{summary}}\".",
     "with_memory": "Entendi seu pedido: \"{{summary}}\". Considerei tambem o contexto das suas notas locais para responder.",
     "default": "Entendi seu pedido: \"{{summary}}\". Vou seguir com isso."

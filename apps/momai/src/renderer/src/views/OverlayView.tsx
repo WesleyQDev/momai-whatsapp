@@ -14,7 +14,27 @@ export default function OverlayView() {
     if (root) root.style.setProperty('background', 'transparent', 'important')
 
     const removeListener = window.momaiAPI.onUpdateOverlayContent(async (contentData) => {
-      setData(contentData)
+      setData((prevData: any) => {
+        if (!contentData) return null;
+        if (!prevData) return contentData;
+        const prevType = prevData.structuredResponse?.type
+        const newType = contentData.structuredResponse?.type
+        if (prevType && newType && prevType !== newType) {
+          return contentData;
+        }
+        return {
+          ...prevData,
+          ...contentData,
+          structuredResponse: {
+            ...prevData.structuredResponse,
+            ...contentData.structuredResponse,
+            data: {
+              ...prevData.structuredResponse?.data,
+              ...contentData.structuredResponse?.data
+            }
+          }
+        };
+      })
 
       const type = contentData?.structuredResponse?.type
       const skillId = contentData?.skillId
@@ -24,7 +44,11 @@ export default function OverlayView() {
       if (type && skillId && panelPath && panelType && !hasRenderer(type)) {
         setLoadingRenderer(true)
         try {
-          await loadSkillRenderer(skillId, { panel: panelPath, panelType }, `/extensions/${skillId}`)
+          await loadSkillRenderer(
+            skillId,
+            { panel: panelPath, panelType },
+            `/extensions/${skillId}`
+          )
         } catch (err) {
           console.error('[OverlayView] Failed to load skill renderer:', err)
         } finally {

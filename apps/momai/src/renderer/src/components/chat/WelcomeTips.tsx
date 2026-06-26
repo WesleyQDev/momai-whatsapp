@@ -82,17 +82,37 @@ export function WelcomeActions({
   onSendMessage,
   tier,
   dynamicSuggestion,
-  randomSuggestions
+  randomSuggestions,
+  youtubeSuggestion
 }: {
   onSendMessage: (text: string) => void
   tier: string
   dynamicSuggestion: string | null
   randomSuggestions: string[]
+  youtubeSuggestion?: string
 }) {
   if (tier !== 'ultra') return null
 
+  const query = youtubeSuggestion || 'Lo-Fi Hip Hop'
+
   return (
     <div className="w-full max-w-2xl flex flex-wrap justify-center gap-2 mt-4 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
+      <button
+        onClick={() => onSendMessage(`Pesquisar no YouTube: ${query}`)}
+        className="py-1.5 px-4 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-all text-[11px] font-bold flex items-center gap-2 shadow-sm hover:scale-105 transform duration-200"
+      >
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          className="text-red-500"
+        >
+          <path d="M23.498 6.163c-.272-.98-1.04-1.748-2.02-2.02C19.716 3.745 12 3.745 12 3.745s-7.716 0-9.478.398c-.98.272-1.748 1.04-2.02 2.02C.1 7.925.1 12 .1 12s0 4.075.402 5.837c.272.98 1.04 1.748 2.02 2.02 1.762.398 9.478.398 9.478.398s7.716 0 9.478-.398c.98-.272 1.748-1.04 2.02-2.02.402-1.762.402-5.837.402-5.837s0-4.075-.402-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+        </svg>
+        <span>Pesquisar no YouTube: {query}</span>
+      </button>
+
       {dynamicSuggestion && (
         <button
           onClick={() => onSendMessage(dynamicSuggestion)}

@@ -172,6 +172,10 @@ export function registerIpcHandlers(): void {
     if (state.overlayWindow && !state.overlayWindow.isDestroyed()) {
       state.overlayWindow.hide()
     }
+    const win = getMainWindow()
+    if (win) {
+      win.webContents.send('overlay-closed')
+    }
   })
 
   ipcMain.on('overlay-action', (_, action) => {
@@ -256,6 +260,10 @@ export function registerIpcHandlers(): void {
 function getOverlayDimensions(data?: {
   structuredResponse?: { type?: string; data?: { conversationHistory?: unknown[] } }
 }) {
+  const type = data?.structuredResponse?.type
+  if (type === 'whatsapp-reconnect') {
+    return { width: 440, height: 420 }
+  }
   const historyLen = data?.structuredResponse?.data?.conversationHistory?.length ?? 0
   const width = 440
   if (historyLen > 0) {
@@ -320,14 +328,21 @@ export function createOverlayWindow(data?: any): void {
 
   const overlayWin = state.overlayWindow
   if (overlayWin) {
-    logger.info(`[WindowManager] Overlay window exists, showing at center of screen (${width}x${height})`)
-    overlayWin.setSize(width, height)
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const { workArea } = primaryDisplay
-    overlayWin.setPosition(
-      Math.round((workArea.width - width) / 2),
-      Math.round((workArea.height - height) / 2)
+    logger.info(
+      `[WindowManager] Overlay window exists, showing (${width}x${height})`
     )
+    const [curW, curH] = overlayWin.getSize()
+    if (curW !== width || curH !== height) {
+      overlayWin.setSize(width, height)
+    }
+    if (isNew) {
+      const primaryDisplay = screen.getPrimaryDisplay()
+      const { workArea } = primaryDisplay
+      overlayWin.setPosition(
+        Math.round((workArea.width - width) / 2),
+        Math.round((workArea.height - height) / 2)
+      )
+    }
     overlayWin.showInactive()
     overlayWin.setAlwaysOnTop(true, 'screen-saver')
     overlayWin.focus()

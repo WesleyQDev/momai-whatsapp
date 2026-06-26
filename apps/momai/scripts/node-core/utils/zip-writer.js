@@ -105,9 +105,7 @@ function buildCentralEntry(
   method
 ) {
   const needZip64 =
-    compressedSize > 0xffffffff ||
-    uncompressedSize > 0xffffffff ||
-    localHeaderOffset > 0xffffffff
+    compressedSize > 0xffffffff || uncompressedSize > 0xffffffff || localHeaderOffset > 0xffffffff
   const extraBuf = needZip64
     ? buildZip64Extra(uncompressedSize, compressedSize, localHeaderOffset)
     : Buffer.alloc(0)

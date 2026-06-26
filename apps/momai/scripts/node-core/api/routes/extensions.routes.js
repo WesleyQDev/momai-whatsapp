@@ -351,7 +351,8 @@ function createExtensionsRoutes(context) {
         sendJson(res, 400, { ok: false, error: 'invalid_path' })
         return true
       }
-      const skill = typeof skillRegistry.getById === 'function' ? skillRegistry.getById(extId) : null
+      const skill =
+        typeof skillRegistry.getById === 'function' ? skillRegistry.getById(extId) : null
       if (!skill || !skill.dir) {
         sendJson(res, 404, { ok: false, error: 'skill_not_found' })
         return true
@@ -362,10 +363,14 @@ function createExtensionsRoutes(context) {
         return true
       }
       const ext = path.extname(fullPath).toLowerCase()
-      const mime = ext === '.js' ? 'application/javascript'
-        : ext === '.map' ? 'application/json'
-        : ext === '.css' ? 'text/css'
-        : 'application/octet-stream'
+      const mime =
+        ext === '.js'
+          ? 'application/javascript'
+          : ext === '.map'
+            ? 'application/json'
+            : ext === '.css'
+              ? 'text/css'
+              : 'application/octet-stream'
       res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'no-cache' })
       fs.createReadStream(fullPath).pipe(res)
       return true
@@ -438,7 +443,9 @@ function createExtensionsRoutes(context) {
               throw new Error('extension checksum mismatch')
             }
             if (checksumResult.reason === 'invalid_format') {
-              console.log(`[ExtensionsAPI] Invalid expected_sha256 format for ${id} — aborting install`)
+              console.log(
+                `[ExtensionsAPI] Invalid expected_sha256 format for ${id} — aborting install`
+              )
               throw new Error('invalid expected_sha256 format')
             }
             if (checksumResult.reason === 'missing') {
@@ -462,8 +469,7 @@ function createExtensionsRoutes(context) {
             fs.rmSync(extDir, { recursive: true, force: true })
           } catch {}
           res.write(
-            JSON.stringify({ ok: false, error: `Extension install failed: ${err.message}` }) +
-              '\n'
+            JSON.stringify({ ok: false, error: `Extension install failed: ${err.message}` }) + '\n'
           )
           res.end()
           return true

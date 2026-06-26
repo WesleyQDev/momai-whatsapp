@@ -162,7 +162,9 @@ export function useChat() {
 
   // Reset states on new session (e.g. tier change)
   useEffect(() => {
-    const handleNewSession = () => {
+    const handleNewSession = (event: Event) => {
+      const customEvent = event as CustomEvent<{ prefillText?: string }>
+      const prefillText = customEvent.detail?.prefillText || ''
       dispatch({
         type: 'BATCH_UPDATE',
         updates: {
@@ -174,10 +176,14 @@ export function useChat() {
           voiceEngineLoading: null
         }
       })
+      setText('')
+      setTimeout(() => {
+        setText(prefillText)
+      }, 0)
     }
-    window.addEventListener('momai_new_session', handleNewSession)
-    return () => window.removeEventListener('momai_new_session', handleNewSession)
-  }, [dispatch])
+    window.addEventListener('momai_new_session', handleNewSession as EventListener)
+    return () => window.removeEventListener('momai_new_session', handleNewSession as EventListener)
+  }, [dispatch, setText])
 
   useEffect(() => {
     const handleDevExecTrace = (event: Event) => {

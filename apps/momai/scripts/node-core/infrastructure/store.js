@@ -223,7 +223,9 @@ const _beforeReminders = store.reminders.length
 store.reminders = purgeExpiredReminders(store.reminders)
 const _purgedReminders = _beforeReminders - store.reminders.length
 if (_purgedReminders > 0) {
-  info(`[retention] Pruned ${_purgedReminders} expired reminders (>${REMINDER_RETENTION_DAYS} days)`)
+  info(
+    `[retention] Pruned ${_purgedReminders} expired reminders (>${REMINDER_RETENTION_DAYS} days)`
+  )
   saveStoreNow(store)
 }
 
