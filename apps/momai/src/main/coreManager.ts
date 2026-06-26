@@ -891,11 +891,40 @@ async function killNodeCore(): Promise<void> {
   logger.info(`[CoreManager] Encerrando Node core (PID ${pid})...`)
 
   if (process.platform === 'win32') {
+    // Send a graceful shutdown via the /shutdown endpoint first. This lets
+    // node-core call stopAllPersistent() which sends 'shutdown' IPC to each
+    // worker. The worker (e.g. WhatsApp) awaits re-encrypt of Baileys creds
+    // before exiting, so the next launch can restore the session.
     try {
-      execSync(`taskkill /pid ${pid} /t /f`, { stdio: 'ignore' })
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 3000)
+      await authFetch(`http://${API_HOST}:${API_PORT}/shutdown`, {
+        method: 'POST',
+        signal: controller.signal
+      }).catch(() => {})
+      clearTimeout(timer)
     } catch (err) {
-      logger.warn(`[CoreManager] taskkill failed for node core PID ${pid}:`, err)
+      logger.warn(`[CoreManager] graceful shutdown request failed:`, err)
     }
+
+    // Wait for the process to exit on its own. If it doesn't exit within
+    // the timeout (worker stuck, IPC hung, etc.) we fall back to taskkill /f.
+    // Matches the 5s budget that stopPersistent() gives each worker in
+    // node-core (extension-host-manager.js).
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        try {
+          execSync(`taskkill /pid ${pid} /t /f`, { stdio: 'ignore' })
+        } catch (err) {
+          logger.warn(`[CoreManager] taskkill failed for node core PID ${pid}:`, err)
+        }
+        resolve()
+      }, 5000)
+      child.once('exit', () => {
+        clearTimeout(timer)
+        resolve()
+      })
+    })
   } else {
     await new Promise<void>((resolve) => {
       const timer = setTimeout(() => {

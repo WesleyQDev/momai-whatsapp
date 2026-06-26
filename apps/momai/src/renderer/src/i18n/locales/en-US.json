@@ -418,8 +418,6 @@
   "tutorial.resume": "Resume Tutorial",
   "settings.general.resetOnboarding": "Reset Onboarding",
   "settings.general.resetOnboardingSuccess": "Onboarding session reset!",
-  "settings.privacy.dangerZoneTitle": "Danger zone",
-  "settings.privacy.dangerZoneSubtitle": "Irreversible actions. Proceed with care.",
   "settings.privacy.resetAllDataButton": "Reset all my data",
   "settings.privacy.resetAllDataButtonLabel": "Reset",
   "settings.privacy.resetAllDataDesc": "Permanently delete all notes, history, sessions, and downloaded models stored on this device.",

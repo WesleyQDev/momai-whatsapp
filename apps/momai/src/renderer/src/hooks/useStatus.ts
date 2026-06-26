@@ -210,6 +210,23 @@ export function useStatus() {
       setInitMessage('Inicializando troca de modelo...')
     }
 
+    // Listen for backend reboot (e.g. after dev-reset wipes python_env).
+    // Without this, the renderer's `wasEverBooted` flag stays sticky from
+    // the previous session and ContainerChat never re-shows the loading
+    // animation while the Python sidecar is being reinstalled.
+    const handleRebooting = () => {
+      setIsBooting(true)
+      setInitProgress(0)
+      setVisualProgress(2)
+      setWasEverBooted(false)
+      setStatusInfo(null)
+      setIsOnline(false)
+      setIsStalled(false)
+      setIsRetrying(false)
+      setInitMessage('Reiniciando serviços...')
+    }
+    window.addEventListener('momai_rebooting', handleRebooting)
+
     const handleModelChangeProgress = (e: any) => {
       const { status } = e.detail
       setInitMessage(translateMessage(status))
@@ -229,6 +246,7 @@ export function useStatus() {
       window.removeEventListener('momai_init_progress', handleInitProgress)
       window.removeEventListener('ai_model_change_start', handleModelChangeStart)
       window.removeEventListener('ai_model_change_progress', handleModelChangeProgress)
+      window.removeEventListener('momai_rebooting', handleRebooting)
       if (removeIpcListener) removeIpcListener()
       if (removeOnlineListener) removeOnlineListener()
       if (removeRetryListener) removeRetryListener()

@@ -14,7 +14,6 @@ import {
   forceKillAllSync,
   stopActiveServices
 } from './coreManager'
-import { API_HOST, API_PORT } from './constants'
 import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
 import { setupTTSHandlers, cleanupTTSHandlers } from './ttsIpcHandlers'
@@ -39,7 +38,6 @@ import { TrayService } from './services/tray-service'
 import { HttpLlamaControl } from './services/llama-control'
 import { FileKeepInTrayReader } from './services/keep-in-tray-reader'
 import { getOrCreateSessionToken } from './security/session-token'
-import { authFetch } from './security/authenticated-fetch'
 import { shouldBlockWebviewAttachment } from './security/webview-block'
 
 // Initialize first launch state correctly at startup
@@ -150,6 +148,14 @@ ipcMain.on('reset-onboarding', async () => {
   logger.info('[Electron] Resetting onboarding status')
   state.isFirstLaunch = true
   saveOnboardingCompleted(false)
+
+  // Notify renderer to reset its boot/loading state. Without this, the
+  // renderer's `wasEverBooted` and `animationFinished` flags stay sticky
+  // from the previous session, so ContainerChat never re-shows the
+  // LoadingAnimation while the Python sidecar is being reinstalled.
+  if (state.mainWindow && !state.mainWindow.isDestroyed()) {
+    state.mainWindow.webContents.send('momai_rebooting')
+  }
 
   // Stop LLM, Python (Wake Word) and TTS to ensure silence during onboarding
   void stopActiveServices().catch((err) => {
@@ -298,40 +304,10 @@ app.on('before-quit', (e) => {
 
   void (async () => {
     try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 2500)
-      try {
-        const res = await authFetch(`http://${API_HOST}:${API_PORT}/extensions`, {
-          method: 'GET',
-          signal: controller.signal
-        })
-        if (res.ok) {
-          const data = await res.json()
-          const skills = Array.isArray(data?.extensions)
-            ? data.extensions
-            : Array.isArray(data)
-              ? data
-              : []
-          for (const skill of skills) {
-            const toolName = skill?.persistOnQuit
-            if (!toolName) continue
-            await authFetch(
-              `http://${API_HOST}:${API_PORT}/extensions/${skill.id}/command`,
-              {
-                method: 'POST',
-                body: JSON.stringify({ toolName, args: {} }),
-                signal: controller.signal
-              }
-            ).catch(() => {})
-          }
-        }
-      } catch {}
-      clearTimeout(timer)
-    } catch {}
-
-    try {
       await shutdownCoreBackend()
-    } catch {}
+    } catch (err) {
+      logger.warn('[Electron] shutdownCoreBackend failed:', err)
+    }
 
     forceKillAllSync()
     logger.info('[Electron] Shutdown completo. Saindo...')

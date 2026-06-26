@@ -5,7 +5,6 @@ import ExtensionsView from '../views/ExtensionsView'
 import NotesView from '../features/notes/NotesView'
 import AboutView from '../views/AboutView'
 import ObservabilityView from '../views/ObservabilityView'
-import PrivacyView from '../views/PrivacyView'
 import DynamicDashboard from './DynamicDashboard'
 import { StatusData } from '../services/api'
 
@@ -73,7 +72,6 @@ const VIEW_MAP: Record<string, React.ComponentType<any>> = {
   ExtensionsStore: ExtensionsView,
   AboutDashboard: AboutView,
   ObservabilityDashboard: ObservabilityView,
-  PrivacyDashboard: PrivacyView,
   DynamicDashboard: DynamicDashboard
 }
 

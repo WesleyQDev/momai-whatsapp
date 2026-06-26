@@ -135,6 +135,19 @@ function App(): React.JSX.Element {
     }
   }, [isAppVisible, isBooting])
 
+  // When the backend reboots (e.g. dev-reset wipes python_env), force the
+  // chat loading animation to re-run. Without this, animationFinished stays
+  // sticky from the previous session and ContainerChat skips the loading
+  // state, showing the regular chat with a disabled send button instead.
+  useEffect(() => {
+    const handleRebooting = () => {
+      chat.setAnimationFinished(false)
+      resetVisualProgress()
+    }
+    window.addEventListener('momai_rebooting', handleRebooting)
+    return () => window.removeEventListener('momai_rebooting', handleRebooting)
+  }, [chat])
+
   const triggerClearHistory = () => setShowClearConfirm(true)
   const confirmClearHistory = () => {
     clearHistory()
@@ -152,7 +165,6 @@ function App(): React.JSX.Element {
     '/agenda': 'RemindersDashboard',
     '/about': 'AboutDashboard',
     '/observability': 'ObservabilityDashboard',
-    '/privacy': 'PrivacyDashboard',
     '/': 'ChatDashboard'
   }
 

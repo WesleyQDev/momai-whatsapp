@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auditoria — Impacto Usuário & Desempenho</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: #0f1117;
+    color: #e1e4ed;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+
+  .hero {
+    padding: 4rem 0 2.5rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 800px;
+    background: radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 50%, #8b5cf6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.02em;
+  }
+  .hero .subtitle {
+    font-size: 1.05rem;
+    color: #8b8fa3;
+    margin-bottom: 1.5rem;
+  }
+  .hero-badges {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .hero-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 100px;
+    padding: 0.4rem 1rem;
+    font-size: 0.875rem;
+    color: #8b8fa3;
+  }
+  .hero-badge strong { color: #e1e4ed; margin-right: 0.15rem; }
+
+  .filter-note {
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 2rem;
+    font-size: 0.9rem;
+    color: #d4c28a;
+  }
+  .filter-note strong { color: #f59e0b; }
+
+  .section { padding: 2rem 0; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #2a2d3a;
+  }
+  .section-header h2 { font-size: 1.4rem; font-weight: 700; }
+  .section-header .accent-line { flex: 1; height: 1px; background: linear-gradient(90deg, #8b5cf644, transparent); }
+  .section-header .count-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.15rem 0.6rem;
+    border-radius: 100px;
+    background: #2a2d3a;
+    color: #8b8fa3;
+  }
+
+  .dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .dash-card {
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 16px;
+    padding: 1.25rem;
+    text-align: center;
+    transition: transform 0.2s;
+  }
+  .dash-card:hover { transform: translateY(-2px); }
+  .dash-card .number { font-size: 2rem; font-weight: 800; }
+  .dash-card .number.red { color: #ef4444; }
+  .dash-card .number.amber { color: #f59e0b; }
+  .dash-card .number.emerald { color: #10b981; }
+  .dash-card .number.purple { color: #8b5cf6; }
+  .dash-card .label { font-size: 0.75rem; color: #8b8fa3; margin-top: 0.2rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .cat-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.7rem;
+    border-radius: 100px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .cat-label.user-sees { background: rgba(239,68,68,0.12); color: #ef4444; }
+  .cat-label.user-feels { background: rgba(16,185,129,0.12); color: #10b981; }
+  .cat-label.user-risk { background: rgba(245,158,11,0.12); color: #f59e0b; }
+
+  .problems-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+    gap: 1.25rem;
+  }
+  .problem-card {
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 16px;
+    padding: 1.5rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .problem-card:hover { border-color: #8b5cf644; }
+  .problem-card.severity-high { border-left: 4px solid #ef4444; }
+  .problem-card.severity-medium { border-left: 4px solid #f59e0b; }
+  .problem-card.severity-low { border-left: 4px solid #22c55e; }
+
+  .problem-card .badge-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+    flex-wrap: wrap;
+  }
+  .problem-card .id { font-size: 0.75rem; font-weight: 600; color: #8b8fa3; }
+  .problem-card h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.75rem; line-height: 1.3; }
+
+  .problem-meta {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
+  }
+  .problem-meta .tag {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: #8b8fa3;
+    background: #0f1117;
+    padding: 0.15rem 0.55rem;
+    border-radius: 6px;
+    border: 1px solid #2a2d3a;
+  }
+  .problem-meta .tag strong { color: #c4c8d3; }
+
+  .problem-detail { color: #a1a5b5; font-size: 0.9rem; }
+  .problem-detail p { margin-bottom: 0.4rem; }
+  .problem-detail strong { color: #e1e4ed; }
+  .problem-detail .effect-box {
+    background: #0f1117;
+    border: 1px solid #2a2d3a;
+    border-radius: 10px;
+    padding: 0.7rem 1rem;
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+  }
+  .severity-dot {
+    display: inline-block; width: 8px; height: 8px;
+    border-radius: 50%; margin-right: 0.4rem;
+  }
+  .severity-dot.high { background: #ef4444; }
+  .severity-dot.medium { background: #f59e0b; }
+  .severity-dot.low { background: #22c55e; }
+
+  .recos-list { display: flex; flex-direction: column; gap: 0.9rem; }
+  .reco-card {
+    display: flex;
+    gap: 1rem;
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    transition: border-color 0.2s;
+  }
+  .reco-card:hover { border-color: #8b5cf644; }
+  .reco-num {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 32px; height: 32px;
+    background: #0f1117; border: 1px solid #2a2d3a; border-radius: 50%;
+    font-weight: 700; font-size: 0.8rem; color: #8b5cf6; flex-shrink: 0;
+  }
+  .reco-body { flex: 1; }
+  .reco-body h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.2rem; }
+  .reco-body p { color: #8b8fa3; font-size: 0.85rem; }
+  .reco-effort {
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    font-size: 0.7rem; color: #6a6e7e; margin-top: 0.4rem;
+    padding: 0.15rem 0.5rem; background: #0f1117; border-radius: 6px; border: 1px solid #2a2d3a;
+  }
+  .reco-effort.urgent { color: #ef4444; border-color: rgba(239,68,68,0.25); }
+
+  .footer {
+    text-align: center; padding: 2.5rem 0;
+    border-top: 1px solid #2a2d3a; margin-top: 2.5rem;
+    color: #5a5e6e; font-size: 0.8125rem;
+  }
+
+  .icon { width: 16px; height: 16px; flex-shrink: 0; }
+  .icon-sm { width: 13px; height: 13px; flex-shrink: 0; display: inline; vertical-align: middle; }
+
+  @media (max-width: 768px) {
+    .container { padding: 0 1rem; }
+    .hero h1 { font-size: 1.6rem; }
+    .problems-grid { grid-template-columns: 1fr; }
+    .dashboard { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .dashboard { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HERO -->
+  <section class="hero">
+    <h1>Auditoria Focada no Usuário</h1>
+    <div class="subtitle">
+      <strong>MomAIOS</strong> v1.4.1 &mdash; 23 jun 2026 &mdash; Apenas o que o usuário vê ou sente
+    </div>
+    <div class="hero-badges">
+      <div class="hero-badge"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> <strong>69.800</strong> linhas</span>
+      <div class="hero-badge"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> <strong>487</strong> arquivos</span>
+      <div class="hero-badge"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <strong>26</strong> problemas com impacto real</span>
+    </div>
+    <div class="filter-note" style="margin-top:1.5rem; text-align:left;">
+      <strong>&#9432; Filtrado:</strong> Dos 143 problemas encontrados na auditoria completa, apenas <strong>26</strong> têm impacto direto no que o usuário vê (bugs, crashes, erros visíveis) ou sente (lentidão, bateria, memória). Os demais 117 são questões internas de arquitetura, manutenibilidade e processo que não afetam a experiência do usuário final.
+    </div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section class="section">
+    <div class="dashboard">
+      <div class="dash-card">
+        <div class="number red">14</div>
+        <div class="label">Usuário VÊ (bugs)</div>
+      </div>
+      <div class="dash-card">
+        <div class="number emerald">6</div>
+        <div class="label">Usuário SENTE (performance)</div>
+      </div>
+      <div class="dash-card">
+        <div class="number amber">6</div>
+        <div class="label">Usuário CORRE RISCO (segurança)</div>
+      </div>
+      <div class="dash-card">
+        <div class="number purple">26</div>
+        <div class="label">Total com Impacto Real</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROBLEMS -->
+  <section class="section">
+    <div class="section-header">
+      <h2>O Usuário VÊ</h2>
+      <span class="count-badge">14</span>
+      <div class="accent-line"></div>
+    </div>
+    <div class="problems-grid">
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">S004</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>LLM pode injetar HTML malicioso que o usuário vê e interage</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> renderer/chat/HtmlPreviewCard.tsx:26</span>
+          <span class="tag"><strong>Risco:</strong> XSS — código arbitrário no renderer</span>
+        </div>
+        <div class="problem-detail">
+          <p>HTML gerado pelo LLM é renderizado em <code>iframe srcDoc</code>. Se o backend for comprometido, o usuário pode ver e interagir com uma página maliciosa.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> Página HTML adulterada, possível phishing ou execução de scripts.<br>
+            <strong>Correção:</strong> Sanitizar com DOMPurify antes de renderizar.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">M002</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>Busca textual congela a interface por segundos</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> main/lexical-search.ts:69-75</span>
+          <span class="tag"><strong>Risco:</strong> UI freeze de ~3s</span>
+        </div>
+        <div class="problem-detail">
+          <p><code>readFileSync</code> em IPC handler bloqueia o event loop do Electron. Cada nota é lida do disco de forma síncrona.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> Tela congelada durante busca. Animação de loading trava.<br>
+            <strong>Correção:</strong> Usar <code>fs.promises.readFile</code> com concorrência limitada.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">R001</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>App todo some em tela branca se qualquer componente quebrar</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> renderer/main.tsx</span>
+          <span class="tag"><strong>Risco:</strong> Zero resiliência</span>
+        </div>
+        <div class="problem-detail">
+          <p>Nenhum Error Boundary envolve a aplicação React. Um único erro não tratado em qualquer componente derruba a UI inteira.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> Tela branca. Perde o que estava fazendo.<br>
+            <strong>Correção:</strong> Adicionar <code>&lt;ErrorBoundary&gt;</code> na raiz do App.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">R002</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>Mensagem aparece na conversa errada ao trocar de thread rápido</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> hooks/useChatActions.ts:111-408</span>
+          <span class="tag"><strong>Risco:</strong> Mensagens fora de contexto</span>
+        </div>
+        <div class="problem-detail">
+          <p><code>sendChatMessage</code> faz fetch sem <code>AbortSignal</code>. Se o usuário troca de thread ou envia nova mensagem, o stream antigo continua em background.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> Mensagem aparece em conversa que não é a atual.<br>
+            <strong>Correção:</strong> AbortController por requisição + abortar ao iniciar nova.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">N001</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>LLM responde de forma estranha ou sem personalidade</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> node-core/chat-service.js:1191-1207</span>
+          <span class="tag"><strong>Risco:</strong> Prompt de sistema silenciosamente vazio</span>
+        </div>
+        <div class="problem-detail">
+          <p>Se <code>promptRegistry.buildSystemPrompt</code> não estiver disponível, <code>promptText</code> fica <code>undefined</code> e o LLM recebe instrução vazia.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> Respostas genéricas, sem seguir as instruções de comportamento do MomAI.<br>
+            <strong>Correção:</strong> Adicionar fallback com DEFAULT_SYSTEM_PROMPT.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">N002</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>Passos de ferramentas (tool steps) somem da resposta</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> node-core/chat-service.js:689-690 vs 1033-1034</span>
+          <span class="tag"><strong>Risco:</strong> Variáveis sombreadas</span>
+        </div>
+        <div class="problem-detail">
+          <p><code>toolSteps</code> e <code>activeSkill</code> são redeclaradas dentro do bloco <code>try</code>, sombreando as declarações externas. Hooks <code>beforeModel</code> populam as externas, mas as internas são usadas na resposta.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> Steps de "buscando na web..." ou "consultando memória..." somem do chat.<br>
+            <strong>Correção:</strong> Remover as declarações <code>let</code> duplicadas internas.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">PY001</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>App pode travar por falta de memória (OOM)</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> core/voice.py + detector.py</span>
+          <span class="tag"><strong>Risco:</strong> 3 modelos Whisper carregados simultaneamente</span>
+        </div>
+        <div class="problem-detail">
+          <p>Três caminhos de código carregam modelos Whisper independentes. No pior caso, &gt;3GB de RAM para algo que deveria usar ~1GB.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> App fecha ou trava em PCs com 8GB de RAM.<br>
+            <strong>Correção:</strong> Singleton factory no app_state — única instância do modelo.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">PY002</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>Erro aleatório de banco de dados "SQLite objects created in a thread"</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> core/database/models.py:59-63</span>
+          <span class="tag"><strong>Risco:</strong> Concorrência quebra SQLite</span>
+        </div>
+        <div class="problem-detail">
+          <p>Engine SQLAlchemy sem <code>check_same_thread=False</code> e sem WAL mode. Sessões criadas de múltiplas threads quebram.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> Erro aleatório "ProgrammingError" — app não salva configuração.<br>
+            <strong>Correção:</strong> check_same_thread=False + PRAGMA journal_mode=WAL + NullPool.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">PY003</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>Voice pipeline falha ou para de funcionar</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> core/api/routes/voice.py + app_state.py</span>
+          <span class="tag"><strong>Risco:</strong> Thread safety + bloqueio</span>
+        </div>
+        <div class="problem-detail">
+          <p><code>active_websockets</code> é uma lista acessada de múltiplas threads sem lock. <code>/quick-transcribe</code> bloqueia 30s em rota síncrona, exaurindo o thread pool.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> Comando de voz não funciona. Server responde 503. Reconhecimento trava.<br>
+            <strong>Correção:</strong> Lock na lista + converter rota para async com to_thread().
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-medium">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">PY004</span>
+          <span class="severity-dot medium"></span>
+        </div>
+        <h3>Servidor fica indisponível durante gravação de áudio longa</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> core/api/routes/voice.py:128-145</span>
+          <span class="tag"><strong>Risco:</strong> Thread pool exaurido</span>
+        </div>
+        <div class="problem-detail">
+          <p><code>/quick-transcribe</code> é síncrono e bloqueia 30s. Sob carga, todas as threads do pool são esgotadas.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> 503 Service Unavailable ao tentar usar o app durante gravação longa.<br>
+            <strong>Correção:</strong> Converter para async def + asyncio.to_thread().
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-medium">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">PY005</span>
+          <span class="severity-dot medium"></span>
+        </div>
+        <h3>Erros no app mostram detalhes técnicos feios (stack trace)</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> core/middleware/error_handler.py</span>
+          <span class="tag"><strong>Risco:</strong> Vazamento de informação</span>
+        </div>
+        <div class="problem-detail">
+          <p><code>sanitize_message()</code> foi implementada e testada mas nunca conectada ao exception handler. Erros retornam detalhes internos.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> Mensagens de erro com nomes de arquivo e paths internos.<br>
+            <strong>Correção:</strong> Conectar sanitize_message ao global exception handler.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">S007</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>App pode crashar por mensagem malformada entre processos</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> main/coreManager.ts:420, 478</span>
+          <span class="tag"><strong>Risco:</strong> IPC sem validação</span>
+        </div>
+        <div class="problem-detail">
+          <p>Todas as mensagens entre Node Core e Electron são cast para <code>any</code>. Mensagem inesperada &rarr; TypeError em runtime.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> App fecha sem aviso. Funcionalidade para de funcionar.<br>
+            <strong>Correção:</strong> Discriminated union NodeCoreMessage + validação de schema.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">M001</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>Erros acontecem mas ninguém sabe — app quebra silenciosamente</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> coreManager.ts, backend-manager.ts, bootstrap/</span>
+          <span class="tag"><strong>Risco:</strong> 30+ catch {} vazios</span>
+        </div>
+        <div class="problem-detail">
+          <p>Blocos <code>catch {}</code> engolem erros em shutdown, scans, operações de arquivo. Falhas passam despercebidas e se acumulam.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> Funcionalidade para de funcionar sem explicação. Reiniciar o app "resolve".<br>
+            <strong>Correção:</strong> Adicionar log (warn/error) em todos os catches vazios.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-medium">
+        <div class="badge-row">
+          <span class="cat-label user-sees">Usuário VÊ</span>
+          <span class="id">M003</span>
+          <span class="severity-dot medium"></span>
+        </div>
+        <h3>Notas ficam cada vez mais lentas com o tempo</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> main/notesService.ts</span>
+          <span class="tag"><strong>Risco:</strong> O(n) I/O em cada operação</span>
+        </div>
+        <div class="problem-detail">
+          <p>Toda operação lê o JSON inteiro do índice. Escrita salva arquivo completo. Com 500 notas, operações demoram ~200ms; com 2000 notas, ~1s.</p>
+          <div class="effect-box">
+            <strong>Usuário vê:</strong> Listar, criar e buscar notas fica progressivamente mais lento.<br>
+            <strong>Correção:</strong> Cache em memória + escrita diferida (debounce).
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- PERFORMANCE -->
+  <section class="section">
+    <div class="section-header">
+      <h2>O Usuário SENTE (Performance)</h2>
+      <span class="count-badge">6</span>
+      <div class="accent-line"></div>
+    </div>
+    <div class="problems-grid">
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-feels">Usuário SENTE</span>
+          <span class="id">M004</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>App faz polling pesado a cada 5 segundos — drena bateria</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> main/economyService.ts:183-185</span>
+          <span class="tag"><strong>Risco:</strong> CPU + bateria</span>
+        </div>
+        <div class="problem-detail">
+          <p>Polling a cada 5s: 2 requisições HTTP + scan de processos + idle check. Em notebook, trava CPU em estado ativo desnecessariamente.</p>
+          <div class="effect-box">
+            <strong>Usuário sente:</strong> Bateria descarrega mais rápido. CPU fica em 0.5-1% constante.<br>
+            <strong>Correção:</strong> Aumentar intervalo para 15-30s ou usar evento-driven (WebSocket).
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-medium">
+        <div class="badge-row">
+          <span class="cat-label user-feels">Usuário SENTE</span>
+          <span class="id">R003</span>
+          <span class="severity-dot medium"></span>
+        </div>
+        <h3>Streaming de resposta dá pequenas travadas visuais</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> features/chat/chatReducer.ts:76</span>
+          <span class="tag"><strong>Risco:</strong> GC pressure</span>
+        </div>
+        <div class="problem-detail">
+          <p>Cada token no streaming cria <code>[...prev]</code> (cópia do array inteiro). Centenas de tokens por mensagem geram milhares de alocações.</p>
+          <div class="effect-box">
+            <strong>Usuário sente:</strong> Pequenos micro-stutters durante streaming de resposta longa.<br>
+            <strong>Correção:</strong> Usar concat ou immer para evitar alocações repetidas.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-feels">Usuário SENTE</span>
+          <span class="id">PY001</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>Uso excessivo de RAM (~3GB desnecessários)</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> core/</span>
+          <span class="tag"><strong>Risco:</strong> OOM + lentidão geral</span>
+        </div>
+        <div class="problem-detail">
+          <p>Além do crash (já listado), o consumo extra de RAM deixa o sistema lento como um todo: o SO faz swap, outros apps ficam lentos.</p>
+          <div class="effect-box">
+            <strong>Usuário sente:</strong> PC lento, fans girando alto, app demora para responder.<br>
+            <strong>Correção:</strong> Singleton factory — carga única do modelo Whisper.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-medium">
+        <div class="badge-row">
+          <span class="cat-label user-feels">Usuário SENTE</span>
+          <span class="id">M005</span>
+          <span class="severity-dot medium"></span>
+        </div>
+        <h3>App fica mais lento após vários dias de uso (memory leak)</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> main/coreManager.ts:86-98</span>
+          <span class="tag"><strong>Risco:</strong> Listeners acumulados</span>
+        </div>
+        <div class="problem-detail">
+          <p>Listeners de minimize/restore são adicionados sem remoção a cada restart do backend. Com o tempo, centenas de handlers disparam por evento.</p>
+          <div class="effect-box">
+            <strong>Usuário sente:</strong> App fica lerdo com o passar dos dias. Minimizar/restaurar janela fica mais pesado.<br>
+            <strong>Correção:</strong> Remover listeners antes de readicionar.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-medium">
+        <div class="badge-row">
+          <span class="cat-label user-feels">Usuário SENTE</span>
+          <span class="id">P003</span>
+          <span class="severity-dot medium"></span>
+        </div>
+        <h3>Componente de chat grande demais causa re-renders extras</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> renderer/components/ContainerChat.tsx</span>
+          <span class="tag"><strong>Risco:</strong> 19 effects + 926 linhas</span>
+        </div>
+        <div class="problem-detail">
+          <p>19 useEffect hooks em um único componente. Ordem de execução imprevisível causa re-renders em cascata.</p>
+          <div class="effect-box">
+            <strong>Usuário sente:</strong> UI menos responsiva. Animações podem falhar.<br>
+            <strong>Correção:</strong> Extrair CallModeContent para arquivo próprio.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-low">
+        <div class="badge-row">
+          <span class="cat-label user-feels">Usuário SENTE</span>
+          <span class="id">C003</span>
+          <span class="severity-dot low"></span>
+        </div>
+        <h3>Possível crash ao carregar módulo nativo</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> electron-builder.yml:158</span>
+          <span class="tag"><strong>Risco:</strong> npmRebuild: false</span>
+        </div>
+        <div class="problem-detail">
+          <p>Módulos nativos não são recompilados para o ABI do Electron 42. Binários pré-compilados podem não ser compatíveis.</p>
+          <div class="effect-box">
+            <strong>Usuário sente:</strong> Crash ao iniciar ou usar funcionalidade que depende de módulo nativo.<br>
+            <strong>Correção:</strong> Ativar npmRebuild ou documentar por que está desligado.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SECURITY -->
+  <section class="section">
+    <div class="section-header">
+      <h2>O Usuário Corre Risco (Segurança)</h2>
+      <span class="count-badge">6</span>
+      <div class="accent-line"></div>
+    </div>
+    <div class="problems-grid">
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-risk">Usuário CORRE RISCO</span>
+          <span class="id">S001</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>Token de sessão pode vazar para outros processos no PC</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> main/index.ts:252</span>
+          <span class="tag"><strong>Risco:</strong> Sequestro de sessão</span>
+        </div>
+        <div class="problem-detail">
+          <p><code>MOMAI_SESSION_TOKEN</code> em <code>process.env</code> é herdado por Node Core, Python e extensões. Crash dumps e logs expõem o token.</p>
+          <div class="effect-box">
+            <strong>Risco do usuário:</strong> Qualquer processo malicioso no PC pode ler o token e acessar a API.<br>
+            <strong>Correção:</strong> Passar token via argumento de CLI ou pipe.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-risk">Usuário CORRE RISCO</span>
+          <span class="id">S002</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>Extensão instalada pode acessar tudo que o app pode</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> node-core/extension-host-manager.js:89</span>
+          <span class="tag"><strong>Risco:</strong> Extensão maliciosa</span>
+        </div>
+        <div class="problem-detail">
+          <p>Extensões herdam <code>process.env</code> com o token de sessão. Qualquer extensão tem acesso irrestrito à API.</p>
+          <div class="effect-box">
+            <strong>Risco do usuário:</strong> Extensão aparentemente inofensiva pode exfiltrar dados ou comandos.<br>
+            <strong>Correção:</strong> Filtrar env vars com whitelist.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-high">
+        <div class="badge-row">
+          <span class="cat-label user-risk">Usuário CORRE RISCO</span>
+          <span class="id">S003</span>
+          <span class="severity-dot high"></span>
+        </div>
+        <h3>Extensão pode corromper dados de outras extensões</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> node-core/extension-host-worker.js:25-41</span>
+          <span class="tag"><strong>Risco:</strong> Path traversal</span>
+        </div>
+        <div class="problem-detail">
+          <p><code>storage.get(key)</code> não sanitiza o parâmetro <code>key</code> — extensão pode ler/escrever arquivos fora do seu diretório.</p>
+          <div class="effect-box">
+            <strong>Risco do usuário:</strong> Extensão pode sobrescrever configurações ou mensagens salvas.<br>
+            <strong>Correção:</strong> Validar key com regex (alfanumérico + underscore).
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-medium">
+        <div class="badge-row">
+          <span class="cat-label user-risk">Usuário CORRE RISCO</span>
+          <span class="id">S006</span>
+          <span class="severity-dot medium"></span>
+        </div>
+        <h3>Token de sessão visível em logs de rede</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> useChatWebSocket.ts + ws-auth.js + auth.py</span>
+          <span class="tag"><strong>Risco:</strong> Token via query param</span>
+        </div>
+        <div class="problem-detail">
+          <p>Token passado como <code>?token=...</code> na URL de upgrade WebSocket. Logado por proxies, servidores, visível em Referer headers.</p>
+          <div class="effect-box">
+            <strong>Risco do usuário:</strong> Token pode vazar para logs de acesso de rede ou extensões de browser.<br>
+            <strong>Correção:</strong> Mover token para header Authorization: Bearer.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-medium">
+        <div class="badge-row">
+          <span class="cat-label user-risk">Usuário CORRE RISCO</span>
+          <span class="id">N004</span>
+          <span class="severity-dot medium"></span>
+        </div>
+        <h3>Dados de hardware do PC expostos para o frontend</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> node-core/api/routes/settings.routes.js:34</span>
+          <span class="tag"><strong>Risco:</strong> Privacidade</span>
+        </div>
+        <div class="problem-detail">
+          <p>GET /settings retorna <code>store.settings</code> completo — RAM total, VRAM total, e outros dados internos vão para o frontend.</p>
+          <div class="effect-box">
+            <strong>Risco do usuário:</strong> Informações do hardware expostas. Em futuro próximo, pode incluir dados mais sensíveis.<br>
+            <strong>Correção:</strong> Aplicar filterToEditableSettings também no GET.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card severity-medium">
+        <div class="badge-row">
+          <span class="cat-label user-risk">Usuário CORRE RISCO</span>
+          <span class="id">N005</span>
+          <span class="severity-dot medium"></span>
+        </div>
+        <h3>Dados de extensões podem ser lidos sem autenticação</h3>
+        <div class="problem-meta">
+          <span class="tag"><strong>Onde:</strong> node-core/api/router.js:8</span>
+          <span class="tag"><strong>Risco:</strong> Rota pública</span>
+        </div>
+        <div class="problem-detail">
+          <p><code>/extensions/events</code> é rota pública (sem auth). Stream SSE de eventos de extensões pode conter dados que o usuário considera privados.</p>
+          <div class="effect-box">
+            <strong>Risco do usuário:</strong> Qualquer processo local pode escutar eventos de extensões.<br>
+            <strong>Correção:</strong> Adicionar autenticação ao endpoint.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- RECOMMENDATIONS -->
+  <section class="section">
+    <div class="section-header">
+      <h2>O Que Fazer Primeiro</h2>
+      <div class="accent-line"></div>
+    </div>
+
+    <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1.25rem;">
+      <span style="background:#1a1d27; border:1px solid rgba(239,68,68,0.3); border-radius:100px; padding:0.25rem 0.8rem; font-size:0.75rem; color:#ef4444;">&bull; Urgente (dias)</span>
+      <span style="background:#1a1d27; border:1px solid rgba(245,158,11,0.3); border-radius:100px; padding:0.25rem 0.8rem; font-size:0.75rem; color:#f59e0b;">&bull; Curto Prazo (semana)</span>
+      <span style="background:#1a1d27; border:1px solid rgba(139,92,246,0.3); border-radius:100px; padding:0.25rem 0.8rem; font-size:0.75rem; color:#8b5cf6;">&bull; Médio Prazo (quinzena)</span>
+    </div>
+
+    <div class="recos-list">
+
+      <div class="reco-card">
+        <div class="reco-num">1</div>
+        <div class="reco-body">
+          <h4>Adicionar Error Boundary no React</h4>
+          <p>Usuário nunca mais vê tela branca. Erro em um componente não derruba o app todo.</p>
+          <span class="reco-effort urgent"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Urgente &mdash; 1h</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">2</div>
+        <div class="reco-body">
+          <h4>Adicionar fallback no promptText</h4>
+          <p>LLM nunca mais responde sem personalidade. Garante prompt de sistema mesmo em falha.</p>
+          <span class="reco-effort urgent"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Urgente &mdash; 30min</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">3</div>
+        <div class="reco-body">
+          <h4>Filtrar env vars das extensões + sanitizar storage key</h4>
+          <p>Extensão maliciosa não consegue acessar a API nem corromper dados alheios.</p>
+          <span class="reco-effort urgent"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Urgente &mdash; 3h</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">4</div>
+        <div class="reco-body">
+          <h4>Corrigir variáveis redeclaradas (toolSteps shadowing)</h4>
+          <p>Tool steps voltam a aparecer no chat. Usuário vê o progresso das ferramentas.</p>
+          <span class="reco-effort urgent"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Urgente &mdash; 1h</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">5</div>
+        <div class="reco-body">
+          <h4>Adicionar check_same_thread=False + WAL no SQLite</h4>
+          <p>Usuário nunca mais vê erro de banco de dados aleatório.</p>
+          <span class="reco-effort urgent"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Urgente &mdash; 30min</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">6</div>
+        <div class="reco-body">
+          <h4>Substituir readFileSync por async em lexical-search</h4>
+          <p>Busca não congela mais a interface. Usuário pode interagir com o app durante busca.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Curto Prazo &mdash; 2h</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">7</div>
+        <div class="reco-body">
+          <h4>Singleton factory para Whisper (reduz RAM)</h4>
+          <p>App deixa de consumir RAM desnecessária. Usuário com 8GB não trava mais.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Curto Prazo &mdash; 3h</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">8</div>
+        <div class="reco-body">
+          <h4>Adicionar AbortController no streaming de chat</h4>
+          <p>Mensagens param de aparecer na conversa errada. Trocar de thread fica seguro.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Curto Prazo &mdash; 2h</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">9</div>
+        <div class="reco-body">
+          <h4>Thread safety no WebSocket + async quick-transcribe</h4>
+          <p>Voice pipeline para de falhar. Server não fica indisponível durante gravação.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Curto Prazo &mdash; 4h</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">10</div>
+        <div class="reco-body">
+          <h4>Conectar sanitize_message ao exception handler do Python</h4>
+          <p>Usuário para de ver stack traces feios. Erros ficam legíveis.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Médio Prazo &mdash; 1h</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>Auditoria Focada no Usuário &mdash; MomAIOS v1.4.1 &mdash; 23 jun 2026</p>
+    <p style="margin-top:0.3rem;">26 problemas com impacto real &middot; 117 issues internas filtradas</p>
+  </footer>
+
+</div>
+</body>
+</html>

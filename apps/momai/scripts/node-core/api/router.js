@@ -12,7 +12,7 @@ function isPublicPath(pathname, method) {
 module.exports = { PUBLIC_PATHS, isPublicPath }
 
 function createRouter(context, routeHandlers) {
-  const writeLimiter = createRateLimiter({ capacity: 30, refillPerSecond: 1 })
+  const writeLimiter = createRateLimiter({ capacity: 60, refillPerSecond: 5 })
   const readLimiter = createRateLimiter({ capacity: 120, refillPerSecond: 4 })
   const {
     sendJson,
@@ -60,6 +60,16 @@ function createRouter(context, routeHandlers) {
     const qs = qIdx === -1 ? '' : req.url.slice(qIdx + 1)
     const searchParams = new URLSearchParams(qs)
     const parsedUrl = { searchParams }
+
+    // Internal shutdown endpoint (called by Electron main on app quit so
+    // workers can flush creds to disk before the process tree is killed).
+    if (pathname === '/shutdown' && req.method === 'POST') {
+      sendJson(res, 200, { ok: true, message: 'shutting down' })
+      setImmediate(() => {
+        shutdownAll().catch(() => process.exit(0))
+      })
+      return
+    }
 
     for (let i = 0; i < routeHandlers.length; i++) {
       const handler = routeHandlers[i]

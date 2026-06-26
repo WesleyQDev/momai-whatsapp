@@ -14,7 +14,7 @@ function getPromptRegistry() {
   return shared.promptRegistry
 }
 const { debug, info, warn } = require('../infrastructure/logger')
-const { sendSseHeaders, writeSse, endSse } = require('../infrastructure/http-helpers')
+const { sendSseHeaders, writeSse, endSse, sidecarHeaders } = require('../infrastructure/http-helpers')
 const { pruneThread } = require('../infrastructure/store')
 const { splitTokens, sanitizePromptText } = require('../utils/text')
 const { isoNow } = require('../utils/time')
@@ -153,6 +153,59 @@ function appendMessage(threadId, role, content, extras = {}) {
   saveStore()
   pruneThread(threadId)
   return item
+}
+
+async function searchYouTube(query, limit = 5) {
+  const q = String(query || '').trim()
+  if (!q) return []
+  try {
+    const res = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8'
+      }
+    })
+    if (!res.ok) return []
+    const html = await res.text()
+    const dataMatch = html.match(/var ytInitialData = ({.*?});/s)
+    if (!dataMatch) return []
+    const data = JSON.parse(dataMatch[1])
+    const contents =
+      data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer
+        ?.contents?.[0]?.itemSectionRenderer?.contents || []
+    const parseDuration = (text) => {
+      if (!text) return 0
+      const parts = String(text).split(':').map(Number)
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
+      if (parts.length === 2) return parts[0] * 60 + parts[1]
+      return parts[0] || 0
+    }
+    const parseViews = (text) => {
+      if (!text) return 0
+      const match = String(text).replace(/\./g, '').match(/(\d+)/)
+      return match ? Number(match[1]) : 0
+    }
+    return contents
+      .filter((c) => c.videoRenderer)
+      .slice(0, limit)
+      .map((c) => {
+        const v = c.videoRenderer
+        return {
+          id: v.videoId,
+          title: v.title?.runs?.[0]?.text || '',
+          channel: v.ownerText?.runs?.[0]?.text || '',
+          thumbnail: `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
+          duration: parseDuration(v.lengthText?.simpleText),
+          durationText: v.lengthText?.simpleText || '',
+          views: parseViews(v.viewCountText?.simpleText),
+          viewsText: v.viewCountText?.simpleText || '',
+          url: `https://www.youtube.com/watch?v=${v.videoId}`
+        }
+      })
+  } catch {
+    return []
+  }
 }
 
 async function searchWeb(query, limit = 4) {
@@ -803,7 +856,7 @@ async function streamLlamaChat(req, res, payload) {
       const pythonBase = await ensurePython()
       await fetch(`${pythonBase}/chat/stop-voice`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: sidecarHeaders()
       })
     } catch (error) {
       // TTS might not be available, ignore
@@ -940,7 +993,8 @@ async function streamLlamaChat(req, res, payload) {
             threadId,
             responseLanguage,
             memoryContext,
-            searchWeb
+            searchWeb,
+            searchYouTube
           }
         })
         if (!hookResult?.active) continue
@@ -1628,7 +1682,8 @@ async function streamLlamaChat(req, res, payload) {
                 }
                 return { success: changed, count: initialCount - store.reminders.length }
               },
-              searchWeb
+              searchWeb,
+              searchYouTube
             }
 
             try {
@@ -1893,6 +1948,7 @@ async function streamLlamaChat(req, res, payload) {
               responseLanguage,
               memoryContext,
               searchWeb,
+              searchYouTube,
               beforeModel: session.beforeModel || null
             },
             responseText: assembled

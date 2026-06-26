@@ -418,8 +418,6 @@
   "tutorial.resume": "Retomar Tutorial",
   "settings.general.resetOnboarding": "Reiniciar Boas-vindas",
   "settings.general.resetOnboardingSuccess": "Sessão de boas-vindas reiniciada!",
-  "settings.privacy.dangerZoneTitle": "Zona de perigo",
-  "settings.privacy.dangerZoneSubtitle": "Ações irreversíveis. Prossiga com cuidado.",
   "settings.privacy.resetAllDataButton": "Apagar todos os meus dados",
   "settings.privacy.resetAllDataButtonLabel": "Apagar tudo",
   "settings.privacy.resetAllDataDesc": "Exclui permanentemente todas as notas, histórico, sessões e modelos baixados armazenados neste dispositivo.",

@@ -1,13 +1,75 @@
 import { useEffect, useState } from 'react'
+import { ArrowDownTrayIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { useI18n } from '../i18n'
+import ConfirmDialog from '../components/floating/ConfirmDialog'
+
+function formatBytes(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`
+}
 
 export default function AboutView() {
   const { t } = useI18n()
   const [version, setVersion] = useState('...')
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(
+    null
+  )
 
   useEffect(() => {
     window.api.getAppVersion().then(setVersion)
   }, [])
+
+  const handleExport = async () => {
+    setIsExporting(true)
+    setFeedback(null)
+    try {
+      const result = await window.momaiAPI?.privacy?.exportData?.()
+      if (result?.canceled) {
+        setFeedback(null)
+        return
+      }
+      if (!result || result.ok !== true) {
+        throw new Error(result?.error || 'export failed')
+      }
+      const size = result.size ? ` (${formatBytes(result.size)})` : ''
+      setFeedback({
+        kind: 'success',
+        message: `${t('privacy.export.success')}${size}`
+      })
+    } catch (e) {
+      setFeedback({
+        kind: 'error',
+        message: t('privacy.export.error', { message: (e as Error)?.message || String(e) })
+      })
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleResetAll = async () => {
+    setIsResetting(true)
+    try {
+      const result = await window.momaiAPI?.privacy?.deleteAll?.()
+      if (!result || result.ok !== true) {
+        throw new Error(result?.error || 'unknown error')
+      }
+      setShowResetConfirm(false)
+      window.location.reload()
+    } catch (e) {
+      setFeedback({
+        kind: 'error',
+        message: t('settings.privacy.resetError', { message: (e as Error)?.message || String(e) })
+      })
+      throw e
+    } finally {
+      setIsResetting(false)
+    }
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-bg/30">
@@ -164,6 +226,72 @@ export default function AboutView() {
           </div>
         </div>
 
+        {/* Your Data, Your Control — moved from the removed Privacy tab */}
+        <div className="max-w-5xl mx-auto w-full p-6 sm:p-8">
+          <h3 className="text-[11px] font-black text-text/70 mb-4 uppercase tracking-[0.2em] flex items-center gap-2">
+            <div className="w-1.5 h-4 bg-accent rounded-full shadow-[0_0_8px_rgba(var(--accent-rgb),0.5)]" />
+            {t('privacy.actions.title')}
+          </h3>
+
+          <div className="rounded-2xl bg-card/30 border border-white/5 overflow-hidden">
+            {/* Export */}
+            <div className="flex items-center justify-between gap-4 p-4 border-b border-white/5">
+              <div className="flex flex-col gap-0.5 pr-4 min-w-0">
+                <span className="text-xs font-semibold text-text">
+                  {t('privacy.export.title')}
+                </span>
+                <span className="text-[11px] text-text-muted font-medium leading-relaxed">
+                  {t('privacy.export.desc')}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={isExporting}
+                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/40 bg-accent/10 text-[11px] font-semibold text-accent uppercase tracking-wide hover:bg-accent/20 transition-colors active:scale-95 disabled:opacity-50"
+              >
+                <ArrowDownTrayIcon className="w-3.5 h-3.5" />
+                {isExporting ? t('privacy.export.working') : t('privacy.export.button')}
+              </button>
+            </div>
+
+            {/* Reset */}
+            <div className="flex items-center justify-between gap-4 p-4">
+              <div className="flex flex-col gap-0.5 pr-4 min-w-0">
+                <span className="text-xs font-semibold text-text">
+                  {t('settings.privacy.resetAllDataButtonLabel')}
+                </span>
+                <span className="text-[11px] text-text-muted font-medium leading-relaxed">
+                  {t('settings.privacy.resetAllDataDesc')}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setFeedback(null)
+                  setShowResetConfirm(true)
+                }}
+                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-500/40 bg-red-500/10 text-[11px] font-semibold text-red-400 uppercase tracking-wide hover:bg-red-500/20 hover:text-red-300 transition-colors active:scale-95"
+              >
+                <TrashIcon className="w-3.5 h-3.5" />
+                {t('settings.privacy.resetAllDataButton')}
+              </button>
+            </div>
+          </div>
+
+          {feedback && (
+            <div
+              className={`mt-3 rounded-lg border px-3 py-2 text-xs ${
+                feedback.kind === 'success'
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                  : 'border-red-500/30 bg-red-500/10 text-red-300'
+              }`}
+            >
+              {feedback.message}
+            </div>
+          )}
+        </div>
+
         {/* Footer info - Minimal */}
         <div className="mt-auto py-6 px-6 text-center border-t border-white/5 bg-sidebar/5">
           <p className="text-[9px] text-text-muted/20 uppercase tracking-[0.4em] font-medium">
@@ -171,6 +299,19 @@ export default function AboutView() {
           </p>
         </div>
       </div>
+
+      {showResetConfirm && (
+        <ConfirmDialog
+          variant="destructive"
+          title={t('settings.privacy.confirmTitle')}
+          description={t('settings.privacy.confirmDescription')}
+          confirmText={t('settings.privacy.confirmButton')}
+          cancelText={t('settings.privacy.cancelButton')}
+          isLoading={isResetting}
+          onConfirm={handleResetAll}
+          onCancel={() => !isResetting && setShowResetConfirm(false)}
+        />
+      )}
     </div>
   )
 }

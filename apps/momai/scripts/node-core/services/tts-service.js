@@ -2,6 +2,7 @@ const shared = require('./shared-state')
 const store = shared.store
 const { debug, info, warn } = require('../infrastructure/logger')
 const { PYTHON_BASE_URL } = require('../config/constants')
+const { sidecarHeaders } = require('../infrastructure/http-helpers')
 
 // Broadcast uses dynamically injected function from websocket module
 function broadcast(payload) {
@@ -188,7 +189,7 @@ async function triggerAutoTts(text, capturedGen) {
       const pythonBase = await ensurePython()
       const response = await fetch(`${pythonBase}/chat/speak`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: sidecarHeaders(),
         body: JSON.stringify({
           text: cleaned,
           voice: store.settings.tts_voice
@@ -262,7 +263,7 @@ async function syncWakeWordState(reason = 'unknown') {
       const pythonBase = await ensurePython()
       await fetch(`${pythonBase}/voice/wake-word`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: sidecarHeaders(),
         body: JSON.stringify({ enabled: false })
       })
       info(`[NodeCore][Voice] Wake-word force-disabled for lite tier (${reason})`)
@@ -280,7 +281,7 @@ async function syncWakeWordState(reason = 'unknown') {
       const pythonBase = await ensurePython()
       const response = await fetch(`${pythonBase}/voice/wake-word`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: sidecarHeaders(),
         body: JSON.stringify({ enabled: shouldEnable })
       })
 
@@ -323,7 +324,7 @@ async function syncPythonCallModeState(reason = 'unknown') {
       const pythonBase = await ensurePython()
       const response = await fetch(`${pythonBase}/voice/call-mode`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: sidecarHeaders(),
         body: JSON.stringify({ enabled })
       })
 

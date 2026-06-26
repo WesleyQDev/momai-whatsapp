@@ -213,6 +213,9 @@ class WakeWordDetector:
         """Main listening loop with state-machine based speech segmentation."""
         logger.info("[WakeWord] Listener started (keyword='%s', mic=active)", self.keyword)
 
+        _chunk_counter = 0
+        _last_diag_time = time.time()
+
         try:
             with sd.InputStream(
                 samplerate=self.sample_rate,
@@ -229,6 +232,23 @@ class WakeWordDetector:
                         chunk = self.audio_queue.get(timeout=0.5)
                     except queue.Empty:
                         continue
+
+                    _chunk_counter += 1
+                    energy = self._get_chunk_energy(chunk)
+
+                    # Periodic diagnostic every 5 seconds
+                    now = time.time()
+                    if now - _last_diag_time >= 5.0:
+                        try:
+                            in_call = app_state.is_call_mode()
+                        except Exception:
+                            in_call = False
+                        thresh = self.call_energy_threshold if in_call else self.speech_energy_threshold
+                        logger.info(
+                            "[WakeWord] Diag: chunks=%d energy=%.5f threshold=%.5f state=%s call_mode=%s queue=%d",
+                            _chunk_counter, energy, thresh, self.state, in_call, self.audio_queue.qsize()
+                        )
+                        _last_diag_time = now
                     
                     if app_state.active_websockets:
                         sub_chunks = np.array_split(chunk, 5)
@@ -330,7 +350,7 @@ class WakeWordDetector:
                             self.speech_chunk_count = 1
                             self.silence_counter = 0
                             self.recorded_samples = len(chunk)
-                            logger.debug("[WakeWord] Speech detected, recording...")
+                            logger.info("[WakeWord] Speech detected (energy=%.5f > %.5f), recording...", energy, energy_thresh)
 
                     elif self.state == self.STATE_LISTENING:
                         self.speech_buffer.append(chunk)
@@ -470,7 +490,7 @@ class WakeWordDetector:
 
             # Drop stale transcriptions that sat in queue too long.
             if (time.time() - enqueued_at) > 2.5:
-                logger.debug("[WakeWord] Dropping stale audio from processing queue")
+                logger.warning("[WakeWord] Dropping stale audio from processing queue (age=%.1fs)", time.time() - enqueued_at)
                 continue
 
             if not is_partial:
@@ -517,7 +537,7 @@ class WakeWordDetector:
             raw_text = "".join([s.text for s in segments]).strip()
 
             if not raw_text:
-                logger.debug("[WakeWord] Empty transcription, ignoring.")
+                logger.info("[WakeWord] Empty transcription from Whisper (duration=%.1fs, partial=%s)", duration, is_partial)
                 return
 
             # Clean text from Whisper artifacts and punctuation
@@ -583,7 +603,7 @@ class WakeWordDetector:
                 return
 
             if not is_repeat:
-                logger.debug(f"[WakeWord] Transcribed: '{raw_text}'")
+                logger.info(f"[WakeWord] Transcribed: '{raw_text}'")
                 self._handle_transcription(text, raw_text, had_tts)
                 self.last_text = text
                 self.last_text_time = now

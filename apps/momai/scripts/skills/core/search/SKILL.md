@@ -1,13 +1,15 @@
 ---
 name: search
-description: Busca informacoes na web em tempo real. Use quando o usuario pedir para pesquisar ou buscar na internet.
+description: Busca informacoes na web e videos no YouTube em tempo real. Use quando o usuario pedir para pesquisar ou buscar na internet.
 icon: MagnifyingGlass
 tags:
   - produtividade
   - web
   - pesquisa
+  - youtube
+  - videos
 author: MomAI Team
-version: 1.0.0
+version: 1.1.0
 intents:
   - pesquise
   - pesquisar
@@ -43,21 +45,40 @@ intents:
   - llm news
   - notícias llm
   - novidades llm
-allowed-tools: web_search
+  - youtube
+  - vídeo
+  - video
+  - youtube video
+  - assista
+  - procure video
+  - busque video
+  - mostrar video
+  - mostrar vídeo
+  - video aula
+  - videoaula
+  - tutorial
+  - musica
+  - música
+  - ouvir
+  - tocar
+allowed-tools: web_search, youtube_search
 compatibility: MomAI Node Core Ultra
 ---
 
 # Search Skill
 
-Skill de busca na internet usando a API do Tavily.
+Skill de busca na internet e videos no YouTube.
 
 ## Quando usar
 
 - Quando o usuario pedir informacoes que exigem busca na web (noticias, precos, fatos recentes).
 - Quando o usuario perguntar sobre algo que o LLM nao tem conhecimento previo (conhecimento estatico ate 2023/2024).
+- Quando o usuario pedir para buscar, pesquisar ou mostrar videos no YouTube.
 
 ## Comportamento
 
-- SEMPRE use a ferramenta `web_search` para obter informacoes atualizadas.
-- O retorno contem snippets de sites e a URL da fonte.
+- Use `web_search` para buscas gerais na web (noticias, precos, informacoes).
+- Use `youtube_search` quando o usuario pedir explicitamente videos, musicas ou conteudo do YouTube.
+- O retorno do `web_search` contem snippets de sites e a URL da fonte.
+- O retorno do `youtube_search` contem cards com thumbnail, titulo, canal e player embutido.
 - SEMPRE cite a fonte da informacao no final da resposta ou inline.

@@ -35,7 +35,7 @@ describe('matchKeyword', () => {
   })
 })
 
-const { routeByKeyword, setStore } = require('../services/keyword-router')
+const { routeByKeyword, setStore, seedDefaultKeywords } = require('../services/keyword-router')
 
 function fakeSkill(id, { enabled = true } = {}) {
   return { id, enabled }
@@ -93,5 +93,88 @@ describe('routeByKeyword', () => {
 
     const result = routeByKeyword('manda uma mensagem para o pai', mockRegistry)
     expect(result).toEqual({ skillId: 'skill-b', keyword: 'manda mensagem' })
+  })
+})
+
+describe('seedDefaultKeywords', () => {
+  // Auto-activation keywords are ENTIRELY user-controlled. Skill manifests
+  // (intents, voice_triggers, etc.) are LLM-facing metadata only and must
+  // never seed the router. This is a deliberate no-op so the user has full
+  // control over what phrases auto-activate which skills. Tests below pin
+  // that behavior so a future refactor doesn't quietly re-introduce
+  // manifest-driven auto-activation (which caused false positives like
+  // "filho vai buscar a agenda" triggering the search skill just because
+  // "buscar" is a manifest trigger word).
+
+  function fakeSkillRegistry(skills) {
+    return {
+      getAll: () => skills
+    }
+  }
+
+  function makeSkill({ id, intents = [], voiceTriggers = null }) {
+    return {
+      id,
+      enabled: true,
+      manifest: {
+        id,
+        name: id,
+        description: id,
+        intents,
+        voice_triggers: voiceTriggers
+      }
+    }
+  }
+
+  beforeEach(() => {
+    const shared = require('../services/shared-state')
+    shared.store.skillKeywords = {}
+    setStore(shared.store)
+  })
+
+  test('does NOT auto-seed from voice_triggers', () => {
+    const skill = makeSkill({
+      id: 'weather',
+      intents: ['clima', 'tempo'],
+      voiceTriggers: ['clima', 'tempo']
+    })
+    seedDefaultKeywords(fakeSkillRegistry([skill]))
+
+    const shared = require('../services/shared-state')
+    expect(shared.store.skillKeywords.weather).toBeUndefined()
+  })
+
+  test('does NOT auto-seed from intents', () => {
+    const skill = makeSkill({
+      id: 'memory',
+      intents: ['anotar', 'salvar'],
+      voiceTriggers: null
+    })
+    seedDefaultKeywords(fakeSkillRegistry([skill]))
+
+    const shared = require('../services/shared-state')
+    expect(shared.store.skillKeywords.memory).toBeUndefined()
+  })
+
+  test('preserves user-customized keywords', () => {
+    const shared = require('../services/shared-state')
+    shared.store.skillKeywords = { weather: ['my_custom_keyword'] }
+
+    const skill = makeSkill({ id: 'weather', voiceTriggers: ['clima'] })
+    seedDefaultKeywords(fakeSkillRegistry([skill]))
+
+    // User customization is the ONLY source of keywords now.
+    expect(shared.store.skillKeywords.weather).toEqual(['my_custom_keyword'])
+  })
+
+  test('initializes skillKeywords map even when no skills have keywords', () => {
+    delete require('../services/shared-state').store.skillKeywords
+    setStore(require('../services/shared-state').store)
+    seedDefaultKeywords(fakeSkillRegistry([makeSkill({ id: 'any' })]))
+
+    const shared = require('../services/shared-state')
+    // Map exists (callers can safely read store.skillKeywords[skillId])
+    // but is empty (no auto-seed).
+    expect(shared.store.skillKeywords).toEqual({})
   })
 })

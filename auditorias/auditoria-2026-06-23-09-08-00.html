@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relatório de Auditoria — MomAIOS</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: #0f1117;
+    color: #e1e4ed;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+
+  /* HERO */
+  .hero {
+    padding: 5rem 0 3rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 800px;
+    background: radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 50%, #8b5cf6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.02em;
+  }
+  .hero .subtitle {
+    font-size: 1.05rem;
+    color: #8b8fa3;
+    margin-bottom: 2rem;
+  }
+  .hero .subtitle strong { color: #c4c8d3; }
+  .hero-badges {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .hero-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 100px;
+    padding: 0.5rem 1.25rem;
+    font-size: 0.875rem;
+    color: #8b8fa3;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .hero-badge:hover {
+    border-color: #8b5cf644;
+    box-shadow: 0 0 20px rgba(139,92,246,0.1);
+  }
+  .hero-badge strong { color: #e1e4ed; margin-right: 0.15rem; }
+
+  /* SECTION HEADERS */
+  .section {
+    padding: 3rem 0;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #2a2d3a;
+  }
+  .section-header h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #e1e4ed;
+  }
+  .section-header .accent-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, #8b5cf644, transparent);
+  }
+
+  /* DASHBOARD CARDS */
+  .dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+  }
+  .dash-card {
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 16px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .dash-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+  }
+  .dash-card .number {
+    font-size: 2.25rem;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+  .dash-card .number.red { color: #ef4444; }
+  .dash-card .number.amber { color: #f59e0b; }
+  .dash-card .number.green { color: #22c55e; }
+  .dash-card .number.purple { color: #8b5cf6; }
+  .dash-card .number.blue { color: #3b82f6; }
+  .dash-card .label {
+    font-size: 0.8125rem;
+    color: #8b8fa3;
+    margin-top: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* METRICS GRID */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .metric-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+  }
+  .metric-item .m-label { font-size: 0.875rem; color: #8b8fa3; }
+  .metric-item .m-value { font-size: 1rem; font-weight: 600; color: #e1e4ed; }
+
+  /* PROBLEM CARDS */
+  .problems-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+    gap: 1.25rem;
+  }
+  .problem-card {
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 16px;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .problem-card:hover {
+    border-color: #8b5cf644;
+    box-shadow: 0 4px 24px rgba(139,92,246,0.06);
+  }
+  .problem-card.high {
+    border-left: 4px solid #ef4444;
+    box-shadow: inset 0 0 40px rgba(239,68,68,0.03);
+  }
+  .problem-card.medium { border-left: 4px solid #f59e0b; }
+  .problem-card.low { border-left: 4px solid #22c55e; }
+  .problem-card.high:hover { border-color: #ef444444; box-shadow: 0 0 30px rgba(239,68,68,0.06); }
+  .problem-card.medium:hover { border-color: #f59e0b44; box-shadow: 0 0 30px rgba(245,158,11,0.06); }
+  .problem-card.low:hover { border-color: #22c55e44; box-shadow: 0 0 30px rgba(34,197,94,0.06); }
+  .problem-card .badge-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .severity-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.7rem;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .severity-badge.high { background: rgba(239,68,68,0.15); color: #ef4444; }
+  .severity-badge.medium { background: rgba(245,158,11,0.15); color: #f59e0b; }
+  .severity-badge.low { background: rgba(34,197,94,0.15); color: #22c55e; }
+  .problem-id {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #8b8fa3;
+    font-variant-numeric: tabular-nums;
+  }
+  .problem-card h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #e1e4ed;
+    margin-bottom: 1rem;
+    line-height: 1.3;
+  }
+  .problem-meta {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+    font-size: 0.8rem;
+  }
+  .problem-meta .meta-tag {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: #8b8fa3;
+    background: #0f1117;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid #2a2d3a;
+  }
+  .problem-meta .meta-tag strong { color: #c4c8d3; }
+  .problem-detail {
+    color: #a1a5b5;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  .problem-detail p { margin-bottom: 0.5rem; }
+  .problem-detail strong { color: #e1e4ed; }
+  .problem-detail .impact-box {
+    background: #0f1117;
+    border: 1px solid #2a2d3a;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  /* SUMMARY TABLE */
+  .summary-table-wrap {
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid #2a2d3a;
+  }
+  .summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+  }
+  .summary-table th {
+    background: #1a1d27;
+    color: #8b8fa3;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.75rem;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #2a2d3a;
+  }
+  .summary-table td {
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid #2a2d3a;
+    color: #c4c8d3;
+  }
+  .summary-table tr:last-child td { border-bottom: none; }
+  .summary-table tr:hover td { background: #1a1d27; }
+  .severity-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+  }
+  .severity-dot.high { background: #ef4444; }
+  .severity-dot.medium { background: #f59e0b; }
+  .severity-dot.low { background: #22c55e; }
+
+  /* RECOMMENDATIONS */
+  .recos-list { display: flex; flex-direction: column; gap: 1rem; }
+  .reco-card {
+    display: flex;
+    gap: 1.25rem;
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 16px;
+    padding: 1.25rem 1.5rem;
+    transition: border-color 0.2s;
+  }
+  .reco-card:hover { border-color: #8b5cf644; }
+  .reco-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
+    background: #0f1117;
+    border: 1px solid #2a2d3a;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: #8b5cf6;
+    flex-shrink: 0;
+  }
+  .reco-body { flex: 1; }
+  .reco-body h4 { font-size: 1rem; font-weight: 600; margin-bottom: 0.25rem; }
+  .reco-effort {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    color: #8b8fa3;
+    margin-top: 0.5rem;
+    padding: 0.2rem 0.6rem;
+    background: #0f1117;
+    border-radius: 6px;
+    border: 1px solid #2a2d3a;
+  }
+
+  /* FOOTER */
+  .footer {
+    text-align: center;
+    padding: 3rem 0;
+    border-top: 1px solid #2a2d3a;
+    margin-top: 3rem;
+    color: #5a5e6e;
+    font-size: 0.8125rem;
+  }
+
+  /* SVG ICONS INLINE */
+  .icon { width: 18px; height: 18px; flex-shrink: 0; }
+  .icon-big { width: 24px; height: 24px; }
+  .icon-sm { width: 14px; height: 14px; }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    .container { padding: 0 1rem; }
+    .hero h1 { font-size: 1.75rem; }
+    .hero { padding: 3rem 0 2rem; }
+    .problems-grid { grid-template-columns: 1fr; }
+    .dashboard { grid-template-columns: repeat(2, 1fr); }
+    .metrics-grid { grid-template-columns: 1fr; }
+    .reco-card { flex-direction: column; }
+  }
+  @media (max-width: 480px) {
+    .dashboard { grid-template-columns: 1fr; }
+    .hero-badges { flex-direction: column; align-items: center; }
+  }
+
+  /* ANIMATIONS */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in { animation: fadeInUp 0.4s ease forwards; }
+  .fade-in-d1 { animation-delay: 0.05s; }
+  .fade-in-d2 { animation-delay: 0.1s; }
+  .fade-in-d3 { animation-delay: 0.15s; }
+  .fade-in-d4 { animation-delay: 0.2s; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ===== HERO ===== -->
+  <section class="hero">
+    <h1>Relatório de Auditoria</h1>
+    <div class="subtitle">
+      <strong>MomAIOS</strong> &mdash; v1.4.1 &mdash; 23 de junho de 2026<br>
+      Escopo: Completo (raiz + apps)
+    </div>
+    <div class="hero-badges">
+      <div class="hero-badge">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#8b8fa3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span><strong>487</strong> arquivos analisados</span>
+      </div>
+      <div class="hero-badge">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#8b8fa3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span><strong>69.800</strong> linhas de código</span>
+      </div>
+      <div class="hero-badge">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#8b8fa3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span><strong>143</strong> problemas encontrados</span>
+      </div>
+      <div class="hero-badge">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#8b8fa3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg>
+        <span><strong>5</strong> apps auditados</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SUMMARY DASHBOARD ===== -->
+  <section class="section">
+    <div class="section-header">
+      <h2>Dashboard</h2>
+      <div class="accent-line"></div>
+    </div>
+    <div class="dashboard">
+      <div class="dash-card fade-in fade-in-d1">
+        <div class="number red">25</div>
+        <div class="label">Alta Prioridade</div>
+      </div>
+      <div class="dash-card fade-in fade-in-d2">
+        <div class="number amber">52</div>
+        <div class="label">Média Prioridade</div>
+      </div>
+      <div class="dash-card fade-in fade-in-d3">
+        <div class="number green">66</div>
+        <div class="label">Baixa Prioridade</div>
+      </div>
+      <div class="dash-card fade-in fade-in-d4">
+        <div class="number purple">143</div>
+        <div class="label">Total de Problemas</div>
+      </div>
+    </div>
+
+    <div class="metrics-grid">
+      <div class="metric-item"><span class="m-label">Electron Main Process</span><span class="m-value">42</span></div>
+      <div class="metric-item"><span class="m-label">Renderer (React/TS)</span><span class="m-value">35</span></div>
+      <div class="metric-item"><span class="m-label">Node Core (JS)</span><span class="m-value">38</span></div>
+      <div class="metric-item"><span class="m-label">Python Backend</span><span class="m-value">28</span></div>
+      <div class="metric-item"><span class="m-label">Config/Build/Deps</span><span class="m-value">26</span></div>
+    </div>
+  </section>
+
+  <!-- ===== PROBLEMS ===== -->
+  <section class="section">
+    <div class="section-header">
+      <h2>Problemas Encontrados</h2>
+      <div class="accent-line"></div>
+    </div>
+
+    <div class="problems-grid">
+
+      <!-- Alta Prioridade -->
+      <div class="problem-card high fade-in fade-in-d1">
+        <div class="badge-row">
+          <span class="severity-badge high">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Alta
+          </span>
+          <span class="problem-id">P001</span>
+        </div>
+        <h3>God Object: coreManager.ts (934 linhas)</h3>
+        <div class="problem-meta">
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> <strong>Arquivo:</strong> main/coreManager.ts</span>
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg> <strong>Risco:</strong> Manutenibilidade</span>
+        </div>
+        <div class="problem-detail">
+          <p><strong>Problema:</strong> Um único arquivo gerencia spawn de Node Core, Python sidecar, economia, bridge TTS, dedup de logs, estratégias de kill e decisões de startup. Viola SRP.</p>
+          <p><strong>Impacto:</strong> Qualquer mudança em subprocesso requer modificar este gigante. Regressões frequentes.</p>
+          <p><strong>Afeta:</strong> Desenvolvedores &mdash; manutenção lenta e arriscada.</p>
+          <div class="impact-box">
+            <strong>O que vai mudar:</strong> Extrair para 5 módulos: <code>node-core-launcher.ts</code>, <code>economy-lifecycle.ts</code>, <code>tts-bridge.ts</code>, <code>port-utils.ts</code>, <code>startup-decision.ts</code>.<br>
+            <strong>Ganho esperado:</strong> Complexidade ciclomática de ~60 para ~10 por módulo.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card high fade-in fade-in-d1">
+        <div class="badge-row">
+          <span class="severity-badge high">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Alta
+          </span>
+          <span class="problem-id">S001</span>
+        </div>
+        <h3>Token de sessão exposto em process.env</h3>
+        <div class="problem-meta">
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> <strong>Arquivo:</strong> main/index.ts:252</span>
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg> <strong>Risco:</strong> Segurança</span>
+        </div>
+        <div class="problem-detail">
+          <p><strong>Problema:</strong> <code>MOMAI_SESSION_TOKEN</code> é setado em <code>process.env</code> e herdado por subprocessos (Node Core, Python, extensões). Crash dumps e logs podem expor o token.</p>
+          <p><strong>Impacto:</strong> Atacante com acesso ao sistema extrai o token e autentica requisições à API.</p>
+          <p><strong>Afeta:</strong> Usuários finais &mdash; risco de sequestro de sessão.</p>
+          <div class="impact-box">
+            <strong>O que vai mudar:</strong> Passar token via argumento de CLI ou pipe anônimo.<br>
+            <strong>Ganho esperado:</strong> Elimina vazamento de token para subprocessos.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card high fade-in fade-in-d2">
+        <div class="badge-row">
+          <span class="severity-badge high">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Alta
+          </span>
+          <span class="problem-id">S002</span>
+        </div>
+        <h3>Extensões herdam token de sessão via process.env</h3>
+        <div class="problem-meta">
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> <strong>Arquivo:</strong> node-core/services/extension-host-manager.js:89</span>
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg> <strong>Risco:</strong> Segurança</span>
+        </div>
+        <div class="problem-detail">
+          <p><strong>Problema:</strong> <code>startPersistent()</code> spawna child process com <code>env: { ...process.env }</code>. Toda extensão tem acesso irrestrito &agrave; API.</p>
+          <p><strong>Impacto:</strong> Extensão maliciosa pode exfiltrar o token e acessar todos os endpoints.</p>
+          <p><strong>Afeta:</strong> Usuários finais &mdash; quebra do modelo de segurança.</p>
+          <div class="impact-box">
+            <strong>O que vai mudar:</strong> Filtrar env vars com whitelist de vars seguras.<br>
+            <strong>Ganho esperado:</strong> Isolamento real entre extensão e core.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card high fade-in fade-in-d2">
+        <div class="badge-row">
+          <span class="severity-badge high">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Alta
+          </span>
+          <span class="problem-id">S003</span>
+        </div>
+        <h3>Path traversal no storage de extensões</h3>
+        <div class="problem-meta">
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> <strong>Arquivo:</strong> extension-host-worker.js:25-41</span>
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg> <strong>Risco:</strong> Segurança</span>
+        </div>
+        <div class="problem-detail">
+          <p><strong>Problema:</strong> <code>storage.get(key)</code> faz <code>path.join(storageBase, `${key}.json`)</code> sem sanitizar key. Extensão pode ler qualquer arquivo no DATA_DIR.</p>
+          <p><strong>Impacto:</strong> Extensão pode sobrescrever <code>messages.json</code>, <code>store.json</code> ou dados de outras extensões.</p>
+          <p><strong>Afeta:</strong> Usuários finais &mdash; corrupção de dados.</p>
+          <div class="impact-box">
+            <strong>O que vai mudar:</strong> Validar key com regex (alfanumérico + underscore).<br>
+            <strong>Ganho esperado:</strong> Elimina vetor de path traversal.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card high fade-in fade-in-d3">
+        <div class="badge-row">
+          <span class="severity-badge high">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Alta
+          </span>
+          <span class="problem-id">S004</span>
+        </div>
+        <h3>XSS via srcDoc em preview HTML do LLM</h3>
+        <div class="problem-meta">
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> <strong>Arquivo:</strong> renderer/chat/HtmlPreviewCard.tsx:26</span>
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg> <strong>Risco:</strong> Segurança</span>
+        </div>
+        <div class="problem-detail">
+          <p><strong>Problema:</strong> HTML gerado pelo LLM renderizado em <code>iframe srcDoc</code> com <code>sandbox="allow-scripts"</code>. Backend comprometido &rarr; XSS no renderer.</p>
+          <p><strong>Impacto:</strong> Potencial comprometimento total do Electron renderer.</p>
+          <p><strong>Afeta:</strong> Usuários finais.</p>
+          <div class="impact-box">
+            <strong>O que vai mudar:</strong> Sanitizar HTML com DOMPurify antes de passar ao srcDoc.<br>
+            <strong>Ganho esperado:</strong> Elimina risco de XSS.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card high fade-in fade-in-d3">
+        <div class="badge-row">
+          <span class="severity-badge high">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Alta
+          </span>
+          <span class="problem-id">S005</span>
+        </div>
+        <h3>Credenciais Trello em plaintext no .env</h3>
+        <div class="problem-meta">
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> <strong>Arquivo:</strong> apps/momai/.env</span>
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg> <strong>Risco:</strong> Segurança</span>
+        </div>
+        <div class="problem-detail">
+          <p><strong>Problema:</strong> TRELLO_API_KEY, TRELLO_TOKEN, TRELLO_DEFAULT_BOARD_ID em texto plano. Gitignored, mas vulner&aacute;vel a backup, exfiltra&ccedil;&atilde;o ou erro humano.</p>
+          <p><strong>Impacto:</strong> Vazamento d&aacute; acesso completo ao board Trello do projeto.</p>
+          <p><strong>Afeta:</strong> Organiza&ccedil;&atilde;o.</p>
+          <div class="impact-box">
+            <strong>O que vai mudar:</strong> Rotacionar credenciais; armazenar via Electron safeStorage.<br>
+            <strong>Ganho esperado:</strong> Elimina risco de vazamento.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card high fade-in fade-in-d4">
+        <div class="badge-row">
+          <span class="severity-badge high">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Alta
+          </span>
+          <span class="problem-id">M001</span>
+        </div>
+        <h3>30+ blocos catch {} vazios engolem erros</h3>
+        <div class="problem-meta">
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> <strong>Arquivo:</strong> coreManager.ts, backend-manager.ts, bootstrap/, etc.</span>
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg> <strong>Risco:</strong> Manutenibilidade</span>
+        </div>
+        <div class="problem-detail">
+          <p><strong>Problema:</strong> M&uacute;ltiplos <code>catch {}</code> silenciosamente engolem erros em shutdown, scans, opera&ccedil;&otilde;es de arquivo e subprocessos.</p>
+          <p><strong>Impacto:</strong> Erros cr&iacute;ticos invis&iacute;veis. Debugging de produ&ccedil;&atilde;o imposs&iacute;vel.</p>
+          <p><strong>Afeta:</strong> Desenvolvedores.</p>
+          <div class="impact-box">
+            <strong>O que vai mudar:</strong> Adicionar log (warn/error) em todos os catches vazios.<br>
+            <strong>Ganho esperado:</strong> Visibilidade completa de erros.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card high fade-in fade-in-d4">
+        <div class="badge-row">
+          <span class="severity-badge high">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Alta
+          </span>
+          <span class="problem-id">M002</span>
+        </div>
+        <h3>I/O síncrono em IPC handler bloqueia UI</h3>
+        <div class="problem-meta">
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> <strong>Arquivo:</strong> main/lexical-search.ts:69-75</span>
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg> <strong>Risco:</strong> Performance</span>
+        </div>
+        <div class="problem-detail">
+          <p><strong>Problema:</strong> <code>runLexicalNoteSearch</code> usa <code>readFileSync</code> em IPC handler. Cada leitura s&iacute;ncrona bloqueia o main process.</p>
+          <p><strong>Impacto:</strong> UI congela durante busca textual (~3s com muitas notas).</p>
+          <p><strong>Afeta:</strong> Usu&aacute;rios finais &mdash; experi&ecirc;ncia de busca travada.</p>
+          <div class="impact-box">
+            <strong>O que vai mudar:</strong> Substituir por <code>fs.promises.readFile</code> com concorr&ecirc;ncia limitada.<br>
+            <strong>Ganho esperado:</strong> UI responsiva durante buscas (elimina freeze de ~3s).
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card high fade-in">
+        <div class="badge-row">
+          <span class="severity-badge high">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Alta
+          </span>
+          <span class="problem-id">N001</span>
+        </div>
+        <h3>promptText não inicializado se promptRegistry for nulo</h3>
+        <div class="problem-meta">
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> <strong>Arquivo:</strong> node-core/chat-service.js:1191-1207</span>
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg> <strong>Risco:</strong> Qualidade de Resposta</span>
+        </div>
+        <div class="problem-detail">
+          <p><strong>Problema:</strong> <code>promptText</code> atribuído dentro de <code>if (promptRegistry && ...)</code> mas usado incondicionalmente depois. Se <code>promptRegistry</code> for nulo, prompt de sistema vazio.</p>
+          <p><strong>Impacto:</strong> LLM recebe instrução de sistema vazia &rarr; respostas erráticas.</p>
+          <p><strong>Afeta:</strong> Usuários finais &mdash; qualidade de resposta degradada.</p>
+          <div class="impact-box">
+            <strong>O que vai mudar:</strong> Adicionar fallback: <code>promptText || DEFAULT_SYSTEM_PROMPT</code>.<br>
+            <strong>Ganho esperado:</strong> Prompt de sistema sempre presente.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card high fade-in">
+        <div class="badge-row">
+          <span class="severity-badge high">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Alta
+          </span>
+          <span class="problem-id">PY001</span>
+        </div>
+        <h3>Modelo Whisper carregado 3x na memória (OOM risk)</h3>
+        <div class="problem-meta">
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> <strong>Arquivo:</strong> core/voice.py, detector.py</span>
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg> <strong>Risco:</strong> Performance / Estabilidade</span>
+        </div>
+        <div class="problem-detail">
+          <p><strong>Problema:</strong> Tr&ecirc;s caminhos de c&oacute;digo carregam modelos Whisper independentes. No pior caso, 3 inst&acirc;ncias ocupam &gt;3GB de RAM.</p>
+          <p><strong>Impacto:</strong> OOM em sistemas com 8GB RAM. App trava.</p>
+          <p><strong>Afeta:</strong> Usu&aacute;rios finais com hardware modesto.</p>
+          <div class="impact-box">
+            <strong>O que vai mudar:</strong> Singleton factory em app_state que retorna inst&acirc;ncia &uacute;nica do modelo.<br>
+            <strong>Ganho esperado:</strong> Reduz uso de RAM de ~3GB para ~1GB.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card high fade-in">
+        <div class="badge-row">
+          <span class="severity-badge high">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Alta
+          </span>
+          <span class="problem-id">PY002</span>
+        </div>
+        <h3>SQLite sem check_same_thread=False e sem WAL</h3>
+        <div class="problem-meta">
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> <strong>Arquivo:</strong> core/database/models.py:59-63</span>
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg> <strong>Risco:</strong> Estabilidade</span>
+        </div>
+        <div class="problem-detail">
+          <p><strong>Problema:</strong> SQLAlchemy engine sem <code>check_same_thread=False</code> e sem <code>PRAGMA journal_mode=WAL</code>. Session chamado de m&uacute;ltiplas threads.</p>
+          <p><strong>Impacto:</strong> <code>ProgrammingError: SQLite objects created in a thread...</code> em acesso concorrente.</p>
+          <p><strong>Afeta:</strong> Usu&aacute;rios finais &mdash; erros aleat&oacute;rios de banco.</p>
+          <div class="impact-box">
+            <strong>O que vai mudar:</strong> Adicionar check_same_thread=False, NullPool, PRAGMA WAL.<br>
+            <strong>Ganho esperado:</strong> Elimina erro de thread em SQLite.
+          </div>
+        </div>
+      </div>
+
+      <div class="problem-card high fade-in">
+        <div class="badge-row">
+          <span class="severity-badge high">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Alta
+          </span>
+          <span class="problem-id">PY003</span>
+        </div>
+        <h3>WebSocket thread-unsafe + blocking em rota async</h3>
+        <div class="problem-meta">
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> <strong>Arquivo:</strong> core/api/routes/voice.py, app_state.py</span>
+          <span class="meta-tag"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2z"/></svg> <strong>Risco:</strong> Estabilidade</span>
+        </div>
+        <div class="problem-detail">
+          <p><strong>Problema:</strong> active_websockets é list acessada de múltiplas threads sem lock. /quick-transcribe bloqueia por 30s em rota síncrona.</p>
+          <p><strong>Impacto:</strong> Corrupção de lista + thread pool exaurido &rarr; server 503.</p>
+          <p><strong>Afeta:</strong> Usuários finais &mdash; voice pipeline instável.</p>
+          <div class="impact-box">
+            <strong>O que vai mudar:</strong> Lock na lista de WS + converter rota para async com to_thread().<br>
+            <strong>Ganho esperado:</strong> Server responsivo durante transcrição longa.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== SUMMARY TABLE ===== -->
+  <section class="section">
+    <div class="section-header">
+      <h2>Tabela Resumo</h2>
+      <div class="accent-line"></div>
+    </div>
+    <div class="summary-table-wrap">
+      <table class="summary-table">
+        <thead>
+          <tr>
+            <th>Prioridade</th>
+            <th>ID</th>
+            <th>Área</th>
+            <th>Problema</th>
+            <th>Impacto</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>P001</td>
+            <td>Arquitetura</td>
+            <td>God Object coreManager.ts (934 linhas)</td>
+            <td>Regressões frequentes</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>P002</td>
+            <td>Arquitetura</td>
+            <td>Dependência circular coreManager/windowManager</td>
+            <td>Import order fragile</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>P003</td>
+            <td>Arquitetura</td>
+            <td>ContainerChat.tsx 19 effects + 926 linhas</td>
+            <td>Bugs stale closure</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>P004</td>
+            <td>Arquitetura</td>
+            <td>Handler monolítico 580 linhas</td>
+            <td>Manutenção inviável</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>P006</td>
+            <td>Arquitetura</td>
+            <td>isPortReachable duplicado</td>
+            <td>Bug fix incompleto</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>S001</td>
+            <td>Segurança</td>
+            <td>Token em process.env</td>
+            <td>Vazamento subprocessos</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>S002</td>
+            <td>Segurança</td>
+            <td>Extensões herdam process.env</td>
+            <td>Extensão maliciosa</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>S003</td>
+            <td>Segurança</td>
+            <td>Path traversal em storage de extensão</td>
+            <td>Leitura/escrita arbitrária</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>S004</td>
+            <td>Segurança</td>
+            <td>XSS via srcDoc sandbox</td>
+            <td>Execução código arbitrário</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>S005</td>
+            <td>Segurança</td>
+            <td>Credenciais Trello em plaintext</td>
+            <td>Vazamento API keys</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>S007</td>
+            <td>Segurança</td>
+            <td>IPC sem tipo (any)</td>
+            <td>Crash msg malformada</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>M001</td>
+            <td>Main Process</td>
+            <td>30+ catch {} vazios</td>
+            <td>Debugging impossível</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>M002</td>
+            <td>Main Process</td>
+            <td>readFileSync em IPC handler</td>
+            <td>UI freeze em busca</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>N001</td>
+            <td>Node Core</td>
+            <td>promptText não inicializado</td>
+            <td>Prompt sistema vazio</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>N002</td>
+            <td>Node Core</td>
+            <td>Variáveis redeclaradas (shadowing)</td>
+            <td>Tool steps perdidos</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>PY001</td>
+            <td>Python</td>
+            <td>Whisper carregado 3x</td>
+            <td>OOM em 8GB RAM</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>PY002</td>
+            <td>Python</td>
+            <td>SQLite sem check_same_thread</td>
+            <td>Erro concorrência</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot high"></span>Alta</td>
+            <td>PY003</td>
+            <td>Python</td>
+            <td>WebSocket thread-unsafe</td>
+            <td>Corrupção de lista</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot medium"></span>Média</td>
+            <td>P005</td>
+            <td>Arquitetura</td>
+            <td>Cópia orfanada scripts/node-core/ raiz</td>
+            <td>Confusão desenvolvedores</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot medium"></span>Média</td>
+            <td>S006</td>
+            <td>Segurança</td>
+            <td>Token em query param WebSocket</td>
+            <td>Vazamento logs</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot medium"></span>Média</td>
+            <td>M004</td>
+            <td>Main Process</td>
+            <td>Polling economia 5s</td>
+            <td>Bateria/CPU</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot medium"></span>Média</td>
+            <td>R001</td>
+            <td>Renderer</td>
+            <td>Sem Error Boundary</td>
+            <td>Tela branca</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot medium"></span>Média</td>
+            <td>R002</td>
+            <td>Renderer</td>
+            <td>Sem AbortController</td>
+            <td>Resource leak</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot medium"></span>Média</td>
+            <td>N003</td>
+            <td>Node Core</td>
+            <td>catch {} vazios Node Core</td>
+            <td>Falhas invisíveis</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot medium"></span>Média</td>
+            <td>N004</td>
+            <td>Node Core</td>
+            <td>GET /settings expõe tudo</td>
+            <td>Vazamento config</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot medium"></span>Média</td>
+            <td>C001</td>
+            <td>Build</td>
+            <td>Sem CI/CD</td>
+            <td>Sem quality gate</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot medium"></span>Média</td>
+            <td>C002</td>
+            <td>Build</td>
+            <td>ESLint regras críticas OFF</td>
+            <td>Type safety nominal</td>
+          </tr>
+          <tr>
+            <td><span class="severity-dot low"></span>Baixa</td>
+            <td>52+</td>
+            <td>Várias</td>
+            <td>Diversos: timeout magic numbers, CSP, imports n&atilde;o usados, dead code, etc.</td>
+            <td>Manutenibilidade</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===== RECOMMENDATIONS ===== -->
+  <section class="section">
+    <div class="section-header">
+      <h2>Recomenda&ccedil;&otilde;es</h2>
+      <div class="accent-line"></div>
+    </div>
+
+    <div style="margin-bottom:2rem;">
+      <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-bottom:1.5rem;">
+        <span style="background:#1a1d27; border:1px solid #2a2d3a; border-radius:100px; padding:0.3rem 1rem; font-size:0.8125rem; color:#ef4444;">&bull; Imediata</span>
+        <span style="background:#1a1d27; border:1px solid #2a2d3a; border-radius:100px; padding:0.3rem 1rem; font-size:0.8125rem; color:#f59e0b;">&bull; Curto Prazo</span>
+        <span style="background:#1a1d27; border:1px solid #2a2d3a; border-radius:100px; padding:0.3rem 1rem; font-size:0.8125rem; color:#8b5cf6;">&bull; M&eacute;dio Prazo</span>
+      </div>
+    </div>
+
+    <div class="recos-list">
+
+      <div class="reco-card">
+        <div class="reco-num">1</div>
+        <div class="reco-body">
+          <h4>Rotacionar credenciais Trello</h4>
+          <p style="color:#a1a5b5; font-size:0.9rem;">Armazenar via Electron safeStorage ou gerenciador de senhas do SO. Remover do .env.</p>
+          <span class="reco-effort">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Imediata &mdash; 30min
+          </span>
+          <span class="reco-effort" style="margin-left:0.5rem;">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Segurança Crítica
+          </span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">2</div>
+        <div class="reco-body">
+          <h4>Adicionar Error Boundary no React</h4>
+          <p style="color:#a1a5b5; font-size:0.9rem;">Impedir que um erro em qualquer componente derrube toda a UI.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Imediata &mdash; 1h</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">3</div>
+        <div class="reco-body">
+          <h4>Filtrar MOMAI_SESSION_TOKEN de env vars de extensões</h4>
+          <p style="color:#a1a5b5; font-size:0.9rem;">Whitelist de vars seguras em extension-host-manager.js. Impedir que extensão leia o token.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Imediata &mdash; 2h</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">4</div>
+        <div class="reco-body">
+          <h4>Validar promptText com fallback</h4>
+          <p style="color:#a1a5b5; font-size:0.9rem;">Garantir prompt de sistema sempre presente, mesmo se promptRegistry falhar.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Imediata &mdash; 30min</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">5</div>
+        <div class="reco-body">
+          <h4>Adicionar check_same_thread=False no SQLite</h4>
+          <p style="color:#a1a5b5; font-size:0.9rem;">Prevenir ProgrammingError de thread em acesso concorrente ao banco.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Imediata &mdash; 30min</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">6</div>
+        <div class="reco-body">
+          <h4>Extrair coreManager.ts em 5 módulos</h4>
+          <p style="color:#a1a5b5; font-size:0.9rem;">Separar node-core-launcher, economy-lifecycle, tts-bridge, port-utils, startup-decision.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Curto Prazo &mdash; 1 dia</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">7</div>
+        <div class="reco-body">
+          <h4>Substituir readFileSync por async em lexical-search</h4>
+          <p style="color:#a1a5b5; font-size:0.9rem;">Eliminar UI freeze durante busca textual.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Curto Prazo &mdash; 2h</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">8</div>
+        <div class="reco-body">
+          <h4>Singleton factory para Whisper no Python</h4>
+          <p style="color:#a1a5b5; font-size:0.9rem;">Evitar carga de 3 modelos independentes. Reduzir RAM em ~2GB.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Curto Prazo &mdash; 3h</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">9</div>
+        <div class="reco-body">
+          <h4>Configurar CI/CD (GitHub Actions)</h4>
+          <p style="color:#a1a5b5; font-size:0.9rem;">Adicionar lint + typecheck + test + build. Quality gate automático.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Curto Prazo &mdash; 1 dia</span>
+        </div>
+      </div>
+
+      <div class="reco-card">
+        <div class="reco-num">10</div>
+        <div class="reco-body">
+          <h4>Refatorar ContainerChat.tsx + Registry Pattern</h4>
+          <p style="color:#a1a5b5; font-size:0.9rem;">Extrair CallModeContent, implementar handler registry. Complexidade -60%.</p>
+          <span class="reco-effort"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Médio Prazo &mdash; 2 dias</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="footer">
+    <p>Relatório de Auditoria &mdash; MomAIOS v1.4.1 &mdash; 23 de junho de 2026</p>
+    <p style="margin-top:0.5rem;">Auditoria automatizada — 487 arquivos, 69.800 linhas, 143 problemas</p>
+  </footer>
+
+</div>
+
+</body>
+</html>

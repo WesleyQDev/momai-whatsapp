@@ -12,7 +12,6 @@ import {
   QuestionMarkCircleIcon,
   Square3Stack3DIcon,
   ChartBarIcon,
-  ShieldCheckIcon,
   PuzzlePieceIcon
 } from '@heroicons/react/24/outline'
 import { useI18n } from '../i18n'
@@ -427,22 +426,6 @@ export default function LateralBar({
             />
           )}
           <QuestionMarkCircleIcon
-            className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
-          />
-        </button>
-
-        {/* Privacy Icon */}
-        <button
-          onClick={() => onNavigate('/privacy')}
-          title={t('sidebar.privacy')}
-          className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 ${activeRoute === '/privacy' ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
-        >
-          {activeRoute === '/privacy' && (
-            <div
-              className={`absolute ${isCompact ? '-left-2 h-4' : '-left-3 h-6'} w-1 bg-accent rounded-r-full animate-fade-in`}
-            />
-          )}
-          <ShieldCheckIcon
             className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
           />
         </button>

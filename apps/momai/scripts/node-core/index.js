@@ -28,7 +28,8 @@ const {
   sendNoContent,
   sendSseHeaders,
   writeSse,
-  readJsonBody
+  readJsonBody,
+  sidecarHeaders
 } = require('./infrastructure/http-helpers')
 const {
   managedLlamaPids,
@@ -284,7 +285,7 @@ async function proxyToPython(req, res, pathname) {
 
   const response = await fetch(url, {
     method: req.method,
-    headers: { 'Content-Type': req.headers['content-type'] || 'application/json' },
+    headers: sidecarHeaders({ 'Content-Type': req.headers['content-type'] || 'application/json' }),
     body
   })
 

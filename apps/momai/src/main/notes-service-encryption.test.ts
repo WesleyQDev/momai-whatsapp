@@ -47,13 +47,15 @@ import {
   updateNote,
   listNotes,
   migratePlainNotesToEncrypted,
-  loadIndexCache
+  loadIndexCache,
+  __resetIndexCacheForTesting
 } from './notesService'
 
 describe('notes-service encryption', () => {
   let tempDir: string
 
   beforeEach(() => {
+    __resetIndexCacheForTesting()
     mockSafeStorage.isEncryptionAvailable.mockImplementation(() => true)
     mockSafeStorage.encryptString.mockImplementation((s: string) =>
       Buffer.from('enc:' + s, 'utf-8')
@@ -172,5 +174,88 @@ describe('notes-service encryption', () => {
     const found = list.find((n) => n.id === 'legacy')
     expect(found).toBeDefined()
     expect(found!.path).toMatch(/legacy\.md\.enc$/)
+  })
+
+  it('updates pre-existing index.json paths when plain files are migrated', async () => {
+    const dataDir = join(tempDir, 'data')
+    const notesDir = join(dataDir, 'notes')
+    require('fs').mkdirSync(notesDir, { recursive: true })
+
+    const noteId = 'pre-existing-id'
+    writeFileSync(join(notesDir, `${noteId}.md`), 'stale-indexed content', 'utf8')
+    writeFileSync(
+      join(notesDir, '.index.json'),
+      JSON.stringify(
+        [
+          {
+            id: noteId,
+            title: 'stale title',
+            path: `notes/${noteId}.md`,
+            source: 'local',
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+            preview: 'stale-indexed content'
+          }
+        ],
+        null,
+        2
+      ),
+      'utf8'
+    )
+
+    await migratePlainNotesToEncrypted()
+    await loadIndexCache()
+    const list = await listNotes()
+    const found = list.find((n) => n.id === noteId)
+    expect(found).toBeDefined()
+    expect(found!.path).toBe(`notes/${noteId}.md.enc`)
+
+    const loaded = await getNote(noteId)
+    expect(loaded).not.toBeNull()
+    expect(loaded!.content).toBe('stale-indexed content')
+  })
+
+  it('getNote returns null when the underlying file is missing (defense in depth)', async () => {
+    const note = await createNote('Ghost', 'phantom content')
+    const fs = require('fs')
+    fs.unlinkSync(join(tempDir, 'data', 'notes', `${note.id}.md.enc`))
+
+    const loaded = await getNote(note.id)
+    expect(loaded).toBeNull()
+  })
+
+  it('loadIndexCache heals a stale .md path when only .md.enc exists on disk', async () => {
+    const notesDir = join(tempDir, 'data', 'notes')
+    require('fs').mkdirSync(notesDir, { recursive: true })
+
+    const created = await createNote('orphan title', 'orphan content')
+    const noteId = created.id
+
+    writeFileSync(
+      join(notesDir, '.index.json'),
+      JSON.stringify(
+        [
+          {
+            id: noteId,
+            title: 'orphan title',
+            path: `notes/${noteId}.md`,
+            source: 'local',
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+            preview: 'orphan content'
+          }
+        ],
+        null,
+        2
+      ),
+      'utf8'
+    )
+
+    __resetIndexCacheForTesting()
+    await loadIndexCache()
+    const loaded = await getNote(noteId)
+    expect(loaded).not.toBeNull()
+    expect(loaded!.content).toBe('orphan content')
+    expect(loaded!.path).toBe(`notes/${noteId}.md.enc`)
   })
 })

@@ -1,5 +1,14 @@
 const path = require('node:path')
+const fs = require('node:fs')
+const os = require('node:os')
 const { parseSkillMarkdown } = require('../../skills/registry')
+
+function writeTempSkillMd(content) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'skillmd-'))
+  const file = path.join(dir, 'SKILL.md')
+  fs.writeFileSync(file, content, 'utf8')
+  return file
+}
 
 describe('parseSkillMarkdown - weather', () => {
   const weatherSkillMd = path.resolve(__dirname, '../../skills/core/weather/SKILL.md')
@@ -42,6 +51,71 @@ describe('parseSkillMarkdown - weather', () => {
     for (const intent of required) {
       expect(parsed.intents).toContain(intent)
     }
+  })
+
+  test('does not declare voice_triggers (user-controlled, not manifest-driven)', () => {
+    // Auto-activation keywords are user-controlled. Skills must not declare
+    // voice_triggers in their manifest. The parser still accepts the field
+    // for backward compat with third-party extensions, but built-in skills
+    // leave it empty so users have full control.
+    expect(Array.isArray(parsed.voiceTriggers)).toBe(true)
+    expect(parsed.voiceTriggers).toEqual([])
+  })
+})
+
+describe('parseSkillMarkdown - voice_triggers field', () => {
+  test('returns empty array when voice_triggers is absent', () => {
+    const file = writeTempSkillMd(`---
+name: foo
+description: a skill without voice triggers
+intents:
+  - alpha
+  - beta
+---
+body
+`)
+    const parsed = parseSkillMarkdown(file)
+    expect(parsed).not.toBeNull()
+    expect(Array.isArray(parsed.voiceTriggers)).toBe(true)
+    expect(parsed.voiceTriggers).toEqual([])
+  })
+
+  test('parses voice_triggers list from front matter', () => {
+    const file = writeTempSkillMd(`---
+name: foo
+description: a skill with voice triggers
+intents:
+  - alpha
+  - beta
+  - gamma
+voice_triggers:
+  - alpha
+  - beta
+---
+body
+`)
+    const parsed = parseSkillMarkdown(file)
+    expect(parsed).not.toBeNull()
+    expect(parsed.voiceTriggers).toEqual(['alpha', 'beta'])
+  })
+
+  test('keeps voice_triggers independent from intents', () => {
+    const file = writeTempSkillMd(`---
+name: foo
+description: voice triggers are a curated subset
+intents:
+  - alpha
+  - beta
+  - gamma
+  - delta
+voice_triggers:
+  - alpha
+---
+body
+`)
+    const parsed = parseSkillMarkdown(file)
+    expect(parsed.intents).toEqual(['alpha', 'beta', 'gamma', 'delta'])
+    expect(parsed.voiceTriggers).toEqual(['alpha'])
   })
 })
 
