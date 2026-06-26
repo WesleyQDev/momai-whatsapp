@@ -56,6 +56,14 @@ Para a documentação técnica raiz (Spec-Driven, Arc42 + C4, ADR e specs increm
 
 Uso pessoal gratuito sob licença proprietária. Veja o arquivo [LICENSE](LICENSE) para os termos completos.
 
+## Contribuições
+
+Consulte os documentos abaixo para contribuir com o projeto:
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — guia de contribuição e regras
+- [CLA.md](CLA.md) — termos de cessão de direitos
+- [SECURITY.md](SECURITY.md) — política de segurança e divulgação de vulnerabilidades
+
 ---
 
 <div align="center">
