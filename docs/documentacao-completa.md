@@ -6,7 +6,7 @@
 
 MomAIOS é o monorepo que abriga o **MomAI**, um assistente virtual de desktop que combina a inteligência de Modelos de Linguagem de Grande Escala (LLMs) com a capacidade de executar ações reais no computador do usuário. Diferente de assistentes como Alexa, Google Assistant ou Siri, o MomAI foi projetado desde o início com um princípio fundamental: **privacidade em primeiro lugar**. Todo o processamento — desde a detecção da palavra de ativação até a geração de respostas em texto e fala — acontece localmente na máquina do usuário.
 
-O projeto é mantido por **WesleyQDev** e está licenciado sob **MIT**, sendo totalmente gratuito e de código aberto.
+O projeto é mantido por **WesleyQDev** e está licenciado sob uma **licença proprietária**. A reprodução, distribuição e modificação são restritas conforme os termos da licença.
 
 ### Público-Alvo
 
