@@ -145,25 +145,64 @@ pnpm test             # uv run pytest
 
 ## Community Extensions
 
-MomAI supports a community extension system. Extensions are registered in `apps/momai/community-extensions.json` and can be installed from GitHub repos.
+MomAI supports a community extension system with two registries:
 
-### Extension Registry
+- **Installation registry** (`registry.json` in the project root) — allowlist of official extensions used by the node-core to validate install URLs.
+- **Community catalog** (remote `community-extensions.json` in the `WesleyQDev/MomAI-App` repo) — public catalog of community extensions rendered in the extension store UI.
 
-Extensions are defined in `community-extensions.json` with the following structure:
+### Installation Registry
+
+Official extensions are registered in [`registry.json`](registry.json) at the project root:
 
 ```json
 {
-  "id": "extension-id",
-  "name": "Extension Name",
-  "description": "What it does",
-  "category": "utility|development|...",
-  "icon": "HeroIconName",
-  "author": "GitHubUser",
-  "repo": "GitHubUser/repo",
-  "download_url": "https://github.com/.../archive/refs/heads/main.zip",
-  "version": "1.0.0"
+  "extensions": [
+    {
+      "id": "whatsapp",
+      "name": "WhatsApp",
+      "description": "Monitore e responda mensagens do WhatsApp",
+      "author": "WesleyQDev",
+      "version": "0.3.20",
+      "download_url": "https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.3.20/momai-whatsapp-extension-v0.3.20.zip",
+      "is_official": true
+    }
+  ]
 }
 ```
+
+Used by `scripts/node-core/api/routes/extensions.routes.js` to validate that install requests match a known extension ID and download URL.
+
+### Community Catalog (remote)
+
+Community extensions available in the store are fetched at runtime from:
+`https://raw.githubusercontent.com/WesleyQDev/MomAI-App/main/community-extensions.json`
+
+```json
+[
+  {
+    "id": "launcher",
+    "name": "Launcher",
+    "description": "Opens programs, apps, folders, files and URLs on your computer via voice or text commands.",
+    "category": "utility",
+    "icon": "RocketLaunch",
+    "author": "WesleyQDev",
+    "repo": "WesleyQDev/momai-extension-launcher",
+    "download_url": "https://github.com/WesleyQDev/momai-extension-launcher/archive/refs/heads/main.zip",
+    "version": "1.0.0",
+    "locales": {
+      "pt-BR": {
+        "name": "Lançador",
+        "description": "Abre programas, aplicativos, pastas, arquivos e URLs no computador através de comandos de voz ou texto."
+      }
+    }
+  }
+]
+```
+
+The catalog is cached locally and refreshed hourly. Used by:
+- `scripts/node-core/services/community-registry.js` — fetches and caches the catalog, enriches extensions with GitHub star counts
+- `scripts/node-core/services/skill-orchestrator.js` — builds the combined extensions payload for the API
+- Landing page `ExtensionsPage.tsx` — renders the extension store
 
 ### Extension Store UI
 
