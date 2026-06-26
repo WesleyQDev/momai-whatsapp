@@ -52,6 +52,13 @@ Para a documentação técnica raiz (Spec-Driven, Arc42 + C4, ADR e specs increm
 
 **[docs/README.md](docs/README.md)**
 
+## Contribuições
+
+Antes de abrir Pull Requests, leia:
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — guia de contribuição e regras
+- [CLA.md](CLA.md) — termos de cessão de direitos
+
 ## Licença
 
 Uso pessoal gratuito sob licença proprietária. Veja o arquivo [LICENSE](LICENSE) para os termos completos.
