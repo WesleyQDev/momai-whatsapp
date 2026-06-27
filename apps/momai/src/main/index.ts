@@ -2,7 +2,7 @@
 // Must be the first import in this file — see apply-variant-env.ts for details.
 import './apply-variant-env'
 
-import { app, globalShortcut, BrowserWindow, ipcMain, shell, Menu } from 'electron'
+import { app, globalShortcut, BrowserWindow, ipcMain, shell, Menu, session } from 'electron'
 import { optimizer, is } from '@electron-toolkit/utils'
 import { state, setIsQuitting, getMainWindow } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
@@ -39,6 +39,12 @@ import { HttpLlamaControl } from './services/llama-control'
 import { FileKeepInTrayReader } from './services/keep-in-tray-reader'
 import { getOrCreateSessionToken } from './security/session-token'
 import { shouldBlockWebviewAttachment } from './security/webview-block'
+import { stopRendererStaticServer, ensureRendererStaticServer } from './renderer-static-server'
+import {
+  createYouTubeBeforeSendHeadersHandler,
+  getYouTubeWebRequestFilterUrls
+} from './youtube-session'
+import { join } from 'path'
 
 // Initialize first launch state correctly at startup
 state.isFirstLaunch = !isOnboardingCompleted()
@@ -247,7 +253,7 @@ app.on('web-contents-created', (_event, contents) => {
   }
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // M3: Hide native menu bar in production to remove the "View > Toggle Developer Tools" entry
   if (!is.dev) {
     Menu.setApplicationMenu(null)
@@ -270,6 +276,15 @@ app.whenReady().then(() => {
   registerSecureStorageHandlers()
   registerPrivacyHandlers()
   setupUpdater()
+
+  if (!is.dev) {
+    await ensureRendererStaticServer(join(__dirname, '../renderer'))
+  }
+
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: getYouTubeWebRequestFilterUrls() },
+    createYouTubeBeforeSendHeadersHandler()
+  )
 
   createWindow()
   const mainWindow = getMainWindow()
@@ -302,6 +317,7 @@ app.on('before-quit', (e) => {
   logger.info('[Electron] before-quit: Iniciando shutdown...')
   globalShortcut.unregisterAll()
   cleanupTTSHandlers()
+  stopRendererStaticServer()
 
   void (async () => {
     try {

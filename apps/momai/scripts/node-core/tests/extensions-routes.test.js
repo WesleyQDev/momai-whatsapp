@@ -4,6 +4,22 @@ function makeMockRes() {
   const res = {
     statusCode: 200,
     body: undefined,
+    headers: {},
+    writeHead(statusCode, headers) {
+      res.statusCode = statusCode
+      res.headers = { ...res.headers, ...headers }
+      return res
+    },
+    end(data) {
+      if (data) {
+        try {
+          res.body = JSON.parse(data)
+        } catch {
+          res.body = data
+        }
+      }
+      return res
+    },
     status(code) {
       res.statusCode = code
       return res

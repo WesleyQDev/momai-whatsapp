@@ -1,10 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { app } from 'electron'
 
 describe('variants', () => {
   const ORIGINAL_ENV = process.env.MOMAI_VARIANT
+  const ORIGINAL_IS_PACKAGED = app.isPackaged
+  const ORIGINAL_PLATFORM = process.platform
+  let originalGetPath: any
+  let originalGetName: any
 
   beforeEach(() => {
     delete process.env.MOMAI_VARIANT
+    originalGetPath = app.getPath
+    originalGetName = app.getName
     vi.resetModules()
   })
 
@@ -14,8 +21,37 @@ describe('variants', () => {
     } else {
       process.env.MOMAI_VARIANT = ORIGINAL_ENV
     }
+    Object.defineProperty(app, 'isPackaged', {
+      value: ORIGINAL_IS_PACKAGED,
+      configurable: true
+    })
+    app.getPath = originalGetPath
+    app.getName = originalGetName
+    Object.defineProperty(process, 'platform', {
+      value: ORIGINAL_PLATFORM,
+      configurable: true
+    })
     vi.resetModules()
   })
+
+  function setPlatform(platform: string) {
+    Object.defineProperty(process, 'platform', {
+      value: platform,
+      configurable: true
+    })
+  }
+
+  function mockApp(isPackaged: boolean, exePath: string, appName: string) {
+    Object.defineProperty(app, 'isPackaged', {
+      value: isPackaged,
+      configurable: true
+    })
+    app.getPath = vi.fn().mockImplementation((name: string) => {
+      if (name === 'exe') return exePath
+      return '/mock/default'
+    })
+    app.getName = vi.fn().mockReturnValue(appName)
+  }
 
   async function loadFresh() {
     // Re-evaluate variants module so CURRENT_VARIANT picks up the current env
@@ -89,5 +125,33 @@ describe('variants', () => {
     expect(isValidVariant('appx-test')).toBe(true)
     expect(isValidVariant('mystery')).toBe(false)
     expect(isValidVariant('')).toBe(false)
+  })
+
+  describe('dynamic runtime detection (when MOMAI_VARIANT is unset)', () => {
+    it('detects dev when isPackaged is false', async () => {
+      mockApp(false, '/path/to/exe', 'MomAI')
+      const { CURRENT_VARIANT } = await loadFresh()
+      expect(CURRENT_VARIANT.variant).toBe('dev')
+    })
+
+    it('detects nsis when isPackaged is true and path is regular', async () => {
+      mockApp(true, '/path/to/momai.exe', 'MomAI')
+      const { CURRENT_VARIANT } = await loadFresh()
+      expect(CURRENT_VARIANT.variant).toBe('nsis')
+    })
+
+    it('detects appx-store when isPackaged is true, win32, and path has WindowsApps', async () => {
+      setPlatform('win32')
+      mockApp(true, 'C:\\Program Files\\WindowsApps\\com.wesleyqdev.momai_1.0.0.0_x64__pubid\\momai.exe', 'MomAI')
+      const { CURRENT_VARIANT } = await loadFresh()
+      expect(CURRENT_VARIANT.variant).toBe('appx-store')
+    })
+
+    it('detects appx-test when isPackaged is true, win32, path has WindowsApps, and name has Teste', async () => {
+      setPlatform('win32')
+      mockApp(true, 'C:\\Program Files\\WindowsApps\\com.wesleyqdev.momai.test_1.0.0.0_x64__pubid\\momai.exe', 'MomAI - Teste')
+      const { CURRENT_VARIANT } = await loadFresh()
+      expect(CURRENT_VARIANT.variant).toBe('appx-test')
+    })
   })
 })

@@ -676,6 +676,7 @@ function spawnNodeCore(): ReturnType<typeof spawn> {
   const env = {
     ...parentEnv,
     ELECTRON_RUN_AS_NODE: '1',
+    MOMAI_IS_PACKAGED: app.isPackaged ? '1' : '0',
     MOMAI_NODE_CORE_HOST: API_HOST,
     MOMAI_NODE_CORE_PORT: String(API_PORT),
     MOMAI_NODE_CORE_DATA_DIR: getNodeCoreDataDir(),

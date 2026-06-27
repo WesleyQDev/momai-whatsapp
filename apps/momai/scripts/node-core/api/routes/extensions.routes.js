@@ -9,29 +9,16 @@ const { extractZip } = require('../../utils/zip-extract')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { isPrivateIp } = require('../../utils/ip-check')
 const { verifyChecksum } = require('../../utils/extension-checksum')
+const { corsHeaders } = require('../../infrastructure/http-helpers')
+const {
+  loadInstallRegistry,
+  _setInstallRegistryForTests
+} = require('../../utils/install-registry')
 
 /* ── Community registry allowlist (SSRF defense) ── */
 
-function getRegistryPath() {
-  return path.resolve(__dirname, '..', '..', '..', '..', 'registry.json')
-}
-
-let _cachedRegistry = null
-
-function loadRegistry() {
-  if (_cachedRegistry) return _cachedRegistry
-  const registryPath = getRegistryPath()
-  const raw = fs.readFileSync(registryPath, 'utf8')
-  _cachedRegistry = JSON.parse(raw)
-  return _cachedRegistry
-}
-
-function _setRegistry(registry) {
-  _cachedRegistry = registry
-}
-
 async function validateInstallUrl(id, downloadUrl) {
-  const registry = loadRegistry()
+  const registry = await loadInstallRegistry()
   const ext = (registry.extensions || []).find((e) => e.id === id)
   if (!ext) {
     const err = new Error('extension not in registry')
@@ -224,7 +211,10 @@ function downloadFile(url, destPath, onProgress) {
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https') ? https : http
     const file = fs.createWriteStream(destPath)
-    const request = client.get(url, (response) => {
+    const request = client.get(
+      url,
+      { headers: { 'User-Agent': 'MomAI-App' } },
+      (response) => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         file.close()
         try {
@@ -276,7 +266,7 @@ function downloadFile(url, destPath, onProgress) {
       } catch {}
       reject(err)
     })
-    request.setTimeout(30000, () => {
+    request.setTimeout(120000, () => {
       request.destroy()
       file.close()
       try {
@@ -371,7 +361,11 @@ function createExtensionsRoutes(context) {
             : ext === '.css'
               ? 'text/css'
               : 'application/octet-stream'
-      res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'no-cache' })
+      res.writeHead(200, {
+        'Content-Type': mime,
+        'Cache-Control': 'no-cache',
+        ...corsHeaders(req)
+      })
       fs.createReadStream(fullPath).pipe(res)
       return true
     }
@@ -406,7 +400,8 @@ function createExtensionsRoutes(context) {
 
       res.writeHead(200, {
         'Content-Type': 'application/x-ndjson',
-        'Transfer-Encoding': 'chunked'
+        'Transfer-Encoding': 'chunked',
+        ...corsHeaders(req)
       })
 
       const sendStatus = (status, percent, speed) => {
@@ -800,4 +795,8 @@ function createExtensionsRoutes(context) {
   }
 }
 
-module.exports = { createExtensionsRoutes, validateInstallUrl, _setRegistry }
+module.exports = {
+  createExtensionsRoutes,
+  validateInstallUrl,
+  _setRegistry: _setInstallRegistryForTests
+}

@@ -6,7 +6,12 @@ const PUBLIC_PATHS = new Set(['/health', '/extensions/events'])
 
 function isPublicPath(pathname, method) {
   if (method === 'OPTIONS') return true
-  return PUBLIC_PATHS.has(pathname)
+  if (PUBLIC_PATHS.has(pathname)) return true
+  // Allow extension static assets since browser dynamic imports cannot send Authorization headers
+  if (pathname.startsWith('/extensions/') && pathname.includes('/dist/')) {
+    return true
+  }
+  return false
 }
 
 module.exports = { PUBLIC_PATHS, isPublicPath }

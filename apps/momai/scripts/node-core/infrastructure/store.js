@@ -42,7 +42,12 @@ function defaultStore() {
       skip_intro: false,
       keep_in_tray: true,
       context_window_mode: 'min',
-      context_window_tokens: 2048
+      context_window_tokens: 2048,
+      daily_briefing_enabled: false,
+      greeting_auto_saudacao: true,
+      greeting_resumo: true,
+      greeting_acao: '',
+      greeting_fixa: ''
     },
     mode: 'local',
     call_mode: false,

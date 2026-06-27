@@ -44,6 +44,11 @@ win:
       to: 'wheels'
     - from: 'resources'
       to: '.'
+    - from: 'build'
+      to: 'build'
+      filter:
+        - 'icon.ico'
+        - 'icon.png'
     - from: 'build/diagnostic.bat'
       to: 'diagnostic.bat'
 asarUnpack:
@@ -151,6 +156,11 @@ linux:
       to: 'wheels'
     - from: 'resources'
       to: '.'
+    - from: 'build'
+      to: 'build'
+      filter:
+        - 'icon.ico'
+        - 'icon.png'
     - from: 'build/diagnostic.sh'
       to: 'diagnostic.sh'
 appImage:

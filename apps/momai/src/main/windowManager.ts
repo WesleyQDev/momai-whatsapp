@@ -28,6 +28,34 @@ import { authFetch } from './security/authenticated-fetch'
 import { isSafeExternalUrl } from './security/safe-external-url'
 import { shouldBlockDevToolsShortcut } from './security/devtools-block'
 import { secureWriteFileSync } from './security/fs-permissions'
+import { ensureRendererStaticServer } from './renderer-static-server'
+import { resolveRendererLoadUrl } from './renderer-load-path'
+
+const RENDERER_DIR = join(__dirname, '../renderer')
+
+function loadRendererContents(window: BrowserWindow, routeHash?: string): void {
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    void window.loadURL(
+      resolveRendererLoadUrl({
+        isDev: true,
+        electronRendererUrl: process.env['ELECTRON_RENDERER_URL'],
+        productionBaseUrl: '',
+        routeHash
+      })
+    )
+    return
+  }
+
+  void (async () => {
+    const baseUrl = await ensureRendererStaticServer(RENDERER_DIR)
+    const url = resolveRendererLoadUrl({
+      isDev: false,
+      productionBaseUrl: baseUrl,
+      routeHash
+    })
+    await window.loadURL(url)
+  })()
+}
 
 async function controlWakeWord(enabled: boolean): Promise<void> {
   try {
@@ -308,11 +336,7 @@ export function createOverlayWindow(data?: any): void {
 
     setOverlayWindow(overlayWindow)
 
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      overlayWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/#/overlay`)
-    } else {
-      overlayWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'overlay' })
-    }
+    loadRendererContents(overlayWindow, 'overlay')
 
     overlayWindow.webContents.setWindowOpenHandler((details) => {
       if (isSafeExternalUrl(details.url)) {
@@ -504,11 +528,7 @@ function createMainWindow(): BrowserWindow {
     }
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  loadRendererContents(mainWindow)
 
   return mainWindow
 }

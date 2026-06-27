@@ -1,4 +1,13 @@
 {
     "liveServer.settings.port": 5501,
-    "gitdoc.enabled": false
+    "gitdoc.enabled": false,
+    "files.exclude": {
+        "**/dist": true
+    },
+    "files.watcherExclude": {
+        "**/dist/**": true
+    },
+    "search.exclude": {
+        "**/dist": true
+    }
 }

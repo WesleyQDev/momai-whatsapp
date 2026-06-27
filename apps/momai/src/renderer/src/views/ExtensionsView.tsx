@@ -169,6 +169,8 @@ const iconMap: Record<string, React.ElementType> = {
   Cloud: CloudIcon,
   BookOpen: BookOpenIcon,
   RocketLaunch: RocketLaunchIcon,
+  launcher: RocketLaunchIcon,
+  Launcher: RocketLaunchIcon,
   Wrench: WrenchIcon,
   Star: StarIcon,
   User: UserIcon,
@@ -217,6 +219,75 @@ function getSkillIcon(name: string, skillId?: string, skillName?: string, manife
     (skillName && iconMap[skillName]) ||
     PuzzlePieceIcon
   )
+}
+
+function getIconBgStyle(skill: Extension) {
+  const iconBg = skill.icon_bg || skill.manifest?.icon_bg
+  if (iconBg) {
+    if (iconBg.startsWith('#') || iconBg.startsWith('rgb') || iconBg.includes('gradient')) {
+      return { background: iconBg }
+    }
+  }
+
+  const nameLower = skill.name?.toLowerCase() || ''
+  const idLower = skill.id?.toLowerCase() || ''
+  if (nameLower.includes('whatsapp') || idLower.includes('whatsapp')) {
+    return { background: '#25D366' } // WhatsApp green
+  }
+  if (nameLower.includes('launcher') || idLower.includes('launcher') || nameLower.includes('lançador')) {
+    return { background: '#0066CC' } // Launcher blue
+  }
+
+  return undefined
+}
+
+interface SkillIconProps {
+  skill: Extension
+  className?: string
+}
+
+function SkillIcon({ skill, className = 'w-6 h-6' }: SkillIconProps) {
+  const icon = skill.icon || skill.manifest?.icon
+  const iconUrl = skill.icon_url || skill.manifest?.icon_url
+
+  // 1. Raw SVG string
+  if (icon && typeof icon === 'string' && icon.trim().startsWith('<svg')) {
+    return (
+      <div
+        className={`${className} [&>svg]:w-full [&>svg]:h-full [&>svg]:text-current flex items-center justify-center`}
+        dangerouslySetInnerHTML={{ __html: icon }}
+      />
+    )
+  }
+
+  // 2. Custom icon URL
+  if (iconUrl) {
+    return (
+      <img
+        src={iconUrl}
+        alt=""
+        className={`${className} object-contain brightness-0 invert`}
+        loading="lazy"
+      />
+    )
+  }
+
+  // 3. Known icon Name from iconMap
+  if (icon && iconMap[icon]) {
+    const IconComp = iconMap[icon]
+    return <IconComp className={className} />
+  }
+
+  // 4. Mapped icon names from name, id, or skillName
+  const iconName = skill.name || skill.id
+  if (iconName && iconMap[iconName]) {
+    const IconComp = iconMap[iconName]
+    return <IconComp className={className} />
+  }
+
+  // 5. Fallback Puzzle Piece
+  const DefaultIcon = PuzzlePieceIcon
+  return <DefaultIcon className={className} />
 }
 
 function getAccentClasses(manifest?: any) {
@@ -335,12 +406,6 @@ function FeaturedCarousel({
         style={{ cursor: dragScroll.grabCursor }}
       >
         {skills.map((skill) => {
-          const IconComponent = getSkillIcon(
-            skill.icon || 'PuzzlePiece',
-            skill.id,
-            skill.name,
-            skill.manifest
-          )
           const accentClasses = getAccentClasses(skill.manifest)
           return (
             <div
@@ -349,13 +414,14 @@ function FeaturedCarousel({
               className={`shrink-0 w-72 h-40 rounded-xl overflow-hidden cursor-pointer group/card relative border border-zinc-700/50 transition-all hover:-translate-y-0.5 hover:shadow-lg ${accentClasses.border}`}
             >
               <div
-                className={`absolute inset-0 bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)} opacity-30`}
+                className={`absolute inset-0 ${getIconBgStyle(skill) ? '' : `bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)}`} opacity-30`}
+                style={getIconBgStyle(skill) ? { ...getIconBgStyle(skill), opacity: 0.3 } : undefined}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/40 to-transparent" />
               <div className="absolute inset-0 p-4 flex flex-col justify-between">
                 <div className="flex items-start justify-between">
                   <div className="p-2 rounded-lg bg-zinc-800/80 backdrop-blur-sm border border-zinc-700/50">
-                    {React.createElement(IconComponent, { className: 'w-5 h-5 text-white' })}
+                    <SkillIcon skill={skill} className="w-5 h-5 text-white" />
                   </div>
                   {skill.category === 'core' ? (
                     <div className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500/20 border border-blue-500/30 rounded text-[9px] text-blue-400 font-semibold uppercase tracking-wider">
@@ -386,12 +452,6 @@ function FeaturedCarousel({
 
 /* ─── Skill Card ─── */
 function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extension) => void }) {
-  const IconComponent = getSkillIcon(
-    skill.icon || 'PuzzlePiece',
-    skill.id,
-    skill.name,
-    skill.manifest
-  )
   const accentClasses = getAccentClasses(skill.manifest)
   const isInstalled =
     skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
@@ -403,9 +463,10 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
       <div className="p-5">
         <div className="flex items-start justify-between mb-4">
           <div
-            className={`p-3 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)} shadow-lg ${accentClasses.shadow}`}
+            className={`p-3 rounded-2xl ${getIconBgStyle(skill) ? '' : `bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)}`} shadow-lg ${accentClasses.shadow}`}
+            style={getIconBgStyle(skill)}
           >
-            {React.createElement(IconComponent, { className: 'w-6 h-6 text-white' })}
+            <SkillIcon skill={skill} className="w-6 h-6 text-white" />
           </div>
           <div className="flex flex-col items-end gap-1.5">
             {skill.category === 'core' ? (
@@ -498,12 +559,6 @@ function SkillDetailView({
   installing: string | null
   installProgress?: { percent: number; speed: string; status: string } | null
 }) {
-  const IconComponent = getSkillIcon(
-    skill.icon || 'PuzzlePiece',
-    skill.id,
-    skill.name,
-    skill.manifest
-  )
   const accentClasses = getAccentClasses(skill.manifest)
   const isInstalled =
     skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
@@ -523,12 +578,14 @@ function SkillDetailView({
       {/* Tighter Hero Header */}
       <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-6 pb-6 border-b border-zinc-800/50">
         <div
-          className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)} shadow-xl ${accentClasses.shadow} flex items-center justify-center shrink-0 border-2 border-zinc-800 relative overflow-hidden`}
+          className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl ${getIconBgStyle(skill) ? '' : `bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)}`} shadow-xl ${accentClasses.shadow} flex items-center justify-center shrink-0 border-2 border-zinc-800 relative overflow-hidden`}
+          style={getIconBgStyle(skill)}
         >
           <div className="absolute inset-0 bg-white/5" />
-          {React.createElement(IconComponent, {
-            className: 'w-10 h-10 md:w-12 md:h-12 text-white relative z-10 drop-shadow-lg'
-          })}
+          <SkillIcon
+            skill={skill}
+            className="w-10 h-10 md:w-12 md:h-12 text-white relative z-10 drop-shadow-lg"
+          />
         </div>
 
         <div className="flex-1 text-center md:text-left pt-0">

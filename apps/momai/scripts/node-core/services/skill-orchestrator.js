@@ -1,5 +1,6 @@
 const shared = require('./shared-state')
 const communityRegistry = require('./community-registry')
+const { usesLocalInstallRegistry, loadInstallRegistry } = require('../utils/install-registry')
 const store = shared.store
 
 function getSkillRegistry() {
@@ -79,6 +80,8 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         intents: manifest.intents || [],
         tags: manifest.tags || [],
         icon: manifest.icon || null,
+        icon_url: manifest.icon_url || null,
+        icon_bg: manifest.icon_bg || null,
         author: manifest.author || null,
         repo: repo,
         stars: stars,
@@ -120,6 +123,17 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
   const installed = (await Promise.all(payload)).filter(Boolean)
   const installedIds = new Set(installed.map((ext) => ext.id))
 
+  // Dev only: local registry.json overrides community catalog URLs and adds local-only entries.
+  let localExtensions = []
+  if (usesLocalInstallRegistry()) {
+    try {
+      const localRegistry = await loadInstallRegistry()
+      localExtensions = localRegistry.extensions || []
+    } catch (err) {
+      console.error('[SkillOrchestrator] Error reading local registry.json:', err.message)
+    }
+  }
+
   // Merge with community items that aren't installed yet
   const communityItems = community
     .filter((item) => !installedIds.has(item.id))
@@ -127,6 +141,15 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
       const raw = { ...item }
       const locales = raw.locales || {}
       const localized = locales[lang] || {}
+
+      // Find if this extension is in the local registry to match its download_url exactly
+      const matchedLocal = localExtensions.find((e) => e.id === raw.id)
+      if (matchedLocal) {
+        raw.download_url = matchedLocal.download_url
+        raw.is_official = matchedLocal.is_official !== false
+        if (matchedLocal.version) raw.version = matchedLocal.version
+      }
+
       return {
         ...raw,
         name: localized.name || raw.name,
@@ -134,11 +157,35 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         category: 'community',
         enabled: false,
         installed: false,
-        is_official: false,
+        is_official: raw.is_official || false,
         stars: 0,
         readme: localized.description || raw.description
       }
     })
+
+  // Append any local registry extensions that aren't in community or installed
+  for (const ext of localExtensions) {
+    if (!installedIds.has(ext.id) && !communityItems.some((item) => item.id === ext.id)) {
+      const matchedComm = community.find((c) => c.id === ext.id)
+      communityItems.push({
+        id: ext.id,
+        name: ext.name,
+        description: ext.description,
+        category: 'community',
+        enabled: false,
+        installed: false,
+        is_official: ext.is_official !== false,
+        download_url: ext.download_url,
+        version: ext.version || null,
+        author: ext.author || null,
+        stars: 0,
+        readme: ext.description,
+        icon: matchedComm ? matchedComm.icon : (ext.icon || null),
+        icon_url: matchedComm ? matchedComm.icon_url : (ext.icon_url || null),
+        icon_bg: matchedComm ? matchedComm.icon_bg : (ext.icon_bg || null)
+      })
+    }
+  }
 
   return [...installed, ...communityItems]
 }

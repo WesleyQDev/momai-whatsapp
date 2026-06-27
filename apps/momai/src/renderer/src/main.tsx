@@ -1,3 +1,15 @@
+import * as React from 'react'
+import * as ReactDOM from 'react-dom'
+import * as JSXRuntime from 'react/jsx-runtime'
+
+if (typeof window !== 'undefined') {
+  const actualReact = (React as any).default || React
+  const actualReactDOM = (ReactDOM as any).default || ReactDOM
+  ;(window as any).React = actualReact
+  ;(window as any).ReactDOM = actualReactDOM
+  ;(window as any).JSXRuntime = JSXRuntime
+}
+
 import './assets/main.css'
 
 import { StrictMode } from 'react'

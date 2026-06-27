@@ -11,3 +11,4 @@ bin/llama/*/llama*
 bin/llama/*/lib*.so*
 bin/llama/*/rpc-server
 bin/llama/*/LICENSE
+registry.json

@@ -30,9 +30,15 @@ describe('isPublicPath', () => {
     expect(isPublicPath('/extensions/events', 'GET')).toBe(true)
   })
 
+  it('bypasses GET /extensions/:id/dist/* for dynamic imports', () => {
+    expect(isPublicPath('/extensions/whatsapp/dist/page.js', 'GET')).toBe(true)
+    expect(isPublicPath('/extensions/launcher/dist/panel.js', 'GET')).toBe(true)
+  })
+
   it('does not bypass other paths', () => {
     expect(isPublicPath('/settings', 'GET')).toBe(false)
     expect(isPublicPath('/extensions', 'GET')).toBe(false)
     expect(isPublicPath('/extensions/install', 'POST')).toBe(false)
+    expect(isPublicPath('/extensions/whatsapp/panel', 'GET')).toBe(false)
   })
 })

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
+import { buildYouTubeEmbedConfig } from '../../utils/youtube-embed'
 const YouTubeCard = ({ data, isSpeaking = false }) => {
   const { query, videos } = data
   const [activeVideo, setActiveVideo] = useState(videos?.[0]?.id || null)
@@ -121,6 +122,10 @@ const YouTubeCard = ({ data, isSpeaking = false }) => {
 
   const featured = videos.find((v) => v.id === activeVideo) || videos[0]
   const others = videos.filter((v) => v.id !== featured.id)
+  const embedConfig = buildYouTubeEmbedConfig({
+    videoId: featured.id,
+    autoplay: isPlayingAllowed
+  })
 
   return (
     <div ref={cardRef} className="my-3 rounded-2xl border border-border/20 bg-zinc-900 dark:bg-zinc-900/90 text-white overflow-hidden shadow-xl">
@@ -145,9 +150,10 @@ const YouTubeCard = ({ data, isSpeaking = false }) => {
               className={`absolute inset-0 h-full w-full transition-opacity duration-300 ${
                 isPlayingAllowed ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
               }`}
-              src={`https://www.youtube.com/embed/${featured.id}?enablejsapi=1&autoplay=${isPlayingAllowed ? 1 : 0}`}
+              src={embedConfig.src}
               title={featured.title}
               frameBorder="0"
+              referrerPolicy={embedConfig.referrerPolicy}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
               allowFullScreen
             />
