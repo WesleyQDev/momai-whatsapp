@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.138.1",
     "huggingface-hub>=1.21.0",
-    "httpx>=0.28.0",
+    "httpx>=0.28.1",
     "numpy>=2.5.0",
     "sqlalchemy>=2.0.44",
     "psutil>=7.2.1",
