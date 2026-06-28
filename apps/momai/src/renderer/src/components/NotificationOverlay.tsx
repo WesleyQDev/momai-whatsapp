@@ -234,7 +234,9 @@ export default function NotificationOverlay() {
           const status = event.data?.status
           if (status === 'disconnected') {
             if (isShowingMessageNotificationRef.current) {
-              console.log('[NotificationOverlay] Skipped disconnected overlay update since a message notification is active')
+              console.log(
+                '[NotificationOverlay] Skipped disconnected overlay update since a message notification is active'
+              )
               return
             }
             // Keep the overlay open, but don't force a reset of QR to null if we already have it.
@@ -267,7 +269,9 @@ export default function NotificationOverlay() {
 
         if (event.eventType === 'qr_code') {
           if (isShowingMessageNotificationRef.current) {
-            console.log('[NotificationOverlay] Skipped QR overlay update since a message notification is active')
+            console.log(
+              '[NotificationOverlay] Skipped QR overlay update since a message notification is active'
+            )
             return
           }
           const qr = event.data?.qr

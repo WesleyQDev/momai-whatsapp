@@ -31,22 +31,14 @@ describe('YouTubeCard', () => {
   })
 
   it('renders the search query title', () => {
-    render(
-      <YouTubeCard
-        data={{ query: 'Lo-Fi Hip Hop', videos: mockVideos }}
-        isSpeaking={false}
-      />
-    )
+    render(<YouTubeCard data={{ query: 'Lo-Fi Hip Hop', videos: mockVideos }} isSpeaking={false} />)
 
     expect(screen.getByText('YouTube: Lo-Fi Hip Hop')).toBeTruthy()
   })
 
   it('does not mount the iframe before playback is allowed', () => {
     const { container } = render(
-      <YouTubeCard
-        data={{ query: 'Lo-Fi Hip Hop', videos: mockVideos }}
-        isSpeaking={false}
-      />
+      <YouTubeCard data={{ query: 'Lo-Fi Hip Hop', videos: mockVideos }} isSpeaking={false} />
     )
 
     expect(container.querySelector('iframe')).toBeNull()
@@ -54,10 +46,7 @@ describe('YouTubeCard', () => {
 
   it('builds a production-ready iframe src when playback starts', async () => {
     const { container } = render(
-      <YouTubeCard
-        data={{ query: 'Lo-Fi Hip Hop', videos: mockVideos }}
-        isSpeaking={false}
-      />
+      <YouTubeCard data={{ query: 'Lo-Fi Hip Hop', videos: mockVideos }} isSpeaking={false} />
     )
 
     const overlay = container.querySelector('.group\\/overlay') as HTMLElement
@@ -85,10 +74,7 @@ describe('YouTubeCard', () => {
     })
 
     const { container } = render(
-      <YouTubeCard
-        data={{ query: 'Lo-Fi Hip Hop', videos: mockVideos }}
-        isSpeaking={false}
-      />
+      <YouTubeCard data={{ query: 'Lo-Fi Hip Hop', videos: mockVideos }} isSpeaking={false} />
     )
 
     const overlay = container.querySelector('.group\\/overlay') as HTMLElement

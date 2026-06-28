@@ -82,10 +82,7 @@ export function createYouTubeBeforeSendHeadersHandler(): (
     const mainWindow = getMainWindow()
     const mainWindowUrl =
       mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.getURL() : null
-    const rendererOrigin = resolveRendererOriginForYouTube(
-      mainWindowUrl,
-      getActiveRendererOrigin()
-    )
+    const rendererOrigin = resolveRendererOriginForYouTube(mainWindowUrl, getActiveRendererOrigin())
 
     callback({
       requestHeaders: patchYouTubeRequestHeaders(details, rendererOrigin)

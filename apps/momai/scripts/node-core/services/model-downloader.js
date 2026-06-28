@@ -36,7 +36,7 @@ function downloadToFile(url, targetPath, onProgress) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now()
     const tmpPath = `${targetPath}.partial`
-    
+
     // 1. Check if a partial file already exists to request a Range resume
     let startByte = 0
     if (fs.existsSync(tmpPath)) {
@@ -48,12 +48,15 @@ function downloadToFile(url, targetPath, onProgress) {
     }
 
     const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
 
     if (startByte > 0) {
       headers['Range'] = `bytes=${startByte}-`
-      logger.info(`[model] Attempting to resume download from byte ${startByte} for ${path.basename(targetPath)}`)
+      logger.info(
+        `[model] Attempting to resume download from byte ${startByte} for ${path.basename(targetPath)}`
+      )
     }
 
     const parsedUrl = new URL(url)
@@ -78,7 +81,9 @@ function downloadToFile(url, targetPath, onProgress) {
       // 3. Handle Range Not Satisfiable (416)
       if (status === 416) {
         response.resume()
-        logger.warn(`[model] Range not satisfiable (HTTP 416) for ${path.basename(targetPath)}. Deleting partial file and starting from scratch.`)
+        logger.warn(
+          `[model] Range not satisfiable (HTTP 416) for ${path.basename(targetPath)}. Deleting partial file and starting from scratch.`
+        )
         try {
           if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath)
         } catch {}
@@ -103,13 +108,14 @@ function downloadToFile(url, targetPath, onProgress) {
           totalBytes = Number(match[1])
         }
       }
-      
+
       // Fallback to Content-Length
       if (!totalBytes) {
         const totalBytesRaw = Number(response.headers['content-length'] || 0)
-        totalBytes = Number.isFinite(totalBytesRaw) && totalBytesRaw > 0 
-          ? totalBytesRaw + (isPartial ? startByte : 0)
-          : null
+        totalBytes =
+          Number.isFinite(totalBytesRaw) && totalBytesRaw > 0
+            ? totalBytesRaw + (isPartial ? startByte : 0)
+            : null
       }
 
       let received = isPartial ? startByte : 0
@@ -167,11 +173,13 @@ function downloadToFile(url, targetPath, onProgress) {
           try {
             // 6. Verify download integrity
             if (totalBytes && received < totalBytes) {
-              const err = new Error(`Download incomplete for ${path.basename(targetPath)}: received ${received} of ${totalBytes} bytes`)
+              const err = new Error(
+                `Download incomplete for ${path.basename(targetPath)}: received ${received} of ${totalBytes} bytes`
+              )
               fail(err)
               return
             }
-            
+
             if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath)
             fs.renameSync(tmpPath, targetPath)
             logger.info(`[model] Successfully downloaded and verified ${path.basename(targetPath)}`)
@@ -250,7 +258,9 @@ async function ensureTierModelAvailable(tierName, tierConfig, reportProgress = t
       try {
         if (attempt > 1) {
           const delay = 2000 * Math.pow(2, attempt - 2) // 2s, 4s, etc.
-          logger.warn(`[model] Retrying download for ${configuredFile} in ${delay}ms (attempt ${attempt}/${maxRetries})...`)
+          logger.warn(
+            `[model] Retrying download for ${configuredFile} in ${delay}ms (attempt ${attempt}/${maxRetries})...`
+          )
           await new Promise((r) => setTimeout(r, delay))
         }
 
@@ -286,7 +296,9 @@ async function ensureTierModelAvailable(tierName, tierConfig, reportProgress = t
         success = true
       } catch (err) {
         lastError = err
-        logger.warn(`[model] Download attempt ${attempt} failed for ${configuredFile}: ${err.message}`)
+        logger.warn(
+          `[model] Download attempt ${attempt} failed for ${configuredFile}: ${err.message}`
+        )
       }
     }
 

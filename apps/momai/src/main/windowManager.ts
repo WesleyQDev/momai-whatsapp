@@ -352,9 +352,7 @@ export function createOverlayWindow(data?: any): void {
 
   const overlayWin = state.overlayWindow
   if (overlayWin) {
-    logger.info(
-      `[WindowManager] Overlay window exists, showing (${width}x${height})`
-    )
+    logger.info(`[WindowManager] Overlay window exists, showing (${width}x${height})`)
     const [curW, curH] = overlayWin.getSize()
     if (curW !== width || curH !== height) {
       overlayWin.setSize(width, height)

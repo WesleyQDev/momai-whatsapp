@@ -106,8 +106,6 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
     )
   }
 
-
-
   const isPhone = /^[+\d\s().-]*$/.test(name)
   return (
     <div className="w-10 h-10 rounded-full bg-white/[0.03] border border-border/40 flex items-center justify-center text-lg shrink-0">
@@ -538,9 +536,7 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
       className="flex flex-col w-full max-w-sm rounded-2xl border border-border bg-card shadow-2xl overflow-hidden px-5 py-4 select-none"
       style={{ WebkitAppRegion: 'drag' } as any}
     >
-      <div
-        className="flex justify-between items-center mb-2"
-      >
+      <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-2">
           <div className="bg-emerald-500/10 border border-emerald-500/20 p-1.5 rounded-lg shadow-[0_0_10px_rgba(16,185,129,0.1)]">
             <svg
@@ -571,23 +567,17 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
         </button>
       </div>
 
-      <div
-        className="flex flex-col items-center text-center"
-      >
+      <div className="flex flex-col items-center text-center">
         <p className="text-[11px] text-text-muted mb-3 max-w-[280px]">
           Escaneie o código QR abaixo com o WhatsApp no seu celular para reconectar.
         </p>
 
-        <div 
+        <div
           className="relative w-44 h-44 flex items-center justify-center bg-white rounded-xl p-2.5 border border-border/10 shadow-inner"
           style={{ WebkitAppRegion: 'no-drag' } as any}
         >
           {qrUrl ? (
-            <img
-              src={qrUrl}
-              alt="WhatsApp QR Code"
-              className="w-full h-full object-contain"
-            />
+            <img src={qrUrl} alt="WhatsApp QR Code" className="w-full h-full object-contain" />
           ) : (
             <div className="flex flex-col items-center justify-center gap-2">
               <div className="w-7 h-7 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />

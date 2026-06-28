@@ -234,7 +234,11 @@ function getIconBgStyle(skill: Extension) {
   if (nameLower.includes('whatsapp') || idLower.includes('whatsapp')) {
     return { background: '#25D366' } // WhatsApp green
   }
-  if (nameLower.includes('launcher') || idLower.includes('launcher') || nameLower.includes('lançador')) {
+  if (
+    nameLower.includes('launcher') ||
+    idLower.includes('launcher') ||
+    nameLower.includes('lançador')
+  ) {
     return { background: '#0066CC' } // Launcher blue
   }
 
@@ -415,7 +419,9 @@ function FeaturedCarousel({
             >
               <div
                 className={`absolute inset-0 ${getIconBgStyle(skill) ? '' : `bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)}`} opacity-30`}
-                style={getIconBgStyle(skill) ? { ...getIconBgStyle(skill), opacity: 0.3 } : undefined}
+                style={
+                  getIconBgStyle(skill) ? { ...getIconBgStyle(skill), opacity: 0.3 } : undefined
+                }
               />
               <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/40 to-transparent" />
               <div className="absolute inset-0 p-4 flex flex-col justify-between">

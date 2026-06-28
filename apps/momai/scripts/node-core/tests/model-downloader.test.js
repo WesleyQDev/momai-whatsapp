@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import http from 'node:http'
-import { downloadToFile, ensureTierModelAvailable, modelDownloadState } from '../services/model-downloader'
+import {
+  downloadToFile,
+  ensureTierModelAvailable,
+  modelDownloadState
+} from '../services/model-downloader'
 
 const TEST_MODELS_DIR = path.join(__dirname, '../data/test-models')
 
@@ -33,7 +37,7 @@ describe('model-downloader', () => {
     // Start a mock HTTP server
     server = http.createServer((req, res) => {
       requestHeaders.push(req.headers)
-      
+
       if (responseBehavior.incomplete) {
         res.writeHead(200, {
           'Content-Type': 'application/octet-stream',
@@ -49,7 +53,7 @@ describe('model-downloader', () => {
 
       const range = req.headers.range
       const fullBody = responseBehavior.body
-      
+
       if (range && responseBehavior.statusCode === 206) {
         const match = range.match(/bytes=(\d+)-/)
         if (match) {
@@ -145,7 +149,7 @@ describe('model-downloader', () => {
 
     // First request returns 416, next should resolve to 200
     responseBehavior.statusCode = 416
-    
+
     server.on('request', () => {
       // Switch back to 200 for the second attempt
       if (responseBehavior.statusCode === 416) {

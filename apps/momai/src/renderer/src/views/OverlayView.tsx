@@ -15,12 +15,12 @@ export default function OverlayView() {
 
     const removeListener = window.momaiAPI.onUpdateOverlayContent(async (contentData) => {
       setData((prevData: any) => {
-        if (!contentData) return null;
-        if (!prevData) return contentData;
+        if (!contentData) return null
+        if (!prevData) return contentData
         const prevType = prevData.structuredResponse?.type
         const newType = contentData.structuredResponse?.type
         if (prevType && newType && prevType !== newType) {
-          return contentData;
+          return contentData
         }
         return {
           ...prevData,
@@ -33,7 +33,7 @@ export default function OverlayView() {
               ...contentData.structuredResponse?.data
             }
           }
-        };
+        }
       })
 
       const type = contentData?.structuredResponse?.type

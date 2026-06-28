@@ -319,7 +319,10 @@ const MessageItem = memo(
 
                   {/* Structured Response */}
                   {isLastPart && message.structuredResponse && (
-                    <StructuredResponse response={message.structuredResponse} isSpeaking={isSpeaking} />
+                    <StructuredResponse
+                      response={message.structuredResponse}
+                      isSpeaking={isSpeaking}
+                    />
                   )}
                 </React.Fragment>
               )

@@ -180,9 +180,9 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         author: ext.author || null,
         stars: 0,
         readme: ext.description,
-        icon: matchedComm ? matchedComm.icon : (ext.icon || null),
-        icon_url: matchedComm ? matchedComm.icon_url : (ext.icon_url || null),
-        icon_bg: matchedComm ? matchedComm.icon_bg : (ext.icon_bg || null)
+        icon: matchedComm ? matchedComm.icon : ext.icon || null,
+        icon_url: matchedComm ? matchedComm.icon_url : ext.icon_url || null,
+        icon_bg: matchedComm ? matchedComm.icon_bg : ext.icon_bg || null
       })
     }
   }

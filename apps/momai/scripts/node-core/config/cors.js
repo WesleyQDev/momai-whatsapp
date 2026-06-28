@@ -4,8 +4,7 @@ function isLocalLoopbackOrigin(origin) {
   try {
     const url = new URL(origin)
     return (
-      url.protocol === 'http:' &&
-      (url.hostname === '127.0.0.1' || url.hostname === 'localhost')
+      url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost')
     )
   } catch {
     return false

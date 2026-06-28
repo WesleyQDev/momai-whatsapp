@@ -142,14 +142,22 @@ describe('variants', () => {
 
     it('detects appx-store when isPackaged is true, win32, and path has WindowsApps', async () => {
       setPlatform('win32')
-      mockApp(true, 'C:\\Program Files\\WindowsApps\\com.wesleyqdev.momai_1.0.0.0_x64__pubid\\momai.exe', 'MomAI')
+      mockApp(
+        true,
+        'C:\\Program Files\\WindowsApps\\com.wesleyqdev.momai_1.0.0.0_x64__pubid\\momai.exe',
+        'MomAI'
+      )
       const { CURRENT_VARIANT } = await loadFresh()
       expect(CURRENT_VARIANT.variant).toBe('appx-store')
     })
 
     it('detects appx-test when isPackaged is true, win32, path has WindowsApps, and name has Teste', async () => {
       setPlatform('win32')
-      mockApp(true, 'C:\\Program Files\\WindowsApps\\com.wesleyqdev.momai.test_1.0.0.0_x64__pubid\\momai.exe', 'MomAI - Teste')
+      mockApp(
+        true,
+        'C:\\Program Files\\WindowsApps\\com.wesleyqdev.momai.test_1.0.0.0_x64__pubid\\momai.exe',
+        'MomAI - Teste'
+      )
       const { CURRENT_VARIANT } = await loadFresh()
       expect(CURRENT_VARIANT.variant).toBe('appx-test')
     })

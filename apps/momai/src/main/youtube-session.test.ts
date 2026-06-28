@@ -9,9 +9,7 @@ import {
 describe('isYouTubeNetworkRequest', () => {
   it('matches embed and streaming hosts', () => {
     expect(isYouTubeNetworkRequest('https://www.youtube-nocookie.com/embed/abc')).toBe(true)
-    expect(isYouTubeNetworkRequest('https://rr1---sn-abc.googlevideo.com/videoplayback')).toBe(
-      true
-    )
+    expect(isYouTubeNetworkRequest('https://rr1---sn-abc.googlevideo.com/videoplayback')).toBe(true)
     expect(isYouTubeNetworkRequest('https://example.com/video')).toBe(false)
   })
 })
@@ -19,10 +17,7 @@ describe('isYouTubeNetworkRequest', () => {
 describe('resolveRendererOriginForYouTube', () => {
   it('prefers the live BrowserWindow origin in production', () => {
     expect(
-      resolveRendererOriginForYouTube(
-        'http://localhost:48291/index.html',
-        'http://localhost:11111'
-      )
+      resolveRendererOriginForYouTube('http://localhost:48291/index.html', 'http://localhost:11111')
     ).toBe('http://localhost:48291')
   })
 

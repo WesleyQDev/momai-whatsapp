@@ -10,10 +10,7 @@ const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { isPrivateIp } = require('../../utils/ip-check')
 const { verifyChecksum } = require('../../utils/extension-checksum')
 const { corsHeaders } = require('../../infrastructure/http-helpers')
-const {
-  loadInstallRegistry,
-  _setInstallRegistryForTests
-} = require('../../utils/install-registry')
+const { loadInstallRegistry, _setInstallRegistryForTests } = require('../../utils/install-registry')
 
 /* ── Community registry allowlist (SSRF defense) ── */
 
@@ -211,10 +208,7 @@ function downloadFile(url, destPath, onProgress) {
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https') ? https : http
     const file = fs.createWriteStream(destPath)
-    const request = client.get(
-      url,
-      { headers: { 'User-Agent': 'MomAI-App' } },
-      (response) => {
+    const request = client.get(url, { headers: { 'User-Agent': 'MomAI-App' } }, (response) => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         file.close()
         try {

@@ -61,7 +61,9 @@ if (!existsSync(momaiSrcDir)) {
   momaiSrcDir = path.resolve(__dirname, '../momai/apps/momai/src/renderer/src')
 }
 if (!existsSync(momaiSrcDir)) {
-  console.error('[skill:build] Error: Could not find momai source directory. Make sure momai repository is a sibling or parent of this extension.')
+  console.error(
+    '[skill:build] Error: Could not find momai source directory. Make sure momai repository is a sibling or parent of this extension.'
+  )
   process.exit(1)
 }
 

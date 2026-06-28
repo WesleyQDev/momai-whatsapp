@@ -39,7 +39,11 @@ function resolveSafePath(rootDir: string, requestPath: string): string | null {
   const relative = decoded.startsWith('/') ? decoded.slice(1) : decoded
   const normalized = normalize(relative)
 
-  if (normalized.startsWith('..') || normalized.includes(`${sep}..${sep}`) || normalized.endsWith(`${sep}..`)) {
+  if (
+    normalized.startsWith('..') ||
+    normalized.includes(`${sep}..${sep}`) ||
+    normalized.endsWith(`${sep}..`)
+  ) {
     return null
   }
 

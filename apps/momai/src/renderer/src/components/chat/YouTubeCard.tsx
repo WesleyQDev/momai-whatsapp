@@ -128,7 +128,10 @@ const YouTubeCard = ({ data, isSpeaking = false }) => {
   })
 
   return (
-    <div ref={cardRef} className="my-3 rounded-2xl border border-border/20 bg-zinc-900 dark:bg-zinc-900/90 text-white overflow-hidden shadow-xl">
+    <div
+      ref={cardRef}
+      className="my-3 rounded-2xl border border-border/20 bg-zinc-900 dark:bg-zinc-900/90 text-white overflow-hidden shadow-xl"
+    >
       <div className="px-5 pt-4 pb-2">
         <h4 className="m-0 text-[14px] font-semibold text-white/90">YouTube: {query}</h4>
       </div>
@@ -148,7 +151,9 @@ const YouTubeCard = ({ data, isSpeaking = false }) => {
               ref={iframeRef}
               onLoad={() => setIframeReady(true)}
               className={`absolute inset-0 h-full w-full transition-opacity duration-300 ${
-                isPlayingAllowed ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                isPlayingAllowed
+                  ? 'opacity-100 pointer-events-auto'
+                  : 'opacity-0 pointer-events-none'
               }`}
               src={embedConfig.src}
               title={featured.title}

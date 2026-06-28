@@ -342,7 +342,7 @@ export default function LateralBar({
               {renderNotes()}
               {renderScheduler()}
 
-              {/* YouTube Search Shortcut */}
+              {/* YouTube Search Shortcut (Temporarily commented out)
               <button
                 onClick={() => onNavigate('/', { prefillText: 'Pesquisar no Youtube: ' })}
                 title="YouTube"
@@ -361,6 +361,7 @@ export default function LateralBar({
                   <polygon points="10,8.5 16,12 10,15.5" fill="currentColor" stroke="none" />
                 </svg>
               </button>
+              */}
 
               {otherExtensions.map((ext) => renderExt(ext))}
 

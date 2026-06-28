@@ -6,7 +6,10 @@ interface StructuredResponseProps {
   isSpeaking?: boolean
 }
 
-export const StructuredResponse: React.FC<StructuredResponseProps> = ({ response, isSpeaking = false }) => {
+export const StructuredResponse: React.FC<StructuredResponseProps> = ({
+  response,
+  isSpeaking = false
+}) => {
   if (!response) return null
 
   return (

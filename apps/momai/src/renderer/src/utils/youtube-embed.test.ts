@@ -77,14 +77,14 @@ describe('buildYouTubeEmbedConfig', () => {
 
 describe('isConflictingYouTubeReferrer', () => {
   it('detects the earlier broken referer spoof that mismatched page origin', () => {
-    expect(
-      isConflictingYouTubeReferrer('https://www.youtube.com/', 'http://localhost:48291')
-    ).toBe(true)
+    expect(isConflictingYouTubeReferrer('https://www.youtube.com/', 'http://localhost:48291')).toBe(
+      true
+    )
   })
 
   it('accepts a referer that matches the embed origin', () => {
-    expect(
-      isConflictingYouTubeReferrer('http://localhost:48291/', 'http://localhost:48291')
-    ).toBe(false)
+    expect(isConflictingYouTubeReferrer('http://localhost:48291/', 'http://localhost:48291')).toBe(
+      false
+    )
   })
 })
