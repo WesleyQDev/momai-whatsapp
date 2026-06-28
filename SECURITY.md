@@ -112,7 +112,7 @@ These will be reviewed on or before their expiration date.
 - **Mitigation:** CI runs on isolated runners. Binaries downloaded from official GitHub releases.
 - **Fix plan:** Electron upstream must update `@electron/get` to bundle a patched undici version.
 - **Owner:** @WesleyQDev
-- **Expiration:** 2026-12-28
+- **Expiration:** 2026-09-26
 - **Removal condition:** Electron >=42.x resolves undici to >=7.28.0
 
 ### AR-02: music-metadata (CVE-2026-32256 — infinite loop in ASF parser)
