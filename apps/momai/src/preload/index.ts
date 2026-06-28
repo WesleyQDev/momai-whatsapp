@@ -222,18 +222,150 @@ const momaiAPI = {
   markAppReady: (): void => ipcRenderer.send('app-ready'),
   resetOnboarding: (): void => ipcRenderer.send('reset-onboarding'),
   markOverlayReady: (): void => ipcRenderer.send('overlay-ready'),
-  // Generic IPC helpers for renderer code that uses dynamic channels
-  // (e.g., ttsService subscribes to 'tts:speaking-start', etc.). These
-  // are still routed through the curated surface — no raw `ipcRenderer`
-  // is exposed to the renderer. Prefer the named functions above when
-  // the channel is known at compile time.
-  invoke: (channel: string, ...args: any[]): Promise<any> => ipcRenderer.invoke(channel, ...args),
-  send: (channel: string, ...args: any[]): void => ipcRenderer.send(channel, ...args),
-  on: (channel: string, listener: (...args: any[]) => void): (() => void) => {
-    const subscription = (_event: any, ...args: any[]) => listener(...args)
-    ipcRenderer.on(channel, subscription)
-    return () => ipcRenderer.removeListener(channel, subscription)
+// Allowlist of IPC channels the renderer is permitted to use. Any channel
+// not listed here is rejected — prevents compromised renderer code from
+// calling arbitrary main-process handlers (safeStorage, fs, etc.).
+const ALLOWED_INVOKE_CHANNELS = new Set([
+  // Window
+  'is-window-maximized',
+  'get-window-state',
+  'restart-backend',
+  // Logs
+  'get-logs-path',
+  'open-logs-folder',
+  'read-logs',
+  // App
+  'get-app-version',
+  'is-first-launch',
+  'get-auto-start',
+  'set-auto-start',
+  // Updates
+  'check-for-updates',
+  'download-update',
+  'quit-and-install-update',
+  // TTS
+  'tts:stop',
+  'tts:get-engines',
+  'tts:get-engine-info',
+  'tts:get-voices',
+  'tts:speak',
+  'tts:set-engine',
+  'tts:set-voice',
+  'tts:set-speed',
+  'tts:set-enabled',
+  'tts:get-config',
+  'tts:update-config',
+  'tts:is-speaking',
+  // Economy
+  'economy:get-state',
+  'economy:get-catalog',
+  'economy:scan-libraries',
+  'economy:dismiss',
+  'economy:reinstate-sleep',
+  'economy:get-preferences',
+  'economy:set-game-preference',
+  // Notes
+  'notes:list',
+  'notes:get',
+  'notes:create',
+  'notes:update',
+  'notes:delete',
+  'notes:import',
+  'notes:folders:list',
+  'notes:folders:create',
+  'notes:folders:rename',
+  'notes:folders:delete',
+  'notes:open-folder',
+  'notes:search',
+  // Privacy
+  'privacy:export',
+  'privacy:delete-all',
+  'privacy:dev-reset',
+  // Secure storage (used by extension workers via preload)
+  'secure-storage:encrypt',
+  'secure-storage:decrypt'
+])
+
+const ALLOWED_SEND_CHANNELS = new Set([
+  'window-minimize',
+  'window-focus',
+  'window-maximize',
+  'window-close',
+  'window-set-resizable',
+  'window-reset-size',
+  'mark-first-launch-finished',
+  'restart-app',
+  'reset-onboarding',
+  'app-ready',
+  'overlay-ready',
+  'open-overlay',
+  'close-overlay',
+  'show-notification',
+  'report-bootstrap-error'
+])
+
+const ALLOWED_ON_CHANNELS = new Set([
+  'bootstrap-error',
+  'init-progress',
+  'backend-online',
+  'backend-retry',
+  'update-available',
+  'update-progress',
+  'update-downloaded',
+  'update-error',
+  'economy:state-change',
+  'window-state-changed',
+  'overlay-action',
+  'trigger-action',
+  'notification-clicked',
+  'play-audio-chunk',
+  'python-status',
+  'update-overlay-content',
+  'tts:speaking-start',
+  'tts:speaking-end',
+  'tts:error',
+  'tts:engine-changed',
+  'tts:voice-changed',
+  'tts:play-audio-buffer'
+])
+
+function validateInvokeChannel(channel: string) {
+  if (!ALLOWED_INVOKE_CHANNELS.has(channel)) {
+    throw new Error(`[preload] invoke channel not allowed: ${channel}`)
   }
+}
+
+function validateSendChannel(channel: string) {
+  if (!ALLOWED_SEND_CHANNELS.has(channel)) {
+    throw new Error(`[preload] send channel not allowed: ${channel}`)
+  }
+}
+
+function validateOnChannel(channel: string) {
+  if (!ALLOWED_ON_CHANNELS.has(channel)) {
+    throw new Error(`[preload] on channel not allowed: ${channel}`)
+  }
+}
+
+// Generic IPC helpers for renderer code that uses dynamic channels
+// (e.g., ttsService subscribes to 'tts:speaking-start', etc.). Every
+// channel is validated against an allowlist before being forwarded to
+// the main process. Prefer the named functions above when the channel
+// is known at compile time.
+invoke: (channel: string, ...args: any[]): Promise<any> => {
+  validateInvokeChannel(channel)
+  return ipcRenderer.invoke(channel, ...args)
+},
+send: (channel: string, ...args: any[]): void => {
+  validateSendChannel(channel)
+  ipcRenderer.send(channel, ...args)
+},
+on: (channel: string, listener: (...args: any[]) => void): (() => void) => {
+  validateOnChannel(channel)
+  const subscription = (_event: any, ...args: any[]) => listener(...args)
+  ipcRenderer.on(channel, subscription)
+  return () => ipcRenderer.removeListener(channel, subscription)
+}
 }
 
 if (process.contextIsolated) {
