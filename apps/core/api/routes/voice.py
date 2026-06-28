@@ -131,8 +131,8 @@ async def quick_transcribe():
         return TranscriptionResponse(text=text, success=True)
 
     except Exception as e:
-        logger.error(f"[VoiceAPI] Quick transcribe error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("[VoiceAPI] Quick transcribe error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/stop-quick-transcribe")
@@ -145,8 +145,8 @@ async def stop_quick_transcribe():
         await asyncio.to_thread(transcriber.stop_recording)
         return {"success": True}
     except Exception as e:
-        logger.error(f"[VoiceAPI] Stop quick transcribe error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("[VoiceAPI] Stop quick transcribe error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 class WakeWordControl(BaseModel):
@@ -200,8 +200,8 @@ async def control_wake_word(control: WakeWordControl):
 
 
     except Exception as e:
-        logger.error(f"[VoiceAPI] Wake word control error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("[VoiceAPI] Wake word control error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/call-mode")
@@ -240,8 +240,8 @@ async def control_call_mode(control: CallModeControl):
 
         return {"success": True, "call_mode": app_state.is_call_mode()}
     except Exception as e:
-        logger.error(f"[VoiceAPI] Call mode control error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("[VoiceAPI] Call mode control error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 class TTSStatusReq(BaseModel):
     is_speaking: bool
@@ -257,8 +257,8 @@ async def update_tts_status(req: TTSStatusReq):
         app_state.set_external_tts_speaking(req.is_speaking)
         return {"success": True}
     except Exception as e:
-        logger.error(f"[VoiceAPI] TTS status update error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("[VoiceAPI] TTS status update error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 class WhatsAppReplyWaitRequest(BaseModel):

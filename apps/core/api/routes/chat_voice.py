@@ -57,5 +57,5 @@ async def speak_text(data: dict):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("[ChatVoice] /chat/speak failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("[ChatVoice] /chat/speak failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
