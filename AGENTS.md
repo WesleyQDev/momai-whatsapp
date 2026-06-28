@@ -137,9 +137,205 @@ pnpm test             # uv run pytest
 ## Important Notes
 
 1. **Git workflow**: Use conventional commits (`feat:`, `fix:`, `docs:`)
-2. **Dependencies**: Must use pnpm (enforced via `preinstall` script)
-3. **Release process**: Uses GitHub Actions (`.github/workflows/release.yml`)
-4. **Core Python**: Uses `uv` as package manager (uv.lock, pyproject.toml)
+2. **Branch naming**: Create branches from `main`. No strict naming convention, but prefer `type/scope` (e.g. `feat/whatsapp-icon`, `fix/auth-headers`)
+3. **Tag naming**: Releases use `v{semver}` format (e.g. `v1.4.1`). Tags drive the release workflow in `.github/workflows/release.yml`
+4. **CI requirements**: Before opening a PR, ensure `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass. The CI workflow (`.github/workflows/ci.yml`) also blocks `.env` file commits
+5. **Dependencies**: Must use pnpm (enforced via `preinstall` script)
+6. **Lockfile integrity**: Always use `pnpm install --frozen-lockfile` in CI. Only update lockfiles when dependencies actually change
+7. **Release process**: Triggered by git tags matching `v[0-9]+.*`. See `.github/workflows/release.yml` and `docs/guides/ci-cd.md`
+8. **Core Python**: Uses `uv` as package manager (uv.lock, pyproject.toml)
+9. **Additional AI instructions**: See `.github/copilot-instructions.md` for supplementary rules (pnpm, uv, clean code, SOLID, dark/light theme, Lite/Pro/Ultra modes)
+10. **OpenCode rules**: See `.opencode/rules/` for project-specific agent rules (extension isolation, context loading)
+11. **Governance files**: See `CODE_OF_CONDUCT.md` (code of conduct), `docs/labels.md` (label conventions), `.github/ISSUE_TEMPLATE/` (issue templates), and `CONTRIBUTING.md` (merge criteria)
+
+---
+
+## Contributing
+
+This project has a **proprietary license** — see [LICENSE](LICENSE) for terms. Contributions are welcome but must follow the established process.
+
+### Required Reading
+
+Before contributing, read and agree to:
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — contribution rules, process, and AI contribution policy
+- [CLA.md](CLA.md) — Contributor License Agreement (mandatory for all PRs)
+- [SECURITY.md](SECURITY.md) — vulnerability reporting and supported versions
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — code of conduct and community guidelines
+- [docs/labels.md](docs/labels.md) — label conventions for issues and PRs
+
+### Contribution Process
+
+Per [CONTRIBUTING.md](CONTRIBUTING.md):
+
+1. Open an issue to discuss the change before implementing
+2. Wait for maintainer feedback
+3. Create a branch from `main`
+4. Implement following project standards (this file + `.github/copilot-instructions.md`)
+5. Open a Pull Request targeting `main`
+
+Extension-related changes (skills in `scripts/skills/packaged/`) require mirror repo synchronization — see [Community Extensions](#community-extensions).
+
+### Merge Criteria
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for authoritative merge requirements.
+
+Common requirements include:
+
+- CI passes (lint + typecheck + tests)
+- Maintainer has approved the change
+- PR template checklist is complete
+- AI-generated code has been human-reviewed
+- Lockfiles updated if dependencies changed
+- No `.env` or `.env.*` files are included
+
+### AI Contribution Rules
+
+Per [CONTRIBUTING.md](CONTRIBUTING.md) and [CLA.md](CLA.md):
+
+- Human review is required before submitting AI-generated code
+- The contributor assumes full responsibility for AI-generated code
+- The origin (human vs. AI-assisted) must be identified when relevant
+- AI assistance does not alter CLA terms
+
+---
+
+## Issues
+
+### Issue Templates
+
+O repositório possui templates em `.github/ISSUE_TEMPLATE/`:
+
+- `bug_report.md` — para reportar bugs (label `bug`)
+- `feature_request.md` — para sugerir funcionalidades (label `enhancement`)
+
+**Agentes devem sempre usar o template correspondente ao tipo de issue**,
+preenchendo todos os campos obrigatórios automaticamente. O GitHub exibe
+o template automaticamente ao criar uma nova issue.
+
+### Bug Reports
+
+Per [CONTRIBUTING.md](CONTRIBUTING.md), uma issue de bug deve conter:
+
+1. Comportamento esperado vs. observado
+2. Passos para reproduzir
+3. Ambiente (OS, versão do MomAI, modo Lite/Pro/Ultra)
+
+### Feature Requests
+
+- Use o template `feature_request.md`
+- Inclua problema relacionado, solução proposta e alternativas consideradas
+- A label `enhancement` é atribuída automaticamente pelo template
+
+### Labels
+
+Convenções completas em [docs/labels.md](docs/labels.md). Labels principais:
+`bug`, `documentation`, `enhancement`, `governance`, `help wanted`,
+`question`, `security`, `wontfix`.
+
+### Agent Rules for Issues
+
+- ✅ Pesquisar issues abertas e fechadas antes de criar uma nova issue
+- ✅ Vincular PRs a uma issue existente quando aplicável
+- ✅ Usar o template de issue correto para o tipo de contribuição
+- ✅ Preencher automaticamente todos os campos obrigatórios do template
+- ❌ Não abrir issues duplicadas
+- ❌ Não ignorar comentários de mantenedores em issues existentes
+
+---
+
+## Pull Requests
+
+The PR template (`.github/PULL_REQUEST_TEMPLATE.md`) is **mandatory** and requires:
+
+### Checklist
+
+- [ ] Read [CONTRIBUTING.md](CONTRIBUTING.md)
+- [ ] Read [AGENTS.md](AGENTS.md) and followed project conventions
+- [ ] Contribution is original or authorized
+- [ ] Agreed to [CLA.md](CLA.md) terms
+- [ ] Understands the project has a proprietary license (not open source)
+- [ ] Understands the PR may be rejected
+
+### Technical Verification
+
+- [ ] Code follows project standards
+- [ ] Documentation updated (if applicable)
+- [ ] Tests added or updated (if applicable)
+- [ ] Security: change does not introduce known vulnerabilities
+
+### Testing Declaration
+
+- Unit tests, manual tests, or N/A (with explanation)
+
+### Dependencies
+
+- [ ] No dependency changes
+- [ ] Node/pnpm dependencies changed
+- [ ] Python/uv dependencies changed
+- [ ] Lockfiles updated when applicable
+
+### Agent Rules for Pull Requests
+
+- ✅ Verify CI passes (`pnpm lint`, `pnpm typecheck`, `pnpm test`) before opening
+- ✅ Preencher automaticamente todos os campos do template do PR e marcar os itens do checklist conforme aplicáveis
+- ✅ Keep scope focused on a single change
+- ✅ Use Conventional Commits in commit messages
+- ✅ Update lockfiles when dependencies change (`pnpm install --frozen-lockfile`)
+- ❌ Do not open PRs without a corresponding issue first
+- ❌ Do not skip any checklist item
+- ❌ Do not modify `.env` or `.env.*` files (blocked by CI)
+
+---
+
+## Agent Requirements
+
+### Duplicate Prevention
+
+- ✅ Check open PRs before creating a new one for the same feature
+- ✅ Check existing issues before creating a new issue
+- ✅ Check remote branches for related work in progress
+
+### Mandatory Validation
+
+- ✅ Run `pnpm lint`, `pnpm typecheck`, `pnpm test` before opening a PR
+- ✅ Ensure `pnpm install --frozen-lockfile` succeeds (lockfile integrity)
+- ✅ Respect all PR template sections
+- ✅ Update documentation when applicable
+
+### Branch Lifecycle
+
+- ✅ Create a branch from `main` for each independent change
+- ✅ Follow the repository branch naming convention
+- ✅ Keep commits focused on a single logical change whenever practical
+- ✅ Open a Pull Request before merging changes
+- ℹ️ Branches may be deleted after merge according to repository settings
+
+### Behavior
+
+- ✅ Respond to maintainer review requests
+- ✅ Respect maintainer decisions (PRs may be rejected without appeal)
+- ✅ Identify contribution origin (AI vs. human) when relevant
+- ❌ Do not merge with failing CI
+- ❌ Do not alter lockfiles without actual dependency changes
+- ❌ Do not open PRs without a corresponding issue
+- ❌ Do not commit secrets, tokens, or credentials
+
+### Security
+
+- ✅ Report vulnerabilities per [SECURITY.md](SECURITY.md) — never in public issues
+- ✅ Do not expose environment information in code or commits
+- ✅ Do not commit `.env` files (blocked by CI)
+
+---
+
+## Code of Conduct
+
+Todo contribuidor deve seguir o [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md),
+baseado no Contributor Covenant v2.1.
+
+Comportamentos inadequados devem ser reportados conforme descrito em
+CODE_OF_CONDUCT.md.
 
 ---
 

@@ -29,6 +29,17 @@ Abra uma [issue](https://github.com/WesleyQDev/MomAI/issues) com a label `enhanc
 4. Implemente seguindo os padrões do projeto
 5. Abra um Pull Request para `main`
 
+## Critérios de Merge
+
+Um Pull Request pode ser mergeado quando atende **todos** os critérios abaixo:
+
+- [ ] CI passa (lint + typecheck + testes)
+- [ ] Mantenedor aprovou a mudança
+- [ ] Checklist do PR template está completo
+- [ ] Código gerado por IA foi revisado por humano
+- [ ] Lockfiles atualizados se dependências mudaram
+- [ ] Nenhum arquivo `.env` ou `.env.*` incluído
+
 ## Regras para Pull Requests
 
 - Siga os padrões de código existentes (veja [AGENTS.md](AGENTS.md) e `.github/copilot-instructions.md`)
