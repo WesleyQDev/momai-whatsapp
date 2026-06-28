@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.0.0",
+    "@whiskeysockets/baileys": "^6.7.22",
     "pino": "^8.0.0"
   },
   "devDependencies": {
