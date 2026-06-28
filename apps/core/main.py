@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+from pathlib import Path
 
 # Force UTF-8 encoding for Windows console (must be before any imports that use stdout)
 if sys.platform == "win32":
@@ -19,7 +20,7 @@ if sys.platform == "win32":
 # Ensure native DLLs (VC++ Runtime, etc.) can be found in MSIX environments
 if sys.platform == "win32":
     sys_root = os.environ.get("SystemRoot", r"C:\Windows")
-    system32 = os.path.join(sys_root, "System32")
+    system32 = str(Path(sys_root) / "System32")
     current_path = os.environ.get("PATH", "")
     if system32.lower() not in current_path.lower():
         os.environ["PATH"] = system32 + ";" + sys_root + ";" + current_path
@@ -30,19 +31,19 @@ if sys.platform == "win32":
     # Also add venv site-packages DLL dirs (onnxruntime, ctranslate2)
     venv = os.environ.get("VIRTUAL_ENV")
     if venv:
-        site_pkgs = os.path.join(venv, "Lib", "site-packages")
+        site_pkgs = Path(venv) / "Lib" / "site-packages"
         for pkg in ("onnxruntime", "ctranslate2"):
             dll_dirs = []
-            pkg_dir = os.path.join(site_pkgs, pkg)
-            if os.path.isdir(pkg_dir):
-                dll_dirs.append(pkg_dir)
+            pkg_dir = site_pkgs / pkg
+            if pkg_dir.is_dir():
+                dll_dirs.append(str(pkg_dir))
                 for sub in ("capi", "libs"):
-                    sub_dir = os.path.join(pkg_dir, sub)
-                    if os.path.isdir(sub_dir):
-                        dll_dirs.append(sub_dir)
-            libs_dir = os.path.join(site_pkgs, f"{pkg}.libs")
-            if os.path.isdir(libs_dir):
-                dll_dirs.append(libs_dir)
+                    sub_dir = pkg_dir / sub
+                    if sub_dir.is_dir():
+                        dll_dirs.append(str(sub_dir))
+            libs_dir = site_pkgs / f"{pkg}.libs"
+            if libs_dir.is_dir():
+                dll_dirs.append(str(libs_dir))
             for d in dll_dirs:
                 try:
                     os.add_dll_directory(d)

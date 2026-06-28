@@ -9,6 +9,7 @@ import re
 import sys
 import os
 import platform
+from pathlib import Path
 from typing import Optional, Any
 import app_state
 
@@ -243,13 +244,13 @@ class TTSManager:
             from kokoro_onnx import Kokoro
             import onnxruntime as ort
 
-            model_dir = os.path.join(os.path.dirname(__file__), "models")
-            os.makedirs(model_dir, exist_ok=True)
+            model_dir = Path(__file__).parent / "models"
+            model_dir.mkdir(parents=True, exist_ok=True)
 
-            model_path = os.path.join(model_dir, "kokoro-v1.0.onnx")
-            voices_path = os.path.join(model_dir, "voices-v1.0.bin")
+            model_path = model_dir / "kokoro-v1.0.onnx"
+            voices_path = model_dir / "voices-v1.0.bin"
 
-            if not os.path.exists(model_path):
+            if not model_path.exists():
                 logger.info("[TTS] Downloading Kokoro model...")
                 try:
                     import urllib.request
@@ -270,7 +271,7 @@ class TTSManager:
                         local_dir=model_dir,
                     )
 
-            if not os.path.exists(voices_path):
+            if not voices_path.exists():
                 logger.info("[TTS] Downloading voices file...")
                 try:
                     import urllib.request

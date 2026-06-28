@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
 from datetime import datetime
-import os
+from pathlib import Path
 
 Base = declarative_base()
 
@@ -67,11 +67,11 @@ class Settings(Base):
 # Database setup
 data_dir = os.environ.get("MOMAI_DATA_DIR")
 if data_dir:
-    os.makedirs(data_dir, exist_ok=True)
-    DB_PATH = os.path.join(data_dir, "momai.db")
+    Path(data_dir).mkdir(parents=True, exist_ok=True)
+    DB_PATH = str(Path(data_dir) / "momai.db")
 else:
     # Points to the core folder (one level up from database/)
-    DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "momai.db")
+    DB_PATH = str(Path(__file__).resolve().parent.parent / "momai.db")
 engine = create_engine(
     f"sqlite:///{DB_PATH}",
     poolclass=NullPool,
