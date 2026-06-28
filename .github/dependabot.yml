@@ -13,7 +13,7 @@ updates:
       prefix-development: "chore(deps-dev)"
     labels:
       - "dependencies"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 1
 
   - package-ecosystem: "npm"
     directory: "/apps/momai"
@@ -25,7 +25,7 @@ updates:
       prefix-development: "chore(deps-dev)"
     labels:
       - "dependencies"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 1
 
   - package-ecosystem: "pip"
     directory: "/"
@@ -36,7 +36,7 @@ updates:
       prefix: "chore(deps)"
     labels:
       - "dependencies"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 1
 
   - package-ecosystem: "pip"
     directory: "/apps/core"
@@ -47,7 +47,7 @@ updates:
       prefix: "chore(deps)"
     labels:
       - "dependencies"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 1
 
   - package-ecosystem: "pip"
     directory: "/apps/fortscript"
@@ -58,7 +58,7 @@ updates:
       prefix: "chore(deps)"
     labels:
       - "dependencies"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 1
 
   - package-ecosystem: "github-actions"
     directory: "/"
