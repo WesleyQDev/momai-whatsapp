@@ -45,7 +45,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@heroicons/react": "^2.2.0",
-    "@lancedb/lancedb": "^0.27.2",
+    "@lancedb/lancedb": "^0.30.0",
     "@langchain/core": "^1.2.1",
     "@langchain/langgraph": "^1.4.7",
     "@langchain/openai": "^1.5.3",
