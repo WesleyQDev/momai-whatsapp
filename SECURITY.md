@@ -98,3 +98,34 @@ Quando uma vulnerabilidade não pode ser corrigida dentro do SLA:
 - Landing page
 - Serviços externos não mantidos pelo projeto
 - Dependências exclusivamente de desenvolvimento sem impacto em produção
+
+## Accepted Risks
+
+The following vulnerabilities are documented exceptions tracked via the project's risk acceptance process.
+Each entry includes the rationale, mitigation, and expiration date.
+These will be reviewed on or before their expiration date.
+
+### AR-01: undici (4 CVEs — CVE-2026-9697, CVE-2026-12151, CVE-2026-6734)
+- **Package:** undici@6.25.0 / undici@7.25.0
+- **Source:** `electron@42.5.0 > @electron/get > undici` (build-only, downloads Electron binaries)
+- **Impact:** Build-time only. No runtime exposure in the MomAI application.
+- **Mitigation:** CI runs on isolated runners. Binaries downloaded from official GitHub releases.
+- **Fix plan:** Electron upstream must update `@electron/get` to bundle a patched undici version.
+- **Owner:** @WesleyQDev
+- **Expiration:** 2026-12-28
+- **Removal condition:** Electron >=42.x resolves undici to >=7.28.0
+
+### AR-02: music-metadata (CVE-2026-32256 — infinite loop in ASF parser)
+- **Package:** music-metadata@7.14.0
+- **Source:** `@whiskeysockets/baileys@6.17.16 > music-metadata@^7.12.3`
+- **Impact:** Runtime — WhatsApp extension audio processing. Low exploitability (requires malicious ASF file received via chat).
+- **Mitigation:** Baileys 7.0.0-rc13 already depends on `music-metadata@^11.12.3` (patched). Upgrade to stable baileys 7.x when released.
+- **Fix plan:** Monitor baileys releases for stable v7. Override directly only after API compatibility validated.
+- **Owner:** @WesleyQDev
+- **Expiration:** 2026-09-28
+- **Removal condition:** `@whiskeysockets/baileys` >=7.0.0 stable, or override validated as safe
+
+### AR-03: electron-builder ecosystem — tar v6 (6 CVEs — RESOLVED as of 2026-06-28)
+- **Status:** ✅ Resolved via `overrides.tar >=7.5.11` in `pnpm-workspace.yaml`
+- **Note:** This override forces tar@7.x for the entire dependency graph. Electron-builder ecosystem compatibility validated.
+- **Risk of regression:** Low. If electron-builder releases a version incompatible with tar@7.x, this override may need revisiting.
