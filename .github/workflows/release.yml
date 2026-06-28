@@ -261,8 +261,13 @@ jobs:
             echo "❌ Status inesperado: $STATUS"
             exit 1
           fi
+        # Token: fine-grained PAT with scope:
+        #   - Resource owner: WesleyQDev
+        #   - Repository: WesleyQDev/MomAI-App
+        #   - Permissions: Contents: Read and write
+        #   - Expiration: short (configure in GitHub token settings)
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.MOMAI_APP_RELEASE_TOKEN }}
 
       - name: Create Release on Public Repo
         run: |
@@ -304,4 +309,4 @@ jobs:
               dist/win/* dist/linux/*
           fi
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.MOMAI_APP_RELEASE_TOKEN }}
