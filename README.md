@@ -5,7 +5,7 @@
 **Assistente virtual local-first focada em privacidade**
 
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.4.1-blue.svg?style=flat-square)](package.json)
+[![Version](https://img.shields.io/github/v/tag/WesleyQDev/momai?label=Version&style=flat-square&color=blue)](https://github.com/WesleyQDev/momai/tags)
 
 </div>
 
@@ -83,7 +83,16 @@ pnpm format           # Formatação (Turbo)
 
 ## Documentação
 
-Documentação técnica interna disponível em [`docs/`](docs/README.md).
+Documentação técnica completa disponível em [`docs/`](docs/README.md):
+
+| Seção | Para quem |
+|-------|-----------|
+| [Guia de Desenvolvimento](docs/development.md) | Contribuidores |
+| [Arquitetura](docs/architecture.md) | Contribuidores |
+| [Extensões/Skills](docs/extensions.md) | Contribuidores |
+| [CI/CD](docs/guides/ci-cd.md) | Contribuidores |
+| [Processo de Release](docs/maintainers/release-process.md) | Mantenedores |
+| [Gerenciamento de Deps](docs/maintainers/dependencies.md) | Mantenedores |
 
 ## Licença
 
