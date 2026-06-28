@@ -45,7 +45,7 @@ function createChatRoutes(context) {
         })
         sendJson(res, 200, result || { ok: true })
       } catch (err) {
-        sendJson(res, 500, { ok: false, error: err?.message || 'voice_reply_error' })
+        sendJson(res, 500, { ok: false, error: 'voice_reply_error' })
       }
       return true
     }
