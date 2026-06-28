@@ -5,7 +5,7 @@ description = "MomAI Core - Simplified Plugin Runner"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi[standard]>=0.128.0",
+    "fastapi[standard]>=0.138.1",
     "huggingface-hub>=1.21.0",
     "httpx>=0.28.0",
     "numpy>=2.5.0",
@@ -48,7 +48,7 @@ asyncio_default_fixture_loop_scope = "function"
 
 [dependency-groups]
 dev = [
-    "fastapi[standard]>=0.136.1",
+    "fastapi[standard]>=0.138.1",
     "pytest>=9.0.0",
     "pytest-asyncio>=1.0.0",
 ]
