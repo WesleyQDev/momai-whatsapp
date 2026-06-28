@@ -4,6 +4,7 @@ import { dirname } from 'node:path'
 import { authFetch } from '../security/authenticated-fetch'
 import { logger } from '../logger'
 import { API_BASE_URL } from '../constants'
+import { shutdownPython } from '../python'
 
 /**
  * LGPD (Brazilian data protection law) compliance endpoints, exposed to the
@@ -88,6 +89,12 @@ export function registerPrivacyHandlers(
 
   ipcMain.handle('privacy:delete-all', async () => {
     try {
+      try {
+        await shutdownPython()
+      } catch (err) {
+        logger.warn('[privacy] Failed to shutdown Python during delete-all:', err)
+      }
+
       const res = await authFetch(`${API_BASE_URL}/privacy/delete-all`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -122,6 +129,12 @@ export function registerPrivacyHandlers(
   // to mark first launch and show the welcome screen.
   ipcMain.handle('privacy:dev-reset', async () => {
     try {
+      try {
+        await shutdownPython()
+      } catch (err) {
+        logger.warn('[privacy] Failed to shutdown Python during dev-reset:', err)
+      }
+
       const res = await authFetch(`${API_BASE_URL}/privacy/dev-reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -140,9 +153,7 @@ export function registerPrivacyHandlers(
           status: res.status
         }
       }
-      logger.info(
-        `[privacy] dev-reset succeeded, removed ${payload.removed?.length || 0} entries`
-      )
+      logger.info(`[privacy] dev-reset succeeded, removed ${payload.removed?.length || 0} entries`)
       return { ok: true, removed: payload.removed || [], mode: payload.mode }
     } catch (err) {
       logger.error('[privacy] dev-reset failed:', err)

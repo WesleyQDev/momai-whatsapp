@@ -331,17 +331,48 @@ function performDeleteAll(dataDir, { keepModels = false, keepExtensions = false 
   return removed
 }
 
+function resetMemoryStore(context) {
+  try {
+    const { defaultStore } = require('../../infrastructure/store')
+    const defaults = defaultStore()
+
+    if (context.store) {
+      for (const key of Object.keys(context.store)) {
+        delete context.store[key]
+      }
+      Object.assign(context.store, defaults)
+    }
+
+    try {
+      const shared = require('../../services/shared-state')
+      if (shared && shared.store) {
+        for (const key of Object.keys(shared.store)) {
+          delete shared.store[key]
+        }
+        Object.assign(shared.store, defaults)
+      }
+    } catch (e) {
+      console.warn('[privacy] Failed to reset shared.store:', e?.message || e)
+    }
+  } catch (e) {
+    console.warn('[privacy] Failed to reset memory stores:', e?.message || e)
+  }
+}
+
 function createPrivacyRoutes(context) {
   const { sendJson, readJsonBody, saveStore, dataDir, getTempPath, skillRegistry } = context
   if (!dataDir) {
     throw new Error('createPrivacyRoutes requires context.dataDir')
   }
   const resolveTempPath =
-    typeof getTempPath === 'function' ? getTempPath : () => path.join(os.tmpdir(), 'momai-export.zip')
+    typeof getTempPath === 'function'
+      ? getTempPath
+      : () => path.join(os.tmpdir(), 'momai-export.zip')
 
   return async function handlePrivacyRoutes(req, res, pathname, parsedUrl) {
     if (pathname === '/privacy/stored' && req.method === 'GET') {
-      const skills = skillRegistry && typeof skillRegistry.getAll === 'function' ? skillRegistry.getAll() : []
+      const skills =
+        skillRegistry && typeof skillRegistry.getAll === 'function' ? skillRegistry.getAll() : []
       sendJson(res, 200, { items: collectStoredData(skills) })
       return true
     }
@@ -383,6 +414,24 @@ function createPrivacyRoutes(context) {
         console.warn('[privacy] stopAllPersistent failed:', e?.message || e)
       }
 
+      // Stop llama-server processes so they release file locks on .gguf models.
+      if (!keepModels) {
+        try {
+          if (typeof context.stopLlamaServer === 'function') {
+            await context.stopLlamaServer()
+          }
+        } catch (e) {
+          console.warn('[privacy] stopLlamaServer failed:', e?.message || e)
+        }
+        try {
+          if (typeof context.stopEmbeddingServer === 'function') {
+            await context.stopEmbeddingServer()
+          }
+        } catch (e) {
+          console.warn('[privacy] stopEmbeddingServer failed:', e?.message || e)
+        }
+      }
+
       // Persist the in-memory store (so callers can read it from disk if they
       // need to), then flush the store reference so subsequent reads don't
       // repopulate deleted files.
@@ -393,6 +442,8 @@ function createPrivacyRoutes(context) {
       }
 
       const removed = performDeleteAll(dataDir, { keepModels, keepExtensions })
+
+      resetMemoryStore(context)
 
       sendJson(res, 200, { ok: true, removed, keepModels, keepExtensions })
       return true
@@ -422,6 +473,22 @@ function createPrivacyRoutes(context) {
         console.warn('[privacy] stopAllPersistent failed:', e?.message || e)
       }
 
+      // Stop llama-server processes so they release file locks on .gguf models.
+      try {
+        if (typeof context.stopLlamaServer === 'function') {
+          await context.stopLlamaServer()
+        }
+      } catch (e) {
+        console.warn('[privacy] stopLlamaServer failed:', e?.message || e)
+      }
+      try {
+        if (typeof context.stopEmbeddingServer === 'function') {
+          await context.stopEmbeddingServer()
+        }
+      } catch (e) {
+        console.warn('[privacy] stopEmbeddingServer failed:', e?.message || e)
+      }
+
       try {
         if (typeof saveStore === 'function') saveStore()
       } catch (e) {
@@ -435,6 +502,8 @@ function createPrivacyRoutes(context) {
         keepModels: false,
         keepExtensions: false
       })
+
+      resetMemoryStore(context)
 
       console.log(`[privacy] dev-reset wiped: ${removed.join(', ')}`)
       sendJson(res, 200, { ok: true, removed, mode: 'dev-reset' })

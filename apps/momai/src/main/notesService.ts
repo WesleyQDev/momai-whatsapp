@@ -146,6 +146,32 @@ function writeIndexToDiskSync(items: NoteIndexRecord[]): void {
 }
 
 /**
+ * Repair stale index paths when the on-disk file exists under a known
+ * variant (e.g. the migration ran but the index kept the pre-encryption
+ * `.md` path while the file is already `.md.enc`). Mutates the input array
+ * in-place and returns whether anything changed.
+ */
+function healIndexPaths(items: NoteIndexRecord[]): boolean {
+  let updated = false
+  for (const entry of items) {
+    const abs = getNoteAbsolutePath(entry)
+    if (existsSync(abs)) continue
+
+    const lower = entry.path.toLowerCase()
+    if (lower.endsWith(PLAIN_EXT) && !lower.endsWith(ENCRYPTED_EXT)) {
+      const candidate = entry.path.replace(/\.md$/i, ENCRYPTED_EXT)
+      const candidateAbs = getNoteAbsolutePath({ path: candidate })
+      if (existsSync(candidateAbs)) {
+        logger.info(`[notes] Healed index path for id=${entry.id}: ${entry.path} -> ${candidate}`)
+        entry.path = candidate
+        updated = true
+      }
+    }
+  }
+  return updated
+}
+
+/**
  * Load the notes index into the in-memory cache. Call this at app startup
  * (optional — operations will lazy-load on first access if not pre-loaded).
  */
@@ -155,11 +181,22 @@ export async function loadIndexCache(): Promise<void> {
     indexLoadPromise = (async () => {
       await migratePlainNotesToEncrypted()
       const items = await readIndexFromDisk()
+      if (healIndexPaths(items)) {
+        await writeIndexToDisk(items)
+      }
       indexCache = items
       return items
     })()
   }
   await indexLoadPromise
+}
+
+/** @internal Test-only: drop the in-memory index cache. */
+export function __resetIndexCacheForTesting(): void {
+  indexCache = null
+  indexLoadPromise = null
+  indexWriteTimer = null
+  indexWritePending = null
 }
 
 async function collectPlainNoteFiles(dirPath: string, out: string[]): Promise<void> {
@@ -236,16 +273,19 @@ export async function migratePlainNotesToEncrypted(): Promise<string[]> {
   await ensureNotesDir()
   const dataDir = getDataDir()
   const migrated: string[] = []
+  const pathRemap = new Map<string, string>()
 
   const plainFiles: string[] = []
   await collectPlainNoteFiles(getNotesDir(), plainFiles)
 
   for (const abs of plainFiles) {
+    const oldRel = normalizeSlashes(relative(dataDir, abs))
     try {
       const encAbs = await encryptNoteFile(abs)
       if (encAbs) {
         const rel = normalizeSlashes(relative(dataDir, encAbs))
         migrated.push(rel)
+        pathRemap.set(oldRel, rel)
       }
     } catch (e) {
       logger.warn(`[notes] Failed to encrypt ${abs}:`, e)
@@ -254,11 +294,13 @@ export async function migratePlainNotesToEncrypted(): Promise<string[]> {
 
   const pendingFiles = await collectPendingNoteFiles()
   for (const abs of pendingFiles) {
+    const oldRel = normalizeSlashes(relative(dataDir, abs))
     try {
       const encAbs = await encryptAndRelocateFromPending(abs)
       if (encAbs) {
         const rel = normalizeSlashes(relative(dataDir, encAbs))
         migrated.push(rel)
+        pathRemap.set(oldRel, rel)
       }
     } catch (e) {
       logger.warn(`[notes] Failed to process pending ${abs}:`, e)
@@ -277,6 +319,26 @@ export async function migratePlainNotesToEncrypted(): Promise<string[]> {
     logger.info(`[notes] Migrated ${migrated.length} note(s) to encrypted format`)
     indexCache = null
     indexLoadPromise = null
+
+    try {
+      const existing = await readIndexFromDisk()
+      let updated = false
+      const next = existing.map((entry) => {
+        const newPath = pathRemap.get(entry.path)
+        if (newPath && newPath !== entry.path) {
+          updated = true
+          return { ...entry, path: newPath }
+        }
+        return entry
+      })
+      if (updated) {
+        await writeIndexToDisk(next)
+        indexCache = next
+        logger.info(`[notes] Updated ${migrated.length} index path(s) to .md.enc`)
+      }
+    } catch (e) {
+      logger.warn('[notes] Failed to update index paths after migration:', e)
+    }
   }
 
   return migrated
@@ -415,7 +477,13 @@ export async function getNote(noteId: string): Promise<NoteDetail | null> {
   const found = index.find((item) => item.id === noteId)
   if (!found) return null
 
-  const content = await readNoteContent(getNoteAbsolutePath(found), found.path)
+  const absolutePath = getNoteAbsolutePath(found)
+  if (!existsSync(absolutePath)) {
+    logger.warn(`[notes] Note file missing for id=${noteId} at ${absolutePath}`)
+    return null
+  }
+
+  const content = await readNoteContent(absolutePath, found.path)
   return { ...found, content }
 }
 

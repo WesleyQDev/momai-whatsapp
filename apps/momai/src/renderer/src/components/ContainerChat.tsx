@@ -258,6 +258,24 @@ export default function ContainerChat({
     return allSuggestions.sort(() => Math.random() - 0.5).slice(0, 4)
   }, [allSuggestions, threadId])
 
+  const youtubeSuggestion = useMemo(() => {
+    const list = [
+      'Lo-Fi Hip Hop',
+      'Música para estudar',
+      'Synthwave mix',
+      'Sons de chuva para relaxar',
+      'Jazz café instrumental',
+      'Música clássica para foco',
+      'Clássicos do MPB',
+      'Rock clássico anos 80',
+      'Vídeos de receitas rápidas',
+      'Documentário de astronomia',
+      'Treino rápido em casa',
+      'Melhores jogadas de basquete'
+    ]
+    return list[Math.floor(Math.random() * list.length)]
+  }, [threadId])
+
   const [dataLoaded, setDataLoaded] = useState(false)
 
   useEffect(() => {
@@ -302,6 +320,19 @@ export default function ContainerChat({
     return () =>
       window.removeEventListener('momai_trigger_briefing', handleBriefing as EventListener)
   }, [onSendMessage])
+
+  useEffect(() => {
+    const handleSync = (e: any) => {
+      if (e.detail) {
+        setSettings(e.detail)
+        if (e.detail.user_name) {
+          localStorage.setItem('momai_user_name', e.detail.user_name)
+        }
+      }
+    }
+    window.addEventListener('momai_settings_sync', handleSync as EventListener)
+    return () => window.removeEventListener('momai_settings_sync', handleSync as EventListener)
+  }, [])
 
   useEffect(() => {
     setLocalSessionTitle(null)
@@ -546,6 +577,7 @@ export default function ContainerChat({
                         tier={tier}
                         dynamicSuggestion={dynamicSuggestion}
                         randomSuggestions={randomSuggestions}
+                        youtubeSuggestion={youtubeSuggestion}
                       />
                     </div>
                   </div>

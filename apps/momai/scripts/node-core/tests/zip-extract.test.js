@@ -146,7 +146,9 @@ describe('extractZip', () => {
   })
 
   afterEach(() => {
-    try { fs.rmSync(workDir, { recursive: true, force: true }) } catch {}
+    try {
+      fs.rmSync(workDir, { recursive: true, force: true })
+    } catch {}
   })
 
   it('extracts a simple flat archive', async () => {
@@ -160,9 +162,7 @@ describe('extractZip', () => {
   })
 
   it('extracts nested directories', async () => {
-    writeZip(zipPath, [
-      { name: 'a/b/c.txt', data: 'deep' }
-    ])
+    writeZip(zipPath, [{ name: 'a/b/c.txt', data: 'deep' }])
     await extractZip(zipPath, destDir)
     expect(fs.readFileSync(path.join(destDir, 'a', 'b', 'c.txt'), 'utf8')).toBe('deep')
   })
@@ -195,29 +195,22 @@ describe('extractZip', () => {
   })
 
   it('refuses an absolute path entry', async () => {
-    writeZip(zipPath, [
-      { name: '/etc/passwd', data: 'should not be written' }
-    ])
+    writeZip(zipPath, [{ name: '/etc/passwd', data: 'should not be written' }])
     await expect(extractZip(zipPath, destDir)).rejects.toThrow()
   })
 
   it('refuses a Windows drive-letter entry', async () => {
-    writeZip(zipPath, [
-      { name: 'C:\\Windows\\evil.txt', data: 'pwned' }
-    ])
+    writeZip(zipPath, [{ name: 'C:\\Windows\\evil.txt', data: 'pwned' }])
     await expect(extractZip(zipPath, destDir)).rejects.toThrow()
   })
 
   it('refuses an entry that escapes via nested ..', async () => {
-    writeZip(zipPath, [
-      { name: 'a/b/../../../escape.txt', data: 'pwned' }
-    ])
+    writeZip(zipPath, [{ name: 'a/b/../../../escape.txt', data: 'pwned' }])
     await expect(extractZip(zipPath, destDir)).rejects.toThrow()
   })
 
   it('rejects if zipPath is missing', async () => {
-    await expect(extractZip(path.join(workDir, 'nope.zip'), destDir))
-      .rejects.toThrow()
+    await expect(extractZip(path.join(workDir, 'nope.zip'), destDir)).rejects.toThrow()
   })
 
   it('rejects if zipPath is not a string', async () => {

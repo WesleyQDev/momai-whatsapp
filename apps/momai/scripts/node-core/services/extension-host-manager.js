@@ -140,10 +140,7 @@ class ExtensionHostManager extends EventEmitter {
         this._resolvePending(msg.requestId, msg.result)
       } else if (msg.type === 'log') {
         console.log(`[ext:${skillId}] ${msg.message}`)
-      } else if (
-        msg.type === 'secure-storage:encrypt' ||
-        msg.type === 'secure-storage:decrypt'
-      ) {
+      } else if (msg.type === 'secure-storage:encrypt' || msg.type === 'secure-storage:decrypt') {
         _forwardSecureStorageRequest(child, msg)
       }
     })
@@ -299,12 +296,18 @@ class ExtensionHostManager extends EventEmitter {
         resolve()
       }
       childRef.on('exit', done)
+      // Give the worker enough headroom to finish an in-flight tool
+      // (e.g. flush_credentials → reEncryptCredsAfterBaileys IPC roundtrip
+      // to main for safeStorage) and then run its own shutdown handler
+      // (re-encrypt + flush history). Without this margin, the SIGKILL
+      // fallback below kills the worker mid-encrypt and the next launch
+      // finds a stale .enc on disk.
       setTimeout(() => {
         try {
           if (!childRef.killed) childRef.kill()
         } catch {}
         done()
-      }, 1200)
+      }, 5000)
     })
   }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ChatInput from './ChatInput'
 
@@ -37,6 +37,10 @@ vi.mock('../../i18n', () => ({
   })
 }))
 
+const setTextareaValue = (textarea: HTMLElement, value: string) => {
+  fireEvent.change(textarea, { target: { value } })
+}
+
 describe('ChatInput', () => {
   const defaultProps = {
     text: '',
@@ -67,7 +71,7 @@ describe('ChatInput', () => {
     render(<ChatInput {...defaultProps} onSend={onSend} />)
 
     const textarea = screen.getByRole('textbox')
-    await user.type(textarea, 'hello world')
+    setTextareaValue(textarea, 'hello world')
 
     const sendButton = screen.getByTitle('Enviar mensagem')
     await user.click(sendButton)
@@ -76,7 +80,6 @@ describe('ChatInput', () => {
   })
 
   it('shows stop button and prevents send when loading', async () => {
-    const user = userEvent.setup()
     const onSend = vi.fn()
     render(<ChatInput {...defaultProps} isLoading={true} onSend={onSend} />)
 
@@ -84,14 +87,13 @@ describe('ChatInput', () => {
     expect(screen.queryByTitle('Enviar mensagem')).not.toBeInTheDocument()
 
     const textarea = screen.getByRole('textbox')
-    await user.type(textarea, 'hello')
-    await user.keyboard('{Enter}')
+    setTextareaValue(textarea, 'hello')
+    fireEvent.keyDown(textarea, { key: 'Enter' })
 
     expect(onSend).not.toHaveBeenCalled()
   })
 
-  it('does not send empty text', async () => {
-    const user = userEvent.setup()
+  it('does not send empty text', () => {
     const onSend = vi.fn()
     render(<ChatInput {...defaultProps} onSend={onSend} />)
 
@@ -99,7 +101,7 @@ describe('ChatInput', () => {
 
     const textarea = screen.getByRole('textbox')
     textarea.focus()
-    await user.keyboard('{Enter}')
+    fireEvent.keyDown(textarea, { key: 'Enter' })
 
     expect(onSend).not.toHaveBeenCalled()
   })
@@ -109,26 +111,24 @@ describe('ChatInput', () => {
     expect(screen.getByTitle('Gravar mensagem de voz')).toBeInTheDocument()
   })
 
-  it('sends on Enter key', async () => {
-    const user = userEvent.setup()
+  it('sends on Enter key', () => {
     const onSend = vi.fn()
     render(<ChatInput {...defaultProps} onSend={onSend} />)
 
     const textarea = screen.getByRole('textbox')
-    await user.type(textarea, 'hello')
-    await user.keyboard('{Enter}')
+    setTextareaValue(textarea, 'hello')
+    fireEvent.keyDown(textarea, { key: 'Enter' })
 
     expect(onSend).toHaveBeenCalledWith('hello')
   })
 
-  it('inserts newline on Shift+Enter', async () => {
-    const user = userEvent.setup()
+  it('inserts newline on Shift+Enter', () => {
     const onSend = vi.fn()
     render(<ChatInput {...defaultProps} onSend={onSend} />)
 
     const textarea = screen.getByRole('textbox')
-    await user.type(textarea, 'hello')
-    await user.keyboard('{Shift>}{Enter}{/Shift}')
+    setTextareaValue(textarea, 'hello')
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: true })
 
     expect(onSend).not.toHaveBeenCalled()
   })

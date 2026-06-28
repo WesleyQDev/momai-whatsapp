@@ -68,11 +68,6 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
         ;(window as any).momaiAPI?.closeOverlay?.()
       } catch {}
 
-      const result = await (window as any).momaiAPI?.privacy?.devReset?.()
-      if (!result || result.ok !== true) {
-        throw new Error(result?.error || 'unknown error')
-      }
-
       // Clear renderer-side per-user state so the next session is truly fresh
       // (user name, AI tier, dev-mode flag, etc). Mirrors what a fresh install
       // would have.
@@ -91,34 +86,40 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
         console.warn('Failed to clear localStorage on dev reset:', e)
       }
 
-      // PATCH /settings with onboarding_completed:false. This is the step
-      // that actually triggers the welcome screen — the settings sync event
-      // handler in useAppInitialization listens for `onboarding_completed ===
-      // false` and shows the welcome/onboarding. Without this PATCH the IPC
-      // resetOnboarding alone is not enough.
-      try {
-        const apiMod = await import('../../../../services/api')
-        await apiMod.api.patch('/settings', { onboarding_completed: false })
-        window.dispatchEvent(
-          new CustomEvent('momai_settings_sync', {
-            detail: { onboarding_completed: false }
-          })
-        )
-      } catch (e) {
-        console.error('Dev reset: PATCH /settings failed:', e)
-      }
-
-      // Mirror the rest of useSettingsCard.resetOnboarding for consistency.
-      setShowDevResetConfirm(false)
+      // Transition the UI to welcome/onboarding screen immediately.
+      // Settings sync listener in useAppInitialization will pick up onboarding_completed === false
+      // and show the welcome/onboarding screens instantly.
       window.dispatchEvent(new CustomEvent('momai_new_session'))
-      ;(window as any).momaiAPI?.resetOnboarding?.()
-      // Close the settings panel so the welcome screen is visible.
+      window.dispatchEvent(
+        new CustomEvent('momai_settings_sync', {
+          detail: { onboarding_completed: false }
+        })
+      )
+
+      // Close the settings panel and confirmation dialog immediately so the UI doesn't freeze.
+      setShowDevResetConfirm(false)
       onClose?.()
+
+      // Run backend reset in the background
+      ;(window as any).momaiAPI?.privacy
+        ?.devReset?.()
+        .then(async (result) => {
+          if (!result || result.ok !== true) {
+            throw new Error(result?.error || 'unknown error')
+          }
+          // Once reset is done on the backend, call resetOnboarding to mark first launch
+          ;(window as any).momaiAPI?.resetOnboarding?.()
+        })
+        .catch((e) => {
+          console.error('Background dev reset failed:', e)
+        })
+        .finally(() => {
+          setIsDevResetting(false)
+        })
     } catch (e) {
       console.error('Dev reset failed:', e)
-      throw e
-    } finally {
       setIsDevResetting(false)
+      throw e
     }
   }
 
@@ -332,15 +333,12 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
             <div className="flex items-center gap-3 min-w-0">
               <TrashIcon className="shrink-0 text-red-400" width={20} height={20} />
               <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-xs font-semibold text-red-300">
-                  Reset to Zero (dev only)
-                </span>
+                <span className="text-xs font-semibold text-red-300">Reset to Zero (dev only)</span>
                 <span className="text-[11px] text-text-muted font-medium">
-                  Apaga TUDO: banco, mensagens, LLMs locais, cache, Python env
-                  e dados das skills (auth/QR do WhatsApp, contatos, histórico).
-                  <br />
-                  O código das skills em <code>apps/momai/scripts/skills/</code> é
-                  preservado (está no monorepo).
+                  Apaga TUDO: banco, mensagens, LLMs locais, cache, Python env e dados das skills
+                  (auth/QR do WhatsApp, contatos, histórico).
+                  <br />O código das skills em <code>apps/momai/scripts/skills/</code> é preservado
+                  (está no monorepo).
                 </span>
               </div>
             </div>
@@ -358,10 +356,10 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
       {showDevResetConfirm && (
         <ConfirmDialog
           variant="destructive"
-          title="Reset to Zero?"
-          description="This will permanently delete EVERYTHING: database, all messages, local LLMs, semantic index, cache, Python env, AND skill data (WhatsApp auth, contacts, history). You will need to re-scan the WhatsApp QR code after. The welcome screen will appear automatically. The skill code in the monorepo is preserved. This action cannot be undone."
-          confirmText="Yes, reset everything"
-          cancelText="Cancel"
+          title={t('settings.dev.resetTitle')}
+          description={t('settings.dev.resetDescription')}
+          confirmText={t('settings.dev.resetConfirmButton')}
+          cancelText={t('settings.dev.resetCancelButton')}
           isLoading={isDevResetting}
           onConfirm={handleDevReset}
           onCancel={() => !isDevResetting && setShowDevResetConfirm(false)}

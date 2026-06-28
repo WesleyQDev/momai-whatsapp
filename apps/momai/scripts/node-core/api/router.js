@@ -6,13 +6,18 @@ const PUBLIC_PATHS = new Set(['/health', '/extensions/events'])
 
 function isPublicPath(pathname, method) {
   if (method === 'OPTIONS') return true
-  return PUBLIC_PATHS.has(pathname)
+  if (PUBLIC_PATHS.has(pathname)) return true
+  // Allow extension static assets since browser dynamic imports cannot send Authorization headers
+  if (pathname.startsWith('/extensions/') && pathname.includes('/dist/')) {
+    return true
+  }
+  return false
 }
 
 module.exports = { PUBLIC_PATHS, isPublicPath }
 
 function createRouter(context, routeHandlers) {
-  const writeLimiter = createRateLimiter({ capacity: 30, refillPerSecond: 1 })
+  const writeLimiter = createRateLimiter({ capacity: 60, refillPerSecond: 5 })
   const readLimiter = createRateLimiter({ capacity: 120, refillPerSecond: 4 })
   const {
     sendJson,
@@ -61,6 +66,16 @@ function createRouter(context, routeHandlers) {
     const searchParams = new URLSearchParams(qs)
     const parsedUrl = { searchParams }
 
+    // Internal shutdown endpoint (called by Electron main on app quit so
+    // workers can flush creds to disk before the process tree is killed).
+    if (pathname === '/shutdown' && req.method === 'POST') {
+      sendJson(res, 200, { ok: true, message: 'shutting down' })
+      setImmediate(() => {
+        shutdownAll().catch(() => process.exit(0))
+      })
+      return
+    }
+
     for (let i = 0; i < routeHandlers.length; i++) {
       const handler = routeHandlers[i]
       try {
@@ -86,7 +101,7 @@ function createRouter(context, routeHandlers) {
       return
     }
     authMiddleware(req, res, () => {
-      const limiter = (req.method === 'GET' || req.method === 'HEAD') ? readLimiter : writeLimiter
+      const limiter = req.method === 'GET' || req.method === 'HEAD' ? readLimiter : writeLimiter
       limiter(req, res, () => {
         handleRequest(req, res).catch((err) => {
           error('[NodeCore] Unexpected request error:', err)

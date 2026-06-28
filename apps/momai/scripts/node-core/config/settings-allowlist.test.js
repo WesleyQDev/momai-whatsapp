@@ -9,6 +9,12 @@ describe('SETTINGS_EDITABLE_KEYS', () => {
     expect(SETTINGS_EDITABLE_KEYS.has('theme')).toBe(true)
     expect(SETTINGS_EDITABLE_KEYS.has('language')).toBe(true)
     expect(SETTINGS_EDITABLE_KEYS.has('keep_in_tray')).toBe(true)
+    expect(SETTINGS_EDITABLE_KEYS.has('user_name')).toBe(true)
+    expect(SETTINGS_EDITABLE_KEYS.has('assistant_persona')).toBe(true)
+    expect(SETTINGS_EDITABLE_KEYS.has('locale')).toBe(true)
+    expect(SETTINGS_EDITABLE_KEYS.has('onboarding_completed')).toBe(true)
+    expect(SETTINGS_EDITABLE_KEYS.has('daily_briefing_enabled')).toBe(true)
+    expect(SETTINGS_EDITABLE_KEYS.has('greeting_auto_saudacao')).toBe(true)
   })
 
   it('does NOT contain sensitive keys', () => {

@@ -2,7 +2,7 @@
 // Must be the first import in this file — see apply-variant-env.ts for details.
 import './apply-variant-env'
 
-import { app, globalShortcut, BrowserWindow, ipcMain, shell, Menu } from 'electron'
+import { app, globalShortcut, BrowserWindow, ipcMain, shell, Menu, session } from 'electron'
 import { optimizer, is } from '@electron-toolkit/utils'
 import { state, setIsQuitting, getMainWindow } from './state'
 import { registerIpcHandlers, createWindow, toggleWindow } from './windowManager'
@@ -14,7 +14,6 @@ import {
   forceKillAllSync,
   stopActiveServices
 } from './coreManager'
-import { API_HOST, API_PORT } from './constants'
 import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
 import { setupTTSHandlers, cleanupTTSHandlers } from './ttsIpcHandlers'
@@ -39,8 +38,13 @@ import { TrayService } from './services/tray-service'
 import { HttpLlamaControl } from './services/llama-control'
 import { FileKeepInTrayReader } from './services/keep-in-tray-reader'
 import { getOrCreateSessionToken } from './security/session-token'
-import { authFetch } from './security/authenticated-fetch'
 import { shouldBlockWebviewAttachment } from './security/webview-block'
+import { stopRendererStaticServer, ensureRendererStaticServer } from './renderer-static-server'
+import {
+  createYouTubeBeforeSendHeadersHandler,
+  getYouTubeWebRequestFilterUrls
+} from './youtube-session'
+import { join } from 'path'
 
 // Initialize first launch state correctly at startup
 state.isFirstLaunch = !isOnboardingCompleted()
@@ -150,6 +154,15 @@ ipcMain.on('reset-onboarding', async () => {
   logger.info('[Electron] Resetting onboarding status')
   state.isFirstLaunch = true
   saveOnboardingCompleted(false)
+  setIsQuitting(false)
+
+  // Notify renderer to reset its boot/loading state. Without this, the
+  // renderer's `wasEverBooted` and `animationFinished` flags stay sticky
+  // from the previous session, so ContainerChat never re-shows the
+  // LoadingAnimation while the Python sidecar is being reinstalled.
+  if (state.mainWindow && !state.mainWindow.isDestroyed()) {
+    state.mainWindow.webContents.send('momai_rebooting')
+  }
 
   // Stop LLM, Python (Wake Word) and TTS to ensure silence during onboarding
   void stopActiveServices().catch((err) => {
@@ -240,7 +253,7 @@ app.on('web-contents-created', (_event, contents) => {
   }
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // M3: Hide native menu bar in production to remove the "View > Toggle Developer Tools" entry
   if (!is.dev) {
     Menu.setApplicationMenu(null)
@@ -263,6 +276,15 @@ app.whenReady().then(() => {
   registerSecureStorageHandlers()
   registerPrivacyHandlers()
   setupUpdater()
+
+  if (!is.dev) {
+    await ensureRendererStaticServer(join(__dirname, '../renderer'))
+  }
+
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: getYouTubeWebRequestFilterUrls() },
+    createYouTubeBeforeSendHeadersHandler()
+  )
 
   createWindow()
   const mainWindow = getMainWindow()
@@ -295,43 +317,14 @@ app.on('before-quit', (e) => {
   logger.info('[Electron] before-quit: Iniciando shutdown...')
   globalShortcut.unregisterAll()
   cleanupTTSHandlers()
+  stopRendererStaticServer()
 
   void (async () => {
     try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 2500)
-      try {
-        const res = await authFetch(`http://${API_HOST}:${API_PORT}/extensions`, {
-          method: 'GET',
-          signal: controller.signal
-        })
-        if (res.ok) {
-          const data = await res.json()
-          const skills = Array.isArray(data?.extensions)
-            ? data.extensions
-            : Array.isArray(data)
-              ? data
-              : []
-          for (const skill of skills) {
-            const toolName = skill?.persistOnQuit
-            if (!toolName) continue
-            await authFetch(
-              `http://${API_HOST}:${API_PORT}/extensions/${skill.id}/command`,
-              {
-                method: 'POST',
-                body: JSON.stringify({ toolName, args: {} }),
-                signal: controller.signal
-              }
-            ).catch(() => {})
-          }
-        }
-      } catch {}
-      clearTimeout(timer)
-    } catch {}
-
-    try {
       await shutdownCoreBackend()
-    } catch {}
+    } catch (err) {
+      logger.warn('[Electron] shutdownCoreBackend failed:', err)
+    }
 
     forceKillAllSync()
     logger.info('[Electron] Shutdown completo. Saindo...')

@@ -9,7 +9,7 @@
   "background": true,
   "backgroundScript": "background-worker.js",
   "permissions": ["network:persistent", "storage:persistent"],
-  "version": "0.3.9",
+  "version": "0.3.20",
   "ui": {
     "page": "dist/page.js",
     "pageType": "whatsapp-page",
@@ -26,10 +26,10 @@
     "whatsapp_notification"
   ],
   "routes": [
-    { "method": "POST", "path": "/disconnect",           "tool": "disconnect" },
-    { "method": "POST", "path": "/restart",              "tool": "restart" },
-    { "method": "POST", "path": "/sync",                 "tool": "sync" },
-    { "method": "POST", "path": "/flush-history",        "tool": "flush_history" },
+    { "method": "POST", "path": "/disconnect", "tool": "disconnect" },
+    { "method": "POST", "path": "/restart", "tool": "restart" },
+    { "method": "POST", "path": "/sync", "tool": "sync" },
+    { "method": "POST", "path": "/flush-history", "tool": "flush_history" },
     { "method": "POST", "path": "/process-notification", "tool": "process_notification" }
   ],
   "storage": {

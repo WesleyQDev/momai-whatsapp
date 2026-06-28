@@ -56,6 +56,7 @@ function parseSkillMarkdown(filePath) {
 
     if (
       key === 'intents' ||
+      key === 'voice_triggers' ||
       key === 'allowed-tools' ||
       key === 'tags' ||
       key === 'tools' ||
@@ -77,6 +78,7 @@ function parseSkillMarkdown(filePath) {
     name,
     description,
     intents: Array.isArray(frontmatter.intents) ? frontmatter.intents : [],
+    voiceTriggers: Array.isArray(frontmatter.voice_triggers) ? frontmatter.voice_triggers : [],
     allowedTools: Array.isArray(frontmatter['allowed-tools']) ? frontmatter['allowed-tools'] : [],
     compatibility: frontmatter.compatibility ? String(frontmatter.compatibility) : null,
     enabled: frontmatter.enabled !== false,
@@ -113,6 +115,7 @@ function normalizeSkillRecord({ id, kind, parsed, runtime, dir }) {
       name: parsed.name,
       description: parsed.description,
       intents: parsed.intents || [],
+      voice_triggers: parsed.voiceTriggers || [],
       tags: parsed.frontmatter.tags || [],
       icon: parsed.frontmatter.icon || null,
       author: parsed.frontmatter.author || null,

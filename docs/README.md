@@ -1,62 +1,56 @@
-# Documentação Técnica MomAIOS
+# Documentação MomAIOS
 
-Bem-vindo à documentação técnica do **MomAIOS** — o monorepo da **MomAI**, uma assistente virtual **local-first** e focada em privacidade que combina LLMs com ações reais no computador.
+Bem-vindo à documentação técnica do **MomAIOS** — o monorepo da **MomAI**, uma assistente virtual local-first focada em privacidade.
 
-**Versão:** 1.3.0  
-**Licença:** MIT  
-**Autor:** [WesleyQDev](https://github.com/WesleyQDev)
+## Para Contribuidores
 
-## Stack Principal
-
-| Camada | Tecnologia |
-|--------|------------|
-| Desktop | Electron 39, React 19, TypeScript 5.9, TailwindCSS 3 |
-| Backend IA | Node.js, LangGraph, LanceDB, llama.cpp |
-| Backend Voz | Python 3.12+, FastAPI, Whisper, Kokoro ONNX |
-| Build | pnpm 10, Turborepo 2, electron-vite 5, electron-builder 26 |
-| CI/CD | GitHub Actions |
-
-## Estrutura da Documentação
-
-### Visão Geral
+Se você quer contribuir com código, docs ou ideias:
 
 | Documento | Descrição |
 |-----------|-----------|
-| [Arquitetura](architecture.md) | Arquitetura do sistema, componentes, fluxos de dados, decisões técnicas |
-| [Desenvolvimento](development.md) | Setup, comandos, convenções de código, estrutura de diretórios |
-| [Extensões/Skills](extensions.md) | Plataforma de extensões, skills, runtime, respostas estruturadas |
+| [Guia de Desenvolvimento](development.md) | Setup, comandos, convenções de código |
+| [Arquitetura](architecture.md) | Visão geral do sistema, componentes, fluxos |
+| [Extensões/Skills](extensions.md) | Plataforma de extensões, runtime, UI |
+| [Labels](labels.md) | Convenções de labels para issues e PRs |
 
 ### Aplicações
 
 | Documento | Descrição |
 |-----------|-----------|
-| [Desktop (Electron)](apps/desktop.md) | GUI Electron + React, processos, views, build |
-| [Core (Python)](apps/core.md) | Sidecar Python de voz, APIs, TTS, STT, wake word |
+| [Desktop (Electron)](apps/desktop.md) | GUI Electron + React, processos, build |
+| [Core (Python)](apps/core.md) | Sidecar Python de voz, APIs, TTS, STT |
 | [FortScript](apps/fortscript.md) | Gerenciador de processos para gaming mode |
-| [Landing Page](apps/landing-page.md) | Site institucional Vite + React + TailwindCSS |
+| [Landing Page](apps/landing-page.md) | Site institucional Vite + React |
 
 ### Guias
 
 | Documento | Descrição |
 |-----------|-----------|
-| [CI/CD](guides/ci-cd.md) | GitHub Actions, builds, releases |
+| [CI/CD](guides/ci-cd.md) | GitHub Actions, workflows, builds |
 | [Graphify](guides/graphify.md) | Knowledge graph do projeto |
 
-## Funcionalidades Principais
+## Para Mantenedores
 
-- **Roteamento Semântico (LanceDB)**: Identifica intenções em milissegundos com busca vetorial local, economizando tokens
-- **Tool RAG**: Carrega dinamicamente apenas as ferramentas necessárias para cada tarefa
-- **Motor de IA Local**: Llama.cpp via `llama-server.exe` com modelos Qwen3.5 GGUF (0.8B a 4B)
-- **Streaming TTS Real-time**: Kokoro-82m com latência mínima e pre-warm
-- **Wake Word Local**: "Sistema" (offline, OpenWakeWord)
-- **Modo Overlay**: Janela transparente sempre no topo
-- **3 Tiers**: Lite, Pro, Ultra — equilibrando performance e qualidade
-- **Extensível**: Sistema de extensões com permissões declarativas e isolamento
-- **Auto-Update**: Atualizações automáticas via GitHub Releases
-- **Multiplataforma**: Windows, Linux, macOS
+Documentação específica para quem mantém o projeto:
 
-## Repositórios
+| Documento | Descrição |
+|-----------|-----------|
+| [Visão do Mantenedor](maintainers/README.md) | Responsabilidades, checklist de release |
+| [Processo de Release](maintainers/release-process.md) | Fluxo completo de release (build, tag, publish) |
+| [Gerenciamento de Deps](maintainers/dependencies.md) | pnpm, uv, lockfiles, Dependabot |
 
-- **Código Fonte**: [github.com/WesleyQDev/MomAI](https://github.com/WesleyQDev/MomAI)
-- **Releases**: [github.com/WesleyQDev/MomAI-App](https://github.com/WesleyQDev/MomAI-App)
-- **Site**: [wesleyqdev.github.io/momai](https://wesleyqdev.github.io/momai)
+## Comandos Essenciais
+
+```bash
+pnpm dev              # App desktop em dev
+pnpm dev:core         # Backend Python (porta 8000)
+pnpm dev:all          # Ambos concorrentemente
+pnpm build            # Build completo
+pnpm lint             # Lint (Turbo)
+pnpm typecheck        # Type check (Turbo)
+pnpm test             # Testes (Turbo)
+```
+
+## Repositório
+
+Este é um repositório **privado**. O código é disponibilizado para consulta e colaboração interna, mas a reprodução, distribuição e modificação são restritas conforme a [licença proprietária](../LICENSE).

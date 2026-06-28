@@ -11,7 +11,11 @@ describe('loadSkillRenderer', () => {
     const Comp = () => null
     const mod = { default: Comp }
     vi.doMock('/extensions/whatsapp/dist/page.js', () => mod)
-    await loadSkillRenderer('whatsapp', { page: 'dist/page.js', pageType: 'whatsapp-page' }, '/extensions/whatsapp')
+    await loadSkillRenderer(
+      'whatsapp',
+      { page: 'dist/page.js', pageType: 'whatsapp-page' },
+      '/extensions/whatsapp'
+    )
     expect(getRenderer('whatsapp-page')).toBe(Comp)
     // @ts-expect-error
     expect(global.window.__skillRendererRegistry.registerRenderer).toBeDefined()
@@ -25,4 +29,3 @@ describe('loadSkillRenderer', () => {
     expect(getRenderer('t')).toBe(mod.default)
   })
 })
-

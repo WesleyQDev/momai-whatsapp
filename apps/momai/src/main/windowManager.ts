@@ -28,6 +28,34 @@ import { authFetch } from './security/authenticated-fetch'
 import { isSafeExternalUrl } from './security/safe-external-url'
 import { shouldBlockDevToolsShortcut } from './security/devtools-block'
 import { secureWriteFileSync } from './security/fs-permissions'
+import { ensureRendererStaticServer } from './renderer-static-server'
+import { resolveRendererLoadUrl } from './renderer-load-path'
+
+const RENDERER_DIR = join(__dirname, '../renderer')
+
+function loadRendererContents(window: BrowserWindow, routeHash?: string): void {
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    void window.loadURL(
+      resolveRendererLoadUrl({
+        isDev: true,
+        electronRendererUrl: process.env['ELECTRON_RENDERER_URL'],
+        productionBaseUrl: '',
+        routeHash
+      })
+    )
+    return
+  }
+
+  void (async () => {
+    const baseUrl = await ensureRendererStaticServer(RENDERER_DIR)
+    const url = resolveRendererLoadUrl({
+      isDev: false,
+      productionBaseUrl: baseUrl,
+      routeHash
+    })
+    await window.loadURL(url)
+  })()
+}
 
 async function controlWakeWord(enabled: boolean): Promise<void> {
   try {
@@ -172,6 +200,10 @@ export function registerIpcHandlers(): void {
     if (state.overlayWindow && !state.overlayWindow.isDestroyed()) {
       state.overlayWindow.hide()
     }
+    const win = getMainWindow()
+    if (win) {
+      win.webContents.send('overlay-closed')
+    }
   })
 
   ipcMain.on('overlay-action', (_, action) => {
@@ -256,6 +288,10 @@ export function registerIpcHandlers(): void {
 function getOverlayDimensions(data?: {
   structuredResponse?: { type?: string; data?: { conversationHistory?: unknown[] } }
 }) {
+  const type = data?.structuredResponse?.type
+  if (type === 'whatsapp-reconnect') {
+    return { width: 440, height: 420 }
+  }
   const historyLen = data?.structuredResponse?.data?.conversationHistory?.length ?? 0
   const width = 440
   if (historyLen > 0) {
@@ -300,11 +336,7 @@ export function createOverlayWindow(data?: any): void {
 
     setOverlayWindow(overlayWindow)
 
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      overlayWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/#/overlay`)
-    } else {
-      overlayWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'overlay' })
-    }
+    loadRendererContents(overlayWindow, 'overlay')
 
     overlayWindow.webContents.setWindowOpenHandler((details) => {
       if (isSafeExternalUrl(details.url)) {
@@ -320,14 +352,19 @@ export function createOverlayWindow(data?: any): void {
 
   const overlayWin = state.overlayWindow
   if (overlayWin) {
-    logger.info(`[WindowManager] Overlay window exists, showing at center of screen (${width}x${height})`)
-    overlayWin.setSize(width, height)
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const { workArea } = primaryDisplay
-    overlayWin.setPosition(
-      Math.round((workArea.width - width) / 2),
-      Math.round((workArea.height - height) / 2)
-    )
+    logger.info(`[WindowManager] Overlay window exists, showing (${width}x${height})`)
+    const [curW, curH] = overlayWin.getSize()
+    if (curW !== width || curH !== height) {
+      overlayWin.setSize(width, height)
+    }
+    if (isNew) {
+      const primaryDisplay = screen.getPrimaryDisplay()
+      const { workArea } = primaryDisplay
+      overlayWin.setPosition(
+        Math.round((workArea.width - width) / 2),
+        Math.round((workArea.height - height) / 2)
+      )
+    }
     overlayWin.showInactive()
     overlayWin.setAlwaysOnTop(true, 'screen-saver')
     overlayWin.focus()
@@ -489,11 +526,7 @@ function createMainWindow(): BrowserWindow {
     }
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  loadRendererContents(mainWindow)
 
   return mainWindow
 }

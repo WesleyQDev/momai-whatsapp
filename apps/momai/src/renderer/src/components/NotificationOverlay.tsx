@@ -65,8 +65,7 @@ function sendToSkill(skillId: string, contactJid: string, contact: string, messa
 
 function resolveChannel(data: any) {
   const contactJid = String(data?.contactJid || data?.jid || '').trim()
-  const isGroup =
-    typeof data?.isGroup === 'boolean' ? data.isGroup : contactJid.endsWith('@g.us')
+  const isGroup = typeof data?.isGroup === 'boolean' ? data.isGroup : contactJid.endsWith('@g.us')
   const groupName = isGroup ? String(data?.groupName || 'Grupo') : ''
   return { contactJid, isGroup, groupName }
 }
@@ -78,6 +77,7 @@ function getPanelType(skill: Extension | undefined, fallback: string) {
 export default function NotificationOverlay() {
   const [installed, setInstalled] = useState<Extension[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const isShowingMessageNotificationRef = useRef(false)
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const voiceAbortRef = useRef<Map<string, AbortController>>(new Map())
   /** Uma geracao por mensagem (evita TTS errado quando varias pessoas mandam no mesmo grupo) */
@@ -89,9 +89,50 @@ export default function NotificationOverlay() {
       .catch(() => setInstalled([]))
   }, [])
 
+  useEffect(() => {
+    if (installed.length > 0) {
+      const whatsapp = installed.find((s) => s.id === 'whatsapp' && s.enabled)
+      if (whatsapp) {
+        const checkInitialStatus = async () => {
+          try {
+            const res = await rendererFetch(`${API_URL}/extensions/whatsapp/command`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ toolName: 'get_stats' })
+            })
+            if (res.ok) {
+              const stats = await res.json()
+              if (stats && stats.connected === false) {
+                const overlayData = {
+                  skillId: 'whatsapp',
+                  panel: whatsapp.ui?.panel,
+                  panelType: whatsapp.ui?.panelType,
+                  structuredResponse: {
+                    type: 'whatsapp-reconnect',
+                    data: {
+                      status: 'disconnected',
+                      qr: stats.qr || null
+                    }
+                  }
+                }
+                if ((window as any).api?.openOverlay) {
+                  ;(window as any).api.openOverlay(overlayData)
+                }
+              }
+            }
+          } catch (err) {
+            console.error('[NotificationOverlay] Failed to check initial WhatsApp status:', err)
+          }
+        }
+        const timer = setTimeout(checkInitialStatus, 1500)
+        return () => clearTimeout(timer)
+      }
+    }
+    return undefined
+  }, [installed])
+
   const findSkillForEvent = useCallback(
-    (eventType: string) =>
-      installed.find((s) => (s.eventTypes || []).includes(eventType)),
+    (eventType: string) => installed.find((s) => (s.eventTypes || []).includes(eventType)),
     [installed]
   )
 
@@ -179,9 +220,80 @@ export default function NotificationOverlay() {
 
   const handleEvent = useCallback(
     (event: { eventType: string; data: any }) => {
-      console.log('[NotificationOverlay] Event received:', event.eventType, event.data?.contact, event.data?.message)
+      console.log(
+        '[NotificationOverlay] Event received:',
+        event.eventType,
+        event.data?.contact,
+        event.data?.message
+      )
       const skill = findSkillForEvent(event.eventType)
       if (!skill) return
+
+      if (skill.id === 'whatsapp') {
+        if (event.eventType === 'connection_status') {
+          const status = event.data?.status
+          if (status === 'disconnected') {
+            if (isShowingMessageNotificationRef.current) {
+              console.log(
+                '[NotificationOverlay] Skipped disconnected overlay update since a message notification is active'
+              )
+              return
+            }
+            // Keep the overlay open, but don't force a reset of QR to null if we already have it.
+            // If the overlay is already open, this avoids updating it with qr: null which causes flicker.
+            const overlayData = {
+              skillId: 'whatsapp',
+              panel: skill.ui?.panel,
+              panelType: skill.ui?.panelType,
+              structuredResponse: {
+                type: 'whatsapp-reconnect',
+                data: {
+                  status: 'disconnected'
+                }
+              }
+            }
+            if ((window as any).api?.openOverlay) {
+              ;(window as any).api.openOverlay(overlayData)
+            }
+          } else if (status === 'connected') {
+            // Only close or send overlay updates if the overlay is actually showing the reconnect card.
+            // If the user has a message notification open, we don't want to close/replace it.
+            if (!isShowingMessageNotificationRef.current) {
+              if ((window as any).api?.closeOverlay) {
+                ;(window as any).api.closeOverlay()
+              }
+            }
+          }
+          return
+        }
+
+        if (event.eventType === 'qr_code') {
+          if (isShowingMessageNotificationRef.current) {
+            console.log(
+              '[NotificationOverlay] Skipped QR overlay update since a message notification is active'
+            )
+            return
+          }
+          const qr = event.data?.qr
+          const overlayData = {
+            skillId: 'whatsapp',
+            panel: skill.ui?.panel,
+            panelType: skill.ui?.panelType,
+            structuredResponse: {
+              type: 'whatsapp-reconnect',
+              data: {
+                status: 'disconnected',
+                qr
+              }
+            }
+          }
+          if ((window as any).api?.openOverlay) {
+            ;(window as any).api.openOverlay(overlayData)
+          }
+          return
+        }
+      }
+
       // Only message notifications (with text/sender) should open the overlay.
       // Status events like qr_code, connection_status, authenticated,
       // contacts_synced, history_loaded are consumed by the skill's own
@@ -198,6 +310,7 @@ export default function NotificationOverlay() {
       const processMsg = async () => {
         // Open overlay immediately with raw data (don't block on LLM call)
         const openOverlayWithData = (extraData: Record<string, any> = {}) => {
+          isShowingMessageNotificationRef.current = true
           const overlayData = {
             skillId: skill.id,
             panel: skill.ui?.panel,
@@ -226,26 +339,23 @@ export default function NotificationOverlay() {
         }
 
         try {
-          const llmRes = await rendererFetch(
-            `${API_URL}/extensions/${skill.id}/command`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                toolName: 'process_notification',
-                args: {
-                  contact: event.data.contact,
-                  senderName: event.data.senderName || event.data.contact,
-                  senderJid,
-                  message: event.data.message,
-                  contactJid,
-                  isGroup,
-                  isNoteToSelf: !!event.data.isNoteToSelf,
-                  groupName
-                }
-              })
-            }
-          )
+          const llmRes = await rendererFetch(`${API_URL}/extensions/${skill.id}/command`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              toolName: 'process_notification',
+              args: {
+                contact: event.data.contact,
+                senderName: event.data.senderName || event.data.contact,
+                senderJid,
+                message: event.data.message,
+                contactJid,
+                isGroup,
+                isNoteToSelf: !!event.data.isNoteToSelf,
+                groupName
+              }
+            })
+          })
           const llmData = await llmRes.json()
 
           if (notificationGenByKeyRef.current.get(msgKey) !== gen) return
@@ -276,7 +386,13 @@ export default function NotificationOverlay() {
   useExtensionEvents({ onEvent: handleEvent })
 
   useEffect(() => {
+    const removeCloseListener = (window as any).momaiAPI?.onOverlayClosed?.(() => {
+      console.log('[NotificationOverlay] Overlay closed event received, resetting message ref')
+      isShowingMessageNotificationRef.current = false
+    })
+
     return () => {
+      if (removeCloseListener) removeCloseListener()
       for (const controller of Array.from(voiceAbortRef.current.values())) {
         controller.abort()
       }

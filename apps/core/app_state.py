@@ -309,8 +309,11 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
             "speak_response": bool(speak_response),
         }
 
+        token = os.getenv("MOMAI_SESSION_TOKEN", "")
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+
         client = await get_http_client()
-        response = await client.post(node_url, json=payload)
+        response = await client.post(node_url, json=payload, headers=headers)
         if response.status_code >= 400:
             detail = response.text
             raise RuntimeError(

@@ -4,6 +4,22 @@ function makeMockRes() {
   const res = {
     statusCode: 200,
     body: undefined,
+    headers: {},
+    writeHead(statusCode, headers) {
+      res.statusCode = statusCode
+      res.headers = { ...res.headers, ...headers }
+      return res
+    },
+    end(data) {
+      if (data) {
+        try {
+          res.body = JSON.parse(data)
+        } catch {
+          res.body = data
+        }
+      }
+      return res
+    },
     status(code) {
       res.statusCode = code
       return res
@@ -73,12 +89,9 @@ describe('dynamic skill route mounting', () => {
     const handler = createExtensionsRoutes(ctx)
     const res = makeMockRes()
 
-    const handled = await handler(
-      { method: 'POST' },
-      res,
-      '/extensions/fake-skill/disconnect',
-      { searchParams: new URLSearchParams() }
-    )
+    const handled = await handler({ method: 'POST' }, res, '/extensions/fake-skill/disconnect', {
+      searchParams: new URLSearchParams()
+    })
 
     expect(handled).toBe(true)
     expect(sendToPersistent).toHaveBeenCalledWith('fake-skill', {
@@ -100,12 +113,9 @@ describe('dynamic skill route mounting', () => {
     })
     const handler = createExtensionsRoutes(ctx)
 
-    const handled = await handler(
-      { method: 'GET' },
-      {},
-      '/extensions/fake-skill/panel',
-      { searchParams: new URLSearchParams() }
-    )
+    const handled = await handler({ method: 'GET' }, {}, '/extensions/fake-skill/panel', {
+      searchParams: new URLSearchParams()
+    })
 
     expect(handled).toBe(true)
     expect(sendToPersistent).toHaveBeenCalledWith('fake-skill', {
@@ -126,12 +136,9 @@ describe('dynamic skill route mounting', () => {
     const handler = createExtensionsRoutes(ctx)
     const res = makeMockRes()
 
-    const handled = await handler(
-      { method: 'POST' },
-      res,
-      '/extensions/fake-skill/disconnect',
-      { searchParams: new URLSearchParams() }
-    )
+    const handled = await handler({ method: 'POST' }, res, '/extensions/fake-skill/disconnect', {
+      searchParams: new URLSearchParams()
+    })
 
     expect(handled).toBe(true)
     expect(res.statusCode).toBe(500)
@@ -145,12 +152,9 @@ describe('dynamic skill route mounting', () => {
     const handler = createExtensionsRoutes(ctx)
     const res = makeMockRes()
 
-    const handled = await handler(
-      { method: 'POST' },
-      res,
-      '/launcher/open',
-      { searchParams: new URLSearchParams() }
-    )
+    const handled = await handler({ method: 'POST' }, res, '/launcher/open', {
+      searchParams: new URLSearchParams()
+    })
 
     expect(handled).toBe(false)
     expect(res.statusCode).toBe(200)

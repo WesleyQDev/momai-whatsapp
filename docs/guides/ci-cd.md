@@ -113,5 +113,5 @@ on:
 - A versão é extraída da git tag (formato `v1.2.3`) e sincronizada com `apps/momai/package.json`
 - As wheels Python são pré-compiladas durante o CI para evitar compilação na máquina do usuário
 - O release é publicado no repositório público `WesleyQDev/MomAI-App` (separado do repositório de código fonte)
-- O token de release (`RELEASE_TOKEN`) tem permissões de escrita no repositório público
+- O token de release (`MOMAI_APP_RELEASE_TOKEN`) tem permissões de escrita no repositório público
 - Debug artifacts (`builder-debug.yml`) são removidos antes do upload do release

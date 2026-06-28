@@ -1,3 +1,5 @@
+import { app } from 'electron'
+
 export type Variant = 'dev' | 'nsis' | 'appx-store' | 'appx-test'
 
 export interface VariantConfig {
@@ -70,7 +72,30 @@ function resolveVariant(): VariantConfig {
   if (env && isValidVariant(env)) {
     return TABLE[env]
   }
-  return TABLE.dev
+
+  try {
+    if (!app.isPackaged) {
+      return TABLE.dev
+    }
+
+    const exePath = app.getPath('exe') || ''
+    const resourcesPath = process.resourcesPath || ''
+    const isMSIX =
+      process.platform === 'win32' &&
+      (exePath.includes('WindowsApps') || resourcesPath.includes('WindowsApps'))
+
+    if (isMSIX) {
+      const name = app.getName() || ''
+      if (name.toLowerCase().includes('teste') || name.toLowerCase().includes('test')) {
+        return TABLE['appx-test']
+      }
+      return TABLE['appx-store']
+    }
+
+    return TABLE.nsis
+  } catch (err) {
+    return TABLE.dev
+  }
 }
 
 export const CURRENT_VARIANT: VariantConfig = resolveVariant()

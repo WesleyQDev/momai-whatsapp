@@ -42,7 +42,12 @@ function defaultStore() {
       skip_intro: false,
       keep_in_tray: true,
       context_window_mode: 'min',
-      context_window_tokens: 2048
+      context_window_tokens: 2048,
+      daily_briefing_enabled: false,
+      greeting_auto_saudacao: true,
+      greeting_resumo: true,
+      greeting_acao: '',
+      greeting_fixa: ''
     },
     mode: 'local',
     call_mode: false,
@@ -93,11 +98,13 @@ function loadStore() {
     }
   }
 
-  return {
+  const loaded = {
     ...defaultStore(),
     ...parsed,
     settings: { ...defaultStore().settings, ...(parsed.settings || {}) }
   }
+  loaded.call_mode = false // Transient session state should not persist across restarts
+  return loaded
 }
 
 let _saveTimer = null
@@ -221,7 +228,9 @@ const _beforeReminders = store.reminders.length
 store.reminders = purgeExpiredReminders(store.reminders)
 const _purgedReminders = _beforeReminders - store.reminders.length
 if (_purgedReminders > 0) {
-  info(`[retention] Pruned ${_purgedReminders} expired reminders (>${REMINDER_RETENTION_DAYS} days)`)
+  info(
+    `[retention] Pruned ${_purgedReminders} expired reminders (>${REMINDER_RETENTION_DAYS} days)`
+  )
   saveStoreNow(store)
 }
 

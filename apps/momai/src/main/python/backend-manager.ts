@@ -172,6 +172,8 @@ export async function startPythonBackend(options: PythonBackendStartOptions = {}
       env.HOST = host
       env.PORT = String(port)
       env.MOMAI_CORE_PATH = corePath
+      env.MOMAI_NODE_CORE_HOST = API_HOST
+      env.MOMAI_NODE_CORE_PORT = String(API_PORT)
 
       let stderrBuffer = ''
       let stdoutLineBuffer = ''

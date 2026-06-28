@@ -1,4 +1,5 @@
 const { isOriginAllowed } = require('../config/cors.js')
+const { getSessionToken } = require('../config/security')
 
 function corsHeaders(req) {
   const origin = req && req.headers ? req.headers['origin'] : undefined
@@ -79,6 +80,15 @@ function readJsonBody(req) {
   })
 }
 
+function sidecarHeaders(extra) {
+  const token = getSessionToken()
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra
+  }
+}
+
 module.exports = {
   corsHeaders,
   sendJson,
@@ -86,5 +96,6 @@ module.exports = {
   sendSseHeaders,
   writeSse,
   endSse,
-  readJsonBody
+  readJsonBody,
+  sidecarHeaders
 }

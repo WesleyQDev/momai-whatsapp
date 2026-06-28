@@ -95,21 +95,15 @@ describe('privacy route', () => {
       getTempPath: () => path.join(tmpDir, 'export.zip')
     })
     // Seed minimal data sources
-    fs.writeFileSync(
-      path.join(tmpDir, 'node-core-store.json'),
-      JSON.stringify(ctx.store, null, 2)
-    )
+    fs.writeFileSync(path.join(tmpDir, 'node-core-store.json'), JSON.stringify(ctx.store, null, 2))
     fs.mkdirSync(path.join(tmpDir, 'notes'), { recursive: true })
     fs.writeFileSync(path.join(tmpDir, 'notes', 'note-1.md'), '# Note 1\nbody')
     fs.writeFileSync(path.join(tmpDir, 'notes', '.index.json'), '[]')
 
     const handler = createPrivacyRoutes(ctx)
-    const handled = await handler(
-      { method: 'GET' },
-      {},
-      '/privacy/export',
-      { searchParams: new URLSearchParams() }
-    )
+    const handled = await handler({ method: 'GET' }, {}, '/privacy/export', {
+      searchParams: new URLSearchParams()
+    })
 
     expect(handled).toBe(true)
     expect(calls.status).toBe(200)
@@ -125,21 +119,13 @@ describe('privacy route', () => {
       dataDir: tmpDir,
       getTempPath: () => exportPath
     })
-    fs.writeFileSync(
-      path.join(tmpDir, 'node-core-store.json'),
-      JSON.stringify(ctx.store, null, 2)
-    )
+    fs.writeFileSync(path.join(tmpDir, 'node-core-store.json'), JSON.stringify(ctx.store, null, 2))
     fs.mkdirSync(path.join(tmpDir, 'notes'), { recursive: true })
     fs.writeFileSync(path.join(tmpDir, 'notes', 'note-1.md'), '# Note 1\nbody')
     fs.writeFileSync(path.join(tmpDir, 'notes', '.index.json'), '[]')
 
     const handler = createPrivacyRoutes(ctx)
-    await handler(
-      { method: 'GET' },
-      {},
-      '/privacy/export',
-      { searchParams: new URLSearchParams() }
-    )
+    await handler({ method: 'GET' }, {}, '/privacy/export', { searchParams: new URLSearchParams() })
 
     const entries = await readZipEntries(exportPath)
     expect(entries).toContain('settings.json')
@@ -149,9 +135,7 @@ describe('privacy route', () => {
     expect(entries).toContain('notes/note-1.md')
     expect(entries).toContain('notes/index.json')
 
-    const settings = JSON.parse(
-      (await readZipEntry(exportPath, 'settings.json')).toString('utf8')
-    )
+    const settings = JSON.parse((await readZipEntry(exportPath, 'settings.json')).toString('utf8'))
     expect(settings.user_name).toBe('Jane')
     const msg = JSON.parse(
       (await readZipEntry(exportPath, 'messages/thread-1.json')).toString('utf8')
@@ -168,12 +152,9 @@ describe('privacy route', () => {
       readJsonBody: async () => ({}) // empty body
     })
     const handler = createPrivacyRoutes(ctx)
-    const handled = await handler(
-      { method: 'POST' },
-      {},
-      '/privacy/delete-all',
-      { searchParams: new URLSearchParams() }
-    )
+    const handled = await handler({ method: 'POST' }, {}, '/privacy/delete-all', {
+      searchParams: new URLSearchParams()
+    })
     expect(handled).toBe(true)
     expect(calls.status).toBe(400)
     expect(calls.data.ok).toBe(false)
@@ -202,12 +183,9 @@ describe('privacy route', () => {
       readJsonBody: async () => ({ confirmation: 'DELETE_ALL_MY_DATA' })
     })
     const handler = createPrivacyRoutes(ctx)
-    const handled = await handler(
-      { method: 'POST' },
-      {},
-      '/privacy/delete-all',
-      { searchParams: new URLSearchParams() }
-    )
+    const handled = await handler({ method: 'POST' }, {}, '/privacy/delete-all', {
+      searchParams: new URLSearchParams()
+    })
     expect(handled).toBe(true)
     expect(calls.status).toBe(200)
     expect(calls.data.ok).toBe(true)
@@ -219,6 +197,10 @@ describe('privacy route', () => {
     expect(fs.existsSync(path.join(tmpDir, 'extensions', 'test-skill'))).toBe(false)
     expect(fs.existsSync(path.join(tmpDir, 'semantic', 'lancedb'))).toBe(false)
     expect(fs.existsSync(path.join(tmpDir, 'observability-metrics.json'))).toBe(false)
+
+    // Verify in-memory store is reset to defaults
+    expect(ctx.store.thread_messages).toEqual({})
+    expect(ctx.store.settings.user_name).toBe('')
   })
 
   test('After delete-all, export returns a minimal (essentially empty) ZIP', async () => {
@@ -232,27 +214,16 @@ describe('privacy route', () => {
     const handler = createPrivacyRoutes(ctx)
 
     // 1. Delete all (no data exists, but should still succeed)
-    fs.writeFileSync(
-      path.join(tmpDir, 'node-core-store.json'),
-      JSON.stringify(ctx.store, null, 2)
-    )
-    await handler(
-      { method: 'POST' },
-      {},
-      '/privacy/delete-all',
-      { searchParams: new URLSearchParams() }
-    )
+    fs.writeFileSync(path.join(tmpDir, 'node-core-store.json'), JSON.stringify(ctx.store, null, 2))
+    await handler({ method: 'POST' }, {}, '/privacy/delete-all', {
+      searchParams: new URLSearchParams()
+    })
     expect(calls.status).toBe(200)
 
     // 2. Export — should still work and return a valid ZIP
     calls.status = null
     calls.data = null
-    await handler(
-      { method: 'GET' },
-      {},
-      '/privacy/export',
-      { searchParams: new URLSearchParams() }
-    )
+    await handler({ method: 'GET' }, {}, '/privacy/export', { searchParams: new URLSearchParams() })
     expect(calls.status).toBe(200)
     expect(calls.data.ok).toBe(true)
     expect(fs.existsSync(exportPath)).toBe(true)
@@ -266,12 +237,9 @@ describe('privacy route', () => {
     const { createPrivacyRoutes } = require('../api/routes/privacy')
     const { ctx } = makeCtx({ dataDir: tmpDir })
     const handler = createPrivacyRoutes(ctx)
-    const handled = await handler(
-      { method: 'GET' },
-      {},
-      '/some/other/path',
-      { searchParams: new URLSearchParams() }
-    )
+    const handled = await handler({ method: 'GET' }, {}, '/some/other/path', {
+      searchParams: new URLSearchParams()
+    })
     expect(handled).toBe(false)
   })
 })

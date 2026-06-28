@@ -11,9 +11,7 @@ const { purgeExpiredReminders } = require('./reminder-service')
 describe('purgeExpiredReminders', () => {
   it('keeps active reminders regardless of age', () => {
     const old = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
-    const result = purgeExpiredReminders([
-      { id: 1, is_active: true, scheduled_time: old }
-    ])
+    const result = purgeExpiredReminders([{ id: 1, is_active: true, scheduled_time: old }])
     expect(result).toHaveLength(1)
   })
 

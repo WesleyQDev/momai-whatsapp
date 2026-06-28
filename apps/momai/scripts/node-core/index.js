@@ -28,7 +28,8 @@ const {
   sendNoContent,
   sendSseHeaders,
   writeSse,
-  readJsonBody
+  readJsonBody,
+  sidecarHeaders
 } = require('./infrastructure/http-helpers')
 const {
   managedLlamaPids,
@@ -284,7 +285,7 @@ async function proxyToPython(req, res, pathname) {
 
   const response = await fetch(url, {
     method: req.method,
-    headers: { 'Content-Type': req.headers['content-type'] || 'application/json' },
+    headers: sidecarHeaders({ 'Content-Type': req.headers['content-type'] || 'application/json' }),
     body
   })
 
@@ -510,8 +511,7 @@ async function startServer() {
       readJsonBody,
       saveStore: () => saveStore(store),
       dataDir: DATA_DIR,
-      getTempPath: () =>
-        path.join(os.tmpdir(), `momai-export-${Date.now()}-${process.pid}.zip`),
+      getTempPath: () => path.join(os.tmpdir(), `momai-export-${Date.now()}-${process.pid}.zip`),
       extensionHostManager,
       skillRegistry: _skillRegistry
     })

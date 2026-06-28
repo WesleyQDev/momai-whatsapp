@@ -1,4 +1,4 @@
-const { corsHeaders } = require('../../infrastructure/http-helpers')
+const { corsHeaders, sidecarHeaders } = require('../../infrastructure/http-helpers')
 
 function createChatRoutes(context) {
   const {
@@ -25,7 +25,9 @@ function createChatRoutes(context) {
     if (replyMatch && req.method === 'POST') {
       const skillId = replyMatch[1]
       const skill =
-        skillRegistry && typeof skillRegistry.getById === 'function' ? skillRegistry.getById(skillId) : null
+        skillRegistry && typeof skillRegistry.getById === 'function'
+          ? skillRegistry.getById(skillId)
+          : null
       if (!skill) {
         sendJson(res, 404, { ok: false, error: 'skill_not_found' })
         return true
@@ -54,7 +56,7 @@ function createChatRoutes(context) {
         const pythonBase = await ensurePython()
         const response = await fetch(`${pythonBase}/chat/speak`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: sidecarHeaders(),
           body: JSON.stringify({
             ...payload,
             voice: payload.voice || store.settings.tts_voice
@@ -108,7 +110,7 @@ function createChatRoutes(context) {
         const pythonBase = await ensurePython()
         await fetch(`${pythonBase}/chat/stop-voice`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          headers: sidecarHeaders()
         })
       } catch (error) {
         // TTS might not be available, ignore

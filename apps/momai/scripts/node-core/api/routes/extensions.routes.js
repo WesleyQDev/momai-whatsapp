@@ -9,29 +9,13 @@ const { extractZip } = require('../../utils/zip-extract')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { isPrivateIp } = require('../../utils/ip-check')
 const { verifyChecksum } = require('../../utils/extension-checksum')
+const { corsHeaders } = require('../../infrastructure/http-helpers')
+const { loadInstallRegistry, _setInstallRegistryForTests } = require('../../utils/install-registry')
 
 /* ── Community registry allowlist (SSRF defense) ── */
 
-function getRegistryPath() {
-  return path.resolve(__dirname, '..', '..', '..', '..', 'registry.json')
-}
-
-let _cachedRegistry = null
-
-function loadRegistry() {
-  if (_cachedRegistry) return _cachedRegistry
-  const registryPath = getRegistryPath()
-  const raw = fs.readFileSync(registryPath, 'utf8')
-  _cachedRegistry = JSON.parse(raw)
-  return _cachedRegistry
-}
-
-function _setRegistry(registry) {
-  _cachedRegistry = registry
-}
-
 async function validateInstallUrl(id, downloadUrl) {
-  const registry = loadRegistry()
+  const registry = await loadInstallRegistry()
   const ext = (registry.extensions || []).find((e) => e.id === id)
   if (!ext) {
     const err = new Error('extension not in registry')
@@ -224,7 +208,7 @@ function downloadFile(url, destPath, onProgress) {
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https') ? https : http
     const file = fs.createWriteStream(destPath)
-    const request = client.get(url, (response) => {
+    const request = client.get(url, { headers: { 'User-Agent': 'MomAI-App' } }, (response) => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         file.close()
         try {
@@ -276,7 +260,7 @@ function downloadFile(url, destPath, onProgress) {
       } catch {}
       reject(err)
     })
-    request.setTimeout(30000, () => {
+    request.setTimeout(120000, () => {
       request.destroy()
       file.close()
       try {
@@ -351,7 +335,8 @@ function createExtensionsRoutes(context) {
         sendJson(res, 400, { ok: false, error: 'invalid_path' })
         return true
       }
-      const skill = typeof skillRegistry.getById === 'function' ? skillRegistry.getById(extId) : null
+      const skill =
+        typeof skillRegistry.getById === 'function' ? skillRegistry.getById(extId) : null
       if (!skill || !skill.dir) {
         sendJson(res, 404, { ok: false, error: 'skill_not_found' })
         return true
@@ -362,11 +347,19 @@ function createExtensionsRoutes(context) {
         return true
       }
       const ext = path.extname(fullPath).toLowerCase()
-      const mime = ext === '.js' ? 'application/javascript'
-        : ext === '.map' ? 'application/json'
-        : ext === '.css' ? 'text/css'
-        : 'application/octet-stream'
-      res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'no-cache' })
+      const mime =
+        ext === '.js'
+          ? 'application/javascript'
+          : ext === '.map'
+            ? 'application/json'
+            : ext === '.css'
+              ? 'text/css'
+              : 'application/octet-stream'
+      res.writeHead(200, {
+        'Content-Type': mime,
+        'Cache-Control': 'no-cache',
+        ...corsHeaders(req)
+      })
       fs.createReadStream(fullPath).pipe(res)
       return true
     }
@@ -401,7 +394,8 @@ function createExtensionsRoutes(context) {
 
       res.writeHead(200, {
         'Content-Type': 'application/x-ndjson',
-        'Transfer-Encoding': 'chunked'
+        'Transfer-Encoding': 'chunked',
+        ...corsHeaders(req)
       })
 
       const sendStatus = (status, percent, speed) => {
@@ -438,7 +432,9 @@ function createExtensionsRoutes(context) {
               throw new Error('extension checksum mismatch')
             }
             if (checksumResult.reason === 'invalid_format') {
-              console.log(`[ExtensionsAPI] Invalid expected_sha256 format for ${id} — aborting install`)
+              console.log(
+                `[ExtensionsAPI] Invalid expected_sha256 format for ${id} — aborting install`
+              )
               throw new Error('invalid expected_sha256 format')
             }
             if (checksumResult.reason === 'missing') {
@@ -462,8 +458,7 @@ function createExtensionsRoutes(context) {
             fs.rmSync(extDir, { recursive: true, force: true })
           } catch {}
           res.write(
-            JSON.stringify({ ok: false, error: `Extension install failed: ${err.message}` }) +
-              '\n'
+            JSON.stringify({ ok: false, error: `Extension install failed: ${err.message}` }) + '\n'
           )
           res.end()
           return true
@@ -509,15 +504,12 @@ function createExtensionsRoutes(context) {
       }
       await skillRegistry.loadExtensions()
 
-      // Seed keywords from SKILL.md intents only if the skill is brand new to the store
-      const installedSkill = skillRegistry.getById(id)
-      if (installedSkill && installedSkill.manifest?.intents?.length) {
-        if (!store.skillKeywords) store.skillKeywords = {}
-        if (!(id in store.skillKeywords)) {
-          store.skillKeywords[id] = installedSkill.manifest.intents
-          saveStore()
-        }
-      }
+      // Auto-activation keywords are user-controlled. The router only fires
+      // on store.skillKeywords entries that the user has explicitly set via
+      // PUT /skills/keywords/:id. We do NOT seed from any manifest field
+      // (intents, voice_triggers, etc.) — those are LLM-facing metadata
+      // and must not auto-activate skills (false positives in normal
+      // conversation).
 
       await skillRegistry.executeHook(id, 'onInstall', { extId: id, extDir }).catch((err) => {
         console.log(`[extensions] onInstall hook failed for ${id}: ${err.message}`)
@@ -797,4 +789,8 @@ function createExtensionsRoutes(context) {
   }
 }
 
-module.exports = { createExtensionsRoutes, validateInstallUrl, _setRegistry }
+module.exports = {
+  createExtensionsRoutes,
+  validateInstallUrl,
+  _setRegistry: _setInstallRegistryForTests
+}

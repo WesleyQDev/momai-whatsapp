@@ -135,6 +135,19 @@ function App(): React.JSX.Element {
     }
   }, [isAppVisible, isBooting])
 
+  // When the backend reboots (e.g. dev-reset wipes python_env), force the
+  // chat loading animation to re-run. Without this, animationFinished stays
+  // sticky from the previous session and ContainerChat skips the loading
+  // state, showing the regular chat with a disabled send button instead.
+  useEffect(() => {
+    const handleRebooting = () => {
+      chat.setAnimationFinished(false)
+      resetVisualProgress()
+    }
+    window.addEventListener('momai_rebooting', handleRebooting)
+    return () => window.removeEventListener('momai_rebooting', handleRebooting)
+  }, [chat])
+
   const triggerClearHistory = () => setShowClearConfirm(true)
   const confirmClearHistory = () => {
     clearHistory()
@@ -152,7 +165,6 @@ function App(): React.JSX.Element {
     '/agenda': 'RemindersDashboard',
     '/about': 'AboutDashboard',
     '/observability': 'ObservabilityDashboard',
-    '/privacy': 'PrivacyDashboard',
     '/': 'ChatDashboard'
   }
 
@@ -192,7 +204,32 @@ function App(): React.JSX.Element {
         <div className="flex-1 flex w-full min-h-0 relative">
           <LateralBar
             activeRoute={location.pathname}
-            onNavigate={(path) => navigate(path)}
+            onNavigate={(path, state) => {
+              if (path === '/') {
+                if (state?.prefillText) {
+                  const hasYoutubeCard = chat.messages.some(
+                    (msg: any) => msg.structuredResponse?.type === 'youtube_results'
+                  )
+                  if (hasYoutubeCard) {
+                    chat.setText(state.prefillText)
+                  } else {
+                    window.dispatchEvent(
+                      new CustomEvent('momai_new_session', {
+                        detail: { prefillText: state.prefillText }
+                      })
+                    )
+                  }
+                } else {
+                  chat.setText(' ')
+                  setTimeout(() => {
+                    chat.setText('')
+                  }, 0)
+                }
+                navigate('/')
+              } else {
+                navigate(path, { state })
+              }
+            }}
             onOpenSettings={() => openSettings('general')}
             onOpenPanel={(id) => setActivePanel(id === activePanel ? null : id)}
             isCompact={isCompact}
@@ -217,16 +254,10 @@ function App(): React.JSX.Element {
               <div
                 className={`w-full h-full flex ${isCompact ? 'flex-col' : `flex-row ${isChat ? 'p-4 xl:p-4 gap-4 xl:gap-8 justify-center w-full max-w-[1500px] mx-auto overflow-x-auto overflow-y-hidden' : ''}`}`}
               >
-                {extensionPageId ? (
-                  <ExtensionPageRoute
-                    extensionId={extensionPageId}
-                    fallback={({ extensionId }) => (
-                      <div className="p-8 text-text-muted">
-                        Extensão "{extensionId}" não tem UI full-page
-                      </div>
-                    )}
-                  />
-                ) : (
+                <div
+                  className="flex-1 flex min-h-0"
+                  style={{ display: extensionPageId ? 'none' : 'flex' }}
+                >
                   <MainViewRenderer
                     viewName={uiView}
                     isCompact={isCompact}
@@ -242,6 +273,16 @@ function App(): React.JSX.Element {
                     isTierChanging={isTierChanging}
                     setHistoryOpen={setHistoryOpen}
                     isFirstLaunch={isFirstLaunch}
+                  />
+                </div>
+                {extensionPageId && (
+                  <ExtensionPageRoute
+                    extensionId={extensionPageId}
+                    fallback={({ extensionId }) => (
+                      <div className="p-8 text-text-muted">
+                        Extensão "{extensionId}" não tem UI full-page
+                      </div>
+                    )}
                   />
                 )}
 

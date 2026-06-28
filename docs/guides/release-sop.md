@@ -67,8 +67,8 @@ Crie um Personal Access Token (classic) em `github.com/settings/tokens` com esco
 # Para CI (só precisa do token padrão)
 $env:GITHUB_TOKEN = "$(gh auth token)"
 
-# Para release (precisa do RELEASE_TOKEN com acesso ao WesleyQDev/MomAI-App)
-$env:RELEASE_TOKEN = "ghp_xxxxxxxxxxxx"
+# Para release (precisa do MOMAI_APP_RELEASE_TOKEN com acesso ao WesleyQDev/MomAI-App)
+$env:MOMAI_APP_RELEASE_TOKEN = "ghp_xxxxxxxxxxxx"
 ```
 
 ### 6. Criar arquivo `.actrc` (opcional)

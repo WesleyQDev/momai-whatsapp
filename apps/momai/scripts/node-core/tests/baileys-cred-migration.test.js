@@ -61,9 +61,15 @@ describe('baileys creds migration', () => {
     expect(fs.existsSync(path.join(tmpDir, ENC_CREDS))).toBe(false)
   })
 
-  it('returns false when creds.json.enc already exists (idempotent)', async () => {
-    fs.writeFileSync(path.join(tmpDir, PLAIN_CREDS), '{"noiseKey":"abc"}')
+  it('returns false when creds.json.enc is newer than creds.json (idempotent)', async () => {
+    // The .enc is the most recent write — Baileys hasn't updated the plain
+    // since the last re-encrypt. Don't churn safeStorage on every startup.
     fs.writeFileSync(path.join(tmpDir, ENC_CREDS), 'already-encrypted')
+    // Force a different mtime: .enc must be strictly newer than plain
+    const now = Date.now()
+    fs.utimesSync(path.join(tmpDir, ENC_CREDS), now / 1000, now / 1000)
+    fs.writeFileSync(path.join(tmpDir, PLAIN_CREDS), '{"noiseKey":"abc"}')
+    fs.utimesSync(path.join(tmpDir, PLAIN_CREDS), (now - 5000) / 1000, (now - 5000) / 1000)
     const bridge = makeBridge()
     const migration = createMigration(bridge)
 
@@ -73,6 +79,32 @@ describe('baileys creds migration', () => {
     expect(bridge.encryptForStorage).not.toHaveBeenCalled()
     // pre-existing enc file should be untouched
     expect(fs.readFileSync(path.join(tmpDir, ENC_CREDS), 'utf-8')).toBe('already-encrypted')
+  })
+
+  it('re-encrypts when creds.json.enc is older than creds.json (stale-enc recovery)', async () => {
+    // The .enc is stale: Baileys kept updating plain after the last
+    // re-encrypt (e.g. user closed the app while connected, before the
+    // post-close re-encrypt completed). On next startup, the .enc would
+    // round-trip to old creds and Baileys would fail to authenticate.
+    // Migration must refresh the .enc from the newer plain.
+    fs.writeFileSync(path.join(tmpDir, PLAIN_CREDS), '{"noiseKey":"latest"}')
+    fs.writeFileSync(path.join(tmpDir, ENC_CREDS), 'stale-encrypted-content')
+    const now = Date.now()
+    fs.utimesSync(path.join(tmpDir, PLAIN_CREDS), now / 1000, now / 1000)
+    fs.utimesSync(path.join(tmpDir, ENC_CREDS), (now - 5000) / 1000, (now - 5000) / 1000)
+    const bridge = makeBridge()
+    const migration = createMigration(bridge)
+
+    const result = await migration.migratePlainCredsToEncrypted(tmpDir)
+
+    expect(result).toBe(true)
+    expect(bridge.encryptForStorage).toHaveBeenCalledWith('{"noiseKey":"latest"}')
+    expect(fs.existsSync(path.join(tmpDir, PLAIN_CREDS))).toBe(false)
+    // .enc was rewritten with the new ciphertext. The on-disk format is
+    // the base64-decoded bytes of the bridge's "enc:<plain>" return value.
+    const newEncBytes = fs.readFileSync(path.join(tmpDir, ENC_CREDS))
+    const expectedBytes = Buffer.from('enc:{"noiseKey":"latest"}', 'utf-8')
+    expect(newEncBytes.equals(expectedBytes)).toBe(true)
   })
 
   it('returns false when encryption is unavailable (safeStorage returns null)', async () => {

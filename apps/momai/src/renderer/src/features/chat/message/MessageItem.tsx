@@ -30,6 +30,7 @@ import DevHtmlRenderCard from '../../../components/chat/DevHtmlRenderCard'
 import DevResultCard from '../../../components/chat/DevResultCard'
 import '../../../components/chat/ExtensionRendererLoader'
 import TrelloCard from '../../../components/chat/TrelloCard'
+import YouTubeCard from '../../../components/chat/YouTubeCard'
 
 registerRenderer('weather', WeatherCard)
 registerRenderer('reminders', RemindersCard)
@@ -40,6 +41,7 @@ registerRenderer('trello_boards', TrelloCard)
 registerRenderer('trello_lists', TrelloCard)
 registerRenderer('trello_cards', TrelloCard)
 registerRenderer('trello_card_detail', TrelloCard)
+registerRenderer('youtube_results', YouTubeCard)
 
 interface MessageItemProps {
   message: Message
@@ -308,16 +310,19 @@ const MessageItem = memo(
                     </div>
                   )}
 
-                  {/* Structured Response */}
-                  {isLastPart && message.structuredResponse && (
-                    <StructuredResponse response={message.structuredResponse} />
-                  )}
-
                   {/* Markdown Content */}
                   {part.cleanText && part.cleanText.length > 0 && (
                     <div className="transition-all duration-500 animate-in fade-in py-0.5">
                       <MarkdownRenderer>{part.cleanText}</MarkdownRenderer>
                     </div>
+                  )}
+
+                  {/* Structured Response */}
+                  {isLastPart && message.structuredResponse && (
+                    <StructuredResponse
+                      response={message.structuredResponse}
+                      isSpeaking={isSpeaking}
+                    />
                   )}
                 </React.Fragment>
               )

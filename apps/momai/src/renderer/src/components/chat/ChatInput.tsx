@@ -100,6 +100,13 @@ export default function ChatInput({
   // Sync local text with external text
   useEffect(() => {
     setLocalText(text)
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus()
+        const len = text.length
+        inputRef.current.setSelectionRange(len, len)
+      }
+    }, 50)
   }, [text])
 
   // Get tier from statusInfo or fetch it

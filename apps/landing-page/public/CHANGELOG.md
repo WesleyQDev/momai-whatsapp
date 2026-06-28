@@ -2,6 +2,64 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 1.5.1 - 2026-06-28
+
+Melhorias no download de modelos e correções gerais de extensões
+
+### 🐛 Correções
+
+- **Confiabilidade no download de modelos**: Downloads de modelos mais robustos e resilientes, com suporte a retomada de downloads interrompidos e novas tentativas automáticas em conexões instáveis.
+- **Resolução de bugs nas configurações**: Correção de problemas no painel de configurações e no carregamento dinâmico de extensões da comunidade.
+- **Player do YouTube**: Correções e restrições na integração e reprodução do player do YouTube no chat.
+
+## 1.5.0 - 2026-06-26
+
+Melhorias de interface e suporte avançado para interfaces visuais em extensões
+
+### ✨ Novas Funcionalidades
+
+- **Interfaces Customizadas em Extensões**: Extensões agora podem ter suas próprias interfaces visuais personalizadas (telas cheias ou painéis laterais) integradas de forma nativa e fluida no MomAI.
+- **Atalhos de Voz por Extensão**: Atalhos inteligentes para que extensões respondam a comandos por voz específicos diretamente no chat.
+- **Priorização Dinâmica de Contexto**: Priorização automática de ferramentas e habilidades ativas conforme o contexto da conversa.
+- **Privacidade Transparente**: Visualização clara e detalhada de todos os dados salvos por cada extensão ativa no painel de Privacidade.
+- **Salvamento Automático Otimizado**: Salvamento seguro de dados das extensões ao fechar o aplicativo para evitar perda de informações.
+- **Visual Atualizado**: Barra lateral e painel de extensões dinâmicos, com cores e ícones específicos para cada extensão instalada.
+- **Notificações Unificadas**: Central de notificações integrada para todas as extensões ativas.
+
+## 1.4.1 - 2026-05-27
+
+Otimização de estabilidade no WhatsApp e instalação de extensões
+
+### 🐛 Correções
+
+- **Instalação Tolerante a Falhas**: Processo de instalação de extensões mais robusto e que não falha por causa de dependências secundárias opcionais.
+- **WhatsApp no Windows**: Integração do WhatsApp mais estável no Windows com suporte completo a autenticação via código QR em builds instaladas.
+
+## 1.4.0 - 2026-05-10
+
+Integração WhatsApp, Extensões, Modo Economia e Desempenho
+
+### ✨ Novas Funcionalidades
+
+- **Integração com WhatsApp**: Conecte sua conta do WhatsApp para ler, receber notificações e enviar mensagens utilizando texto ou comandos de voz.
+- **Loja de Extensões**: Central unificada para descobrir e instalar novas habilidades criadas pela comunidade para o seu assistente.
+- **Modo Economia Inteligente**: Detecção automática de jogos que pausa o processamento de inteligência artificial em segundo plano para liberar memória RAM e VRAM.
+- **Seletor de Voz offline/online**: Escolha entre o sintetizador de voz na nuvem de alta fidelidade ou voz local 100% offline.
+- **Painel de Histórico de Execução**: Visualize detalhadamente a linha do tempo de ações da inteligência artificial.
+- **Atualização do Motor de IA**: Atualização do motor de inferência local (llama.cpp) trazendo melhor tempo de resposta e consumo otimizado.
+
+### ⚙️ Melhorias
+
+- **Otimização Geral**: Respostas de voz mais rápidas, consultas às configurações aceleradas e economia de bateria no processamento de áudio.
+- **Modo Chamada Fluido**: Sincronização e resposta visual aprimorados ao conversar por voz com o assistente.
+- **Transição de Planos Suave**: Feedback visual aprimorado e carregamento mais claro ao alterar planos no assistente.
+
+### 🐛 Correções
+
+- **Sintetizador de Voz**: Correções de vazamento de áudio e liberação de recursos do sistema ao parar de falar.
+- **Lembretes e Agendamentos**: Correções na repetição e disparo duplicado de lembretes.
+- **Modo Economia**: Suporte aprimorado na detecção automática para jogos populares como Fortnite.
+
 ## 1.3.0 - 2026-05-02
 
 ## 1.2.0 - 2026-04-22

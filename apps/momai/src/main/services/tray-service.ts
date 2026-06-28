@@ -69,6 +69,7 @@ export class TrayService {
       return
     }
 
+    this.deps.window.hide()
     this.stop()
     app.quit()
   }

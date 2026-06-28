@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Guia de Contribuição
+    url: https://github.com/WesleyQDev/momai/blob/main/CONTRIBUTING.md
+    about: Leia o guia de contribuição antes de abrir issue
+  - name: Reportar Vulnerabilidade de Segurança
+    url: https://github.com/WesleyQDev/momai/blob/main/SECURITY.md
+    about: Issues de segurança seguem o processo descrito na SECURITY.md

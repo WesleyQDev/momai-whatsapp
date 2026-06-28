@@ -52,27 +52,16 @@ function getKeywords() {
 }
 
 function seedDefaultKeywords(skillRegistry) {
-  if (!_store || !skillRegistry || typeof skillRegistry.getAll !== 'function') return
+  // Auto-activation keywords are ENTIRELY user-controlled. Skill manifests
+  // (intents, voice_triggers, etc.) are LLM-facing metadata only and must
+  // never seed the router — otherwise a casual word in normal conversation
+  // could trigger a skill (e.g. "filho vai buscar a agenda" activating
+  // search). The router fires only on keywords the user has explicitly
+  // configured via PUT /skills/keywords/:id, persisted in
+  // store.skillKeywords. This function is kept as a no-op for backward
+  // compat with the startup wiring in node-core/index.js.
+  if (!_store) return
   if (!_store.skillKeywords) _store.skillKeywords = {}
-  const skills = skillRegistry.getAll()
-  for (const skill of skills) {
-    const id = skill.manifest?.id || skill.id
-    if (!id) continue
-
-    // Seed if missing OR currently empty.
-    // This recovers old stores that persisted empty arrays and blocked routing forever.
-    if (id in _store.skillKeywords) {
-      const existing = _store.skillKeywords[id]
-      if (Array.isArray(existing) && existing.length > 0) continue
-    }
-
-    const newKeywords = (skill.manifest?.intents || skill.manifest?.triggers || []).filter(Boolean)
-    if (newKeywords.length === 0) continue
-
-    // Seed only for new skills missing from the map
-    _store.skillKeywords[id] = [...new Set(newKeywords)]
-    console.log(`[keywords] Initialized ${id} with ${newKeywords.length} default keywords`)
-  }
 }
 
 function routeByKeyword(text, skillRegistry) {
