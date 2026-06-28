@@ -4,6 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
 from datetime import datetime
+import os
 from pathlib import Path
 
 Base = declarative_base()
