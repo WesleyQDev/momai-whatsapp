@@ -27,7 +27,7 @@ const MIME_TYPES: Record<string, string> = {
 let activeServer: http.Server | null = null
 let activePort: number | null = null
 let activeRoot: string | null = null
-let activeHost = 'localhost'
+const activeHost = 'localhost'
 
 export function getActiveRendererOrigin(): string | null {
   if (!activePort) return null

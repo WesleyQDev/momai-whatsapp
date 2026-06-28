@@ -46,7 +46,7 @@ describe('humanizeToolName', () => {
   })
 
   it('capitalizes fallback name', () => {
-    expect(humanizeToolName('custom_tool')).toBe('Custom_tool')
+    expect(humanizeToolName('custom_tool')).toBe('Custom Tool')
   })
 
   it('returns "Ferramenta" for empty string', () => {

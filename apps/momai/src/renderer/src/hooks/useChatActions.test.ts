@@ -144,7 +144,7 @@ describe('useChatActions', () => {
         expect.any(String),
         expect.any(Object),
         expect.objectContaining({
-          memory_context: expect.stringContaining('CONHECIMENTO (NOTAS LOCAIS)')
+          memory_context: expect.stringContaining('KNOWLEDGE (LOCAL NOTES)')
         })
       )
     })
