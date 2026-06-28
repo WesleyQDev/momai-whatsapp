@@ -57,8 +57,8 @@ importers:
         specifier: ^17.0.6
         version: 17.0.6(i18next@26.0.8(typescript@6.0.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@6.0.3)
       react-router-dom:
-        specifier: ^7.12.0
-        version: 7.15.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: ^7.18.0
+        version: 7.18.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -196,8 +196,8 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.2.7)(react@19.2.3)
       react-router-dom:
-        specifier: ^7.15.1
-        version: 7.15.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: ^7.18.0
+        version: 7.18.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
@@ -410,6 +410,10 @@ packages:
 
   '@babel/helper-string-parser@7.29.7':
     resolution: {integrity: sha512-Pb5ijPrZ89GDH8223L4UP8i6QApWxs04RbPQJTeWDV0/keR2E36MeKnyr6LYmUUvqRRI+Iv87SuF1W6ErINzYw==}
+    engines: {node: '>=6.9.0'}
+
+  '@babel/helper-validator-identifier@7.29.7':
+    resolution: {integrity: sha512-qehxGkRj55h/ff8EMaJ+cYhyaKlHIxqYDn682wQD7RNp9UujOQsHog2uS0r2vzr4pW+sXf90NeeayjcNaX3fFg==}
     engines: {node: '>=6.9.0'}
 
   '@babel/helper-validator-identifier@7.29.7':
@@ -5355,15 +5359,15 @@ packages:
     resolution: {integrity: sha512-QgT5//D3jfjJb6Gsjxv0Slpj23ip+HtOpnNgnb2S5zU3CB26G/IDPGoy4RJB42wzFE46DRsstbW6tKHoKbhAxw==}
     engines: {node: '>=0.10.0'}
 
-  react-router-dom@7.15.1:
-    resolution: {integrity: sha512-AzF62gjY6U9rkMq4RfP/r2EVtQ7DMfNMjyOp/flLTCrtRylLiK4wT4pSq6O8rOXZ2eXdZYJPEYe+ifomiv+Igg==}
+  react-router-dom@7.18.0:
+    resolution: {integrity: sha512-Fi0yY6kgtKae/Th2xibdWK0KSdYZ4B53Gyf6wRtomOKWgpNm7H7+DyfDhncdz9FKbpS+1jmDhg3F4WoGJ+yFOA==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
 
-  react-router@7.15.1:
-    resolution: {integrity: sha512-R8rl9HhgikFYoPJymnUtPXWbnDb3oget6lQnfIoupbt61aT9aOhRkDsY2XRhZRyX1Z/8a5sL74fXmFNm3NRK5A==}
+  react-router@7.18.0:
+    resolution: {integrity: sha512-pTTGt8J+ji1NOmYnjzT+bAJy/1zD+Jp4ziO6cL7T3ZLvXKtusO7BpFqlRXitqpcPVqllsIXFHRMt+2/k3Xn6HQ==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       react: '>=18'
@@ -6494,6 +6498,12 @@ snapshots:
       js-tokens: 4.0.0
       picocolors: 1.1.1
 
+  '@babel/code-frame@7.29.7':
+    dependencies:
+      '@babel/helper-validator-identifier': 7.29.7
+      js-tokens: 4.0.0
+      picocolors: 1.1.1
+
   '@babel/compat-data@7.29.0': {}
 
   '@babel/core@7.29.0':
@@ -6553,6 +6563,8 @@ snapshots:
   '@babel/helper-plugin-utils@7.28.6': {}
 
   '@babel/helper-string-parser@7.29.7': {}
+
+  '@babel/helper-validator-identifier@7.29.7': {}
 
   '@babel/helper-validator-identifier@7.29.7': {}
 
@@ -12336,13 +12348,13 @@ snapshots:
 
   react-refresh@0.18.0: {}
 
-  react-router-dom@7.15.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+  react-router-dom@7.18.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
-      react-router: 7.15.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react-router: 7.18.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
 
-  react-router@7.15.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+  react-router@7.18.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
       cookie: 1.1.1
       react: 19.2.3
