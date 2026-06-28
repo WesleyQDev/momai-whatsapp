@@ -13,3 +13,23 @@ apps/momai/bin/
 apps/momai/dist/
 apps/core/.venv/
 *.db
+
+# Security — environment files
+.env*
+!**/.env.example
+
+# Security — secrets and certificates
+secrets/
+certs/
+
+# Security — certificate/key files
+*.pfx
+*.p12
+*.key
+*.pem
+*.crt
+*.cert
+
+# Logs
+logs/
+*.log
