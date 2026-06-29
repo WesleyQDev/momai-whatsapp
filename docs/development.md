@@ -24,6 +24,31 @@ pnpm dev:all
 
 Na primeira execução, o script `ensure-dev-binaries.js` baixará automaticamente os binários necessários (llama-server, Python bundlado, uv) para o diretório `apps/momai/bin/`.
 
+### Lockfile
+
+O `pnpm-lock.yaml` na raiz faz parte da especificação do projeto. O CI valida sua consistência com `pnpm install --frozen-lockfile`. Se o lockfile estiver desatualizado em relação ao `package.json`, o CI falha com:
+
+```
+ERR_PNPM_OUTDATED_LOCKFILE
+```
+
+Para evitar esse erro, git hooks são fornecidos em `.githooks/`:
+
+| Hook | Disparo | Ação |
+|------|---------|------|
+| `post-merge` | Após `git pull` ou `git merge` | Detecta lockfile stale e orienta correção |
+| `post-rewrite` | Após `git rebase` | Detecta lockfile stale e orienta correção |
+
+Para ativar os hooks:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Ou automaticamente via `pnpm install` (que configura hooksPath como efeito colateral do `postinstall`).
+
+**Nota:** hooks são uma melhoria de DX, não substituem a validação do CI. Se o hook não detectar o stale (ex: fast-forward), o CI ainda falhará — o que é o comportamento esperado.
+
 ## Comandos
 
 ### Raiz do Monorepo

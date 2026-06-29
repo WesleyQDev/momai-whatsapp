@@ -107,6 +107,24 @@ These rules stay in this file because violations can cause bugs, vulnerabilities
 - Do not add dependencies without checking whether an existing dependency or local utility already solves the problem.
 - If dependencies change, update the correct lockfile and declare the dependency impact in the PR.
 
+#### Lockfile Sync
+
+O `pnpm-lock.yaml` deve estar sempre sincronizado com `package.json`. CI usa `--frozen-lockfile` para validar.
+
+Git hooks em `.githooks/` detectam lockfile stale após `git pull`, `git merge` e `git rebase`:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Se o CI falhar com `ERR_PNPM_OUTDATED_LOCKFILE`, corrigir com:
+
+```bash
+pnpm install && git add pnpm-lock.yaml && git commit -m "chore(deps): sync lockfile"
+```
+
+Os hooks são DX complementar — não substituem a validação do CI.
+
 ### Secrets And Environment
 
 - Never commit `.env` or `.env.*` files. `.env.example` is allowed.
