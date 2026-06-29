@@ -8,7 +8,7 @@ function isPublicPath(pathname, method) {
   if (method === 'OPTIONS') return true
   if (PUBLIC_PATHS.has(pathname)) return true
   // Allow extension static assets since browser dynamic imports cannot send Authorization headers
-  if (pathname.startsWith('/extensions/') && pathname.includes('/dist/')) {
+  if (pathname.startsWith('/extensions/') && (pathname.includes('/dist/') || pathname.includes('/storage/'))) {
     return true
   }
   return false

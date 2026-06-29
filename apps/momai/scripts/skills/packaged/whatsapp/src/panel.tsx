@@ -31,6 +31,7 @@ type HistoryLine = {
   text: string
   timestamp: number
   from?: string
+  audio?: string
 }
 
 const formatHistoryTime = (ts: number) => {
@@ -388,12 +389,31 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                   <p className="text-sm text-text/80 mt-0.5 whitespace-pre-wrap break-words select-text">
                     {line.text}
                   </p>
+                  {line.audio && (
+                    <div className="mt-1.5 mb-1 max-w-[280px]">
+                      <audio
+                        src={`${API_URL}/extensions/whatsapp/storage/audio/${line.audio}`}
+                        controls
+                        className="w-full h-8 accent-accent"
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         ) : (
           <p className="text-sm text-text/80 shrink-0 select-text">{message}</p>
+        )}
+
+        {data?.audio && (
+          <div className="mt-1.5 mb-2 max-w-[280px] shrink-0">
+            <audio
+              src={`${API_URL}/extensions/whatsapp/storage/audio/${data.audio}`}
+              controls
+              className="w-full h-8 accent-accent"
+            />
+          </div>
         )}
 
         {isAdminsOnly ? (

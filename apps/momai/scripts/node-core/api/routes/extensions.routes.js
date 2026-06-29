@@ -364,6 +364,36 @@ function createExtensionsRoutes(context) {
       return true
     }
 
+    const storageMatch = pathname.match(/^\/extensions\/([^/]+)\/storage\/(.+)$/)
+    if (storageMatch && req.method === 'GET') {
+      const extId = storageMatch[1]
+      const filePath = storageMatch[2]
+      if (filePath.includes('..')) {
+        sendJson(res, 400, { ok: false, error: 'invalid_path' })
+        return true
+      }
+      const dataDir = process.env.MOMAI_NODE_CORE_DATA_DIR || process.env.MOMAI_DATA_DIR || path.resolve(__dirname, '..', '..', 'data')
+      const fullPath = path.join(dataDir, 'extensions', extId, filePath)
+      if (!fs.existsSync(fullPath)) {
+        sendJson(res, 404, { ok: false, error: 'file_not_found' })
+        return true
+      }
+      const ext = path.extname(fullPath).toLowerCase()
+      let mime = 'application/octet-stream'
+      if (ext === '.ogg') mime = 'audio/ogg'
+      else if (ext === '.mp3') mime = 'audio/mpeg'
+      else if (ext === '.wav') mime = 'audio/wav'
+      else if (ext === '.m4a') mime = 'audio/x-m4a'
+      
+      res.writeHead(200, {
+        'Content-Type': mime,
+        'Cache-Control': 'no-cache',
+        ...corsHeaders(req)
+      })
+      fs.createReadStream(fullPath).pipe(res)
+      return true
+    }
+
     for (const mounted of mountedSkillRoutes) {
       if (mounted.path === pathname && mounted.method === req.method) {
         const body = await readJsonBody(req).catch(() => ({}))
