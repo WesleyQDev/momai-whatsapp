@@ -40,11 +40,18 @@ async function validateInstallUrl(id, downloadUrl) {
     err.status = 403
     throw err
   }
-  const { address } = await dns.lookup(url.hostname)
-  if (isPrivateIp(address)) {
-    const err = new Error(`hostname resolves to private IP: ${address}`)
-    err.status = 403
-    throw err
+  const isTrustedHost =
+    url.hostname === 'github.com' ||
+    url.hostname === 'raw.githubusercontent.com' ||
+    url.hostname.endsWith('.github.com')
+
+  if (!isTrustedHost) {
+    const { address } = await dns.lookup(url.hostname)
+    if (isPrivateIp(address)) {
+      const err = new Error(`hostname resolves to private IP: ${address}`)
+      err.status = 403
+      throw err
+    }
   }
 }
 
