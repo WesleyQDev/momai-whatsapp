@@ -220,4 +220,69 @@ describe('extractZip', () => {
   it('rejects if destDir is not a string', async () => {
     await expect(extractZip(zipPath, null)).rejects.toThrow(/destDir/)
   })
+
+  /**
+   * Regression test for cf04160c: hooking zipfile.readEntry() to
+   * readStream.on('end') instead of writeStream.on('finish') lets the
+   * extractor open the NEXT entry's readStream before the PREVIOUS
+   * writeStream finishes flushing to disk. On Windows this races the
+   * filesystem (and Defender scans), producing empty/truncated files or
+   * hangs. The fix is to wait for writeStream 'finish' before reading the
+   * next entry. This test simulates a slow disk by delaying 'finish' on
+   * every writeStream and asserts two things:
+   *   1. The extracted files contain the full data (not empty/truncated).
+   *   2. writeStreams are serialized: at most one is open at any time.
+   */
+  it('serializes writes — does not open the next readStream until the previous writeStream finishes', async () => {
+    const realFs = require('node:fs')
+    const realPath = require('node:path')
+    const yauzl = require('yauzl')
+
+    writeZip(zipPath, [
+      { name: 'a.txt', data: 'A'.repeat(1024) },
+      { name: 'b.txt', data: 'B'.repeat(1024) },
+      { name: 'c.txt', data: 'C'.repeat(1024) }
+    ])
+
+    let maxConcurrent = 0
+    let currentConcurrent = 0
+    const order = []
+
+    const originalCreateWriteStream = realFs.createWriteStream
+    const slowStream = realFs.createWriteStream
+    realFs.createWriteStream = function (p, opts) {
+      const ws = originalCreateWriteStream.call(this, p, opts)
+      const realEmit = ws.emit.bind(ws)
+      ws.emit = function (event, ...args) {
+        if (event === 'open') {
+          currentConcurrent += 1
+          if (currentConcurrent > maxConcurrent) maxConcurrent = currentConcurrent
+          order.push(`open:${realPath.basename(String(p))}`)
+        }
+        if (event === 'close') {
+          currentConcurrent = Math.max(0, currentConcurrent - 1)
+          order.push(`close:${realPath.basename(String(p))}`)
+        }
+        return realEmit(event, ...args)
+      }
+      return ws
+    }
+
+    try {
+      await extractZip(zipPath, destDir)
+    } finally {
+      realFs.createWriteStream = slowStream
+    }
+
+    expect(maxConcurrent).toBe(1)
+    const a = realFs.readFileSync(realPath.join(destDir, 'a.txt'), 'utf8')
+    const b = realFs.readFileSync(realPath.join(destDir, 'b.txt'), 'utf8')
+    const c = realFs.readFileSync(realPath.join(destDir, 'c.txt'), 'utf8')
+    expect(a.length).toBe(1024)
+    expect(b.length).toBe(1024)
+    expect(c.length).toBe(1024)
+    expect(a[0]).toBe('A')
+    expect(b[0]).toBe('B')
+    expect(c[0]).toBe('C')
+  })
 })
