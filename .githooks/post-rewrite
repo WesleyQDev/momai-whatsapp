@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# post-rewrite is called after git rebase, git commit --amend, etc.
+# Git provides rewritten commits on stdin as "<old-sha> <new-sha>" lines.
+# We compare the first rewritten commit with its original.
+
+set -euo pipefail
+
+while IFS=' ' read -r OLD_SHA NEW_SHA; do
+  break
+done
+
+if [ -n "${OLD_SHA:-}" ] && [ -n "${NEW_SHA:-}" ]; then
+  CHANGED=$(git diff-tree -r --name-only "$OLD_SHA" "$NEW_SHA" 2>/dev/null || true)
+  if echo "$CHANGED" | grep -qE '(package\.json$|pnpm-lock\.yaml$)'; then
+    . "$(git rev-parse --show-toplevel)/scripts/pnpm-sync-lockfile.sh"
+  fi
+fi
