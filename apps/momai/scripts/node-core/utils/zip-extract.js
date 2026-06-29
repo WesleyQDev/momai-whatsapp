@@ -94,7 +94,7 @@ function extractZip(zipPath, destDir, options = {}) {
           const writeStream = fs.createWriteStream(destPath)
           readStream.on('error', abort)
           writeStream.on('error', abort)
-          writeStream.on('finish', () => {
+          readStream.on('end', () => {
             if (aborted) return
             zipfile.readEntry()
           })
