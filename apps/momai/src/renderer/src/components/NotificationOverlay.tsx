@@ -102,7 +102,7 @@ export default function NotificationOverlay() {
             })
             if (res.ok) {
               const stats = await res.json()
-              if (stats && stats.connected === false) {
+              if (stats && (stats.connected === false || stats.ok === false)) {
                 const overlayData = {
                   skillId: 'whatsapp',
                   panel: whatsapp.ui?.panel,
