@@ -1,8 +1,10 @@
 const fs = require('node:fs')
 const path = require('node:path')
-const yauzl = require('yauzl')
+const os = require('node:os')
+const { fork } = require('node:child_process')
 
 const DEFAULT_TIMEOUT_MS = 30000
+const WORKER_PATH = path.join(__dirname, 'zip-extract-worker.js')
 
 function isUnsafeEntryPath(entryName) {
   if (typeof entryName !== 'string' || entryName.length === 0) return true
@@ -17,14 +19,14 @@ function isUnsafeEntryPath(entryName) {
 }
 
 /**
- * Extracts a ZIP archive into a destination directory using yauzl (pure JS,
- * no shell). Rejects paths that try to escape destDir (Zip Slip defense).
+ * Extracts a ZIP archive into a destination directory.
  *
- * @param {string} zipPath absolute path to the .zip file
- * @param {string} destDir absolute path to the destination directory (created if missing)
- * @param {object} [options]
- * @param {number} [options.timeoutMs=30000] per-extraction timeout in milliseconds
- * @returns {Promise<void>}
+ * Runs the actual extraction in a forked child process so the parent event
+ * loop is never blocked by native I/O. If the child hangs (e.g. yauzl +
+ * libzip native call stuck on a Windows file lock from Defender), the
+ * parent enforces a real timeout by sending SIGKILL to the child. JS
+ * `setTimeout` cannot fire while the event loop is blocked in native code,
+ * which is why the extraction itself has to be offloaded.
  */
 function extractZip(zipPath, destDir, options = {}) {
   const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : DEFAULT_TIMEOUT_MS
@@ -39,70 +41,61 @@ function extractZip(zipPath, destDir, options = {}) {
     const resolvedRoot = path.resolve(destDir)
     fs.mkdirSync(resolvedRoot, { recursive: true })
 
-    const timer = setTimeout(() => {
-      reject(new Error(`extractZip timed out after ${timeoutMs}ms`))
+    const jobFile = path.join(os.tmpdir(), `momai-zip-${process.pid}-${Date.now()}.json`)
+    fs.writeFileSync(
+      jobFile,
+      JSON.stringify({ zipPath, destDir: resolvedRoot }),
+      'utf8'
+    )
+
+    const child = fork(WORKER_PATH, [jobFile], { stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
+    let settled = false
+    const settle = (fn, value) => {
+      if (settled) return
+      settled = true
+      try {
+        fs.unlinkSync(jobFile)
+      } catch {}
+      fn(value)
+    }
+
+    const killer = setTimeout(() => {
+      try {
+        child.kill('SIGKILL')
+      } catch {}
+      settle(reject, new Error(`extractZip timed out after ${timeoutMs}ms`))
     }, timeoutMs)
 
-    yauzl.open(zipPath, { lazyEntries: true, autoClose: true }, (err, zipfile) => {
-      if (err) {
-        clearTimeout(timer)
-        return reject(err)
-      }
-
-      let aborted = false
-      const abort = (e) => {
-        if (aborted) return
-        aborted = true
-        clearTimeout(timer)
+    child.on('message', (msg) => {
+      if (msg && msg.ok === true) {
+        clearTimeout(killer)
+        settle(resolve, undefined)
         try {
-          zipfile.close()
+          child.kill()
         } catch {}
-        reject(e)
-      }
-
-      zipfile.on('error', abort)
-      zipfile.on('end', () => {
-        if (aborted) return
-        clearTimeout(timer)
-        resolve()
-      })
-
-      zipfile.on('entry', (entry) => {
-        if (aborted) return
-        if (isUnsafeEntryPath(entry.fileName)) {
-          return abort(new Error(`Refusing unsafe zip entry: ${entry.fileName}`))
-        }
-        const destPath = path.resolve(resolvedRoot, entry.fileName)
-        if (destPath !== resolvedRoot && !destPath.startsWith(resolvedRoot + path.sep)) {
-          return abort(new Error(`Zip Slip detected: ${entry.fileName}`))
-        }
-        if (entry.fileName.endsWith('/')) {
-          try {
-            fs.mkdirSync(destPath, { recursive: true })
-          } catch (e) {
-            return abort(e)
-          }
-          return zipfile.readEntry()
-        }
+      } else if (msg && msg.ok === false) {
+        clearTimeout(killer)
+        settle(reject, new Error(msg.error || 'extract failed'))
         try {
-          fs.mkdirSync(path.dirname(destPath), { recursive: true })
-        } catch (e) {
-          return abort(e)
-        }
-        zipfile.openReadStream(entry, (rsErr, readStream) => {
-          if (rsErr) return abort(rsErr)
-          const writeStream = fs.createWriteStream(destPath)
-          readStream.on('error', abort)
-          writeStream.on('error', abort)
-          writeStream.on('finish', () => {
-            if (aborted) return
-            zipfile.readEntry()
-          })
-          readStream.pipe(writeStream)
-        })
-      })
+          child.kill()
+        } catch {}
+      }
+    })
 
-      zipfile.readEntry()
+    child.on('exit', (code) => {
+      clearTimeout(killer)
+      if (!settled) {
+        if (code === 0) {
+          settle(resolve, undefined)
+        } else {
+          settle(reject, new Error(`extractZip worker exited with code ${code}`))
+        }
+      }
+    })
+
+    child.on('error', (err) => {
+      clearTimeout(killer)
+      settle(reject, err)
     })
   })
 }
