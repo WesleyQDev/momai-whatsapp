@@ -296,6 +296,17 @@ function flattenExtractedDir(extractDir) {
   }
 }
 
+function isValidExtensionId(id) {
+  return typeof id === 'string' && /^[a-z0-9-]+$/.test(id)
+}
+
+function resolveExtensionDir(extensionsDir, extId) {
+  const root = path.resolve(extensionsDir)
+  const target = path.resolve(root, extId)
+  if (target === root || !target.startsWith(root + path.sep)) return null
+  return target
+}
+
 function createExtensionsRoutes(context) {
   const {
     skillRegistry,
@@ -641,8 +652,16 @@ function createExtensionsRoutes(context) {
 
     if (pathname === '/extensions/uninstall' && req.method === 'POST') {
       const payload = await readJsonBody(req).catch(() => ({}))
-      const extId = String(payload.id || '')
-      const extDir = path.join(skillRegistry.extensionsDir, extId)
+      const extId = String(payload.id || '').trim()
+      if (!isValidExtensionId(extId)) {
+        sendJson(res, 400, { ok: false, error: 'invalid_extension_id' })
+        return true
+      }
+      const extDir = resolveExtensionDir(skillRegistry.extensionsDir, extId)
+      if (!extDir) {
+        sendJson(res, 400, { ok: false, error: 'invalid_extension_path' })
+        return true
+      }
 
       // Stop persistent worker if running
       await extensionHostManager.stopPersistent(extId).catch((err) => {

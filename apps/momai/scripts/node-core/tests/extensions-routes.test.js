@@ -159,4 +159,40 @@ describe('dynamic skill route mounting', () => {
     expect(handled).toBe(false)
     expect(res.statusCode).toBe(200)
   })
+
+  it('rejects uninstall requests with invalid extension ids before side effects', async () => {
+    const stopPersistent = vi.fn()
+    const executeHook = vi.fn()
+    const loadExtensions = vi.fn()
+    const saveStore = vi.fn()
+    const { ctx, calls } = makeCtx({
+      readJsonBody: async () => ({ id: '../outside' }),
+      saveStore,
+      skillRegistry: {
+        refresh: async () => {},
+        extensionsDir: '/tmp/exts',
+        getById: () => null,
+        getAll: () => [],
+        loadExtensions,
+        executeHook
+      },
+      extensionHostManager: {
+        stopPersistent,
+        sendToPersistent: async () => ({ ok: false, error: 'not_available' })
+      }
+    })
+    const handler = createExtensionsRoutes(ctx)
+
+    const handled = await handler({ method: 'POST' }, {}, '/extensions/uninstall', {
+      searchParams: new URLSearchParams()
+    })
+
+    expect(handled).toBe(true)
+    expect(calls.status).toBe(400)
+    expect(calls.data).toEqual({ ok: false, error: 'invalid_extension_id' })
+    expect(stopPersistent).not.toHaveBeenCalled()
+    expect(executeHook).not.toHaveBeenCalled()
+    expect(loadExtensions).not.toHaveBeenCalled()
+    expect(saveStore).not.toHaveBeenCalled()
+  })
 })
