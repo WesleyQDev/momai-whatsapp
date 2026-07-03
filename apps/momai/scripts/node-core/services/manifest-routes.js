@@ -17,7 +17,7 @@ function mountSkillRoutes(app, skills, hostManager) {
           })
           sendJson(res, 200, result || { ok: true })
         } catch (err) {
-          sendJson(res, 500, { ok: false, error: err && err.message ? err.message : 'error' })
+          sendJson(res, 500, { ok: false, error: 'skill_route_error' })
         }
       }
       app[method](fullPath, handler)
