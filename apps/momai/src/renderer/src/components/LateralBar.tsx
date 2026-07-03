@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchExtensions } from '../services/api'
 import icon from '../assets/icon.png'
+import DOMPurify from 'dompurify'
 import {
   ChatBubbleLeftRightIcon,
   CalendarIcon,
@@ -76,11 +77,18 @@ const iconMap: Record<string, any> = {
 }
 
 function InlineSvgIcon({ svg, className }: { svg: string; className?: string }) {
+  // Sanitize raw SVG with DOMPurify to strip <script>, event handlers,
+  // <foreignObject>, javascript: URLs, and other XSS vectors.
+  const sanitized = DOMPurify.sanitize(svg, {
+    USE_PROFILES: { svg: true },
+    ADD_ATTR: ['fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'fill-opacity', 'stroke-opacity']
+  })
+
   // Strip width/height from the root <svg> (caller controls size via
   // className). Respect an explicit fill="none" on the root (used for
   // outline icons like WhatsApp) — only force fill="currentColor" when
   // the root has no fill or has a solid fill.
-  const cleaned = svg.replace(/<svg([^>]*)>/i, (_match, attrs) => {
+  const cleaned = sanitized.replace(/<svg([^>]*)>/i, (_match, attrs) => {
     const noSize = attrs.replace(/\s(width|height)=("[^"]*"|'[^']*')/gi, '')
     const fillMatch = noSize.match(/\sfill=("[^"]*"|'[^']*')/i)
     if (fillMatch) {
