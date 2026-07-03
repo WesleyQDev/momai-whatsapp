@@ -40,11 +40,18 @@ async function validateInstallUrl(id, downloadUrl) {
     err.status = 403
     throw err
   }
-  const { address } = await dns.lookup(url.hostname)
-  if (isPrivateIp(address)) {
-    const err = new Error(`hostname resolves to private IP: ${address}`)
-    err.status = 403
-    throw err
+  const isTrustedHost =
+    url.hostname === 'github.com' ||
+    url.hostname === 'raw.githubusercontent.com' ||
+    url.hostname.endsWith('.github.com')
+
+  if (!isTrustedHost) {
+    const { address } = await dns.lookup(url.hostname)
+    if (isPrivateIp(address)) {
+      const err = new Error(`hostname resolves to private IP: ${address}`)
+      err.status = 403
+      throw err
+    }
   }
 }
 
@@ -522,17 +529,36 @@ function createExtensionsRoutes(context) {
         }
       }
 
-      if (!store.extensions.find((ext) => ext.id === id)) {
-        store.extensions.push({
+      let found = store.extensions.find((ext) => ext.id === id)
+      if (!found) {
+        found = {
           id,
           name: id,
           description: 'Extension installed by Node core',
           category: 'builtin',
           enabled: true
-        })
-        saveStore()
+        }
+        store.extensions.push(found)
+      } else {
+        found.enabled = true
       }
+      saveStore()
       await skillRegistry.loadExtensions()
+
+      // Start the persistent worker immediately if the extension runs in the background
+      const skill = skillRegistry.getById(id)
+      if (skill && skill.manifest?.background) {
+        console.log(`[extensions] Starting persistent worker for newly installed extension: ${skill.id}`)
+        extensionHostManager
+          .startPersistent(skill.id, skill.dir, skill.manifest)
+          .then(() => console.log(`[ext] Started persistent worker after install: ${skill.id}`))
+          .catch((err) =>
+            console.log(
+              `[extensions] Failed to start persistent worker for ${skill.id} after install:`,
+              err.message
+            )
+          )
+      }
 
       // Auto-activation keywords are user-controlled. The router only fires
       // on store.skillKeywords entries that the user has explicitly set via

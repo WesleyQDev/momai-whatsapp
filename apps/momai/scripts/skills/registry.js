@@ -175,14 +175,62 @@ async function loadSkillFromDir({ dir, kind, expectedId }) {
   }
 
   const skillMdPath = path.join(dir, 'SKILL.md')
-  if (!fs.existsSync(skillMdPath)) {
+  const manifestPath = path.join(dir, 'manifest.json')
+  const hasSkillMd = fs.existsSync(skillMdPath)
+  const hasManifest = fs.existsSync(manifestPath)
+
+  if (!hasSkillMd) {
     // Ignore runtime/state-only directories used by packaged skills.
     const stateJsonPath = path.join(dir, 'state.json')
     if (fs.existsSync(stateJsonPath)) {
       return null
     }
-    // Changed to debug to avoid noise from data directories (e.g. whatsapp data)
-    // log(`[skills] Skip: No SKILL.md in ${dir}`)
+    // Fallback: load a manifest-only extension (no SKILL.md). Community
+    // releases published as ZIPs often ship only manifest.json + a
+    // background-worker.js; without this fallback those extensions are
+    // installed on disk but invisible to the registry, so the UI never
+    // shows them as installed and routes/events never mount.
+    //
+    // We deliberately do NOT `import()` the background-worker here. The
+    // worker is meant to run in a forked child process owned by
+    // extensionHostManager; loading it in the parent would execute its
+    // top-level require/import side effects (e.g. `@whiskeysockets/baileys`,
+    // process.send, process.exit) in a context that doesn't support them.
+    if (hasManifest) {
+      let manifestObj = null
+      try {
+        manifestObj = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+      } catch (e) {
+        return null
+      }
+      const mName = String(manifestObj.name || manifestObj.id || expectedId || '').trim()
+      const mDesc = String(manifestObj.description || '').trim()
+      if (!mName || !mDesc) return null
+      return normalizeSkillRecord({
+        id: expectedId || manifestObj.id || mName,
+        kind,
+        parsed: {
+          name: mName,
+          description: mDesc,
+          intents: manifestObj.intents || [],
+          voiceTriggers: manifestObj.voiceHooks ? Object.keys(manifestObj.voiceHooks) : [],
+          allowedTools: [],
+          compatibility: manifestObj.compatibility || 'MomAI Node Core',
+          enabled: true,
+          body: manifestObj.description || '',
+          frontmatter: {
+            name: mName,
+            description: mDesc,
+            author: manifestObj.author || null,
+            version: manifestObj.version || null,
+            tags: manifestObj.tags || [],
+            permissions: manifestObj.permissions || []
+          }
+        },
+        runtime: null,
+        dir
+      })
+    }
     return null
   }
 

@@ -95,7 +95,28 @@ const SAFE_ENV = {
   SystemRoot: process.env.SystemRoot,
   WINDIR: process.env.WINDIR,
   APPDATA: process.env.APPDATA,
-  LOCALAPPDATA: process.env.LOCALAPPDATA
+  LOCALAPPDATA: process.env.LOCALAPPDATA,
+  ELECTRON_RUN_AS_NODE: '1'
+}
+
+function findAllNodeModules() {
+  const found = []
+  let dir = path.resolve(__dirname)
+  for (let i = 0; i < 20; i++) {
+    dir = path.dirname(dir)
+    const nm = path.join(dir, 'node_modules')
+    if (fs.existsSync(nm)) found.push(nm)
+    if (path.dirname(dir) === dir) break
+  }
+  try {
+    if (process.resourcesPath) {
+      const asarNm = path.join(process.resourcesPath, 'app.asar', 'node_modules')
+      if (fs.existsSync(asarNm)) found.push(asarNm)
+      const unpackedNm = path.join(process.resourcesPath, 'app', 'node_modules')
+      if (fs.existsSync(unpackedNm)) found.push(unpackedNm)
+    }
+  } catch {}
+  return [...new Set(found.reverse())]
 }
 
 class ExtensionHostManager extends EventEmitter {
@@ -111,10 +132,16 @@ class ExtensionHostManager extends EventEmitter {
 
   _spawnHost(skillId, skillPath, extraEnv) {
     const hostPath = path.join(__dirname, 'extension-host-worker.js')
+    const extNodeModules = path.join(skillPath, 'node_modules')
+    const nmPaths = findAllNodeModules()
+    const allPaths = [extNodeModules, ...nmPaths].filter(fs.existsSync)
+    const nodePath = allPaths.join(path.delimiter)
+
     return fork(hostPath, [skillId, skillPath], {
       stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
       env: {
         ...SAFE_ENV,
+        NODE_PATH: nodePath,
         MOMAI_DATA_DIR: process.env.MOMAI_DATA_DIR,
         MOMAI_EXTENSION_ID: skillId,
         ...extraEnv
@@ -171,7 +198,9 @@ class ExtensionHostManager extends EventEmitter {
     const dataDir = process.env.MOMAI_NODE_CORE_DATA_DIR || process.env.MOMAI_DATA_DIR || ''
 
     const extNodeModules = path.join(skillPath, 'node_modules')
-    const nodePath = fs.existsSync(extNodeModules) ? extNodeModules : undefined
+    const nmPaths = findAllNodeModules()
+    const allPaths = [extNodeModules, ...nmPaths].filter(fs.existsSync)
+    const nodePath = allPaths.join(path.delimiter)
 
     const child = fork(hostPath, [skillId, skillPath], {
       stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
@@ -179,7 +208,7 @@ class ExtensionHostManager extends EventEmitter {
         ...SAFE_ENV,
         MOMAI_EXTENSION_ID: skillId,
         MOMAI_PERSISTENT: 'true',
-        ...(nodePath !== undefined ? { NODE_PATH: nodePath } : {}),
+        NODE_PATH: nodePath,
         ...(dataDir ? { MOMAI_DATA_DIR: dataDir, MOMAI_NODE_CORE_DATA_DIR: dataDir } : {})
       }
     })
