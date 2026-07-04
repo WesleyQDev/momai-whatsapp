@@ -153,9 +153,15 @@ if (-not $SkipWindows) {
 
   Pop-Location
 
-  $winArtifacts = @(Get-ChildItem -Path $distDir -Include @('*.exe','*.appx','*.yml','*.blockmap') -File)
-  Write-Host "  `u{2705} Windows: $($winArtifacts.Count) artifacts (.exe + 2 appx)" -ForegroundColor Green
+  $winArtifacts = @(Get-ChildItem -Path $distDir -Include @('*.exe','*.yml','*.blockmap') -File)
+  Write-Host "  `u{2705} Windows: $($winArtifacts.Count) artifacts (.exe)" -ForegroundColor Green
   $artifacts += $winArtifacts
+
+  # AppX builds are for Microsoft Store only — not uploaded to GitHub
+  $appxArtifacts = @(Get-ChildItem -Path $distDir -Include @('*.appx') -File)
+  if ($appxArtifacts.Count -gt 0) {
+    Write-Host "  `u{1F4E6} AppX: $($appxArtifacts.Count) files built (Microsoft Store only, not uploaded)" -ForegroundColor Gray
+  }
 }
 
 # ── Step 3: Build Linux (via act) ───────────────────────────────
@@ -220,7 +226,7 @@ if (-not $SkipLinux) {
 
 # ── Step 4: Summary ─────────────────────────────────────────────
 Write-Host "`n`u{1F4CB} Build Summary" -ForegroundColor Cyan
-$allArtifacts = @(Get-ChildItem -Path $distDir -Include @('*.exe','*.appx','*.AppImage','*.deb','*.yml','*.blockmap') -File)
+$allArtifacts = @(Get-ChildItem -Path $distDir -Include @('*.exe','*.AppImage','*.deb','*.yml','*.blockmap') -File)
 if ($allArtifacts.Count -eq 0) {
   Write-Host "`u{274C} No artifacts found in $distDir" -ForegroundColor Red
   exit 1
