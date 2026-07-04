@@ -153,12 +153,12 @@ if (-not $SkipWindows) {
 
   Pop-Location
 
-  $winArtifacts = @(Get-ChildItem -Path $distDir -Include @('*.exe','*.yml','*.blockmap') -File)
+  $winArtifacts = @(Get-ChildItem -Path $distDir -Recurse -Include @('*.exe','*.yml','*.blockmap') -File)
   Write-Host "  `u{2705} Windows: $($winArtifacts.Count) artifacts (.exe)" -ForegroundColor Green
   $artifacts += $winArtifacts
 
   # AppX builds are for Microsoft Store only — not uploaded to GitHub
-  $appxArtifacts = @(Get-ChildItem -Path $distDir -Include @('*.appx') -File)
+  $appxArtifacts = @(Get-ChildItem -Path $distDir -Recurse -Include @('*.appx') -File)
   if ($appxArtifacts.Count -gt 0) {
     Write-Host "  `u{1F4E6} AppX: $($appxArtifacts.Count) files built (Microsoft Store only, not uploaded)" -ForegroundColor Gray
   }
@@ -208,7 +208,7 @@ if (-not $SkipLinux) {
   # Act downloads artifacts into the workflow run, but for local use
   # we need to extract them. The build-linux job uploads to actions/upload-artifact,
   # which act stores locally. Let's find them.
-  $actArtifacts = @(Get-ChildItem -Path $distDir -Include @('*.AppImage','*.deb') -File -ErrorAction SilentlyContinue)
+  $actArtifacts = @(Get-ChildItem -Path $distDir -Recurse -Include @('*.AppImage','*.deb') -File -ErrorAction SilentlyContinue)
   if ($actArtifacts.Count -eq 0) {
     # act stores artifacts in /tmp/act artifacts or .act/artifacts
     $actArtifactDir = Join-Path $rootDir ".act" "artifacts"
@@ -216,7 +216,7 @@ if (-not $SkipLinux) {
       Get-ChildItem -Path $actArtifactDir -Recurse -Include @('*.AppImage','*.deb','*.yml','*.blockmap') | ForEach-Object {
         Copy-Item $_.FullName -Destination $distDir -Force
       }
-      $actArtifacts = @(Get-ChildItem -Path $distDir -Include @('*.AppImage','*.deb') -File)
+      $actArtifacts = @(Get-ChildItem -Path $distDir -Recurse -Include @('*.AppImage','*.deb') -File)
     }
   }
 
@@ -226,7 +226,7 @@ if (-not $SkipLinux) {
 
 # ── Step 4: Summary ─────────────────────────────────────────────
 Write-Host "`n`u{1F4CB} Build Summary" -ForegroundColor Cyan
-$allArtifacts = @(Get-ChildItem -Path $distDir -Include @('*.exe','*.AppImage','*.deb','*.yml','*.blockmap') -File)
+$allArtifacts = @(Get-ChildItem -Path $distDir -Recurse -Include @('*.exe','*.AppImage','*.deb','*.yml','*.blockmap') -File)
 if ($allArtifacts.Count -eq 0) {
   Write-Host "`u{274C} No artifacts found in $distDir" -ForegroundColor Red
   exit 1
