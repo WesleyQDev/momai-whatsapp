@@ -136,7 +136,7 @@ apps/core/vosk-model-*/
 *.local
 .cache/
 coverage/
-/assets/
+/apps/momai/assets/
 .nyc_output/
 *.tgz
 .turbo
