@@ -2,6 +2,31 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 1.5.2 - 2026-07-04
+
+Correções de segurança, estabilidade do WhatsApp e melhorias no build
+
+### 🔒 Segurança
+
+- **Ícones SVG sanitizados**: Ícones SVG de extensões agora passam por DOMPurify antes de renderizar, prevenindo ataques de XSS via SVG malicioso.
+- **Canais IPC validados**: Canais de comunicação entre renderer e main process agora são validados contra allowlist no preload, prevenindo acesso não autorizado.
+- **Mensagens de erro sanitizadas**: Exceções HTTP agora sanitizam detalhes antes de retornar ao cliente, evitando vazamento de informações sensíveis.
+- **Token de sessão via ambiente**: Token de sessão agora é passado via variável de ambiente em vez de argumentos de linha de comando, prevenindo exposição em listagens de processos.
+- **ID de extensão validado**: Desinstalação de extensões agora valida o ID contra a lista de instaladas, prevenindo remoção arbitrária.
+
+### 🐛 Correções
+
+- **WhatsApp em builds empacotadas**: Corrigido spawn do worker, startup imediato e verificação de status do overlay na extensão WhatsApp.
+- **Extração de ZIP no Windows**: Múltiplas correções para travamento de extração de ZIP no Windows — workers forkados com timeout SIGKILL, serialização de escrita e eventos de stream corrigidos.
+- **Instalação de extensões**: DNS lookup ignorado em hosts confiáveis para evitar timeout na instalação.
+- **Registry de extensões**: Extensões que declaram apenas `manifest.json` (sem `SKILL.md`) agora são carregadas corretamente.
+
+### ⚙️ Melhorias
+
+- **Build multi-plataforma**: Novo script `build-all.ps1` para builds via act (multi-arch).
+- **Release: exclude appx**: Build AppX não é mais incluído no upload do GitHub Release.
+- **Release: MakeLatest flag**: Flag `-MakeLatest` adicionada ao script de release para controle da tag latest.
+
 ## 1.5.1 - 2026-06-28
 
 Melhorias no download de modelos e correções gerais de extensões
