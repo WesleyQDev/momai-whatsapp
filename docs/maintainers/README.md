@@ -19,7 +19,7 @@ Antes de fazer release:
 - [ ] Testes passando localmente
 - [ ] Versão bumpada em `package.json`, `apps/momai/package.json`, `apps/core/pyproject.toml`
 - [ ] Tag criada (`git tag vX.Y.Z`)
-- [ ] Build local testado (`pnpm build:win` ou `pnpm build:linux`)
+- [ ] Build local testado (`pnpm build:exe` ou `pnpm build:linux`)
 - [ ] Release script executado (`scripts/release.ps1`)
 - [ ] Release publicado em `WesleyQDev/MomAI-App`
 - [ ] APPX build para Microsoft Store (se aplicável)

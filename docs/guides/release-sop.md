@@ -140,7 +140,7 @@ O que esse comando faz:
 1. **Valida** se há uma tag no HEAD
 2. **Verifica** se o Docker Desktop está rodando
 3. **Sincroniza** a versão no `apps/momai/package.json`
-4. **Build Windows** — `pnpm --filter momai build:win` (nativo, ~10-15 min)
+4. **Build Windows** — `pnpm --filter momai build:exe` (nativo, ~10-15 min)
 5. **Build Linux** — `docker run ...` container Linux com `pnpm --filter momai build:linux` (~10-15 min)
 6. **Upload** — `gh release create` para `WesleyQDev/MomAI-App`
 

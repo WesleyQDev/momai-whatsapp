@@ -52,7 +52,7 @@ on:
   5. Setup uv (astral-sh/setup-uv)
   6. Compila requirements com `uv pip compile` para Windows (3.12, win_amd64)
   7. Baixa wheels com `pip download -d wheels/ -r requirements-win.lock`
-  8. `pnpm build:win` (electron-builder NSIS)
+  8. `pnpm build:exe` (electron-builder NSIS)
   9. Upload artifacts (.exe, .yml, .blockmap)
 
 ### build-linux

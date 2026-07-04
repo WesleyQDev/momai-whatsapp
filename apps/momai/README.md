@@ -72,7 +72,7 @@ pnpm dev:all
 
 ```bash
 # Windows (.exe)
-pnpm build:win
+pnpm build:exe
 
 # Linux (AppImage)
 pnpm build:linux

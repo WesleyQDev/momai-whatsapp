@@ -72,7 +72,7 @@ jobs:
             --quiet
 
       - name: Build Windows
-        run: pnpm --filter momai build:win
+        run: pnpm --filter momai build:exe
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

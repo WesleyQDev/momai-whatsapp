@@ -71,7 +71,7 @@ pnpm dev:all          # Ambos concorrentemente
 
 # Build
 pnpm build            # Build completo
-pnpm build:win        # Windows .exe
+pnpm build:exe        # Windows .exe
 pnpm build:linux      # Linux AppImage
 
 # Qualidade

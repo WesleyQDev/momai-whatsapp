@@ -114,8 +114,16 @@ Pop-Location
 # ── Step 3: Build Windows ───────────────────────────────────────
 Write-Host "[2/5] Building Windows (native)..."
 Push-Location "$rootDir"
-pnpm --filter momai build:win
-if ($LASTEXITCODE -ne 0) { throw "Windows build failed" }
+pnpm --filter momai build:exe
+if ($LASTEXITCODE -ne 0) { throw "Windows NSIS build failed" }
+
+Write-Host "  Building AppX store..."
+pnpm --filter momai build:appx:store
+if ($LASTEXITCODE -ne 0) { throw "AppX store build failed" }
+
+Write-Host "  Building AppX test..."
+pnpm --filter momai build:appx:test
+if ($LASTEXITCODE -ne 0) { throw "AppX test build failed" }
 Pop-Location
 
 # ── Step 4: Build Linux (Docker) ────────────────────────────────
@@ -143,7 +151,7 @@ foreach ($p in @("$rootDir/apps/momai/bin/llama", "$rootDir/apps/momai/bin/pytho
 
 # ── Step 5: Collect and upload ──────────────────────────────────
 Write-Host "[5/5] Uploading to WesleyQDev/MomAI-App..."
-$artifacts = @(Get-ChildItem -Path $distDir -Include @('*.exe','*.AppImage','*.deb','*.yml','*.blockmap') -File)
+$artifacts = @(Get-ChildItem -Path $distDir -Include @('*.exe','*.appx','*.AppImage','*.deb','*.yml','*.blockmap') -File)
 if ($artifacts.Count -eq 0) {
   Write-Host "`u{274C} No artifacts found in $distDir" -ForegroundColor Red
   Write-Host "  Contents:"

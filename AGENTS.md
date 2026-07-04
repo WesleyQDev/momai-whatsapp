@@ -161,7 +161,7 @@ pnpm dev:desktop      # Alias for dev:momai
 pnpm dev:core         # Start apps/core with uvicorn on 127.0.0.1:8000
 pnpm dev:all          # Run core and desktop concurrently
 pnpm build            # Build the momai desktop app and open apps/momai/dist
-pnpm build:win        # Build Windows installer/package for momai
+pnpm build:exe        # Build Windows installer/package for momai
 pnpm build:linux      # Build Linux package for momai
 pnpm build:unpack     # Build unpacked desktop app
 pnpm build:appx       # Build Windows AppX variants
@@ -188,7 +188,7 @@ pnpm typecheck        # Node/preload + web TypeScript checks
 pnpm typecheck:node   # Node/preload TypeScript check
 pnpm typecheck:web    # Renderer/web TypeScript check
 pnpm build            # Prebuild + typecheck + electron-vite build
-pnpm build:win        # Windows NSIS build
+pnpm build:exe        # Windows NSIS build
 pnpm build:linux      # Linux build
 pnpm clean            # Remove build/data/model caches listed in script
 ```

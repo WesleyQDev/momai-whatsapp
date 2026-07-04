@@ -50,7 +50,7 @@ Skills são artefatos ZIP auto-contidos. O app principal (`apps/momai/src/`, `ap
 
 ## Comandos Raiz
 
-`package.json` raiz. Principais: `pnpm dev`, `pnpm dev:core`, `pnpm dev:all`, `pnpm build`, `pnpm build:win`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm format`.
+`package.json` raiz. Principais: `pnpm dev`, `pnpm dev:core`, `pnpm dev:all`, `pnpm build`, `pnpm build:exe`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm format`.
 
 ## ⚠️ Regra: Skills Têm Dois Repositórios (REGRA CRÍTICA)
 

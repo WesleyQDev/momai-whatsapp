@@ -10,7 +10,7 @@
     "dev:core": "cd apps/core && uvicorn main:app --reload --host 127.0.0.1 --port 8000",
     "dev:all": "concurrently \"pnpm dev:core\" \"pnpm --filter momai dev\"",
     "build": "pnpm --filter momai build && node scripts/open-build-dir.js apps/momai/dist",
-    "build:win": "pnpm --filter momai build:win && node scripts/open-build-dir.js apps/momai/dist",
+    "build:exe": "pnpm --filter momai build:exe && node scripts/open-build-dir.js apps/momai/dist",
     "build:linux": "pnpm --filter momai build:linux && node scripts/open-build-dir.js apps/momai/dist",
     "build:mac": "pnpm --filter momai build:mac && node scripts/open-build-dir.js apps/momai/dist",
     "build:unpack": "pnpm --filter momai build:unpack && node scripts/open-build-dir.js apps/momai/dist",
@@ -26,7 +26,8 @@
     "docs": "cd apps/docs && mint dev",
     "docs:internal": "pnpm --filter internal-docs start",
     "release": "pwsh -NoProfile -File scripts/release.ps1",
-"deploy:ghpages": "node scripts/sync-gh-pages.js",
+    "build:all": "pwsh -NoProfile -File scripts/build-all.ps1",
+    "deploy:ghpages": "node scripts/sync-gh-pages.js",
     "preinstall": "npx only-allow pnpm"
   },
   "keywords": [],

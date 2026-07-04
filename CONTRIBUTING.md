@@ -74,3 +74,71 @@ Contribuições geradas ou assistidas por ferramentas de IA (incluindo agentes a
 ## Código de Conduta
 
 Seja respeitoso. Contribuições com comportamento inadequado não serão aceitas.
+
+## Scripts de Build e Release
+
+O projeto possui scripts para build e release local. Todos ficam em `scripts/`.
+
+### Comandos Disponíveis
+
+| Comando | Descrição |
+|---------|-----------|
+| `pnpm dev` | Inicia o app em modo desenvolvimento |
+| `pnpm build` | Build completo (typecheck + electron-vite build) |
+| `pnpm build:exe` | Build Windows (.exe) nativo |
+| `pnpm build:linux` | Build Linux (.AppImage, .deb) nativo |
+| `pnpm build:all` | Build todas as plataformas (Windows + Linux via act) |
+| `pnpm build:appx` | Build Microsoft Store (appx store + test) |
+| `pnpm build:all` | Build todas as plataformas (Windows + Linux via act) |
+| `pnpm release` | Release via `scripts/release.ps1` |
+
+### Scripts de Release
+
+#### `scripts/release.ps1` — Release rápido
+
+Builda Windows (.exe + appx) + Linux (Docker) e faz upload para GitHub.
+
+```powershell
+# PowerShell direto:
+.\scripts\release.ps1 -Version 1.5.2
+.\scripts\release.ps1 -Version 1.5.2 -MakeLatest
+
+# Via pnpm:
+pnpm release -- -Version 1.5.2
+pnpm release -- -Version 1.5.2 -MakeLatest
+```
+
+#### `scripts/build-all.ps1` — Build completo com act
+
+Builda Windows (.exe + appx) + Linux (via `act` — GitHub Actions local) e opcionalmente faz upload.
+
+```powershell
+# PowerShell direto:
+.\scripts\build-all.ps1
+.\scripts\build-all.ps1 -Upload -MakeLatest
+.\scripts\build-all.ps1 -SkipWindows
+.\scripts\build-all.ps1 -SkipLinux
+
+# Via pnpm:
+pnpm build:all
+pnpm build:all -- -Upload -MakeLatest
+pnpm build:all -- -SkipWindows
+pnpm build:all -- -Version 1.5.2
+```
+
+> **Nota:** Com `pnpm`, os parâmetros passam depois de `--`.
+
+**Pré-requisitos para `build-all.ps1`:**
+- [act](https://github.com/nektos/act) instalado (`winget install nektos.act`)
+- Docker Desktop rodando
+- `gh` CLI autenticado (para upload)
+
+### Fluxo de Release
+
+1. Criar tag: `git tag v1.5.2`
+2. Buildar: `.\scripts\build-all.ps1 -Upload -MakeLatest`
+3. Verificar no GitHub: https://github.com/WesleyQDev/MomAI-App/releases
+
+### Regra: `-MakeLatest`
+
+A flag `-MakeLatest` só deve ser usada para versões **estáveis** e **testadas**. Nunca para pre-releases (versões com `-` no nome, ex: `1.6.0-beta.1`). O script bloqueia automaticamente.

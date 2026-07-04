@@ -59,7 +59,7 @@ Ou automaticamente via `pnpm install` (que configura hooksPath como efeito colat
 | `pnpm dev:core` | Inicia apenas o backend Python (uvicorn --reload) |
 | `pnpm dev:all` | Desktop + Core simultaneamente (via concurrently) |
 | `pnpm build` | Build da app desktop via Turborepo |
-| `pnpm build:win` | Build Windows .exe (NSIS) |
+| `pnpm build:exe` | Build Windows .exe (NSIS) |
 | `pnpm build:linux` | Build Linux AppImage |
 | `pnpm build:mac` | Build macOS .dmg |
 | `pnpm build:appx` | Build Windows AppX (Microsoft Store) |
@@ -85,7 +85,7 @@ pnpm test:renderer          # Testes do renderer
 
 # Build
 pnpm build                  # Full build (typecheck + hydrate-bin + electron-vite build)
-pnpm build:win              # Windows .exe (NSIS)
+pnpm build:exe              # Windows .exe (NSIS)
 pnpm build:linux            # Linux AppImage
 pnpm build:mac              # macOS .dmg
 

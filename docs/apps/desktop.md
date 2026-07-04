@@ -187,7 +187,7 @@ src/renderer/src/
 
 | Comando | Formato | Plataforma | Notas |
 |---------|---------|------------|-------|
-| `pnpm build:win` | NSIS (.exe) | Windows | OneClick installer, inclui Python + llama-server |
+| `pnpm build:exe` | NSIS (.exe) | Windows | OneClick installer, inclui Python + llama-server |
 | `pnpm build:linux` | AppImage / .deb | Linux | Inclui Python + llama-server |
 | `pnpm build:mac` | DMG | macOS | Notarização desabilitada |
 | `pnpm build:appx` | AppX | Windows Store | Dois flavors: store + test |
