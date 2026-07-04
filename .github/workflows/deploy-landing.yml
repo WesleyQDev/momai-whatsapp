@@ -8,24 +8,25 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  deploy:
-    name: Build and Deploy
+  build:
+    name: Build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
@@ -37,35 +38,31 @@ jobs:
         working-directory: apps/landing-page
         run: pnpm build
 
-      - name: Prepare deploy folder
+      - name: Prepare site folder
         run: |
           mkdir -p _site
           cp -r apps/landing-page/dist/. _site/
           cp -r v1 _site/
           cp -r saude _site/
+          cp -r images _site/
           cp CNAME .nojekyll politicas-privacidade.html politicas-privacidade-momai.html _site/
 
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Remove old deploy artifacts from root
-          rm -rf assets/ images/ 2>/dev/null || true
-          rm -f index.html 2>/dev/null || true
-
-          # Copy new build + preserved content to root
-          cp -r _site/. .
-
-          # Clean up temp dir
-          rm -rf _site
-
-          # Commit and push to main (root-level changes only)
-          git add -A
-          if git diff --staged --quiet; then
-            echo "No changes to deploy"
-          else
-            git commit -m "deploy: landing page [skip ci]"
-            git pull --rebase origin main || echo "pull failed, retrying push anyway"
-            git push origin main
-          fi
+        id: deployment
+        uses: actions/deploy-pages@v4
