@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'apps/landing-page/**'
+      - 'CHANGELOG.md'
   workflow_dispatch:
 
 concurrency:
@@ -46,6 +47,7 @@ jobs:
           cp -r saude _site/
           cp -r images _site/
           cp CNAME .nojekyll politicas-privacidade.html politicas-privacidade-momai.html _site/
+          cp CHANGELOG.md _site/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
