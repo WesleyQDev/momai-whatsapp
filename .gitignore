@@ -61,6 +61,8 @@ __pycache__/
 # Hydrated binaries (downloaded at build time, not tracked)
 apps/momai/bin/python/
 apps/momai/bin/vc_redist*
+apps/momai/bin/llama/
+apps/momai/bin/uv*
 develop-eggs/
 dist/
 downloads/
@@ -104,6 +106,8 @@ out/
 release/
 dist-electron/
 *.asar
+apps/momai/build/appx/
+apps/momai/build/icon.*
 
 # ====================
 # AI / Configurações Sensíveis
@@ -132,9 +136,12 @@ apps/core/vosk-model-*/
 *.local
 .cache/
 coverage/
+/assets/
 .nyc_output/
 *.tgz
 .turbo
+auditorias/*.pdf
+depsreports/*.pdf
 
 # ====================
 # Secrets / Keys
