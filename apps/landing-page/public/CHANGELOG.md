@@ -8,32 +8,49 @@ Melhorias no download de modelos e correções gerais de extensões
 
 ### 🐛 Correções
 
-- **Confiabilidade no download de modelos**: Downloads de modelos mais robustos e resilientes, com suporte a retomada de downloads interrompidos e novas tentativas automáticas em conexões instáveis.
+- **Confiabilidade no download de modelos**: Implementação de range requests, tentativas automáticas com backoff linear e timeouts de inatividade para garantir downloads robustos e resilientes de modelos de IA de grande porte.
 - **Resolução de bugs nas configurações**: Correção de problemas no painel de configurações e no carregamento dinâmico de extensões da comunidade.
 - **Player do YouTube**: Correções e restrições na integração e reprodução do player do YouTube no chat.
 
 ## 1.5.0 - 2026-06-26
 
-Melhorias de interface e suporte avançado para interfaces visuais em extensões
-
 ### ✨ Novas Funcionalidades
 
-- **Interfaces Customizadas em Extensões**: Extensões agora podem ter suas próprias interfaces visuais personalizadas (telas cheias ou painéis laterais) integradas de forma nativa e fluida no MomAI.
-- **Atalhos de Voz por Extensão**: Atalhos inteligentes para que extensões respondam a comandos por voz específicos diretamente no chat.
-- **Priorização Dinâmica de Contexto**: Priorização automática de ferramentas e habilidades ativas conforme o contexto da conversa.
-- **Privacidade Transparente**: Visualização clara e detalhada de todos os dados salvos por cada extensão ativa no painel de Privacidade.
-- **Salvamento Automático Otimizado**: Salvamento seguro de dados das extensões ao fechar o aplicativo para evitar perda de informações.
-- **Visual Atualizado**: Barra lateral e painel de extensões dinâmicos, com cores e ícones específicos para cada extensão instalada.
-- **Notificações Unificadas**: Central de notificações integrada para todas as extensões ativas.
+- **Interface de extensões personalizada**: Extensões agora podem ter suas próprias interfaces visuais — tanto telas completas quanto painéis laterais — integradas de forma nativa ao app.
 
-## 1.4.1 - 2026-05-27
+- **Atalhos de voz por extensão**: Cada extensão pode registrar comandos de voz específicos. Por exemplo, diga "responda" para interagir com uma extensão de mensagens diretamente pelo chat.
 
-Otimização de estabilidade no WhatsApp e instalação de extensões
+- **Priorização dinâmica de contexto**: O app ajusta automaticamente quais ferramentas e extensões são priorizadas conforme o contexto da conversa.
+
+- **Privacidade transparente**: Painel de Privacidade agora mostra todos os dados salvos por cada extensão ativa, com opções de exportação e exclusão (conformidade LGPD).
+
+- **Salvamento automático ao fechar**: Dados das extensões são salvos automaticamente ao fechar o app para evitar perda de informações.
+
+- **Visual atualizado**: Barra lateral e painel de extensões dinâmicos, com cores e ícones específicos para cada extensão instalada.
+
+- **Notificações unificadas**: Central de notificações integrada para todas as extensões ativas.
 
 ### 🐛 Correções
 
-- **Instalação Tolerante a Falhas**: Processo de instalação de extensões mais robusto e que não falha por causa de dependências secundárias opcionais.
-- **WhatsApp no Windows**: Integração do WhatsApp mais estável no Windows com suporte completo a autenticação via código QR em builds instaladas.
+- Correções na construção de extensões para compatibilidade com builds empacotadas.
+- Restauração de dependências de runtime que estavam ausentes em extensões.
+
+## 1.4.1 - 2026-05-27
+
+Correções na extensão WhatsApp e no pipeline de dependências
+
+### 🐛 Correções
+
+- **ASAR + cpSync**: Substituído `fs.cpSync` por cópia arquivo-por-arquivo (`readFileSync` + `writeFileSync`) para compatibilidade com Electron ASAR em builds empacotadas (APPX, NSIS)
+- **Resolução de dependências**: Adicionado `process.resourcesPath` + `require.resolve` fallback para encontrar deps dentro do ASAR
+- **Falha não-fatal**: Instalação de dependências não quebra mais a extensão se um dep opcional falhar
+- **Landing page**: Ícones de extensão com filtro `brightness-0 invert` para SVGs externos exibirem branco em fundo colorido
+- **.gitignore**: Corrigido conflito da regra `lib/` (Python template) com `apps/landing-page/src/lib/`
+
+### ✨ Melhorias
+
+- **WhatsApp extensão**: QR code funcional em builds APPX, dependências copiadas corretamente (230 pacotes, 8336 arquivos)
+- **Deploy landing page**: `git pull --rebase` antes do push para evitar race condition
 
 ## 1.4.0 - 2026-05-10
 
@@ -41,24 +58,32 @@ Integração WhatsApp, Extensões, Modo Economia e Desempenho
 
 ### ✨ Novas Funcionalidades
 
-- **Integração com WhatsApp**: Conecte sua conta do WhatsApp para ler, receber notificações e enviar mensagens utilizando texto ou comandos de voz.
-- **Loja de Extensões**: Central unificada para descobrir e instalar novas habilidades criadas pela comunidade para o seu assistente.
-- **Modo Economia Inteligente**: Detecção automática de jogos que pausa o processamento de inteligência artificial em segundo plano para liberar memória RAM e VRAM.
-- **Seletor de Voz offline/online**: Escolha entre o sintetizador de voz na nuvem de alta fidelidade ou voz local 100% offline.
-- **Painel de Histórico de Execução**: Visualize detalhadamente a linha do tempo de ações da inteligência artificial.
-- **Atualização do Motor de IA**: Atualização do motor de inferência local (llama.cpp) trazendo melhor tempo de resposta e consumo otimizado.
+- **WhatsApp**: Integração completa via Baileys — overlay de notificações, comandos de voz ("responda"), card de chat, envio de mensagens, grupos e contatos
+- **Extensões**: Sistema de extensões com workers persistentes, dependências copiadas do app, NODE_PATH, eventos SSE, permissões granulares, painel lateral dinâmico
+- **Keyword Router**: Atalhos de voz para skills — "responda", "pesquise", comandos customizados por extensão
+- **Modo Economia**: Detecção automática de jogos (Steam/Epic), pausa do LLM durante jogos, overlay de RAM/VRAM liberados, catálogo com capas
+- **TTS Engine Selector**: Escolha entre edge-tts (cloud) e kokoro (local) no onboarding e configurações
+- **Observability**: Traços de execução, timeline, filtros, gráficos, persistência em disco
+- **Dev Tools**: Painel de desenvolvimento com toggles de logs, observability e context ring
+- **llama.cpp b9165**: Atualização massiva (+169 releases) do motor de inferência
 
 ### ⚙️ Melhorias
 
-- **Otimização Geral**: Respostas de voz mais rápidas, consultas às configurações aceleradas e economia de bateria no processamento de áudio.
-- **Modo Chamada Fluido**: Sincronização e resposta visual aprimorados ao conversar por voz com o assistente.
-- **Transição de Planos Suave**: Feedback visual aprimorado e carregamento mais claro ao alterar planos no assistente.
+- **Performance**: SQLAlchemy assíncrono, httpx pool, cache TTL de settings, FFT condicional, WebSocket concorrente, SSE backpressure, TTS throttling, pruning de mensagens, consolidação de useReducer
+- **Testes**: Suite completa com ~30 arquivos de teste (hooks, componentes, serviços, utilitários)
+- **Overlay onboarding**: Transição suave de tier com overlay + loading, polling de status
+- **Deploy manual**: Substituída GitHub Pages action por script de deploy direto
+- **Regras .gitignore**: Adicionado `worktrees/`, `runtime-data/`
 
 ### 🐛 Correções
 
-- **Sintetizador de Voz**: Correções de vazamento de áudio e liberação de recursos do sistema ao parar de falar.
-- **Lembretes e Agendamentos**: Correções na repetição e disparo duplicado de lembretes.
-- **Modo Economia**: Suporte aprimorado na detecção automática para jogos populares como Fortnite.
+- **Call mode**: Rollback frontend, sync startup, ws resync, error feedback
+- **TTS**: Cleanup de AudioContext, speak handler não-bloqueante
+- **Reminders**: Limite de repeat_count, correção de triggers múltiplos
+- **Settings cache**: NameError de variável após import
+- **Economy**: Race conditions, toggle persistência, cobertura de jogos (Fortnite, Firestone)
+- **CORS**: PUT method adicionado para skills keywords API
+- **Various**: build, typecheck, lint fixes
 
 ## 1.3.0 - 2026-05-02
 
