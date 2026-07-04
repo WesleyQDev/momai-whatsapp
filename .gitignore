@@ -159,6 +159,8 @@ p.txt
 
 .agent/
 
+.opencode/package-lock.json
+
 nul
 
 .dev-data/
