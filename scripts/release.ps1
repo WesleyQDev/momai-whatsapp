@@ -7,6 +7,10 @@
 .PARAMETER Version
   Override version (default: auto-detect from nearest git tag).
 
+.PARAMETER MakeLatest
+  Mark this release as the latest stable version on GitHub.
+  Only use for verified stable releases. Do NOT use for pre-releases or betas.
+
 .DESCRIPTION
   Prerequisites:
     - Docker Desktop running (for Linux build)
@@ -20,14 +24,22 @@
 
     # Override version:
     .\scripts\release.ps1 -Version 1.5.0
+
+    # Mark as latest stable:
+    .\scripts\release.ps1 -Version 1.5.0 -MakeLatest
+
+    # Pre-release (do NOT use -MakeLatest):
+    .\scripts\release.ps1 -Version 1.6.0-beta.1
 #>
 $ErrorActionPreference = "Stop"
 $rootDir = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 
-# ── Step 0: Detect version ──────────────────────────────────────
+# ── Step 0: Parse parameters ────────────────────────────────────
 $Version = ""
+$MakeLatest = $false
 for ($i = 0; $i -lt $args.Count; $i++) {
   if ($args[$i] -eq '-Version' -and ($i + 1) -lt $args.Count) { $Version = $args[$i + 1] }
+  if ($args[$i] -eq '-MakeLatest') { $MakeLatest = $true }
 }
 if ($Version) {
   if (-not $Version.StartsWith('v')) { $Version = "v$Version" }
@@ -48,6 +60,15 @@ if ($Version) {
   }
 }
 $cleanVersion = $version -replace '^v', ''
+
+# ── Safety: block -MakeLatest for pre-release versions ──────────
+if ($MakeLatest -and $cleanVersion -match '-') {
+  Write-Host "`u{274C} Cannot mark a pre-release version as latest." -ForegroundColor Red
+  Write-Host "   Version '$cleanVersion' contains '-' (pre-release pattern)." -ForegroundColor Yellow
+  Write-Host "   Remove -MakeLatest or use a stable version (e.g. 1.5.1)." -ForegroundColor Yellow
+  exit 1
+}
+
 Write-Host "`u{1F680} Releasing $version"
 
 # ── Step 1: Ensure Docker is running ─────────────────────────────
@@ -133,20 +154,50 @@ Write-Host "  Artifacts:" ($artifacts | ForEach-Object { "`n    $($_.Name)" })
 $paths = $artifacts | ForEach-Object { $_.FullName }
 
 $created = $false
-try {
-  gh release create $version `
-    --repo WesleyQDev/MomAI-App `
-    --title "MomAI $version" `
-    --latest `
-    --notes "Release automático local." `
-    $paths 2>&1 | Out-String | Write-Host
+$releaseArgs = @(
+  'release', 'create', $version,
+  '--repo', 'WesleyQDev/MomAI-App',
+  '--title', "MomAI $version",
+  '--notes', "Release automático local."
+)
+if ($MakeLatest) {
+  $releaseArgs += '--latest'
+  Write-Host "  Marking as latest stable release" -ForegroundColor Green
+} else {
+  Write-Host "  NOT marking as latest (use -MakeLatest for stable releases)" -ForegroundColor Yellow
+}
+$releaseArgs += $paths
+
+$output = & gh @releaseArgs 2>&1 | Out-String
+if ($LASTEXITCODE -eq 0) {
   $created = $true
-} catch {
-  Write-Host "  Release already exists, uploading additional artifacts..."
+  Write-Host $output
+} else {
+  Write-Host "  Release already exists, uploading additional artifacts..." -ForegroundColor Yellow
+  Write-Host $output
 }
 
 if (-not $created) {
   gh release upload $version --repo WesleyQDev/MomAI-App --clobber $paths 2>&1 | Out-String | Write-Host
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "`u{274C} Upload failed." -ForegroundColor Red
+    exit 1
+  }
+}
+
+# If -MakeLatest was requested but release already existed, ensure it's marked as latest
+if ($MakeLatest -and -not $created) {
+  Write-Host "  Ensuring release is marked as latest..." -ForegroundColor Yellow
+  gh release edit $version --repo WesleyQDev/MomAI-App --latest 2>&1 | Out-String | Write-Host
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "`u{274C} Failed to mark as latest." -ForegroundColor Red
+    exit 1
+  }
 }
 
 Write-Host "`u{2705} Release $version completed!" -ForegroundColor Green
+if (-not $MakeLatest) {
+  Write-Host "`u{26A0}  This release is NOT marked as latest." -ForegroundColor Yellow
+  Write-Host "   To mark as latest, run:" -ForegroundColor Yellow
+  Write-Host "   gh release edit $version --repo WesleyQDev/MomAI-App --latest" -ForegroundColor Yellow
+}
