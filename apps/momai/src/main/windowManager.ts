@@ -23,7 +23,6 @@ import { logger } from './logger'
 import { restartCoreBackend } from './coreManager'
 import { scanInstalledGames } from './economyScanner'
 import { API_BASE_URL, WS_BASE_URL, ICON_PATH } from './constants'
-import { getOrCreateSessionToken } from './security/session-token'
 import { authFetch } from './security/authenticated-fetch'
 import { isSafeExternalUrl } from './security/safe-external-url'
 import { shouldBlockDevToolsShortcut } from './security/devtools-block'
@@ -328,7 +327,6 @@ export function createOverlayWindow(data?: any): void {
         additionalArguments: [
           `--momai-api-url=${API_BASE_URL}`,
           `--momai-ws-url=${WS_BASE_URL}`,
-          `--momai-session-token=${getOrCreateSessionToken()}`,
           `--momai-is-dev=${is.dev}`
         ]
       }
@@ -396,7 +394,6 @@ function createMainWindow(): BrowserWindow {
       additionalArguments: [
         `--momai-api-url=${API_BASE_URL}`,
         `--momai-ws-url=${WS_BASE_URL}`,
-        `--momai-session-token=${getOrCreateSessionToken()}`,
         `--momai-is-dev=${is.dev}`
       ]
     }

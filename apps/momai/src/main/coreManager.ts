@@ -671,10 +671,9 @@ function spawnNodeCore(): ReturnType<typeof spawn> {
   }
 
   const sessionToken = getOrCreateSessionToken()
-  const { MOMAI_SESSION_TOKEN: _omit, ...parentEnv } = process.env
 
   const env = {
-    ...parentEnv,
+    ...process.env,
     ELECTRON_RUN_AS_NODE: '1',
     MOMAI_IS_PACKAGED: app.isPackaged ? '1' : '0',
     MOMAI_NODE_CORE_HOST: API_HOST,
@@ -686,10 +685,11 @@ function spawnNodeCore(): ReturnType<typeof spawn> {
     MOMAI_PYTHON_SIDECAR_HOST: PYTHON_SIDECAR_HOST,
     MOMAI_PYTHON_SIDECAR_PORT: String(PYTHON_SIDECAR_PORT),
     MOMAI_ONBOARDING_MODE: isOnboardingCompleted() ? '0' : '1',
-    MOMAI_AI_TIER: getCurrentTier() || 'lite'
+    MOMAI_AI_TIER: getCurrentTier() || 'lite',
+    MOMAI_SESSION_TOKEN: sessionToken
   }
 
-  const child = spawn(process.execPath, [scriptPath, `--momai-session-token=${sessionToken}`], {
+  const child = spawn(process.execPath, [scriptPath], {
     env,
     shell: false,
     stdio: ['ignore', 'pipe', 'pipe', 'ipc']

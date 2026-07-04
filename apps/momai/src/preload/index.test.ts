@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { getExposed, resetExposed } from './test-setup'
 
-const originalArgv = process.argv
+const originalToken = process.env.MOMAI_SESSION_TOKEN
 
 describe('preload getSessionToken', () => {
   beforeEach(() => {
@@ -14,26 +14,27 @@ describe('preload getSessionToken', () => {
   })
 
   afterEach(() => {
-    process.argv = originalArgv
+    process.env.MOMAI_SESSION_TOKEN = originalToken ?? undefined
     vi.resetModules()
   })
 
-  it('returns the session token from --momai-session-token argv', async () => {
-    process.argv = [...originalArgv, '--momai-session-token=deadbeef1234']
+  it('returns the session token from MOMAI_SESSION_TOKEN env', async () => {
+    process.env.MOMAI_SESSION_TOKEN = 'deadbeef1234'
     await import('./index')
     const api = getExposed().api as { getSessionToken: () => string }
     expect(api).toBeDefined()
     expect(api.getSessionToken()).toBe('deadbeef1234')
   })
 
-  it('returns empty string when --momai-session-token is missing', async () => {
+  it('returns empty string when MOMAI_SESSION_TOKEN is missing', async () => {
+    delete process.env.MOMAI_SESSION_TOKEN
     await import('./index')
     const api = getExposed().api as { getSessionToken: () => string }
     expect(api.getSessionToken()).toBe('')
   })
 
-  it('returns empty string when argv has the flag with no value', async () => {
-    process.argv = [...originalArgv, '--momai-session-token=']
+  it('returns empty string when MOMAI_SESSION_TOKEN is empty', async () => {
+    process.env.MOMAI_SESSION_TOKEN = ''
     await import('./index')
     const api = getExposed().api as { getSessionToken: () => string }
     expect(api.getSessionToken()).toBe('')
@@ -56,13 +57,13 @@ describe('preload apiFetch (backward-compat passthrough)', () => {
   })
 
   afterEach(() => {
-    process.argv = originalArgv
+    process.env.MOMAI_SESSION_TOKEN = originalToken ?? undefined
     global.fetch = originalFetch
     vi.resetModules()
   })
 
   it('delegates to global fetch without modifying headers', async () => {
-    process.argv = [...originalArgv, '--momai-session-token=deadbeef1234']
+    process.env.MOMAI_SESSION_TOKEN = 'deadbeef1234'
     await import('./index')
     const api = getExposed().api as {
       apiFetch: (url: string, options?: RequestInit) => Promise<Response>
@@ -95,13 +96,13 @@ describe('preload apiWebSocket (backward-compat passthrough)', () => {
   })
 
   afterEach(() => {
-    process.argv = originalArgv
+    process.env.MOMAI_SESSION_TOKEN = originalToken ?? undefined
     global.WebSocket = originalWebSocket
     vi.resetModules()
   })
 
   it('delegates to global WebSocket without modifying URL', async () => {
-    process.argv = [...originalArgv, '--momai-session-token=deadbeef1234']
+    process.env.MOMAI_SESSION_TOKEN = 'deadbeef1234'
     await import('./index')
     const api = getExposed().api as { apiWebSocket: (url: string) => WebSocket }
     api.apiWebSocket('ws://127.0.0.1:8000/ws')

@@ -12,10 +12,11 @@ const FALLBACK_API_URL = 'http://127.0.0.1:8000'
 const FALLBACK_WS_URL = 'ws://127.0.0.1:8000/ws'
 const API_BASE_URL = getArgValue('--momai-api-url=', FALLBACK_API_URL)
 const WS_BASE_URL = getArgValue('--momai-ws-url=', FALLBACK_WS_URL)
-// Session token is generated in the main process and forwarded via
-// webPreferences.additionalArguments. Used by apiFetch / apiWebSocket
-// to authenticate renderer-initiated calls (Authorization header / ?token=).
-const SESSION_TOKEN = getArgValue('--momai-session-token=', '')
+// Session token is generated in the main process and set in process.env
+// before any windows are created. The renderer process inherits it via env.
+// Used by apiFetch / apiWebSocket to authenticate renderer-initiated calls
+// (Authorization header / ?token=).
+const SESSION_TOKEN = process.env.MOMAI_SESSION_TOKEN || ''
 // Dev-mode flag forwarded from main process (true when running via `pnpm run dev`).
 // Used by the renderer to gate dev-only UI (e.g. the "Reset to Zero" button).
 const IS_DEV = getArgValue('--momai-is-dev=', 'false') === 'true'
