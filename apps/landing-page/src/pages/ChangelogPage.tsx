@@ -42,7 +42,7 @@ function parseChangelog(md: string): ChangelogVersion[] {
       continue;
     }
 
-    const sectionMatch = trimmed.match(/^## (.+)$/);
+    const sectionMatch = trimmed.match(/^#{2,3} (.+)$/);
     if (sectionMatch) {
       const title = sectionMatch[1]
         .replace(/\p{Extended_Pictographic}/gu, "")
