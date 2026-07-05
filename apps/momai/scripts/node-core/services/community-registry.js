@@ -124,6 +124,18 @@ class CommunityRegistryService {
       .on('error', () => {})
   }
 
+  async fetchManifest(repo) {
+    const url = `https://raw.githubusercontent.com/${repo}/main/manifest.json`
+    try {
+      console.log(`[CommunityRegistry] Fetching manifest for ${repo}...`)
+      const data = await this._httpGet(url)
+      return JSON.parse(data)
+    } catch (e) {
+      console.warn(`[CommunityRegistry] Failed to fetch manifest for ${repo}:`, e.message)
+      return null
+    }
+  }
+
   _httpGet(url, headers = {}) {
     return new Promise((resolve, reject) => {
       const client = url.startsWith('https') ? https : http
