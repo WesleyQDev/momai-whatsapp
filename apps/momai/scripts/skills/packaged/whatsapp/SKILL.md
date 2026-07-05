@@ -4,7 +4,8 @@ name: WhatsApp
 description: Monitora e responde mensagens do WhatsApp
 icon: 💚
 author: WesleyQDev
-version: 0.2.0
+repo: WesleyQDev/momai-whatsapp-extension
+version: 0.3.31
 intents:
   - enviar mensagem no whatsapp
   - mandar zap

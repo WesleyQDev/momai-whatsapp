@@ -1,5 +1,5 @@
 ---
-name: launcher
+name: MomAI Open
 description: Abre programas, aplicativos, pastas e arquivos no computador. Busca, navega e lista diretórios, arquivos e programas no sistema. Use quando o usuario pedir para abrir, executar, buscar, navegar, listar ou encontrar pastas, arquivos ou programas.
 icon: launcher
 tags:
@@ -7,7 +7,7 @@ tags:
   - launcher
   - arquivos
 author: WesleyQDev
-repo: WesleyQDev/momai-extension-launcher
+repo: WesleyQDev/momai-open
 version: 1.0.0
 intents:
   - abrir

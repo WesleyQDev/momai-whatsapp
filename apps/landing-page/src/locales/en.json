@@ -144,6 +144,12 @@
     "voltar": "← Back",
     "todas": "All",
     "github": "GitHub",
-    "sobre": "About this extension"
+    "sobre": "About this extension",
+    "permissoes": "Permissions",
+    "permissoesDesc": "This extension requires the following permissions",
+    "armazenamento": "Storage",
+    "armazenamentoDesc": "Local data stored by this extension",
+    "voz": "Voice Control",
+    "vozDesc": "This extension can be controlled by voice"
   }
 }

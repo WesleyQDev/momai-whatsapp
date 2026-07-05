@@ -318,21 +318,6 @@ function getAccentClasses(manifest?: any) {
   )
 }
 
-/* ─── Star Rating ─── */
-function StarRating({ value = 4.8 }: { value?: number }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <StarIcon
-          key={i}
-          className={`w-3 h-3 ${i <= Math.round(value) ? 'text-amber-400 fill-amber-400' : 'text-zinc-600'}`}
-        />
-      ))}
-      <span className="text-[10px] text-zinc-500 ml-1 font-medium">{value}</span>
-    </div>
-  )
-}
-
 /* ─── Carousel Banner ─── */
 function FeaturedCarousel({
   skills,
@@ -524,8 +509,6 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
                 <StarIconSolid className="w-3 h-3 text-amber-400" />
                 {skill.stars || 0}
               </div>
-            ) : skill.category === 'community' ? (
-              <StarRating value={4.8} />
             ) : null}
           </div>
         </div>
@@ -637,16 +620,16 @@ function SkillDetailView({
             <div className="w-px h-6 bg-zinc-800" />
             <div className="flex flex-col">
               <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">
-                {skill.repo ? 'GitHub Stars' : 'Avaliação'}
+                GitHub Stars
               </span>
               {skill.repo ? (
                 <div className="flex items-center gap-1.5 text-sm text-amber-400 font-black">
                   <StarIconSolid className="w-4 h-4 text-amber-400" />
                   {skill.stars || 0}
                 </div>
-              ) : skill.category === 'community' || skill.category === 'extension' ? (
-                <StarRating value={skill.is_official ? 5 : 4.8} />
-              ) : null}
+              ) : (
+                <span className="text-xs text-zinc-500 font-bold">N/A</span>
+              )}
             </div>
           </div>
 

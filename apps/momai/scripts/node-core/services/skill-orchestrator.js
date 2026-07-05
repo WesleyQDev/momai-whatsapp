@@ -134,6 +134,21 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
     }
   }
 
+  // Fetch stars for community extensions that have a repo
+  const communityStarsMap = new Map()
+  const communityWithRepo = community.filter(
+    (item) => !installedIds.has(item.id) && item.repo
+  )
+  for (let i = 0; i < communityWithRepo.length; i += BATCH_SIZE) {
+    const batch = communityWithRepo.slice(i, i + BATCH_SIZE)
+    await Promise.all(
+      batch.map(async (item) => {
+        const stars = await communityRegistry.getGitHubStars(item.repo)
+        communityStarsMap.set(item.id, stars)
+      })
+    )
+  }
+
   // Merge with community items that aren't installed yet
   const communityItems = community
     .filter((item) => !installedIds.has(item.id))
@@ -158,7 +173,8 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         enabled: false,
         installed: false,
         is_official: raw.is_official || false,
-        stars: 0,
+        stars: communityStarsMap.get(raw.id) || 0,
+        repo: raw.repo || null,
         readme: localized.description || raw.description
       }
     })
@@ -178,7 +194,8 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         download_url: ext.download_url,
         version: ext.version || null,
         author: ext.author || null,
-        stars: 0,
+        repo: ext.repo || (matchedComm ? matchedComm.repo : null),
+        stars: communityStarsMap.get(ext.id) || 0,
         readme: ext.description,
         icon: matchedComm ? matchedComm.icon : ext.icon || null,
         icon_url: matchedComm ? matchedComm.icon_url : ext.icon_url || null,
