@@ -179,3 +179,8 @@ apps/momai/data/node-core-store.json
 
 # Worktrees
 .worktrees/
+
+# ====================
+# Agente Skills (working state, not project code)
+# ====================
+.specs/
