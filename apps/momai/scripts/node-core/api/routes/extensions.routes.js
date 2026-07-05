@@ -11,6 +11,7 @@ const { isPrivateIp } = require('../../utils/ip-check')
 const { verifyChecksum } = require('../../utils/extension-checksum')
 const { corsHeaders } = require('../../infrastructure/http-helpers')
 const { loadInstallRegistry, _setInstallRegistryForTests } = require('../../utils/install-registry')
+const communityRegistry = require('../../services/community-registry')
 
 /* ── Community registry allowlist (SSRF defense) ── */
 
@@ -430,6 +431,29 @@ function createExtensionsRoutes(context) {
     if (pathname === '/extensions/registry' && req.method === 'GET') {
       const payload = await getExtensionsPayload(lang)
       sendJson(res, 200, payload)
+      return true
+    }
+
+    // Fetch manifest.json from GitHub repo for pre-install detail view
+    if (pathname.match(/^\/extensions\/[^/]+\/manifest$/) && req.method === 'GET') {
+      const id = pathname.split('/')[2]
+      try {
+        const community = await communityRegistry.fetchRegistry()
+        const item = community.find((e) => e.id === id)
+        if (!item || !item.repo) {
+          sendJson(res, 404, { error: 'extension not found in community registry' })
+          return true
+        }
+        const manifest = await communityRegistry.fetchManifest(item.repo)
+        if (!manifest) {
+          sendJson(res, 404, { error: 'manifest not found in repo' })
+          return true
+        }
+        sendJson(res, 200, manifest)
+      } catch (err) {
+        console.error(`[ExtensionsAPI] Error fetching manifest for ${id}:`, err)
+        sendJson(res, 500, { error: 'failed to fetch manifest' })
+      }
       return true
     }
 
