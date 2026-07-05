@@ -124,7 +124,7 @@ export default function MainViewRenderer({
       </div>
 
       {!isChat && Component && (
-        <div className="flex-1 w-full h-full min-h-0">
+        <div className="flex-1 w-full h-full min-h-0 min-w-0">
           <Component
             onOpenSettings={onOpenSettings}
             title={extensionData?.name}

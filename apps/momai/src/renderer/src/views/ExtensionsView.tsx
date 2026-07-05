@@ -355,7 +355,7 @@ function FeaturedCarousel({
   if (skills.length === 0) return null
 
   return (
-    <div className="relative group">
+    <div className="relative group min-w-0">
       {canScrollLeft && (
         <button
           onClick={() => scroll('left')}
@@ -1023,10 +1023,10 @@ export default function ExtensionsView() {
   }, [activeTab, storeSkills, allSkills])
 
   return (
-    <div className="flex-1 h-full bg-zinc-900 overflow-hidden flex flex-col">
+    <div className="flex-1 h-full bg-zinc-900 min-w-0 flex flex-col overflow-hidden">
       {/* ─── Content ─── */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto px-6 py-5">
+      <div className="flex-1 min-w-0 overflow-y-auto">
+        <div className="w-full px-6 py-5">
           {/* ─── Tabs & Search ─── */}
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-1 p-0.5 bg-zinc-800 rounded-lg border border-zinc-700">
@@ -1134,7 +1134,7 @@ export default function ExtensionsView() {
 
               {/* Skills Grid */}
               {filteredList.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                <div className="w-full min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {filteredList.map((skill) => (
                     <SkillCard key={skill.id} skill={skill} onSelect={handleSelectSkill} />
                   ))}
