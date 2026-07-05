@@ -97,6 +97,7 @@ import {
   installExtension,
   toggleExtension,
   uninstallExtension,
+  fetchExtensionManifest,
   Extension
 } from '../services/api'
 import {

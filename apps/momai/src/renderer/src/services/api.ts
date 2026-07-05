@@ -489,6 +489,16 @@ export async function fetchExtensionRegistry(lang?: string): Promise<any[]> {
   return response.json()
 }
 
+export async function fetchExtensionManifest(id: string): Promise<Record<string, any> | null> {
+  try {
+    const response = await apiFetch(`${API_URL}/extensions/${id}/manifest`)
+    if (!response.ok) return null
+    return response.json()
+  } catch {
+    return null
+  }
+}
+
 export async function installExtension(
   id: string,
   downloadUrl: string,
