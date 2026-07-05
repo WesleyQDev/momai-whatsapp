@@ -867,6 +867,22 @@ function SkillDetailView({
   )
 }
 
+function enrichExtensionWithManifest(ext: Extension, manifest: Record<string, any>): Extension {
+  if (!manifest) return ext
+  return {
+    ...ext,
+    icon: manifest.icon || ext.icon,
+    icon_url: manifest.icon_url || ext.icon_url,
+    icon_bg: manifest.icon_bg || ext.icon_bg,
+    theme: manifest.theme || ext.theme,
+    tags: manifest.tags?.length ? manifest.tags : ext.tags,
+    version: manifest.version || ext.version,
+    author: manifest.author || ext.author,
+    permissionSummary: manifest._permSummary?.length ? manifest._permSummary : ext.permissionSummary,
+    riskLevel: manifest._riskLevel || ext.riskLevel
+  }
+}
+
 /* ─── Main View ─── */
 export default function ExtensionsView() {
   const { t, locale } = useI18n()
@@ -881,6 +897,7 @@ export default function ExtensionsView() {
   } | null>(null)
   const [activeTab, setActiveTab] = useState<'installed' | 'store'>('store')
   const [selectedSkill, setSelectedSkill] = useState<Extension | null>(null)
+  const [selectedManifest, setSelectedManifest] = useState<Record<string, any> | null>(null)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const tagsDragScrollRef = useRef<HTMLDivElement | null>(null)
@@ -911,6 +928,15 @@ export default function ExtensionsView() {
     if (tab === 'store' || tab === 'installed') setActiveTab(tab)
   }, [location.state])
 
+  const handleSelectSkill = async (ext: Extension) => {
+    setSelectedSkill(ext)
+    setSelectedManifest(null)
+    if (!ext.installed && ext.repo) {
+      const manifest = await fetchExtensionManifest(ext.id)
+      setSelectedManifest(manifest)
+    }
+  }
+
   const handleInstall = async (ext: Extension) => {
     setInstalling(ext.id)
     setInstallProgress({ percent: 0, speed: '0 KB/s', status: 'Iniciando...' })
@@ -924,6 +950,7 @@ export default function ExtensionsView() {
       if (selectedSkill?.id === ext.id) {
         const updated = freshData.find((s) => s.id === ext.id)
         if (updated) setSelectedSkill(updated)
+        setSelectedManifest(null)
       }
     } catch (err) {
       alert(t('extensions.errors.install', { error: String(err) }))
@@ -1046,8 +1073,8 @@ export default function ExtensionsView() {
           {selectedSkill ? (
             /* ─── Detail View ─── */
             <SkillDetailView
-              skill={selectedSkill}
-              onBack={() => setSelectedSkill(null)}
+              skill={selectedManifest ? enrichExtensionWithManifest(selectedSkill, selectedManifest) : selectedSkill}
+              onBack={() => { setSelectedSkill(null); setSelectedManifest(null) }}
               onInstall={handleInstall}
               onToggle={handleToggle}
               onUninstall={handleUninstall}
@@ -1063,7 +1090,7 @@ export default function ExtensionsView() {
                   <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
                     {activeTab === 'store' ? 'Destaques' : 'Suas Skills'}
                   </h2>
-                  <FeaturedCarousel skills={featuredSkills} onSelect={setSelectedSkill} />
+                  <FeaturedCarousel skills={featuredSkills} onSelect={handleSelectSkill} />
                 </div>
               )}
 
@@ -1107,7 +1134,7 @@ export default function ExtensionsView() {
               {filteredList.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                   {filteredList.map((skill) => (
-                    <SkillCard key={skill.id} skill={skill} onSelect={setSelectedSkill} />
+                    <SkillCard key={skill.id} skill={skill} onSelect={handleSelectSkill} />
                   ))}
                 </div>
               ) : (
