@@ -853,8 +853,41 @@ function SkillDetailView({
   )
 }
 
+const CAPABILITIES: Record<string, { risk: string; description: string }> = {
+  network: { risk: 'high', description: 'Acesso à rede' },
+  'filesystem:read': { risk: 'medium', description: 'Leitura de arquivos' },
+  'filesystem:write': { risk: 'high', description: 'Escrita de arquivos' },
+  'ui:sidebar': { risk: 'low', description: 'Adicionar painéis na barra lateral' },
+  'ui:commands': { risk: 'low', description: 'Registrar comandos' },
+  'chat:messages': { risk: 'medium', description: 'Ler mensagens do chat' },
+  'system:info': { risk: 'low', description: 'Ver informações do sistema' },
+  process: { risk: 'critical', description: 'Acesso a processos do sistema' },
+  shell: { risk: 'critical', description: 'Execução de comandos shell' }
+}
+
+function computeRiskLevel(permissions: string[]): 'low' | 'medium' | 'high' | 'critical' {
+  const riskOrder = ['low', 'medium', 'high', 'critical']
+  let maxRisk = 'low'
+  for (const id of permissions) {
+    const cap = CAPABILITIES[id]
+    const risk = cap?.risk || 'medium'
+    if (riskOrder.indexOf(risk) > riskOrder.indexOf(maxRisk)) {
+      maxRisk = risk
+    }
+  }
+  return maxRisk as 'low' | 'medium' | 'high' | 'critical'
+}
+
+function computePermissionSummary(permissions: string[]): string[] {
+  return permissions.map((id) => {
+    const cap = CAPABILITIES[id]
+    return cap ? cap.description : id
+  })
+}
+
 function enrichExtensionWithManifest(ext: Extension, manifest: Record<string, any>): Extension {
   if (!manifest) return ext
+  const perms = Array.isArray(manifest.permissions) ? manifest.permissions : []
   return {
     ...ext,
     icon: manifest.icon || ext.icon,
@@ -864,8 +897,8 @@ function enrichExtensionWithManifest(ext: Extension, manifest: Record<string, an
     tags: manifest.tags?.length ? manifest.tags : ext.tags,
     version: manifest.version || ext.version,
     author: manifest.author || ext.author,
-    permissionSummary: manifest._permSummary?.length ? manifest._permSummary : ext.permissionSummary,
-    riskLevel: manifest._riskLevel || ext.riskLevel
+    permissionSummary: computePermissionSummary(perms),
+    riskLevel: computeRiskLevel(perms)
   }
 }
 

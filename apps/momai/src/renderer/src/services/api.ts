@@ -426,7 +426,7 @@ export interface Extension {
   tags?: string[]
   manifest?: any
   permissionSummary?: string[]
-  riskLevel?: 'low' | 'medium' | 'high'
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical'
   instructions?: string
   readme?: string
   repo?: string
