@@ -229,20 +229,6 @@ function getIconBgStyle(skill: Extension) {
       return { background: iconBg }
     }
   }
-
-  const nameLower = skill.name?.toLowerCase() || ''
-  const idLower = skill.id?.toLowerCase() || ''
-  if (nameLower.includes('whatsapp') || idLower.includes('whatsapp')) {
-    return { background: '#25D366' } // WhatsApp green
-  }
-  if (
-    nameLower.includes('launcher') ||
-    idLower.includes('launcher') ||
-    nameLower.includes('lançador')
-  ) {
-    return { background: '#0066CC' } // Launcher blue
-  }
-
   return undefined
 }
 
