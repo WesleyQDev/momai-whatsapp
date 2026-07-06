@@ -619,6 +619,16 @@ function createExtensionsRoutes(context) {
           }
           console.log(`[ExtensionsAPI] Extracting ${id}...`)
           sendStatus('Extraindo...', 100, '-')
+          try {
+            const files = fs.readdirSync(extDir)
+            for (const file of files) {
+              if (file !== 'archive.zip') {
+                fs.rmSync(path.join(extDir, file), { recursive: true, force: true })
+              }
+            }
+          } catch (cleanErr) {
+            console.warn(`[extensions] Failed to clean directory before update: ${cleanErr.message}`)
+          }
           await extractZip(zipPath, extDir)
           try {
             fs.unlinkSync(zipPath)

@@ -725,6 +725,32 @@ function SkillDetailView({
               </div>
             ) : (
               <div className="flex items-center gap-3">
+                {skill.updateAvailable && (
+                  <div className="flex flex-col gap-1 min-w-[140px]">
+                    <button
+                      onClick={() => onInstall(skill)}
+                      disabled={installing === skill.id}
+                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black disabled:opacity-50 transition-all uppercase tracking-widest relative overflow-hidden active:scale-[0.98]"
+                    >
+                      {installing === skill.id && installProgress && (
+                        <div
+                          className="absolute left-0 top-0 bottom-0 bg-blue-500 transition-all duration-300"
+                          style={{ width: `${installProgress.percent}%` }}
+                        />
+                      )}
+                      <span className="relative z-10 flex items-center justify-center gap-1">
+                        <CloudArrowDownIcon className="w-3.5 h-3.5" />
+                        {installing === skill.id ? installProgress?.status || 'Atualizando...' : 'Atualizar'}
+                      </span>
+                    </button>
+                    {installing === skill.id && installProgress && (
+                      <div className="flex items-center justify-between px-1 text-[9px] text-zinc-500 font-bold uppercase tracking-wider">
+                        <span>{installProgress.percent}%</span>
+                        <span>{installProgress.speed}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <button
                   onClick={() => onToggle(skill)}
                   className={`inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black transition-all uppercase tracking-widest ${
