@@ -41,6 +41,7 @@ function createSettingsRoutes(context) {
         const payload = await context.readJsonBody(req).catch(() => ({}))
         const prevTier = store.settings.ai_tier || '__unset__'
         const prevBackend = store.settings.local_backend || 'auto'
+        const prevDevMode = store.settings.dev_mode || 'symlink'
 
         if (payload.ai_tier && !isValidTier(payload.ai_tier)) {
           sendJson(res, 400, {
@@ -51,6 +52,14 @@ function createSettingsRoutes(context) {
         }
 
         const safePayload = filterToEditableSettings(payload)
+        
+        if (safePayload.dev_mode && safePayload.dev_mode !== prevDevMode) {
+          console.log(`[settings] dev_mode changing from ${prevDevMode} to ${safePayload.dev_mode}. Stopping old extension workers...`)
+          if (context.extensionHostManager && typeof context.extensionHostManager.stopAllPersistent === 'function') {
+            await context.extensionHostManager.stopAllPersistent().catch(() => {})
+          }
+        }
+
         Object.assign(store.settings, safePayload)
         if (payload.tts_engine) {
           const tier = store.settings.ai_tier || 'pro'
@@ -96,6 +105,25 @@ function createSettingsRoutes(context) {
           saveStoreNow()
         } else {
           saveStore()
+        }
+
+        if (safePayload.dev_mode && safePayload.dev_mode !== prevDevMode) {
+          console.log(`[settings] Refreshing skill registry and spawning workers for new dev_mode: ${safePayload.dev_mode}`)
+          if (context.skillRegistry && typeof context.skillRegistry.refresh === 'function') {
+            await context.skillRegistry.refresh().catch(() => {})
+          }
+          const newSkills = context.skillRegistry ? context.skillRegistry.getAll() : []
+          for (const skill of newSkills) {
+            if (skill.manifest?.background) {
+              const key = safePayload.dev_mode === 'symlink' ? `${skill.id}_dev` : skill.id
+              const entry = store.extensions.find((e) => e.id === key)
+              const isEnabled = entry ? entry.enabled !== false : (skill.kind === 'builtin' || skill.kind === 'packaged')
+              if (isEnabled && context.extensionHostManager) {
+                console.log(`[settings] Spawning persistent worker for ${skill.id} in ${safePayload.dev_mode} mode...`)
+                await context.extensionHostManager.startPersistent(skill.id, skill.dir, skill.manifest).catch(() => {})
+              }
+            }
+          }
         }
 
         const ready = await maybeRestartLlamaOnTierChange(

@@ -142,7 +142,7 @@ describe('dynamic skill route mounting', () => {
 
     expect(handled).toBe(true)
     expect(res.statusCode).toBe(500)
-    expect(res.body).toEqual({ ok: false, error: 'boom' })
+    expect(res.body).toEqual({ ok: false, error: 'skill_route_error' })
   })
 
   it('falls through to the next handler when no skill declares the route', async () => {

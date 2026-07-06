@@ -252,10 +252,18 @@ function App(): React.JSX.Element {
 
             <div className="relative z-10 flex-1 flex min-h-0 overflow-hidden bg-transparent">
               <div
-                className={`w-full h-full flex ${isCompact ? 'flex-col' : `flex-row ${isChat ? 'p-4 xl:p-4 gap-4 xl:gap-8 justify-center w-full max-w-[1500px] mx-auto overflow-x-auto overflow-y-hidden' : ''}`}`}
+                className={`w-full h-full flex min-w-0 ${
+                  isCompact
+                    ? 'flex-col'
+                    : `flex-row ${
+                        isChat
+                          ? 'p-4 xl:p-4 gap-4 xl:gap-8 justify-center w-full max-w-[1500px] mx-auto overflow-x-auto overflow-y-hidden'
+                          : 'overflow-hidden'
+                      }`
+                }`}
               >
                 <div
-                  className="flex-1 flex min-h-0"
+                  className="flex-1 flex min-h-0 min-w-0"
                   style={{ display: extensionPageId ? 'none' : 'flex' }}
                 >
                   <MainViewRenderer

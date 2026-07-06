@@ -1,4 +1,4 @@
-import { join } from 'path'
+import { resolve } from 'path'
 import { app } from 'electron'
 
 export const DEFAULT_HOST = '127.0.0.1'
@@ -13,5 +13,5 @@ export const WS_BASE_URL = `ws://${API_HOST}:${API_PORT}/ws`
 const ICON_EXT = process.platform === 'win32' ? 'ico' : 'png'
 
 export const ICON_PATH = app.isPackaged
-  ? join(process.resourcesPath, 'build', `icon.${ICON_EXT}`)
-  : join(app.getAppPath(), 'build', `icon.${ICON_EXT}`)
+  ? resolve(process.resourcesPath, 'build', `icon.${ICON_EXT}`)
+  : resolve(app.getAppPath(), 'build', `icon.${ICON_EXT}`)

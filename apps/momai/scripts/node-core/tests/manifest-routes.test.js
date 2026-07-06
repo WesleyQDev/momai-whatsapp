@@ -82,6 +82,6 @@ describe('mountSkillRoutes', () => {
       500,
       expect.objectContaining({ 'Content-Type': 'application/json; charset=utf-8' })
     )
-    expect(fakeRes.end).toHaveBeenCalledWith(JSON.stringify({ ok: false, error: 'boom' }))
+    expect(fakeRes.end).toHaveBeenCalledWith(JSON.stringify({ ok: false, error: 'skill_route_error' }))
   })
 })

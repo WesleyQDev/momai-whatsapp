@@ -144,6 +144,12 @@
     "voltar": "\u2190 Volver",
     "todas": "Todas",
     "github": "GitHub",
-    "sobre": "Sobre esta extensi\u00f3n"
+    "sobre": "Sobre esta extensi\u00f3n",
+    "permissoes": "Permisos",
+    "permissoesDesc": "Esta extensi\u00f3n requiere los siguientes permisos",
+    "armazenamento": "Almacenamiento",
+    "armazenamentoDesc": "Datos locales almacenados por esta extensi\u00f3n",
+    "voz": "Control por Voz",
+    "vozDesc": "Esta extensi\u00f3n puede ser controlada por voz"
   }
 }

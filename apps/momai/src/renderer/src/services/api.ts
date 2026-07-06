@@ -415,6 +415,8 @@ export interface Extension {
   category: string
   enabled: boolean
   installed?: boolean
+  isSymlink?: boolean
+  symlinkPath?: string | null
   icon?: string
   icon_url?: string
   icon_bg?: string
@@ -426,12 +428,16 @@ export interface Extension {
   tags?: string[]
   manifest?: any
   permissionSummary?: string[]
-  riskLevel?: 'low' | 'medium' | 'high'
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical'
   instructions?: string
   readme?: string
   repo?: string
   stars?: number
   compatibility?: string
+  momai_compat?: string
+  updateAvailable?: boolean
+  latestCompatibleVersion?: string
+  hasNewerIncompatible?: boolean
   eventTypes?: string[]
   storage?: {
     description?: string
@@ -471,6 +477,26 @@ export interface Extension {
       panelEndpoint: string
     } | null
   }
+  compat_status?: 'compatible' | 'incompatible' | 'unknown'
+}
+
+export interface ExtensionRelease {
+  version: string
+  tag: string
+  download_url: string
+  changelog?: string
+  date?: string
+  prerelease?: boolean
+  compatible: boolean
+  momai_compat?: string
+  requires_momai?: string
+}
+
+export interface ExtensionReleasesResponse {
+  releases: ExtensionRelease[]
+  installed_version: string | null
+  recommended_version: string | null
+  app_version: string
 }
 
 export async function fetchExtensions(lang?: string): Promise<Extension[]> {
@@ -489,15 +515,72 @@ export async function fetchExtensionRegistry(lang?: string): Promise<any[]> {
   return response.json()
 }
 
+export async function fetchExtensionManifest(id: string): Promise<Record<string, any> | null> {
+  try {
+    const response = await apiFetch(`${API_URL}/extensions/${id}/manifest`)
+    if (!response.ok) return null
+    return response.json()
+  } catch {
+    return null
+  }
+}
+
+export async function fetchExtensionReleases(id: string): Promise<ExtensionReleasesResponse> {
+  const response = await apiFetch(`${API_URL}/extensions/${id}/releases`)
+  if (!response.ok) throw new Error('Failed to fetch extension releases')
+  return response.json()
+}
+
+export type InstallStage =
+  | 'downloading' | 'verifying' | 'extracting' | 'linking_deps'
+  | 'indexing' | 'starting_worker' | 'done'
+
+export interface InstallProgress {
+  stage: InstallStage
+  status: string
+  percent: number
+  global_percent: number
+  bytes_total?: number | null
+  bytes_done?: number | null
+  speed_bps?: number | null
+  eta_seconds?: number | null
+}
+
+export interface InstallError {
+  ok: false
+  status: number
+  error:
+    | 'unknown_extension'
+    | 'no_installable_release'
+    | 'incompatible_version'
+    | 'release_not_found_by_version'
+    | 'release_asset_missing'
+    | string
+  app_version?: string
+  required_range?: string
+  release_version?: string
+  requested_version?: string
+  suggested_action?: string
+  message?: string
+}
+
 export async function installExtension(
   id: string,
-  downloadUrl: string,
-  onProgress?: (progress: { percent: number; speed: string; status: string }) => void
+  opts?: {
+    version?: string
+    downloadUrl?: string
+    onProgress?: (p: InstallProgress) => void
+    onError?: (e: InstallError) => void
+  }
 ): Promise<void> {
+  const body: Record<string, string> = { id }
+  if (opts?.version) body.version = opts.version
+  else if (opts?.downloadUrl) body.download_url = opts.downloadUrl
+
   const response = await apiFetch(`/extensions/install`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, download_url: downloadUrl })
+    body: JSON.stringify(body)
   })
 
   if (!response.ok) throw new Error('Erro ao iniciar instalação de extensão')
@@ -516,11 +599,17 @@ export async function installExtension(
         if (line.trim()) {
           try {
             const data = JSON.parse(line)
-            if (data.status && onProgress) {
-              onProgress(data)
-            }
-            if (data.error) {
-              throw new Error(data.error)
+            if (typeof data.stage === 'string') {
+              opts?.onProgress?.(data as InstallProgress)
+            } else if (data.ok === false && typeof data.error === 'string') {
+              const err = data as InstallError
+              if (opts?.onError) {
+                opts.onError(err)
+                return
+              }
+              throw new Error(err.message || err.error)
+            } else if (data.ok === true) {
+              return
             }
           } catch (e) {
             if (
@@ -643,6 +732,7 @@ export interface SettingsData {
   context_window_tokens?: number
   skip_intro?: boolean
   daily_briefing_enabled?: boolean
+  dev_mode?: string
 }
 
 export async function fetchSettings(): Promise<SettingsData> {

@@ -97,8 +97,17 @@ import {
   installExtension,
   toggleExtension,
   uninstallExtension,
-  Extension
+  fetchExtensionManifest,
+  fetchExtensionReleases,
+  fetchSettings,
+  updateSettingsPartial,
+  Extension,
+  ExtensionRelease,
+  InstallProgress,
+  InstallError
 } from '../services/api'
+import ExtensionInstallCard from '../components/extensions/ExtensionInstallCard'
+import ExtensionUninstallModal from '../components/extensions/ExtensionUninstallModal'
 import {
   WrenchIcon,
   StarIcon,
@@ -132,7 +141,8 @@ import {
   InformationCircleIcon,
   PuzzlePieceIcon,
   ChevronLeftIcon,
-  XMarkIcon
+  XMarkIcon,
+  FolderIcon
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { useI18n } from '../i18n'
@@ -228,20 +238,6 @@ function getIconBgStyle(skill: Extension) {
       return { background: iconBg }
     }
   }
-
-  const nameLower = skill.name?.toLowerCase() || ''
-  const idLower = skill.id?.toLowerCase() || ''
-  if (nameLower.includes('whatsapp') || idLower.includes('whatsapp')) {
-    return { background: '#25D366' } // WhatsApp green
-  }
-  if (
-    nameLower.includes('launcher') ||
-    idLower.includes('launcher') ||
-    nameLower.includes('lançador')
-  ) {
-    return { background: '#0066CC' } // Launcher blue
-  }
-
   return undefined
 }
 
@@ -267,11 +263,18 @@ function SkillIcon({ skill, className = 'w-6 h-6' }: SkillIconProps) {
   // 2. Custom icon URL
   if (iconUrl) {
     return (
-      <img
-        src={iconUrl}
-        alt=""
-        className={`${className} object-contain brightness-0 invert`}
-        loading="lazy"
+      <div
+        style={{
+          maskImage: `url(${iconUrl})`,
+          WebkitMaskImage: `url(${iconUrl})`,
+          maskSize: 'contain',
+          WebkitMaskSize: 'contain',
+          maskRepeat: 'no-repeat',
+          WebkitMaskRepeat: 'no-repeat',
+          maskPosition: 'center',
+          WebkitMaskPosition: 'center'
+        }}
+        className={`${className} bg-current`}
       />
     )
   }
@@ -331,21 +334,6 @@ function getAccentClasses(manifest?: any) {
   )
 }
 
-/* ─── Star Rating ─── */
-function StarRating({ value = 4.8 }: { value?: number }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <StarIcon
-          key={i}
-          className={`w-3 h-3 ${i <= Math.round(value) ? 'text-amber-400 fill-amber-400' : 'text-zinc-600'}`}
-        />
-      ))}
-      <span className="text-[10px] text-zinc-500 ml-1 font-medium">{value}</span>
-    </div>
-  )
-}
-
 /* ─── Carousel Banner ─── */
 function FeaturedCarousel({
   skills,
@@ -383,7 +371,7 @@ function FeaturedCarousel({
   if (skills.length === 0) return null
 
   return (
-    <div className="relative group">
+    <div className="relative group min-w-0">
       {canScrollLeft && (
         <button
           onClick={() => scroll('left')}
@@ -456,6 +444,10 @@ function FeaturedCarousel({
   )
 }
 
+const ActiveGlow = () => (
+  <span className="inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500 mr-1 shrink-0" />
+)
+
 /* ─── Skill Card ─── */
 function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extension) => void }) {
   const accentClasses = getAccentClasses(skill.manifest)
@@ -464,55 +456,69 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
   return (
     <div
       onClick={() => onSelect(skill)}
-      className={`group bg-zinc-800/40 border border-zinc-700/50 rounded-2xl overflow-hidden cursor-pointer hover:bg-zinc-800/80 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl active:scale-[0.98] ${accentClasses.border}`}
+      className={`group bg-zinc-950/20 hover:bg-zinc-900/40 border border-zinc-850 hover:border-zinc-700/60 rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgb(0,0,0,0.45)] active:scale-[0.99]`}
     >
       <div className="p-5">
         <div className="flex items-start justify-between mb-4">
           <div
-            className={`p-3 rounded-2xl ${getIconBgStyle(skill) ? '' : `bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)}`} shadow-lg ${accentClasses.shadow}`}
+            className={`p-3 rounded-2xl ${getIconBgStyle(skill) ? '' : `bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)}`} shadow-md`}
             style={getIconBgStyle(skill)}
           >
             <SkillIcon skill={skill} className="w-6 h-6 text-white" />
           </div>
           <div className="flex flex-col items-end gap-1.5">
             {skill.category === 'core' ? (
-              <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[9px] text-blue-400 font-bold uppercase tracking-wider">
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded-full text-[9px] font-bold uppercase tracking-wider border border-blue-500/25">
                 <CpuChipIcon className="w-3.5 h-3.5" />
                 CORE
               </div>
             ) : skill.is_official ? (
-              <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[9px] text-emerald-400 font-bold uppercase tracking-wider">
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full text-[9px] font-bold uppercase tracking-wider border border-emerald-500/25">
                 <CheckBadgeIcon className="w-3.5 h-3.5" />
                 Oficial
               </div>
             ) : (
-              <div className="px-2 py-0.5 bg-zinc-700/30 border border-zinc-700/50 rounded-full text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
+              <div className="px-2 py-0.5 bg-zinc-800/60 text-zinc-400 rounded-full text-[9px] font-bold uppercase tracking-wider border border-zinc-750">
                 Comunidade
               </div>
             )}
+            {import.meta.env.DEV && skill.isSymlink && (
+              <div
+                title={skill.symlinkPath || ''}
+                className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded-full text-[9px] font-bold uppercase tracking-wider border border-amber-500/25"
+              >
+                Symlink
+              </div>
+            )}
+            {skill.updateAvailable && (
+              <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/25 animate-pulse">
+                Upgrade
+              </span>
+            )}
             {isInstalled &&
               (skill.enabled ? (
-                <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 flex items-center gap-1">
+                  <ActiveGlow />
                   Ativa
                 </span>
               ) : (
-                <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-600 border border-zinc-800">
+                <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-650 border border-zinc-850">
                   Inativa
                 </span>
               ))}
           </div>
         </div>
         <h3
-          className={`text-base font-bold text-zinc-100 mb-1.5 transition-colors ${accentClasses.text}`}
+          className={`text-base font-bold text-zinc-100 mb-1.5 transition-colors group-hover:text-violet-400`}
         >
           {skill.name}
         </h3>
         <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed mb-4 min-h-[2.5rem]">
           {skill.description}
         </p>
-        <div className="flex items-center justify-between pt-4 border-t border-zinc-700/30">
+        <div className="flex items-center justify-between pt-4 border-t border-zinc-800/60">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-700/50">
+            <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-750">
               {skill.repo || (!skill.is_official && skill.author) ? (
                 <img
                   src={`https://avatars.githubusercontent.com/${encodeURIComponent((skill.repo?.split('/')[0] || skill.author || '').trim())}?s=32`}
@@ -533,12 +539,10 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
           </div>
           <div className="flex items-center gap-1.5">
             {skill.repo ? (
-              <div className="flex items-center gap-1 text-[10px] text-amber-400 font-bold bg-amber-400/10 px-1.5 py-0.5 rounded-md">
+              <div className="flex items-center gap-1 text-[10px] text-amber-400 font-bold bg-amber-400/10 px-1.5 py-0.5 rounded-md border border-amber-400/20">
                 <StarIconSolid className="w-3 h-3 text-amber-400" />
                 {skill.stars || 0}
               </div>
-            ) : skill.category === 'community' ? (
-              <StarRating value={4.8} />
             ) : null}
           </div>
         </div>
@@ -555,31 +559,68 @@ function SkillDetailView({
   onToggle,
   onUninstall,
   installing,
-  installProgress
+  installProgress,
+  installError,
+  recommendedVersionByExtId,
+  onDismissError
 }: {
   skill: Extension
   onBack: () => void
-  onInstall: (s: Extension) => void
+  onInstall: (s: Extension, downloadUrl?: string) => void
   onToggle: (s: Extension) => void
   onUninstall: (s: Extension) => void
   installing: string | null
-  installProgress?: { percent: number; speed: string; status: string } | null
+  installProgress?: InstallProgress | null
+  installError?: InstallError | null
+  recommendedVersionByExtId?: Record<string, string | null>
+  onDismissError?: () => void
 }) {
+  const { t } = useI18n()
   const accentClasses = getAccentClasses(skill.manifest)
   const isInstalled =
     skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
   const isBuiltin = skill.category === 'core'
 
+  const [releasesExpanded, setReleasesExpanded] = useState(true)
+  const [releases, setReleases] = useState<ExtensionRelease[]>([])
+  const [loadingReleases, setLoadingReleases] = useState(false)
+  const [releasesError, setReleasesError] = useState<string | null>(null)
+  const [installedVersion, setInstalledVersion] = useState<string | null>(null)
+  const [recommendedVersion, setRecommendedVersion] = useState<string | null>(null)
+  const [fetchedReadme, setFetchedReadme] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!releasesExpanded || !skill.repo) return
+    setLoadingReleases(true)
+    setReleasesError(null)
+    fetchExtensionReleases(skill.id)
+      .then((res) => {
+        setReleases(res.releases)
+        setInstalledVersion(res.installed_version)
+        setRecommendedVersion(res.recommended_version)
+      })
+      .catch((err) => {
+        setReleasesError(String(err.message || err))
+      })
+      .finally(() => {
+        setLoadingReleases(false)
+      })
+  }, [releasesExpanded, skill.id, skill.repo])
+
+  useEffect(() => {
+    const hasFullReadme = skill.instructions && skill.instructions.length > 200
+    if (hasFullReadme || !skill.repo) return
+    const [owner, repo] = skill.repo.split('/')
+    if (!owner || !repo) return
+    const url = `https://raw.githubusercontent.com/${owner}/${repo}/main/README.md`
+    fetch(url)
+      .then((r) => (r.ok ? r.text() : null))
+      .then((text) => { if (text) setFetchedReadme(text) })
+      .catch(() => {})
+  }, [skill.repo, skill.instructions])
+
   return (
     <div className="animate-fade-in max-w-6xl mx-auto px-6 pb-20">
-      {/* Mini Back button */}
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-[11px] font-bold mb-6 transition-colors group uppercase tracking-widest"
-      >
-        <ArrowLeftIcon className="w-3 h-3 transition-transform group-hover:-translate-x-0.5" />
-        Voltar para a loja
-      </button>
 
       {/* Tighter Hero Header */}
       <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-6 pb-6 border-b border-zinc-800/50">
@@ -612,6 +653,14 @@ function SkillDetailView({
                 Oficial
               </div>
             ) : null}
+            {import.meta.env.DEV && skill.isSymlink && (
+              <div
+                title={skill.symlinkPath || ''}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-md text-[9px] text-amber-400 font-black uppercase tracking-wider h-fit mb-0.5"
+              >
+                Symlink: {skill.symlinkPath}
+              </div>
+            )}
           </div>
 
           <p className="text-sm text-zinc-400 font-medium mb-6 max-w-2xl leading-relaxed">
@@ -645,21 +694,57 @@ function SkillDetailView({
               <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">
                 Versão
               </span>
-              <span className="text-xs text-zinc-300 font-bold">{skill.version || '1.0.0'}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-300 font-bold">{recommendedVersion || skill.version || '1.0.0'}</span>
+                {skill.updateAvailable && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-[8px] text-blue-400 font-black uppercase tracking-wider animate-pulse">
+                    Upgrade disponível ({skill.latestCompatibleVersion})
+                  </span>
+                )}
+                {skill.hasNewerIncompatible && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-[8px] text-amber-400 font-black uppercase tracking-wider" title="Requer versão mais recente do MomAI">
+                    Incompatível mais recente
+                  </span>
+                )}
+                {skill.compat_status === 'incompatible' && (
+                  <span
+                    className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-900/30 text-red-300 text-xs font-medium"
+                    title="Versão instalada não é compatível com a sua versão do MomAI"
+                  >
+                    {t('extensions.install.incompatible')}
+                  </span>
+                )}
+              </div>
+              {skill.compat_status === 'incompatible' && (
+                <div className="mt-2">
+                  <button
+                    onClick={() => onInstall(skill, undefined)}
+                    disabled={installing === skill.id || recommendedVersionByExtId?.[skill.id] === null}
+                    title={
+                      recommendedVersionByExtId?.[skill.id] === null
+                        ? t('extensions.install.no_compatible')
+                        : ''
+                    }
+                    className="px-3 py-1.5 bg-blue-600/80 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all"
+                  >
+                    {t('extensions.actions.update')}
+                  </button>
+                </div>
+              )}
             </div>
             <div className="w-px h-6 bg-zinc-800" />
             <div className="flex flex-col">
               <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">
-                {skill.repo ? 'GitHub Stars' : 'Avaliação'}
+                GitHub Stars
               </span>
               {skill.repo ? (
                 <div className="flex items-center gap-1.5 text-sm text-amber-400 font-black">
                   <StarIconSolid className="w-4 h-4 text-amber-400" />
                   {skill.stars || 0}
                 </div>
-              ) : skill.category === 'community' || skill.category === 'extension' ? (
-                <StarRating value={skill.is_official ? 5 : 4.8} />
-              ) : null}
+              ) : (
+                <span className="text-xs text-zinc-500 font-bold">N/A</span>
+              )}
             </div>
           </div>
 
@@ -676,31 +761,65 @@ function SkillDetailView({
               </a>
             )}
             {!isBuiltin && !isInstalled ? (
-              <div className="flex flex-col gap-2 min-w-[140px]">
-                <button
-                  onClick={() => onInstall(skill)}
-                  disabled={installing === skill.id}
-                  className={`px-8 py-2.5 text-white rounded-xl text-xs font-black disabled:opacity-50 transition-all uppercase tracking-widest relative overflow-hidden ${accentClasses.button}`}
-                >
-                  {installing === skill.id && installProgress && (
-                    <div
-                      className={`absolute left-0 top-0 bottom-0 transition-all duration-300 ${accentClasses.progress}`}
-                      style={{ width: `${installProgress.percent}%` }}
-                    />
-                  )}
-                  <span className="relative z-10">
-                    {installing === skill.id ? installProgress?.status || 'Obtendo...' : 'Instalar'}
-                  </span>
-                </button>
-                {installing === skill.id && installProgress && (
-                  <div className="flex items-center justify-between px-1 text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
-                    <span>{installProgress.percent}%</span>
-                    <span>{installProgress.speed}</span>
-                  </div>
+              <div className="flex flex-col gap-2">
+                {installing === skill.id ? (
+                  <>
+                    {installProgress && (
+                      <ExtensionInstallCard
+                        progress={installProgress}
+                        extName={skill.name}
+                      />
+                    )}
+                    {installError && (
+                      <ExtensionInstallCard
+                        error={installError}
+                        extName={skill.name}
+                        onDismiss={onDismissError}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <button
+                    onClick={() => onInstall(skill)}
+                    className={`px-8 py-2.5 text-white rounded-xl text-xs font-black transition-all uppercase tracking-widest relative overflow-hidden ${accentClasses.button}`}
+                  >
+                    <span className="relative z-10">Instalar</span>
+                  </button>
                 )}
               </div>
             ) : (
               <div className="flex items-center gap-3">
+                {skill.updateAvailable && (
+                  <div className="flex flex-col gap-1">
+                    {installing === skill.id ? (
+                      <>
+                        {installProgress && (
+                          <ExtensionInstallCard
+                            progress={installProgress}
+                            extName={skill.name}
+                          />
+                        )}
+                        {installError && (
+                          <ExtensionInstallCard
+                            error={installError}
+                            extName={skill.name}
+                            onDismiss={onDismissError}
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => onInstall(skill)}
+                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black transition-all uppercase tracking-widest relative overflow-hidden active:scale-[0.98]"
+                      >
+                        <span className="relative z-10 flex items-center justify-center gap-1">
+                          <CloudArrowDownIcon className="w-3.5 h-3.5" />
+                          Atualizar
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )}
                 <button
                   onClick={() => onToggle(skill)}
                   className={`inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black transition-all uppercase tracking-widest ${
@@ -712,44 +831,46 @@ function SkillDetailView({
                   {!skill.enabled && <PowerIcon className="w-4 h-4" />}
                   {skill.enabled ? 'Desativar' : 'Ativar'}
                 </button>
-                <button
-                  onClick={() => onUninstall(skill)}
-                  className="px-5 py-2 rounded-xl text-xs font-bold text-zinc-500 border border-zinc-800 hover:text-red-400 hover:border-red-500/40 transition-all uppercase tracking-widest"
-                >
-                  Desinstalar
-                </button>
+                {!skill.isSymlink && (
+                  <button
+                    onClick={() => onUninstall(skill)}
+                    className="px-5 py-2 rounded-xl text-xs font-bold text-zinc-500 border border-zinc-800 hover:text-red-400 hover:border-red-500/40 transition-all uppercase tracking-widest"
+                  >
+                    Desinstalar
+                  </button>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Balanced 2-Column Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-        <div className="lg:col-span-3 space-y-8">
-          {/* Description Section - Lighter and clearer */}
-          <section className="bg-zinc-800/20 rounded-2xl p-8 border border-zinc-700/50 backdrop-blur-xl">
-            <h2 className="text-xs font-black text-zinc-300 mb-8 flex items-center gap-2 uppercase tracking-[0.2em]">
-              <InformationCircleIcon className="w-4 h-4 text-violet-400" />
+      {/* 2-Column Grid: Main content (left) + Sidebar (right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Main Column: About, Requirements, Version History */}
+        <div className="lg:col-span-9 space-y-6">
+          {/* Description Section */}
+          <section className="bg-zinc-950/20 rounded-2xl p-8 border border-zinc-850 backdrop-blur-xl">
+            <h2 className="text-[10px] font-black text-zinc-455 mb-6 uppercase tracking-widest">
               Sobre esta extensão
             </h2>
             <div
               className="prose prose-invert prose-zinc max-w-none 
-              prose-headings:text-zinc-50 prose-headings:font-bold prose-headings:mt-8 prose-headings:mb-4
-              prose-p:text-zinc-200 prose-p:text-sm prose-p:leading-relaxed prose-p:mb-4
-              prose-li:text-zinc-200 prose-li:text-sm prose-li:mb-2
-              prose-strong:text-white prose-code:text-violet-300 prose-code:bg-violet-500/20 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded"
+              prose-headings:text-zinc-50 prose-headings:font-bold prose-headings:mt-6 prose-headings:mb-3
+              prose-p:text-zinc-200 prose-p:text-sm prose-p:leading-relaxed prose-p:mb-3
+              prose-li:text-zinc-200 prose-li:text-sm prose-li:mb-1.5
+              prose-strong:text-white prose-code:text-violet-300 prose-code:bg-violet-500/15 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded"
             >
-              {skill.instructions || skill.readme ? (
+              {(fetchedReadme || skill.instructions || skill.readme) ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {skill.instructions || skill.readme}
+                  {fetchedReadme || skill.instructions || skill.readme}
                 </ReactMarkdown>
               ) : (
-                <div className="py-24 flex flex-col items-center justify-center text-center">
-                  <div className="w-16 h-16 rounded-full bg-zinc-800/50 flex items-center justify-center mb-4 border border-zinc-700/50">
-                    <CommandLineIcon className="w-8 h-8 text-zinc-600" />
+                <div className="py-16 flex flex-col items-center justify-center text-center">
+                  <div className="w-12 h-12 rounded-full bg-zinc-900/50 flex items-center justify-center mb-3 border border-zinc-800">
+                    <CommandLineIcon className="w-6 h-6 text-zinc-650" />
                   </div>
-                  <p className="text-zinc-500 text-xs italic font-medium">
+                  <p className="text-zinc-500 text-xs italic">
                     Esta extensão não forneceu um README detalhado.
                   </p>
                 </div>
@@ -758,69 +879,151 @@ function SkillDetailView({
           </section>
 
           {/* System Requirements */}
-          <section className="p-8 rounded-2xl bg-zinc-800/10 border border-zinc-700/30">
-            <h2 className="text-xs font-black text-zinc-400 mb-6 flex items-center gap-2 uppercase tracking-[0.2em]">
-              <CpuChipIcon className="w-4 h-4 text-violet-400/80" />
+          <section className="p-6 rounded-2xl bg-zinc-955/20 border border-zinc-850">
+            <h2 className="text-[10px] font-black text-zinc-455 mb-5 uppercase tracking-widest">
               Requisitos do Sistema
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-              <div className="flex items-center gap-4">
-                <div className="p-2.5 rounded-2xl bg-zinc-700/50 border border-zinc-600/50 shadow-inner">
-                  <ShieldCheckIcon className="w-5 h-5 text-emerald-400/80" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-zinc-900/50 border border-zinc-800 shadow-inner">
+                  <ShieldCheckIcon className="w-4 h-4 text-emerald-400/80" />
                 </div>
                 <div>
-                  <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-0.5">
+                  <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-0.5">
                     Arquitetura
                   </p>
-                  <p className="text-xs text-white font-bold">x64 / ARM64 / WSL2</p>
+                  <p className="text-xs text-zinc-200 font-bold">x64 / ARM64 / WSL2</p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="p-2.5 rounded-2xl bg-zinc-700/50 border border-zinc-600/50 shadow-inner">
-                  <GlobeAltIcon className="w-5 h-5 text-sky-400/80" />
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-zinc-900/50 border border-zinc-800 shadow-inner">
+                  <GlobeAltIcon className="w-4 h-4 text-sky-400/80" />
                 </div>
                 <div>
-                  <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-0.5">
+                  <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-0.5">
                     Internet
                   </p>
-                  <p className="text-xs text-white font-bold">Recomendado para atualizações</p>
+                  <p className="text-xs text-zinc-200 font-bold">Recomendado para atualizações</p>
                 </div>
               </div>
             </div>
           </section>
+
+          {/* Version History Section - Timeline (below About) */}
+          {skill.repo && (
+            <section className="bg-zinc-950/20 rounded-2xl p-6 border border-zinc-850 backdrop-blur-xl">
+              <h2 className="text-[10px] font-black text-zinc-450 mb-6 uppercase tracking-widest">
+                Histórico de Versões
+              </h2>
+              <div>
+                {loadingReleases && (
+                  <p className="text-xs text-zinc-500 italic animate-pulse">Carregando versões...</p>
+                )}
+                {releasesError && (
+                  <p className="text-xs text-red-400 italic">Erro: {releasesError}</p>
+                )}
+                {!loadingReleases && !releasesError && releases.length === 0 && (
+                  <p className="text-xs text-zinc-500 italic">Nenhuma versão encontrada.</p>
+                )}
+                {!loadingReleases && !releasesError && releases.length > 0 && (
+                  <div className="relative border-l border-zinc-850 ml-2 pl-4 space-y-6">
+                    {releases.map((rel) => {
+                      const isCurrent = !!(installedVersion && rel.version === installedVersion)
+                      const isRecommended = !!(recommendedVersion && rel.version === recommendedVersion)
+                      return (
+                        <div key={rel.version} className="relative group/timeline text-left">
+                          <div className={`absolute -left-[23px] top-1 w-2.5 h-2.5 rounded-full border-2 border-zinc-900 transition-all ${
+                            isCurrent
+                              ? 'bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]'
+                              : 'bg-zinc-700 group-hover/timeline:bg-zinc-500'
+                          }`} />
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="space-y-1 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs text-white font-extrabold">v{rel.version}</span>
+                                {rel.date && (
+                                  <span className="text-[9px] text-zinc-500">
+                                    {new Date(rel.date).toLocaleDateString()}
+                                  </span>
+                                )}
+                                {isCurrent && (
+                                  <span className="px-1.5 py-0.5 rounded bg-violet-500/10 border border-violet-500/20 text-[8px] text-violet-400 font-extrabold uppercase tracking-wide">
+                                    Instalada
+                                  </span>
+                                )}
+                                {isRecommended && !isCurrent && (
+                                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[8px] text-emerald-400 font-extrabold uppercase tracking-wide">
+                                    Recomendada
+                                  </span>
+                                )}
+                              </div>
+                              {rel.changelog && (
+                                <p className="text-[10px] text-zinc-400 leading-normal">
+                                  {rel.changelog}
+                                </p>
+                              )}
+                            </div>
+                            <div className="shrink-0 pt-0.5">
+                              {rel.compatible ? (
+                                <button
+                                  onClick={() => onInstall(skill, rel.download_url)}
+                                  disabled={installing === skill.id || isCurrent}
+                                  className={`px-2.5 py-1 rounded text-[8px] font-black uppercase tracking-wider transition-all border ${
+                                    isCurrent
+                                      ? 'border-zinc-800 text-zinc-650 cursor-default bg-zinc-900/20'
+                                      : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white'
+                                  }`}
+                                >
+                                  {isCurrent ? 'Atual' : 'Instalar'}
+                                </button>
+                              ) : (
+                                <span className="text-[8px] font-bold text-red-400 uppercase tracking-wide bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
+                                  Incompatível
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
         </div>
 
-        {/* Sidebar - Brighter and Elevated */}
-        <div className="space-y-6 lg:mt-0">
-          <section className="bg-zinc-800/40 border border-zinc-600/30 rounded-2xl p-6 shadow-2xl shadow-black/40 backdrop-blur-md">
-            <h3 className="text-[10px] font-black text-zinc-200 mb-6 uppercase tracking-widest">
+        {/* Right Column: Sidebar (25% -> lg:col-span-3) */}
+        <div className="lg:col-span-3 space-y-6">
+          <section className="bg-zinc-955/20 border border-zinc-850 rounded-2xl p-6 backdrop-blur-md">
+            <h3 className="text-[10px] font-black text-zinc-455 mb-6 uppercase tracking-widest">
               Informações
             </h3>
 
             <div className="space-y-5">
               <div>
-                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">
+                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-1.5">
                   Desenvolvedor
                 </p>
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-violet-600/20 flex items-center justify-center text-[9px] text-violet-400 font-black border border-violet-500/30 uppercase">
                     {(skill.author || 'M')[0]}
                   </div>
-                  <p className="text-xs text-white font-bold">{skill.author || 'MomAI Team'}</p>
+                  <p className="text-xs text-zinc-100 font-bold">{skill.author || 'MomAI Team'}</p>
                 </div>
               </div>
 
               <div>
-                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">
+                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-1.5">
                   Categoria
                 </p>
-                <p className="text-xs text-white font-bold capitalize">
+                <p className="text-xs text-zinc-100 font-bold capitalize">
                   {skill.tags?.[0] || 'Utilitário'}
                 </p>
               </div>
 
               <div>
-                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">
+                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-1.5">
                   Nível de Risco
                 </p>
                 <div className="flex items-center gap-2">
@@ -839,9 +1042,8 @@ function SkillDetailView({
             </div>
           </section>
 
-          <section className="bg-zinc-800/20 border border-zinc-700/50 rounded-2xl p-6">
-            <h3 className="text-[10px] font-black text-zinc-400 mb-5 flex items-center gap-2 uppercase tracking-widest">
-              <BoltIcon className="w-4 h-4 text-amber-400" />
+          <section className="bg-zinc-955/20 border border-zinc-850 rounded-2xl p-6">
+            <h3 className="text-[10px] font-black text-zinc-455 mb-5 uppercase tracking-widest">
               Permissões
             </h3>
             <ul className="space-y-3">
@@ -849,9 +1051,9 @@ function SkillDetailView({
                 skill.permissionSummary.map((perm, idx) => (
                   <li
                     key={idx}
-                    className="flex items-start gap-2.5 text-[10px] text-zinc-300 font-medium leading-snug"
+                    className="flex items-start gap-1 text-[10px] text-zinc-300 font-medium leading-snug"
                   >
-                    <div className="w-1 h-1 rounded-full bg-violet-400 mt-1.5 shrink-0 shadow-[0_0_5px_rgba(167,139,250,0.5)]" />
+                    <span className="text-zinc-500 mr-1.5 shrink-0">•</span>
                     {perm}
                   </li>
                 ))
@@ -866,6 +1068,55 @@ function SkillDetailView({
   )
 }
 
+const CAPABILITIES: Record<string, { risk: string; description: string }> = {
+  network: { risk: 'high', description: 'Acesso à rede' },
+  'filesystem:read': { risk: 'medium', description: 'Leitura de arquivos' },
+  'filesystem:write': { risk: 'high', description: 'Escrita de arquivos' },
+  'ui:sidebar': { risk: 'low', description: 'Adicionar painéis na barra lateral' },
+  'ui:commands': { risk: 'low', description: 'Registrar comandos' },
+  'chat:messages': { risk: 'medium', description: 'Ler mensagens do chat' },
+  'system:info': { risk: 'low', description: 'Ver informações do sistema' },
+  process: { risk: 'critical', description: 'Acesso a processos do sistema' },
+  shell: { risk: 'critical', description: 'Execução de comandos shell' }
+}
+
+function computeRiskLevel(permissions: string[]): 'low' | 'medium' | 'high' | 'critical' {
+  const riskOrder = ['low', 'medium', 'high', 'critical']
+  let maxRisk = 'low'
+  for (const id of permissions) {
+    const cap = CAPABILITIES[id]
+    const risk = cap?.risk || 'medium'
+    if (riskOrder.indexOf(risk) > riskOrder.indexOf(maxRisk)) {
+      maxRisk = risk
+    }
+  }
+  return maxRisk as 'low' | 'medium' | 'high' | 'critical'
+}
+
+function computePermissionSummary(permissions: string[]): string[] {
+  return permissions.map((id) => {
+    const cap = CAPABILITIES[id]
+    return cap ? cap.description : id
+  })
+}
+
+function enrichExtensionWithManifest(ext: Extension, manifest: Record<string, any>): Extension {
+  if (!manifest) return ext
+  const perms = Array.isArray(manifest.permissions) ? manifest.permissions : []
+  return {
+    ...ext,
+    icon: manifest.icon || ext.icon,
+    icon_url: manifest.icon_url || ext.icon_url,
+    icon_bg: manifest.icon_bg || ext.icon_bg,
+    theme: manifest.theme || ext.theme,
+    tags: manifest.tags?.length ? manifest.tags : ext.tags,
+    version: manifest.version || ext.version,
+    author: manifest.author || ext.author,
+    permissionSummary: computePermissionSummary(perms),
+    riskLevel: computeRiskLevel(perms)
+  }
+}
+
 /* ─── Main View ─── */
 export default function ExtensionsView() {
   const { t, locale } = useI18n()
@@ -873,21 +1124,38 @@ export default function ExtensionsView() {
   const [allSkills, setAllSkills] = useState<Extension[]>([])
   const [loading, setLoading] = useState(true)
   const [installing, setInstalling] = useState<string | null>(null)
-  const [installProgress, setInstallProgress] = useState<{
-    percent: number
-    speed: string
-    status: string
-  } | null>(null)
-  const [activeTab, setActiveTab] = useState<'installed' | 'store'>('store')
+  const [installProgress, setInstallProgress] = useState<InstallProgress | null>(null)
+  const [installError, setInstallError] = useState<InstallError | null>(null)
+  const [uninstallTarget, setUninstallTarget] = useState<{ id: string; name: string } | null>(null)
+  const [recommendedVersionByExtId, setRecommendedVersionByExtId] = useState<Record<string, string | null>>({})
+  const [viewMode, setViewMode] = useState<'store' | 'library'>('store')
   const [selectedSkill, setSelectedSkill] = useState<Extension | null>(null)
+  const [selectedManifest, setSelectedManifest] = useState<Record<string, any> | null>(null)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [devMode, setDevMode] = useState<'symlink' | 'store_test'>('symlink')
   const tagsDragScrollRef = useRef<HTMLDivElement | null>(null)
   const tagsDragScroll = useDragScroll(tagsDragScrollRef)
+
+  const handleSetDevMode = async (mode: 'symlink' | 'store_test') => {
+    try {
+      await updateSettingsPartial({ dev_mode: mode })
+      setDevMode(mode)
+      await loadData()
+    } catch (err) {
+      console.error('Erro ao atualizar modo dev:', err)
+    }
+  }
 
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true)
     try {
+      // Fetch settings to sync the current devMode
+      const settings = await fetchSettings().catch(() => ({ dev_mode: 'symlink' }))
+      if (settings.dev_mode === 'store_test' || settings.dev_mode === 'symlink') {
+        setDevMode(settings.dev_mode)
+      }
+
       const data = await fetchExtensions(locale)
       setAllSkills(data)
       window.dispatchEvent(new CustomEvent('momai_extensions_sync', { detail: data }))
@@ -907,28 +1175,64 @@ export default function ExtensionsView() {
 
   useEffect(() => {
     const tab = (location.state as any)?.tab
-    if (tab === 'store' || tab === 'installed') setActiveTab(tab)
+    if (tab === 'store') setViewMode('store')
+    if (tab === 'installed') setViewMode('library')
   }, [location.state])
 
-  const handleInstall = async (ext: Extension) => {
+  const handleSelectSkill = async (ext: Extension) => {
+    setSelectedSkill(ext)
+    setSelectedManifest(null)
+    if (!ext.installed && ext.repo) {
+      const manifest = await fetchExtensionManifest(ext.id)
+      setSelectedManifest(manifest)
+    }
+  }
+
+  const handleInstall = async (ext: Extension, downloadUrl?: string) => {
     setInstalling(ext.id)
-    setInstallProgress({ percent: 0, speed: '0 KB/s', status: 'Iniciando...' })
+    setInstallProgress({ stage: 'downloading', status: 'Iniciando...', percent: 0, global_percent: 0, bytes_total: null, bytes_done: null, speed_bps: 0, eta_seconds: null })
+    setInstallError(null)
+    let errored = false
     try {
-      await installExtension(ext.id, ext.download_url || '', (progress) => {
-        setInstallProgress(progress)
-      })
+      await installExtension(
+        ext.id,
+        downloadUrl
+          ? {
+              downloadUrl,
+              onProgress: (p) => setInstallProgress(p),
+              onError: (e) => {
+                setInstallError(e)
+                errored = true
+              }
+            }
+          : {
+              onProgress: (p) => setInstallProgress(p),
+              onError: (e) => {
+                setInstallError(e)
+                errored = true
+              }
+            }
+      )
+      if (errored) return
       const freshData = await loadData(true)
 
       // Update selectedSkill if it's the one we just installed
       if (selectedSkill?.id === ext.id) {
         const updated = freshData.find((s) => s.id === ext.id)
         if (updated) setSelectedSkill(updated)
+        setSelectedManifest(null)
       }
     } catch (err) {
-      alert(t('extensions.errors.install', { error: String(err) }))
+      setInstallError({
+        ok: false,
+        status: 500,
+        error: 'install_failed',
+        message: String(err)
+      })
+      errored = true
     } finally {
       setInstalling(null)
-      setInstallProgress(null)
+      if (!errored) setInstallProgress(null)
     }
   }
 
@@ -945,16 +1249,33 @@ export default function ExtensionsView() {
     }
   }
 
-  const handleUninstall = async (ext: Extension) => {
-    if (!window.confirm(t('extensions.confirmUninstall', { name: ext.name }))) return
+  const handleUninstall = (ext: Extension) => {
+    setUninstallTarget({ id: ext.id, name: ext.name })
+  }
+
+  const confirmUninstall = async () => {
+    if (!uninstallTarget) return
     try {
-      await uninstallExtension(ext.id)
-      setSelectedSkill(null)
-      await loadData(true)
+      await uninstallExtension(uninstallTarget.id)
+      const freshData = await loadData(true)
+      const updated = freshData.find((s) => s.id === uninstallTarget.id)
+      if (updated) {
+        setSelectedSkill(updated)
+        if (updated.repo) {
+          const manifest = await fetchExtensionManifest(updated.id)
+          setSelectedManifest(manifest)
+        }
+      } else {
+        setSelectedSkill(null)
+      }
     } catch (err) {
       alert(t('extensions.errors.uninstall', { error: String(err) }))
+    } finally {
+      setUninstallTarget(null)
     }
   }
+
+  const cancelUninstall = () => setUninstallTarget(null)
 
   const builtinSkills = useMemo(() => allSkills.filter((s) => s.category === 'core'), [allSkills])
   const installedSkills = useMemo(
@@ -963,8 +1284,22 @@ export default function ExtensionsView() {
   )
   const storeSkills = useMemo(() => allSkills.filter((s) => s.category !== 'core'), [allSkills])
 
+  useEffect(() => {
+    installedSkills
+      .filter((s) => s.compat_status === 'incompatible')
+      .forEach(async (s) => {
+        if (s.id in recommendedVersionByExtId) return
+        try {
+          const res = await fetchExtensionReleases(s.id)
+          setRecommendedVersionByExtId((prev) => ({ ...prev, [s.id]: res.recommended_version }))
+        } catch {
+          setRecommendedVersionByExtId((prev) => ({ ...prev, [s.id]: null }))
+        }
+      })
+  }, [installedSkills])
+
   const currentList =
-    activeTab === 'installed' ? [...builtinSkills, ...installedSkills] : storeSkills
+    viewMode === 'library' ? [...builtinSkills, ...installedSkills] : storeSkills
 
   const allTags = useMemo(() => {
     const tags = new Set<string>()
@@ -988,41 +1323,56 @@ export default function ExtensionsView() {
   }, [currentList, selectedTag, searchQuery])
 
   const featuredSkills = useMemo(() => {
-    const candidates = activeTab === 'store' ? storeSkills : allSkills
+    const candidates = viewMode === 'store' ? storeSkills : allSkills
     return candidates.slice(0, 6)
-  }, [activeTab, storeSkills, allSkills])
+  }, [viewMode, storeSkills, allSkills])
 
   return (
-    <div className="flex-1 h-full bg-zinc-900 overflow-hidden flex flex-col">
+    <div className="flex-1 h-full bg-[#121214] min-w-0 flex flex-col overflow-hidden">
       {/* ─── Content ─── */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto px-6 py-5">
+      <div className="flex-1 min-w-0 overflow-y-auto">
+        <div className="w-full px-6 py-5">
           {/* ─── Tabs & Search ─── */}
           <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-1 p-0.5 bg-zinc-800 rounded-lg border border-zinc-700">
+            {!selectedSkill ? (
+              <div className="flex items-center gap-3">
+                {/* Dev Mode Switcher */}
+                {import.meta.env.DEV && (
+                  <div className="flex items-center gap-1 p-0.5 bg-zinc-950/40 rounded-lg border border-zinc-800/80">
+                    <button
+                      onClick={() => handleSetDevMode('symlink')}
+                      title="Testar extensões usando links simbólicos locais"
+                      className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
+                        devMode === 'symlink'
+                          ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400 font-extrabold shadow-sm'
+                          : 'text-zinc-600 hover:text-zinc-400'
+                      }`}
+                    >
+                      Dev (Symlinks)
+                    </button>
+                    <button
+                      onClick={() => handleSetDevMode('store_test')}
+                      title="Testar fluxo de download da loja usando dev-extensions.json"
+                      className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
+                        devMode === 'store_test'
+                          ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400 font-extrabold shadow-sm'
+                          : 'text-zinc-600 hover:text-zinc-400'
+                      }`}
+                    >
+                      Testar Loja
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
               <button
-                onClick={() => setActiveTab('store')}
-                className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
-                  activeTab === 'store'
-                    ? 'bg-violet-600 text-white shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+                onClick={() => { setSelectedSkill(null); setSelectedManifest(null) }}
+                className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-[11px] font-bold transition-colors group uppercase tracking-widest"
               >
-                <ShoppingBagIcon className="w-3.5 h-3.5" />
-                Loja
+                <ArrowLeftIcon className="w-3 h-3 transition-transform group-hover:-translate-x-0.5" />
+                Voltar para a loja
               </button>
-              <button
-                onClick={() => setActiveTab('installed')}
-                className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
-                  activeTab === 'installed'
-                    ? 'bg-violet-600 text-white shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                <Squares2X2Icon className="w-3.5 h-3.5" />
-                Minhas Skills
-              </button>
-            </div>
+            )}
 
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -1037,95 +1387,254 @@ export default function ExtensionsView() {
               <button
                 onClick={() => loadData()}
                 className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition-colors"
+                title="Recarregar dados"
               >
                 <ArrowPathIcon className="w-4 h-4" />
               </button>
+              
+              {/* Library (Biblioteca) Toggle Button */}
+              {!selectedSkill && (
+                <button
+                  onClick={() => setViewMode(viewMode === 'store' ? 'library' : 'store')}
+                  className={`p-1.5 rounded-lg border transition-all flex items-center gap-1.5 ${
+                    viewMode === 'library'
+                      ? 'bg-violet-600/20 border-violet-500/50 text-violet-400 font-bold'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
+                  }`}
+                  title="Biblioteca"
+                >
+                  <FolderIcon className="w-4 h-4" />
+                  <span className="text-[10px] uppercase tracking-wider font-bold pr-1">Biblioteca</span>
+                </button>
+              )}
             </div>
           </div>
           {selectedSkill ? (
             /* ─── Detail View ─── */
             <SkillDetailView
-              skill={selectedSkill}
-              onBack={() => setSelectedSkill(null)}
+              skill={selectedManifest ? enrichExtensionWithManifest(selectedSkill, selectedManifest) : selectedSkill}
+              onBack={() => { setSelectedSkill(null); setSelectedManifest(null) }}
               onInstall={handleInstall}
               onToggle={handleToggle}
               onUninstall={handleUninstall}
               installing={installing}
               installProgress={installProgress}
+              installError={installError}
+              recommendedVersionByExtId={recommendedVersionByExtId}
+              onDismissError={() => {
+                setInstallError(null)
+                setInstalling(null)
+                setInstallProgress(null)
+              }}
             />
           ) : (
             /* ─── List View ─── */
             <>
-              {/* Featured Carousel */}
-              {featuredSkills.length > 0 && !searchQuery && (
-                <div className="mb-6">
-                  <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-                    {activeTab === 'store' ? 'Destaques' : 'Suas Skills'}
-                  </h2>
-                  <FeaturedCarousel skills={featuredSkills} onSelect={setSelectedSkill} />
-                </div>
-              )}
-
-              {/* Tag Filters */}
-              {allTags.length > 0 && (
-                <div
-                  ref={tagsDragScrollRef}
-                  onMouseDown={tagsDragScroll.mouseDown}
-                  onTouchStart={tagsDragScroll.touchStart}
-                  onTouchMove={tagsDragScroll.touchMove}
-                  className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-1"
-                  style={{ cursor: tagsDragScroll.grabCursor }}
-                >
-                  <button
-                    onClick={() => setSelectedTag(null)}
-                    className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide border transition-all ${
-                      !selectedTag
-                        ? 'bg-violet-600 text-white border-violet-500'
-                        : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300 hover:border-zinc-600'
-                    }`}
-                  >
-                    Todas
-                  </button>
-                  {allTags.map((tag) => (
+              {viewMode === 'library' ? (
+                /* ─── Library View (Biblioteca) ─── */
+                <div className="w-full space-y-6">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+                    <div>
+                      <h2 className="text-xl font-extrabold text-white">Biblioteca</h2>
+                      <p className="text-xs text-zinc-500 mt-1">Gerencie suas extensões e habilidades instaladas localmente.</p>
+                    </div>
                     <button
-                      key={tag}
-                      onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
-                      className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide border transition-all ${
-                        selectedTag === tag
-                          ? 'bg-violet-600 text-white border-violet-500'
-                          : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300 hover:border-zinc-600'
-                      }`}
+                      onClick={() => loadData(false)}
+                      className="px-3.5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs transition-all shadow-lg flex items-center gap-1.5"
                     >
-                      {tag}
+                      <ArrowPathIcon className="w-3.5 h-3.5" />
+                      Verificar Atualizações
                     </button>
-                  ))}
-                </div>
-              )}
+                  </div>
 
-              {/* Skills Grid */}
-              {filteredList.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                  {filteredList.map((skill) => (
-                    <SkillCard key={skill.id} skill={skill} onSelect={setSelectedSkill} />
-                  ))}
+                  {[...builtinSkills, ...installedSkills].length > 0 ? (
+                    <div className="w-full overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/20 backdrop-blur-xl">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-zinc-800 text-[10px] text-zinc-500 font-black uppercase tracking-wider bg-zinc-900/40">
+                            <th className="p-4">Nome</th>
+                            <th className="p-4">Versão</th>
+                            <th className="p-4">Status</th>
+                            <th className="p-4 text-right">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-850">
+                          {[...builtinSkills, ...installedSkills].map((skill) => {
+                            const isCore = skill.category === 'core'
+                            return (
+                              <tr key={skill.id} className="hover:bg-zinc-850/10 transition-colors">
+                                <td className="p-4 flex items-center gap-3">
+                                  <div className="p-2 rounded-xl bg-zinc-800/60 border border-zinc-700/30 flex items-center justify-center shrink-0">
+                                    <SkillIcon skill={skill} className="w-5 h-5 text-white" />
+                                  </div>
+                                  <div>
+                                    <p
+                                      onClick={() => handleSelectSkill(skill)}
+                                      className="text-xs font-extrabold text-zinc-200 hover:text-white cursor-pointer hover:underline"
+                                    >
+                                      {skill.name}
+                                    </p>
+                                    <p className="text-[10px] text-zinc-500 mt-0.5">{skill.description}</p>
+                                  </div>
+                                </td>
+                                <td className="p-4 text-xs font-mono text-zinc-400">
+                                  v{skill.version || '1.0.0'}
+                                </td>
+                                <td className="p-4">
+                                  {isCore ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[9px] font-bold uppercase tracking-wider rounded-full border border-blue-500/20">
+                                      Core
+                                    </span>
+                                  ) : skill.enabled ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[9px] font-bold uppercase tracking-wider rounded-full border border-emerald-500/20">
+                                      <ActiveGlow />
+                                      Ativa
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-zinc-900 text-zinc-650 text-[9px] font-bold uppercase tracking-wider rounded-full border border-zinc-850">
+                                      Inativa
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-4 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    {!isCore && (
+                                      <>
+                                        <button
+                                          onClick={() => handleToggle(skill)}
+                                          className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all ${
+                                            skill.enabled
+                                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                                              : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'
+                                          }`}
+                                        >
+                                          {skill.enabled ? 'Desativar' : 'Ativar'}
+                                        </button>
+                                        <button
+                                          onClick={() => handleUninstall(skill)}
+                                          className="p-1.5 rounded-lg border border-zinc-700 text-zinc-500 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10 transition-all"
+                                          title="Desinstalar"
+                                        >
+                                          <TrashIcon className="w-3.5 h-3.5" />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-24 text-zinc-600 border border-dashed border-zinc-800 rounded-2xl">
+                      <PuzzlePieceIcon className="w-12 h-12 mb-4 opacity-25" />
+                      <p className="text-sm font-bold">Nenhuma extensão instalada</p>
+                      <p className="text-xs text-zinc-700 mt-1">Navegue pelo catálogo da loja para descobrir e instalar extensões.</p>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
-                  <WrenchIcon className="w-12 h-12 mb-4 opacity-30" />
-                  <p className="text-sm font-medium">
-                    {activeTab === 'store' ? 'Nenhuma skill disponível' : 'Nenhuma skill instalada'}
-                  </p>
-                  <p className="text-xs mt-1 text-zinc-700">
-                    {activeTab === 'store'
-                      ? 'Todas as skills já estão instaladas.'
-                      : 'Vá até a Loja para explorar novas funcionalidades.'}
-                  </p>
-                </div>
+                /* ─── Store Catalog View ─── */
+                <>
+                  {/* Featured Carousel */}
+                  {featuredSkills.length > 0 && !searchQuery && (
+                    <div className="mb-6">
+                      <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
+                        Destaques
+                      </h2>
+                      <FeaturedCarousel skills={featuredSkills} onSelect={handleSelectSkill} />
+                    </div>
+                  )}
+
+                  {/* Tag Filters */}
+                  {allTags.length > 0 && (
+                    <div
+                      ref={tagsDragScrollRef}
+                      onMouseDown={tagsDragScroll.mouseDown}
+                      onTouchStart={tagsDragScroll.touchStart}
+                      onTouchMove={tagsDragScroll.touchMove}
+                      className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-1"
+                      style={{ cursor: tagsDragScroll.grabCursor }}
+                    >
+                      <button
+                        onClick={() => setSelectedTag(null)}
+                        className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ${
+                          !selectedTag
+                            ? 'bg-violet-650/20 border-violet-500 text-violet-400 font-black shadow-sm'
+                            : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:text-white hover:border-zinc-700'
+                        }`}
+                      >
+                        Todas
+                      </button>
+                      {allTags.map((tag) => (
+                        <button
+                          key={tag}
+                          onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
+                          className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ${
+                            selectedTag === tag
+                              ? 'bg-violet-650/20 border-violet-500 text-violet-400 font-black shadow-sm'
+                              : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:text-white hover:border-zinc-700'
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Skills Grid */}
+                  {filteredList.length > 0 ? (
+                    <div className="w-full min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {filteredList.map((skill) => (
+                        <SkillCard key={skill.id} skill={skill} onSelect={handleSelectSkill} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
+                      <WrenchIcon className="w-12 h-12 mb-4 opacity-30" />
+                      <p className="text-sm font-medium">
+                        Nenhuma skill disponível
+                      </p>
+                      <p className="text-xs mt-1 text-zinc-700">
+                        Todas as skills já estão instaladas ou indisponíveis.
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
         </div>
       </div>
+
+      {uninstallTarget && (
+        <ExtensionUninstallModal
+          ext={uninstallTarget}
+          onConfirm={confirmUninstall}
+          onCancel={cancelUninstall}
+        />
+      )}
+
+      {installing && !selectedSkill && (installProgress || installError) && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-md">
+          <ExtensionInstallCard
+            progress={installError ? undefined : installProgress || undefined}
+            error={installError || undefined}
+            extName={allSkills.find((s) => s.id === installing)?.name || installing}
+            onDismiss={
+              installError
+                ? () => {
+                    setInstallError(null)
+                    setInstalling(null)
+                    setInstallProgress(null)
+                  }
+                : undefined
+            }
+          />
+        </div>
+      )}
     </div>
   )
 }

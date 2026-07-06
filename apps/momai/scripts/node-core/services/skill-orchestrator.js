@@ -1,14 +1,33 @@
+const fs = require('node:fs')
+const path = require('node:path')
 const shared = require('./shared-state')
 const communityRegistry = require('./community-registry')
 const { usesLocalInstallRegistry, loadInstallRegistry } = require('../utils/install-registry')
+const { compareVersions, satisfiesRange, findBestCompatibleRelease } = require('../utils/semver-compat')
 const store = shared.store
+
+function getAppVersion() {
+  try {
+    const pkg = require(path.resolve(__dirname, '..', '..', '..', 'package.json'))
+    return pkg.version || '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+}
+
+function computeCompatStatus(appVersion, momaiCompat) {
+  if (!momaiCompat) return 'unknown'
+  return satisfiesRange(appVersion, momaiCompat) ? 'compatible' : 'incompatible'
+}
 
 function getSkillRegistry() {
   return shared.skillRegistry
 }
 
 function isSkillEnabledByStore(skill) {
-  const entry = store.extensions.find((e) => e.id === skill.id)
+  const devMode = store?.settings?.dev_mode || 'symlink'
+  const key = devMode === 'symlink' ? `${skill.id}_dev` : skill.id
+  const entry = store.extensions.find((e) => e.id === key)
   if (!entry) {
     // Default state: builtins/packaged start enabled, extensions start disabled unless explicitly enabled
     if (skill.kind === 'builtin' || skill.kind === 'packaged') return true
@@ -31,6 +50,8 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
   const skillRegistry = getSkillRegistry()
   if (!skillRegistry || typeof skillRegistry.getAll !== 'function') return []
 
+  const appVersion = getAppVersion()
+
   const all = skillRegistry.getAll()
   const community = await communityRegistry.fetchRegistry()
 
@@ -42,7 +63,11 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
     const batch = all.slice(i, i + BATCH_SIZE)
     await Promise.all(
       batch.map(async (skill) => {
-        const repo = skill.manifest?.repo || null
+        let repo = skill.manifest?.repo || null
+        if (!repo) {
+          const regItem = community.find((c) => c.id === skill.id)
+          if (regItem) repo = regItem.repo || null
+        }
         if (repo) {
           const stars = await communityRegistry.getGitHubStars(repo)
           starsMap.set(skill.id, stars)
@@ -61,15 +86,39 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
       const name = localized.name || manifest.name || skill.id
       const description = localized.description || manifest.description || ''
 
+      // Resolve repo with fallback to community registry
+      let repo = manifest.repo || null
+      if (!repo) {
+        const regItem = community.find((c) => c.id === (manifest.id || skill.id))
+        if (regItem) repo = regItem.repo || null
+      }
+
       // Use pre-fetched stars
       const stars = starsMap.get(skill.id) || 0
-      const repo = manifest.repo || null
 
       // Determine the best documentation content based on language
       const readmes =
         typeof manifest.readme === 'object' && manifest.readme !== null ? manifest.readme : {}
 
-      const docContent = readmes[lang] || readmes['pt-BR'] || readmes['default'] || ''
+      let docContent = readmes[lang] || readmes['pt-BR'] || readmes['default'] || ''
+      if (!docContent) {
+        const regItem = community.find((c) => c.id === (manifest.id || skill.id))
+        if (regItem) {
+          docContent = regItem.readme || regItem.description || ''
+        }
+      }
+
+      let isSymlink = false
+      let symlinkPath = null
+      if (skill.dir) {
+        try {
+          const stats = fs.lstatSync(skill.dir)
+          if (stats.isSymbolicLink()) {
+            isSymlink = true
+            symlinkPath = fs.readlinkSync(skill.dir)
+          }
+        } catch {}
+      }
 
       return {
         id: manifest.id || skill.id,
@@ -77,17 +126,21 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         description: description,
         category: skill.kind === 'builtin' ? 'core' : 'extension',
         enabled: skill.enabled && isSkillEnabledByStore(skill),
+        isSymlink,
+        symlinkPath,
         intents: manifest.intents || [],
         tags: manifest.tags || [],
-        icon: manifest.icon || null,
-        icon_url: manifest.icon_url || null,
-        icon_bg: manifest.icon_bg || null,
+        icon: manifest.icon || (community.find((c) => c.id === (manifest.id || skill.id))?.icon) || null,
+        icon_url: manifest.icon_url || (community.find((c) => c.id === (manifest.id || skill.id))?.icon_url) || null,
+        icon_bg: manifest.icon_bg || (community.find((c) => c.id === (manifest.id || skill.id))?.icon_bg) || null,
         author: manifest.author || null,
         repo: repo,
         stars: stars,
         is_official:
           skill.kind === 'builtin' || skill.kind === 'packaged' || manifest.author === 'WesleyQDev',
         version: manifest.version || null,
+        momai_compat: manifest.momai_compat || null,
+        compat_status: computeCompatStatus(appVersion, manifest.momai_compat),
         tools: (manifest.tools || []).map((t) => t.name),
 
         permissions: manifest.permissions || null,
@@ -123,15 +176,30 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
   const installed = (await Promise.all(payload)).filter(Boolean)
   const installedIds = new Set(installed.map((ext) => ext.id))
 
-  // Dev only: local registry.json overrides community catalog URLs and adds local-only entries.
+  // Dev only: local dev-extensions.json overrides community catalog URLs and adds local-only entries.
   let localExtensions = []
   if (usesLocalInstallRegistry()) {
     try {
       const localRegistry = await loadInstallRegistry()
       localExtensions = localRegistry.extensions || []
     } catch (err) {
-      console.error('[SkillOrchestrator] Error reading local registry.json:', err.message)
+      console.error('[SkillOrchestrator] Error reading local dev-extensions.json:', err.message)
     }
+  }
+
+  // Fetch stars for community extensions that have a repo
+  const communityStarsMap = new Map()
+  const communityWithRepo = community.filter(
+    (item) => !installedIds.has(item.id) && item.repo
+  )
+  for (let i = 0; i < communityWithRepo.length; i += BATCH_SIZE) {
+    const batch = communityWithRepo.slice(i, i + BATCH_SIZE)
+    await Promise.all(
+      batch.map(async (item) => {
+        const stars = await communityRegistry.getGitHubStars(item.repo)
+        communityStarsMap.set(item.id, stars)
+      })
+    )
   }
 
   // Merge with community items that aren't installed yet
@@ -158,7 +226,8 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         enabled: false,
         installed: false,
         is_official: raw.is_official || false,
-        stars: 0,
+        stars: communityStarsMap.get(raw.id) || 0,
+        repo: raw.repo || null,
         readme: localized.description || raw.description
       }
     })
@@ -178,12 +247,50 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         download_url: ext.download_url,
         version: ext.version || null,
         author: ext.author || null,
-        stars: 0,
+        repo: ext.repo || (matchedComm ? matchedComm.repo : null),
+        stars: communityStarsMap.get(ext.id) || 0,
         readme: ext.description,
         icon: matchedComm ? matchedComm.icon : ext.icon || null,
         icon_url: matchedComm ? matchedComm.icon_url : ext.icon_url || null,
         icon_bg: matchedComm ? matchedComm.icon_bg : ext.icon_bg || null
       })
+    }
+  }
+
+  for (const ext of installed) {
+    let regItem = community.find((c) => c.id === ext.id)
+    if (!regItem && localExtensions.length > 0) {
+      regItem = localExtensions.find((e) => e.id === ext.id)
+    }
+
+    if (regItem) {
+      const repo = ext.repo || regItem.repo || null
+      let latestCompatible = null
+      if (repo) {
+        try {
+          const releases = await communityRegistry.fetchReleases(repo)
+          const best = findBestCompatibleRelease(releases, appVersion)
+          if (best) {
+            latestCompatible = best.version
+          }
+        } catch (e) {
+          console.warn(`[SkillOrchestrator] Failed to fetch releases for update check on ${ext.id}:`, e.message)
+        }
+      }
+
+      const targetVersion = latestCompatible || regItem.version
+      if (targetVersion) {
+        const cmp = compareVersions(targetVersion, ext.version || '0.0.0')
+        if (cmp > 0) {
+          const compat = latestCompatible ? true : satisfiesRange(appVersion, regItem.momai_compat)
+          if (compat) {
+            ext.updateAvailable = true
+            ext.latestCompatibleVersion = targetVersion
+          } else {
+            ext.hasNewerIncompatible = true
+          }
+        }
+      }
     }
   }
 
@@ -221,5 +328,6 @@ module.exports = {
   getEnabledSkillManifests,
   buildExtensionsPayload,
   getToolCatalogRows,
-  getSkillCatalogRows
+  getSkillCatalogRows,
+  computeCompatStatus
 }
