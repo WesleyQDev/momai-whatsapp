@@ -1,0 +1,33 @@
+{
+  "extensions": [
+    {
+      "id": "system_info",
+      "name": "Dashboard do Sistema",
+      "description": "Veja o uso de recursos do seu computador em tempo real (Versão Remota).",
+      "author": "WesleyQDev",
+      "version": "0.1.0",
+      "download_url": "https://github.com/WesleyQDev/momai-system-info/archive/refs/tags/v0.1.zip",
+      "is_official": true
+    },
+    {
+      "id": "whatsapp",
+      "name": "WhatsApp",
+      "description": "Monitore e responda mensagens do WhatsApp",
+      "author": "WesleyQDev",
+      "version": "0.3.16",
+      "download_url": "https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.3.16/momai-whatsapp-extension-v0.3.16.zip",
+      "repo": "WesleyQDev/momai-whatsapp-extension",
+      "is_official": true
+    },
+    {
+      "id": "launcher",
+      "name": "MomAI Open",
+      "description": "Abre programas, aplicativos e pastas no computador. Busca no menu iniciar, desktop, Program Files e PATH do sistema.",
+      "author": "WesleyQDev",
+      "version": "1.0.0",
+      "download_url": "https://github.com/WesleyQDev/momai-open/releases/download/v1.0.0/momai-open-v1.0.0.zip",
+      "repo": "WesleyQDev/momai-open",
+      "is_official": true
+    }
+  ]
+}

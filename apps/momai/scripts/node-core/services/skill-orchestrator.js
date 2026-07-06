@@ -1,7 +1,19 @@
+const fs = require('node:fs')
+const path = require('node:path')
 const shared = require('./shared-state')
 const communityRegistry = require('./community-registry')
 const { usesLocalInstallRegistry, loadInstallRegistry } = require('../utils/install-registry')
+const { compareVersions, satisfiesRange, findBestCompatibleRelease } = require('../utils/semver-compat')
 const store = shared.store
+
+function getAppVersion() {
+  try {
+    const pkg = require(path.resolve(__dirname, '..', '..', '..', 'package.json'))
+    return pkg.version || '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+}
 
 function getSkillRegistry() {
   return shared.skillRegistry
@@ -71,12 +83,26 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
 
       const docContent = readmes[lang] || readmes['pt-BR'] || readmes['default'] || ''
 
+      let isSymlink = false
+      let symlinkPath = null
+      if (skill.dir) {
+        try {
+          const stats = fs.lstatSync(skill.dir)
+          if (stats.isSymbolicLink()) {
+            isSymlink = true
+            symlinkPath = fs.readlinkSync(skill.dir)
+          }
+        } catch {}
+      }
+
       return {
         id: manifest.id || skill.id,
         name: name,
         description: description,
         category: skill.kind === 'builtin' ? 'core' : 'extension',
         enabled: skill.enabled && isSkillEnabledByStore(skill),
+        isSymlink,
+        symlinkPath,
         intents: manifest.intents || [],
         tags: manifest.tags || [],
         icon: manifest.icon || null,
@@ -88,6 +114,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         is_official:
           skill.kind === 'builtin' || skill.kind === 'packaged' || manifest.author === 'WesleyQDev',
         version: manifest.version || null,
+        momai_compat: manifest.momai_compat || null,
         tools: (manifest.tools || []).map((t) => t.name),
 
         permissions: manifest.permissions || null,
@@ -123,14 +150,14 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
   const installed = (await Promise.all(payload)).filter(Boolean)
   const installedIds = new Set(installed.map((ext) => ext.id))
 
-  // Dev only: local registry.json overrides community catalog URLs and adds local-only entries.
+  // Dev only: local dev-extensions.json overrides community catalog URLs and adds local-only entries.
   let localExtensions = []
   if (usesLocalInstallRegistry()) {
     try {
       const localRegistry = await loadInstallRegistry()
       localExtensions = localRegistry.extensions || []
     } catch (err) {
-      console.error('[SkillOrchestrator] Error reading local registry.json:', err.message)
+      console.error('[SkillOrchestrator] Error reading local dev-extensions.json:', err.message)
     }
   }
 
@@ -201,6 +228,27 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         icon_url: matchedComm ? matchedComm.icon_url : ext.icon_url || null,
         icon_bg: matchedComm ? matchedComm.icon_bg : ext.icon_bg || null
       })
+    }
+  }
+
+  const appVersion = getAppVersion()
+  for (const ext of installed) {
+    let regItem = community.find((c) => c.id === ext.id)
+    if (!regItem && localExtensions.length > 0) {
+      regItem = localExtensions.find((e) => e.id === ext.id)
+    }
+
+    if (regItem && regItem.version) {
+      const cmp = compareVersions(regItem.version, ext.version || '0.0.0')
+      if (cmp > 0) {
+        const compat = satisfiesRange(appVersion, regItem.momai_compat)
+        if (compat) {
+          ext.updateAvailable = true
+          ext.latestCompatibleVersion = regItem.version
+        } else {
+          ext.hasNewerIncompatible = true
+        }
+      }
     }
   }
 

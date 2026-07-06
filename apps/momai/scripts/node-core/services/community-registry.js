@@ -20,12 +20,14 @@ const CACHE_FILE = path.join(
   'community_registry.json'
 )
 const CACHE_TTL = 3600 * 1000 // 1 hour
+const RELEASES_CACHE_TTL = 15 * 60 * 1000 // 15 minutes
 
 class CommunityRegistryService {
   constructor() {
     this.cache = null
     this.lastFetch = 0
     this.starsCache = new Map()
+    this.releasesCache = new Map()
   }
 
   async fetchRegistry() {
@@ -133,6 +135,53 @@ class CommunityRegistryService {
     } catch (e) {
       console.warn(`[CommunityRegistry] Failed to fetch manifest for ${repo}:`, e.message)
       return null
+    }
+  }
+
+  async fetchReleases(repo) {
+    if (!repo) return []
+
+    const cached = this.releasesCache.get(repo)
+    if (cached && Date.now() - cached.timestamp < RELEASES_CACHE_TTL) {
+      return cached.releases
+    }
+
+    try {
+      const url = `https://api.github.com/repos/${repo}/releases?per_page=15`
+      console.log(`[CommunityRegistry] Fetching releases for ${repo}...`)
+      const data = await this._httpGet(url, {
+        'User-Agent': 'MomAI-App',
+        Accept: 'application/vnd.github.v3+json'
+      })
+      const ghReleases = JSON.parse(data)
+      if (!Array.isArray(ghReleases)) return []
+
+      const releases = ghReleases
+        .filter((r) => !r.draft)
+        .map((r) => {
+          const version = (r.tag_name || '').replace(/^v/i, '').trim()
+          const zipAsset = (r.assets || []).find((a) => a.name && a.name.endsWith('.zip'))
+          const download_url = zipAsset
+            ? zipAsset.browser_download_url
+            : r.zipball_url || null
+
+          return {
+            version,
+            tag: r.tag_name,
+            download_url,
+            changelog: r.body || '',
+            date: r.published_at || r.created_at || null,
+            prerelease: r.prerelease || false
+          }
+        })
+        .filter((r) => r.version && r.download_url)
+
+      this.releasesCache.set(repo, { releases, timestamp: Date.now() })
+      console.log(`[CommunityRegistry] Found ${releases.length} releases for ${repo}`)
+      return releases
+    } catch (e) {
+      console.warn(`[CommunityRegistry] Failed to fetch releases for ${repo}:`, e.message)
+      return cached ? cached.releases : []
     }
   }
 

@@ -298,21 +298,19 @@ A skill de clima demonstra o padrão completo de resposta estruturada:
 
 ## Skills Packaged
 
-| Skill | Diretório | Função |
-|-------|-----------|--------|
-| Dev | `scripts/skills/packaged/dev/` | Execução de código |
-| Launcher | `scripts/skills/packaged/launcher/` | Lançador de aplicativos |
+> [!NOTE]
+> Anteriormente, algumas skills (como Launcher e WhatsApp) eram incluídas localmente na pasta `scripts/skills/packaged/`. Para fins de descentralização e separação de código fechado (Core proprietário) e aberto (extensões), as extensões de terceiros e utilitárias agora vivem 100% em repositórios independentes e são instaladas/gerenciadas no diretório `data/extensions/`.
 
-## Community Extensions
+## Community & Decentralized Extensions
 
-MomAI supports a community extension system with two registries:
+MomAI suporta um sistema descentralizado de extensões com dois registros:
 
-- **Installation registry** (`registry.json` in the project root) — allowlist of official extensions used by the node-core to validate install URLs.
-- **Community catalog** (remote `community-extensions.json` in the `WesleyQDev/MomAI-App` repo) — public catalog of community extensions rendered in the extension store UI.
+- **Instalação Local de Segurança para Dev** (`dev-extensions.json` na raiz do projeto) — allowlist de desenvolvimento de URLs de download permitidas e verificadas por checksum.
+- **Catálogo Remoto da Comunidade** (`community-extensions.json` no repositório `WesleyQDev/MomAI-App` na branch `main`) — catálogo de busca e allowlist de segurança oficial dos usuários finais.
 
-### Installation Registry
+### Registro de Instalação Local (`dev-extensions.json`)
 
-Official extensions are registered in [`registry.json`](../registry.json) at the project root:
+Para testes locais de download/instalação de novas extensões em desenvolvimento (`pnpm dev`), a extensão deve ser registrada em [`dev-extensions.json`](../dev-extensions.json) na raiz do projeto:
 
 ```json
 {
@@ -322,40 +320,45 @@ Official extensions are registered in [`registry.json`](../registry.json) at the
       "name": "WhatsApp",
       "description": "Monitore e responda mensagens do WhatsApp",
       "author": "WesleyQDev",
-      "version": "0.3.20",
-      "download_url": "https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.3.20/momai-whatsapp-extension-v0.3.20.zip",
+      "version": "0.3.31",
+      "download_url": "https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.3.31/momai-whatsapp-extension-v0.3.31.zip",
+      "is_official": true
+    },
+    {
+      "id": "launcher",
+      "name": "MomAI Open",
+      "description": "Abre programas, aplicativos e pastas no computador.",
+      "author": "WesleyQDev",
+      "version": "1.0.0",
+      "download_url": "https://github.com/WesleyQDev/momai-open/releases/download/v1.0.0/momai-open-v1.0.0.zip",
       "is_official": true
     }
   ]
 }
 ```
 
-Used by `scripts/node-core/api/routes/extensions.routes.js` to validate that install requests match a known extension ID and download URL.
+Usado pelo backend do node-core durante o desenvolvimento local para validar instalações de teste de ZIPs locais ou remotos.
 
-### Community Catalog (remote)
+### Catálogo Remoto (Store)
 
-Community extensions available in the store are fetched at runtime from:
+O catálogo de extensões disponíveis na loja é buscado dinamicamente de:
 `https://raw.githubusercontent.com/WesleyQDev/MomAI-App/main/community-extensions.json`
 
-The catalog is cached locally and refreshed hourly. Used by:
-- `scripts/node-core/services/community-registry.js` — fetches and caches the catalog, enriches extensions with GitHub star counts
-- `scripts/node-core/services/skill-orchestrator.js` — builds the combined extensions payload for the API
-- Landing page `ExtensionsPage.tsx` — renders the extension store
+O cache local de busca de extensões é atualizado a cada hora.
 
-### Extension Store UI
+### Estrutura e Interface das Extensões
 
-- `src/renderer/src/views/ExtensionsView.tsx` - Extension store and management
-- `data/extensions/` - Installed extensions data
-- `scripts/skills/packaged/` - Packaged skill runtimes
-- `scripts/skills/registry.js` - Skill registry
+- `src/renderer/src/views/ExtensionsView.tsx` - Visualização da loja e gerenciador de extensões.
+- `data/extensions/` - Pasta física das extensões instaladas no computador do usuário.
+- `scripts/skills/registry.js` - Carregador e executor de ferramentas e manifestos das extensões.
 
 ## Self-Contained Extension UI
 
-Extensions (packaged and downloaded) can ship their own React UI bundles instead of hardcoding pages in the main app. The host app provides generic infrastructure; skills provide their own look-and-feel.
+As extensões instaladas podem fornecer suas próprias interfaces React compiladas, sem que o app principal precise carregar código específico de cada uma. Veja o [Guia de Desenvolvimento de Extensões](extension-development-guide.md) para saber mais sobre o fluxo.
 
-### How a skill ships its UI
+### Como a extensão constrói e fornece sua UI
 
-A skill with a React UI lives in `scripts/skills/packaged/<id>/` and has:
+A extensão compilada vive em `data/extensions/<id>/` e possui:
 
 ```
 my-skill/
@@ -437,8 +440,8 @@ from-sky-600 to-cyan-500, from-red-600 to-rose-500
 
 ### Key files
 
-- `scripts/skills/packaged/<id>/build.mjs` — esbuild config
-- `scripts/skills/packaged/<id>/src/registry-bridge.ts` — re-exports `registerRenderer` from `momai:registry`
+- `build.mjs` (na pasta da extensão) — configuração do esbuild
+- `src/registry-bridge.ts` (na pasta da extensão) — re-exporta `registerRenderer` do alias `momai:registry`
 - `apps/momai/src/renderer/src/views/ExtensionPageRoute.tsx` — generic full-page route
 - `apps/momai/src/renderer/src/components/chat/ExtensionRendererLoader.tsx` — `loadSkillRenderer()` with `globalThis` shim
 - `apps/momai/scripts/node-core/services/manifest-routes.js` — mounts HTTP routes from `manifest.routes`

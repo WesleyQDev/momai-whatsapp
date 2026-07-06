@@ -98,7 +98,11 @@ import {
   toggleExtension,
   uninstallExtension,
   fetchExtensionManifest,
-  Extension
+  fetchExtensionReleases,
+  fetchSettings,
+  updateSettingsPartial,
+  Extension,
+  ExtensionRelease
 } from '../services/api'
 import {
   WrenchIcon,
@@ -462,6 +466,19 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
                 Comunidade
               </div>
             )}
+            {import.meta.env.DEV && skill.isSymlink && (
+              <div
+                title={skill.symlinkPath || ''}
+                className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-full text-[9px] text-amber-400 font-bold uppercase tracking-wider"
+              >
+                Symlink
+              </div>
+            )}
+            {skill.updateAvailable && (
+              <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-pulse">
+                Upgrade
+              </span>
+            )}
             {isInstalled &&
               (skill.enabled ? (
                 <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -529,7 +546,7 @@ function SkillDetailView({
 }: {
   skill: Extension
   onBack: () => void
-  onInstall: (s: Extension) => void
+  onInstall: (s: Extension, downloadUrl?: string) => void
   onToggle: (s: Extension) => void
   onUninstall: (s: Extension) => void
   installing: string | null
@@ -540,16 +557,33 @@ function SkillDetailView({
     skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
   const isBuiltin = skill.category === 'core'
 
+  const [releasesExpanded, setReleasesExpanded] = useState(false)
+  const [releases, setReleases] = useState<ExtensionRelease[]>([])
+  const [loadingReleases, setLoadingReleases] = useState(false)
+  const [releasesError, setReleasesError] = useState<string | null>(null)
+  const [installedVersion, setInstalledVersion] = useState<string | null>(null)
+  const [recommendedVersion, setRecommendedVersion] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!releasesExpanded || !skill.repo) return
+    setLoadingReleases(true)
+    setReleasesError(null)
+    fetchExtensionReleases(skill.id)
+      .then((res) => {
+        setReleases(res.releases)
+        setInstalledVersion(res.installed_version)
+        setRecommendedVersion(res.recommended_version)
+      })
+      .catch((err) => {
+        setReleasesError(String(err.message || err))
+      })
+      .finally(() => {
+        setLoadingReleases(false)
+      })
+  }, [releasesExpanded, skill.id, skill.repo])
+
   return (
     <div className="animate-fade-in max-w-6xl mx-auto px-6 pb-20">
-      {/* Mini Back button */}
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-[11px] font-bold mb-6 transition-colors group uppercase tracking-widest"
-      >
-        <ArrowLeftIcon className="w-3 h-3 transition-transform group-hover:-translate-x-0.5" />
-        Voltar para a loja
-      </button>
 
       {/* Tighter Hero Header */}
       <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-6 pb-6 border-b border-zinc-800/50">
@@ -582,6 +616,14 @@ function SkillDetailView({
                 Oficial
               </div>
             ) : null}
+            {import.meta.env.DEV && skill.isSymlink && (
+              <div
+                title={skill.symlinkPath || ''}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-md text-[9px] text-amber-400 font-black uppercase tracking-wider h-fit mb-0.5"
+              >
+                Symlink: {skill.symlinkPath}
+              </div>
+            )}
           </div>
 
           <p className="text-sm text-zinc-400 font-medium mb-6 max-w-2xl leading-relaxed">
@@ -615,7 +657,19 @@ function SkillDetailView({
               <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">
                 Versão
               </span>
-              <span className="text-xs text-zinc-300 font-bold">{skill.version || '1.0.0'}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-300 font-bold">{skill.version || '1.0.0'}</span>
+                {skill.updateAvailable && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-[8px] text-blue-400 font-black uppercase tracking-wider animate-pulse">
+                    Upgrade disponível ({skill.latestCompatibleVersion})
+                  </span>
+                )}
+                {skill.hasNewerIncompatible && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-[8px] text-amber-400 font-black uppercase tracking-wider" title="Requer versão mais recente do MomAI">
+                    Incompatível mais recente
+                  </span>
+                )}
+              </div>
             </div>
             <div className="w-px h-6 bg-zinc-800" />
             <div className="flex flex-col">
@@ -682,12 +736,14 @@ function SkillDetailView({
                   {!skill.enabled && <PowerIcon className="w-4 h-4" />}
                   {skill.enabled ? 'Desativar' : 'Ativar'}
                 </button>
-                <button
-                  onClick={() => onUninstall(skill)}
-                  className="px-5 py-2 rounded-xl text-xs font-bold text-zinc-500 border border-zinc-800 hover:text-red-400 hover:border-red-500/40 transition-all uppercase tracking-widest"
-                >
-                  Desinstalar
-                </button>
+                {!skill.isSymlink && (
+                  <button
+                    onClick={() => onUninstall(skill)}
+                    className="px-5 py-2 rounded-xl text-xs font-bold text-zinc-500 border border-zinc-800 hover:text-red-400 hover:border-red-500/40 transition-all uppercase tracking-widest"
+                  >
+                    Desinstalar
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -758,6 +814,108 @@ function SkillDetailView({
               </div>
             </div>
           </section>
+
+          {/* Version History Section */}
+          {skill.repo && (
+            <section className="bg-zinc-800/20 rounded-2xl p-8 border border-zinc-700/50 backdrop-blur-xl">
+              <button
+                onClick={() => setReleasesExpanded(!releasesExpanded)}
+                className="w-full flex items-center justify-between text-left focus:outline-none group"
+              >
+                <h2 className="text-xs font-black text-zinc-300 flex items-center gap-2 uppercase tracking-[0.2em]">
+                  <ClockIcon className="w-4 h-4 text-violet-400" />
+                  Histórico de Versões
+                </h2>
+                <div className="flex items-center gap-2 text-xs text-zinc-500 group-hover:text-zinc-300 transition-colors">
+                  {releasesExpanded ? 'Ocultar' : 'Mostrar'}
+                  <ChevronRightIcon className={`w-4 h-4 transition-transform ${releasesExpanded ? 'rotate-90' : ''}`} />
+                </div>
+              </button>
+
+              {releasesExpanded && (
+                <div className="mt-6 space-y-4">
+                  {loadingReleases && (
+                    <p className="text-xs text-zinc-500 italic animate-pulse">Carregando versões...</p>
+                  )}
+                  {releasesError && (
+                    <p className="text-xs text-red-400 italic">Erro: {releasesError}</p>
+                  )}
+                  {!loadingReleases && !releasesError && releases.length === 0 && (
+                    <p className="text-xs text-zinc-500 italic">Nenhuma versão encontrada no GitHub.</p>
+                  )}
+                  {!loadingReleases && !releasesError && releases.length > 0 && (
+                    <div className="space-y-3">
+                      {releases.map((rel) => {
+                        const isCurrent = !!(installedVersion && rel.version === installedVersion)
+                        const isRecommended = !!(recommendedVersion && rel.version === recommendedVersion)
+                        return (
+                          <div key={rel.version} className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-850 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex-1 space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm text-white font-extrabold">v{rel.version}</span>
+                                {rel.date && (
+                                  <span className="text-[10px] text-zinc-500">
+                                    {new Date(rel.date).toLocaleDateString()}
+                                  </span>
+                                )}
+                                {isCurrent && (
+                                  <span className="px-2 py-0.5 rounded bg-violet-500/10 border border-violet-500/30 text-[9px] text-violet-400 font-extrabold uppercase">
+                                    Instalada
+                                  </span>
+                                )}
+                                {isRecommended && !isCurrent && (
+                                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-[9px] text-emerald-400 font-extrabold uppercase">
+                                    Recomendada
+                                  </span>
+                                )}
+                                {rel.compatible ? (
+                                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-[9px] text-emerald-400 font-extrabold uppercase">
+                                    Compatível
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded bg-red-500/10 border border-red-500/30 text-[9px] text-red-400 font-extrabold uppercase" title={rel.requires_momai ? `Requer MomAI ${rel.requires_momai}` : undefined}>
+                                    Incompatível
+                                  </span>
+                                )}
+                              </div>
+                              {rel.changelog && (
+                                <p className="text-xs text-zinc-400 line-clamp-2 mt-1">
+                                  {rel.changelog}
+                                </p>
+                              )}
+                            </div>
+                            <div className="shrink-0">
+                              {rel.compatible ? (
+                                <button
+                                  onClick={() => onInstall(skill, rel.download_url)}
+                                  disabled={installing === skill.id || isCurrent}
+                                  className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
+                                    isCurrent
+                                      ? 'border-zinc-800 text-zinc-600 cursor-default'
+                                      : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white'
+                                  }`}
+                                >
+                                  {isCurrent ? 'Instalada' : 'Instalar'}
+                                </button>
+                              ) : (
+                                <button
+                                  disabled
+                                  className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border border-zinc-800 text-zinc-600 cursor-not-allowed"
+                                  title={rel.requires_momai ? `Esta versão requer o MomAI ${rel.requires_momai}` : 'Incompatível'}
+                                >
+                                  Incompatível
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
         </div>
 
         {/* Sidebar - Brighter and Elevated */}
@@ -902,12 +1060,29 @@ export default function ExtensionsView() {
   const [selectedManifest, setSelectedManifest] = useState<Record<string, any> | null>(null)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [devMode, setDevMode] = useState<'symlink' | 'store_test'>('symlink')
   const tagsDragScrollRef = useRef<HTMLDivElement | null>(null)
   const tagsDragScroll = useDragScroll(tagsDragScrollRef)
+
+  const handleSetDevMode = async (mode: 'symlink' | 'store_test') => {
+    try {
+      await updateSettingsPartial({ dev_mode: mode })
+      setDevMode(mode)
+      await loadData()
+    } catch (err) {
+      console.error('Erro ao atualizar modo dev:', err)
+    }
+  }
 
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true)
     try {
+      // Fetch settings to sync the current devMode
+      const settings = await fetchSettings().catch(() => ({ dev_mode: 'symlink' }))
+      if (settings.dev_mode === 'store_test' || settings.dev_mode === 'symlink') {
+        setDevMode(settings.dev_mode)
+      }
+
       const data = await fetchExtensions(locale)
       setAllSkills(data)
       window.dispatchEvent(new CustomEvent('momai_extensions_sync', { detail: data }))
@@ -939,11 +1114,11 @@ export default function ExtensionsView() {
     }
   }
 
-  const handleInstall = async (ext: Extension) => {
+  const handleInstall = async (ext: Extension, downloadUrl?: string) => {
     setInstalling(ext.id)
     setInstallProgress({ percent: 0, speed: '0 KB/s', status: 'Iniciando...' })
     try {
-      await installExtension(ext.id, ext.download_url || '', (progress) => {
+      await installExtension(ext.id, downloadUrl || ext.download_url || '', (progress) => {
         setInstallProgress(progress)
       })
       const freshData = await loadData(true)
@@ -1029,30 +1204,70 @@ export default function ExtensionsView() {
         <div className="w-full px-6 py-5">
           {/* ─── Tabs & Search ─── */}
           <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-1 p-0.5 bg-zinc-800 rounded-lg border border-zinc-700">
+            {!selectedSkill ? (
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1 p-0.5 bg-zinc-800 rounded-lg border border-zinc-700">
+                  <button
+                    onClick={() => setActiveTab('store')}
+                    className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
+                      activeTab === 'store'
+                        ? 'bg-violet-600 text-white shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
+                  >
+                    <ShoppingBagIcon className="w-3.5 h-3.5" />
+                    Loja
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('installed')}
+                    className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
+                      activeTab === 'installed'
+                        ? 'bg-violet-600 text-white shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
+                  >
+                    <Squares2X2Icon className="w-3.5 h-3.5" />
+                    Minhas Skills
+                  </button>
+                </div>
+
+                {/* Dev Mode Switcher (less prominent, next to tabs) */}
+                {import.meta.env.DEV && (
+                  <div className="flex items-center gap-1 p-0.5 bg-zinc-950/40 rounded-lg border border-zinc-800/80">
+                    <button
+                      onClick={() => handleSetDevMode('symlink')}
+                      title="Testar extensões usando links simbólicos locais"
+                      className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
+                        devMode === 'symlink'
+                          ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400 font-extrabold shadow-sm'
+                          : 'text-zinc-600 hover:text-zinc-400'
+                      }`}
+                    >
+                      Dev (Symlinks)
+                    </button>
+                    <button
+                      onClick={() => handleSetDevMode('store_test')}
+                      title="Testar fluxo de download da loja usando dev-extensions.json"
+                      className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
+                        devMode === 'store_test'
+                          ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400 font-extrabold shadow-sm'
+                          : 'text-zinc-600 hover:text-zinc-400'
+                      }`}
+                    >
+                      Testar Loja
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
               <button
-                onClick={() => setActiveTab('store')}
-                className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
-                  activeTab === 'store'
-                    ? 'bg-violet-600 text-white shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+                onClick={() => setSelectedSkill(null)}
+                className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-[11px] font-bold transition-colors group uppercase tracking-widest"
               >
-                <ShoppingBagIcon className="w-3.5 h-3.5" />
-                Loja
+                <ArrowLeftIcon className="w-3 h-3 transition-transform group-hover:-translate-x-0.5" />
+                Voltar para a loja
               </button>
-              <button
-                onClick={() => setActiveTab('installed')}
-                className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
-                  activeTab === 'installed'
-                    ? 'bg-violet-600 text-white shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                <Squares2X2Icon className="w-3.5 h-3.5" />
-                Minhas Skills
-              </button>
-            </div>
+            )}
 
             <div className="flex items-center gap-3">
               <div className="relative">

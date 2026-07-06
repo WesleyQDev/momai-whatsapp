@@ -415,6 +415,8 @@ export interface Extension {
   category: string
   enabled: boolean
   installed?: boolean
+  isSymlink?: boolean
+  symlinkPath?: string | null
   icon?: string
   icon_url?: string
   icon_bg?: string
@@ -432,6 +434,10 @@ export interface Extension {
   repo?: string
   stars?: number
   compatibility?: string
+  momai_compat?: string
+  updateAvailable?: boolean
+  latestCompatibleVersion?: string
+  hasNewerIncompatible?: boolean
   eventTypes?: string[]
   storage?: {
     description?: string
@@ -473,6 +479,25 @@ export interface Extension {
   }
 }
 
+export interface ExtensionRelease {
+  version: string
+  tag: string
+  download_url: string
+  changelog?: string
+  date?: string
+  prerelease?: boolean
+  compatible: boolean
+  momai_compat?: string
+  requires_momai?: string
+}
+
+export interface ExtensionReleasesResponse {
+  releases: ExtensionRelease[]
+  installed_version: string | null
+  recommended_version: string | null
+  app_version: string
+}
+
 export async function fetchExtensions(lang?: string): Promise<Extension[]> {
   const url = lang ? `${API_URL}/extensions?lang=${lang}` : `${API_URL}/extensions`
   const response = await apiFetch(url)
@@ -497,6 +522,12 @@ export async function fetchExtensionManifest(id: string): Promise<Record<string,
   } catch {
     return null
   }
+}
+
+export async function fetchExtensionReleases(id: string): Promise<ExtensionReleasesResponse> {
+  const response = await apiFetch(`${API_URL}/extensions/${id}/releases`)
+  if (!response.ok) throw new Error('Failed to fetch extension releases')
+  return response.json()
 }
 
 export async function installExtension(
@@ -653,6 +684,7 @@ export interface SettingsData {
   context_window_tokens?: number
   skip_intro?: boolean
   daily_briefing_enabled?: boolean
+  dev_mode?: string
 }
 
 export async function fetchSettings(): Promise<SettingsData> {

@@ -47,7 +47,7 @@ Um Pull Request pode ser mergeado quando atende **todos** os critérios abaixo:
 - Atualize a documentação quando necessário
 - Adicione testes quando aplicável
 - Use [Conventional Commits](https://www.conventionalcommits.org/) nas mensagens de commit
-- Contribuições relacionadas a extensões (skills em `scripts/skills/packaged/`) exigem sincronização com o repositório espelho externo da extensão — veja AGENTS.md para o mapeamento e fluxo
+- Contribuições relacionadas a extensões devem ser feitas em seus respectivos repositórios independentes (veja o [Guia de Desenvolvimento de Extensões](docs/extension-development-guide.md)) e registradas no `community-extensions.json` do repositório público. Para testar localmente em desenvolvimento, adicione a extensão em `dev-extensions.json` na raiz deste monorepo.
 
 ## Contributor License Agreement (CLA)
 

@@ -10,8 +10,9 @@ const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { isPrivateIp } = require('../../utils/ip-check')
 const { verifyChecksum } = require('../../utils/extension-checksum')
 const { corsHeaders } = require('../../infrastructure/http-helpers')
-const { loadInstallRegistry, _setInstallRegistryForTests } = require('../../utils/install-registry')
+const { loadInstallRegistry, usesLocalInstallRegistry, _setInstallRegistryForTests } = require('../../utils/install-registry')
 const communityRegistry = require('../../services/community-registry')
+const shared = require('../../services/shared-state')
 
 /* ── Community registry allowlist (SSRF defense) ── */
 
@@ -23,8 +24,14 @@ async function validateInstallUrl(id, downloadUrl) {
     err.status = 403
     throw err
   }
-  if (ext.download_url !== downloadUrl) {
-    const err = new Error('download_url does not match registry entry')
+  const isMatch =
+    ext.download_url === downloadUrl ||
+    (ext.repo && (
+      downloadUrl.startsWith(`https://github.com/${ext.repo}/releases/`) ||
+      downloadUrl.startsWith(`https://api.github.com/repos/${ext.repo}/`)
+    ))
+  if (!isMatch) {
+    const err = new Error('download_url does not match registry or repository')
     err.status = 403
     throw err
   }
@@ -37,16 +44,21 @@ async function validateInstallUrl(id, downloadUrl) {
     throw err
   }
   if (url.protocol !== 'https:') {
-    const err = new Error('only https URLs allowed')
-    err.status = 403
-    throw err
+    if (url.protocol === 'file:' && usesLocalInstallRegistry()) {
+      // Allowed in dev mode for local zip testing
+    } else {
+      const err = new Error('only https URLs allowed')
+      err.status = 403
+      throw err
+    }
   }
   const isTrustedHost =
+    url.protocol === 'file:' ||
     url.hostname === 'github.com' ||
     url.hostname === 'raw.githubusercontent.com' ||
     url.hostname.endsWith('.github.com')
 
-  if (!isTrustedHost) {
+  if (!isTrustedHost && url.protocol !== 'file:') {
     const { address } = await dns.lookup(url.hostname)
     if (isPrivateIp(address)) {
       const err = new Error(`hostname resolves to private IP: ${address}`)
@@ -209,6 +221,7 @@ const { mountSkillRoutes } = require('../../services/manifest-routes')
 
 let _cachedExtensionsPayload = null
 let _lastExtensionsRefresh = 0
+let _lastDevMode = null
 
 /* ── Helpers for downloading & extracting community extensions ── */
 
@@ -324,10 +337,12 @@ function createExtensionsRoutes(context) {
 
   async function getExtensionsPayload(lang) {
     const now = Date.now()
-    if (now - _lastExtensionsRefresh < 10000) {
+    const currentDevMode = store?.settings?.dev_mode || 'symlink'
+    if (now - _lastExtensionsRefresh < 10000 && currentDevMode === _lastDevMode) {
       const cached = _cachedExtensionsPayload
       if (cached) return cached
     }
+    _lastDevMode = currentDevMode
     await skillRegistry.refresh()
     const payload = await buildExtensionsPayload(lang)
     _cachedExtensionsPayload = payload
@@ -439,11 +454,33 @@ function createExtensionsRoutes(context) {
       const id = pathname.split('/')[2]
       try {
         const community = await communityRegistry.fetchRegistry()
-        const item = community.find((e) => e.id === id)
-        if (!item || !item.repo) {
+        let item = community.find((e) => e.id === id)
+        
+        // If not found in remote community, and we are in dev, check local dev-extensions
+        if (!item && usesLocalInstallRegistry()) {
+          const localRegistry = await loadInstallRegistry()
+          item = (localRegistry.extensions || []).find((e) => e.id === id)
+        }
+
+        if (!item) {
           sendJson(res, 404, { error: 'extension not found in community registry' })
           return true
         }
+
+        if (!item.repo) {
+          // Construct fallback manifest from registry metadata for local dev testing
+          sendJson(res, 200, {
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            author: item.author,
+            version: item.version,
+            permissions: item.permissions || [],
+            tags: item.tags || []
+          })
+          return true
+        }
+
         const manifest = await communityRegistry.fetchManifest(item.repo)
         if (!manifest) {
           sendJson(res, 404, { error: 'manifest not found in repo' })
@@ -453,6 +490,62 @@ function createExtensionsRoutes(context) {
       } catch (err) {
         console.error(`[ExtensionsAPI] Error fetching manifest for ${id}:`, err)
         sendJson(res, 500, { error: 'failed to fetch manifest' })
+      }
+      return true
+    }
+
+    /* ── Releases (version history from GitHub) ── */
+    if (pathname.match(/^\/extensions\/[^/]+\/releases$/) && req.method === 'GET') {
+      const id = pathname.split('/')[2]
+      try {
+        const { categorizeReleases, findBestCompatibleRelease } = require('../../utils/semver-compat')
+
+        const community = await communityRegistry.fetchRegistry()
+        let item = community.find((e) => e.id === id)
+
+        if (!item && usesLocalInstallRegistry()) {
+          const localRegistry = await loadInstallRegistry()
+          item = (localRegistry.extensions || []).find((e) => e.id === id)
+        }
+
+        // Also check installed extensions for repo info
+        const skillRegistry = shared.skillRegistry
+        const installed = skillRegistry ? skillRegistry.getAll().find((s) => (s.manifest?.id || s.id) === id) : null
+        const repo = item?.repo || installed?.manifest?.repo || null
+
+        if (!repo) {
+          sendJson(res, 200, { releases: [], installed_version: installed?.manifest?.version || null, recommended_version: null })
+          return true
+        }
+
+        const rawReleases = await communityRegistry.fetchReleases(repo)
+
+        // Read momai_compat from installed manifest or from remote manifest
+        let momaiCompat = installed?.manifest?.momai_compat || null
+        if (!momaiCompat && item?.momai_compat) {
+          momaiCompat = item.momai_compat
+        }
+
+        // Assign momai_compat to each release (from the extension's declared range)
+        const releasesWithCompat = rawReleases.map((r) => ({
+          ...r,
+          momai_compat: momaiCompat
+        }))
+
+        const pkg = require(path.resolve(__dirname, '..', '..', '..', '..', 'package.json'))
+        const appVersion = pkg.version || '0.0.0'
+        const { compatible, incompatible } = categorizeReleases(releasesWithCompat, appVersion)
+        const best = findBestCompatibleRelease(releasesWithCompat, appVersion)
+
+        sendJson(res, 200, {
+          releases: [...compatible, ...incompatible],
+          installed_version: installed?.manifest?.version || null,
+          recommended_version: best ? best.version : null,
+          app_version: appVersion
+        })
+      } catch (err) {
+        console.error(`[ExtensionsAPI] Error fetching releases for ${id}:`, err)
+        sendJson(res, 500, { error: 'failed to fetch releases' })
       }
       return true
     }
@@ -487,10 +580,21 @@ function createExtensionsRoutes(context) {
         console.log(`[ExtensionsAPI] Downloading extension ${id} from ${downloadUrl}...`)
         const zipPath = path.join(extDir, 'archive.zip')
         try {
-          sendStatus('Baixando...', 0, '0 KB/s')
-          await downloadFile(downloadUrl, zipPath, (percent, speed) =>
-            sendStatus('Baixando...', percent, speed)
-          )
+          if (downloadUrl.startsWith('file://')) {
+            try {
+              const srcPath = require('node:url').fileURLToPath(downloadUrl)
+              sendStatus('Baixando...', 50, '-')
+              fs.copyFileSync(srcPath, zipPath)
+              sendStatus('Baixando...', 100, '-')
+            } catch (copyErr) {
+              throw new Error(`Failed to copy local zip: ${copyErr.message}`)
+            }
+          } else {
+            sendStatus('Baixando...', 0, '0 KB/s')
+            await downloadFile(downloadUrl, zipPath, (percent, speed) =>
+              sendStatus('Baixando...', percent, speed)
+            )
+          }
           let zipBuffer
           try {
             zipBuffer = fs.readFileSync(zipPath)

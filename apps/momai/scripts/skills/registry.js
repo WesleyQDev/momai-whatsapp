@@ -268,6 +268,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   async function loadBuiltins() {
     // Capture count BEFORE clearing
     const previousCount = state.builtins.size
+    if (previousCount > 0) return // Skip if already loaded
     state.builtins.clear()
     const log = (msg) => {
       if (typeof process.send === 'function') {
@@ -306,6 +307,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   }
 
   async function loadPackaged() {
+    if (state.packaged.size > 0) return // Skip if already loaded
     state.packaged.clear()
     const log = (msg) => {
       if (typeof process.send === 'function') {
@@ -389,10 +391,28 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     state.extensions.clear()
     const permSchema = createPermissionSchema()
 
+    let ignoreSymlinks = false
+    try {
+      const shared = require('../node-core/services/shared-state')
+      if (shared?.store?.settings?.dev_mode === 'store_test') {
+        ignoreSymlinks = true
+      }
+    } catch {}
+
     for (const name of fs.readdirSync(extensionsDir)) {
       const dir = path.join(extensionsDir, name)
       const stat = fs.statSync(dir, { throwIfNoEntry: false })
       if (!stat || !stat.isDirectory()) continue
+
+      if (ignoreSymlinks) {
+        try {
+          const lstat = fs.lstatSync(dir)
+          if (lstat.isSymbolicLink()) {
+            continue
+          }
+        } catch {}
+      }
+
       const skill = await loadSkillFromDir({ dir, kind: 'extension', expectedId: name })
       if (!skill) continue
 

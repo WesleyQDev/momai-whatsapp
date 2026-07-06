@@ -4,7 +4,7 @@ const communityRegistry = require('../services/community-registry')
 
 let _cachedRegistry = null
 
-/** Local registry.json is used only in dev (pnpm dev). Packaged builds use community-extensions.json. */
+/** Local dev-extensions.json is used only in dev (pnpm dev). Packaged builds use community-extensions.json. */
 function usesLocalInstallRegistry() {
   return process.env.MOMAI_IS_PACKAGED !== '1'
 }
@@ -48,7 +48,7 @@ async function loadInstallRegistry() {
           }
         }
       } catch (err) {
-        console.error('[InstallRegistry] Error merging local registry.json:', err.message)
+        console.error('[InstallRegistry] Error merging local dev-extensions.json:', err.message)
       }
     }
   }
