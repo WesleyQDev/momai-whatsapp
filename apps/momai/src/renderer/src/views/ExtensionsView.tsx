@@ -1257,8 +1257,17 @@ export default function ExtensionsView() {
     if (!uninstallTarget) return
     try {
       await uninstallExtension(uninstallTarget.id)
-      setSelectedSkill(null)
-      await loadData(true)
+      const freshData = await loadData(true)
+      const updated = freshData.find((s) => s.id === uninstallTarget.id)
+      if (updated) {
+        setSelectedSkill(updated)
+        if (updated.repo) {
+          const manifest = await fetchExtensionManifest(updated.id)
+          setSelectedManifest(manifest)
+        }
+      } else {
+        setSelectedSkill(null)
+      }
     } catch (err) {
       alert(t('extensions.errors.uninstall', { error: String(err) }))
     } finally {
