@@ -1,176 +1,159 @@
-# Extensions Marketplace UI Redesign Implementation Plan
+# Extensions Marketplace UI Redesign - Iteration 2 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Redesign the extensions marketplace in MomAI to mimic a clean, Windows 11 Microsoft Store aesthetic, featuring a dedicated "Biblioteca" (Library) list-view and a professional 2-column details page with a version timeline.
+**Goal:** Refactor the extensions details page to a 3-column layout, simplify icons to reduce clutter, enhance contrast/readability across the screens, and implement a glowing indicator for active extensions.
 
-**Architecture:** Remove top tabs from `ExtensionsView.tsx`, introduce a header command section containing search, environment toggles, and a "Library" toggle button. Conditionally render either the Catalog Grid (Store) or the Library list view. Update `SkillDetailView` to render as a 70/30 split grid with structured specs and a timeline version history.
+**Architecture:** 
+- Change details page grid in `ExtensionsView.tsx` from 10-column layout (70/30 split) to a 12-column layout:
+  - Left column (`lg:col-span-3`): Version History.
+  - Middle column (`lg:col-span-6`): About description & system requirements.
+  - Right column (`lg:col-span-3`): Information table & Permissions.
+- Increase background brightness/contrast using `#16161a` and `#232329` for cards.
+- Remove decorative icons next to headers ("Sobre", "Requisitos", "Histórico", "Informações", "Permissões") and bullet points.
+- Refactor the active/enabled extension badge to display a green glowing indicator (`animate-pulse`).
 
-**Tech Stack:** React, Tailwind CSS, TypeScript, `@heroicons/react`.
+**Tech Stack:** React, Tailwind CSS, TypeScript.
 
 ---
 
 ## Proposed Changes and Responsibilities
 
 ### [ExtensionsView.tsx](file:///c:/Users/wesle/dev/momai/apps/momai/src/renderer/src/views/ExtensionsView.tsx)
-- Create a new `viewMode` state variable (`'store' | 'library' | 'detail'`).
-- Clean up the header to remove the old "Loja" and "Minhas Skills" tabs.
-- Add a "Biblioteca" (Library) toggle button in the header next to the search bar.
-- Refactor the catalog card grid layout with hover shadows, smooth transitions, and standard badge backgrounds.
-- Add a brand new `LibraryView` component/sub-render displaying installed extensions in a clean, tabular format with name, version, status, and action buttons.
-- Redesign `SkillDetailView` into a 2-column layout (70/30 split).
-  - Main column: Description markdown and a vertical version timeline.
-  - Sidebar column: Extended specifications table and list of required permission strings with icons.
+- Reorganize elements in `SkillDetailView` to form a 3-column layout.
+- Update Tailwind styles for better contrast: replace dark background classes (`bg-zinc-900`, `bg-zinc-800/40`, `border-zinc-800`) with higher contrast alternatives.
+- Clean up icons from headers and list bullets.
+- Implement pulsating/glowing indicators for active extensions.
 
 ---
 
 ## Tasks
 
-### Task 1: Navigation Top Bar Clean up and Library View Toggle
+### Task 1: Refactor Details Page to a 3-Column Layout
 
 **Files:**
 - Modify: `apps/momai/src/renderer/src/views/ExtensionsView.tsx`
 
-- [ ] **Step 1: Locate top navigation tabs and state**
-  Identify the state tracking tabs (`activeTab` or similar) in `ExtensionsView.tsx` and replace it with a new `viewMode` state:
-  ```typescript
-  const [viewMode, setViewMode] = useState<'store' | 'library'>('store')
-  ```
-  And if a skill is selected, render the detail page.
+- [ ] **Step 1: Relocate Version History in HTML**
+  Move the Version History Section code block to be rendered *before* the Description ("Sobre esta extensão") section inside `SkillDetailView`.
 
-- [ ] **Step 2: Clean up the header layout**
-  Modify the header render block:
-  - Remove the old "Loja" and "Minhas Skills" buttons.
-  - Add a "Biblioteca" folder icon button. When `viewMode === 'library'`, style it as active (colored border/glow). When clicked, toggle `viewMode` between `'store'` and `'library'`.
-  
+- [ ] **Step 2: Update Grid Layout**
+  Change the grid container to a 12-column grid and group the columns as follows:
   ```typescript
-  // Example button definition
-  <button
-    onClick={() => setViewMode(viewMode === 'store' ? 'library' : 'store')}
-    className={`p-2.5 rounded-xl border transition-all duration-200 flex items-center gap-2 ${
-      viewMode === 'library'
-        ? 'bg-violet-600/20 border-violet-500/50 text-violet-300'
-        : 'bg-zinc-800/40 border-zinc-700/50 text-zinc-400 hover:text-zinc-200 hover:border-zinc-650'
-    }`}
-    title="Biblioteca"
-  >
-    <FolderIcon className="w-5 h-5" />
-    <span className="text-xs font-bold">Biblioteca</span>
-  </button>
+  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    {/* Left Column: Version History (25% -> lg:col-span-3) */}
+    <div className="lg:col-span-3 space-y-6">
+      {/* Version History Section */}
+    </div>
+
+    {/* Center Column: Description & Requirements (50% -> lg:col-span-6) */}
+    <div className="lg:col-span-6 space-y-6">
+      {/* About Section */}
+      {/* Requirements Section */}
+    </div>
+
+    {/* Right Column: Information & Permissions (25% -> lg:col-span-3) */}
+    <div className="lg:col-span-3 space-y-6">
+      {/* Specs Section */}
+      {/* Permissions Section */}
+    </div>
+  </div>
   ```
 
-- [ ] **Step 3: Run the dev server to verify visually**
-  Verify that the top buttons "Loja" and "Minhas Skills" are gone, and a new "Biblioteca" button is visible and active when clicked.
+- [ ] **Step 3: Adjust elements for narrow columns**
+  Ensure Version History cards inside the timeline stack content vertically if width is constrained.
 
 - [ ] **Step 4: Commit**
   ```bash
   git add apps/momai/src/renderer/src/views/ExtensionsView.tsx
-  git commit -m "ui(store): clean up top tabs and add library view toggle button"
+  git commit -m "ui(detail): refactor layout to a balanced 3-column grid"
   ```
 
 ---
 
-### Task 2: Implement the Dedicated Library (Biblioteca) View
+### Task 2: Simplify Icons and Reduce Clutter
 
 **Files:**
 - Modify: `apps/momai/src/renderer/src/views/ExtensionsView.tsx`
 
-- [ ] **Step 1: Add a LibraryView sub-component or rendering block**
-  When `viewMode === 'library'` and no skill is selected, render a structured list of installed extensions.
-  Format it as a clean list table:
-  - Column 1: **Nome** (small rounded icon, name, category).
-  - Column 2: **Versão** (installed version number).
-  - Column 3: **Status** (clean enabled/disabled badge).
-  - Column 4: **Ações** (active switch, uninstall button).
-  
+- [ ] **Step 1: Remove decorative icons from detail page section headers**
+  Identify and remove:
+  - `<InformationCircleIcon className="w-4 h-4 text-violet-400" />` from "Sobre esta extensão" header.
+  - `<CpuChipIcon className="w-4 h-4 text-violet-400/80" />` from "Requisitos do Sistema" header.
+  - `<ClockIcon className="w-4 h-4 text-violet-400" />` from "Histórico de Versões" header.
+  - `<BoltIcon className="w-4 h-4 text-amber-400" />` from "Permissões" header.
+
+- [ ] **Step 2: Clean up permission bullet list**
+  Remove the purple glowing dot div next to permission items in the sidebar:
   ```typescript
-  // Filter installed skills
-  const installedSkills = skills.filter(
-    (s) => s.installed !== false && (s.category === 'core' || s.category === 'extension')
-  )
+  // Replace:
+  <div className="w-1 h-1 rounded-full bg-violet-400 mt-1.5 shrink-0 shadow-[0_0_5px_rgba(167,139,250,0.5)]" />
+  // With a simple dash or native list dot:
+  <span className="text-zinc-500 mr-2 shrink-0">•</span>
   ```
-
-- [ ] **Step 2: Add updates check button**
-  Add a global "Verificar Atualizações" (Check for Updates) button at the top right of the Library view. Make it trigger a reload of the extensions list.
-
-- [ ] **Step 3: Test toggling and actions**
-  Ensure that clicking the "Biblioteca" button successfully shows the list of installed extensions, and that activating/deactivating and uninstalling works directly from the list.
-
-- [ ] **Step 4: Commit**
-  ```bash
-  git add apps/momai/src/renderer/src/views/ExtensionsView.tsx
-  git commit -m "ui(store): implement dedicated library list view"
-  ```
-
----
-
-### Task 3: Redesign Catalog Grid Cards (Store Catalog)
-
-**Files:**
-- Modify: `apps/momai/src/renderer/src/views/ExtensionsView.tsx`
-
-- [ ] **Step 1: Redesign catalog card grid layout**
-  Update the catalog card rendering:
-  - Add transition effects: `hover:-translate-y-1 hover:shadow-[0_8px_30px_rgb(0,0,0,0.45)] hover:border-zinc-600/50`.
-  - Refine badges (like `OFICIAL` or `ATIVA`): use flat solid backgrounds with low opacity instead of thick borders (e.g. `bg-emerald-500/10 text-emerald-400 border-none` / `bg-violet-500/10 text-violet-400`).
-  - Add a developer initial/avatar badge and GitHub stars in a clean row at the bottom.
-
-- [ ] **Step 2: Verify visually**
-  Verify that the catalog grid looks clean, consistent, and responds to mouse hover with smooth transitions.
 
 - [ ] **Step 3: Commit**
   ```bash
   git add apps/momai/src/renderer/src/views/ExtensionsView.tsx
-  git commit -m "ui(store): polish catalog cards with hover effects and clean badges"
+  git commit -m "ui(detail): remove section header icons and simplify list bullets"
   ```
 
 ---
 
-### Task 4: Redesign Extension Details Page (2-Column Microsoft Store Grid)
+### Task 3: Improve Contrast, Text Readability, and Tag Styling
 
 **Files:**
 - Modify: `apps/momai/src/renderer/src/views/ExtensionsView.tsx`
 
-- [ ] **Step 1: Modify layout to 70/30 split**
-  In `SkillDetailView`, replace the layout container with a split grid:
-  ```typescript
-  <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 items-start">
-    {/* Left Column (70%) */}
-    <div className="lg:col-span-7 space-y-8">...</div>
-    {/* Right Column (30%) */}
-    <div className="lg:col-span-3 space-y-6">...</div>
-  </div>
-  ```
+- [ ] **Step 1: Increase background/border contrast**
+  Update the styling classes in `ExtensionsView.tsx` to make elements easier to see:
+  - Replace deep dark background classes (`bg-zinc-900`) with a cleaner high-contrast dark color (`bg-[#121214]`).
+  - Update card backgrounds: replace `bg-zinc-800/20` and `bg-zinc-950/20` with `bg-[#1a1a1f]/80` or `bg-zinc-900/60` and borders to `border-zinc-800`.
+  - Ensure text elements use `text-zinc-100` (for primary content/descriptions) and `text-zinc-300` (for secondary labels) rather than dark gray.
 
-- [ ] **Step 2: Add Version Timeline**
-  Redesign the Version History block. Instead of accordion/collapsible list of cards, render a clean vertical timeline. Draw a vertical line (`border-l border-zinc-700`) and place version circles along it:
-  ```typescript
-  <div className="relative border-l border-zinc-700 ml-3 pl-6 space-y-6">
-    {releases.map((rel) => (
-      <div key={rel.version} className="relative">
-        <div className="absolute -left-[30px] top-1.5 w-3 h-3 rounded-full bg-violet-500 border-4 border-zinc-900" />
-        {/* Version info */}
-      </div>
-    ))}
-  </div>
-  ```
+- [ ] **Step 2: Polish Tag Filters**
+  Redesign the tag selection buttons (Todas, Utilitário, etc.) at the top of the Store Catalog to look like flat, clean, high-contrast badges:
+  - Base state: `bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-700`
+  - Active state: `bg-violet-600/20 border-violet-500 text-violet-400`
 
-- [ ] **Step 3: Format specifications and permissions**
-  In the right column, render clean card lists for specifications (Developer, Category, Platform, Risk level) and required permission strings with clean icons.
-
-- [ ] **Step 4: Verify detail page layout**
-  Open the detail view of an extension, and ensure that the layout, timeline, and sidebar cards match the Windows 11 / Microsoft Store aesthetic.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
   ```bash
   git add apps/momai/src/renderer/src/views/ExtensionsView.tsx
-  git commit -m "ui(store): redesign detail page with 2-column layout and vertical timeline"
+  git commit -m "ui(store): raise contrast, improve text readability and tag filter styling"
+  ```
+
+---
+
+### Task 4: Glowing Indicator for Active Status
+
+**Files:**
+- Modify: `apps/momai/src/renderer/src/views/ExtensionsView.tsx`
+
+- [ ] **Step 1: Add a pulsating green dot helper**
+  Create or inject a glowing dot indicator component for active status:
+  ```typescript
+  const ActiveGlow = () => (
+    <span className="relative flex h-2 w-2 mr-1.5">
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_8px_rgba(52,211,153,0.6)]"></span>
+    </span>
+  )
+  ```
+
+- [ ] **Step 2: Update status displays in Catalog Cards, Library Table, and Details**
+  - **Catalog Cards**: Modify `SkillCard` active badge to render `ActiveGlow` next to the text "Ativa".
+  - **Library Table**: Render `ActiveGlow` next to the text "Ativa".
+  - **Details Page**: Render `ActiveGlow` in the active badge.
+
+- [ ] **Step 3: Commit**
+  ```bash
+  git add apps/momai/src/renderer/src/views/ExtensionsView.tsx
+  git commit -m "ui(store): implement pulsating active status glow indicators"
   ```
 
 ---
 
 ## Self-Review
 
-1. **Spec Coverage**: All items defined in the spec (tab removal, library toggle, catalog cards, library view, details grid, version timeline) are covered in the tasks.
-2. **Placeholders**: No placeholder values or vague instructions are present. Complete code snippets and structures are provided.
-3. **Consistency**: All states and mode keys (`_dev` suffix for symlink mode) are correctly handled.
+1. **Spec Coverage**: The plan covers all elements requested by the user: 3-column layout, contrast improvement, tag polishing, icon simplification, and glowing active status indicator.
+2. **Placeholders**: No placeholders or vague commands are used. Every step has precise files and commands.
