@@ -47,6 +47,15 @@ let embeddingStartGeneration = 0
 
 function pickEmbeddingModelPath() {
   if (!fs.existsSync(MODELS_DIR)) return null
+
+  const { DEFAULT_TIERS } = require('../config/tiers')
+  const tierConfig = DEFAULT_TIERS.ultra
+  const configuredFile = String(tierConfig.embedding_file || '').trim()
+  if (configuredFile) {
+    const configuredPath = path.join(MODELS_DIR, configuredFile)
+    if (fs.existsSync(configuredPath)) return configuredPath
+  }
+
   const candidates = fs
     .readdirSync(MODELS_DIR)
     .filter(
@@ -253,6 +262,7 @@ async function ensureEmbeddingReady() {
           if (ok) {
             info(`[embedding] Server is healthy and ready!`)
             semanticState.embedding.ready = true
+            semanticState.embedding.modelPath = modelPath
             semanticState.embedding.starting = false
             semanticState.embedding.startingPromise = null
             semanticState.enabled = true
