@@ -560,6 +560,7 @@ function SkillDetailView({
   installError?: InstallError | null
   recommendedVersionByExtId?: Record<string, string | null>
 }) {
+  const { t } = useI18n()
   const accentClasses = getAccentClasses(skill.manifest)
   const isInstalled =
     skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
@@ -682,7 +683,7 @@ function SkillDetailView({
                     className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-900/30 text-red-300 text-xs font-medium"
                     title="Versão instalada não é compatível com a sua versão do MomAI"
                   >
-                    Incompatível
+                    {t('extensions.install.incompatible')}
                   </span>
                 )}
               </div>
@@ -693,12 +694,12 @@ function SkillDetailView({
                     disabled={installing === skill.id || recommendedVersionByExtId?.[skill.id] === null}
                     title={
                       recommendedVersionByExtId?.[skill.id] === null
-                        ? 'Nenhuma versão compatível'
+                        ? t('extensions.install.no_compatible')
                         : ''
                     }
                     className="px-3 py-1.5 bg-blue-600/80 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all"
                   >
-                    Atualizar
+                    {t('extensions.actions.update')}
                   </button>
                 </div>
               )}
@@ -744,6 +745,12 @@ function SkillDetailView({
                       : 'Instalar'}
                   </span>
                 </button>
+                {installing === skill.id && installProgress && (
+                  <ExtensionInstallCard
+                    progress={installProgress}
+                    extName={skill.name}
+                  />
+                )}
                 {installing === skill.id && installError && (
                   <ExtensionInstallCard
                     error={installError}
