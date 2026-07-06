@@ -8,6 +8,66 @@ const https = require('node:https')
  * Manages fetching and caching the remote extensions registry.
  */
 
+/**
+ * Parse `momai_compat` from a GitHub release body string.
+ *
+ * Supports two formats:
+ *  1. YAML front-matter at the top:
+ *       ---\n momai_compat: ">=1.4.0 <2.0.0"\n ---\n Changelog
+ *  2. Inline `>[!NOTE]` block or any line containing `momai_compat:`
+ *
+ * Returns the captured value (quotes/spaces trimmed) or `null` if the
+ * release/body is falsy or no `momai_compat` key is found.
+ */
+const FRONTMATTER_RE = /^\s*-{3,}\s*\n[^]*?momai_compat\s*:\s*["']?([^"'\n]+)["']?/m
+const NOTE_RE = /momai_compat\s*:\s*["']?([^"'\n]+)["']?/
+
+function parseReleaseCompat(release) {
+  if (!release || !release.body) return null
+  const body = release.body
+  const fm = body.match(FRONTMATTER_RE)
+  const note = body.match(NOTE_RE)
+  const value = (fm && fm[1]) || (note && note[1])
+  return value ? value.trim().replace(/^["']|["']$/g, '') : null
+}
+
+/**
+ * Normalize raw GitHub releases into the install pipeline shape, adding a
+ * `momai_compat` field to each release. Pure (no HTTP).
+ *
+ * Filter rules:
+ *  - drafts are dropped
+ *  - releases without a `.zip` asset AND without a `zipball_url` fallback
+ *    are dropped (handled by the final `download_url` filter)
+ *  - releases without a parseable `version` are dropped
+ *
+ * `manifestCompat` is used as a fallback when a release body has no
+ * `momai_compat` info.
+ */
+function enrichReleasesWithCompat(rawReleases, manifestCompat) {
+  if (!Array.isArray(rawReleases)) return []
+  return rawReleases
+    .filter((r) => !r.draft)
+    .map((r) => {
+      const version = (r.tag_name || '').replace(/^v/i, '').trim()
+      const zipAsset = (r.assets || []).find((a) => a.name && a.name.endsWith('.zip'))
+      const download_url = zipAsset
+        ? zipAsset.browser_download_url
+        : r.zipball_url || null
+      const compatFromBody = parseReleaseCompat(r)
+      return {
+        version,
+        tag: r.tag_name,
+        download_url,
+        changelog: r.body || '',
+        date: r.published_at || r.created_at || null,
+        prerelease: r.prerelease || false,
+        momai_compat: compatFromBody || manifestCompat || null
+      }
+    })
+    .filter((r) => r.version && r.download_url)
+}
+
 const REGISTRY_URL =
   'https://raw.githubusercontent.com/WesleyQDev/MomAI-App/main/community-extensions.json'
 const CACHE_FILE = path.join(
@@ -156,25 +216,7 @@ class CommunityRegistryService {
       const ghReleases = JSON.parse(data)
       if (!Array.isArray(ghReleases)) return []
 
-      const releases = ghReleases
-        .filter((r) => !r.draft)
-        .map((r) => {
-          const version = (r.tag_name || '').replace(/^v/i, '').trim()
-          const zipAsset = (r.assets || []).find((a) => a.name && a.name.endsWith('.zip'))
-          const download_url = zipAsset
-            ? zipAsset.browser_download_url
-            : r.zipball_url || null
-
-          return {
-            version,
-            tag: r.tag_name,
-            download_url,
-            changelog: r.body || '',
-            date: r.published_at || r.created_at || null,
-            prerelease: r.prerelease || false
-          }
-        })
-        .filter((r) => r.version && r.download_url)
+      const releases = enrichReleasesWithCompat(ghReleases, null)
 
       this.releasesCache.set(repo, { releases, timestamp: Date.now() })
       console.log(`[CommunityRegistry] Found ${releases.length} releases for ${repo}`)
@@ -203,3 +245,5 @@ class CommunityRegistryService {
 }
 
 module.exports = new CommunityRegistryService()
+module.exports.enrichReleasesWithCompat = enrichReleasesWithCompat
+module.exports.parseReleaseCompat = parseReleaseCompat
