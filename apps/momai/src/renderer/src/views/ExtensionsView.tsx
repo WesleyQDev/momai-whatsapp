@@ -263,11 +263,18 @@ function SkillIcon({ skill, className = 'w-6 h-6' }: SkillIconProps) {
   // 2. Custom icon URL
   if (iconUrl) {
     return (
-      <img
-        src={iconUrl}
-        alt=""
-        className={`${className} object-contain`}
-        loading="lazy"
+      <div
+        style={{
+          maskImage: `url(${iconUrl})`,
+          WebkitMaskImage: `url(${iconUrl})`,
+          maskSize: 'contain',
+          WebkitMaskSize: 'contain',
+          maskRepeat: 'no-repeat',
+          WebkitMaskRepeat: 'no-repeat',
+          maskPosition: 'center',
+          WebkitMaskPosition: 'center'
+        }}
+        className={`${className} bg-current`}
       />
     )
   }
