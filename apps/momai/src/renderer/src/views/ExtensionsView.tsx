@@ -266,7 +266,7 @@ function SkillIcon({ skill, className = 'w-6 h-6' }: SkillIconProps) {
       <img
         src={iconUrl}
         alt=""
-        className={`${className} object-contain brightness-0 invert`}
+        className={`${className} object-contain`}
         loading="lazy"
       />
     )
