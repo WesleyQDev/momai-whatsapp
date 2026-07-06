@@ -50,10 +50,13 @@ function enrichReleasesWithCompat(rawReleases, manifestCompat) {
     .filter((r) => !r.draft)
     .map((r) => {
       const version = (r.tag_name || '').replace(/^v/i, '').trim()
+      // Only count a release as installable when there is an actual ZIP asset
+      // attached. Falling back to GitHub's `zipball_url` (a tarball source
+      // archive, not a packaged extension) would install garbage: extracting
+      // it yields the repo layout instead of an extension package, silently
+      // succeeds, and leaves the destination unusable.
       const zipAsset = (r.assets || []).find((a) => a.name && a.name.endsWith('.zip'))
-      const download_url = zipAsset
-        ? zipAsset.browser_download_url
-        : r.zipball_url || null
+      const download_url = zipAsset ? zipAsset.browser_download_url : null
       const compatFromBody = parseReleaseCompat(r)
       return {
         version,
