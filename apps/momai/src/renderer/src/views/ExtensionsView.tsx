@@ -141,7 +141,8 @@ import {
   InformationCircleIcon,
   PuzzlePieceIcon,
   ChevronLeftIcon,
-  XMarkIcon
+  XMarkIcon,
+  FolderIcon
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { useI18n } from '../i18n'
@@ -444,68 +445,68 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
   return (
     <div
       onClick={() => onSelect(skill)}
-      className={`group bg-zinc-800/40 border border-zinc-700/50 rounded-2xl overflow-hidden cursor-pointer hover:bg-zinc-800/80 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl active:scale-[0.98] ${accentClasses.border}`}
+      className={`group bg-zinc-950/20 hover:bg-zinc-900/40 border border-zinc-850 hover:border-zinc-700/60 rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgb(0,0,0,0.45)] active:scale-[0.99]`}
     >
       <div className="p-5">
         <div className="flex items-start justify-between mb-4">
           <div
-            className={`p-3 rounded-2xl ${getIconBgStyle(skill) ? '' : `bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)}`} shadow-lg ${accentClasses.shadow}`}
+            className={`p-3 rounded-2xl ${getIconBgStyle(skill) ? '' : `bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)}`} shadow-md`}
             style={getIconBgStyle(skill)}
           >
             <SkillIcon skill={skill} className="w-6 h-6 text-white" />
           </div>
           <div className="flex flex-col items-end gap-1.5">
             {skill.category === 'core' ? (
-              <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-[9px] text-blue-400 font-bold uppercase tracking-wider">
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded-full text-[9px] font-bold uppercase tracking-wider border border-blue-500/25">
                 <CpuChipIcon className="w-3.5 h-3.5" />
                 CORE
               </div>
             ) : skill.is_official ? (
-              <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-[9px] text-emerald-400 font-bold uppercase tracking-wider">
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full text-[9px] font-bold uppercase tracking-wider border border-emerald-500/25">
                 <CheckBadgeIcon className="w-3.5 h-3.5" />
                 Oficial
               </div>
             ) : (
-              <div className="px-2 py-0.5 bg-zinc-700/30 border border-zinc-700/50 rounded-full text-[9px] text-zinc-400 font-bold uppercase tracking-wider">
+              <div className="px-2 py-0.5 bg-zinc-800/60 text-zinc-400 rounded-full text-[9px] font-bold uppercase tracking-wider border border-zinc-750">
                 Comunidade
               </div>
             )}
             {import.meta.env.DEV && skill.isSymlink && (
               <div
                 title={skill.symlinkPath || ''}
-                className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-full text-[9px] text-amber-400 font-bold uppercase tracking-wider"
+                className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded-full text-[9px] font-bold uppercase tracking-wider border border-amber-500/25"
               >
                 Symlink
               </div>
             )}
             {skill.updateAvailable && (
-              <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-pulse">
+              <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/25 animate-pulse">
                 Upgrade
               </span>
             )}
             {isInstalled &&
               (skill.enabled ? (
-                <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
                   Ativa
                 </span>
               ) : (
-                <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-600 border border-zinc-800">
+                <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-650 border border-zinc-850">
                   Inativa
                 </span>
               ))}
           </div>
         </div>
         <h3
-          className={`text-base font-bold text-zinc-100 mb-1.5 transition-colors ${accentClasses.text}`}
+          className={`text-base font-bold text-zinc-100 mb-1.5 transition-colors group-hover:text-violet-400`}
         >
           {skill.name}
         </h3>
         <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed mb-4 min-h-[2.5rem]">
           {skill.description}
         </p>
-        <div className="flex items-center justify-between pt-4 border-t border-zinc-700/30">
+        <div className="flex items-center justify-between pt-4 border-t border-zinc-800/60">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-700/50">
+            <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-750">
               {skill.repo || (!skill.is_official && skill.author) ? (
                 <img
                   src={`https://avatars.githubusercontent.com/${encodeURIComponent((skill.repo?.split('/')[0] || skill.author || '').trim())}?s=32`}
@@ -526,7 +527,7 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
           </div>
           <div className="flex items-center gap-1.5">
             {skill.repo ? (
-              <div className="flex items-center gap-1 text-[10px] text-amber-400 font-bold bg-amber-400/10 px-1.5 py-0.5 rounded-md">
+              <div className="flex items-center gap-1 text-[10px] text-amber-400 font-bold bg-amber-400/10 px-1.5 py-0.5 rounded-md border border-amber-400/20">
                 <StarIconSolid className="w-3 h-3 text-amber-400" />
                 {skill.stars || 0}
               </div>
@@ -568,7 +569,7 @@ function SkillDetailView({
     skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
   const isBuiltin = skill.category === 'core'
 
-  const [releasesExpanded, setReleasesExpanded] = useState(false)
+  const [releasesExpanded, setReleasesExpanded] = useState(true)
   const [releases, setReleases] = useState<ExtensionRelease[]>([])
   const [loadingReleases, setLoadingReleases] = useState(false)
   const [releasesError, setReleasesError] = useState<string | null>(null)
@@ -820,11 +821,11 @@ function SkillDetailView({
       </div>
 
       {/* Balanced 2-Column Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-        <div className="lg:col-span-3 space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 items-start">
+        <div className="lg:col-span-7 space-y-8">
           {/* Description Section - Lighter and clearer */}
-          <section className="bg-zinc-800/20 rounded-2xl p-8 border border-zinc-700/50 backdrop-blur-xl">
-            <h2 className="text-xs font-black text-zinc-300 mb-8 flex items-center gap-2 uppercase tracking-[0.2em]">
+          <section className="bg-zinc-950/20 rounded-2xl p-8 border border-zinc-850 backdrop-blur-xl">
+            <h2 className="text-xs font-black text-zinc-400 mb-8 flex items-center gap-2 uppercase tracking-[0.2em]">
               <InformationCircleIcon className="w-4 h-4 text-violet-400" />
               Sobre esta extensão
             </h2>
@@ -853,14 +854,14 @@ function SkillDetailView({
           </section>
 
           {/* System Requirements */}
-          <section className="p-8 rounded-2xl bg-zinc-800/10 border border-zinc-700/30">
+          <section className="p-8 rounded-2xl bg-zinc-955/20 border border-zinc-850">
             <h2 className="text-xs font-black text-zinc-400 mb-6 flex items-center gap-2 uppercase tracking-[0.2em]">
               <CpuChipIcon className="w-4 h-4 text-violet-400/80" />
               Requisitos do Sistema
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
               <div className="flex items-center gap-4">
-                <div className="p-2.5 rounded-2xl bg-zinc-700/50 border border-zinc-600/50 shadow-inner">
+                <div className="p-2.5 rounded-2xl bg-zinc-800/50 border border-zinc-700/50 shadow-inner">
                   <ShieldCheckIcon className="w-5 h-5 text-emerald-400/80" />
                 </div>
                 <div>
@@ -871,7 +872,7 @@ function SkillDetailView({
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <div className="p-2.5 rounded-2xl bg-zinc-700/50 border border-zinc-600/50 shadow-inner">
+                <div className="p-2.5 rounded-2xl bg-zinc-800/50 border border-zinc-700/50 shadow-inner">
                   <GlobeAltIcon className="w-5 h-5 text-sky-400/80" />
                 </div>
                 <div>
@@ -884,41 +885,39 @@ function SkillDetailView({
             </div>
           </section>
 
-          {/* Version History Section */}
+          {/* Version History Section - Timeline Format */}
           {skill.repo && (
-            <section className="bg-zinc-800/20 rounded-2xl p-8 border border-zinc-700/50 backdrop-blur-xl">
-              <button
-                onClick={() => setReleasesExpanded(!releasesExpanded)}
-                className="w-full flex items-center justify-between text-left focus:outline-none group"
-              >
-                <h2 className="text-xs font-black text-zinc-300 flex items-center gap-2 uppercase tracking-[0.2em]">
-                  <ClockIcon className="w-4 h-4 text-violet-400" />
-                  Histórico de Versões
-                </h2>
-                <div className="flex items-center gap-2 text-xs text-zinc-500 group-hover:text-zinc-300 transition-colors">
-                  {releasesExpanded ? 'Ocultar' : 'Mostrar'}
-                  <ChevronRightIcon className={`w-4 h-4 transition-transform ${releasesExpanded ? 'rotate-90' : ''}`} />
-                </div>
-              </button>
+            <section className="bg-zinc-950/20 rounded-2xl p-8 border border-zinc-850 backdrop-blur-xl">
+              <h2 className="text-xs font-black text-zinc-400 mb-8 flex items-center gap-2 uppercase tracking-[0.2em]">
+                <ClockIcon className="w-4 h-4 text-violet-400" />
+                Histórico de Versões
+              </h2>
 
-              {releasesExpanded && (
-                <div className="mt-6 space-y-4">
-                  {loadingReleases && (
-                    <p className="text-xs text-zinc-500 italic animate-pulse">Carregando versões...</p>
-                  )}
-                  {releasesError && (
-                    <p className="text-xs text-red-400 italic">Erro: {releasesError}</p>
-                  )}
-                  {!loadingReleases && !releasesError && releases.length === 0 && (
-                    <p className="text-xs text-zinc-500 italic">Nenhuma versão encontrada no GitHub.</p>
-                  )}
-                  {!loadingReleases && !releasesError && releases.length > 0 && (
-                    <div className="space-y-3">
-                      {releases.map((rel) => {
-                        const isCurrent = !!(installedVersion && rel.version === installedVersion)
-                        const isRecommended = !!(recommendedVersion && rel.version === recommendedVersion)
-                        return (
-                          <div key={rel.version} className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-850 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="mt-6">
+                {loadingReleases && (
+                  <p className="text-xs text-zinc-500 italic animate-pulse">Carregando versões...</p>
+                )}
+                {releasesError && (
+                  <p className="text-xs text-red-400 italic">Erro: {releasesError}</p>
+                )}
+                {!loadingReleases && !releasesError && releases.length === 0 && (
+                  <p className="text-xs text-zinc-500 italic">Nenhuma versão encontrada no GitHub.</p>
+                )}
+                {!loadingReleases && !releasesError && releases.length > 0 && (
+                  <div className="relative border-l border-zinc-800 ml-3 pl-6 space-y-8">
+                    {releases.map((rel) => {
+                      const isCurrent = !!(installedVersion && rel.version === installedVersion)
+                      const isRecommended = !!(recommendedVersion && rel.version === recommendedVersion)
+                      return (
+                        <div key={rel.version} className="relative group/timeline">
+                          {/* Timeline dot */}
+                          <div className={`absolute -left-[31px] top-1.5 w-3.5 h-3.5 rounded-full border-4 border-zinc-900 transition-all ${
+                            isCurrent
+                              ? 'bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.5)]'
+                              : 'bg-zinc-700 group-hover/timeline:bg-zinc-500'
+                          }`} />
+
+                          <div className="p-4 rounded-xl bg-zinc-950/20 border border-zinc-850 hover:border-zinc-800 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex-1 space-y-1">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm text-white font-extrabold">v{rel.version}</span>
@@ -928,27 +927,27 @@ function SkillDetailView({
                                   </span>
                                 )}
                                 {isCurrent && (
-                                  <span className="px-2 py-0.5 rounded bg-violet-500/10 border border-violet-500/30 text-[9px] text-violet-400 font-extrabold uppercase">
+                                  <span className="px-2 py-0.5 rounded bg-violet-500/10 border border-violet-500/20 text-[9px] text-violet-400 font-extrabold uppercase">
                                     Instalada
                                   </span>
                                 )}
                                 {isRecommended && !isCurrent && (
-                                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-[9px] text-emerald-400 font-extrabold uppercase">
+                                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[9px] text-emerald-400 font-extrabold uppercase">
                                     Recomendada
                                   </span>
                                 )}
                                 {rel.compatible ? (
-                                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-[9px] text-emerald-400 font-extrabold uppercase">
+                                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[9px] text-emerald-400 font-extrabold uppercase">
                                     Compatível
                                   </span>
                                 ) : (
-                                  <span className="px-2 py-0.5 rounded bg-red-500/10 border border-red-500/30 text-[9px] text-red-400 font-extrabold uppercase" title={rel.requires_momai ? `Requer MomAI ${rel.requires_momai}` : undefined}>
+                                  <span className="px-2 py-0.5 rounded bg-red-500/10 border border-red-500/20 text-[9px] text-red-400 font-extrabold uppercase" title={rel.requires_momai ? `Requer MomAI ${rel.requires_momai}` : undefined}>
                                     Incompatível
                                   </span>
                                 )}
                               </div>
                               {rel.changelog && (
-                                <p className="text-xs text-zinc-400 line-clamp-2 mt-1">
+                                <p className="text-xs text-zinc-400 mt-1">
                                   {rel.changelog}
                                 </p>
                               )}
@@ -960,7 +959,7 @@ function SkillDetailView({
                                   disabled={installing === skill.id || isCurrent}
                                   className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border ${
                                     isCurrent
-                                      ? 'border-zinc-800 text-zinc-600 cursor-default'
+                                      ? 'border-zinc-800 text-zinc-650 cursor-default bg-zinc-900/40'
                                       : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white'
                                   }`}
                                 >
@@ -969,7 +968,7 @@ function SkillDetailView({
                               ) : (
                                 <button
                                   disabled
-                                  className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border border-zinc-800 text-zinc-600 cursor-not-allowed"
+                                  className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border border-zinc-850 text-zinc-650 cursor-not-allowed bg-zinc-900/20"
                                   title={rel.requires_momai ? `Esta versão requer o MomAI ${rel.requires_momai}` : 'Incompatível'}
                                 >
                                   Incompatível
@@ -977,26 +976,26 @@ function SkillDetailView({
                               )}
                             </div>
                           </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </section>
           )}
         </div>
 
-        {/* Sidebar - Brighter and Elevated */}
-        <div className="space-y-6 lg:mt-0">
-          <section className="bg-zinc-800/40 border border-zinc-600/30 rounded-2xl p-6 shadow-2xl shadow-black/40 backdrop-blur-md">
-            <h3 className="text-[10px] font-black text-zinc-200 mb-6 uppercase tracking-widest">
+        {/* Sidebar - Microsoft Store Style */}
+        <div className="lg:col-span-3 space-y-6 lg:mt-0">
+          <section className="bg-zinc-950/20 border border-zinc-850 rounded-2xl p-6 backdrop-blur-md">
+            <h3 className="text-[10px] font-black text-zinc-450 mb-6 uppercase tracking-widest">
               Informações
             </h3>
 
             <div className="space-y-5">
               <div>
-                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">
+                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-1.5">
                   Desenvolvedor
                 </p>
                 <div className="flex items-center gap-2">
@@ -1008,7 +1007,7 @@ function SkillDetailView({
               </div>
 
               <div>
-                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">
+                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-1.5">
                   Categoria
                 </p>
                 <p className="text-xs text-white font-bold capitalize">
@@ -1017,7 +1016,7 @@ function SkillDetailView({
               </div>
 
               <div>
-                <p className="text-[9px] text-zinc-400 uppercase font-black tracking-widest mb-1.5">
+                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-1.5">
                   Nível de Risco
                 </p>
                 <div className="flex items-center gap-2">
@@ -1036,8 +1035,8 @@ function SkillDetailView({
             </div>
           </section>
 
-          <section className="bg-zinc-800/20 border border-zinc-700/50 rounded-2xl p-6">
-            <h3 className="text-[10px] font-black text-zinc-400 mb-5 flex items-center gap-2 uppercase tracking-widest">
+          <section className="bg-zinc-955/20 border border-zinc-850 rounded-2xl p-6">
+            <h3 className="text-[10px] font-black text-zinc-450 mb-5 flex items-center gap-2 uppercase tracking-widest">
               <BoltIcon className="w-4 h-4 text-amber-400" />
               Permissões
             </h3>
@@ -1123,7 +1122,7 @@ export default function ExtensionsView() {
   const [installError, setInstallError] = useState<InstallError | null>(null)
   const [uninstallTarget, setUninstallTarget] = useState<{ id: string; name: string } | null>(null)
   const [recommendedVersionByExtId, setRecommendedVersionByExtId] = useState<Record<string, string | null>>({})
-  const [activeTab, setActiveTab] = useState<'installed' | 'store'>('store')
+  const [viewMode, setViewMode] = useState<'store' | 'library'>('store')
   const [selectedSkill, setSelectedSkill] = useState<Extension | null>(null)
   const [selectedManifest, setSelectedManifest] = useState<Record<string, any> | null>(null)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
@@ -1170,7 +1169,8 @@ export default function ExtensionsView() {
 
   useEffect(() => {
     const tab = (location.state as any)?.tab
-    if (tab === 'store' || tab === 'installed') setActiveTab(tab)
+    if (tab === 'store') setViewMode('store')
+    if (tab === 'installed') setViewMode('library')
   }, [location.state])
 
   const handleSelectSkill = async (ext: Extension) => {
@@ -1284,7 +1284,7 @@ export default function ExtensionsView() {
   }, [installedSkills])
 
   const currentList =
-    activeTab === 'installed' ? [...builtinSkills, ...installedSkills] : storeSkills
+    viewMode === 'library' ? [...builtinSkills, ...installedSkills] : storeSkills
 
   const allTags = useMemo(() => {
     const tags = new Set<string>()
@@ -1308,9 +1308,9 @@ export default function ExtensionsView() {
   }, [currentList, selectedTag, searchQuery])
 
   const featuredSkills = useMemo(() => {
-    const candidates = activeTab === 'store' ? storeSkills : allSkills
+    const candidates = viewMode === 'store' ? storeSkills : allSkills
     return candidates.slice(0, 6)
-  }, [activeTab, storeSkills, allSkills])
+  }, [viewMode, storeSkills, allSkills])
 
   return (
     <div className="flex-1 h-full bg-zinc-900 min-w-0 flex flex-col overflow-hidden">
@@ -1320,33 +1320,8 @@ export default function ExtensionsView() {
           {/* ─── Tabs & Search ─── */}
           <div className="flex items-center justify-between mb-5">
             {!selectedSkill ? (
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1 p-0.5 bg-zinc-800 rounded-lg border border-zinc-700">
-                  <button
-                    onClick={() => setActiveTab('store')}
-                    className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
-                      activeTab === 'store'
-                        ? 'bg-violet-600 text-white shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-300'
-                    }`}
-                  >
-                    <ShoppingBagIcon className="w-3.5 h-3.5" />
-                    Loja
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('installed')}
-                    className={`px-3 py-1.5 rounded-md flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide transition-all ${
-                      activeTab === 'installed'
-                        ? 'bg-violet-600 text-white shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-300'
-                    }`}
-                  >
-                    <Squares2X2Icon className="w-3.5 h-3.5" />
-                    Minhas Skills
-                  </button>
-                </div>
-
-                {/* Dev Mode Switcher (less prominent, next to tabs) */}
+              <div className="flex items-center gap-3">
+                {/* Dev Mode Switcher */}
                 {import.meta.env.DEV && (
                   <div className="flex items-center gap-1 p-0.5 bg-zinc-950/40 rounded-lg border border-zinc-800/80">
                     <button
@@ -1376,7 +1351,7 @@ export default function ExtensionsView() {
               </div>
             ) : (
               <button
-                onClick={() => setSelectedSkill(null)}
+                onClick={() => { setSelectedSkill(null); setSelectedManifest(null) }}
                 className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-[11px] font-bold transition-colors group uppercase tracking-widest"
               >
                 <ArrowLeftIcon className="w-3 h-3 transition-transform group-hover:-translate-x-0.5" />
@@ -1397,9 +1372,26 @@ export default function ExtensionsView() {
               <button
                 onClick={() => loadData()}
                 className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition-colors"
+                title="Recarregar dados"
               >
                 <ArrowPathIcon className="w-4 h-4" />
               </button>
+              
+              {/* Library (Biblioteca) Toggle Button */}
+              {!selectedSkill && (
+                <button
+                  onClick={() => setViewMode(viewMode === 'store' ? 'library' : 'store')}
+                  className={`p-1.5 rounded-lg border transition-all flex items-center gap-1.5 ${
+                    viewMode === 'library'
+                      ? 'bg-violet-600/20 border-violet-500/50 text-violet-400 font-bold'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
+                  }`}
+                  title="Biblioteca"
+                >
+                  <FolderIcon className="w-4 h-4" />
+                  <span className="text-[10px] uppercase tracking-wider font-bold pr-1">Biblioteca</span>
+                </button>
+              )}
             </div>
           </div>
           {selectedSkill ? (
@@ -1423,71 +1415,178 @@ export default function ExtensionsView() {
           ) : (
             /* ─── List View ─── */
             <>
-              {/* Featured Carousel */}
-              {featuredSkills.length > 0 && !searchQuery && (
-                <div className="mb-6">
-                  <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-                    {activeTab === 'store' ? 'Destaques' : 'Suas Skills'}
-                  </h2>
-                  <FeaturedCarousel skills={featuredSkills} onSelect={handleSelectSkill} />
-                </div>
-              )}
-
-              {/* Tag Filters */}
-              {allTags.length > 0 && (
-                <div
-                  ref={tagsDragScrollRef}
-                  onMouseDown={tagsDragScroll.mouseDown}
-                  onTouchStart={tagsDragScroll.touchStart}
-                  onTouchMove={tagsDragScroll.touchMove}
-                  className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-1"
-                  style={{ cursor: tagsDragScroll.grabCursor }}
-                >
-                  <button
-                    onClick={() => setSelectedTag(null)}
-                    className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide border transition-all ${
-                      !selectedTag
-                        ? 'bg-violet-600 text-white border-violet-500'
-                        : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300 hover:border-zinc-600'
-                    }`}
-                  >
-                    Todas
-                  </button>
-                  {allTags.map((tag) => (
+              {viewMode === 'library' ? (
+                /* ─── Library View (Biblioteca) ─── */
+                <div className="w-full space-y-6">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+                    <div>
+                      <h2 className="text-xl font-extrabold text-white">Biblioteca</h2>
+                      <p className="text-xs text-zinc-500 mt-1">Gerencie suas extensões e habilidades instaladas localmente.</p>
+                    </div>
                     <button
-                      key={tag}
-                      onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
-                      className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide border transition-all ${
-                        selectedTag === tag
-                          ? 'bg-violet-600 text-white border-violet-500'
-                          : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300 hover:border-zinc-600'
-                      }`}
+                      onClick={() => loadData(false)}
+                      className="px-3.5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs transition-all shadow-lg flex items-center gap-1.5"
                     >
-                      {tag}
+                      <ArrowPathIcon className="w-3.5 h-3.5" />
+                      Verificar Atualizações
                     </button>
-                  ))}
-                </div>
-              )}
+                  </div>
 
-              {/* Skills Grid */}
-              {filteredList.length > 0 ? (
-                <div className="w-full min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                  {filteredList.map((skill) => (
-                    <SkillCard key={skill.id} skill={skill} onSelect={handleSelectSkill} />
-                  ))}
+                  {[...builtinSkills, ...installedSkills].length > 0 ? (
+                    <div className="w-full overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/20 backdrop-blur-xl">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-zinc-800 text-[10px] text-zinc-500 font-black uppercase tracking-wider bg-zinc-900/40">
+                            <th className="p-4">Nome</th>
+                            <th className="p-4">Versão</th>
+                            <th className="p-4">Status</th>
+                            <th className="p-4 text-right">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-850">
+                          {[...builtinSkills, ...installedSkills].map((skill) => {
+                            const isCore = skill.category === 'core'
+                            return (
+                              <tr key={skill.id} className="hover:bg-zinc-850/10 transition-colors">
+                                <td className="p-4 flex items-center gap-3">
+                                  <div className="p-2 rounded-xl bg-zinc-800/60 border border-zinc-700/30 flex items-center justify-center shrink-0">
+                                    <SkillIcon skill={skill} className="w-5 h-5 text-white" />
+                                  </div>
+                                  <div>
+                                    <p
+                                      onClick={() => handleSelectSkill(skill)}
+                                      className="text-xs font-extrabold text-zinc-200 hover:text-white cursor-pointer hover:underline"
+                                    >
+                                      {skill.name}
+                                    </p>
+                                    <p className="text-[10px] text-zinc-500 mt-0.5">{skill.description}</p>
+                                  </div>
+                                </td>
+                                <td className="p-4 text-xs font-mono text-zinc-400">
+                                  v{skill.version || '1.0.0'}
+                                </td>
+                                <td className="p-4">
+                                  {isCore ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[9px] font-bold uppercase tracking-wider rounded-full border border-blue-500/20">
+                                      Core
+                                    </span>
+                                  ) : skill.enabled ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[9px] font-bold uppercase tracking-wider rounded-full border border-emerald-500/20">
+                                      Ativa
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-zinc-900 text-zinc-650 text-[9px] font-bold uppercase tracking-wider rounded-full border border-zinc-850">
+                                      Inativa
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-4 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    {!isCore && (
+                                      <>
+                                        <button
+                                          onClick={() => handleToggle(skill)}
+                                          className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all ${
+                                            skill.enabled
+                                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                                              : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'
+                                          }`}
+                                        >
+                                          {skill.enabled ? 'Desativar' : 'Ativar'}
+                                        </button>
+                                        <button
+                                          onClick={() => handleUninstall(skill)}
+                                          className="p-1.5 rounded-lg border border-zinc-700 text-zinc-500 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10 transition-all"
+                                          title="Desinstalar"
+                                        >
+                                          <TrashIcon className="w-3.5 h-3.5" />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-24 text-zinc-600 border border-dashed border-zinc-800 rounded-2xl">
+                      <PuzzlePieceIcon className="w-12 h-12 mb-4 opacity-25" />
+                      <p className="text-sm font-bold">Nenhuma extensão instalada</p>
+                      <p className="text-xs text-zinc-700 mt-1">Navegue pelo catálogo da loja para descobrir e instalar extensões.</p>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
-                  <WrenchIcon className="w-12 h-12 mb-4 opacity-30" />
-                  <p className="text-sm font-medium">
-                    {activeTab === 'store' ? 'Nenhuma skill disponível' : 'Nenhuma skill instalada'}
-                  </p>
-                  <p className="text-xs mt-1 text-zinc-700">
-                    {activeTab === 'store'
-                      ? 'Todas as skills já estão instaladas.'
-                      : 'Vá até a Loja para explorar novas funcionalidades.'}
-                  </p>
-                </div>
+                /* ─── Store Catalog View ─── */
+                <>
+                  {/* Featured Carousel */}
+                  {featuredSkills.length > 0 && !searchQuery && (
+                    <div className="mb-6">
+                      <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
+                        Destaques
+                      </h2>
+                      <FeaturedCarousel skills={featuredSkills} onSelect={handleSelectSkill} />
+                    </div>
+                  )}
+
+                  {/* Tag Filters */}
+                  {allTags.length > 0 && (
+                    <div
+                      ref={tagsDragScrollRef}
+                      onMouseDown={tagsDragScroll.mouseDown}
+                      onTouchStart={tagsDragScroll.touchStart}
+                      onTouchMove={tagsDragScroll.touchMove}
+                      className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-1"
+                      style={{ cursor: tagsDragScroll.grabCursor }}
+                    >
+                      <button
+                        onClick={() => setSelectedTag(null)}
+                        className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide border transition-all ${
+                          !selectedTag
+                            ? 'bg-violet-600 text-white border-violet-500'
+                            : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300 hover:border-zinc-600'
+                        }`}
+                      >
+                        Todas
+                      </button>
+                      {allTags.map((tag) => (
+                        <button
+                          key={tag}
+                          onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
+                          className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide border transition-all ${
+                            selectedTag === tag
+                              ? 'bg-violet-600 text-white border-violet-500'
+                              : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-300 hover:border-zinc-600'
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Skills Grid */}
+                  {filteredList.length > 0 ? (
+                    <div className="w-full min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {filteredList.map((skill) => (
+                        <SkillCard key={skill.id} skill={skill} onSelect={handleSelectSkill} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
+                      <WrenchIcon className="w-12 h-12 mb-4 opacity-30" />
+                      <p className="text-sm font-medium">
+                        Nenhuma skill disponível
+                      </p>
+                      <p className="text-xs mt-1 text-zinc-700">
+                        Todas as skills já estão instaladas ou indisponíveis.
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

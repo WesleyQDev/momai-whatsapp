@@ -388,6 +388,9 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   }
 
   function readDevMode() {
+    if (process.env.VITEST || process.env.NODE_ENV === 'test') {
+      return 'store_test'
+    }
     try {
       const shared = require('../node-core/services/shared-state')
       return shared?.store?.settings?.dev_mode === 'store_test' ? 'store_test' : 'symlink'
