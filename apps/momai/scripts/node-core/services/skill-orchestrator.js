@@ -15,6 +15,11 @@ function getAppVersion() {
   }
 }
 
+function computeCompatStatus(appVersion, momaiCompat) {
+  if (!momaiCompat) return 'unknown'
+  return satisfiesRange(appVersion, momaiCompat) ? 'compatible' : 'incompatible'
+}
+
 function getSkillRegistry() {
   return shared.skillRegistry
 }
@@ -42,6 +47,8 @@ function getEnabledSkillManifests() {
 async function buildExtensionsPayload(lang = 'pt-BR') {
   const skillRegistry = getSkillRegistry()
   if (!skillRegistry || typeof skillRegistry.getAll !== 'function') return []
+
+  const appVersion = getAppVersion()
 
   const all = skillRegistry.getAll()
   const community = await communityRegistry.fetchRegistry()
@@ -115,6 +122,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
           skill.kind === 'builtin' || skill.kind === 'packaged' || manifest.author === 'WesleyQDev',
         version: manifest.version || null,
         momai_compat: manifest.momai_compat || null,
+        compat_status: computeCompatStatus(appVersion, manifest.momai_compat),
         tools: (manifest.tools || []).map((t) => t.name),
 
         permissions: manifest.permissions || null,
@@ -231,7 +239,6 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
     }
   }
 
-  const appVersion = getAppVersion()
   for (const ext of installed) {
     let regItem = community.find((c) => c.id === ext.id)
     if (!regItem && localExtensions.length > 0) {
@@ -286,5 +293,6 @@ module.exports = {
   getEnabledSkillManifests,
   buildExtensionsPayload,
   getToolCatalogRows,
-  getSkillCatalogRows
+  getSkillCatalogRows,
+  computeCompatStatus
 }
