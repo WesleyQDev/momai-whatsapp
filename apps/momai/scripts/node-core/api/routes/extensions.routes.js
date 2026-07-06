@@ -12,6 +12,7 @@ const { verifyChecksum } = require('../../utils/extension-checksum')
 const { corsHeaders } = require('../../infrastructure/http-helpers')
 const { loadInstallRegistry, usesLocalInstallRegistry, _setInstallRegistryForTests } = require('../../utils/install-registry')
 const communityRegistry = require('../../services/community-registry')
+const { satisfiesRange, findBestCompatibleRelease } = require('../../utils/semver-compat')
 const shared = require('../../services/shared-state')
 
 /* ── Community registry allowlist (SSRF defense) ── */
@@ -66,6 +67,182 @@ async function validateInstallUrl(id, downloadUrl) {
       throw err
     }
   }
+}
+
+/* ── resolveInstallVersion: pure helper for the install route ── */
+
+/**
+ * Select which release to download for an extension install request.
+ *
+ * Pure async: takes the `communityRegistry` instance (or mock) and `appVersion`
+ * as parameters so it can be tested without touching the network, package.json,
+ * or singleton state.
+ *
+ * Payload forms:
+ *  - { id }                       -> pick the best compatible release
+ *  - { id, version }              -> pick the release whose version matches
+ *  - { id, download_url }         -> verify the legacy URL against fetched
+ *                                    releases; fall back to a synthetic
+ *                                    release if no match
+ *
+ * @param {object} opts
+ * @param {string} opts.id
+ * @param {object} opts.payload                 May contain `version` or `download_url`.
+ * @param {object} opts.communityRegistry       Registry instance with fetchRegistry /
+ *                                               fetchReleases / fetchManifest.
+ * @param {string} opts.appVersion              App semver, used for compat checks.
+ * @param {(url: string) => Promise<number>} [opts.fetchHeadStatus]
+ *        Optional seam used only when payload.download_url is explicit. Defaults
+ *        to a function returning 200 (assume valid). Returns HTTP status code.
+ * @returns {Promise<{ok: true, release: object} | {ok: false, status: number, error: string, ...}>}
+ */
+async function resolveInstallVersion({
+  id,
+  payload,
+  communityRegistry,
+  appVersion,
+  fetchHeadStatus
+}) {
+  const headCheck = typeof fetchHeadStatus === 'function'
+    ? fetchHeadStatus
+    : async () => 200
+
+  // 1. Look up the extension in the community registry catalog.
+  let catalog
+  try {
+    catalog = await communityRegistry.fetchRegistry()
+  } catch {
+    catalog = { extensions: [] }
+  }
+  const catalogEntry =
+    catalog && Array.isArray(catalog.extensions)
+      ? catalog.extensions.find((e) => e && e.id === id)
+      : null
+
+  if (!catalogEntry) {
+    return { ok: false, status: 404, error: 'unknown_extension', id }
+  }
+
+  // 2. Determine the repo and try to fetch manifest compat fallback.
+  const repo = catalogEntry.repo || null
+  let manifestCompat = null
+  if (repo) {
+    try {
+      const manifest = await communityRegistry.fetchManifest(repo)
+      if (manifest && typeof manifest.momai_compat === 'string') {
+        manifestCompat = manifest.momai_compat
+      }
+    } catch {
+      manifestCompat = null
+    }
+  }
+
+  // 3. Fetch releases (already enriched with momai_compat by Task 1).
+  let releases = []
+  if (repo) {
+    try {
+      releases = await communityRegistry.fetchReleases(repo)
+      if (!Array.isArray(releases)) releases = []
+    } catch {
+      releases = []
+    }
+  }
+
+  // 4. Select a release candidate based on the payload.
+  const payloadVersion = payload && typeof payload.version === 'string'
+    ? payload.version.trim()
+    : ''
+  const payloadUrl = payload && typeof payload.download_url === 'string'
+    ? payload.download_url.trim()
+    : ''
+
+  let release = null
+  let headCheckRequired = false
+
+  if (payloadUrl) {
+    // 5a. Explicit download_url (backward-compat path).
+    release = releases.find((r) => r.download_url === payloadUrl) || null
+    if (!release) {
+      // No fetched release matches — treat the URL itself as source of truth.
+      release = {
+        version: null,
+        tag: null,
+        download_url: payloadUrl,
+        changelog: '',
+        date: null,
+        prerelease: false,
+        momai_compat: manifestCompat || null
+      }
+    }
+    headCheckRequired = true
+  } else if (payloadVersion) {
+    // 5b. Explicit version. Compare case-insensitively after stripping 'v'.
+    const wanted = payloadVersion.toLowerCase().replace(/^v/i, '')
+    release = releases.find((r) =>
+      String(r.version || '').toLowerCase() === wanted
+    ) || null
+    if (!release) {
+      return {
+        ok: false,
+        status: 409,
+        error: 'release_not_found_by_version',
+        app_version: appVersion,
+        requested_version: payloadVersion
+      }
+    }
+  } else {
+    // 5c. Default — best compatible release.
+    release = findBestCompatibleRelease(releases, appVersion)
+  }
+
+  // 6. No installable release available.
+  if (!release) {
+    return {
+      ok: false,
+      status: 409,
+      error: 'no_installable_release',
+      app_version: appVersion
+    }
+  }
+
+  // 7. Compat check — skip when release.version is null (legacy URL).
+  if (
+    release.version !== null &&
+    typeof release.momai_compat === 'string' &&
+    release.momai_compat.trim() &&
+    !satisfiesRange(appVersion, release.momai_compat)
+  ) {
+    return {
+      ok: false,
+      status: 409,
+      error: 'incompatible_version',
+      app_version: appVersion,
+      required_range: release.momai_compat,
+      release_version: release.version
+    }
+  }
+
+  // 8. HEAD check ONLY when payload.download_url is explicit.
+  if (headCheckRequired) {
+    let headStatus = 200
+    try {
+      headStatus = await headCheck(release.download_url)
+    } catch {
+      headStatus = 0
+    }
+    if (headStatus !== 200) {
+      return {
+        ok: false,
+        status: 409,
+        error: 'release_asset_missing',
+        release_version: release.version,
+        suggested_action: 'open_releases'
+      }
+    }
+  }
+
+  // 9. Success.
+  return { ok: true, release }
 }
 
 /* ── Extension dependency installer ── */
@@ -1005,5 +1182,6 @@ function createExtensionsRoutes(context) {
 module.exports = {
   createExtensionsRoutes,
   validateInstallUrl,
+  resolveInstallVersion,
   _setRegistry: _setInstallRegistryForTests
 }
