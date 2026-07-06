@@ -477,6 +477,7 @@ export interface Extension {
       panelEndpoint: string
     } | null
   }
+  compat_status?: 'compatible' | 'incompatible' | 'unknown'
 }
 
 export interface ExtensionRelease {
