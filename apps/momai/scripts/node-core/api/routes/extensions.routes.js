@@ -15,6 +15,22 @@ const communityRegistry = require('../../services/community-registry')
 const { satisfiesRange, findBestCompatibleRelease } = require('../../utils/semver-compat')
 const shared = require('../../services/shared-state')
 
+/*
+ * Test seam: install handler reads `communityRegistry` through this
+ * indirection so tests can swap it without going through the network.
+ *
+ * `_setCommunityRegistryForTests(null)` restores the real singleton.
+ * Always resolve through `getCommunityRegistry()` so production code is
+ * unaffected by the override.
+ */
+let _communityRegistryOverride = null
+function getCommunityRegistry() {
+  return _communityRegistryOverride || communityRegistry
+}
+function _setCommunityRegistryForTests(registry) {
+  _communityRegistryOverride = registry
+}
+
 /* ── Community registry allowlist (SSRF defense) ── */
 
 async function validateInstallUrl(id, downloadUrl) {
@@ -740,119 +756,149 @@ function createExtensionsRoutes(context) {
         ...corsHeaders(req)
       })
 
-      const sendStatus = (status, percent, speed) => {
-        res.write(JSON.stringify({ status, percent, speed }) + '\n')
+      // Multi-stage NDJSON progress helper. Emits a richer shape than the
+      // legacy `{status, percent, speed}` line: clients can render a
+      // segmented progress bar keyed on `stage` and read raw bytes/speed.
+      const sendInstallStage = (stage, opts = {}) => {
+        res.write(
+          JSON.stringify({
+            stage,
+            status: opts.status || stage,
+            percent: opts.percent ?? 0,
+            global_percent: opts.globalPercent ?? 0,
+            bytes_total: opts.bytesTotal ?? null,
+            bytes_done: opts.bytesDone ?? null,
+            speed_bps: opts.speedBps ?? null,
+            eta_seconds: opts.etaSeconds ?? null
+          }) + '\n'
+        )
       }
 
-      const downloadUrl = String(payload.download_url || '').trim()
-      if (downloadUrl) {
-        try {
-          await validateInstallUrl(id, downloadUrl)
-        } catch (err) {
-          res.write(JSON.stringify({ ok: false, error: err.message }) + '\n')
-          res.end()
-          return true
+      // Resolve which release to download. Accepts three payload shapes:
+      //   {id}                      — picks best compatible release
+      //   {id, version}             — picks a specific release tag
+      //   {id, download_url}        — legacy explicit URL (backward-compat)
+      let appVersion = '0.0.0'
+      try {
+        const pkg = require(
+          path.resolve(__dirname, '..', '..', '..', '..', 'package.json')
+        )
+        appVersion = pkg.version || '0.0.0'
+      } catch {}
+
+      const result = await resolveInstallVersion({
+        id,
+        payload,
+        communityRegistry: getCommunityRegistry(),
+        appVersion,
+        fetchHeadStatus: async () => 200
+      })
+
+      if (!result.ok) {
+        res.write(JSON.stringify({ ok: false, ...result }) + '\n')
+        res.end()
+        return true
+      }
+
+      const downloadUrl = String(result.release.download_url || '').trim()
+
+      // SSRF defense in depth — even though resolveInstallVersion picked
+      // this URL from the catalog/releases, still validate it against the
+      // install registry and private-IP checks.
+      try {
+        await validateInstallUrl(id, downloadUrl)
+      } catch (err) {
+        res.write(JSON.stringify({ ok: false, error: err.message }) + '\n')
+        res.end()
+        return true
+      }
+
+      ensureDir(extDir)
+      console.log(`[ExtensionsAPI] Downloading extension ${id} from ${downloadUrl}...`)
+      const zipPath = path.join(extDir, 'archive.zip')
+      try {
+        if (downloadUrl.startsWith('file://')) {
+          try {
+            const srcPath = require('node:url').fileURLToPath(downloadUrl)
+            sendInstallStage('downloading', { percent: 50, globalPercent: 30 })
+            fs.copyFileSync(srcPath, zipPath)
+            sendInstallStage('downloading', { percent: 100, globalPercent: 55 })
+          } catch (copyErr) {
+            throw new Error(`Failed to copy local zip: ${copyErr.message}`)
+          }
+        } else {
+          sendInstallStage('downloading', {
+            percent: 0,
+            globalPercent: 5,
+            speedBps: 0
+          })
+          await downloadFile(downloadUrl, zipPath, (percent, speed) => {
+            const globalPercent = 5 + Math.round((percent / 100) * 50)
+            sendInstallStage('downloading', {
+              percent,
+              globalPercent,
+              speedBps: speed
+            })
+          })
         }
-        ensureDir(extDir)
-        console.log(`[ExtensionsAPI] Downloading extension ${id} from ${downloadUrl}...`)
-        const zipPath = path.join(extDir, 'archive.zip')
+        let zipBuffer
         try {
-          if (downloadUrl.startsWith('file://')) {
-            try {
-              const srcPath = require('node:url').fileURLToPath(downloadUrl)
-              sendStatus('Baixando...', 50, '-')
-              fs.copyFileSync(srcPath, zipPath)
-              sendStatus('Baixando...', 100, '-')
-            } catch (copyErr) {
-              throw new Error(`Failed to copy local zip: ${copyErr.message}`)
-            }
-          } else {
-            sendStatus('Baixando...', 0, '0 KB/s')
-            await downloadFile(downloadUrl, zipPath, (percent, speed) =>
-              sendStatus('Baixando...', percent, speed)
+          zipBuffer = fs.readFileSync(zipPath)
+        } catch (readErr) {
+          throw new Error(`Failed to read downloaded zip: ${readErr.message}`)
+        }
+        sendInstallStage('verifying', { percent: 0, globalPercent: 60 })
+        const checksumResult = verifyChecksum(zipBuffer, payload.expected_sha256)
+        if (!checksumResult.ok) {
+          if (checksumResult.reason === 'mismatch') {
+            console.log(`[ExtensionsAPI] Checksum mismatch for ${id} — aborting install`)
+            throw new Error('extension checksum mismatch')
+          }
+          if (checksumResult.reason === 'invalid_format') {
+            console.log(
+              `[ExtensionsAPI] Invalid expected_sha256 format for ${id} — aborting install`
             )
+            throw new Error('invalid expected_sha256 format')
           }
-          let zipBuffer
-          try {
-            zipBuffer = fs.readFileSync(zipPath)
-          } catch (readErr) {
-            throw new Error(`Failed to read downloaded zip: ${readErr.message}`)
+          if (checksumResult.reason === 'missing') {
+            console.warn(`[extensions] install without expected_sha256 — backward compat path`)
           }
-          const checksumResult = verifyChecksum(zipBuffer, payload.expected_sha256)
-          if (!checksumResult.ok) {
-            if (checksumResult.reason === 'mismatch') {
-              console.log(`[ExtensionsAPI] Checksum mismatch for ${id} — aborting install`)
-              throw new Error('extension checksum mismatch')
-            }
-            if (checksumResult.reason === 'invalid_format') {
-              console.log(
-                `[ExtensionsAPI] Invalid expected_sha256 format for ${id} — aborting install`
-              )
-              throw new Error('invalid expected_sha256 format')
-            }
-            if (checksumResult.reason === 'missing') {
-              console.warn(`[extensions] install without expected_sha256 — backward compat path`)
-            }
-          }
-          console.log(`[ExtensionsAPI] Extracting ${id}...`)
-          sendStatus('Extraindo...', 100, '-')
-          try {
-            const files = fs.readdirSync(extDir)
-            for (const file of files) {
-              if (file !== 'archive.zip') {
-                fs.rmSync(path.join(extDir, file), { recursive: true, force: true })
-              }
-            }
-          } catch (cleanErr) {
-            console.warn(`[extensions] Failed to clean directory before update: ${cleanErr.message}`)
-          }
-          await extractZip(zipPath, extDir)
-          try {
-            fs.unlinkSync(zipPath)
-          } catch {}
-          flattenExtractedDir(extDir)
-          try {
-            await installExtensionDependencies(extDir)
-          } catch (depErr) {
-            console.log(`[extensions] Dep install failed (non-fatal): ${depErr.message}`)
-          }
-        } catch (err) {
-          try {
-            fs.rmSync(extDir, { recursive: true, force: true })
-          } catch {}
-          res.write(
-            JSON.stringify({ ok: false, error: `Extension install failed: ${err.message}` }) + '\n'
-          )
-          res.end()
-          return true
         }
-      } else {
-        ensureDir(extDir)
-        const skillMdPath = path.join(extDir, 'SKILL.md')
-        if (!fs.existsSync(skillMdPath)) {
-          const description = String(payload.description || 'Extension skill for MomAI.')
-          fs.writeFileSync(
-            skillMdPath,
-            [
-              '---',
-              `name: ${id}`,
-              `description: ${description}`,
-              'compatibility: MomAI Node Core',
-              '---',
-              '',
-              '# Extension Skill',
-              '',
-              'Descreva aqui quando usar esta skill e como executar o fluxo.',
-              '',
-              '## Quando usar',
-              '-',
-              '',
-              '## Como executar',
-              '1.'
-            ].join('\n'),
-            'utf8'
-          )
+        sendInstallStage('verifying', { percent: 100, globalPercent: 70 })
+        console.log(`[ExtensionsAPI] Extracting ${id}...`)
+        sendInstallStage('extracting', { percent: 0, globalPercent: 75 })
+        try {
+          const files = fs.readdirSync(extDir)
+          for (const file of files) {
+            if (file !== 'archive.zip') {
+              fs.rmSync(path.join(extDir, file), { recursive: true, force: true })
+            }
+          }
+        } catch (cleanErr) {
+          console.warn(`[extensions] Failed to clean directory before update: ${cleanErr.message}`)
         }
+        await extractZip(zipPath, extDir)
+        try {
+          fs.unlinkSync(zipPath)
+        } catch {}
+        flattenExtractedDir(extDir)
+        sendInstallStage('extracting', { percent: 100, globalPercent: 85 })
+        sendInstallStage('linking_deps', { percent: 0, globalPercent: 85 })
+        try {
+          await installExtensionDependencies(extDir)
+        } catch (depErr) {
+          console.log(`[extensions] Dep install failed (non-fatal): ${depErr.message}`)
+        }
+        sendInstallStage('linking_deps', { percent: 100, globalPercent: 90 })
+      } catch (err) {
+        try {
+          fs.rmSync(extDir, { recursive: true, force: true })
+        } catch {}
+        res.write(
+          JSON.stringify({ ok: false, error: `Extension install failed: ${err.message}` }) + '\n'
+        )
+        res.end()
+        return true
       }
 
       let found = store.extensions.find((ext) => ext.id === id)
@@ -869,11 +915,14 @@ function createExtensionsRoutes(context) {
         found.enabled = true
       }
       saveStore()
+
+      sendInstallStage('indexing', { percent: 0, globalPercent: 90 })
       await skillRegistry.loadExtensions()
 
       // Start the persistent worker immediately if the extension runs in the background
       const skill = skillRegistry.getById(id)
       if (skill && skill.manifest?.background) {
+        sendInstallStage('starting_worker', { percent: 0, globalPercent: 95 })
         console.log(`[extensions] Starting persistent worker for newly installed extension: ${skill.id}`)
         extensionHostManager
           .startPersistent(skill.id, skill.dir, skill.manifest)
@@ -903,7 +952,7 @@ function createExtensionsRoutes(context) {
         context.syncSkillAndToolIndexes(true).catch(() => {})
       }
 
-      sendStatus('Concluído', 100, '-')
+      sendInstallStage('done', { percent: 100, globalPercent: 100 })
       res.write(JSON.stringify({ ok: true }) + '\n')
       res.end()
       return true
@@ -1183,5 +1232,6 @@ module.exports = {
   createExtensionsRoutes,
   validateInstallUrl,
   resolveInstallVersion,
-  _setRegistry: _setInstallRegistryForTests
+  _setRegistry: _setInstallRegistryForTests,
+  _setCommunityRegistryForTests
 }
