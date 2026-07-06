@@ -32,6 +32,7 @@ interface ExtensionItem {
   category?: string
   enabled: boolean
   icon?: string | null
+  icon_url?: string | null
   manifest?: any
   features?: {
     sidebar?: boolean
@@ -263,7 +264,14 @@ export default function LateralBar({
                     className={`absolute ${isCompact ? '-left-2 h-4' : '-left-3 h-6'} w-1 bg-accent rounded-r-full animate-fade-in`}
                   />
                 )}
-                {(Icon as any)?.__svg ? (
+                {ext.icon_url || ext.manifest?.icon_url ? (
+                  <img
+                    src={ext.icon_url || ext.manifest?.icon_url}
+                    alt=""
+                    className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} object-contain transition-all duration-300 ease-out group-hover:scale-110`}
+                    loading="lazy"
+                  />
+                ) : (Icon as any)?.__svg ? (
                   <InlineSvgIcon
                     svg={(Icon as any).__svg}
                     className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110 [&>svg]:w-full [&>svg]:h-full`}
