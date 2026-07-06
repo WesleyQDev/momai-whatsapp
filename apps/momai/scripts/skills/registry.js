@@ -257,6 +257,7 @@ async function loadSkillFromDir({ dir, kind, expectedId }) {
 
 function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   const extensionsDir = path.join(dataDir, 'extensions')
+  const extensionsDevDir = path.join(extensionsDir, '.dev')
   const packagedSkillsDir = path.resolve(__dirname, 'packaged')
   let _skillsGeneration = 0
   const state = {
@@ -386,58 +387,88 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     }
   }
 
+  function readDevMode() {
+    try {
+      const shared = require('../node-core/services/shared-state')
+      return shared?.store?.settings?.dev_mode === 'store_test' ? 'store_test' : 'symlink'
+    } catch {
+      return 'symlink'
+    }
+  }
+
+  async function loadExtensionFromDir({ dir, expectedId, permSchema }) {
+    const skill = await loadSkillFromDir({ dir, kind: 'extension', expectedId })
+    if (!skill) return null
+
+    let manifestExtra = null
+    const manifestPath = path.join(dir, 'manifest.json')
+    if (fs.existsSync(manifestPath)) {
+      try {
+        manifestExtra = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+      } catch {}
+    }
+
+    const mergedPerms = permSchema.mergeManifestPermissions(
+      skill.manifest.permissions,
+      manifestExtra?.permissions
+    )
+    const riskLevel = permSchema.calculateRiskLevel(mergedPerms)
+    skill.manifest = {
+      ...skill.manifest,
+      ...manifestExtra,
+      permissions: mergedPerms,
+      _permSummary: permSchema.getPermissionSummary(mergedPerms),
+      _riskLevel: riskLevel
+    }
+    return skill
+  }
+
   async function loadExtensions() {
     if (!fs.existsSync(extensionsDir)) fs.mkdirSync(extensionsDir, { recursive: true })
     state.extensions.clear()
     const permSchema = createPermissionSchema()
+    const devMode = readDevMode()
 
-    let ignoreSymlinks = false
-    try {
-      const shared = require('../node-core/services/shared-state')
-      if (shared?.store?.settings?.dev_mode === 'store_test') {
-        ignoreSymlinks = true
+    const ignoreSymlinks = devMode === 'store_test'
+
+    // Scan order: in dev (symlink) mode the .dev/ folder overrides the real one;
+    // in store_test mode .dev/ is never read. This lets symlinks live in .dev/
+    // alongside a "real" install in extensionsDir without conflicting.
+    const scanRoots = []
+    if (devMode === 'symlink') {
+      if (fs.existsSync(extensionsDevDir)) {
+        scanRoots.push({ root: extensionsDevDir, ignoreSymlinks: false, isDev: true })
       }
-    } catch {}
+    } else {
+      scanRoots.push({ root: extensionsDir, ignoreSymlinks, isDev: false })
+    }
 
-    for (const name of fs.readdirSync(extensionsDir)) {
-      const dir = path.join(extensionsDir, name)
-      const stat = fs.statSync(dir, { throwIfNoEntry: false })
-      if (!stat || !stat.isDirectory()) continue
+    const seenIds = new Set()
+    for (const { root, ignoreSymlinks: rootIgnoreSymlinks } of scanRoots) {
+      if (!fs.existsSync(root)) continue
+      for (const name of fs.readdirSync(root)) {
+        // Skip the .dev folder when scanning extensionsDir (avoid recursion).
+        if (root === extensionsDir && name === '.dev') continue
 
-      if (ignoreSymlinks) {
-        try {
-          const lstat = fs.lstatSync(dir)
-          if (lstat.isSymbolicLink()) {
-            continue
-          }
-        } catch {}
+        const dir = path.join(root, name)
+        const stat = fs.statSync(dir, { throwIfNoEntry: false })
+        if (!stat || !stat.isDirectory()) continue
+
+        if (rootIgnoreSymlinks) {
+          try {
+            const lstat = fs.lstatSync(dir)
+            if (lstat.isSymbolicLink()) {
+              continue
+            }
+          } catch {}
+        }
+
+        const skill = await loadExtensionFromDir({ dir, expectedId: name, permSchema })
+        if (!skill) continue
+        if (seenIds.has(skill.id)) continue
+        seenIds.add(skill.id)
+        state.extensions.set(skill.id, skill)
       }
-
-      const skill = await loadSkillFromDir({ dir, kind: 'extension', expectedId: name })
-      if (!skill) continue
-
-      let manifestExtra = null
-      const manifestPath = path.join(dir, 'manifest.json')
-      if (fs.existsSync(manifestPath)) {
-        try {
-          manifestExtra = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-        } catch {}
-      }
-
-      const mergedPerms = permSchema.mergeManifestPermissions(
-        skill.manifest.permissions,
-        manifestExtra?.permissions
-      )
-      const riskLevel = permSchema.calculateRiskLevel(mergedPerms)
-      skill.manifest = {
-        ...skill.manifest,
-        ...manifestExtra,
-        permissions: mergedPerms,
-        _permSummary: permSchema.getPermissionSummary(mergedPerms),
-        _riskLevel: riskLevel
-      }
-
-      state.extensions.set(skill.id, skill)
     }
     _skillsGeneration++
   }
@@ -783,7 +814,8 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     toListPayload,
     toOpenAITools,
     buildUseSkillTool,
-    extensionsDir
+    extensionsDir,
+    extensionsDevDir
   }
 }
 

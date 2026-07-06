@@ -3,21 +3,21 @@
 exports[`ExtensionInstallCard > error variant snapshot for incompatible_version 1`] = `
 <DocumentFragment>
   <div
-    class="max-w-md w-full p-4 rounded-xl bg-red-900/20 border border-red-700/50 text-zinc-100"
+    class="w-full max-w-md p-3 rounded-xl bg-red-950/20 border border-red-800/40 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-start gap-3"
+      class="flex items-start gap-2.5"
     >
       <span
-        class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-500/20 text-red-300 shrink-0"
+        class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500/20 text-red-300 shrink-0"
       >
         <svg
           fill="none"
-          height="14"
+          height="12"
           stroke="currentColor"
           stroke-width="2"
           viewBox="0 0 24 24"
-          width="14"
+          width="12"
         >
           <circle
             cx="12"
@@ -42,12 +42,12 @@ exports[`ExtensionInstallCard > error variant snapshot for incompatible_version 
         class="min-w-0 flex-1"
       >
         <div
-          class="text-sm font-semibold text-red-200"
+          class="text-xs font-bold text-red-200"
         >
           Erro ao instalar
         </div>
         <div
-          class="mt-1 text-xs text-zinc-300 break-words"
+          class="mt-0.5 text-[10px] text-zinc-300 break-words line-clamp-2"
         >
           Versão 0.4.0 requer MomAI &gt;=2.0.0
         </div>
@@ -60,24 +60,24 @@ exports[`ExtensionInstallCard > error variant snapshot for incompatible_version 
 exports[`ExtensionInstallCard > progress variant snapshot 1`] = `
 <DocumentFragment>
   <div
-    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+    class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between mb-3"
+      class="flex items-center justify-between text-xs font-semibold"
     >
       <span
-        class="text-sm font-semibold text-zinc-100"
+        class="text-zinc-200 truncate max-w-[150px]"
       >
         WhatsApp
       </span>
       <span
-        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+        class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        Instalando WhatsApp
+        extensions.stages.downloading
       </span>
     </div>
     <div
-      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+      class="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden"
     >
       <div
         class="h-full bg-amber-500 transition-all duration-200"
@@ -85,12 +85,7 @@ exports[`ExtensionInstallCard > progress variant snapshot 1`] = `
       />
     </div>
     <div
-      class="mt-2 text-xs text-zinc-400"
-    >
-      extensions.stages.downloading
-    </div>
-    <div
-      class="mt-1 text-[11px] text-zinc-500"
+      class="text-[10px] text-zinc-500 font-medium truncate"
     >
       87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
     </div>
@@ -101,24 +96,24 @@ exports[`ExtensionInstallCard > progress variant snapshot 1`] = `
 exports[`ExtensionInstallCard > renders stage done 1`] = `
 <DocumentFragment>
   <div
-    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+    class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between mb-3"
+      class="flex items-center justify-between text-xs font-semibold"
     >
       <span
-        class="text-sm font-semibold text-zinc-100"
+        class="text-zinc-200 truncate max-w-[150px]"
       >
         WhatsApp
       </span>
       <span
-        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+        class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        Instalando WhatsApp
+        extensions.stages.done
       </span>
     </div>
     <div
-      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+      class="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden"
     >
       <div
         class="h-full bg-amber-500 transition-all duration-200"
@@ -126,12 +121,7 @@ exports[`ExtensionInstallCard > renders stage done 1`] = `
       />
     </div>
     <div
-      class="mt-2 text-xs text-zinc-400"
-    >
-      extensions.stages.done
-    </div>
-    <div
-      class="mt-1 text-[11px] text-zinc-500"
+      class="text-[10px] text-zinc-500 font-medium truncate"
     >
       87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
     </div>
@@ -142,24 +132,24 @@ exports[`ExtensionInstallCard > renders stage done 1`] = `
 exports[`ExtensionInstallCard > renders stage downloading 1`] = `
 <DocumentFragment>
   <div
-    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+    class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between mb-3"
+      class="flex items-center justify-between text-xs font-semibold"
     >
       <span
-        class="text-sm font-semibold text-zinc-100"
+        class="text-zinc-200 truncate max-w-[150px]"
       >
         WhatsApp
       </span>
       <span
-        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+        class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        Instalando WhatsApp
+        extensions.stages.downloading
       </span>
     </div>
     <div
-      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+      class="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden"
     >
       <div
         class="h-full bg-amber-500 transition-all duration-200"
@@ -167,12 +157,7 @@ exports[`ExtensionInstallCard > renders stage downloading 1`] = `
       />
     </div>
     <div
-      class="mt-2 text-xs text-zinc-400"
-    >
-      extensions.stages.downloading
-    </div>
-    <div
-      class="mt-1 text-[11px] text-zinc-500"
+      class="text-[10px] text-zinc-500 font-medium truncate"
     >
       87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
     </div>
@@ -183,24 +168,24 @@ exports[`ExtensionInstallCard > renders stage downloading 1`] = `
 exports[`ExtensionInstallCard > renders stage extracting 1`] = `
 <DocumentFragment>
   <div
-    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+    class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between mb-3"
+      class="flex items-center justify-between text-xs font-semibold"
     >
       <span
-        class="text-sm font-semibold text-zinc-100"
+        class="text-zinc-200 truncate max-w-[150px]"
       >
         WhatsApp
       </span>
       <span
-        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+        class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        Instalando WhatsApp
+        extensions.stages.extracting
       </span>
     </div>
     <div
-      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+      class="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden"
     >
       <div
         class="h-full bg-amber-500 transition-all duration-200"
@@ -208,12 +193,7 @@ exports[`ExtensionInstallCard > renders stage extracting 1`] = `
       />
     </div>
     <div
-      class="mt-2 text-xs text-zinc-400"
-    >
-      extensions.stages.extracting
-    </div>
-    <div
-      class="mt-1 text-[11px] text-zinc-500"
+      class="text-[10px] text-zinc-500 font-medium truncate"
     >
       87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
     </div>
@@ -224,24 +204,24 @@ exports[`ExtensionInstallCard > renders stage extracting 1`] = `
 exports[`ExtensionInstallCard > renders stage indexing 1`] = `
 <DocumentFragment>
   <div
-    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+    class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between mb-3"
+      class="flex items-center justify-between text-xs font-semibold"
     >
       <span
-        class="text-sm font-semibold text-zinc-100"
+        class="text-zinc-200 truncate max-w-[150px]"
       >
         WhatsApp
       </span>
       <span
-        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+        class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        Instalando WhatsApp
+        extensions.stages.indexing
       </span>
     </div>
     <div
-      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+      class="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden"
     >
       <div
         class="h-full bg-amber-500 transition-all duration-200"
@@ -249,12 +229,7 @@ exports[`ExtensionInstallCard > renders stage indexing 1`] = `
       />
     </div>
     <div
-      class="mt-2 text-xs text-zinc-400"
-    >
-      extensions.stages.indexing
-    </div>
-    <div
-      class="mt-1 text-[11px] text-zinc-500"
+      class="text-[10px] text-zinc-500 font-medium truncate"
     >
       87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
     </div>
@@ -265,24 +240,24 @@ exports[`ExtensionInstallCard > renders stage indexing 1`] = `
 exports[`ExtensionInstallCard > renders stage linking_deps 1`] = `
 <DocumentFragment>
   <div
-    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+    class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between mb-3"
+      class="flex items-center justify-between text-xs font-semibold"
     >
       <span
-        class="text-sm font-semibold text-zinc-100"
+        class="text-zinc-200 truncate max-w-[150px]"
       >
         WhatsApp
       </span>
       <span
-        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+        class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        Instalando WhatsApp
+        extensions.stages.linking_deps
       </span>
     </div>
     <div
-      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+      class="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden"
     >
       <div
         class="h-full bg-amber-500 transition-all duration-200"
@@ -290,12 +265,7 @@ exports[`ExtensionInstallCard > renders stage linking_deps 1`] = `
       />
     </div>
     <div
-      class="mt-2 text-xs text-zinc-400"
-    >
-      extensions.stages.linking_deps
-    </div>
-    <div
-      class="mt-1 text-[11px] text-zinc-500"
+      class="text-[10px] text-zinc-500 font-medium truncate"
     >
       87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
     </div>
@@ -306,24 +276,24 @@ exports[`ExtensionInstallCard > renders stage linking_deps 1`] = `
 exports[`ExtensionInstallCard > renders stage starting_worker 1`] = `
 <DocumentFragment>
   <div
-    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+    class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between mb-3"
+      class="flex items-center justify-between text-xs font-semibold"
     >
       <span
-        class="text-sm font-semibold text-zinc-100"
+        class="text-zinc-200 truncate max-w-[150px]"
       >
         WhatsApp
       </span>
       <span
-        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+        class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        Instalando WhatsApp
+        extensions.stages.starting_worker
       </span>
     </div>
     <div
-      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+      class="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden"
     >
       <div
         class="h-full bg-amber-500 transition-all duration-200"
@@ -331,12 +301,7 @@ exports[`ExtensionInstallCard > renders stage starting_worker 1`] = `
       />
     </div>
     <div
-      class="mt-2 text-xs text-zinc-400"
-    >
-      extensions.stages.starting_worker
-    </div>
-    <div
-      class="mt-1 text-[11px] text-zinc-500"
+      class="text-[10px] text-zinc-500 font-medium truncate"
     >
       87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
     </div>
@@ -347,24 +312,24 @@ exports[`ExtensionInstallCard > renders stage starting_worker 1`] = `
 exports[`ExtensionInstallCard > renders stage verifying 1`] = `
 <DocumentFragment>
   <div
-    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+    class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between mb-3"
+      class="flex items-center justify-between text-xs font-semibold"
     >
       <span
-        class="text-sm font-semibold text-zinc-100"
+        class="text-zinc-200 truncate max-w-[150px]"
       >
         WhatsApp
       </span>
       <span
-        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+        class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        Instalando WhatsApp
+        extensions.stages.verifying
       </span>
     </div>
     <div
-      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+      class="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden"
     >
       <div
         class="h-full bg-amber-500 transition-all duration-200"
@@ -372,12 +337,7 @@ exports[`ExtensionInstallCard > renders stage verifying 1`] = `
       />
     </div>
     <div
-      class="mt-2 text-xs text-zinc-400"
-    >
-      extensions.stages.verifying
-    </div>
-    <div
-      class="mt-1 text-[11px] text-zinc-500"
+      class="text-[10px] text-zinc-500 font-medium truncate"
     >
       87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
     </div>

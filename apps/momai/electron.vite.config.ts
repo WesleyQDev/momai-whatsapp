@@ -20,10 +20,30 @@ function skillBundlesPlugin(): Plugin {
       if (!match) return null
       const [, skillId, filePath] = match
       if (filePath.includes('..') || filePath.includes('\\')) return null
+
+      let userExtensionsDir = ''
+      if (process.platform === 'win32') {
+        userExtensionsDir = join(process.env.APPDATA || '', 'MomAI-Dev', 'data', 'extensions', skillId)
+      } else if (process.platform === 'darwin') {
+        userExtensionsDir = join(
+          process.env.HOME || '',
+          'Library',
+          'Application Support',
+          'MomAI-Dev',
+          'data',
+          'extensions',
+          skillId
+        )
+      } else {
+        userExtensionsDir = join(process.env.HOME || '', '.config', 'MomAI-Dev', 'data', 'extensions', skillId)
+      }
+
       const candidates = [
         resolve(__dirname, 'scripts/skills/packaged', skillId),
-        resolve(__dirname, 'data/extensions', skillId)
-      ]
+        resolve(__dirname, 'data/extensions', skillId),
+        userExtensionsDir
+      ].filter(Boolean)
+
       const skillDir = candidates.find((d) => existsSync(d))
       if (!skillDir) return null
       const fullPath = join(skillDir, 'dist', filePath)

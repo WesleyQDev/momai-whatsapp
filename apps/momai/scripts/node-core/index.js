@@ -380,7 +380,8 @@ async function startServer() {
     getAll: () => [],
     refresh: () => {},
     loadExtensions: () => {},
-    extensionsDir: path.join(DATA_DIR, 'extensions')
+    extensionsDir: path.join(DATA_DIR, 'extensions'),
+    extensionsDevDir: path.join(DATA_DIR, 'extensions', '.dev')
   }
   shared.promptRegistry = _promptRegistry || {
     getRuntimeStatus: () => ({}),
@@ -401,7 +402,8 @@ async function startServer() {
       getAll: () => [],
       refresh: () => {},
       loadExtensions: () => {},
-      extensionsDir: path.join(DATA_DIR, 'extensions')
+      extensionsDir: path.join(DATA_DIR, 'extensions'),
+      extensionsDevDir: path.join(DATA_DIR, 'extensions', '.dev')
     },
     promptRegistry: _promptRegistry || { getRuntimeStatus: () => ({}), getDefaults: () => ({}) },
     tiersConfig: llamaManager.tiersConfig,

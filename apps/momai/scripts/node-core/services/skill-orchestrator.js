@@ -25,7 +25,9 @@ function getSkillRegistry() {
 }
 
 function isSkillEnabledByStore(skill) {
-  const entry = store.extensions.find((e) => e.id === skill.id)
+  const devMode = store?.settings?.dev_mode || 'symlink'
+  const key = devMode === 'symlink' ? `${skill.id}_dev` : skill.id
+  const entry = store.extensions.find((e) => e.id === key)
   if (!entry) {
     // Default state: builtins/packaged start enabled, extensions start disabled unless explicitly enabled
     if (skill.kind === 'builtin' || skill.kind === 'packaged') return true
@@ -61,7 +63,11 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
     const batch = all.slice(i, i + BATCH_SIZE)
     await Promise.all(
       batch.map(async (skill) => {
-        const repo = skill.manifest?.repo || null
+        let repo = skill.manifest?.repo || null
+        if (!repo) {
+          const regItem = community.find((c) => c.id === skill.id)
+          if (regItem) repo = regItem.repo || null
+        }
         if (repo) {
           const stars = await communityRegistry.getGitHubStars(repo)
           starsMap.set(skill.id, stars)
@@ -80,15 +86,27 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
       const name = localized.name || manifest.name || skill.id
       const description = localized.description || manifest.description || ''
 
+      // Resolve repo with fallback to community registry
+      let repo = manifest.repo || null
+      if (!repo) {
+        const regItem = community.find((c) => c.id === (manifest.id || skill.id))
+        if (regItem) repo = regItem.repo || null
+      }
+
       // Use pre-fetched stars
       const stars = starsMap.get(skill.id) || 0
-      const repo = manifest.repo || null
 
       // Determine the best documentation content based on language
       const readmes =
         typeof manifest.readme === 'object' && manifest.readme !== null ? manifest.readme : {}
 
-      const docContent = readmes[lang] || readmes['pt-BR'] || readmes['default'] || ''
+      let docContent = readmes[lang] || readmes['pt-BR'] || readmes['default'] || ''
+      if (!docContent) {
+        const regItem = community.find((c) => c.id === (manifest.id || skill.id))
+        if (regItem) {
+          docContent = regItem.readme || regItem.description || ''
+        }
+      }
 
       let isSymlink = false
       let symlinkPath = null
@@ -245,15 +263,32 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
       regItem = localExtensions.find((e) => e.id === ext.id)
     }
 
-    if (regItem && regItem.version) {
-      const cmp = compareVersions(regItem.version, ext.version || '0.0.0')
-      if (cmp > 0) {
-        const compat = satisfiesRange(appVersion, regItem.momai_compat)
-        if (compat) {
-          ext.updateAvailable = true
-          ext.latestCompatibleVersion = regItem.version
-        } else {
-          ext.hasNewerIncompatible = true
+    if (regItem) {
+      const repo = ext.repo || regItem.repo || null
+      let latestCompatible = null
+      if (repo) {
+        try {
+          const releases = await communityRegistry.fetchReleases(repo)
+          const best = findBestCompatibleRelease(releases, appVersion)
+          if (best) {
+            latestCompatible = best.version
+          }
+        } catch (e) {
+          console.warn(`[SkillOrchestrator] Failed to fetch releases for update check on ${ext.id}:`, e.message)
+        }
+      }
+
+      const targetVersion = latestCompatible || regItem.version
+      if (targetVersion) {
+        const cmp = compareVersions(targetVersion, ext.version || '0.0.0')
+        if (cmp > 0) {
+          const compat = latestCompatible ? true : satisfiesRange(appVersion, regItem.momai_compat)
+          if (compat) {
+            ext.updateAvailable = true
+            ext.latestCompatibleVersion = targetVersion
+          } else {
+            ext.hasNewerIncompatible = true
+          }
         }
       }
     }

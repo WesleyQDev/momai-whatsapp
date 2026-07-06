@@ -840,6 +840,16 @@ function createExtensionsRoutes(context) {
         return true
       }
 
+      try {
+        const stat = fs.lstatSync(extDir)
+        if (stat.isSymbolicLink()) {
+          console.log(`[extensions] Removing symlink before clean install: ${extDir}`)
+          fs.unlinkSync(extDir)
+        }
+      } catch (e) {
+        // ignore
+      }
+
       ensureDir(extDir)
       console.log(`[ExtensionsAPI] Downloading extension ${id} from ${downloadUrl}...`)
       const zipPath = path.join(extDir, 'archive.zip')
@@ -928,10 +938,12 @@ function createExtensionsRoutes(context) {
         return true
       }
 
-      let found = store.extensions.find((ext) => ext.id === id)
+      const devMode = store?.settings?.dev_mode || 'symlink'
+      const key = devMode === 'symlink' ? `${id}_dev` : id
+      let found = store.extensions.find((ext) => ext.id === key)
       if (!found) {
         found = {
-          id,
+          id: key,
           name: id,
           description: 'Extension installed by Node core',
           category: 'builtin',
@@ -987,11 +999,13 @@ function createExtensionsRoutes(context) {
 
     if (pathname === '/extensions/toggle' && req.method === 'POST') {
       const payload = await readJsonBody(req).catch(() => ({}))
-      let found = store.extensions.find((item) => item.id === payload.id)
+      const devMode = store?.settings?.dev_mode || 'symlink'
+      const key = devMode === 'symlink' ? `${payload.id}_dev` : payload.id
+      let found = store.extensions.find((item) => item.id === key)
       if (!found) {
         // Allow toggling builtins/packaged by creating a store entry
         found = {
-          id: payload.id,
+          id: key,
           name: payload.id,
           description: '',
           category: 'builtin',
@@ -1069,7 +1083,9 @@ function createExtensionsRoutes(context) {
       if (store.skillKeywords) {
         delete store.skillKeywords[extId]
       }
-      store.extensions = store.extensions.filter((item) => item.id !== extId)
+      const devMode = store?.settings?.dev_mode || 'symlink'
+      const key = devMode === 'symlink' ? `${extId}_dev` : extId
+      store.extensions = store.extensions.filter((item) => item.id !== key)
       if (fs.existsSync(extDir)) fs.rmSync(extDir, { recursive: true, force: true })
       saveStore()
       await skillRegistry.loadExtensions()

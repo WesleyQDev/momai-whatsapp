@@ -548,7 +548,8 @@ function SkillDetailView({
   installing,
   installProgress,
   installError,
-  recommendedVersionByExtId
+  recommendedVersionByExtId,
+  onDismissError
 }: {
   skill: Extension
   onBack: () => void
@@ -559,6 +560,7 @@ function SkillDetailView({
   installProgress?: InstallProgress | null
   installError?: InstallError | null
   recommendedVersionByExtId?: Record<string, string | null>
+  onDismissError?: () => void
 }) {
   const { t } = useI18n()
   const accentClasses = getAccentClasses(skill.manifest)
@@ -667,7 +669,7 @@ function SkillDetailView({
                 Versão
               </span>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-zinc-300 font-bold">{skill.version || '1.0.0'}</span>
+                <span className="text-xs text-zinc-300 font-bold">{recommendedVersion || skill.version || '1.0.0'}</span>
                 {skill.updateAvailable && (
                   <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-[8px] text-blue-400 font-black uppercase tracking-wider animate-pulse">
                     Upgrade disponível ({skill.latestCompatibleVersion})
@@ -733,58 +735,62 @@ function SkillDetailView({
               </a>
             )}
             {!isBuiltin && !isInstalled ? (
-              <div className="flex flex-col gap-2 min-w-[140px]">
-                <button
-                  onClick={() => onInstall(skill)}
-                  disabled={installing === skill.id}
-                  className={`px-8 py-2.5 text-white rounded-xl text-xs font-black disabled:opacity-50 transition-all uppercase tracking-widest relative overflow-hidden ${accentClasses.button}`}
-                >
-                  <span className="relative z-10">
-                    {installing === skill.id && installProgress
-                      ? installProgress.status || 'Obtendo...'
-                      : 'Instalar'}
-                  </span>
-                </button>
-                {installing === skill.id && installProgress && (
-                  <ExtensionInstallCard
-                    progress={installProgress}
-                    extName={skill.name}
-                  />
-                )}
-                {installing === skill.id && installError && (
-                  <ExtensionInstallCard
-                    error={installError}
-                    extName={skill.name}
-                  />
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                {skill.updateAvailable && (
-                  <div className="flex flex-col gap-1 min-w-[140px]">
-                    <button
-                      onClick={() => onInstall(skill)}
-                      disabled={installing === skill.id}
-                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black disabled:opacity-50 transition-all uppercase tracking-widest relative overflow-hidden active:scale-[0.98]"
-                    >
-                      <span className="relative z-10 flex items-center justify-center gap-1">
-                        <CloudArrowDownIcon className="w-3.5 h-3.5" />
-                        {installing === skill.id && installProgress
-                          ? installProgress.status || 'Atualizando...'
-                          : 'Atualizar'}
-                      </span>
-                    </button>
-                    {installing === skill.id && installProgress && (
+              <div className="flex flex-col gap-2">
+                {installing === skill.id ? (
+                  <>
+                    {installProgress && (
                       <ExtensionInstallCard
                         progress={installProgress}
                         extName={skill.name}
                       />
                     )}
-                    {installing === skill.id && installError && (
+                    {installError && (
                       <ExtensionInstallCard
                         error={installError}
                         extName={skill.name}
+                        onDismiss={onDismissError}
                       />
+                    )}
+                  </>
+                ) : (
+                  <button
+                    onClick={() => onInstall(skill)}
+                    className={`px-8 py-2.5 text-white rounded-xl text-xs font-black transition-all uppercase tracking-widest relative overflow-hidden ${accentClasses.button}`}
+                  >
+                    <span className="relative z-10">Instalar</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                {skill.updateAvailable && (
+                  <div className="flex flex-col gap-1">
+                    {installing === skill.id ? (
+                      <>
+                        {installProgress && (
+                          <ExtensionInstallCard
+                            progress={installProgress}
+                            extName={skill.name}
+                          />
+                        )}
+                        {installError && (
+                          <ExtensionInstallCard
+                            error={installError}
+                            extName={skill.name}
+                            onDismiss={onDismissError}
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => onInstall(skill)}
+                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black transition-all uppercase tracking-widest relative overflow-hidden active:scale-[0.98]"
+                      >
+                        <span className="relative z-10 flex items-center justify-center gap-1">
+                          <CloudArrowDownIcon className="w-3.5 h-3.5" />
+                          Atualizar
+                        </span>
+                      </button>
                     )}
                   </div>
                 )}
@@ -1408,6 +1414,11 @@ export default function ExtensionsView() {
               installProgress={installProgress}
               installError={installError}
               recommendedVersionByExtId={recommendedVersionByExtId}
+              onDismissError={() => {
+                setInstallError(null)
+                setInstalling(null)
+                setInstallProgress(null)
+              }}
             />
           ) : (
             /* ─── List View ─── */

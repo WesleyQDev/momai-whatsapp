@@ -63,17 +63,25 @@ Para desenvolver e testar uma extensão em tempo real com o MomAI rodando em mod
 Clone o repositório da sua extensão em qualquer pasta de desenvolvimento de sua preferência (ex: `/caminho/para/minha-extensao`).
 
 ### Passo 2: Criar o Vínculo / Link Simbólico
-Crie um link de diretório que aponte do diretório de extensões ativas do MomAI para a pasta física da sua extensão. Execute o comando a partir da **raiz do monorepo do MomAI**:
+Crie um link de diretório que aponte da **subpasta `.dev/`** dentro do diretório de extensões ativas do MomAI para a pasta física da sua extensão. O MomAI isola os dois modos de desenvolvimento (edição via symlink × instalação real da loja) usando essa subpasta `.dev/`, então as duas fontes **coexistem sem conflitar**.
+
+> [!IMPORTANT]
+> Em modo **Dev (Symlinks)** (padrão), o MomAI lê extensões de `data/extensions/.dev/<id>` (com prioridade sobre uma eventual instalação real em `data/extensions/<id>`).
+> Em modo **Testar Loja**, o MomAI ignora `.dev/` e qualquer symlink — só enxerga a pasta real `data/extensions/<id>`, que é onde o instalador descompacta o ZIP.
+> Isso evita `EPERM` no install quando a pasta da skill contém um `.git/` (apps de desenvolvimento com junction direto na raiz).
 
 *   **No Windows (PowerShell):**
     > [!TIP]
     > O tipo `-ItemType Junction` é recomendado no Windows porque funciona exatamente como um link simbólico de pasta, mas **não exige privilégios de Administrador** para ser criado.
     ```powershell
-    New-Item -ItemType Junction -Path ".\apps\momai\data\extensions\minha-extensao" -Value "C:\caminho\para\minha-extensao"
+    # A partir da raiz do monorepo do MomAI
+    New-Item -ItemType Directory -Path ".\apps\momai\data\extensions\.dev" -Force
+    New-Item -ItemType Junction -Path ".\apps\momai\data\extensions\.dev\minha-extensao" -Value "C:\caminho\para\minha-extensao"
     ```
 *   **No Linux / macOS (Terminal):**
     ```bash
-    ln -s /caminho/para/minha-extensao ./apps/momai/data/extensions/minha-extensao
+    mkdir -p ./apps/momai/data/extensions/.dev
+    ln -s /caminho/para/minha-extensao ./apps/momai/data/extensions/.dev/minha-extensao
     ```
 
 ### Passo 3: Rodar o compilador da extensão em modo Watch
