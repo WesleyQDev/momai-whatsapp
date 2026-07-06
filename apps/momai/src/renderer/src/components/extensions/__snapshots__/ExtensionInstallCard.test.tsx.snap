@@ -1,0 +1,386 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ExtensionInstallCard > error variant snapshot for incompatible_version 1`] = `
+<DocumentFragment>
+  <div
+    class="max-w-md w-full p-4 rounded-xl bg-red-900/20 border border-red-700/50 text-zinc-100"
+  >
+    <div
+      class="flex items-start gap-3"
+    >
+      <span
+        class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-500/20 text-red-300 shrink-0"
+      >
+        <svg
+          fill="none"
+          height="14"
+          stroke="currentColor"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="14"
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+          />
+          <line
+            x1="12"
+            x2="12"
+            y1="8"
+            y2="13"
+          />
+          <circle
+            cx="12"
+            cy="16.5"
+            fill="currentColor"
+            r="0.5"
+          />
+        </svg>
+      </span>
+      <div
+        class="min-w-0 flex-1"
+      >
+        <div
+          class="text-sm font-semibold text-red-200"
+        >
+          Erro ao instalar
+        </div>
+        <div
+          class="mt-1 text-xs text-zinc-300 break-words"
+        >
+          Versão 0.4.0 requer MomAI &gt;=2.0.0
+        </div>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`ExtensionInstallCard > progress variant snapshot 1`] = `
+<DocumentFragment>
+  <div
+    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+  >
+    <div
+      class="flex items-center justify-between mb-3"
+    >
+      <span
+        class="text-sm font-semibold text-zinc-100"
+      >
+        WhatsApp
+      </span>
+      <span
+        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+      >
+        Instalando WhatsApp
+      </span>
+    </div>
+    <div
+      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+    >
+      <div
+        class="h-full bg-amber-500 transition-all duration-200"
+        style="width: 25%;"
+      />
+    </div>
+    <div
+      class="mt-2 text-xs text-zinc-400"
+    >
+      extensions.stages.downloading
+    </div>
+    <div
+      class="mt-1 text-[11px] text-zinc-500"
+    >
+      87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`ExtensionInstallCard > renders stage done 1`] = `
+<DocumentFragment>
+  <div
+    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+  >
+    <div
+      class="flex items-center justify-between mb-3"
+    >
+      <span
+        class="text-sm font-semibold text-zinc-100"
+      >
+        WhatsApp
+      </span>
+      <span
+        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+      >
+        Instalando WhatsApp
+      </span>
+    </div>
+    <div
+      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+    >
+      <div
+        class="h-full bg-amber-500 transition-all duration-200"
+        style="width: 25%;"
+      />
+    </div>
+    <div
+      class="mt-2 text-xs text-zinc-400"
+    >
+      extensions.stages.done
+    </div>
+    <div
+      class="mt-1 text-[11px] text-zinc-500"
+    >
+      87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`ExtensionInstallCard > renders stage downloading 1`] = `
+<DocumentFragment>
+  <div
+    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+  >
+    <div
+      class="flex items-center justify-between mb-3"
+    >
+      <span
+        class="text-sm font-semibold text-zinc-100"
+      >
+        WhatsApp
+      </span>
+      <span
+        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+      >
+        Instalando WhatsApp
+      </span>
+    </div>
+    <div
+      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+    >
+      <div
+        class="h-full bg-amber-500 transition-all duration-200"
+        style="width: 25%;"
+      />
+    </div>
+    <div
+      class="mt-2 text-xs text-zinc-400"
+    >
+      extensions.stages.downloading
+    </div>
+    <div
+      class="mt-1 text-[11px] text-zinc-500"
+    >
+      87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`ExtensionInstallCard > renders stage extracting 1`] = `
+<DocumentFragment>
+  <div
+    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+  >
+    <div
+      class="flex items-center justify-between mb-3"
+    >
+      <span
+        class="text-sm font-semibold text-zinc-100"
+      >
+        WhatsApp
+      </span>
+      <span
+        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+      >
+        Instalando WhatsApp
+      </span>
+    </div>
+    <div
+      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+    >
+      <div
+        class="h-full bg-amber-500 transition-all duration-200"
+        style="width: 25%;"
+      />
+    </div>
+    <div
+      class="mt-2 text-xs text-zinc-400"
+    >
+      extensions.stages.extracting
+    </div>
+    <div
+      class="mt-1 text-[11px] text-zinc-500"
+    >
+      87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`ExtensionInstallCard > renders stage indexing 1`] = `
+<DocumentFragment>
+  <div
+    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+  >
+    <div
+      class="flex items-center justify-between mb-3"
+    >
+      <span
+        class="text-sm font-semibold text-zinc-100"
+      >
+        WhatsApp
+      </span>
+      <span
+        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+      >
+        Instalando WhatsApp
+      </span>
+    </div>
+    <div
+      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+    >
+      <div
+        class="h-full bg-amber-500 transition-all duration-200"
+        style="width: 25%;"
+      />
+    </div>
+    <div
+      class="mt-2 text-xs text-zinc-400"
+    >
+      extensions.stages.indexing
+    </div>
+    <div
+      class="mt-1 text-[11px] text-zinc-500"
+    >
+      87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`ExtensionInstallCard > renders stage linking_deps 1`] = `
+<DocumentFragment>
+  <div
+    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+  >
+    <div
+      class="flex items-center justify-between mb-3"
+    >
+      <span
+        class="text-sm font-semibold text-zinc-100"
+      >
+        WhatsApp
+      </span>
+      <span
+        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+      >
+        Instalando WhatsApp
+      </span>
+    </div>
+    <div
+      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+    >
+      <div
+        class="h-full bg-amber-500 transition-all duration-200"
+        style="width: 25%;"
+      />
+    </div>
+    <div
+      class="mt-2 text-xs text-zinc-400"
+    >
+      extensions.stages.linking_deps
+    </div>
+    <div
+      class="mt-1 text-[11px] text-zinc-500"
+    >
+      87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`ExtensionInstallCard > renders stage starting_worker 1`] = `
+<DocumentFragment>
+  <div
+    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+  >
+    <div
+      class="flex items-center justify-between mb-3"
+    >
+      <span
+        class="text-sm font-semibold text-zinc-100"
+      >
+        WhatsApp
+      </span>
+      <span
+        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+      >
+        Instalando WhatsApp
+      </span>
+    </div>
+    <div
+      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+    >
+      <div
+        class="h-full bg-amber-500 transition-all duration-200"
+        style="width: 25%;"
+      />
+    </div>
+    <div
+      class="mt-2 text-xs text-zinc-400"
+    >
+      extensions.stages.starting_worker
+    </div>
+    <div
+      class="mt-1 text-[11px] text-zinc-500"
+    >
+      87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`ExtensionInstallCard > renders stage verifying 1`] = `
+<DocumentFragment>
+  <div
+    class="max-w-md w-full p-4 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100"
+  >
+    <div
+      class="flex items-center justify-between mb-3"
+    >
+      <span
+        class="text-sm font-semibold text-zinc-100"
+      >
+        WhatsApp
+      </span>
+      <span
+        class="text-[10px] uppercase tracking-widest text-amber-500 font-semibold"
+      >
+        Instalando WhatsApp
+      </span>
+    </div>
+    <div
+      class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden"
+    >
+      <div
+        class="h-full bg-amber-500 transition-all duration-200"
+        style="width: 25%;"
+      />
+    </div>
+    <div
+      class="mt-2 text-xs text-zinc-400"
+    >
+      extensions.stages.verifying
+    </div>
+    <div
+      class="mt-1 text-[11px] text-zinc-500"
+    >
+      87.2 KB / 184.1 KB · 22.9 KB/s · 4s restantes
+    </div>
+  </div>
+</DocumentFragment>
+`;
