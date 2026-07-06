@@ -388,15 +388,16 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   }
 
   function readDevMode() {
+    try {
+      const shared = require('../node-core/services/shared-state')
+      if (shared?.store?.settings?.dev_mode) {
+        return shared.store.settings.dev_mode
+      }
+    } catch {}
     if (process.env.VITEST || process.env.NODE_ENV === 'test') {
       return 'store_test'
     }
-    try {
-      const shared = require('../node-core/services/shared-state')
-      return shared?.store?.settings?.dev_mode === 'store_test' ? 'store_test' : 'symlink'
-    } catch {
-      return 'symlink'
-    }
+    return 'symlink'
   }
 
   async function loadExtensionFromDir({ dir, expectedId, permSchema }) {
@@ -442,6 +443,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       if (fs.existsSync(extensionsDevDir)) {
         scanRoots.push({ root: extensionsDevDir, ignoreSymlinks: false, isDev: true })
       }
+      scanRoots.push({ root: extensionsDir, ignoreSymlinks, isDev: false })
     } else {
       scanRoots.push({ root: extensionsDir, ignoreSymlinks, isDev: false })
     }

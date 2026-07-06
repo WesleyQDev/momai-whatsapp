@@ -19,7 +19,7 @@ const https = require('node:https')
  * Returns the captured value (quotes/spaces trimmed) or `null` if the
  * release/body is falsy or no `momai_compat` key is found.
  */
-const FRONTMATTER_RE = /^\s*-{3,}\s*\n[^]*?momai_compat\s*:\s*["']?([^"'\n]+)["']?/m
+const FRONTMATTER_RE = /^\s*-{3,}\s*\n[^]*?momai_compat\s*:\s*["']?([^"'\n]+)["']?/
 const NOTE_RE = /momai_compat\s*:\s*["']?([^"'\n]+)["']?/
 
 function parseReleaseCompat(release) {

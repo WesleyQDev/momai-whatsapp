@@ -91,7 +91,7 @@ After changes:
 - Run lint/typecheck/tests appropriate to the touched area before declaring work complete.
 - Self-review the diff for unrelated changes, secrets, lockfile noise, and accidental generated files.
 - Update docs when commands, contracts, manifests, APIs, permissions, extension behavior, or workflows change.
-- For extension changes, verify whether the external repository and `registry.json` must be updated.
+- For extension changes, verify whether the external repository and `dev-extensions.json` must be updated.
 
 ---
 

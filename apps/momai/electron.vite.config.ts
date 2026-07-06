@@ -40,6 +40,7 @@ function skillBundlesPlugin(): Plugin {
 
       const candidates = [
         resolve(__dirname, 'scripts/skills/packaged', skillId),
+        resolve(__dirname, 'data/extensions/.dev', skillId),
         resolve(__dirname, 'data/extensions', skillId),
         userExtensionsDir
       ].filter(Boolean)

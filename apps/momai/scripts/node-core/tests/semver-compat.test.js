@@ -39,6 +39,10 @@ test('satisfiesRange checks constraints correctly', () => {
   // Caret (^) operator
   expect(satisfiesRange('1.5.2', '^1.4.0')).toBe(true)
   expect(satisfiesRange('2.0.0', '^1.4.0')).toBe(false)
+  expect(satisfiesRange('0.4.5', '^0.4.0')).toBe(true)
+  expect(satisfiesRange('0.5.0', '^0.4.0')).toBe(false)
+  expect(satisfiesRange('0.0.4', '^0.0.4')).toBe(true)
+  expect(satisfiesRange('0.0.5', '^0.0.4')).toBe(false)
 
   // Tilde (~) operator
   expect(satisfiesRange('1.4.5', '~1.4.0')).toBe(true)

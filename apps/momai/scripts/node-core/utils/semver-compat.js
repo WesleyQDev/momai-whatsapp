@@ -52,8 +52,13 @@ function satisfiesComparator(version, comparator) {
     case '=':
       return cmp === 0
     case '^':
-      // ^1.4.0 means >=1.4.0 <2.0.0 (same major)
-      return ver.major === target.major && cmp >= 0
+      if (target.major > 0) {
+        return ver.major === target.major && cmp >= 0
+      }
+      if (target.minor > 0) {
+        return ver.major === 0 && ver.minor === target.minor && cmp >= 0
+      }
+      return ver.major === 0 && ver.minor === 0 && ver.patch === target.patch && cmp >= 0
     case '~':
       // ~1.4.0 means >=1.4.0 <1.5.0 (same major.minor)
       return ver.major === target.major && ver.minor === target.minor && cmp >= 0
