@@ -72,6 +72,11 @@ function makeMockRegistry({ catalog, releases, manifest }) {
   }
 }
 
+function makeMockLoadRegistry({ catalog, throwError = false }) {
+  if (throwError) return async () => { throw new Error('loadInstallRegistry failed') }
+  return async () => catalog
+}
+
 const CAT_ENTRY = {
   id: 'whatsapp',
   repo: 'WesleyQDev/momai-whatsapp-extension',
@@ -127,6 +132,7 @@ describe('resolveInstallVersion', () => {
       id: 'whatsapp',
       payload: {},
       communityRegistry: registry,
+      loadInstallRegistry: makeMockLoadRegistry({ catalog: { extensions: [CAT_ENTRY] } }),
       appVersion: '1.5.2'
     })
     expect(result.ok).toBe(true)
@@ -142,6 +148,7 @@ describe('resolveInstallVersion', () => {
       id: 'whatsapp',
       payload: { version: '0.3.30' },
       communityRegistry: registry,
+      loadInstallRegistry: makeMockLoadRegistry({ catalog: { extensions: [CAT_ENTRY] } }),
       appVersion: '1.5.2'
     })
     expect(result.ok).toBe(true)
@@ -157,6 +164,7 @@ describe('resolveInstallVersion', () => {
       id: 'whatsapp',
       payload: { version: 'v0.3.0' },
       communityRegistry: registry,
+      loadInstallRegistry: makeMockLoadRegistry({ catalog: { extensions: [CAT_ENTRY] } }),
       appVersion: '1.5.2'
     })
     expect(result.ok).toBe(true)
@@ -172,6 +180,7 @@ describe('resolveInstallVersion', () => {
       id: 'whatsapp',
       payload: { version: '9.9.9' },
       communityRegistry: registry,
+      loadInstallRegistry: makeMockLoadRegistry({ catalog: { extensions: [CAT_ENTRY] } }),
       appVersion: '1.5.2'
     })
     expect(result.ok).toBe(false)
@@ -189,6 +198,7 @@ describe('resolveInstallVersion', () => {
       id: 'whatsapp',
       payload: { download_url: url },
       communityRegistry: registry,
+      loadInstallRegistry: makeMockLoadRegistry({ catalog: { extensions: [CAT_ENTRY] } }),
       appVersion: '1.5.2'
     })
     expect(result.ok).toBe(true)
@@ -205,6 +215,7 @@ describe('resolveInstallVersion', () => {
       id: 'whatsapp',
       payload: { download_url: url },
       communityRegistry: registry,
+      loadInstallRegistry: makeMockLoadRegistry({ catalog: { extensions: [CAT_ENTRY] } }),
       appVersion: '1.5.2',
       fetchHeadStatus: async () => 404
     })
@@ -222,6 +233,7 @@ describe('resolveInstallVersion', () => {
       id: 'whatsapp',
       payload: { version: '0.4.0' },
       communityRegistry: registry,
+      loadInstallRegistry: makeMockLoadRegistry({ catalog: { extensions: [CAT_ENTRY] } }),
       appVersion: '1.5.2'
     })
     expect(result.ok).toBe(false)
@@ -240,6 +252,7 @@ describe('resolveInstallVersion', () => {
       id: 'nonexistent',
       payload: {},
       communityRegistry: registry,
+      loadInstallRegistry: makeMockLoadRegistry({ catalog: { extensions: [CAT_ENTRY] } }),
       appVersion: '1.5.2'
     })
     expect(result.ok).toBe(false)
@@ -260,10 +273,67 @@ describe('resolveInstallVersion', () => {
       id: 'whatsapp',
       payload: {},
       communityRegistry: registry,
+      loadInstallRegistry: makeMockLoadRegistry({ catalog: { extensions: [CAT_ENTRY] } }),
       appVersion: '1.5.2'
     })
     expect(result.ok).toBe(false)
     expect(result.status).toBe(409)
     expect(result.error).toBe('no_installable_release')
+  })
+
+  it('picks up entries from loadInstallRegistry that are missing in communityRegistry', async () => {
+    // Simulates the dev workflow: an extension declared ONLY in
+    // dev-extensions.json does not show up in communityRegistry.fetchRegistry(),
+    // so resolveInstallVersion MUST consult loadInstallRegistry() to find it.
+    const communityOnlyCatalog = { extensions: [] }
+    const mergedCatalog = {
+      extensions: [
+        {
+          id: 'system_info',
+          repo: 'WesleyQDev/momai-system-info',
+          download_url: 'https://example/system-info.zip',
+          version: '0.1.0'
+        }
+      ]
+    }
+    const registry = makeMockRegistry({
+      catalog: communityOnlyCatalog,
+      releases: { 'WesleyQDev/momai-system-info': [{
+        version: '0.1.0',
+        tag: 'v0.1.0',
+        download_url: 'https://example/system-info.zip',
+        changelog: '',
+        date: null,
+        prerelease: false,
+        momai_compat: null
+      }] }
+    })
+    const result = await resolveInstallVersion({
+      id: 'system_info',
+      payload: {},
+      communityRegistry: registry,
+      loadInstallRegistry: makeMockLoadRegistry({ catalog: mergedCatalog }),
+      appVersion: '1.5.2'
+    })
+    expect(result.ok).toBe(true)
+    expect(result.release.download_url).toBe('https://example/system-info.zip')
+  })
+
+  it('falls back to communityRegistry when loadInstallRegistry throws', async () => {
+    // If the load-install-registry hook itself fails, we should still be able
+    // to resolve from the community registry (preserve previous behavior).
+    const registry = makeMockRegistry({
+      catalog: { extensions: [CAT_ENTRY] },
+      releases: { [CAT_ENTRY.repo]: RELEASES }
+    })
+    const result = await resolveInstallVersion({
+      id: 'whatsapp',
+      payload: { version: '0.3.30' },
+      communityRegistry: registry,
+      loadInstallRegistry: makeMockLoadRegistry({ throwError: true }),
+      appVersion: '1.5.2'
+    })
+    expect(result.ok).toBe(true)
+    expect(result.release.version).toBe('0.3.30')
   })
 })

@@ -105,8 +105,14 @@ async function validateInstallUrl(id, downloadUrl) {
  * @param {string} opts.id
  * @param {object} opts.payload                 May contain `version` or `download_url`.
  * @param {object} opts.communityRegistry       Registry instance with fetchRegistry /
- *                                               fetchReleases / fetchManifest.
+ *                                               fetchReleases / fetchManifest. Used as a
+ *                                               fallback if `loadInstallRegistry` fails.
  * @param {string} opts.appVersion              App semver, used for compat checks.
+ * @param {() => Promise<{extensions: any[]}>} opts.loadInstallRegistry
+ *        Returns the merged catalog (community + any dev-only overrides). Required
+ *        so resolving an install in dev picks up entries declared exclusively in
+ *        `dev-extensions.json`. Falls back to `communityRegistry.fetchRegistry`
+ *        on error.
  * @param {(url: string) => Promise<number>} [opts.fetchHeadStatus]
  *        Optional seam used only when payload.download_url is explicit. Defaults
  *        to a function returning 200 (assume valid). Returns HTTP status code.
@@ -117,18 +123,38 @@ async function resolveInstallVersion({
   payload,
   communityRegistry,
   appVersion,
+  loadInstallRegistry: loadInstallRegistryFn,
   fetchHeadStatus
 }) {
   const headCheck = typeof fetchHeadStatus === 'function'
     ? fetchHeadStatus
     : async () => 200
 
-  // 1. Look up the extension in the community registry catalog.
+  // 1. Look up the extension in the merged install registry.
+  // We MUST go through `loadInstallRegistry` (not `communityRegistry.fetchRegistry`
+  // directly) so dev-only entries from `dev-extensions.json` resolve correctly.
+  // `loadInstallRegistry` already caches the community registry and merges any
+  // local override entries on top, returning the normalized
+  // `{ extensions: [...] }` shape.
   let catalog
   try {
-    catalog = await communityRegistry.fetchRegistry()
+    const merged = await loadInstallRegistryFn()
+    catalog = { extensions: (merged && merged.extensions) || [] }
   } catch {
-    catalog = { extensions: [] }
+    // Fall back to community registry only if the merged loader fails entirely.
+    // In production `communityRegistry.fetchRegistry()` returns an array
+    // (the raw community-extensions.json); the install-registry loader
+    // normalizes the same array into the `{ extensions: [...] }` shape.
+    try {
+      const community = await communityRegistry.fetchRegistry()
+      catalog = {
+        extensions: Array.isArray(community)
+          ? community
+          : (community && Array.isArray(community.extensions) ? community.extensions : [])
+      }
+    } catch {
+      catalog = { extensions: [] }
+    }
   }
   const catalogEntry =
     catalog && Array.isArray(catalog.extensions)
@@ -791,6 +817,7 @@ function createExtensionsRoutes(context) {
         payload,
         communityRegistry: getCommunityRegistry(),
         appVersion,
+        loadInstallRegistry,
         fetchHeadStatus: async () => 200
       })
 
