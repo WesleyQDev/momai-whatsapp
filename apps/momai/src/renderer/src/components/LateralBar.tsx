@@ -265,11 +265,18 @@ export default function LateralBar({
                   />
                 )}
                 {ext.icon_url || ext.manifest?.icon_url ? (
-                  <img
-                    src={ext.icon_url || ext.manifest?.icon_url}
-                    alt=""
-                    className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} object-contain transition-all duration-300 ease-out group-hover:scale-110`}
-                    loading="lazy"
+                  <div
+                    style={{
+                      maskImage: `url(${ext.icon_url || ext.manifest?.icon_url})`,
+                      WebkitMaskImage: `url(${ext.icon_url || ext.manifest?.icon_url})`,
+                      maskSize: 'contain',
+                      WebkitMaskSize: 'contain',
+                      maskRepeat: 'no-repeat',
+                      WebkitMaskRepeat: 'no-repeat',
+                      maskPosition: 'center',
+                      WebkitMaskPosition: 'center'
+                    }}
+                    className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} bg-current transition-all duration-300 ease-out group-hover:scale-110`}
                   />
                 ) : (Icon as any)?.__svg ? (
                   <InlineSvgIcon
