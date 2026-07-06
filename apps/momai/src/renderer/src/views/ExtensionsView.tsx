@@ -438,10 +438,7 @@ function FeaturedCarousel({
 }
 
 const ActiveGlow = () => (
-  <span className="relative flex h-2 w-2 mr-1">
-    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_8px_rgba(52,211,153,0.6)]"></span>
-  </span>
+  <span className="inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500 mr-1 shrink-0" />
 )
 
 /* ─── Skill Card ─── */
@@ -583,6 +580,7 @@ function SkillDetailView({
   const [releasesError, setReleasesError] = useState<string | null>(null)
   const [installedVersion, setInstalledVersion] = useState<string | null>(null)
   const [recommendedVersion, setRecommendedVersion] = useState<string | null>(null)
+  const [fetchedReadme, setFetchedReadme] = useState<string | null>(null)
 
   useEffect(() => {
     if (!releasesExpanded || !skill.repo) return
@@ -601,6 +599,18 @@ function SkillDetailView({
         setLoadingReleases(false)
       })
   }, [releasesExpanded, skill.id, skill.repo])
+
+  useEffect(() => {
+    const hasFullReadme = skill.instructions && skill.instructions.length > 200
+    if (hasFullReadme || !skill.repo) return
+    const [owner, repo] = skill.repo.split('/')
+    if (!owner || !repo) return
+    const url = `https://raw.githubusercontent.com/${owner}/${repo}/main/README.md`
+    fetch(url)
+      .then((r) => (r.ok ? r.text() : null))
+      .then((text) => { if (text) setFetchedReadme(text) })
+      .catch(() => {})
+  }, [skill.repo, skill.instructions])
 
   return (
     <div className="animate-fade-in max-w-6xl mx-auto px-6 pb-20">
@@ -828,96 +838,10 @@ function SkillDetailView({
         </div>
       </div>
 
-      {/* Balanced 3-Column Grid */}
+      {/* 2-Column Grid: Main content (left) + Sidebar (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Version History (Timeline format, 25% width -> lg:col-span-3) */}
-        {skill.repo && (
-          <div className="lg:col-span-3 space-y-6">
-            <section className="bg-zinc-950/20 rounded-2xl p-6 border border-zinc-850 backdrop-blur-xl">
-              <h2 className="text-[10px] font-black text-zinc-450 mb-6 uppercase tracking-widest">
-                Histórico de Versões
-              </h2>
-
-              <div className="mt-4">
-                {loadingReleases && (
-                  <p className="text-xs text-zinc-500 italic animate-pulse">Carregando versões...</p>
-                )}
-                {releasesError && (
-                  <p className="text-xs text-red-400 italic">Erro: {releasesError}</p>
-                )}
-                {!loadingReleases && !releasesError && releases.length === 0 && (
-                  <p className="text-xs text-zinc-500 italic">Nenhuma versão encontrada.</p>
-                )}
-                {!loadingReleases && !releasesError && releases.length > 0 && (
-                  <div className="relative border-l border-zinc-850 ml-2 pl-4 space-y-6">
-                    {releases.map((rel) => {
-                      const isCurrent = !!(installedVersion && rel.version === installedVersion)
-                      const isRecommended = !!(recommendedVersion && rel.version === recommendedVersion)
-                      return (
-                        <div key={rel.version} className="relative group/timeline text-left">
-                          {/* Timeline dot */}
-                          <div className={`absolute -left-[23px] top-1 w-2.5 h-2.5 rounded-full border-2 border-zinc-900 transition-all ${
-                            isCurrent
-                              ? 'bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]'
-                              : 'bg-zinc-700 group-hover/timeline:bg-zinc-500'
-                          }`} />
-
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs text-white font-extrabold">v{rel.version}</span>
-                              {isCurrent && (
-                                <span className="px-1.5 py-0.5 rounded bg-violet-500/10 border border-violet-500/20 text-[8px] text-violet-400 font-extrabold uppercase tracking-wide">
-                                  Instalada
-                                </span>
-                              )}
-                              {isRecommended && !isCurrent && (
-                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[8px] text-emerald-400 font-extrabold uppercase tracking-wide">
-                                  Recomendada
-                                </span>
-                              )}
-                            </div>
-                            {rel.date && (
-                              <p className="text-[9px] text-zinc-500">
-                                {new Date(rel.date).toLocaleDateString()}
-                              </p>
-                            )}
-                            {rel.changelog && (
-                              <p className="text-[10px] text-zinc-400 leading-normal line-clamp-3">
-                                {rel.changelog}
-                              </p>
-                            )}
-                            <div className="pt-1">
-                              {rel.compatible ? (
-                                <button
-                                  onClick={() => onInstall(skill, rel.download_url)}
-                                  disabled={installing === skill.id || isCurrent}
-                                  className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-wider transition-all border ${
-                                    isCurrent
-                                      ? 'border-zinc-800 text-zinc-650 cursor-default bg-zinc-900/20'
-                                      : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white'
-                                  }`}
-                                >
-                                  {isCurrent ? 'Atual' : 'Instalar'}
-                                </button>
-                              ) : (
-                                <span className="text-[8px] font-bold text-red-400 uppercase tracking-wide bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
-                                  Incompatível
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </section>
-          </div>
-        )}
-
-        {/* Center Column: Description & System Requirements (50% or 75% -> lg:col-span-6 or lg:col-span-9) */}
-        <div className={`${skill.repo ? 'lg:col-span-6' : 'lg:col-span-9'} space-y-6`}>
+        {/* Main Column: About, Requirements, Version History */}
+        <div className="lg:col-span-9 space-y-6">
           {/* Description Section */}
           <section className="bg-zinc-950/20 rounded-2xl p-8 border border-zinc-850 backdrop-blur-xl">
             <h2 className="text-[10px] font-black text-zinc-455 mb-6 uppercase tracking-widest">
@@ -930,9 +854,9 @@ function SkillDetailView({
               prose-li:text-zinc-200 prose-li:text-sm prose-li:mb-1.5
               prose-strong:text-white prose-code:text-violet-300 prose-code:bg-violet-500/15 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded"
             >
-              {skill.instructions || skill.readme ? (
+              {(fetchedReadme || skill.instructions || skill.readme) ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {skill.instructions || skill.readme}
+                  {fetchedReadme || skill.instructions || skill.readme}
                 </ReactMarkdown>
               ) : (
                 <div className="py-16 flex flex-col items-center justify-center text-center">
@@ -977,12 +901,95 @@ function SkillDetailView({
               </div>
             </div>
           </section>
+
+          {/* Version History Section - Timeline (below About) */}
+          {skill.repo && (
+            <section className="bg-zinc-950/20 rounded-2xl p-6 border border-zinc-850 backdrop-blur-xl">
+              <h2 className="text-[10px] font-black text-zinc-450 mb-6 uppercase tracking-widest">
+                Histórico de Versões
+              </h2>
+              <div>
+                {loadingReleases && (
+                  <p className="text-xs text-zinc-500 italic animate-pulse">Carregando versões...</p>
+                )}
+                {releasesError && (
+                  <p className="text-xs text-red-400 italic">Erro: {releasesError}</p>
+                )}
+                {!loadingReleases && !releasesError && releases.length === 0 && (
+                  <p className="text-xs text-zinc-500 italic">Nenhuma versão encontrada.</p>
+                )}
+                {!loadingReleases && !releasesError && releases.length > 0 && (
+                  <div className="relative border-l border-zinc-850 ml-2 pl-4 space-y-6">
+                    {releases.map((rel) => {
+                      const isCurrent = !!(installedVersion && rel.version === installedVersion)
+                      const isRecommended = !!(recommendedVersion && rel.version === recommendedVersion)
+                      return (
+                        <div key={rel.version} className="relative group/timeline text-left">
+                          <div className={`absolute -left-[23px] top-1 w-2.5 h-2.5 rounded-full border-2 border-zinc-900 transition-all ${
+                            isCurrent
+                              ? 'bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]'
+                              : 'bg-zinc-700 group-hover/timeline:bg-zinc-500'
+                          }`} />
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="space-y-1 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs text-white font-extrabold">v{rel.version}</span>
+                                {rel.date && (
+                                  <span className="text-[9px] text-zinc-500">
+                                    {new Date(rel.date).toLocaleDateString()}
+                                  </span>
+                                )}
+                                {isCurrent && (
+                                  <span className="px-1.5 py-0.5 rounded bg-violet-500/10 border border-violet-500/20 text-[8px] text-violet-400 font-extrabold uppercase tracking-wide">
+                                    Instalada
+                                  </span>
+                                )}
+                                {isRecommended && !isCurrent && (
+                                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[8px] text-emerald-400 font-extrabold uppercase tracking-wide">
+                                    Recomendada
+                                  </span>
+                                )}
+                              </div>
+                              {rel.changelog && (
+                                <p className="text-[10px] text-zinc-400 leading-normal">
+                                  {rel.changelog}
+                                </p>
+                              )}
+                            </div>
+                            <div className="shrink-0 pt-0.5">
+                              {rel.compatible ? (
+                                <button
+                                  onClick={() => onInstall(skill, rel.download_url)}
+                                  disabled={installing === skill.id || isCurrent}
+                                  className={`px-2.5 py-1 rounded text-[8px] font-black uppercase tracking-wider transition-all border ${
+                                    isCurrent
+                                      ? 'border-zinc-800 text-zinc-650 cursor-default bg-zinc-900/20'
+                                      : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white'
+                                  }`}
+                                >
+                                  {isCurrent ? 'Atual' : 'Instalar'}
+                                </button>
+                              ) : (
+                                <span className="text-[8px] font-bold text-red-400 uppercase tracking-wide bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
+                                  Incompatível
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
         </div>
 
-        {/* Right Column: Sidebar - Microsoft Store Style (25% width -> lg:col-span-3) */}
-        <div className="lg:col-span-3 space-y-6 lg:mt-0">
+        {/* Right Column: Sidebar (25% -> lg:col-span-3) */}
+        <div className="lg:col-span-3 space-y-6">
           <section className="bg-zinc-955/20 border border-zinc-850 rounded-2xl p-6 backdrop-blur-md">
-            <h3 className="text-[10px] font-black text-zinc-455 mb-6 uppercase tracking-widest flex items-center gap-2">
+            <h3 className="text-[10px] font-black text-zinc-455 mb-6 uppercase tracking-widest">
               Informações
             </h3>
 
