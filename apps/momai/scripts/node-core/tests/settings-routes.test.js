@@ -155,4 +155,30 @@ describe('settings routes', () => {
     // include dev_mode, so the extensions should remain enabled
     expect(ctx.store.extensions[0].enabled).toBe(true)
   })
+
+  test('PATCH /settings invalidates the extensions payload cache when switching dev_mode', async () => {
+    // Mock the extensions.routes module so we can observe the invalidation
+    // call without depending on the real cache state.
+    const invalidateSpy = vi.fn()
+    const { invalidateExtensionsPayloadCache } = require('../api/routes/extensions.routes')
+    const original = invalidateExtensionsPayloadCache
+    const extensionsRoutes = require('../api/routes/extensions.routes')
+    extensionsRoutes.invalidateExtensionsPayloadCache = invalidateSpy
+
+    try {
+      const { ctx } = makeCtx({
+        readJsonBody: async () => ({ dev_mode: 'store_test' })
+      })
+      ctx.store.extensions = [{ id: 'whatsapp', enabled: false, source: 'symlink' }]
+      const handler = createSettingsRoutes(ctx)
+
+      await handler({ method: 'PATCH' }, {}, '/settings', {
+        searchParams: new URLSearchParams()
+      })
+
+      expect(invalidateSpy).toHaveBeenCalled()
+    } finally {
+      extensionsRoutes.invalidateExtensionsPayloadCache = original
+    }
+  })
 })

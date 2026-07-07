@@ -138,6 +138,18 @@ function createSettingsRoutes(context) {
           if (context.skillRegistry && typeof context.skillRegistry.refresh === 'function') {
             await context.skillRegistry.refresh().catch(() => {})
           }
+          // Invalidate the cached /extensions payload so the next GET
+          // re-scans the new dev_mode's filesystem root instead of
+          // returning a stale payload from the previous mode.
+          try {
+            const { invalidateExtensionsPayloadCache } = require('./extensions.routes')
+            invalidateExtensionsPayloadCache()
+          } catch (err) {
+            console.log(
+              '[settings] Failed to invalidate extensions payload cache:',
+              err.message
+            )
+          }
           const newSkills = context.skillRegistry ? context.skillRegistry.getAll() : []
           for (const skill of newSkills) {
             if (skill.manifest?.background) {

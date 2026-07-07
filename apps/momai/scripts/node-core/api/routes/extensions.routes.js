@@ -442,6 +442,18 @@ let _cachedExtensionsPayload = null
 let _lastExtensionsRefresh = 0
 let _lastDevMode = null
 
+/**
+ * Invalidate the cached `/extensions` payload. MUST be called by any code
+ * path that mutates which extensions are visible in the current dev mode
+ * WITHOUT going through install/toggle/uninstall (e.g. dev_mode switch,
+ * which changes which filesystem root the registry scans).
+ */
+function invalidateExtensionsPayloadCache() {
+  _cachedExtensionsPayload = null
+  _lastExtensionsRefresh = 0
+  _lastDevMode = null
+}
+
 /* ── Helpers for downloading & extracting community extensions ── */
 
 function downloadFile(url, destPath, onProgress) {
@@ -1393,6 +1405,7 @@ module.exports = {
   createExtensionsRoutes,
   validateInstallUrl,
   resolveInstallVersion,
+  invalidateExtensionsPayloadCache,
   _setRegistry: _setInstallRegistryForTests,
   _setCommunityRegistryForTests
 }
