@@ -103,6 +103,13 @@ export interface StatusData {
     loaded_model_name: string | null
     [key: string]: any
   }
+  semantic_runtime?: {
+    embedding_model: string | null
+    embedding_ready: boolean
+    enabled: boolean
+    ready: boolean
+    [key: string]: any
+  }
 }
 
 export interface ChatStreamCallbacks {

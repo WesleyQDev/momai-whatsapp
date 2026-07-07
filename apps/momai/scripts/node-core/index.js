@@ -166,12 +166,29 @@ function buildSemanticRuntimeStatus() {
   const { percentile } = require('./utils/stats')
   const totalQueries = semanticState.queryCount
   const fallbackRate = totalQueries > 0 ? semanticState.fallbackCount / totalQueries : 0
+
+  let embeddingModelName = null
+  const modelPath = semanticState.embedding?.modelPath
+  if (modelPath) {
+    const basename = require('node:path').basename(modelPath)
+    const raw = basename.replace(/\.gguf$/i, '').replace(/-Q[0-9]_[0-9A-Z]+$/, '')
+    const compact = raw
+      .replace(/-Embedding/i, '')
+      .replace(/-Qwen/, 'Qwen')
+      .replace(/-LFM/, 'LFM')
+      .replace(/-(\d+)/, ' $1')
+      .trim()
+    embeddingModelName = compact
+  }
+
   return {
     enabled: semanticState.enabled,
     ready: semanticState.ready,
     degraded: semanticState.degraded,
     last_fallback_reason: semanticState.lastFallbackReason,
     fallback_rate: Math.round(fallbackRate * 1000) / 1000,
+    embedding_ready: semanticState.embedding?.ready || false,
+    embedding_model: embeddingModelName,
     embedding_p50_ms: percentile(semanticState.latency.embeddingMs, 50),
     embedding_p95_ms: percentile(semanticState.latency.embeddingMs, 95),
     retrieval_p50_ms: percentile(semanticState.latency.retrievalMs, 50),

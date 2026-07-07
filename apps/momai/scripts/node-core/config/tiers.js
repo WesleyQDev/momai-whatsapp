@@ -44,8 +44,8 @@ const DEFAULT_TIERS = {
     presence_penalty: 0.6,
     repetition_penalty: 1.05,
     max_tokens: 512,
-    embedding_file: 'Qwen3-Embedding-0.6B-Q8_0.gguf',
-    embedding_repo: 'Qwen/Qwen3-Embedding-0.6B-GGUF'
+    embedding_file: 'LFM2.5-Embedding-350M-Q8_0.gguf',
+    embedding_repo: 'LiquidAI/LFM2.5-Embedding-350M-GGUF'
   }
 }
 
