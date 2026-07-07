@@ -105,3 +105,77 @@ describe('createSkillRegistry: dev mode (.dev folder) isolation', () => {
     cleanup()
   })
 })
+
+describe('createSkillRegistry: strict mode isolation (regression for store/dev conflict)', () => {
+  let dataDir
+  let builtinSkillsDir
+
+  beforeEach(() => {
+    dataDir = makeTmpDataDir()
+    const extensionsDir = path.join(dataDir, 'extensions')
+    fs.mkdirSync(extensionsDir, { recursive: true })
+    builtinSkillsDir = path.join(dataDir, 'builtins')
+    fs.mkdirSync(builtinSkillsDir, { recursive: true })
+  })
+
+  afterEach(() => {
+    try {
+      fs.rmSync(dataDir, { recursive: true, force: true })
+    } catch {}
+  })
+
+  it('in symlink mode: extensionsDir/<id> is NOT loaded when there is no .dev/<id> (regression: loja version must not bleed into dev mode)', async () => {
+    const cleanup = makeFakeSharedState('symlink')
+
+    const realDir = path.join(dataDir, 'extensions', 'whatsapp')
+    writeManifest(realDir, { id: 'whatsapp', name: 'WhatsApp Loja', version: '1.0.0' })
+
+    const registry = createSkillRegistry({ dataDir, builtinSkillsDir })
+    await registry.refresh()
+
+    const skill = registry.getAll().find((s) => s.id === 'whatsapp')
+    expect(skill).toBeUndefined()
+
+    cleanup()
+  })
+
+  it('in store_test mode: a symlink in .dev/<id> is NOT loaded when extensionsDir/<id> is missing (regression: dev symlink must not bleed into store mode)', async () => {
+    const cleanup = makeFakeSharedState('store_test')
+
+    const devDir = path.join(dataDir, 'extensions', '.dev', 'whatsapp')
+    writeManifest(devDir, { id: 'whatsapp', name: 'WhatsApp Dev', version: '9.9.9' })
+
+    const registry = createSkillRegistry({ dataDir, builtinSkillsDir })
+    await registry.refresh()
+
+    const skill = registry.getAll().find((s) => s.id === 'whatsapp')
+    expect(skill).toBeUndefined()
+
+    cleanup()
+  })
+
+  it('in symlink mode: scan follows a real symlink in .dev/<id> (extension is loaded through the symlink target)', async () => {
+    const cleanup = makeFakeSharedState('symlink')
+
+    const target = path.join(dataDir, 'local-source', 'whatsapp')
+    const devDir = path.join(dataDir, 'extensions', '.dev', 'whatsapp')
+    writeManifest(target, { id: 'whatsapp', name: 'WhatsApp Local', version: '0.0.1' })
+    fs.mkdirSync(path.dirname(devDir), { recursive: true })
+    try {
+      fs.symlinkSync(target, devDir, 'dir')
+    } catch (e) {
+      // Windows may require admin or developer mode; skip if unsupported
+      cleanup()
+      return
+    }
+
+    const registry = createSkillRegistry({ dataDir, builtinSkillsDir })
+    await registry.refresh()
+
+    const skill = registry.getAll().find((s) => s.id === 'whatsapp')
+    expect(skill).toBeTruthy()
+    expect(skill.manifest.name).toBe('WhatsApp Local')
+
+    cleanup()
+  })
+})

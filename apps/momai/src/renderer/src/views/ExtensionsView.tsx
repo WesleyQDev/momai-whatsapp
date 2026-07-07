@@ -490,6 +490,22 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
                 Symlink
               </div>
             )}
+            {import.meta.env.DEV && !skill.isSymlink && skill.source === 'store_test' && (
+              <div
+                title="Instalado via Testar Loja — só fica ativo enquanto o modo Testar Loja estiver selecionado"
+                className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded-full text-[9px] font-bold uppercase tracking-wider border border-blue-500/25"
+              >
+                Loja
+              </div>
+            )}
+            {import.meta.env.DEV && !skill.isSymlink && skill.source === 'symlink' && (
+              <div
+                title="Registrado no modo Dev — o symlink .dev/<id> ainda não foi criado pelo usuário"
+                className="flex items-center gap-1 px-2 py-0.5 bg-violet-500/10 text-violet-400 rounded-full text-[9px] font-bold uppercase tracking-wider border border-violet-500/25"
+              >
+                Dev
+              </div>
+            )}
             {skill.updateAvailable && (
               <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/25 animate-pulse">
                 Upgrade
@@ -615,13 +631,14 @@ function SkillDetailView({
     const url = `https://raw.githubusercontent.com/${owner}/${repo}/main/README.md`
     fetch(url)
       .then((r) => (r.ok ? r.text() : null))
-      .then((text) => { if (text) setFetchedReadme(text) })
+      .then((text) => {
+        if (text) setFetchedReadme(text)
+      })
       .catch(() => {})
   }, [skill.repo, skill.instructions])
 
   return (
     <div className="animate-fade-in max-w-6xl mx-auto px-6 pb-20">
-
       {/* Tighter Hero Header */}
       <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-6 pb-6 border-b border-zinc-800/50">
         <div
@@ -695,14 +712,19 @@ function SkillDetailView({
                 Versão
               </span>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-zinc-300 font-bold">{recommendedVersion || skill.version || '1.0.0'}</span>
+                <span className="text-xs text-zinc-300 font-bold">
+                  {recommendedVersion || skill.version || '1.0.0'}
+                </span>
                 {skill.updateAvailable && (
                   <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-[8px] text-blue-400 font-black uppercase tracking-wider animate-pulse">
                     Upgrade disponível ({skill.latestCompatibleVersion})
                   </span>
                 )}
                 {skill.hasNewerIncompatible && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-[8px] text-amber-400 font-black uppercase tracking-wider" title="Requer versão mais recente do MomAI">
+                  <span
+                    className="inline-flex items-center px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-[8px] text-amber-400 font-black uppercase tracking-wider"
+                    title="Requer versão mais recente do MomAI"
+                  >
                     Incompatível mais recente
                   </span>
                 )}
@@ -719,7 +741,9 @@ function SkillDetailView({
                 <div className="mt-2">
                   <button
                     onClick={() => onInstall(skill, undefined)}
-                    disabled={installing === skill.id || recommendedVersionByExtId?.[skill.id] === null}
+                    disabled={
+                      installing === skill.id || recommendedVersionByExtId?.[skill.id] === null
+                    }
                     title={
                       recommendedVersionByExtId?.[skill.id] === null
                         ? t('extensions.install.no_compatible')
@@ -765,10 +789,7 @@ function SkillDetailView({
                 {installing === skill.id ? (
                   <>
                     {installProgress && (
-                      <ExtensionInstallCard
-                        progress={installProgress}
-                        extName={skill.name}
-                      />
+                      <ExtensionInstallCard progress={installProgress} extName={skill.name} />
                     )}
                     {installError && (
                       <ExtensionInstallCard
@@ -794,10 +815,7 @@ function SkillDetailView({
                     {installing === skill.id ? (
                       <>
                         {installProgress && (
-                          <ExtensionInstallCard
-                            progress={installProgress}
-                            extName={skill.name}
-                          />
+                          <ExtensionInstallCard progress={installProgress} extName={skill.name} />
                         )}
                         {installError && (
                           <ExtensionInstallCard
@@ -861,7 +879,7 @@ function SkillDetailView({
               prose-li:text-zinc-200 prose-li:text-sm prose-li:mb-1.5
               prose-strong:text-white prose-code:text-violet-300 prose-code:bg-violet-500/15 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded"
             >
-              {(fetchedReadme || skill.instructions || skill.readme) ? (
+              {fetchedReadme || skill.instructions || skill.readme ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {fetchedReadme || skill.instructions || skill.readme}
                 </ReactMarkdown>
@@ -917,7 +935,9 @@ function SkillDetailView({
               </h2>
               <div>
                 {loadingReleases && (
-                  <p className="text-xs text-zinc-500 italic animate-pulse">Carregando versões...</p>
+                  <p className="text-xs text-zinc-500 italic animate-pulse">
+                    Carregando versões...
+                  </p>
                 )}
                 {releasesError && (
                   <p className="text-xs text-red-400 italic">Erro: {releasesError}</p>
@@ -929,18 +949,24 @@ function SkillDetailView({
                   <div className="relative border-l border-zinc-850 ml-2 pl-4 space-y-6">
                     {releases.map((rel) => {
                       const isCurrent = !!(installedVersion && rel.version === installedVersion)
-                      const isRecommended = !!(recommendedVersion && rel.version === recommendedVersion)
+                      const isRecommended = !!(
+                        recommendedVersion && rel.version === recommendedVersion
+                      )
                       return (
                         <div key={rel.version} className="relative group/timeline text-left">
-                          <div className={`absolute -left-[23px] top-1 w-2.5 h-2.5 rounded-full border-2 border-zinc-900 transition-all ${
-                            isCurrent
-                              ? 'bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]'
-                              : 'bg-zinc-700 group-hover/timeline:bg-zinc-500'
-                          }`} />
+                          <div
+                            className={`absolute -left-[23px] top-1 w-2.5 h-2.5 rounded-full border-2 border-zinc-900 transition-all ${
+                              isCurrent
+                                ? 'bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]'
+                                : 'bg-zinc-700 group-hover/timeline:bg-zinc-500'
+                            }`}
+                          />
                           <div className="flex items-start justify-between gap-4">
                             <div className="space-y-1 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-xs text-white font-extrabold">v{rel.version}</span>
+                                <span className="text-xs text-white font-extrabold">
+                                  v{rel.version}
+                                </span>
                                 {rel.date && (
                                   <span className="text-[9px] text-zinc-500">
                                     {new Date(rel.date).toLocaleDateString()}
@@ -1127,21 +1153,39 @@ export default function ExtensionsView() {
   const [installProgress, setInstallProgress] = useState<InstallProgress | null>(null)
   const [installError, setInstallError] = useState<InstallError | null>(null)
   const [uninstallTarget, setUninstallTarget] = useState<{ id: string; name: string } | null>(null)
-  const [recommendedVersionByExtId, setRecommendedVersionByExtId] = useState<Record<string, string | null>>({})
+  const [recommendedVersionByExtId, setRecommendedVersionByExtId] = useState<
+    Record<string, string | null>
+  >({})
   const [viewMode, setViewMode] = useState<'store' | 'library'>('store')
   const [selectedSkill, setSelectedSkill] = useState<Extension | null>(null)
   const [selectedManifest, setSelectedManifest] = useState<Record<string, any> | null>(null)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [devMode, setDevMode] = useState<'symlink' | 'store_test'>('symlink')
+  const [modeSwitchNotice, setModeSwitchNotice] = useState<string | null>(null)
   const tagsDragScrollRef = useRef<HTMLDivElement | null>(null)
   const tagsDragScroll = useDragScroll(tagsDragScrollRef)
 
   const handleSetDevMode = async (mode: 'symlink' | 'store_test') => {
+    const prevMode = devMode
+    if (prevMode === mode) return
     try {
+      // Count currently-active extensions in the previous mode so we can
+      // tell the user how many were deactivated by the security policy.
+      const wasActive = allSkills.filter(
+        (s) => s.category === 'extension' && s.enabled
+      ).length
       await updateSettingsPartial({ dev_mode: mode })
       setDevMode(mode)
-      await loadData()
+      const fresh = await loadData(true)
+      if (wasActive > 0) {
+        const modeLabel = mode === 'symlink' ? 'Dev (Symlinks)' : 'Testar Loja'
+        setModeSwitchNotice(
+          `Modo trocado para ${modeLabel}. ${wasActive} extensão(ões) desativada(s) por segurança — reative manualmente as que deseja usar neste ambiente.`
+        )
+        // Auto-dismiss after a few seconds
+        setTimeout(() => setModeSwitchNotice(null), 8000)
+      }
     } catch (err) {
       console.error('Erro ao atualizar modo dev:', err)
     }
@@ -1190,7 +1234,16 @@ export default function ExtensionsView() {
 
   const handleInstall = async (ext: Extension, downloadUrl?: string) => {
     setInstalling(ext.id)
-    setInstallProgress({ stage: 'downloading', status: 'Iniciando...', percent: 0, global_percent: 0, bytes_total: null, bytes_done: null, speed_bps: 0, eta_seconds: null })
+    setInstallProgress({
+      stage: 'downloading',
+      status: 'Iniciando...',
+      percent: 0,
+      global_percent: 0,
+      bytes_total: null,
+      bytes_done: null,
+      speed_bps: 0,
+      eta_seconds: null
+    })
     setInstallError(null)
     let errored = false
     try {
@@ -1298,8 +1351,7 @@ export default function ExtensionsView() {
       })
   }, [installedSkills])
 
-  const currentList =
-    viewMode === 'library' ? [...builtinSkills, ...installedSkills] : storeSkills
+  const currentList = viewMode === 'library' ? [...builtinSkills, ...installedSkills] : storeSkills
 
   const allTags = useMemo(() => {
     const tags = new Set<string>()
@@ -1332,6 +1384,19 @@ export default function ExtensionsView() {
       {/* ─── Content ─── */}
       <div className="flex-1 min-w-0 overflow-y-auto">
         <div className="w-full px-6 py-5">
+          {modeSwitchNotice && (
+            <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-300 text-sm animate-fade-in">
+              <ExclamationCircleIcon className="w-5 h-5 shrink-0" />
+              <span className="flex-1">{modeSwitchNotice}</span>
+              <button
+                onClick={() => setModeSwitchNotice(null)}
+                className="text-amber-400/60 hover:text-amber-300 transition-colors"
+                title="Fechar"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           {/* ─── Tabs & Search ─── */}
           <div className="flex items-center justify-between mb-5">
             {!selectedSkill ? (
@@ -1341,7 +1406,7 @@ export default function ExtensionsView() {
                   <div className="flex items-center gap-1 p-0.5 bg-zinc-950/40 rounded-lg border border-zinc-800/80">
                     <button
                       onClick={() => handleSetDevMode('symlink')}
-                      title="Testar extensões usando links simbólicos locais"
+                      title="Ambiente DEV: só lê de .dev/ (links simbólicos para checkouts locais). Ambientes completamente separados."
                       className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
                         devMode === 'symlink'
                           ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400 font-extrabold shadow-sm'
@@ -1352,7 +1417,7 @@ export default function ExtensionsView() {
                     </button>
                     <button
                       onClick={() => handleSetDevMode('store_test')}
-                      title="Testar fluxo de download da loja usando dev-extensions.json"
+                      title="Ambiente LOJA: só lê de extensionsDir/ (downloads reais). Ambientes completamente separados."
                       className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
                         devMode === 'store_test'
                           ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400 font-extrabold shadow-sm'
@@ -1366,7 +1431,10 @@ export default function ExtensionsView() {
               </div>
             ) : (
               <button
-                onClick={() => { setSelectedSkill(null); setSelectedManifest(null) }}
+                onClick={() => {
+                  setSelectedSkill(null)
+                  setSelectedManifest(null)
+                }}
                 className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-[11px] font-bold transition-colors group uppercase tracking-widest"
               >
                 <ArrowLeftIcon className="w-3 h-3 transition-transform group-hover:-translate-x-0.5" />
@@ -1391,7 +1459,7 @@ export default function ExtensionsView() {
               >
                 <ArrowPathIcon className="w-4 h-4" />
               </button>
-              
+
               {/* Library (Biblioteca) Toggle Button */}
               {!selectedSkill && (
                 <button
@@ -1404,7 +1472,9 @@ export default function ExtensionsView() {
                   title="Biblioteca"
                 >
                   <FolderIcon className="w-4 h-4" />
-                  <span className="text-[10px] uppercase tracking-wider font-bold pr-1">Biblioteca</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold pr-1">
+                    Biblioteca
+                  </span>
                 </button>
               )}
             </div>
@@ -1412,8 +1482,15 @@ export default function ExtensionsView() {
           {selectedSkill ? (
             /* ─── Detail View ─── */
             <SkillDetailView
-              skill={selectedManifest ? enrichExtensionWithManifest(selectedSkill, selectedManifest) : selectedSkill}
-              onBack={() => { setSelectedSkill(null); setSelectedManifest(null) }}
+              skill={
+                selectedManifest
+                  ? enrichExtensionWithManifest(selectedSkill, selectedManifest)
+                  : selectedSkill
+              }
+              onBack={() => {
+                setSelectedSkill(null)
+                setSelectedManifest(null)
+              }}
               onInstall={handleInstall}
               onToggle={handleToggle}
               onUninstall={handleUninstall}
@@ -1436,7 +1513,9 @@ export default function ExtensionsView() {
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
                     <div>
                       <h2 className="text-xl font-extrabold text-white">Biblioteca</h2>
-                      <p className="text-xs text-zinc-500 mt-1">Gerencie suas extensões e habilidades instaladas localmente.</p>
+                      <p className="text-xs text-zinc-500 mt-1">
+                        Gerencie suas extensões e habilidades instaladas localmente.
+                      </p>
                     </div>
                     <button
                       onClick={() => loadData(false)}
@@ -1474,7 +1553,9 @@ export default function ExtensionsView() {
                                     >
                                       {skill.name}
                                     </p>
-                                    <p className="text-[10px] text-zinc-500 mt-0.5">{skill.description}</p>
+                                    <p className="text-[10px] text-zinc-500 mt-0.5">
+                                      {skill.description}
+                                    </p>
                                   </div>
                                 </td>
                                 <td className="p-4 text-xs font-mono text-zinc-400">
@@ -1531,7 +1612,9 @@ export default function ExtensionsView() {
                     <div className="flex flex-col items-center justify-center py-24 text-zinc-600 border border-dashed border-zinc-800 rounded-2xl">
                       <PuzzlePieceIcon className="w-12 h-12 mb-4 opacity-25" />
                       <p className="text-sm font-bold">Nenhuma extensão instalada</p>
-                      <p className="text-xs text-zinc-700 mt-1">Navegue pelo catálogo da loja para descobrir e instalar extensões.</p>
+                      <p className="text-xs text-zinc-700 mt-1">
+                        Navegue pelo catálogo da loja para descobrir e instalar extensões.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1594,9 +1677,7 @@ export default function ExtensionsView() {
                   ) : (
                     <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
                       <WrenchIcon className="w-12 h-12 mb-4 opacity-30" />
-                      <p className="text-sm font-medium">
-                        Nenhuma skill disponível
-                      </p>
+                      <p className="text-sm font-medium">Nenhuma skill disponível</p>
                       <p className="text-xs mt-1 text-zinc-700">
                         Todas as skills já estão instaladas ou indisponíveis.
                       </p>

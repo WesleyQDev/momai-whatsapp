@@ -94,4 +94,65 @@ describe('settings routes', () => {
     // Verify saveStore was called
     expect(ctx.saveStore).toHaveBeenCalled()
   })
+
+  test('PATCH /settings deactivates ALL extensions when switching dev_mode (security: separate environments)', async () => {
+    const started = []
+    const { ctx, getLast } = makeCtx({
+      readJsonBody: async () => ({ dev_mode: 'store_test' }),
+      extensionHostManager: {
+        stopAllPersistent: vi.fn().mockResolvedValue(undefined),
+        startPersistent: vi.fn().mockImplementation((id) => {
+          started.push(id)
+          return Promise.resolve()
+        })
+      },
+      skillRegistry: {
+        refresh: vi.fn().mockResolvedValue(undefined),
+        getAll: () => [
+          { id: 'whatsapp', kind: 'extension', manifest: { background: true }, dir: '/fake' },
+          { id: 'launcher', kind: 'extension', manifest: { background: true }, dir: '/fake' }
+        ]
+      }
+    })
+    // Simulate a state where two extensions were active in the previous mode
+    ctx.store.extensions = [
+      { id: 'whatsapp', enabled: true, source: 'symlink' },
+      { id: 'launcher', enabled: true, source: 'symlink' }
+    ]
+    // Previous dev_mode is the default 'symlink' (from makeCtx), we're switching to 'store_test'
+    const handler = createSettingsRoutes(ctx)
+
+    const handled = await handler({ method: 'PATCH' }, {}, '/settings', {
+      searchParams: new URLSearchParams()
+    })
+
+    expect(handled).toBe(true)
+    expect(getLast().status).toBe(200)
+
+    // Both extensions must be deactivated
+    expect(ctx.store.extensions[0].enabled).toBe(false)
+    expect(ctx.store.extensions[1].enabled).toBe(false)
+
+    // No persistent workers should have been spawned after the deactivation
+    expect(started).toEqual([])
+
+    // stopAllPersistent should have been called to kill the old workers
+    expect(ctx.extensionHostManager.stopAllPersistent).toHaveBeenCalled()
+  })
+
+  test('PATCH /settings does NOT touch extensions when dev_mode is unchanged', async () => {
+    const { ctx } = makeCtx({
+      readJsonBody: async () => ({ user_name: 'No Mode Switch' })
+    })
+    ctx.store.extensions = [{ id: 'whatsapp', enabled: true, source: 'store_test' }]
+    const handler = createSettingsRoutes(ctx)
+
+    await handler({ method: 'PATCH' }, {}, '/settings', {
+      searchParams: new URLSearchParams()
+    })
+
+    // dev_mode is 'symlink' (default from makeCtx) and the payload did not
+    // include dev_mode, so the extensions should remain enabled
+    expect(ctx.store.extensions[0].enabled).toBe(true)
+  })
 })

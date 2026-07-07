@@ -433,23 +433,22 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     const permSchema = createPermissionSchema()
     const devMode = readDevMode()
 
-    const ignoreSymlinks = devMode === 'store_test'
-
-    // Scan order: in dev (symlink) mode the .dev/ folder overrides the real one;
-    // in store_test mode .dev/ is never read. This lets symlinks live in .dev/
-    // alongside a "real" install in extensionsDir without conflicting.
+    // Strict mode isolation: the two modes scan disjoint roots so a "loja"
+    // install under extensionsDir/<id> never bleeds into dev mode and a
+    // symlink in .dev/<id> never bleeds into store_test mode. This prevents
+    // the conflict where switching modes left stale state active.
     const scanRoots = []
     if (devMode === 'symlink') {
-      if (fs.existsSync(extensionsDevDir)) {
-        scanRoots.push({ root: extensionsDevDir, ignoreSymlinks: false, isDev: true })
-      }
-      scanRoots.push({ root: extensionsDir, ignoreSymlinks, isDev: false })
+      // Dev mode reads only .dev/ (the symlink layer). Real directories in
+      // extensionsDir/ are ignored — they are owned by store_test mode.
+      scanRoots.push({ root: extensionsDevDir })
     } else {
-      scanRoots.push({ root: extensionsDir, ignoreSymlinks, isDev: false })
+      // store_test mode reads only extensionsDir/, never .dev/.
+      scanRoots.push({ root: extensionsDir })
     }
 
     const seenIds = new Set()
-    for (const { root, ignoreSymlinks: rootIgnoreSymlinks } of scanRoots) {
+    for (const { root } of scanRoots) {
       if (!fs.existsSync(root)) continue
       for (const name of fs.readdirSync(root)) {
         // Skip the .dev folder when scanning extensionsDir (avoid recursion).
@@ -458,15 +457,6 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
         const dir = path.join(root, name)
         const stat = fs.statSync(dir, { throwIfNoEntry: false })
         if (!stat || !stat.isDirectory()) continue
-
-        if (rootIgnoreSymlinks) {
-          try {
-            const lstat = fs.lstatSync(dir)
-            if (lstat.isSymbolicLink()) {
-              continue
-            }
-          } catch {}
-        }
 
         const skill = await loadExtensionFromDir({ dir, expectedId: name, permSchema })
         if (!skill) continue
