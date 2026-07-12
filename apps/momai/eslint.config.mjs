@@ -50,8 +50,10 @@ export default defineConfig(
   },
   {
     files: ['src/main/**/*.{ts,tsx}'],
+    ignores: ['src/main/logger*.ts'],
     rules: {
-      '@typescript-eslint/no-require-imports': 'off'
+      '@typescript-eslint/no-require-imports': 'off',
+      'no-console': ['error', { allow: ['warn', 'error'] }]
     }
   },
   eslintConfigPrettier

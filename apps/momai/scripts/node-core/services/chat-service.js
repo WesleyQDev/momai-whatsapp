@@ -13,7 +13,7 @@ function getSkillRegistry() {
 function getPromptRegistry() {
   return shared.promptRegistry
 }
-const { debug, info, warn } = require('../infrastructure/logger')
+const { debug, info, warn, error } = require('../infrastructure/logger')
 const {
   sendSseHeaders,
   writeSse,
@@ -454,7 +454,7 @@ async function streamLlamaChat(req, res, payload) {
         memorySources = memorySources.slice(-MAX_SOURCES)
       }
     } catch (e) {
-      console.error('[ChatService] Semantic memory failed, continuing without it:', e)
+      error('[ChatService] Semantic memory failed, continuing without it:', e)
     }
   }
 
@@ -501,10 +501,10 @@ async function streamLlamaChat(req, res, payload) {
   const enqueueAutoTts = (chunk) => {
     const cleaned = String(chunk || '').trim()
     if (cleaned.length < 2) {
-      console.log(`[TTS-DEBUG] enqueueAutoTts SKIPPED: cleaned.length=${cleaned.length}`)
+      debug(`[TTS-DEBUG] enqueueAutoTts SKIPPED: cleaned.length=${cleaned.length}`)
       return
     }
-    console.log(
+    debug(
       `[TTS-DEBUG] enqueueAutoTts CALLING triggerAutoTts: cleaned="${cleaned.slice(0, 60)}"`
     )
     ttsQueue.push(cleaned)
@@ -536,26 +536,26 @@ async function streamLlamaChat(req, res, payload) {
       currentGen !== generationId ||
       closed
     ) {
-      console.log(
+      debug(
         `[TTS-DEBUG] flushTtsChunks(${final}) guard blocked: speakResponse=${speakResponse} silent=${silentForCodeIntent} stopGen=${stopGenerationRequested} genMatch=${currentGen === generationId} closed=${closed}`
       )
       return
     }
     if (containsCodeLikeContent(assembled)) {
-      console.log(
+      debug(
         `[TTS-DEBUG] flushTtsChunks(${final}) blocked: containsCodeLikeContent=true assembled.length=${assembled.length}`
       )
       return
     }
     const pending = assembled.slice(ttsCursor)
     if (!pending) {
-      console.log(
+      debug(
         `[TTS-DEBUG] flushTtsChunks(${final}) blocked: pending empty, ttsCursor=${ttsCursor}`
       )
       return
     }
     if (!final && pending.length < prebufferChars) {
-      console.log(
+      debug(
         `[TTS-DEBUG] flushTtsChunks(${final}) blocked: pending.length=${pending.length} < prebufferChars=${prebufferChars}`
       )
       return
@@ -575,7 +575,7 @@ async function streamLlamaChat(req, res, payload) {
 
     const chunk = pending.slice(0, cut).trim()
     ttsCursor += cut
-    console.log(
+    debug(
       `[TTS-DEBUG] flushTtsChunks(${final}) ENQUEUING: cut=${cut} cursor=${ttsCursor} chunkLen=${chunk.length} chunk="${chunk.slice(0, 60)}"`
     )
     enqueueAutoTts(chunk)
@@ -1736,7 +1736,7 @@ async function streamLlamaChat(req, res, payload) {
 }
 
 async function runVoiceCommand(payload = {}) {
-  console.log('[VOICE-CMD] runVoiceCommand called with content:', payload.content)
+  debug('[VOICE-CMD] runVoiceCommand called with content:', payload.content)
   let content = String(payload.content || '').trim()
   if (!content) return
   const originalContent = content
@@ -1766,17 +1766,17 @@ async function runVoiceCommand(payload = {}) {
 
   let keywordWebSources = null
 
-  console.log('[VOICE-CMD] Checking responda in:', originalContent)
+  debug('[VOICE-CMD] Checking responda in:', originalContent)
   const contentLower = originalContent.toLowerCase().trim()
   if (contentLower.startsWith('responda') || contentLower.startsWith('responde')) {
-    console.log('[VOICE-CMD] responda detected, resolving via voice hook')
+    debug('[VOICE-CMD] responda detected, resolving via voice hook')
     try {
       const hostManager = require('./extension-host-manager')
       const { resolveVoiceReply } = require('./manifest-voice-hooks')
       const injected = await resolveVoiceReply(originalContent, getEnabledSkills(), hostManager)
       if (injected) content = injected
     } catch {}
-    console.log('[VOICE-CMD] responda handled, falling through to LLM')
+    debug('[VOICE-CMD] responda handled, falling through to LLM')
   }
 
   broadcast({ type: 'assistant', data: { status: 'Pensando...' } })
