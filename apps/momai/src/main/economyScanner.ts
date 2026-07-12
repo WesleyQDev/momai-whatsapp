@@ -181,30 +181,30 @@ export function scanInstalledGames(): ScannedGame[] {
   try {
     const steamPath = findSteamPath()
     if (steamPath) {
-      console.log(`[EconomyScanner] Steam found at: ${steamPath}`)
+      logger.debug(`[EconomyScanner] Steam found at: ${steamPath}`)
       const libraries = readLibraryPaths(steamPath)
-      console.log(`[EconomyScanner] Steam libraries: ${libraries.join(', ')}`)
+      logger.debug(`[EconomyScanner] Steam libraries: ${libraries.join(', ')}`)
       for (const lib of libraries) {
         const folder = join(lib, 'steamapps')
         if (existsSync(folder)) {
           const found = scanSteamFolder(folder, seen)
-          console.log(`[EconomyScanner] Found ${found.length} games in ${folder}`)
+          logger.debug(`[EconomyScanner] Found ${found.length} games in ${folder}`)
           games.push(...found)
         }
       }
     } else {
-      console.log('[EconomyScanner] Steam not found')
+      logger.info('[EconomyScanner] Steam not found')
     }
   } catch (err) {
-    console.log('[EconomyScanner] Steam scan error:', err)
+    logger.error('[EconomyScanner] Steam scan error:', err)
   }
 
   try {
     const epicGames = scanEpicGames(seen)
-    console.log(`[EconomyScanner] Found ${epicGames.length} Epic games`)
+    logger.info(`[EconomyScanner] Found ${epicGames.length} Epic games`)
     games.push(...epicGames)
   } catch (err) {
-    console.log('[EconomyScanner] Epic scan error:', err)
+    logger.error('[EconomyScanner] Epic scan error:', err)
   }
 
   return games

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import { logger } from './logger'
 
 export type TTSEngine = 'kokoro' | 'edge-tts' | 'say'
 
@@ -158,16 +159,16 @@ export class TTSService extends EventEmitter {
   }
 
   async speak(text: string, engine?: TTSEngine): Promise<void> {
-    console.log(
+    logger.debug(
       `[TTSService] speak() called engine=${engine} current=${this.currentEngine} enabled=${this.config.enabled}`
     )
     if (!this.config.enabled || !text || text.trim().length < 3) {
-      console.log('[TTSService] speak() early return: disabled or too short')
+      logger.debug('[TTSService] speak() early return: disabled or too short')
       return
     }
 
     const targetEngine = engine || this.currentEngine
-    console.log('[TTSService] speak() targetEngine:', targetEngine)
+    logger.debug('[TTSService] speak() targetEngine:', targetEngine)
 
     this.isSpeaking = true
     this.emit('speaking-start', { text, engine: targetEngine })
@@ -209,14 +210,14 @@ export class TTSService extends EventEmitter {
         voice = voices[index] || voices[0]
       }
 
-      console.log('[TTSService] say.js voice:', voice || '(default)')
+      logger.debug('[TTSService] say.js voice:', voice || '(default)')
 
       this.sayInstance.speak(text, voice, this.config.speed, (err: any) => {
         if (err) {
-          console.error('[TTSService] say.js error:', err.message)
+          logger.error('[TTSService] say.js error:', err.message)
           // Fallback: try without specifying voice
           if (voice) {
-            console.log('[TTSService] Retrying say.js with default voice...')
+            logger.debug('[TTSService] Retrying say.js with default voice...')
             this.sayInstance.speak(text, undefined, this.config.speed, (err2: any) => {
               if (err2) reject(err2)
               else resolve()
@@ -291,7 +292,7 @@ export class TTSService extends EventEmitter {
 
       if (sentences.length === 0) return
 
-      console.log(`[TTSService] EdgeTTS START: ${sentences.length} sentences`)
+      logger.debug(`[TTSService] EdgeTTS START: ${sentences.length} sentences`)
       const { EdgeTTS } = this.edgeTTSInstance
 
       const edgeVoice = this.mapKokoroToEdgeVoice(this.config.voice)
@@ -300,7 +301,7 @@ export class TTSService extends EventEmitter {
 
       for (let i = 0; i < sentences.length; i++) {
         if (!this.isSpeaking) {
-          console.log('[TTSService] EdgeTTS aborted (isSpeaking=false)')
+          logger.debug('[TTSService] EdgeTTS aborted (isSpeaking=false)')
           break
         }
 
@@ -308,7 +309,7 @@ export class TTSService extends EventEmitter {
         // Ignorar sentenças muito curtas (menos de 2 caracteres alfanuméricos)
         if (sentence.replace(/[^a-zA-Z0-9]/g, '').length < 2) continue
 
-        console.log(
+        logger.debug(
           `[TTSService] EdgeTTS Synthesis [${i + 1}/${sentences.length}]:`,
           sentence.slice(0, 40) + '...'
         )
@@ -322,14 +323,14 @@ export class TTSService extends EventEmitter {
         const audioBuffer = Buffer.from(arrayBuffer)
 
         if (audioBuffer && audioBuffer.length > 0) {
-          console.log(
+          logger.debug(
             `[TTSService] Emitting audio buffer for sentence ${i + 1}, len: ${audioBuffer.length}`
           )
           this.emit('play-audio-buffer', audioBuffer)
         }
       }
 
-      console.log('[TTSService] EdgeTTS ALL sentences processed')
+      logger.debug('[TTSService] EdgeTTS ALL sentences processed')
     } catch (error) {
       console.error('[TTSService] Erro ao falar com edge-tts:', error)
       throw error

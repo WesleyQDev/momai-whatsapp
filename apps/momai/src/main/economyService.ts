@@ -1,5 +1,6 @@
 import { execSync as execSyncNode } from 'child_process'
 import { authFetch } from './security/authenticated-fetch'
+import { logger } from './logger'
 
 const POLL_INTERVAL_MS = 15000
 
@@ -155,7 +156,7 @@ export class EconomyService {
 
   reinstateSleep(): void {
     if (this.currentState.active && this.currentState.reason === 'idle') {
-      console.log('[Economy] Reinstate sleep — re-stopping llama-server for idle mode')
+      logger.info('[Economy] Reinstate sleep — re-stopping llama-server for idle mode')
       this.httpPost(`${this.economyHost}/llama/stop`).catch(() => {})
     }
   }
@@ -180,7 +181,7 @@ export class EconomyService {
 
   async start(): Promise<void> {
     this.running = true
-    console.log('[Economy] Service started')
+    logger.info('[Economy] Service started')
     this.poll().catch(() => {})
     this.pollTimer = setInterval(() => {
       this.poll().catch(() => {})
@@ -262,7 +263,7 @@ export class EconomyService {
     for (const game of this.knownGames) {
       if (checked.has(game.name)) continue
       if (!this.isEconomyEnabledFor(game.name)) {
-        console.log(`[Economy] SKIPPED: ${game.name} (economy disabled)`)
+        logger.debug(`[Economy] SKIPPED: ${game.name} (economy disabled)`)
         checked.add(game.name)
         continue
       }
@@ -276,7 +277,7 @@ export class EconomyService {
           steamGridId: game.steamGridId,
           coverUrl
         })
-        console.log(`[Economy] DETECTED: ${game.name} (cover: ${coverUrl})`)
+        logger.info(`[Economy] DETECTED: ${game.name} (cover: ${coverUrl})`)
       }
     }
 

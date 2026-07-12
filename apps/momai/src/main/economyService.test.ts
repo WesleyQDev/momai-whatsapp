@@ -119,7 +119,6 @@ describe('EconomyService', () => {
       '"FortniteClient-Win64-Shipping.exe","456","Console","1","10.000 K"'
     ].join('\n')
     const result = parseProcessList(csv)
-    console.log('[TEST] parseProcessList result:', JSON.stringify(result))
     expect(result).toEqual(['chrome.exe', 'FortniteClient-Win64-Shipping.exe'])
   })
 
