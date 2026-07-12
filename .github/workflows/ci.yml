@@ -64,3 +64,57 @@ jobs:
 
       - name: Typecheck momai
         run: pnpm --filter momai typecheck
+
+  test:
+    name: Test MomAI Desktop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test scripts (node-core)
+        run: pnpm --filter momai exec vitest run --project scripts
+
+      - name: Test main process
+        run: pnpm --filter momai exec vitest run --project main
+
+      - name: Test preload bridge
+        run: pnpm --filter momai exec vitest run --project preload
+
+      - name: Test renderer
+        run: pnpm --filter momai exec vitest run --project renderer
+
+  test-core:
+    name: Test Python Core
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.6.0"
+
+      - name: Setup Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        working-directory: apps/core
+        run: uv sync
+
+      - name: Run pytest
+        working-directory: apps/core
+        run: uv run pytest -v
