@@ -34,6 +34,31 @@ const { DEFAULT_TIERS, loadTierConfig } = require('../config/tiers')
 const { DATA_DIR, NOTES_DIR, NOTES_INDEX_FILE } = require('../config/constants')
 const { saveMemoryNoteFromContent, ensureNotesIndexExists } = require('../domain/note-manager')
 
+// Extracted pure modules (chat/)
+const {
+  estimateTokenCount,
+  trimMessageForContext,
+  buildCompactedMessages,
+  buildHistoryWithinBudget,
+  computeDynamicMaxTokens
+} = require('./chat/context')
+const {
+  normalizeLanguageTag,
+  normalizeForMatch,
+  detectLanguageTag,
+  humanizeFallbackReason,
+  isLikelyIncompleteResponse
+} = require('./chat/language')
+const {
+  shouldExposeSkillTools,
+  normalizeDiscoveryText,
+  buildToolResultPreview,
+  pickToolSkillIds
+} = require('./chat/skills')
+const { searchYouTube, searchWeb } = require('./chat/search')
+const { shouldPreferSilentForCodeRequest, containsCodeLikeContent } = require('./chat/intent')
+const { parseLlamaDataLine } = require('./chat/parser')
+
 const tiersConfig = loadTierConfig()
 
 const DEFAULT_SYSTEM_PROMPT =
@@ -44,12 +69,6 @@ let stopVoiceRequested = false
 let generationId = 0
 const activeChatControllers = new Set()
 const activeGenerationThreads = new Set()
-
-function estimateTokenCount(text) {
-  const safe = String(text || '')
-  if (!safe) return 0
-  return Math.max(1, Math.ceil(safe.length / 3))
-}
 
 async function tokenizePrompt(messages) {
   try {
@@ -160,269 +179,6 @@ function appendMessage(threadId, role, content, extras = {}) {
   return item
 }
 
-async function searchYouTube(query, limit = 5) {
-  const q = String(query || '').trim()
-  if (!q) return []
-  try {
-    const res = await fetch(
-      `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`,
-      {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8'
-        }
-      }
-    )
-    if (!res.ok) return []
-    const html = await res.text()
-    const dataMatch = html.match(/var ytInitialData = ({.*?});/s)
-    if (!dataMatch) return []
-    const data = JSON.parse(dataMatch[1])
-    const contents =
-      data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer
-        ?.contents?.[0]?.itemSectionRenderer?.contents || []
-    const parseDuration = (text) => {
-      if (!text) return 0
-      const parts = String(text).split(':').map(Number)
-      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
-      if (parts.length === 2) return parts[0] * 60 + parts[1]
-      return parts[0] || 0
-    }
-    const parseViews = (text) => {
-      if (!text) return 0
-      const match = String(text).replace(/\./g, '').match(/(\d+)/)
-      return match ? Number(match[1]) : 0
-    }
-    return contents
-      .filter((c) => c.videoRenderer)
-      .slice(0, limit)
-      .map((c) => {
-        const v = c.videoRenderer
-        return {
-          id: v.videoId,
-          title: v.title?.runs?.[0]?.text || '',
-          channel: v.ownerText?.runs?.[0]?.text || '',
-          thumbnail: `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
-          duration: parseDuration(v.lengthText?.simpleText),
-          durationText: v.lengthText?.simpleText || '',
-          views: parseViews(v.viewCountText?.simpleText),
-          viewsText: v.viewCountText?.simpleText || '',
-          url: `https://www.youtube.com/watch?v=${v.videoId}`
-        }
-      })
-  } catch {
-    return []
-  }
-}
-
-async function searchWeb(query, limit = 4) {
-  const q = encodeURIComponent(String(query || '').trim())
-  if (!q) return []
-  try {
-    const response = await fetch(`https://duckduckgo.com/html/?q=${q}`, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'MomAI-NodeCore/1.0'
-      }
-    })
-    if (!response.ok) return []
-    const html = await response.text()
-    const results = []
-    const regex = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi
-    let match
-    while ((match = regex.exec(html)) && results.length < limit) {
-      const rawUrl = String(match[1] || '')
-      const title = String(match[2] || '')
-        .replace(/<[^>]+>/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-      if (!title || !rawUrl) continue
-      results.push({ title, url: rawUrl })
-    }
-    return results
-  } catch {
-    return []
-  }
-}
-
-const LATIN_LANGUAGE_HINTS = {
-  'pt-BR': [
-    'oi',
-    'ola',
-    'olá',
-    'você',
-    'voce',
-    'pra',
-    'não',
-    'nao',
-    'como',
-    'obrigado',
-    'obrigada',
-    'tudo bem',
-    'quero'
-  ],
-  en: [
-    'hello',
-    'hi',
-    'please',
-    'thanks',
-    'thank you',
-    'can you',
-    'could you',
-    'what',
-    'why',
-    'how',
-    'the',
-    'and'
-  ],
-  es: [
-    'hola',
-    'gracias',
-    'por favor',
-    'puedes',
-    'puede',
-    'como',
-    'cómo',
-    'necesito',
-    'quiero',
-    'que',
-    'qué'
-  ],
-  fr: [
-    'bonjour',
-    'merci',
-    "s'il vous plait",
-    "s'il te plait",
-    'comment',
-    'pourquoi',
-    'je',
-    'vous',
-    'avec',
-    'aide'
-  ],
-  de: ['hallo', 'danke', 'bitte', 'ich', 'du', 'sie', 'wie', 'warum', 'kannst', 'hilfe'],
-  it: ['ciao', 'grazie', 'per favore', 'come', 'perché', 'puoi', 'voglio', 'aiuto']
-}
-
-function normalizeLanguageTag(tag) {
-  const raw = String(tag || '').trim()
-  if (!raw) return 'pt-BR'
-  const short = raw.toLowerCase().split('-')[0]
-
-  if (short === 'pt') return 'pt-BR'
-  if (short === 'en') return 'en'
-  if (short === 'es') return 'es'
-  if (short === 'fr') return 'fr'
-  if (short === 'de') return 'de'
-  if (short === 'it') return 'it'
-  if (short === 'ja') return 'ja'
-  if (short === 'ko') return 'ko'
-  if (short === 'zh') return 'zh-CN'
-  if (short === 'ru') return 'ru'
-  if (short === 'ar') return 'ar'
-  if (short === 'hi') return 'hi'
-
-  return 'pt-BR'
-}
-
-function normalizeForMatch(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-}
-
-function shouldExposeSkillTools(userText, selectedSkills, skillRegistry) {
-  // Pure discovery-driven approach:
-  // if at least one relevant skill was discovered, expose tools for top-ranked skills.
-  return Array.isArray(selectedSkills) && selectedSkills.length > 0
-}
-
-function normalizeDiscoveryText(rawText) {
-  const text = String(rawText || '').trim()
-  if (!text) return ''
-  // Remove internal voice/system instruction prefix from routing/discovery signals
-  return text.replace(/^\[INSTRUCAO:[^\]]+\]\s*/i, '').trim()
-}
-
-function buildToolResultPreview(result) {
-  try {
-    if (Array.isArray(result?.webSources) && result.webSources.length > 0) {
-      return result.webSources
-        .slice(0, 3)
-        .map((s) => String(s?.title || '').trim())
-        .filter(Boolean)
-        .join(' | ')
-    }
-    const instruction = String(result?.instruction || '')
-      .replace(/\s+/g, ' ')
-      .trim()
-    if (instruction) return instruction.slice(0, 220)
-  } catch {}
-  return ''
-}
-
-function pickToolSkillIds({ discoveredSkillIds, routedSkillId, topScores, maxSkills = 2 }) {
-  const ranked = [...new Set(discoveredSkillIds)]
-    .map((id) => ({ id, score: Number(topScores?.[id] || 0) }))
-    .sort((a, b) => b.score - a.score)
-    .map((x) => x.id)
-
-  if (!routedSkillId) return ranked.slice(0, maxSkills)
-
-  const out = [routedSkillId]
-  for (const id of ranked) {
-    if (id === routedSkillId) continue
-    out.push(id)
-    if (out.length >= maxSkills) break
-  }
-  return out
-}
-
-function detectLanguageTag(text) {
-  const value = String(text || '').trim()
-  if (!value) return 'und'
-
-  if (/[\u3040-\u30ff]/.test(value)) return 'ja'
-  if (/[\uac00-\ud7af]/.test(value)) return 'ko'
-  if (/[\u4e00-\u9fff]/.test(value)) return 'zh-CN'
-  if (/[\u0400-\u04ff]/.test(value)) return 'ru'
-  if (/[\u0600-\u06ff]/.test(value)) return 'ar'
-  if (/[\u0900-\u097f]/.test(value)) return 'hi'
-
-  const normalized = value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-
-  const scores = {}
-  for (const [lang, hints] of Object.entries(LATIN_LANGUAGE_HINTS)) {
-    let score = 0
-    for (const hint of hints) {
-      const safe = hint.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const regex = new RegExp(`(^|\\s)${safe}(\\s|$)`, 'i')
-      if (regex.test(normalized)) score += 1
-    }
-    scores[lang] = score
-  }
-
-  if (/[ãõç]/i.test(value)) scores['pt-BR'] += 1
-  if (/[ñ]/i.test(value)) scores.es += 1
-  if (/[ß]/i.test(value)) scores.de += 1
-
-  let bestLang = 'und'
-  let bestScore = 0
-  for (const [lang, score] of Object.entries(scores)) {
-    if (score > bestScore) {
-      bestScore = score
-      bestLang = lang
-    }
-  }
-
-  return bestScore > 0 ? bestLang : 'und'
-}
-
 function resolveResponseLanguage(content, threadId) {
   const fromContent = detectLanguageTag(content)
   if (fromContent !== 'und') return normalizeLanguageTag(fromContent)
@@ -492,139 +248,6 @@ function buildLocalizedFallbackReply({ key, summary, reason, language, userName 
     reason: safeReason,
     userName
   })
-}
-
-function humanizeFallbackReason(reason, language = 'pt-BR') {
-  const raw = String(reason || '').toLowerCase()
-  const lang = normalizeLanguageTag(language)
-  const isPt = lang === 'pt-BR'
-
-  if (raw.includes('exceeds the available context size') || raw.includes('exceed_context_size')) {
-    return isPt
-      ? 'o contexto da conversa ficou maior que o limite atual'
-      : 'the conversation context is larger than the current limit'
-  }
-  if (raw.includes('healthcheck timeout')) {
-    return isPt ? 'o modelo local demorou para iniciar' : 'the local model took too long to start'
-  }
-  if (raw.includes('llama unavailable')) {
-    return isPt ? 'o modelo local não ficou disponível' : 'the local model is unavailable'
-  }
-  return isPt ? 'falha temporária no modelo local' : 'temporary local model failure'
-}
-
-function trimMessageForContext(text, maxChars = 900) {
-  const clean = sanitizePromptText(String(text || '').trim())
-  if (clean.length <= maxChars) return clean
-  return `${clean.slice(0, maxChars)}...`
-}
-
-function buildCompactedMessages(systemMessage, currentMessages, userContent = '') {
-  const compactSystem = {
-    ...systemMessage,
-    content: trimMessageForContext(systemMessage.content, 1200)
-  }
-  const compactHistory = currentMessages
-    .filter((m) => m.role !== 'system')
-    .slice(-2)
-    .map((m) => ({ ...m, content: trimMessageForContext(m.content, 700) }))
-  const hasUser = compactHistory.some((m) => m.role === 'user')
-  if (!hasUser) {
-    compactHistory.push({
-      role: 'user',
-      content: trimMessageForContext(userContent, 700)
-    })
-  }
-  return [compactSystem, ...compactHistory]
-}
-
-function buildHistoryWithinBudget(messages, tokenBudget) {
-  const safeBudget = Math.max(200, Number(tokenBudget || 0))
-  const normalized = (Array.isArray(messages) ? messages : [])
-    .filter((m) => m && (m.role === 'user' || m.role === 'assistant'))
-    .map((m) => {
-      const maxChars = m.role === 'assistant' ? 520 : 820
-      return {
-        role: m.role,
-        content: trimMessageForContext(m.content, maxChars)
-      }
-    })
-
-  const picked = []
-  let consumed = 0
-  let hasUser = false
-
-  for (let i = normalized.length - 1; i >= 0; i -= 1) {
-    const msg = normalized[i]
-    const cost = estimateTokenCount(msg.content)
-    if (picked.length > 0 && consumed + cost > safeBudget) continue
-    picked.unshift(msg)
-    consumed += cost
-    if (msg.role === 'user') hasUser = true
-    if (consumed >= safeBudget) break
-  }
-
-  if (!hasUser) {
-    const lastUser = [...normalized].reverse().find((m) => m.role === 'user')
-    if (lastUser) picked.push(lastUser)
-  }
-
-  return picked
-}
-
-function shouldPreferSilentForCodeRequest(userText) {
-  const text = String(userText || '').toLowerCase()
-  if (!text) return false
-  return /(c[óo]digo|code|html|css|javascript|typescript|react|vue|angular|sql|python|java|c\+\+|snippet)/i.test(
-    text
-  )
-}
-
-function containsCodeLikeContent(text) {
-  const value = String(text || '')
-  if (!value) return false
-  if (/```[\s\S]*?```/.test(value)) return true
-  if (/```/.test(value)) return true
-  if (/<html[\s>]/i.test(value) || /<!doctype html>/i.test(value)) return true
-  if (/<(div|span|section|header|main|script|style)[\s>]/i.test(value)) return true
-  return false
-}
-
-function computeDynamicMaxTokens(tierMaxTokens, estimatedPromptTokens, contextTotalTokens) {
-  const total = Math.max(512, Number(contextTotalTokens || 2048))
-  const prompt = Math.max(0, Number(estimatedPromptTokens || 0))
-  const reserve = Math.max(96, Math.floor(total * 0.06))
-  const available = Math.max(64, total - prompt - reserve)
-  const hardCap = Math.max(256, Math.min(3072, Math.floor(total * 0.35)))
-  const desired =
-    total >= 12000
-      ? Math.max(Number(tierMaxTokens || 0), 1200)
-      : total >= 8000
-        ? Math.max(Number(tierMaxTokens || 0), 900)
-        : Math.max(Number(tierMaxTokens || 0), 600)
-
-  const candidate = Math.min(available, hardCap)
-  if (candidate >= desired) return desired
-  if (candidate >= 160) return candidate
-  return Math.max(64, candidate)
-}
-
-function isLikelyIncompleteResponse(text, finishReason) {
-  const value = String(text || '').trim()
-  if (!value) return false
-  if (String(finishReason || '').toLowerCase() === 'length') return true
-
-  const fenceMatches = value.match(/```/g)
-  const fenceCount = fenceMatches ? fenceMatches.length : 0
-  if (fenceCount % 2 !== 0) return true
-
-  if (/<html[\s>]/i.test(value) && !/<\/html>/i.test(value)) return true
-  if (/<body[\s>]/i.test(value) && !/<\/body>/i.test(value)) return true
-
-  if (/[{[(]$/.test(value)) return true
-  if (/[,:;]$/.test(value) && value.length > 120) return true
-
-  return false
 }
 
 function generateFallbackReply(content, memoryContext, reason, responseLanguage, userName) {
@@ -720,42 +343,6 @@ async function streamFallbackResponse(
     if (_sse instanceof Promise) await _sse
   }
   endSse(res)
-}
-
-function parseLlamaDataLine(line) {
-  const payload = line.replace(/^data:\s*/, '').trim()
-  if (!payload) return { type: 'skip' }
-  if (payload === '[DONE]') return { type: 'done' }
-
-  try {
-    const json = JSON.parse(payload)
-    if (json.error?.message) return { type: 'error', error: json.error.message }
-
-    const choice = json.choices?.[0]
-    const finishReason = choice?.finish_reason
-
-    const delta = choice?.delta?.content
-    const full = choice?.message?.content
-    const token = typeof delta === 'string' ? delta : typeof full === 'string' ? full : ''
-
-    const toolCalls = choice?.delta?.tool_calls
-    if (Array.isArray(toolCalls) && toolCalls.length > 0) {
-      return { type: 'tool_calls', tool_calls: toolCalls, finish_reason: finishReason }
-    }
-
-    if (finishReason === 'tool_calls' && choice?.message?.tool_calls) {
-      return {
-        type: 'tool_calls',
-        tool_calls: choice.message.tool_calls,
-        finish_reason: finishReason
-      }
-    }
-
-    if (!token) return { type: 'skip', finish_reason: finishReason }
-    return { type: 'token', token, finish_reason: finishReason }
-  } catch {
-    return { type: 'skip' }
-  }
 }
 
 async function streamLlamaChat(req, res, payload) {
@@ -2248,6 +1835,34 @@ async function runVoiceCommand(payload = {}) {
   }
 }
 
+// Test exports (used by TST-03 tests)
+const _testExports = {
+  estimateTokenCount,
+  tokenizePrompt,
+  detectLanguageTag,
+  normalizeLanguageTag,
+  normalizeForMatch,
+  resolveResponseLanguage,
+  buildLocalizedFallbackReply,
+  humanizeFallbackReason,
+  generateFallbackReply,
+  isLikelyIncompleteResponse,
+  shouldExposeSkillTools,
+  normalizeDiscoveryText,
+  buildToolResultPreview,
+  pickToolSkillIds,
+  shouldPreferSilentForCodeRequest,
+  containsCodeLikeContent,
+  buildCompactedMessages,
+  buildHistoryWithinBudget,
+  computeDynamicMaxTokens,
+  trimMessageForContext,
+  getThreadMessages,
+  appendMessage,
+  searchYouTube,
+  searchWeb
+}
+
 module.exports = {
   streamLlamaChat,
   streamFallbackResponse,
@@ -2256,7 +1871,8 @@ module.exports = {
   buildObservabilityTrace,
   stopGenerationRequested,
   stopVoiceRequested,
-  activeChatControllers
+  activeChatControllers,
+  _testExports
 }
 
 // Live getters/setters so all consumers read the current value,
