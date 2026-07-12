@@ -63,12 +63,14 @@ Para desenvolver e testar uma extensão em tempo real com o MomAI rodando em mod
 Clone o repositório da sua extensão em qualquer pasta de desenvolvimento de sua preferência (ex: `/caminho/para/minha-extensao`).
 
 ### Passo 2: Criar o Vínculo / Link Simbólico
-Crie um link de diretório que aponte da **subpasta `.dev/`** dentro do diretório de extensões ativas do MomAI para a pasta física da sua extensão. O MomAI isola os dois modos de desenvolvimento (edição via symlink × instalação real da loja) usando essa subpasta `.dev/`, então as duas fontes **coexistem sem conflitar**.
+Crie um link de diretório que aponte da **subpasta `.dev/`** dentro do diretório de extensões ativas do MomAI para a pasta física da sua extensão.
 
 > [!IMPORTANT]
-> Em modo **Dev (Symlinks)** (padrão), o MomAI lê extensões de `data/extensions/.dev/<id>` (com prioridade sobre uma eventual instalação real em `data/extensions/<id>`).
-> Em modo **Testar Loja**, o MomAI ignora `.dev/` e qualquer symlink — só enxerga a pasta real `data/extensions/<id>`, que é onde o instalador descompacta o ZIP.
-> Isso evita `EPERM` no install quando a pasta da skill contém um `.git/` (apps de desenvolvimento com junction direto na raiz).
+> **Os dois modos são ambientes completamente separados**, não compartilham extensões instaladas. O switcher "Dev (Symlinks)" e "Testar Loja" controla **qual raiz de filesystem** o MomAI varre naquele momento:
+> - Em modo **Dev (Symlinks)** (padrão), o MomAI lê **apenas** `data/extensions/.dev/<id>`. Só aparecem extensões que têm um symlink (ou pasta) criado manualmente em `.dev/`.
+> - Em modo **Testar Loja**, o MomAI lê **apenas** `data/extensions/<id>`. Só aparecem extensões que foram baixadas pelo instalador.
+> - Trocar de modo **não move nem copia** nada entre as duas raízes. Cada ambiente é independente.
+> - O `uninstallExtension` remove **ambas** as raízes, então você não acumula lixo se esquecer de trocar de modo.
 
 *   **No Windows (PowerShell):**
     > [!TIP]

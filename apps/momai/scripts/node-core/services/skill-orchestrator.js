@@ -25,9 +25,17 @@ function getSkillRegistry() {
 }
 
 function isSkillEnabledByStore(skill) {
-  const devMode = store?.settings?.dev_mode || 'symlink'
-  const key = devMode === 'symlink' ? `${skill.id}_dev` : skill.id
-  const entry = store.extensions.find((e) => e.id === key)
+  // Read the live shared store rather than the module-scope snapshot so
+  // tests (and any runtime store swaps) see the current value.
+  const currentStore = shared.store || store
+  // Single mode-stable key per extension. The install route always writes
+  // `extensions[].id === skill.id`; older entries may still use the
+  // `<id>_dev` suffix from before the fix — fall back to that for
+  // back-compat reads, but never write to it.
+  const extensions = (currentStore && currentStore.extensions) || []
+  const entry =
+    extensions.find((e) => e.id === skill.id) ||
+    extensions.find((e) => e.id === `${skill.id}_dev`)
   if (!entry) {
     // Default state: builtins/packaged start enabled, extensions start disabled unless explicitly enabled
     if (skill.kind === 'builtin' || skill.kind === 'packaged') return true
@@ -120,6 +128,14 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         } catch {}
       }
 
+      // Source is the install mode the extension was registered under.
+      // Used by the UI to render a Loja / Dev badge so the user can tell
+      // which copy of an extension is currently active.
+      const sourceEntry =
+        (store.extensions || []).find((e) => e.id === (manifest.id || skill.id)) ||
+        (store.extensions || []).find((e) => e.id === `${manifest.id || skill.id}_dev`)
+      const source = sourceEntry && sourceEntry.source ? sourceEntry.source : null
+
       return {
         id: manifest.id || skill.id,
         name: name,
@@ -128,6 +144,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         enabled: skill.enabled && isSkillEnabledByStore(skill),
         isSymlink,
         symlinkPath,
+        source,
         intents: manifest.intents || [],
         tags: manifest.tags || [],
         icon: manifest.icon || (community.find((c) => c.id === (manifest.id || skill.id))?.icon) || null,

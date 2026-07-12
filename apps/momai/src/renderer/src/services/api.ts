@@ -424,6 +424,7 @@ export interface Extension {
   installed?: boolean
   isSymlink?: boolean
   symlinkPath?: string | null
+  source?: 'store_test' | 'symlink' | null
   icon?: string
   icon_url?: string
   icon_bg?: string
@@ -539,8 +540,13 @@ export async function fetchExtensionReleases(id: string): Promise<ExtensionRelea
 }
 
 export type InstallStage =
-  | 'downloading' | 'verifying' | 'extracting' | 'linking_deps'
-  | 'indexing' | 'starting_worker' | 'done'
+  | 'downloading'
+  | 'verifying'
+  | 'extracting'
+  | 'linking_deps'
+  | 'indexing'
+  | 'starting_worker'
+  | 'done'
 
 export interface InstallProgress {
   stage: InstallStage

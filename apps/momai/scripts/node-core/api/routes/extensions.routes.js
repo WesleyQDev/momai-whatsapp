@@ -442,6 +442,18 @@ let _cachedExtensionsPayload = null
 let _lastExtensionsRefresh = 0
 let _lastDevMode = null
 
+/**
+ * Invalidate the cached `/extensions` payload. MUST be called by any code
+ * path that mutates which extensions are visible in the current dev mode
+ * WITHOUT going through install/toggle/uninstall (e.g. dev_mode switch,
+ * which changes which filesystem root the registry scans).
+ */
+function invalidateExtensionsPayloadCache() {
+  _cachedExtensionsPayload = null
+  _lastExtensionsRefresh = 0
+  _lastDevMode = null
+}
+
 /* ── Helpers for downloading & extracting community extensions ── */
 
 function downloadFile(url, destPath, onProgress) {
@@ -538,6 +550,84 @@ function resolveExtensionDir(extensionsDir, extId) {
   const target = path.resolve(root, extId)
   if (target === root || !target.startsWith(root + path.sep)) return null
   return target
+}
+
+/**
+ * Remove the artifact of the OPPOSITE install mode for this extension.
+ *
+ * The two modes are mutually exclusive on disk:
+ *  - store_test: real directory at `<extensionsDir>/<extId>`
+ *  - symlink:    symlink (or real dir) at `<extensionsDevDir>/<extId>`
+ *
+ * Before installing in one mode, we wipe the other mode's artifact so we
+ * never end up with two parallel copies of the same extension fighting for
+ * the registry slot.
+ */
+function cleanupOppositeModeArtifact(extensionsDir, extensionsDevDir, extId, devMode) {
+  if (devMode === 'symlink') {
+    const realDir = path.join(extensionsDir, extId)
+    if (fs.existsSync(realDir)) {
+      try {
+        fs.rmSync(realDir, { recursive: true, force: true })
+      } catch (err) {
+        console.log(
+          `[extensions] Failed to remove leftover loja artifact for ${extId}:`,
+          err.message
+        )
+      }
+    }
+  } else {
+    const devLink = path.join(extensionsDevDir, extId)
+    try {
+      const lstat = fs.lstatSync(devLink)
+      fs.unlinkSync(devLink)
+    } catch {
+      /* not present, nothing to do */
+    }
+  }
+}
+
+/**
+ * Ensure `<extensionsDevDir>/<extId>` is a symlink pointing at
+ * `<extensionsDir>/<extId>`. Used when installing in symlink mode so the
+ * extension is reachable through the dev scan root without any extra glue
+ * from the user. A relative symlink is used to stay portable across
+ * machines / data-dir layouts.
+ */
+function ensureDevSymlink(extensionsDir, extensionsDevDir, extId) {
+  const realDir = path.join(extensionsDir, extId)
+  const devLink = path.join(extensionsDevDir, extId)
+  if (!fs.existsSync(extensionsDevDir)) {
+    fs.mkdirSync(extensionsDevDir, { recursive: true })
+  }
+  try {
+    const lstat = fs.lstatSync(devLink)
+    fs.unlinkSync(devLink)
+  } catch {
+    /* not present */
+  }
+  const relative = path.relative(extensionsDevDir, realDir)
+  fs.symlinkSync(relative, devLink, 'dir')
+}
+
+/**
+ * Remove both the real install directory AND any dev symlink for an
+ * extension. Idempotent — safe to call when neither path exists.
+ */
+function removeExtensionArtifacts(extensionsDir, extensionsDevDir, extId) {
+  for (const dir of [extensionsDir, extensionsDevDir]) {
+    const target = path.join(dir, extId)
+    try {
+      const lstat = fs.lstatSync(target)
+      if (lstat.isSymbolicLink()) {
+        fs.unlinkSync(target)
+      } else {
+        fs.rmSync(target, { recursive: true, force: true })
+      }
+    } catch {
+      /* not present */
+    }
+  }
 }
 
 function createExtensionsRoutes(context) {
@@ -939,19 +1029,50 @@ function createExtensionsRoutes(context) {
       }
 
       const devMode = store?.settings?.dev_mode || 'symlink'
-      const key = devMode === 'symlink' ? `${id}_dev` : id
-      let found = store.extensions.find((ext) => ext.id === key)
+      const extensionsDevDir =
+        (skillRegistry && skillRegistry.extensionsDevDir) ||
+        path.join(skillRegistry.extensionsDir, '.dev')
+
+      // Wipe the artifact from the OPPOSITE mode before we install — keeps
+      // the two modes from accumulating parallel copies of the same id.
+      cleanupOppositeModeArtifact(
+        skillRegistry.extensionsDir,
+        extensionsDevDir,
+        id,
+        devMode
+      )
+
+      // In symlink mode the scan only sees .dev/<id>, so we materialise a
+      // symlink pointing at the freshly extracted directory. The user can
+      // replace this symlink with a local checkout at any time.
+      if (devMode === 'symlink') {
+        try {
+          ensureDevSymlink(skillRegistry.extensionsDir, extensionsDevDir, id)
+        } catch (err) {
+          console.log(
+            `[extensions] Failed to create dev symlink for ${id}:`,
+            err.message
+          )
+        }
+      }
+
+      // Single, mode-stable key. `source` records which mode produced the
+      // install so the UI can show a Loja / Dev badge without scanning the
+      // filesystem again.
+      let found = store.extensions.find((ext) => ext.id === id)
       if (!found) {
         found = {
-          id: key,
+          id,
           name: id,
           description: 'Extension installed by Node core',
           category: 'builtin',
-          enabled: true
+          enabled: true,
+          source: devMode
         }
         store.extensions.push(found)
       } else {
         found.enabled = true
+        found.source = devMode
       }
       saveStore()
 
@@ -999,17 +1120,21 @@ function createExtensionsRoutes(context) {
 
     if (pathname === '/extensions/toggle' && req.method === 'POST') {
       const payload = await readJsonBody(req).catch(() => ({}))
-      const devMode = store?.settings?.dev_mode || 'symlink'
-      const key = devMode === 'symlink' ? `${payload.id}_dev` : payload.id
-      let found = store.extensions.find((item) => item.id === key)
+      const extId = String(payload.id || '').trim()
+      if (!isValidExtensionId(extId)) {
+        sendJson(res, 400, { ok: false, error: 'invalid_extension_id' })
+        return true
+      }
+      let found = store.extensions.find((item) => item.id === extId)
       if (!found) {
         // Allow toggling builtins/packaged by creating a store entry
         found = {
-          id: key,
-          name: payload.id,
+          id: extId,
+          name: extId,
           description: '',
           category: 'builtin',
-          enabled: true
+          enabled: true,
+          source: store?.settings?.dev_mode || 'symlink'
         }
         store.extensions.push(found)
       }
@@ -1024,7 +1149,7 @@ function createExtensionsRoutes(context) {
       }
 
       // Manage persistent worker lifecycle if needed
-      const skill = skillRegistry.getById(payload.id)
+      const skill = skillRegistry.getById(extId)
       if (skill && skill.manifest?.background) {
         if (found.enabled) {
           console.log(`[extensions] Starting persistent worker for toggled extension: ${skill.id}`)
@@ -1048,8 +1173,8 @@ function createExtensionsRoutes(context) {
       }
 
       const hookName = found.enabled ? 'onActivate' : 'onDeactivate'
-      await skillRegistry.executeHook(payload.id, hookName, { extId: payload.id }).catch((err) => {
-        console.log(`[extensions] ${hookName} hook failed for ${payload.id}: ${err.message}`)
+      await skillRegistry.executeHook(extId, hookName, { extId }).catch((err) => {
+        console.log(`[extensions] ${hookName} hook failed for ${extId}: ${err.message}`)
       })
       sendJson(res, 200, { ok: true })
       return true
@@ -1067,6 +1192,9 @@ function createExtensionsRoutes(context) {
         sendJson(res, 400, { ok: false, error: 'invalid_extension_path' })
         return true
       }
+      const extensionsDevDir =
+        (skillRegistry && skillRegistry.extensionsDevDir) ||
+        path.join(skillRegistry.extensionsDir, '.dev')
 
       // Stop persistent worker if running
       await extensionHostManager.stopPersistent(extId).catch((err) => {
@@ -1083,10 +1211,12 @@ function createExtensionsRoutes(context) {
       if (store.skillKeywords) {
         delete store.skillKeywords[extId]
       }
-      const devMode = store?.settings?.dev_mode || 'symlink'
-      const key = devMode === 'symlink' ? `${extId}_dev` : extId
-      store.extensions = store.extensions.filter((item) => item.id !== key)
-      if (fs.existsSync(extDir)) fs.rmSync(extDir, { recursive: true, force: true })
+      // Single, mode-stable key — also drop any legacy `<id>_dev` entry from
+      // pre-fix installs so we don't leave orphans behind.
+      store.extensions = store.extensions.filter((item) => item.id !== extId && item.id !== `${extId}_dev`)
+      // Wipe BOTH the real install dir AND any dev symlink so uninstall
+      // works regardless of which mode the user is in.
+      removeExtensionArtifacts(skillRegistry.extensionsDir, extensionsDevDir, extId)
       saveStore()
       await skillRegistry.loadExtensions()
 
@@ -1275,6 +1405,7 @@ module.exports = {
   createExtensionsRoutes,
   validateInstallUrl,
   resolveInstallVersion,
+  invalidateExtensionsPayloadCache,
   _setRegistry: _setInstallRegistryForTests,
   _setCommunityRegistryForTests
 }

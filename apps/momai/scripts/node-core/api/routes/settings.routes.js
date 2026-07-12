@@ -1,3 +1,4 @@
+const path = require('node:path')
 const { filterToEditableSettings } = require('../../config/settings-allowlist.js')
 
 function createSettingsRoutes(context) {
@@ -52,8 +53,11 @@ function createSettingsRoutes(context) {
         }
 
         const safePayload = filterToEditableSettings(payload)
-        
-        if (safePayload.dev_mode && safePayload.dev_mode !== prevDevMode) {
+
+        const isDevModeSwitch =
+          safePayload.dev_mode && safePayload.dev_mode !== prevDevMode
+
+        if (isDevModeSwitch) {
           console.log(`[settings] dev_mode changing from ${prevDevMode} to ${safePayload.dev_mode}. Stopping old extension workers...`)
           if (context.extensionHostManager && typeof context.extensionHostManager.stopAllPersistent === 'function') {
             await context.extensionHostManager.stopAllPersistent().catch(() => {})
@@ -61,6 +65,23 @@ function createSettingsRoutes(context) {
         }
 
         Object.assign(store.settings, safePayload)
+
+        // SECURITY: when switching dev modes, deactivate every extension.
+        // The two modes are completely separate environments — a symlink that
+        // was active in Dev mode and a loja install that was active in
+        // Testar Loja mode share the same id but are different artifacts on
+        // disk. Carrying the `enabled` flag across a mode switch would let
+        // the wrong artifact start running, which is a security issue.
+        if (isDevModeSwitch && Array.isArray(store.extensions)) {
+          for (const ext of store.extensions) {
+            if (ext && ext.enabled) {
+              ext.enabled = false
+            }
+          }
+          console.log(
+            `[settings] Deactivated all extensions for the dev_mode switch (${prevDevMode} → ${safePayload.dev_mode}). User must re-enable them in the new mode.`
+          )
+        }
         if (payload.tts_engine) {
           const tier = store.settings.ai_tier || 'pro'
           if (tier === 'lite') {
@@ -108,15 +129,34 @@ function createSettingsRoutes(context) {
         }
 
         if (safePayload.dev_mode && safePayload.dev_mode !== prevDevMode) {
-          console.log(`[settings] Refreshing skill registry and spawning workers for new dev_mode: ${safePayload.dev_mode}`)
+          // The two dev modes are completely separate environments. Switching
+          // between them just refreshes the registry — no migration, no
+          // symlink synthesis. Whatever lives under data/extensions/.dev/
+          // is what's visible in symlink mode; whatever lives under
+          // data/extensions/<id> is what's visible in store_test mode.
+          console.log(`[settings] dev_mode changing from ${prevDevMode} to ${safePayload.dev_mode}. Refreshing skill registry...`)
           if (context.skillRegistry && typeof context.skillRegistry.refresh === 'function') {
             await context.skillRegistry.refresh().catch(() => {})
+          }
+          // Invalidate the cached /extensions payload so the next GET
+          // re-scans the new dev_mode's filesystem root instead of
+          // returning a stale payload from the previous mode.
+          try {
+            const { invalidateExtensionsPayloadCache } = require('./extensions.routes')
+            invalidateExtensionsPayloadCache()
+          } catch (err) {
+            console.log(
+              '[settings] Failed to invalidate extensions payload cache:',
+              err.message
+            )
           }
           const newSkills = context.skillRegistry ? context.skillRegistry.getAll() : []
           for (const skill of newSkills) {
             if (skill.manifest?.background) {
-              const key = safePayload.dev_mode === 'symlink' ? `${skill.id}_dev` : skill.id
-              const entry = store.extensions.find((e) => e.id === key)
+              // Single mode-stable key (with back-compat read of legacy `<id>_dev`).
+              const entry =
+                store.extensions.find((e) => e.id === skill.id) ||
+                store.extensions.find((e) => e.id === `${skill.id}_dev`)
               const isEnabled = entry ? entry.enabled !== false : (skill.kind === 'builtin' || skill.kind === 'packaged')
               if (isEnabled && context.extensionHostManager) {
                 console.log(`[settings] Spawning persistent worker for ${skill.id} in ${safePayload.dev_mode} mode...`)
