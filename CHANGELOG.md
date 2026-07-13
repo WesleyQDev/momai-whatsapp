@@ -4,17 +4,9 @@ Acompanhe todas as atualizações e mudanças da MomAI.
 
 ## 1.5.3 - 2026-07-13
 
-### ✨ Novidades
-
-- **Transição visual no Modo Dev**: Agora ao alternar entre Dev (Symlinks) e Testar Loja, você vê animações de carregamento na interface, sem aquele flash em branco.
-
-### 🐛 Correções
-
-- **Instalação de extensões mais estável**: Symlinks de desenvolvimento não são mais apagados acidentalmente ao instalar extensões pelo modo Loja.
-
 ### 🧹 Outros
 
-- Código legado removido e melhorias internas de performance.
+- Melhorias internas de performance e estabilidade.
 
 ## 1.5.2 - 2026-07-04
 

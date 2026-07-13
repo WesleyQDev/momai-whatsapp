@@ -452,7 +452,7 @@ Regras:
 Exemplo de entry boa:
 ```
 ### ✨ Novidades
-- **Transição visual no Modo Dev**: Agora ao alternar entre Dev e Loja, você vê animações de carregamento.
+- **Ícones sanitizados**: Ícones de extensões agora são verificados antes de exibir, prevenindo problemas de segurança.
 ```
 
 Exemplo de entry ruim:
