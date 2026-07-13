@@ -61,7 +61,6 @@ Ou automaticamente via `pnpm install` (que configura hooksPath como efeito colat
 | `pnpm build` | Build da app desktop via Turborepo |
 | `pnpm build:exe` | Build Windows .exe (NSIS) |
 | `pnpm build:linux` | Build Linux AppImage |
-| `pnpm build:mac` | Build macOS .dmg |
 | `pnpm build:appx` | Build Windows AppX (Microsoft Store) |
 | `pnpm build:unpack` | Build unpacked para debug |
 | `pnpm lint` | Lint de todas as apps via Turbo |
@@ -86,8 +85,7 @@ pnpm test:renderer          # Testes do renderer
 # Build
 pnpm build                  # Full build (typecheck + hydrate-bin + electron-vite build)
 pnpm build:exe              # Windows .exe (NSIS)
-pnpm build:linux            # Linux AppImage
-pnpm build:mac              # macOS .dmg
+pnpm build:linux            # Linux AppImage + .deb
 
 # Linting & Typecheck
 pnpm lint                   # ESLint (caches em .eslintcache)
