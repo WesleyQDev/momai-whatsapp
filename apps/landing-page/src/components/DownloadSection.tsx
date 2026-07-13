@@ -110,13 +110,13 @@ export function DownloadSection() {
         <div className="mega-download-container mx-auto max-w-[1100px]">
           <div className="mega-card flex overflow-hidden rounded-3xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] shadow-[0_40px_100px_rgba(0,0,0,0.3)] backdrop-blur-xl [data-theme=light]:border-[rgba(0,0,0,0.05)] [data-theme=light]:bg-white [data-theme=light]:shadow-[0_20px_60px_rgba(0,0,0,0.05)]">
             {/* Downloads Column */}
-            <div className="mega-card-downloads flex-[1.2] border-r border-[rgba(255,255,255,0.05)] p-12 [data-theme=light]:border-r-[rgba(0,0,0,0.05)] max-lg:border-b max-lg:border-r-0">
-              <h3 className="mb-8 flex items-center gap-3 text-2xl font-semibold">
-                <MonitorIcon className="h-6 w-6" />
+            <div className="mega-card-downloads flex-[1.2] border-r border-[rgba(255,255,255,0.05)] p-8 [data-theme=light]:border-r-[rgba(0,0,0,0.05)] max-lg:border-b max-lg:border-r-0">
+              <h3 className="mb-6 flex items-center gap-3 text-xl font-semibold">
+                <MonitorIcon className="h-5 w-5" />
                 Plataformas
               </h3>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3">
                 {PLATFORMS.map((p) => {
                   const href = getHref(p.id);
                   const isVersioned =
@@ -139,18 +139,16 @@ export function DownloadSection() {
                         !p.disabled && handlePlatformClick(p.id, p.name)
                       }
                       aria-disabled={p.disabled}
-                      className={`platform-btn flex items-center justify-between rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-6 py-5 text-[var(--text)] no-underline transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                      className={`platform-btn flex items-center justify-between rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-5 py-4 text-[var(--text)] no-underline transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
                         p.disabled
                           ? "disabled cursor-not-allowed opacity-40"
                           : "hover:translate-x-2 hover:border-[var(--text)] hover:bg-[var(--text)] hover:text-[var(--bg)]"
                       }`}
                     >
-                      <div className="flex items-center gap-4">
-                        <p.icon className="h-6 w-6" />
+                      <div className="flex items-center gap-3">
+                        <p.icon className="h-5 w-5" />
                         <div className="flex flex-col">
-                          <span className="text-lg font-medium">
-                            {p.name}
-                          </span>
+                          <span className="font-medium">{p.name}</span>
                           {isVersioned && date && (
                             <span className="text-xs text-[var(--text-tertiary)]">
                               {date}
@@ -170,18 +168,18 @@ export function DownloadSection() {
             </div>
 
             {/* Specs Column */}
-            <div className="mega-card-specs flex-1 bg-[rgba(255,255,255,0.01)] p-12">
-              <h3 className="mb-8 flex items-center gap-3 text-2xl font-semibold">
-                <MonitorIcon className="h-6 w-6" />
+            <div className="mega-card-specs flex-1 bg-[rgba(255,255,255,0.01)] p-8">
+              <h3 className="mb-6 flex items-center gap-3 text-xl font-semibold">
+                <MonitorIcon className="h-5 w-5" />
                 Requisitos
               </h3>
 
-              <div className="space-y-8">
+              <div className="space-y-6">
                 <div>
-                  <h4 className="mb-3 text-xs uppercase tracking-widest text-[var(--text-tertiary)]">
+                  <h4 className="mb-2 text-xs uppercase tracking-widest text-[var(--text-tertiary)]">
                     Mínimos
                   </h4>
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-1.5 text-sm">
                     <div className="flex justify-between">
                       <span className="text-[var(--text-secondary)]">CPU</span>
                       <span>Core i5 / Ryzen 5</span>
@@ -197,11 +195,11 @@ export function DownloadSection() {
                   </div>
                 </div>
 
-                <div className="border-t border-[rgba(255,255,255,0.05)] pt-6">
-                  <h4 className="mb-3 text-xs uppercase tracking-widest text-[var(--text-tertiary)]">
+                <div className="border-t border-[rgba(255,255,255,0.05)] pt-4">
+                  <h4 className="mb-2 text-xs uppercase tracking-widest text-[var(--text-tertiary)]">
                     Recomendados
                   </h4>
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-1.5 text-sm">
                     <div className="flex justify-between">
                       <span className="text-[var(--text-secondary)]">CPU</span>
                       <span>i7 / Ryzen 7+</span>
