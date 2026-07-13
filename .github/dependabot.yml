@@ -14,18 +14,7 @@ updates:
     labels:
       - "dependencies"
     open-pull-requests-limit: 1
-
-  - package-ecosystem: "npm"
-    directory: "/apps/momai"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-    labels:
-      - "dependencies"
-    open-pull-requests-limit: 1
+    rebase-strategy: "auto"
     groups:
       react:
         patterns:
@@ -44,6 +33,7 @@ updates:
     labels:
       - "dependencies"
     open-pull-requests-limit: 1
+    rebase-strategy: "auto"
 
   - package-ecosystem: "pip"
     directory: "/apps/core"
@@ -55,6 +45,7 @@ updates:
     labels:
       - "dependencies"
     open-pull-requests-limit: 1
+    rebase-strategy: "auto"
 
   - package-ecosystem: "pip"
     directory: "/apps/fortscript"
@@ -66,6 +57,7 @@ updates:
     labels:
       - "dependencies"
     open-pull-requests-limit: 1
+    rebase-strategy: "auto"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -77,3 +69,4 @@ updates:
     labels:
       - "ci/cd"
     open-pull-requests-limit: 5
+    rebase-strategy: "auto"
