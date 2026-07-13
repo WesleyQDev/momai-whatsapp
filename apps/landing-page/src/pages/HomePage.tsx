@@ -4,7 +4,6 @@ import { VideoSection } from "@/components/VideoSection";
 import { FeaturesSection } from "@/components/FeaturesSection";
 import { HowItWorksSection } from "@/components/HowItWorksSection";
 import { DownloadSection } from "@/components/DownloadSection";
-import { MobileAppsSection } from "@/components/MobileAppsSection";
 
 export function HomePage() {
   return (
@@ -15,7 +14,6 @@ export function HomePage() {
       <FeaturesSection />
       <HowItWorksSection />
       <DownloadSection />
-      <MobileAppsSection />
     </>
   );
 }

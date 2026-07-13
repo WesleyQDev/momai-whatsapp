@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - 'apps/landing-page/**'
+      - 'saude/**'
+      - 'images/**'
+      - 'posts/**'
+      - 'CNAME'
       - 'CHANGELOG.md'
   workflow_dispatch:
 
@@ -43,10 +47,9 @@ jobs:
         run: |
           mkdir -p _site
           cp -r apps/landing-page/dist/. _site/
-          cp -r v1 _site/
           cp -r saude _site/
           cp -r images _site/
-          cp CNAME .nojekyll politicas-privacidade.html politicas-privacidade-momai.html _site/
+          cp CNAME .nojekyll politicas-privacidade-momai.html _site/
           cp CHANGELOG.md _site/
 
       - name: Upload artifact

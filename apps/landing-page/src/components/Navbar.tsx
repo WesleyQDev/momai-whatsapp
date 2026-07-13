@@ -5,7 +5,7 @@ import { useGitHubRelease } from "@/hooks/useGitHubRelease";
 import { useDownloadTracking } from "@/hooks/useDownloadTracking";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router-dom";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { SunIcon, MoonIcon, Bars3Icon, XMarkIcon } from "./Icons";
 
@@ -17,6 +17,25 @@ const NAV_LINKS = [
   { to: "/reportar-erro", label: "nav.reportarErro" },
 ];
 
+const GOOGLE_PLAY_SAUDE =
+  "https://play.google.com/store/apps/details?id=com.wesleyqdev.momaisaude";
+const GOOGLE_PLAY_FINANCAS =
+  "https://play.google.com/store/apps/details?id=com.wesleyqdev.momaifinancas";
+const GOOGLE_PLAY_MWSCAN =
+  "https://play.google.com/store/apps/details?id=com.wesleydeveloperstudio.MWScan";
+
+const GooglePlayIcon = () => (
+  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="currentColor">
+    <path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.199l2.302 1.33a1 1 0 010 1.74l-2.302 1.33-2.532-2.2 2.532-2.2zM5.864 2.658L16.8 8.99l-2.302 2.302-8.634-8.634z" />
+  </svg>
+);
+
+const MsStoreIcon = () => (
+  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="currentColor">
+    <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801" />
+  </svg>
+);
+
 export function Navbar() {
   const { t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
@@ -25,6 +44,8 @@ export function Navbar() {
   const { trackDownload } = useDownloadTracking();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [produtosOpen, setProdutosOpen] = useState(false);
+  const produtosTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   const os = detectPlatform();
   const isLinux = os === "linux";
@@ -34,6 +55,16 @@ export function Navbar() {
 
   const handleLinkClick = useCallback(() => {
     setMenuOpen(false);
+    setProdutosOpen(false);
+  }, []);
+
+  const handleProdutosEnter = useCallback(() => {
+    clearTimeout(produtosTimeoutRef.current);
+    setProdutosOpen(true);
+  }, []);
+
+  const handleProdutosLeave = useCallback(() => {
+    produtosTimeoutRef.current = setTimeout(() => setProdutosOpen(false), 150);
   }, []);
 
   const handleNavDownloadClick = useCallback(() => {
@@ -95,6 +126,69 @@ export function Navbar() {
               </Link>
             </li>
           ))}
+          <li className="w-full md:hidden">
+            <button
+              onClick={() => setProdutosOpen(!produtosOpen)}
+              className="flex w-full items-center gap-2 px-8 py-4 text-base font-medium text-[var(--text-secondary)] transition-colors hover:text-[var(--text)] md:px-0 md:py-0 md:text-sm md:font-normal"
+            >
+              {t("nav.produtos")}
+              <svg
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className={`h-4 w-4 transition-transform ${produtosOpen ? "rotate-180" : ""}`}
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+            {produtosOpen && (
+              <div className="flex flex-col gap-1 border-l-2 border-[var(--accent)] pl-4 ml-4 mb-2">
+                <Link
+                  to="/saude"
+                  onClick={handleLinkClick}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] no-underline hover:bg-[var(--bg-tertiary)] hover:text-[var(--text)]"
+                >
+                  <img src="/saude/icon.png" alt="" className="h-5 w-5 rounded" />
+                  {t("nav.saude")}
+                  <GooglePlayIcon />
+                </Link>
+                <a
+                  href={GOOGLE_PLAY_FINANCAS}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={handleLinkClick}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] no-underline hover:bg-[var(--bg-tertiary)] hover:text-[var(--text)]"
+                >
+                <img src="/financas-icon.png" alt="" className="h-5 w-5 rounded" />
+                  {t("nav.financas")}
+                  <GooglePlayIcon />
+                </a>
+                <a
+                  href={GOOGLE_PLAY_MWSCAN}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={handleLinkClick}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] no-underline hover:bg-[var(--bg-tertiary)] hover:text-[var(--text)]"
+                >
+                  <img src="/mwscan-icon.png" alt="" className="h-5 w-5 rounded" />
+                  {t("nav.mwscan")}
+                  <GooglePlayIcon />
+                </a>
+                <Link
+                  to="/"
+                  onClick={handleLinkClick}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] no-underline hover:bg-[var(--bg-tertiary)] hover:text-[var(--text)]"
+                >
+                  <img src="/icon.png" alt="" className="h-5 w-5 rounded" />
+                  {t("nav.desktop")}
+                  <MsStoreIcon />
+                </Link>
+              </div>
+            )}
+          </li>
           <li className="w-full md:flex md:items-center md:w-auto">
             <Link
               to="/doar"
@@ -108,34 +202,78 @@ export function Navbar() {
               {t("nav.doar")}
             </Link>
           </li>
-          <li className="mobile-nav-link w-full md:hidden">
-            <a
-              href="/saude/index.html"
-              className="mx-4 mb-2 flex items-center gap-2 rounded-xl border-l-4 border-[#c58af9] bg-[rgba(197,138,249,0.1)] px-6 py-4 font-flex font-semibold text-[#c58af9] no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c58af9]"
-            >
-              <img
-                src="/saude/icon.png"
-                alt="Saúde"
-                className="h-6 w-6 rounded-md"
-              />
-              {t("nav.saude")}
-            </a>
-          </li>
         </ul>
       </div>
 
       <div className="flex items-center gap-3">
-        <a
-          href="/saude/index.html"
-          className="hidden items-center gap-2 rounded-full px-3 py-1 text-[1.1rem] font-semibold tracking-tight text-[var(--text)] no-underline transition-opacity hover:opacity-80 md:inline-flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+        <div
+          className="relative hidden md:block"
+          onMouseEnter={handleProdutosEnter}
+          onMouseLeave={handleProdutosLeave}
         >
-          <img
-            src="/saude/icon.png"
-            alt="Saúde"
-            className="h-7 w-7 rounded-md"
-          />
-          {t("nav.saude")}
-        </a>
+          <button
+            onClick={() => setProdutosOpen(!produtosOpen)}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] no-underline transition-colors hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          >
+            {t("nav.produtos")}
+            <svg
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className={`h-4 w-4 transition-transform ${produtosOpen ? "rotate-180" : ""}`}
+            >
+              <path
+                fillRule="evenodd"
+                d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+          {produtosOpen && (
+            <div className="absolute right-0 top-full mt-1 w-56 rounded-xl border border-[var(--border-color)] bg-[var(--bg)] p-1.5 shadow-xl">
+              <Link
+                to="/saude"
+                onClick={handleLinkClick}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[var(--text-secondary)] no-underline transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text)]"
+              >
+                <img src="/saude/icon.png" alt="" className="h-6 w-6 rounded" />
+                <span className="flex-1">{t("nav.saude")}</span>
+                <GooglePlayIcon />
+              </Link>
+              <a
+                href={GOOGLE_PLAY_FINANCAS}
+                target="_blank"
+                rel="noreferrer"
+                onClick={handleLinkClick}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[var(--text-secondary)] no-underline transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text)]"
+              >
+                <img src="/financas-icon.png" alt="" className="h-6 w-6 rounded" />
+                <span className="flex-1">{t("nav.financas")}</span>
+                <GooglePlayIcon />
+              </a>
+              <a
+                href={GOOGLE_PLAY_MWSCAN}
+                target="_blank"
+                rel="noreferrer"
+                onClick={handleLinkClick}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[var(--text-secondary)] no-underline transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text)]"
+              >
+                <img src="/mwscan-icon.png" alt="" className="h-6 w-6 rounded" />
+                <span className="flex-1">{t("nav.mwscan")}</span>
+                <GooglePlayIcon />
+              </a>
+              <div className="my-1 border-t border-[var(--border-color)]" />
+              <Link
+                to="/"
+                onClick={handleLinkClick}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[var(--text-secondary)] no-underline transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text)]"
+              >
+                <img src="/icon.png" alt="" className="h-6 w-6 rounded" />
+                <span className="flex-1">{t("nav.desktop")}</span>
+                <MsStoreIcon />
+              </Link>
+            </div>
+          )}
+        </div>
 
         <LanguageSwitcher />
 
