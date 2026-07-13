@@ -75,15 +75,23 @@ Crie um link de diretório que aponte da **subpasta `.dev/`** dentro do diretór
 *   **No Windows (PowerShell):**
     > [!TIP]
     > O tipo `-ItemType Junction` é recomendado no Windows porque funciona exatamente como um link simbólico de pasta, mas **não exige privilégios de Administrador** para ser criado.
+
+    > [!IMPORTANT]
+    > O runtime do MomAI usa o diretório de dados do Electron (`app.getPath('userData')/data`). No Windows, isso é tipicamente `%APPDATA%\MomAI-Dev\data`. **Não crie o symlink em `apps\momai\data\`** — esse é o diretório local do monorepo, não é lido em runtime. Para descobrir o DATA_DIR em uso, procure a variável `MOMAI_NODE_CORE_DATA_DIR` nos logs ou no `.env`.
+
     ```powershell
-    # A partir da raiz do monorepo do MomAI
-    New-Item -ItemType Directory -Path ".\apps\momai\data\extensions\.dev" -Force
-    New-Item -ItemType Junction -Path ".\apps\momai\data\extensions\.dev\minha-extensao" -Value "C:\caminho\para\minha-extensao"
+    # Descubra o DATA_DIR correto:
+    $dataDir = "$env:APPDATA\MomAI-Dev\data"
+    New-Item -ItemType Directory -Path "$dataDir\extensions\.dev" -Force
+    New-Item -ItemType Junction -Path "$dataDir\extensions\.dev\minha-extensao" -Value "C:\caminho\para\minha-extensao"
     ```
 *   **No Linux / macOS (Terminal):**
+    > [!IMPORTANT]
+    > O DATA_DIR em runtime é `$HOME/.config/MomAI-Dev/data` (Linux) ou `$HOME/Library/Application Support/MomAI-Dev/data` (macOS). Verifique o DATA_DIR real checando a variável `MOMAI_NODE_CORE_DATA_DIR` nos logs.
     ```bash
-    mkdir -p ./apps/momai/data/extensions/.dev
-    ln -s /caminho/para/minha-extensao ./apps/momai/data/extensions/.dev/minha-extensao
+    DATA_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/MomAI-Dev/data"
+    mkdir -p "$DATA_DIR/extensions/.dev"
+    ln -s /caminho/para/minha-extensao "$DATA_DIR/extensions/.dev/minha-extensao"
     ```
 
 ### Passo 3: Rodar o compilador da extensão em modo Watch
@@ -101,7 +109,7 @@ pnpm dev
 ```
 
 *   **Como funciona em runtime:**
-    *   O backend do MomAI (`registry.js`) detecta automaticamente a nova extensão na pasta `data/extensions/minha-extensao` e carrega o arquivo `SKILL.md` e o `runtime.js`.
+    *   Em modo **Dev (Symlinks)**, o backend do MomAI (`registry.js`) varre `{DATA_DIR}/extensions/.dev/` e carrega o `SKILL.md` e `runtime.js` de cada subdiretório (ou symlink) encontrado.
     *   O Vite dev server do MomAI intercepta requisições feitas para `/extensions/minha-extensao/dist/page.js` e lê diretamente os arquivos atualizados em tempo real.
     *   Qualquer mudança na UI do React será atualizada bastando recarregar a interface do MomAI (F5 ou `Ctrl + R` se em janela de dev).
 
