@@ -6,6 +6,7 @@ const CACHE_KEYS = {
   exe: "momai_latest_exe_v3",
   linux: "momai_latest_linux_v3",
   version: "momai_latest_version_v3",
+  date: "momai_latest_date_v3",
   downloads: "momai_total_downloads_v3",
 };
 
@@ -14,6 +15,7 @@ export function useGitHubRelease() {
     winExeUrl: `https://github.com/${REPO}/releases/latest`,
     linuxUrl: `https://github.com/${REPO}/releases/latest`,
     version: "",
+    releaseDate: "",
   });
   const [totalDownloads, setTotalDownloads] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -25,6 +27,7 @@ export function useGitHubRelease() {
       const cachedExe = sessionStorage.getItem(CACHE_KEYS.exe);
       const cachedLinux = sessionStorage.getItem(CACHE_KEYS.linux);
       const cachedVersion = sessionStorage.getItem(CACHE_KEYS.version);
+      const cachedDate = sessionStorage.getItem(CACHE_KEYS.date);
       const cachedDownloads = sessionStorage.getItem(CACHE_KEYS.downloads);
 
       if (cachedVersion && cachedExe && cachedLinux) {
@@ -33,6 +36,7 @@ export function useGitHubRelease() {
             winExeUrl: cachedExe,
             linuxUrl: cachedLinux,
             version: cachedVersion,
+            releaseDate: cachedDate || "",
           });
           if (cachedDownloads) {
             setTotalDownloads(Number(cachedDownloads));
@@ -76,6 +80,7 @@ export function useGitHubRelease() {
         let winExeUrl = `https://github.com/${REPO}/releases/latest`;
         let linuxUrl = `https://github.com/${REPO}/releases/latest`;
         let version = "";
+        let releaseDate = "";
 
         if (latest && latest.assets) {
           const winAsset = latest.assets.find((a) => a.name.endsWith(".exe"));
@@ -83,6 +88,7 @@ export function useGitHubRelease() {
             latest.assets.find((a) => a.name.endsWith(".AppImage")) ||
             latest.assets.find((a) => a.name.endsWith(".deb"));
           version = latest.tag_name || latest.name || "";
+          releaseDate = latest.published_at || "";
           winExeUrl = winAsset?.browser_download_url || winExeUrl;
           linuxUrl = linuxAsset?.browser_download_url || linuxUrl;
         }
@@ -90,10 +96,11 @@ export function useGitHubRelease() {
         sessionStorage.setItem(CACHE_KEYS.exe, winExeUrl);
         sessionStorage.setItem(CACHE_KEYS.linux, linuxUrl);
         sessionStorage.setItem(CACHE_KEYS.version, version);
+        sessionStorage.setItem(CACHE_KEYS.date, releaseDate);
         sessionStorage.setItem(CACHE_KEYS.downloads, String(total));
 
         if (!cancelled) {
-          setUrls({ winExeUrl, linuxUrl, version });
+          setUrls({ winExeUrl, linuxUrl, version, releaseDate });
           setTotalDownloads(total);
         }
       } catch (err) {
