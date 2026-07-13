@@ -165,7 +165,7 @@ export function Navbar() {
                 <img src="/financas-icon.png" alt="" className="h-5 w-5 rounded" />
                   {t("nav.financas")}
                   <GooglePlayIcon />
-                </Link>
+                </a>
                 <a
                   href={GOOGLE_PLAY_MWSCAN}
                   target="_blank"
@@ -249,7 +249,7 @@ export function Navbar() {
                 <img src="/financas-icon.png" alt="" className="h-6 w-6 rounded" />
                 <span className="flex-1">{t("nav.financas")}</span>
                 <GooglePlayIcon />
-              </Link>
+              </a>
               <a
                 href={GOOGLE_PLAY_MWSCAN}
                 target="_blank"
