@@ -89,48 +89,6 @@ export default function NotificationOverlay() {
       .catch(() => setInstalled([]))
   }, [])
 
-  useEffect(() => {
-    if (installed.length > 0) {
-      const whatsapp = installed.find((s) => s.id === 'whatsapp' && s.enabled)
-      if (whatsapp) {
-        const checkInitialStatus = async () => {
-          try {
-            const res = await rendererFetch(`${API_URL}/extensions/whatsapp/command`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ toolName: 'get_stats' })
-            })
-            if (res.ok) {
-              const stats = await res.json()
-              if (stats && (stats.connected === false || stats.ok === false)) {
-                const overlayData = {
-                  skillId: 'whatsapp',
-                  panel: whatsapp.ui?.panel,
-                  panelType: whatsapp.ui?.panelType,
-                  structuredResponse: {
-                    type: 'whatsapp-reconnect',
-                    data: {
-                      status: 'disconnected',
-                      qr: stats.qr || null
-                    }
-                  }
-                }
-                if ((window as any).api?.openOverlay) {
-                  ;(window as any).api.openOverlay(overlayData)
-                }
-              }
-            }
-          } catch (err) {
-            console.error('[NotificationOverlay] Failed to check initial WhatsApp status:', err)
-          }
-        }
-        const timer = setTimeout(checkInitialStatus, 1500)
-        return () => clearTimeout(timer)
-      }
-    }
-    return undefined
-  }, [installed])
-
   const findSkillForEvent = useCallback(
     (eventType: string) => installed.find((s) => (s.eventTypes || []).includes(eventType)),
     [installed]
@@ -229,7 +187,9 @@ export default function NotificationOverlay() {
       const skill = findSkillForEvent(event.eventType)
       if (!skill) return
 
-      if (skill.id === 'whatsapp') {
+      // Handle connection lifecycle events (e.g. connection_status, qr_code)
+      // These events open/close the overlay panel for the owning extension.
+      if (event.eventType === 'connection_status' || event.eventType === 'qr_code') {
         if (event.eventType === 'connection_status') {
           const status = event.data?.status
           if (status === 'disconnected') {
@@ -239,14 +199,12 @@ export default function NotificationOverlay() {
               )
               return
             }
-            // Keep the overlay open, but don't force a reset of QR to null if we already have it.
-            // If the overlay is already open, this avoids updating it with qr: null which causes flicker.
             const overlayData = {
-              skillId: 'whatsapp',
+              skillId: skill.id,
               panel: skill.ui?.panel,
               panelType: skill.ui?.panelType,
               structuredResponse: {
-                type: 'whatsapp-reconnect',
+                type: skill.ui?.panelType || 'extension-panel',
                 data: {
                   status: 'disconnected'
                 }
@@ -256,8 +214,6 @@ export default function NotificationOverlay() {
               ;(window as any).api.openOverlay(overlayData)
             }
           } else if (status === 'connected') {
-            // Only close or send overlay updates if the overlay is actually showing the reconnect card.
-            // If the user has a message notification open, we don't want to close/replace it.
             if (!isShowingMessageNotificationRef.current) {
               if ((window as any).api?.closeOverlay) {
                 ;(window as any).api.closeOverlay()
@@ -276,11 +232,11 @@ export default function NotificationOverlay() {
           }
           const qr = event.data?.qr
           const overlayData = {
-            skillId: 'whatsapp',
+            skillId: skill.id,
             panel: skill.ui?.panel,
             panelType: skill.ui?.panelType,
             structuredResponse: {
-              type: 'whatsapp-reconnect',
+              type: skill.ui?.panelType || 'extension-panel',
               data: {
                 status: 'disconnected',
                 qr
@@ -529,32 +485,39 @@ function NotificationCard({
           <p className="text-sm font-medium text-white truncate">{isGroup ? groupName : contact}</p>
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="text-xs text-text-muted">
-              {isGroup ? `${senderName} no WhatsApp` : 'WhatsApp'}
+              {data?.statusLabel || notification.skillId || 'Extension'}
             </span>
-            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-[#25D366] shrink-0">
-              <path d="M12.004 2C6.48 2 2 6.48 2 12.004c0 1.764.46 3.42 1.264 4.888L2 22l5.228-1.372a9.948 9.948 0 0 0 4.776 1.216c5.52 0 10.004-4.484 10.004-10.004C22.008 6.48 17.524 2 12.004 2zm5.728 14.18c-.248.704-1.44 1.284-1.984 1.34-.496.052-1.136.236-3.3-.62-2.764-1.092-4.512-3.904-4.652-4.088-.14-.184-1.12-1.48-1.12-2.824 0-1.344.704-2.008.956-2.272.248-.268.544-.336.728-.336h.548c.18 0 .42.064.64.584l1.112 2.684c.104.24.16.48.02.764-.1.2-.22.424-.36.564-.14.14-.28.3-.12.58.62 1.052 1.38 1.86 2.448 2.492.28.16.46.1.64-.1.18-.2.784-.9 1.004-1.2.22-.3.444-.24.764-.12.32.12 2.016.952 2.356 1.12.34.172.568.252.648.392.08.14.08.82-.168 1.52z" />
-            </svg>
+            {data?.statusIcon && (
+              <span
+                className="w-3.5 h-3.5 shrink-0 inline-block"
+                dangerouslySetInnerHTML={{ __html: data.statusIcon }}
+              />
+            )}
           </div>
         </div>
         <button onClick={onDismiss} className="text-text-muted hover:text-white p-1">
           <XMarkIcon className="w-4 h-4" />
         </button>
       </div>
-      {message.includes('Chamada em curso') ? (
+      {data?.statusText ? (
         <p className="text-sm text-gray-300 mb-4 flex items-center gap-2">
-          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#25D366] text-[#25D366] shrink-0" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
-            <path d="M20 15.5c-1.2 0-2.4-.2-3.6-.6-.3-.1-.7 0-1 .2l-2.2 2.2c-2.8-1.4-5.1-3.8-6.6-6.6l2.2-2.2c.3-.3.4-.7.2-1-.3-1.1-.5-2.3-.5-3.5 0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1 0 9.4 7.6 17 17 17 .6 0 1-.4 1-1v-3.5c0-.6-.4-1-1-1z" />
-          </svg>
-          <span className="font-medium text-white">Chamada em curso...</span>
+          {data?.statusIcon && (
+            <span
+              className="w-4 h-4 shrink-0 inline-block"
+              dangerouslySetInnerHTML={{ __html: data.statusIcon }}
+              style={{ display: 'inline-block', verticalAlign: 'middle' }}
+            />
+          )}
+          <span className="font-medium text-white">{data.statusText}</span>
         </p>
       ) : (
         <p className="text-sm text-gray-300 mb-4">{message}</p>
       )}
 
-      {data?.audio && (
+      {data?.audioUrl && (
         <div className="mt-1.5 mb-3 max-w-[280px]">
           <audio
-            src={`${API_URL}/extensions/whatsapp/storage/audio/${data.audio}`}
+            src={data.audioUrl}
             controls
             className="w-full h-8 accent-accent"
           />

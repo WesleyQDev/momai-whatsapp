@@ -139,8 +139,15 @@ O MomAI gerencia a instalação de extensões em dois níveis:
 
 Quando a extensão estiver pronta para o lançamento público:
 
-1.  **Release no GitHub:**
-    *   Crie um arquivo `.zip` contendo apenas os arquivos de runtime necessários (removendo `node_modules` e código-fonte cru, mantendo apenas `manifest.json`, `SKILL.md`, `runtime.js` e a pasta `dist/`).
+1.  **Build e empacotamento:**
+    *   Instale as dependências de produção: `npm install --production`
+    *   Compile a UI (se tiver): `pnpm build` (roda esbuild → `dist/`)
+    *   Crie um arquivo `.zip` contendo:
+        *   `manifest.json`, `SKILL.md`, `runtime.js`
+        *   `dist/` (bundles da UI, se houver)
+        *   `node_modules/` (dependências de runtime — **obrigatório** para extensões com backend JS)
+        *   `package.json` (para referência)
+    *   **Não inclua** código-fonte (`src/`), configs de build (`build.mjs`, `tsconfig.json`), nem `node_modules` de dev (eslint, typescript, etc.)
     *   Faça o upload deste ZIP em uma **Release pública** no repositório GitHub da extensão (ex: `v1.0.0`).
 2.  **Adicionar ao Catálogo da Store:**
     *   Para o ambiente de **produção**, faça um commit ou envie um PR adicionando a extensão ao arquivo `community-extensions.json` no repositório público `WesleyQDev/MomAI-App`.
