@@ -95,7 +95,7 @@ export function DownloadSection() {
   return (
     <section
       id="download"
-      className="relative overflow-hidden bg-[var(--bg-secondary)] px-8 py-24 text-center"
+      className="relative overflow-hidden bg-[var(--bg-secondary)] px-4 py-16 sm:px-8 sm:py-24 text-center"
     >
       <div className="section-title mx-auto mb-12 max-w-[480px]">
         <h2 className="relative mb-3 font-flex text-4xl font-normal tracking-tight text-[var(--accent)]">
@@ -108,9 +108,9 @@ export function DownloadSection() {
 
       <ScrollReveal>
         <div className="mega-download-container mx-auto max-w-[1100px]">
-          <div className="mega-card flex overflow-hidden rounded-3xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] shadow-[0_40px_100px_rgba(0,0,0,0.3)] backdrop-blur-xl [data-theme=light]:border-[rgba(0,0,0,0.05)] [data-theme=light]:bg-white [data-theme=light]:shadow-[0_20px_60px_rgba(0,0,0,0.05)]">
+          <div className="mega-card flex flex-col overflow-hidden rounded-3xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] shadow-[0_40px_100px_rgba(0,0,0,0.3)] backdrop-blur-xl lg:flex-row [data-theme=light]:border-[rgba(0,0,0,0.05)] [data-theme=light]:bg-white [data-theme=light]:shadow-[0_20px_60px_rgba(0,0,0,0.05)]">
             {/* Downloads Column */}
-            <div className="mega-card-downloads flex-[1.2] border-r border-[rgba(255,255,255,0.05)] p-8 [data-theme=light]:border-r-[rgba(0,0,0,0.05)] max-lg:border-b max-lg:border-r-0">
+            <div className="mega-card-downloads p-6 sm:p-8 lg:flex-[1.2] lg:border-r lg:border-[rgba(255,255,255,0.05)] lg:[data-theme=light]:border-r-[rgba(0,0,0,0.05)]">
               <h3 className="mb-6 flex items-center gap-3 text-xl font-semibold">
                 <MonitorIcon className="h-5 w-5" />
                 Plataformas
@@ -168,7 +168,7 @@ export function DownloadSection() {
             </div>
 
             {/* Specs Column */}
-            <div className="mega-card-specs flex-1 bg-[rgba(255,255,255,0.01)] p-8">
+            <div className="mega-card-specs bg-[rgba(255,255,255,0.01)] p-6 sm:p-8 lg:flex-1">
               <h3 className="mb-6 flex items-center gap-3 text-xl font-semibold">
                 <MonitorIcon className="h-5 w-5" />
                 Requisitos
@@ -220,11 +220,11 @@ export function DownloadSection() {
         </div>
       </ScrollReveal>
 
-      <div className="mx-auto mt-12 max-w-[1100px]">
+      <div className="mx-auto mt-12 max-w-[1100px] px-4 sm:px-0">
         <h3 className="mb-6 text-sm font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
           Outros Produtos
         </h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <a
             href="https://play.google.com/store/apps/details?id=com.wesleyqdev.momaisaude"
             target="_blank"
