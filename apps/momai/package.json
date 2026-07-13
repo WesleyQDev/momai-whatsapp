@@ -32,7 +32,6 @@
     "build:appx:all": "npm run build && pnpm run build:appx:store && pnpm run build:appx:test",
     "build:appx:store": "node -e \"const { execSync } = require('child_process'); const env = { ...process.env, MOMAI_VARIANT: 'appx-store', CSC_IDENTITY_AUTO_DISCOVERY: 'false', CSC_LINK: '', CSC_KEY_PASSWORD: '', WIN_CSC_LINK: '', WIN_CSC_KEY_PASSWORD: '' }; execSync('electron-builder --win appx -p never --config.win.signAndEditExecutable=false --config.forceCodeSigning=false', { stdio: 'inherit', env });\" && node scripts/stamp-exe.js",
     "build:appx:test": "node scripts/ensure-cert.js && node -e \"const { execSync } = require('child_process'); const env = { ...process.env, MOMAI_VARIANT: 'appx-test', CSC_IDENTITY_AUTO_DISCOVERY: 'false', CSC_LINK: '', CSC_KEY_PASSWORD: '', WIN_CSC_LINK: '', WIN_CSC_KEY_PASSWORD: '' }; execSync('electron-builder --win appx -p never --config.win.signAndEditExecutable=false --config.forceCodeSigning=false --config.appx.displayName=\\\"MomAI - Teste\\\" --config.win.artifactName=\\\"MomAI-Teste.${ext}\\\"', { stdio: 'inherit', env });\" && node scripts/sign-appx.js && node scripts/stamp-exe.js",
-    "build:mac": "electron-vite build && electron-builder --mac -p never",
     "build:linux": "npm run build && electron-builder --linux -p never && node scripts/validate-llama-package.js dist/linux-unpacked/resources --platform=linux",
     "build:linux:wsl": "powershell -ExecutionPolicy Bypass -File scripts/build-linux-wsl.ps1"
   },

@@ -74,11 +74,8 @@ pnpm dev:all
 # Windows (.exe)
 pnpm build:exe
 
-# Linux (AppImage)
+# Linux (AppImage + .deb)
 pnpm build:linux
-
-# macOS (.dmg)
-pnpm build:mac
 ```
 
 ### Qualidade

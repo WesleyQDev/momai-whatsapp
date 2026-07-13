@@ -12,7 +12,6 @@
     "build": "pnpm --filter momai build && node scripts/open-build-dir.js apps/momai/dist",
     "build:exe": "pnpm --filter momai build:exe && node scripts/open-build-dir.js apps/momai/dist",
     "build:linux": "pnpm --filter momai build:linux && node scripts/open-build-dir.js apps/momai/dist",
-    "build:mac": "pnpm --filter momai build:mac && node scripts/open-build-dir.js apps/momai/dist",
     "build:unpack": "pnpm --filter momai build:unpack && node scripts/open-build-dir.js apps/momai/dist",
     "build:appx": "pnpm --filter momai build:appx && node scripts/open-build-dir.js apps/momai/dist",
     "build:appx:store": "pnpm --filter momai build:appx:store && node scripts/open-build-dir.js apps/momai/dist",
