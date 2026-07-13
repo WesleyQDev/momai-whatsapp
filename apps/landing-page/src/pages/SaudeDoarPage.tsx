@@ -21,7 +21,7 @@ export function SaudeDoarPage() {
         <h1
           className="mb-4 font-flex text-5xl font-normal leading-[1.1] tracking-tight"
           style={{
-            background: "linear-gradient(135deg, #c58af9 0%, #f981d3 100%)",
+            background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
@@ -52,7 +52,7 @@ export function SaudeDoarPage() {
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-all ${
                   copied
                     ? "bg-gradient-to-r from-green-500 to-green-600"
-                    : "bg-gradient-to-r from-[#c58af9] to-purple-600 hover:translate-y-[-2px] hover:shadow-[0_8px_20px_rgba(147,51,234,0.4)]"
+                    : "bg-gradient-to-r from-[#10b981] to-[#06b6d4] hover:translate-y-[-2px] hover:shadow-[0_8px_20px_rgba(16,185,129,0.4)]"
                 }`}
               >
                 <svg
@@ -96,9 +96,9 @@ export function SaudeDoarPage() {
           continuar evoluindo para novas funcionalidades de bem-estar.
         </p>
 
-        <div className="rounded-xl bg-gradient-to-r from-[rgba(197,138,249,0.1)] to-[rgba(249,129,211,0.1)] p-6 text-center">
+        <div className="rounded-xl bg-gradient-to-r from-[rgba(16,185,129,0.1)] to-[rgba(6,182,212,0.1)] p-6 text-center">
           <p className="font-medium text-[#e6edf3]">
-            Obrigado pelo seu apoio! 💜
+            Obrigado pelo seu apoio! 💚
           </p>
         </div>
       </div>

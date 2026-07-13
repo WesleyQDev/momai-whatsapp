@@ -44,7 +44,7 @@ export function SaudeLayout() {
                     to={link.to}
                     className={`text-sm no-underline transition-colors ${
                       isActive(link.to)
-                        ? "text-[#c58af9]"
+                        ? "text-[#10b981]"
                         : "text-[#8b949e] hover:text-[#e6edf3]"
                     }`}
                   >
@@ -56,9 +56,9 @@ export function SaudeLayout() {
                 <Link
                   to="/saude/doar"
                   className={`rounded-full px-3 py-1.5 text-sm font-medium no-underline transition-colors ${
-                    isActive("/saude/doar")
-                      ? "bg-[rgba(197,138,249,0.25)] text-[#c58af9]"
-                      : "bg-[rgba(197,138,249,0.15)] text-[#c58af9] hover:bg-[rgba(197,138,249,0.25)]"
+                      isActive("/saude/doar")
+                        ? "bg-[rgba(16,185,129,0.25)] text-[#10b981]"
+                        : "bg-[rgba(16,185,129,0.15)] text-[#10b981] hover:bg-[rgba(16,185,129,0.25)]"
                   }`}
                 >
                   Doar
@@ -139,7 +139,7 @@ export function SaudeLayout() {
                     onClick={() => setMenuOpen(false)}
                     className={`block text-sm no-underline ${
                       isActive(link.to)
-                        ? "text-[#c58af9]"
+                        ? "text-[#10b981]"
                         : "text-[#8b949e]"
                     }`}
                   >
@@ -151,7 +151,7 @@ export function SaudeLayout() {
                 <Link
                   to="/saude/doar"
                   onClick={() => setMenuOpen(false)}
-                  className="text-sm text-[#c58af9] no-underline"
+                  className="text-sm text-[#10b981] no-underline"
                 >
                   Doar
                 </Link>

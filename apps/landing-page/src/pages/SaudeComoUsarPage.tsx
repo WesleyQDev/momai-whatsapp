@@ -64,7 +64,7 @@ export function SaudeComoUsarPage() {
         <h1
           className="mb-3 font-flex text-5xl font-normal leading-[1.1] tracking-tight"
           style={{
-            background: "linear-gradient(135deg, #c58af9 0%, #f981d3 100%)",
+            background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
@@ -96,7 +96,7 @@ export function SaudeComoUsarPage() {
               />
             </div>
             <div className="w-full md:w-1/2">
-              <span className="mb-3 inline-block rounded-full bg-[rgba(197,138,249,0.15)] px-3 py-1 text-xs font-medium text-[#c58af9]">
+              <span className="mb-3 inline-block rounded-full bg-[rgba(16,185,129,0.15)] px-3 py-1 text-xs font-medium text-[#10b981]">
                 {step.badge}
               </span>
               <h2 className="mb-3 text-2xl font-normal text-[#e6edf3]">

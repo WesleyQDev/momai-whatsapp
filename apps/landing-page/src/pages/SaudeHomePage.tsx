@@ -201,14 +201,14 @@ export function SaudeHomePage() {
 
       {/* Hero Section */}
       <section ref={heroRef} className="fade-in relative z-10 mx-auto flex max-w-5xl flex-col items-center px-6 pb-20 pt-24 text-center">
-        <div className="mb-5 inline-block rounded-full border border-[rgba(197,138,249,0.2)] bg-[rgba(197,138,249,0.1)] px-4 py-1.5 text-sm font-medium text-[#c58af9]">
+        <div className="mb-5 inline-block rounded-full border border-[rgba(16,185,129,0.2)] bg-[rgba(16,185,129,0.1)] px-4 py-1.5 text-sm font-medium text-[#10b981]">
           Sua Assistente de Saúde
         </div>
 
         <h1
           className="mb-6 max-w-3xl text-4xl font-bold leading-tight tracking-tight sm:text-5xl md:text-6xl"
           style={{
-            background: "linear-gradient(135deg, #c58af9 0%, #f981d3 100%)",
+            background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
@@ -236,7 +236,7 @@ export function SaudeHomePage() {
           </a>
           <Link
             to="/saude/como-usar"
-            className="text-sm text-[#8b949e] no-underline transition-colors hover:text-[#c58af9]"
+            className="text-sm text-[#8b949e] no-underline transition-colors hover:text-[#10b981]"
           >
             Dicas de saúde MomAI
           </Link>
@@ -250,7 +250,7 @@ export function SaudeHomePage() {
             <button
               key={topic.id}
               onClick={() => setModalTopic(topic)}
-              className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] text-left transition-all duration-300 hover:-translate-y-1 hover:border-[rgba(197,138,249,0.3)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.2)]"
+              className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] text-left transition-all duration-300 hover:-translate-y-1 hover:border-[rgba(16,185,129,0.3)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.2)]"
             >
               <div className="aspect-[4/3] overflow-hidden">
                 <img
@@ -304,7 +304,7 @@ export function SaudeHomePage() {
               <h2
                 className="mb-3 text-xl font-bold"
                 style={{
-                  background: "linear-gradient(135deg, #c58af9 0%, #f981d3 100%)",
+                  background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
@@ -315,13 +315,13 @@ export function SaudeHomePage() {
               <p className="mb-5 text-sm leading-relaxed text-[#8b949e]">
                 {modalTopic.description}
               </p>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#c58af9]">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[#10b981]">
                 Dicas
               </h3>
               <ul className="space-y-2">
                 {modalTopic.tips.map((tip) => (
                   <li key={tip} className="flex items-center gap-2.5 text-sm text-[#e6edf3]">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[rgba(197,138,249,0.15)] text-[10px] text-[#c58af9]">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[rgba(16,185,129,0.15)] text-[10px] text-[#10b981]">
                       ✓
                     </span>
                     {tip}
@@ -340,7 +340,7 @@ export function SaudeHomePage() {
             <h2
               className="mb-3 text-3xl font-bold tracking-tight sm:text-4xl"
               style={{
-                background: "linear-gradient(135deg, #c58af9 0%, #f981d3 100%)",
+                background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
@@ -358,9 +358,9 @@ export function SaudeHomePage() {
             {FEATURES.map((feature) => (
               <div
                 key={feature.title}
-                className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition-all duration-300 hover:-translate-y-1 hover:border-[rgba(197,138,249,0.2)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.15)]"
+                className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-7 transition-all duration-300 hover:-translate-y-1 hover:border-[rgba(16,185,129,0.2)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.15)]"
               >
-                <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl border border-[rgba(197,138,249,0.2)] bg-[rgba(197,138,249,0.1)] text-[#c58af9]">
+                <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl border border-[rgba(16,185,129,0.2)] bg-[rgba(16,185,129,0.1)] text-[#10b981]">
                   {feature.icon}
                 </div>
                 <h3 className="mb-2 text-base font-semibold text-[#e6edf3]">
@@ -382,7 +382,7 @@ export function SaudeHomePage() {
             <h2
               className="mb-3 text-3xl font-bold tracking-tight sm:text-4xl"
               style={{
-                background: "linear-gradient(135deg, #c58af9 0%, #f981d3 100%)",
+                background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
@@ -398,7 +398,7 @@ export function SaudeHomePage() {
           <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
             {STEPS.map((step) => (
               <div key={step.number} className="text-center">
-                <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-[rgba(197,138,249,0.3)] bg-[rgba(197,138,249,0.1)] text-lg font-bold text-[#c58af9]">
+                <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-[rgba(16,185,129,0.3)] bg-[rgba(16,185,129,0.1)] text-lg font-bold text-[#10b981]">
                   {step.number}
                 </div>
                 <h3 className="mb-2 text-lg font-semibold text-[#e6edf3]">
