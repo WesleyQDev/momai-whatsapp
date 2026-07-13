@@ -22,7 +22,7 @@ const GOOGLE_PLAY_SAUDE =
 const GOOGLE_PLAY_FINANCAS =
   "https://play.google.com/store/apps/details?id=com.wesleyqdev.momaifinancas";
 const GOOGLE_PLAY_MWSCAN =
-  "https://play.google.com/store/apps/details?id=com.wesleyqdev.mwscan";
+  "https://play.google.com/store/apps/details?id=com.wesleydeveloperstudio.MWScan";
 
 const GooglePlayIcon = () => (
   <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="currentColor">
