@@ -147,20 +147,20 @@ export function DownloadSection() {
                     >
                       <div className="flex items-center gap-3">
                         <p.icon className="h-5 w-5" />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{p.name}</span>
-                          {isVersioned && date && (
-                            <span className="text-xs text-[var(--text-tertiary)]">
-                              {date}
-                            </span>
-                          )}
-                        </div>
+                        <span className="font-medium">{p.name}</span>
                       </div>
-                      <span
-                        className={`text-sm font-semibold uppercase tracking-wide ${p.disabled ? "" : "text-[var(--accent)]"} platform-status`}
-                      >
-                        {statusText}
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <span
+                          className={`text-sm font-semibold uppercase tracking-wide ${p.disabled ? "" : "text-[var(--accent)]"} platform-status`}
+                        >
+                          {statusText}
+                        </span>
+                        {isVersioned && date && (
+                          <span className="text-xs text-[var(--text-tertiary)]">
+                            {date}
+                          </span>
+                        )}
+                      </div>
                     </a>
                   );
                 })}
