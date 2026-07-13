@@ -162,10 +162,10 @@ export function Navbar() {
                   onClick={handleLinkClick}
                   className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] no-underline hover:bg-[var(--bg-tertiary)] hover:text-[var(--text)]"
                 >
-                  <span className="flex h-5 w-5 items-center justify-center rounded bg-[var(--bg-tertiary)] text-xs">💰</span>
+                <img src="/financas-icon.png" alt="" className="h-5 w-5 rounded" />
                   {t("nav.financas")}
                   <GooglePlayIcon />
-                </a>
+                </Link>
                 <a
                   href={GOOGLE_PLAY_MWSCAN}
                   target="_blank"
@@ -173,7 +173,7 @@ export function Navbar() {
                   onClick={handleLinkClick}
                   className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] no-underline hover:bg-[var(--bg-tertiary)] hover:text-[var(--text)]"
                 >
-                  <span className="flex h-5 w-5 items-center justify-center rounded bg-[var(--bg-tertiary)] text-xs">🚗</span>
+                  <img src="/mwscan-icon.png" alt="" className="h-5 w-5 rounded" />
                   {t("nav.mwscan")}
                   <GooglePlayIcon />
                 </a>
@@ -246,10 +246,10 @@ export function Navbar() {
                 onClick={handleLinkClick}
                 className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[var(--text-secondary)] no-underline transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text)]"
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded bg-[var(--bg-tertiary)] text-base">💰</span>
+                <img src="/financas-icon.png" alt="" className="h-6 w-6 rounded" />
                 <span className="flex-1">{t("nav.financas")}</span>
                 <GooglePlayIcon />
-              </a>
+              </Link>
               <a
                 href={GOOGLE_PLAY_MWSCAN}
                 target="_blank"
@@ -257,7 +257,7 @@ export function Navbar() {
                 onClick={handleLinkClick}
                 className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-[var(--text-secondary)] no-underline transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text)]"
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded bg-[var(--bg-tertiary)] text-base">🚗</span>
+                <img src="/mwscan-icon.png" alt="" className="h-6 w-6 rounded" />
                 <span className="flex-1">{t("nav.mwscan")}</span>
                 <GooglePlayIcon />
               </a>
