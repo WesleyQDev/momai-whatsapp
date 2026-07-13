@@ -194,7 +194,7 @@ async function loadSkillFromDir({ dir, kind, expectedId }) {
     // We deliberately do NOT `import()` the background-worker here. The
     // worker is meant to run in a forked child process owned by
     // extensionHostManager; loading it in the parent would execute its
-    // top-level require/import side effects (e.g. `@whiskeysockets/baileys`,
+    // top-level require/import side effects (e.g. extension-specific SDKs,
     // process.send, process.exit) in a context that doesn't support them.
     if (hasManifest) {
       let manifestObj = null
