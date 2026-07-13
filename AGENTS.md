@@ -486,6 +486,7 @@ The PR template requires:
 
 Agent rules for PRs:
 
+- **Always use `gh pr create --body-file <file>` instead of `--body`** — PowerShell eats backticks and special characters when using `--body`, producing broken markdown. Write the body to a temp file first.
 - Check for duplicate PRs/branches when possible.
 - Link to an issue when applicable.
 - Report exactly what was tested.
