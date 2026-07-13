@@ -445,6 +445,7 @@ Regras:
   - Remoção de código legado que não afeta o usuário
   - Detalhes de arquitetura interna (Rolldown, Oxc, etc.)
   - Versões específicas de pacotes
+  - Funcionalidades exclusivas de desenvolvimento (modo Dev-Symlinks, Testar Loja, GITHUB_TOKEN) — não existem na versão buildada
 - Agrupar em seções curtas com emojis: `✨ Novidades`, `🐛 Correções`, `🧹 Outros`
 - Manter entries curtas — o usuário lê na interface, não quer um artigo.
 

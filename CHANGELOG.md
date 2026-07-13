@@ -7,15 +7,14 @@ Acompanhe todas as atualizações e mudanças da MomAI.
 ### ✨ Novidades
 
 - **Transição visual no Modo Dev**: Agora ao alternar entre Dev (Symlinks) e Testar Loja, você vê animações de carregamento na interface, sem aquele flash em branco.
-- **Instalação de extensões mais estável**: Symlinks de desenvolvimento não são mais apagados acidentalmente ao instalar extensões pelo modo Loja.
 
 ### 🐛 Correções
 
-- **Erro 403 no GitHub**: Corrigido erro de taxa limite ao buscar informações de extensões da loja. Agora você pode configurar um token GitHub (opcional) nas configurações para evitar o problema.
+- **Instalação de extensões mais estável**: Symlinks de desenvolvimento não são mais apagados acidentalmente ao instalar extensões pelo modo Loja.
 
 ### 🧹 Outros
 
-- Código legado removido, dependências atualizadas e melhorias internas de performance.
+- Código legado removido e melhorias internas de performance.
 
 ## 1.5.2 - 2026-07-04
 
