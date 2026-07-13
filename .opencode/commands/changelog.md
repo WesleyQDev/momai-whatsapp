@@ -7,7 +7,7 @@ Sempre que rodar este comando, siga estes passos nesta ordem:
 
 ## 1. Refatorar entradas existentes
 
-Analise TUDO que está em `apps/landing-page/public/CHANGELOG.md` e refatore qualquer entrada que:
+Analise TUDO que está em `CHANGELOG.md` (raiz do repositório) e refatore qualquer entrada que:
 - **Menções a landing page** ou blog — remova
 - **Menções a monorepo** (build scripts, CI/CD, GitHub Actions, workflows, turbo, pnpm, etc.) — remova
 - **Menções a GitHub** (releases, artefatos, pipelines, etc.) — remova
