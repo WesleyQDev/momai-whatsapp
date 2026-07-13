@@ -3,26 +3,54 @@ import { WIN_STORE_URL } from "@/constants";
 import { useGitHubRelease } from "@/hooks/useGitHubRelease";
 import { useDownloadTracking } from "@/hooks/useDownloadTracking";
 import { ScrollReveal } from "./ScrollReveal";
-import { WindowsIcon, LinuxIcon, AppleIcon, AndroidIcon } from "./Icons";
-
-const MsStoreIcon = () => (
-  <img
-    src="/Icone%20microsoft%20store.png"
-    alt="MS Store"
-    className="h-5 w-5"
-  />
-);
+import {
+  WindowsIcon,
+  LinuxIcon,
+  AppleIcon,
+  AndroidIcon,
+  MonitorIcon,
+} from "./Icons";
 
 const PLATFORMS = [
-  { id: "win", name: "Windows", icon: WindowsIcon, extension: ".exe" },
-  { id: "store", name: "Microsoft Store", icon: MsStoreIcon, extension: "" },
-  { id: "linux", name: "Linux", icon: LinuxIcon, extension: ".AppImage" },
-  { id: "mac", name: "macOS", icon: AppleIcon, extension: "", disabled: true },
+  {
+    id: "win",
+    name: "Windows (.exe)",
+    icon: WindowsIcon,
+    status: "Instalar",
+    disabled: false,
+  },
+  {
+    id: "store",
+    name: "Microsoft Store",
+    icon: () => (
+      <img
+        src="/Icone%20microsoft%20store.png"
+        alt="MS Store"
+        className="h-8 w-8"
+      />
+    ),
+    status: "Obter",
+    disabled: false,
+  },
+  {
+    id: "linux",
+    name: "Linux",
+    icon: LinuxIcon,
+    status: "AppImage",
+    disabled: false,
+  },
+  {
+    id: "mac",
+    name: "macOS",
+    icon: AppleIcon,
+    status: "Em breve",
+    disabled: true,
+  },
   {
     id: "android",
     name: "Android",
     icon: AndroidIcon,
-    extension: "",
+    status: "Em breve",
     disabled: true,
   },
 ];
@@ -30,7 +58,11 @@ const PLATFORMS = [
 function formatDate(dateStr: string): string {
   if (!dateStr) return "";
   const d = new Date(dateStr);
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+  return d.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export function DownloadSection() {
@@ -65,7 +97,7 @@ export function DownloadSection() {
       id="download"
       className="relative overflow-hidden bg-[var(--bg-secondary)] px-8 py-24 text-center"
     >
-      <div className="mx-auto mb-12 max-w-[480px]">
+      <div className="section-title mx-auto mb-12 max-w-[480px]">
         <h2 className="relative mb-3 font-flex text-4xl font-normal tracking-tight text-[var(--accent)]">
           {t("download.title")}
         </h2>
@@ -75,18 +107,28 @@ export function DownloadSection() {
       </div>
 
       <ScrollReveal>
-        <div className="mx-auto max-w-2xl">
-          <div className="overflow-hidden rounded-2xl border border-[var(--border-color)] bg-[var(--bg)]">
-            <div className="p-8">
-              <h3 className="mb-6 text-left text-lg font-medium text-[var(--text)]">
-                {t("download.title")}
+        <div className="mega-download-container mx-auto max-w-[1100px]">
+          <div className="mega-card flex overflow-hidden rounded-3xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] shadow-[0_40px_100px_rgba(0,0,0,0.3)] backdrop-blur-xl [data-theme=light]:border-[rgba(0,0,0,0.05)] [data-theme=light]:bg-white [data-theme=light]:shadow-[0_20px_60px_rgba(0,0,0,0.05)]">
+            {/* Downloads Column */}
+            <div className="mega-card-downloads flex-[1.2] border-r border-[rgba(255,255,255,0.05)] p-12 [data-theme=light]:border-r-[rgba(0,0,0,0.05)] max-lg:border-b max-lg:border-r-0">
+              <h3 className="mb-8 flex items-center gap-3 text-2xl font-semibold">
+                <MonitorIcon className="h-6 w-6" />
+                Plataformas
               </h3>
 
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-4">
                 {PLATFORMS.map((p) => {
                   const href = getHref(p.id);
                   const isVersioned =
                     (p.id === "win" || p.id === "linux") && !p.disabled;
+
+                  const statusText = p.disabled
+                    ? p.status
+                    : loading
+                      ? "Carregando..."
+                      : isVersioned
+                        ? `Instalar v${cleanVersion}`
+                        : p.status;
 
                   return (
                     <a
@@ -97,33 +139,29 @@ export function DownloadSection() {
                         !p.disabled && handlePlatformClick(p.id, p.name)
                       }
                       aria-disabled={p.disabled}
-                      className={`flex items-center justify-between rounded-xl border border-[var(--border-color)] px-5 py-4 text-[var(--text)] no-underline transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                      className={`platform-btn flex items-center justify-between rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-6 py-5 text-[var(--text)] no-underline transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
                         p.disabled
-                          ? "cursor-not-allowed opacity-40"
-                          : "hover:border-[var(--accent)] hover:bg-[var(--bg-secondary)]"
+                          ? "disabled cursor-not-allowed opacity-40"
+                          : "hover:translate-x-2 hover:border-[var(--text)] hover:bg-[var(--text)] hover:text-[var(--bg)]"
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <p.icon className="h-5 w-5" />
-                        <span className="font-medium">{p.name}</span>
-                        {isVersioned && date && (
-                          <span className="text-xs text-[var(--text-tertiary)]">
-                            {date}
+                      <div className="flex items-center gap-4">
+                        <p.icon className="h-6 w-6" />
+                        <div className="flex flex-col">
+                          <span className="text-lg font-medium">
+                            {p.name}
                           </span>
-                        )}
+                          {isVersioned && date && (
+                            <span className="text-xs text-[var(--text-tertiary)]">
+                              {date}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <span
-                        className={`text-sm font-medium ${p.disabled ? "text-[var(--text-tertiary)]" : "text-[var(--accent)]"}`}
+                        className={`text-sm font-semibold uppercase tracking-wide ${p.disabled ? "" : "text-[var(--accent)]"} platform-status`}
                       >
-                        {p.disabled
-                          ? "Em breve"
-                          : loading
-                            ? "..."
-                            : isVersioned
-                              ? `v${cleanVersion}`
-                              : p.id === "store"
-                                ? "Obter"
-                                : p.extension}
+                        {statusText}
                       </span>
                     </a>
                   );
@@ -131,27 +169,52 @@ export function DownloadSection() {
               </div>
             </div>
 
-            <div className="border-t border-[var(--border-color)] bg-[var(--bg-secondary)] px-8 py-6">
-              <div className="grid grid-cols-2 gap-6 text-left text-sm">
+            {/* Specs Column */}
+            <div className="mega-card-specs flex-1 bg-[rgba(255,255,255,0.01)] p-12">
+              <h3 className="mb-8 flex items-center gap-3 text-2xl font-semibold">
+                <MonitorIcon className="h-6 w-6" />
+                Requisitos
+              </h3>
+
+              <div className="space-y-8">
                 <div>
-                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
+                  <h4 className="mb-3 text-xs uppercase tracking-widest text-[var(--text-tertiary)]">
                     Mínimos
                   </h4>
-                  <ul className="space-y-1 text-[var(--text-secondary)]">
-                    <li>CPU: Core i5 / Ryzen 5</li>
-                    <li>RAM: 8GB</li>
-                    <li>GPU: Integrada</li>
-                  </ul>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-secondary)]">CPU</span>
+                      <span>Core i5 / Ryzen 5</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-secondary)]">RAM</span>
+                      <span>8GB</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-secondary)]">GPU</span>
+                      <span>Integrada</span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
+
+                <div className="border-t border-[rgba(255,255,255,0.05)] pt-6">
+                  <h4 className="mb-3 text-xs uppercase tracking-widest text-[var(--text-tertiary)]">
                     Recomendados
                   </h4>
-                  <ul className="space-y-1 text-[var(--text-secondary)]">
-                    <li>CPU: i7 / Ryzen 7+</li>
-                    <li>RAM: 16GB+</li>
-                    <li>GPU: RTX 2060+</li>
-                  </ul>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-secondary)]">CPU</span>
+                      <span>i7 / Ryzen 7+</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-secondary)]">RAM</span>
+                      <span>16GB+</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-secondary)]">GPU</span>
+                      <span>RTX 2060+</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
