@@ -219,6 +219,57 @@ export function DownloadSection() {
           </div>
         </div>
       </ScrollReveal>
+
+      <div className="mx-auto mt-12 max-w-[1100px]">
+        <h3 className="mb-6 text-sm font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
+          Outros Produtos
+        </h3>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <a
+            href="https://play.google.com/store/apps/details?id=com.wesleyqdev.momaisaude"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg)] p-4 no-underline transition-all hover:border-[var(--accent)] hover:bg-[var(--bg-secondary)]"
+          >
+            <img src="/saude/icon.png" alt="" className="h-10 w-10 rounded-lg" />
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-[var(--text)]">MomAI Saúde</span>
+              <span className="text-xs text-[var(--text-tertiary)]">Google Play</span>
+            </div>
+          </a>
+          <a
+            href="https://play.google.com/store/apps/details?id=com.wesleyqdev.momaifinancas"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg)] p-4 no-underline transition-all hover:border-[var(--accent)] hover:bg-[var(--bg-secondary)]"
+          >
+            <img src="/financas-icon.png" alt="" className="h-10 w-10 rounded-lg" />
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-[var(--text)]">MomAI Finanças</span>
+              <span className="text-xs text-[var(--text-tertiary)]">Google Play</span>
+            </div>
+          </a>
+          <a
+            href="https://play.google.com/store/apps/details?id=com.wesleydeveloperstudio.MWScan"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg)] p-4 no-underline transition-all hover:border-[var(--accent)] hover:bg-[var(--bg-secondary)]"
+          >
+            <img src="/mwscan-icon.png" alt="" className="h-10 w-10 rounded-lg" />
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-[var(--text)]">MW Scan</span>
+              <span className="text-xs text-[var(--text-tertiary)]">Google Play</span>
+            </div>
+          </a>
+          <div className="flex items-center gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg)] p-4 opacity-50">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--bg-secondary)] text-lg">📱</div>
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-[var(--text)]">MomAI Mobile</span>
+              <span className="text-xs text-[var(--text-tertiary)]">Em breve</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
