@@ -288,7 +288,7 @@ function getOverlayDimensions(data?: {
   structuredResponse?: { type?: string; data?: { conversationHistory?: unknown[] } }
 }) {
   const type = data?.structuredResponse?.type
-  if (type === 'whatsapp-reconnect') {
+  if (type === 'extension-panel') {
     return { width: 440, height: 420 }
   }
   const historyLen = data?.structuredResponse?.data?.conversationHistory?.length ?? 0

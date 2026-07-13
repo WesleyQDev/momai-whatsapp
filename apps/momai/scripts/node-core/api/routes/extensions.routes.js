@@ -417,9 +417,55 @@ async function installExtensionDependencies(extDir) {
   const deps = Object.keys(pkg.dependencies || {})
   if (deps.length === 0) return
 
+  // Strategy 1: Run npm install --production (handles transitive deps correctly)
+  const { execFile, execSync } = require('node:child_process')
+  const { promisify } = require('node:util')
+  const execFileAsync = promisify(execFile)
+
+  // Resolve npm — Electron's PATH may not include system npm
+  function findNpm() {
+    const nodeDir = path.dirname(process.execPath)
+    const candidates = process.platform === 'win32'
+      ? [
+          path.join(nodeDir, 'npm.cmd'),
+          path.join(nodeDir, 'npm'),
+          'npm'
+        ]
+      : [path.join(nodeDir, 'npm'), 'npm']
+    for (const c of candidates) {
+      try {
+        if (c !== 'npm') {
+          if (fs.existsSync(c)) return c
+        } else {
+          execSync('which npm', { stdio: 'ignore' })
+          return c
+        }
+      } catch {}
+    }
+    return null
+  }
+
+  const npmCmd = findNpm()
+  if (!npmCmd) {
+    console.warn('[extensions] npm not found, skipping install')
+  } else {
+    try {
+      console.log(`[extensions] Running npm install --production in ${extDir}`)
+      await execFileAsync(npmCmd, ['install', '--production', '--no-audit', '--no-fund'], {
+        cwd: extDir,
+        timeout: 120000,
+        stdio: 'pipe'
+      })
+      console.log(`[extensions] npm install completed for ${path.basename(extDir)}`)
+      return
+    } catch (npmErr) {
+      console.warn(`[extensions] npm install failed (falling back to copy): ${npmErr.message}`)
+    }
+  }
+
+  // Strategy 2: Copy from monorepo node_modules (fallback for dev / no npm)
   const nmPaths = findAllNodeModules()
-  console.log(`[extensions] Found ${nmPaths.length} node_modules paths for dep install`)
-  nmPaths.forEach((p) => console.log(`[extensions]   candidate: ${p}`))
+  console.log(`[extensions] Found ${nmPaths.length} node_modules paths for dep copy fallback`)
   if (nmPaths.length === 0) {
     console.log('[extensions] Could not locate any node_modules for dep install')
     return
