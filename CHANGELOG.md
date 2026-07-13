@@ -2,6 +2,24 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 1.5.3 - 2026-07-13
+
+Atualizações de dependências e remoção de código legado
+
+### ⬆️ Dependências
+
+- **Vite 8 + @vitejs/plugin-react 6**: Upgrade do toolchain de build (Vite 7.3.5 → 8.1.4, plugin-react 5.2.0 → 6.0.3, electron-vite 5.0.0 → 6.0.0-beta.1). Suporte a Rolldown/Oxc com camada de compatibilidade automática.
+
+### 🧹 Manutenção
+
+- **FortScript removido**: Utilitário Python deprecado foi substituído pelo economy system nativo. Código e referências removidos do monorepo.
+- **GitHub Actions bumpados**: actions/checkout, setup-node, deploy-pages, upload-pages-artifact, pnpm/action-setup atualizados para últimas versões.
+
+### 🐛 Correções
+
+- **Dev Mode UX**: Skeleton loading durante alternância entre Dev (Symlinks) e Testar Loja; preservação de symlinks externos durante instalação em store_test mode.
+- **Suporte a GITHUB_TOKEN**: community-registry agora aceita token para evitar rate limit do GitHub API.
+
 ## 1.5.2 - 2026-07-04
 
 Correções de segurança, estabilidade do WhatsApp e melhorias no build
