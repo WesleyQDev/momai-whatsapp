@@ -5,6 +5,12 @@ on:
     branches: [main]
     paths:
       - 'apps/landing-page/**'
+      - 'v1/**'
+      - 'saude/**'
+      - 'images/**'
+      - 'posts/**'
+      - 'politicas/**'
+      - 'CNAME'
       - 'CHANGELOG.md'
   workflow_dispatch:
 
