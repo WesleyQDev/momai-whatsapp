@@ -30,7 +30,7 @@ export function useGitHubRelease() {
       const cachedDate = sessionStorage.getItem(CACHE_KEYS.date);
       const cachedDownloads = sessionStorage.getItem(CACHE_KEYS.downloads);
 
-      if (cachedVersion && cachedExe && cachedLinux) {
+      if (cachedVersion && cachedExe && cachedLinux && cachedDate) {
         if (!cancelled) {
           setUrls({
             winExeUrl: cachedExe,
