@@ -233,8 +233,13 @@ class CommunityRegistryService {
   _httpGet(url, headers = {}) {
     return new Promise((resolve, reject) => {
       const client = url.startsWith('https') ? https : http
+      const finalHeaders = { ...headers }
+      const token = process.env.GITHUB_TOKEN || null
+      if (token && url.includes('api.github.com')) {
+        finalHeaders['Authorization'] = `Bearer ${token}`
+      }
       client
-        .get(url, { headers }, (res) => {
+        .get(url, { headers: finalHeaders }, (res) => {
           if (res.statusCode < 200 || res.statusCode >= 300) {
             return reject(new Error(`Status Code: ${res.statusCode}`))
           }

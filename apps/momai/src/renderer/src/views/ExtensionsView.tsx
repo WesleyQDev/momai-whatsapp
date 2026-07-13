@@ -567,6 +567,27 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
   )
 }
 
+/* ─── Skeleton Card (loading/shimmer placeholder) ─── */
+function SkeletonCard() {
+  return (
+    <div className="p-4 rounded-2xl border border-zinc-800 bg-zinc-950/20 animate-pulse space-y-3">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-zinc-800/60 shrink-0" />
+        <div className="flex-1 space-y-1.5">
+          <div className="h-3 w-24 rounded bg-zinc-800/60" />
+          <div className="h-2 w-16 rounded bg-zinc-800/40" />
+        </div>
+      </div>
+      <div className="h-2 w-full rounded bg-zinc-800/40" />
+      <div className="h-2 w-3/4 rounded bg-zinc-800/40" />
+      <div className="flex items-center gap-2 pt-1">
+        <div className="h-5 w-14 rounded-full bg-zinc-800/60" />
+        <div className="h-5 w-14 rounded-full bg-zinc-800/40" />
+      </div>
+    </div>
+  )
+}
+
 /* ─── Skill Detail (inline, keeps navbar) ─── */
 function SkillDetailView({
   skill,
@@ -1162,6 +1183,7 @@ export default function ExtensionsView() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [devMode, setDevMode] = useState<'symlink' | 'store_test'>('symlink')
+  const [switchingMode, setSwitchingMode] = useState<'symlink' | 'store_test' | null>(null)
   const [modeSwitchNotice, setModeSwitchNotice] = useState<string | null>(null)
   const tagsDragScrollRef = useRef<HTMLDivElement | null>(null)
   const tagsDragScroll = useDragScroll(tagsDragScrollRef)
@@ -1169,6 +1191,7 @@ export default function ExtensionsView() {
   const handleSetDevMode = async (mode: 'symlink' | 'store_test') => {
     const prevMode = devMode
     if (prevMode === mode) return
+    setSwitchingMode(mode)
     try {
       // Count currently-active extensions in the previous mode so we can
       // tell the user how many were deactivated by the security policy.
@@ -1188,6 +1211,8 @@ export default function ExtensionsView() {
       }
     } catch (err) {
       console.error('Erro ao atualizar modo dev:', err)
+    } finally {
+      setSwitchingMode(null)
     }
   }
 
@@ -1335,7 +1360,19 @@ export default function ExtensionsView() {
     () => allSkills.filter((s) => s.category === 'extension'),
     [allSkills]
   )
-  const storeSkills = useMemo(() => allSkills.filter((s) => s.category !== 'core'), [allSkills])
+  const storeSkills = useMemo(
+    () => {
+      if (devMode === 'symlink') {
+        // Dev mode: mostra só as extensões carregadas dos repositórios locais via symlinks
+        // Os dados vêm diretamente dos manifest.json / SKILL.md de cada repo, não do
+        // community-extensions.json remoto.
+        return allSkills.filter((s) => s.category === 'extension')
+      }
+      // store_test mode: mostra o catálogo da comunidade + extensões instaladas
+      return allSkills.filter((s) => s.category !== 'core')
+    },
+    [allSkills, devMode]
+  )
 
   useEffect(() => {
     installedSkills
@@ -1406,25 +1443,35 @@ export default function ExtensionsView() {
                   <div className="flex items-center gap-1 p-0.5 bg-zinc-950/40 rounded-lg border border-zinc-800/80">
                     <button
                       onClick={() => handleSetDevMode('symlink')}
+                      disabled={!!switchingMode}
                       title="Ambiente DEV: só lê de .dev/ (links simbólicos para checkouts locais). Ambientes completamente separados."
-                      className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
+                      className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
                         devMode === 'symlink'
                           ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400 font-extrabold shadow-sm'
                           : 'text-zinc-600 hover:text-zinc-400'
-                      }`}
+                      } ${switchingMode ? 'opacity-60 cursor-wait' : ''}`}
                     >
-                      Dev (Symlinks)
+                      {switchingMode === 'symlink' ? (
+                        <ArrowPathIcon className="w-3 h-3 animate-spin" />
+                      ) : (
+                        'Dev (Symlinks)'
+                      )}
                     </button>
                     <button
                       onClick={() => handleSetDevMode('store_test')}
+                      disabled={!!switchingMode}
                       title="Ambiente LOJA: só lê de extensionsDir/ (downloads reais). Ambientes completamente separados."
-                      className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all ${
+                      className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
                         devMode === 'store_test'
                           ? 'bg-blue-500/10 border border-blue-500/30 text-blue-400 font-extrabold shadow-sm'
                           : 'text-zinc-600 hover:text-zinc-400'
-                      }`}
+                      } ${switchingMode ? 'opacity-60 cursor-wait' : ''}`}
                     >
-                      Testar Loja
+                      {switchingMode === 'store_test' ? (
+                        <ArrowPathIcon className="w-3 h-3 animate-spin" />
+                      ) : (
+                        'Testar Loja'
+                      )}
                     </button>
                   </div>
                 )}
@@ -1622,17 +1669,40 @@ export default function ExtensionsView() {
                 /* ─── Store Catalog View ─── */
                 <>
                   {/* Featured Carousel */}
-                  {featuredSkills.length > 0 && !searchQuery && (
+                  {loading || switchingMode ? (
+                    <div className="mb-6">
+                      <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
+                        Destaques
+                      </h2>
+                      <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className="shrink-0 w-72 h-40 rounded-xl bg-zinc-950/20 border border-zinc-800 animate-pulse"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : featuredSkills.length > 0 && !searchQuery ? (
                     <div className="mb-6">
                       <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
                         Destaques
                       </h2>
                       <FeaturedCarousel skills={featuredSkills} onSelect={handleSelectSkill} />
                     </div>
-                  )}
+                  ) : null}
 
                   {/* Tag Filters */}
-                  {allTags.length > 0 && (
+                  {loading || switchingMode ? (
+                    <div className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-1">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="shrink-0 h-7 w-16 rounded-full bg-zinc-800/40 animate-pulse"
+                        />
+                      ))}
+                    </div>
+                  ) : allTags.length > 0 ? (
                     <div
                       ref={tagsDragScrollRef}
                       onMouseDown={tagsDragScroll.mouseDown}
@@ -1665,10 +1735,16 @@ export default function ExtensionsView() {
                         </button>
                       ))}
                     </div>
-                  )}
+                  ) : null}
 
                   {/* Skills Grid */}
-                  {filteredList.length > 0 ? (
+                  {loading || switchingMode ? (
+                    <div className="w-full min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {Array.from({ length: 8 }).map((_, i) => (
+                        <SkeletonCard key={i} />
+                      ))}
+                    </div>
+                  ) : filteredList.length > 0 ? (
                     <div className="w-full min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                       {filteredList.map((skill) => (
                         <SkillCard key={skill.id} skill={skill} onSelect={handleSelectSkill} />
