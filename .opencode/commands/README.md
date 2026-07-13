@@ -7,9 +7,11 @@ Comandos customizados disponíveis via `/comando` no OpenCode.
 | Comando | Descrição |
 |---------|-----------|
 | `/auditoria` | Auditoria completa do código com relatório PDF. Aceita escopo opcional: `/auditoria apps/momai/src/components` |
-| `/changelog` | Gerencia o changelog da landing page (`apps/landing-page/public/CHANGELOG.md`): refatora entradas existentes, identifica versões faltando entre tags git, e adiciona novas entradas em linguagem de usuário final |
+| `/changelog` | Gerencia o changelog (`CHANGELOG.md` raiz): refatora entradas existentes, identifica versões faltando entre tags git, e adiciona novas entradas em linguagem de usuário final |
 | `/documentacao` | Gera documentação técnica completa do projeto em PDF, explorando código, configs e pipelines |
 | `/llamareport` | Verifica versão do llama.cpp contra upstream e gera relatório de mudanças focado em Vulkan/AMD |
+| `/new-version` | Cria nova versão: gera changelog entry, commit e tag git |
+| `/release` | Build e release para Windows (.exe/.appx) e Linux. Suporta local (via script PowerShell) ou GitHub Actions. Verifica Docker se necessário |
 
 ## Como Usar
 
