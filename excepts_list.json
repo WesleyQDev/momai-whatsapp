@@ -588,45 +588,5 @@
     "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\core\\utils\\indexer.py",
     "line": 44,
     "content": "except:\n        pass"
-  },
-  {
-    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\fortscript\\src\\fortscript\\main.py",
-    "line": 61,
-    "content": "except (psutil.NoSuchProcess, psutil.AccessDenied):\n                pass"
-  },
-  {
-    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\fortscript\\src\\fortscript\\main.py",
-    "line": 276,
-    "content": "except psutil.NoSuchProcess:\n                pass"
-  },
-  {
-    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\fortscript\\src\\fortscript\\main.py",
-    "line": 283,
-    "content": "except psutil.NoSuchProcess:\n                pass"
-  },
-  {
-    "file": ".\\apps\\desktop\\dist\\win-unpacked\\resources\\fortscript\\src\\fortscript\\main.py",
-    "line": 298,
-    "content": "except psutil.NoSuchProcess:\n                pass"
-  },
-  {
-    "file": ".\\apps\\fortscript\\src\\fortscript\\main.py",
-    "line": 61,
-    "content": "except (psutil.NoSuchProcess, psutil.AccessDenied):\n                pass"
-  },
-  {
-    "file": ".\\apps\\fortscript\\src\\fortscript\\main.py",
-    "line": 276,
-    "content": "except psutil.NoSuchProcess:\n                pass"
-  },
-  {
-    "file": ".\\apps\\fortscript\\src\\fortscript\\main.py",
-    "line": 283,
-    "content": "except psutil.NoSuchProcess:\n                pass"
-  },
-  {
-    "file": ".\\apps\\fortscript\\src\\fortscript\\main.py",
-    "line": 298,
-    "content": "except psutil.NoSuchProcess:\n                pass"
   }
 ]

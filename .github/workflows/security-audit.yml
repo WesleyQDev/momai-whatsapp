@@ -56,7 +56,3 @@ jobs:
       - name: Audit apps/core dependencies
         working-directory: apps/core
         run: uv audit
-
-      - name: Audit apps/fortscript dependencies
-        working-directory: apps/fortscript
-        run: uv audit

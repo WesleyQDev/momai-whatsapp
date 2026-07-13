@@ -195,7 +195,6 @@ src/renderer/src/
 ### Extra Resources (incluídos no installer)
 
 - `apps/core/` → Python sidecar (excluindo .venv, __pycache__, models)
-- `apps/fortscript/` → FortScript (excluindo .venv, __pycache__)
 - `bin/` → Binários (llama-server, Python bundlado, uv, wheels)
 - `resources/` → Recursos adicionais
 - `build/diagnostic.bat` / `diagnostic.sh` → Scripts de diagnóstico

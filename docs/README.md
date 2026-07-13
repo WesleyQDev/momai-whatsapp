@@ -19,7 +19,6 @@ Se você quer contribuir com código, docs ou ideias:
 |-----------|-----------|
 | [Desktop (Electron)](apps/desktop.md) | GUI Electron + React, processos, build |
 | [Core (Python)](apps/core.md) | Sidecar Python de voz, APIs, TTS, STT |
-| [FortScript](apps/fortscript.md) | Gerenciador de processos para gaming mode |
 | [Landing Page](apps/landing-page.md) | Site institucional Vite + React |
 
 ### Guias

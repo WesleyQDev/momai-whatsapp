@@ -13,7 +13,6 @@ MomAI é um assistente virtual local-first focado em privacidade, combinando LLM
 - `apps/momai/` - GUI desktop (Electron + React + TypeScript)
 - `apps/core/` - Runtime Python (STT/TTS/banco local/inferência ONNX)
 - `scripts/node-core/` - Motor de orquestração de agentes (Node.js)
-- `apps/fortscript/` - Biblioteca Python utilitária
 - `apps/landing-page/` - Landing page (Vite + TailwindCSS) Github pages
 - `apps/momai-promo-video/` - Vídeo promocional (Remotion)
 - `docs/` - Documentação interna em markdown
