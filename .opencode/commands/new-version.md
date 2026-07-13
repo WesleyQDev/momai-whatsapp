@@ -1,5 +1,5 @@
 ---
-description: Cria nova versão: atualiza changelog, commit e tag
+description: "Cria nova versão: atualiza changelog, commit e tag"
 ---
 
 Crie uma nova versão seguindo estes passos:
