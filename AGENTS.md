@@ -431,7 +431,35 @@ Current `.github/workflows/ci.yml`:
 
 Important: tests are still expected for behavior changes even if the current CI workflow does not run the full test suite.
 
-### Release Workflow
+### Changelog Style
+
+`CHANGELOG.md` é o canal de comunicação com o usuário final. **Não** é um changelog técnico de desenvolvimento.
+
+Regras:
+
+- Escrever para **usuários**, não para desenvolvedores. Usar linguagem simples e em português.
+- Destacar **o que muda na experiência do usuário** — novas features, correções de bugs visíveis, melhorias de performance perceptíveis.
+- **NÃO incluir:**
+  - Bumps de dependências (Vite, electron-vite, etc.)
+  - Bumps de GitHub Actions
+  - Remoção de código legado que não afeta o usuário
+  - Detalhes de arquitetura interna (Rolldown, Oxc, etc.)
+  - Versões específicas de pacotes
+  - Funcionalidades exclusivas de desenvolvimento (modo Dev-Symlinks, Testar Loja, GITHUB_TOKEN) — não existem na versão buildada
+- Agrupar em seções curtas com emojis: `✨ Novidades`, `🐛 Correções`, `🧹 Outros`
+- Manter entries curtas — o usuário lê na interface, não quer um artigo.
+
+Exemplo de entry boa:
+```
+### ✨ Novidades
+- **Ícones sanitizados**: Ícones de extensões agora são verificados antes de exibir, prevenindo problemas de segurança.
+```
+
+Exemplo de entry ruim:
+```
+### ⬆️ Dependências
+- **Vite 8**: Upgrade de Vite 7.3.5 para 8.1.4 com suporte a Rolldown/Oxc.
+```
 
 Use `.github/workflows/release.yml` as the source of truth. The current workflow is manual (`workflow_dispatch`) and builds Windows and Linux artifacts, then creates/updates a public release in `WesleyQDev/MomAI-App`.
 

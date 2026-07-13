@@ -2,6 +2,12 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 1.5.3 - 2026-07-13
+
+### 🧹 Outros
+
+- Melhorias internas de performance e estabilidade.
+
 ## 1.5.2 - 2026-07-04
 
 Correções de segurança, estabilidade do WhatsApp e melhorias no build
