@@ -34,3 +34,9 @@ git commit -m "chore: bump to v{NOVA_VERSAO}"
 git tag v{NOVA_VERSAO}
 git push origin $(git branch --show-current) --tags
 ```
+
+## 5. Release
+
+Pergunte ao usuário se quer buildar e publicar a release agora. Se sim, execute `/release` ou aponte que os passos de build estão lá.
+
+O fluxo completo é: `/new-version` → (opcional) `/release`
