@@ -109,8 +109,9 @@ export function Navbar() {
             </Link>
           </li>
           <li className="mobile-nav-link w-full md:hidden">
-            <a
-              href="/saude/index.html"
+            <Link
+              to="/saude"
+              onClick={handleLinkClick}
               className="mx-4 mb-2 flex items-center gap-2 rounded-xl border-l-4 border-[#c58af9] bg-[rgba(197,138,249,0.1)] px-6 py-4 font-flex font-semibold text-[#c58af9] no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c58af9]"
             >
               <img
@@ -119,14 +120,14 @@ export function Navbar() {
                 className="h-6 w-6 rounded-md"
               />
               {t("nav.saude")}
-            </a>
+            </Link>
           </li>
         </ul>
       </div>
 
       <div className="flex items-center gap-3">
-        <a
-          href="/saude/index.html"
+        <Link
+          to="/saude"
           className="hidden items-center gap-2 rounded-full px-3 py-1 text-[1.1rem] font-semibold tracking-tight text-[var(--text)] no-underline transition-opacity hover:opacity-80 md:inline-flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
         >
           <img
@@ -135,7 +136,7 @@ export function Navbar() {
             className="h-7 w-7 rounded-md"
           />
           {t("nav.saude")}
-        </a>
+        </Link>
 
         <LanguageSwitcher />
 
