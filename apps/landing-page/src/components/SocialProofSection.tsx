@@ -52,7 +52,7 @@ export function SocialProofSection() {
                 <line x1={12} y1={15} x2={12} y2={3} />
               </svg>
               <span className="text-sm font-semibold text-[var(--text)]">
-                +77
+                +201
               </span>
             </div>
             <span className="text-sm text-[var(--text-secondary)]">
