@@ -136,7 +136,6 @@ pnpm test:watch             # uv run pytest --watch
 momai/
 ├── apps/
 │   ├── core/               # Python sidecar (FastAPI, STT, TTS, Wake Word)
-│   ├── fortscript/         # Python lib (gaming mode process manager)
 │   ├── landing-page/       # Vite + React (site institucional)
 │   ├── momai/              # Electron + React (desktop app principal)
 │   └── momai-promo-video/  # Remotion (vídeo promocional)

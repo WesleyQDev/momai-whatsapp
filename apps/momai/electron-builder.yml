@@ -27,11 +27,7 @@ win:
         - '!**/bin/**'
         - '!**/models/*'
         - '!**/momai.db'
-    - from: '../fortscript'
-      to: 'fortscript'
-      filter:
-        - '!**/.venv'
-        - '!**/__pycache__'
+
     - from: 'bin'
       to: 'bin'
       filter:
@@ -143,11 +139,7 @@ linux:
         - '!**/bin/**'
         - '!**/models/*'
         - '!**/momai.db'
-    - from: '../fortscript'
-      to: 'fortscript'
-      filter:
-        - '!**/.venv'
-        - '!**/__pycache__'
+
     - from: 'bin'
       to: 'bin'
       filter:

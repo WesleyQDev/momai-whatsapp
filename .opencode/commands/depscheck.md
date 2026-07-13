@@ -22,7 +22,6 @@ Leia TODOS os arquivos de dependência do projeto:
 | Root | `package.json` | pnpm |
 | MomAI Desktop | `apps/momai/package.json` | pnpm |
 | MomAI Core | `apps/core/pyproject.toml` | uv (pip) |
-| FortScript | `apps/fortscript/pyproject.toml` | uv (pip) |
 | Landing Page | `apps/landing-page/package.json` | pnpm |
 | Promo Video | `apps/momai-promo-video/package.json` | pnpm |
 
@@ -162,11 +161,6 @@ pnpm add -w {package}@{latest}
 **apps/core/ (Python / uv)**
 ```bash
 cd apps/core && uv add {package}=={latest}
-```
-
-**apps/fortscript/ (Python / uv)**
-```bash
-cd apps/fortscript && uv add {package}=={latest}
 ```
 
 **Instruções especiais:**

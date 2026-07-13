@@ -35,7 +35,6 @@ Apps and major packages:
 
 - `apps/momai/` - Main desktop app: Electron, React, TypeScript, Node Core, skills runtime.
 - `apps/core/` - Python/FastAPI sidecar for voice, STT/TTS, local settings/data, and inference helpers.
-- `apps/fortscript/` - Python utility library for pausing scripts/processes during gaming or heavy apps.
 - `apps/landing-page/` - Vite + React + TailwindCSS landing page.
 - `apps/momai-promo-video/` - Remotion promotional video.
 - `docs/` - Technical docs, guides, architecture, maintainer notes, and historical plans/specs.
@@ -227,7 +226,6 @@ Current confirmed sources:
 - Landing page stack: `apps/landing-page/package.json`.
 - Promo video stack: `apps/momai-promo-video/package.json`.
 - Core Python version and dependencies: `apps/core/pyproject.toml` and `apps/core/uv.lock`.
-- FortScript Python version and dependencies: `apps/fortscript/pyproject.toml` and `apps/fortscript/uv.lock`.
 - Turbo behavior: `turbo.json`.
 - CI/release behavior: `.github/workflows/`.
 
@@ -235,7 +233,6 @@ Operational facts that affect decisions:
 
 - Node CI uses Node.js 20 in GitHub Actions.
 - `apps/core` requires Python `>=3.12`.
-- `apps/fortscript` supports Python `>=3.10`.
 - The desktop app uses build variants with different ports; see `apps/momai/src/main/variants.ts`.
 - Renderer API URLs are injected by preload and fall back to legacy `127.0.0.1:8000`; see `apps/momai/src/renderer/src/constants.ts`.
 

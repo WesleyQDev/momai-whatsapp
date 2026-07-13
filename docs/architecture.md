@@ -104,11 +104,7 @@ Um serviço FastAPI enxuto dedicado exclusivamente a operações de voz. Enquant
 | `/chat/speak` | POST | Sintetiza texto em fala via Kokoro |
 | `/chat/stop-voice` | POST | Para toda síntese de fala |
 
-### 4. FortScript (Opcional)
-
-Uma biblioteca Python independente que monitora processos do sistema. Quando detecta que um jogo ou aplicação pesada está rodando, ela pausa automaticamente os processos gerenciados (como treinamento de modelos ou downloads), e os retoma quando a aplicação pesada é fechada. Útil para quem quer evitar que processos de IA consumam recursos durante gameplay.
-
-### 5. Landing Page
+### 4. Landing Page
 
 Site institucional da MomAI, construído com Vite + React + TypeScript + TailwindCSS. Inclui blog com posts em markdown, páginas de funcionalidades, e deploy via GitHub Pages.
 

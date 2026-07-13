@@ -7,7 +7,7 @@ Como gerenciar dependências no MomAIOS (pnpm, uv, Dependabot).
 | Gerenciador | Domínio | Lockfile |
 |-------------|---------|----------|
 | pnpm | Node.js (monorepo) | `pnpm-lock.yaml` |
-| uv | Python (apps/core, apps/fortscript) | `uv.lock` |
+| uv | Python (apps/core) | `uv.lock` |
 
 ## pnpm (Node.js)
 

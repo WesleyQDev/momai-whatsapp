@@ -254,17 +254,7 @@ if ($LASTEXITCODE -ne 0) {
             Remove-Item $wheelsReadyMarker -Force -ErrorAction SilentlyContinue
         }
     } else {
-        # Build FortScript wheel from monorepo and add to wheels cache
-        $fortscriptDir = Join-Path (Join-Path $PSScriptRoot "..") "..\fortscript"
-        if (Test-Path $fortscriptDir) {
-            Write-Host "[MomAI] Building FortScript wheel..." -ForegroundColor Cyan
-            & $pythonExe -m pip wheel --no-deps --wheel-dir "$wheelsDir" "$fortscriptDir" 2>&1 | ForEach-Object { Write-Host "  $_" }
-            if ($LASTEXITCODE -ne 0) {
-                Write-Warning "[MomAI] Failed to build FortScript wheel."
-            } else {
-                Write-Host "[MomAI] FortScript wheel added to cache." -ForegroundColor Green
-            }
-        }
+
 
         $wheelCount = (Get-ChildItem $wheelsDir -Filter "*.whl" -ErrorAction SilentlyContinue).Count
         $totalSize = [math]::Round(

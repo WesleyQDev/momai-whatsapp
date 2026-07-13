@@ -21,7 +21,6 @@ MomAI é uma assistente virtual **local-first** e focada em privacidade. Ela com
 - **Streaming TTS Real-time** — Fala com você enquanto ainda está pensando, com latência mínima usando Kokoro-82m.
 - **Wake Word Local** — Diga "Sistema" para ativar a assistente sem precisar tocar no teclado (processamento offline).
 - **Modo Overlay** — Janela transparente sempre no topo para uso contínuo.
-- **Modo Gaming** — Pausa automaticamente processos de IA quando jogos são detectados (via FortScript).
 - **Sistema de Extensões** — Skills ZIP auto-contidas com UI React, manifest.json e isolamento total.
 
 ### Por que usar MomAI?
@@ -41,9 +40,8 @@ MomAI é uma assistente virtual **local-first** e focada em privacidade. Ela com
 | Semantic Search | LanceDB 0.27 |
 | Backend Voz | Python 3.12+, FastAPI, faster-whisper, Kokoro ONNX |
 | TTS | edge-tts-universal (cloud), say.js (local fallback) |
-| Gaming Mode | FortScript (Python 3.10+) |
 | CI/CD | GitHub Actions |
-| Testing | Vitest 4 (desktop), pytest (core + fortscript) |
+| Testing | Vitest 4 (desktop), pytest (core) |
 
 ## Estrutura do Monorepo
 
@@ -52,7 +50,6 @@ momai/
 ├── apps/
 │   ├── momai/          # Desktop (Electron + React + TypeScript)
 │   ├── core/           # Backend Python (FastAPI, STT/TTS, inferência)
-│   ├── fortscript/     # Gerenciador de processos para gaming mode
 │   ├── landing-page/   # Site institucional (Vite + React + TailwindCSS)
 │   └── momai-promo-video/  # Vídeo promocional (Remotion)
 ├── docs/               # Documentação técnica interna
