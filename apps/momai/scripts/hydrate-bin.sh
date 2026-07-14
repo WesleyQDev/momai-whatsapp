@@ -36,7 +36,9 @@ else
 fi
 
 # 1. Download UV
-if [[ "$FORCE_HYDRATE" != "1" && -x "$BIN_DIR/uv" ]]; then
+if command -v uv >/dev/null 2>&1; then
+    echo "[MomAI] UV already in PATH: $(uv --version)"
+elif [[ "$FORCE_HYDRATE" != "1" && -x "$BIN_DIR/uv" ]]; then
     echo "[MomAI] Reusing cached UV: $($BIN_DIR/uv --version)"
 else
     echo "[MomAI] Downloading UV..."
@@ -56,7 +58,9 @@ fi
 fi
 
 # 2. Download Portable Python 3.12
-if [[ "$FORCE_HYDRATE" != "1" && -x "$PYTHON_DIR/bin/python3" ]]; then
+if command -v python3 >/dev/null 2>&1; then
+    echo "[MomAI] Python3 already in PATH: $(python3 --version)"
+elif [[ "$FORCE_HYDRATE" != "1" && -x "$PYTHON_DIR/bin/python3" ]]; then
     echo "[MomAI] Reusing cached Python: $($PYTHON_DIR/bin/python3 --version)"
 else
     echo "[MomAI] Downloading Portable Python 3.12..."
@@ -165,8 +169,8 @@ fi
 # 4. Download dependency wheels for offline installation
 CORE_DIR="$SCRIPTPATH/../../core"
 LOCK_FILE="$BIN_DIR/requirements-linux.lock"
-UV_EXE="$BIN_DIR/uv"
-PYTHON_EXE="$PYTHON_DIR/bin/python3"
+UV_EXE=$(command -v uv 2>/dev/null || echo "$BIN_DIR/uv")
+PYTHON_EXE=$(command -v python3 2>/dev/null || echo "$PYTHON_DIR/bin/python3")
 WHEEL_HASH_FILE="$BIN_DIR/.wheels-pyproject.sha256"
 
 CURRENT_CORE_HASH=""
