@@ -55,6 +55,8 @@ Important architecture surfaces:
 
 ## 3. Operational Workflow For Agents
 
+This project involves 3 people with different workflows. Human process documentation lives in `docs/workflow/` — reference it when the context involves the maintainer, a contributor, or experimental changes.
+
 Before changing code:
 
 - Identify the scope: renderer UI, Electron main/preload, Node Core, Python Core, packaged skill, landing page, docs, CI/release, or governance.
@@ -562,6 +564,10 @@ Use these when the task needs more detail:
 - `.github/copilot-instructions.md` - supplementary AI coding instructions.
 - `.opencode/rules/momai-context.md` - OpenCode project context.
 - `.opencode/rules/extension-ui-no-leak.md` - detailed extension anti-leak rule.
+- `ROADMAP.md` - long-term vision, major decisions, triggers (e.g. Electron→Tauri).
+- `docs/workflow/workflow-experimentos.md` - human workflow for experiments (fast, no PR).
+- `docs/workflow/fluxo-kurai.md` - human workflow for external PRs.
+- `docs/workflow/fluxo-release.md` - human workflow for the release train.
 
 ---
 
