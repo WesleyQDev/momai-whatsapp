@@ -35,6 +35,7 @@ jobs:
 
       - name: Run pnpm audit
         run: pnpm audit --audit-level critical
+        continue-on-error: true # npm audit endpoint retired (410); pending pnpm support for new bulk advisory API
 
   python-audit:
     name: uv audit (Python)
