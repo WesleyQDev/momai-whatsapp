@@ -492,12 +492,18 @@ Issue templates live in `.github/ISSUE_TEMPLATE/`:
 - `bug_report.md` - expected vs observed behavior, reproduction steps, environment, logs/screenshots.
 - `feature_request.md` - related problem, proposed solution, alternatives, context.
 
+**CRITICAL: Issues MUST be created in `WesleyQDev/MomAI`, NEVER in `WesleyQDev/MomAI-App`.**
+
+The `MomAI-App` repository is public and used only for releases/downloads. Issues, bug reports, and feature requests must go to the private `MomAI` repo to avoid exposing internal tracking publicly.
+
 Agent rules for issues:
 
+- **Always create issues in `WesleyQDev/MomAI`** — never in `WesleyQDev/MomAI-App`.
 - Search open and closed issues before creating a new one when GitHub access is available.
 - Use the matching template.
 - Fill required sections with concrete information.
 - Do not disclose security vulnerabilities in public issues; follow `SECURITY.md`.
+- If you find an issue mistakenly created in `MomAI-App`, close it with a comment directing to `MomAI` and recreate it there.
 
 ### Pull Requests
 
@@ -538,6 +544,7 @@ Never do these unless the user or maintainer explicitly asks and the tradeoff is
 - Assume docs are current when package/config/code says otherwise.
 - Update release or CI docs without checking `.github/workflows/`.
 - Touch packaged skills without considering mirror repo synchronization.
+- Create issues in `WesleyQDev/MomAI-App` — issues belong only in `WesleyQDev/MomAI`.
 
 ---
 
