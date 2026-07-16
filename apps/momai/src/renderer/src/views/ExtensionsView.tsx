@@ -1360,19 +1360,17 @@ export default function ExtensionsView() {
     () => allSkills.filter((s) => s.category === 'extension'),
     [allSkills]
   )
-  const storeSkills = useMemo(
-    () => {
-      if (devMode === 'symlink') {
-        // Dev mode: mostra só as extensões carregadas dos repositórios locais via symlinks
-        // Os dados vêm diretamente dos manifest.json / SKILL.md de cada repo, não do
-        // community-extensions.json remoto.
-        return allSkills.filter((s) => s.category === 'extension')
-      }
-      // store_test mode: mostra o catálogo da comunidade + extensões instaladas
-      return allSkills.filter((s) => s.category !== 'core')
-    },
-    [allSkills, devMode]
-  )
+  const isDev = window.api?.isDev?.() ?? false
+  const storeSkills = useMemo(() => {
+    // Em produção (build NSIS), a loja sempre mostra o catálogo completo
+    // da comunidade + extensões instaladas. O filtro por devMode só se
+    // aplica em desenvolvimento, onde o usuário pode alternar entre
+    // symlink (dev local) e store_test (catálogo remoto).
+    if (isDev && devMode === 'symlink') {
+      return allSkills.filter((s) => s.category === 'extension')
+    }
+    return allSkills.filter((s) => s.category !== 'core')
+  }, [allSkills, devMode, isDev])
 
   useEffect(() => {
     installedSkills
