@@ -456,15 +456,17 @@ async function installExtensionDependencies(extDir) {
       ? [
           path.join(nodeDir, 'npm.cmd'),
           path.join(nodeDir, 'npm'),
+          'npm.cmd',
           'npm'
         ]
       : [path.join(nodeDir, 'npm'), 'npm']
     for (const c of candidates) {
       try {
-        if (c !== 'npm') {
+        if (c !== 'npm' && c !== 'npm.cmd') {
           if (fs.existsSync(c)) return c
         } else {
-          execSync('which npm', { stdio: 'ignore' })
+          const testCmd = process.platform === 'win32' ? `${c} --version` : `which ${c}`
+          execSync(testCmd, { stdio: 'ignore' })
           return c
         }
       } catch {}
