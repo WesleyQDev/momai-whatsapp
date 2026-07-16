@@ -27,23 +27,7 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
   // If the path is already a full URL (some callers construct the URL
   // themselves), use it as-is. Otherwise prepend API_URL.
   const url = /^https?:\/\//.test(path) ? path : `${API_URL}${path}`
-  if (options.method === 'POST') {
-    console.log(`[DEBUG] apiFetch: ${options.method} ${url}`)
-    console.log(`[DEBUG] apiFetch: headers=`, JSON.stringify(headers))
-    console.log(`[DEBUG] apiFetch: token present=${!!token}`)
-  }
-  try {
-    const resp = await fetch(url, { ...options, headers })
-    if (options.method === 'POST') {
-      console.log(`[DEBUG] apiFetch: POST response status=${resp.status} ok=${resp.ok}`)
-    }
-    return resp
-  } catch (err) {
-    if (options.method === 'POST') {
-      console.error(`[DEBUG] apiFetch: POST fetch FAILED:`, err)
-    }
-    throw err
-  }
+  return fetch(url, { ...options, headers })
 }
 
 // Wrapper that returns a parsed envelope. Use this for simple JSON
@@ -606,20 +590,11 @@ export async function installExtension(
   if (opts?.version) body.version = opts.version
   else if (opts?.downloadUrl) body.download_url = opts.downloadUrl
 
-  console.log(`[DEBUG] installExtension: POST /extensions/install body=`, JSON.stringify(body))
-  console.log(`[DEBUG] installExtension: API_URL =`, API_URL)
-  let response: Response
-  try {
-    response = await apiFetch(`/extensions/install`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    })
-    console.log(`[DEBUG] installExtension: response.ok=${response.ok}, status=${response.status}`)
-  } catch (fetchErr) {
-    console.error(`[DEBUG] installExtension: fetch FAILED:`, fetchErr)
-    throw fetchErr
-  }
+  const response = await apiFetch(`/extensions/install`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
 
   if (!response.ok) throw new Error('Erro ao iniciar instalação de extensão')
 

@@ -1258,7 +1258,6 @@ export default function ExtensionsView() {
   }
 
   const handleInstall = async (ext: Extension, downloadUrl?: string) => {
-    console.log(`[DEBUG] handleInstall called for ${ext.id}, downloadUrl: ${downloadUrl || 'none'}`)
     setInstalling(ext.id)
     setInstallProgress({
       stage: 'downloading',
@@ -1310,8 +1309,14 @@ export default function ExtensionsView() {
       })
       errored = true
     } finally {
-      setInstalling(null)
-      if (!errored) setInstallProgress(null)
+      if (errored) {
+        // On error, keep installing set so the error card is visible.
+        // Clear it after a short delay so the user sees the error.
+        setTimeout(() => setInstalling(null), 5000)
+      } else {
+        setInstalling(null)
+        setInstallProgress(null)
+      }
     }
   }
 

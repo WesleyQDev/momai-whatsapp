@@ -478,7 +478,10 @@ function createMainWindow(): BrowserWindow {
   // Tratamento de CTRL+R: em dev reinicia frontend+backend, em prod bloqueia
   mainWindow.webContents.on('before-input-event', async (event, input) => {
     // M3: Block DevTools shortcuts in production
+    // TEMPORARILY DISABLED for debugging #242 — re-enable before release
+    const _blockDevTools = false // eslint-disable-line
     if (
+      _blockDevTools &&
       shouldBlockDevToolsShortcut({
         isDev: is.dev,
         key: input.key,
