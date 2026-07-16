@@ -2,7 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
 
-const { createExtensionsRoutes } = require('../api/routes/extensions.routes')
+const { createExtensionsRoutes, cleanupOppositeModeArtifact } = require('../api/routes/extensions.routes')
 
 function makeTmpDataDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'momai-ext-helper-'))
@@ -188,6 +188,60 @@ describe('extensions.routes — mode isolation helpers', () => {
       expect(store.extensions[0].enabled).toBe(false)
 
       cleanup()
+    })
+  })
+
+  describe('cleanupOppositeModeArtifact', () => {
+    it('in symlink mode: does NOT delete the real install dir', () => {
+      const realDir = path.join(extensionsDir, 'whatsapp')
+      const devLink = path.join(extensionsDevDir, 'whatsapp')
+      writeManifest(realDir, { id: 'whatsapp', name: 'Real', version: '1.0.0' })
+
+      cleanupOppositeModeArtifact(extensionsDir, extensionsDevDir, 'whatsapp', 'symlink')
+
+      expect(fs.existsSync(realDir)).toBe(true)
+      expect(fs.existsSync(path.join(realDir, 'manifest.json'))).toBe(true)
+      expect(fs.existsSync(devLink)).toBe(false)
+    })
+
+    it('in symlink mode: removes a stale real .dev/<id> directory', () => {
+      const realDir = path.join(extensionsDir, 'whatsapp')
+      const devDir = path.join(extensionsDevDir, 'whatsapp')
+      writeManifest(realDir, { id: 'whatsapp', name: 'Real', version: '1.0.0' })
+      // Simulate a leftover store_test artifact under .dev/<id>
+      writeManifest(devDir, { id: 'whatsapp', name: 'Dev', version: '2.0.0' })
+
+      cleanupOppositeModeArtifact(extensionsDir, extensionsDevDir, 'whatsapp', 'symlink')
+
+      expect(fs.existsSync(realDir)).toBe(true)
+      expect(fs.existsSync(devDir)).toBe(false)
+    })
+
+    it('in symlink mode: preserves an existing .dev/<id> symlink', () => {
+      const realDir = path.join(extensionsDir, 'whatsapp')
+      const devLink = path.join(extensionsDevDir, 'whatsapp')
+      writeManifest(realDir, { id: 'whatsapp', name: 'Real', version: '1.0.0' })
+      fs.mkdirSync(extensionsDevDir, { recursive: true })
+      fs.symlinkSync(realDir, devLink, 'dir')
+
+      cleanupOppositeModeArtifact(extensionsDir, extensionsDevDir, 'whatsapp', 'symlink')
+
+      expect(fs.existsSync(realDir)).toBe(true)
+      const lstat = fs.lstatSync(devLink)
+      expect(lstat.isSymbolicLink()).toBe(true)
+    })
+
+    it('in store_test mode: removes .dev/<id> symlink or real directory', () => {
+      const realDir = path.join(extensionsDir, 'whatsapp')
+      const devLink = path.join(extensionsDevDir, 'whatsapp')
+      writeManifest(realDir, { id: 'whatsapp', name: 'Real', version: '1.0.0' })
+      fs.mkdirSync(extensionsDevDir, { recursive: true })
+      fs.symlinkSync(realDir, devLink, 'dir')
+
+      cleanupOppositeModeArtifact(extensionsDir, extensionsDevDir, 'whatsapp', 'store_test')
+
+      expect(fs.existsSync(realDir)).toBe(true)
+      expect(fs.existsSync(devLink)).toBe(false)
     })
   })
 })
