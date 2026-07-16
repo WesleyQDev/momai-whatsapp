@@ -1258,6 +1258,7 @@ export default function ExtensionsView() {
   }
 
   const handleInstall = async (ext: Extension, downloadUrl?: string) => {
+    console.log(`[DEBUG] handleInstall called for ${ext.id}, downloadUrl: ${downloadUrl || 'none'}`)
     setInstalling(ext.id)
     setInstallProgress({
       stage: 'downloading',
