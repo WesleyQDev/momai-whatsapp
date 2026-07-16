@@ -390,9 +390,8 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   function readDevMode() {
     try {
       const shared = require('../node-core/services/shared-state')
-      if (shared?.store?.settings?.dev_mode) {
-        return shared.store.settings.dev_mode
-      }
+      const { getEffectiveDevMode } = require('../node-core/utils/install-registry')
+      return getEffectiveDevMode(shared?.store?.settings?.dev_mode)
     } catch {}
     if (process.env.VITEST || process.env.NODE_ENV === 'test') {
       return 'store_test'

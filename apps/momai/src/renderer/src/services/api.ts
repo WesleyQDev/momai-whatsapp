@@ -424,7 +424,7 @@ export interface Extension {
   installed?: boolean
   isSymlink?: boolean
   symlinkPath?: string | null
-  source?: 'store_test' | 'symlink' | null
+  source?: 'store' | 'store_test' | 'symlink' | null
   icon?: string
   icon_url?: string
   icon_bg?: string

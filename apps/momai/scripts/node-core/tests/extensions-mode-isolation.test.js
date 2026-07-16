@@ -243,5 +243,20 @@ describe('extensions.routes — mode isolation helpers', () => {
       expect(fs.existsSync(realDir)).toBe(true)
       expect(fs.existsSync(devLink)).toBe(false)
     })
+
+    it('in store mode (production): removes .dev/<id> symlink or real directory', () => {
+      // Production installs behave like store_test on disk: real dir at
+      // extensionsDir/<id>, no .dev symlink.
+      const realDir = path.join(extensionsDir, 'whatsapp')
+      const devLink = path.join(extensionsDevDir, 'whatsapp')
+      writeManifest(realDir, { id: 'whatsapp', name: 'Real', version: '1.0.0' })
+      fs.mkdirSync(extensionsDevDir, { recursive: true })
+      fs.symlinkSync(realDir, devLink, 'dir')
+
+      cleanupOppositeModeArtifact(extensionsDir, extensionsDevDir, 'whatsapp', 'store')
+
+      expect(fs.existsSync(realDir)).toBe(true)
+      expect(fs.existsSync(devLink)).toBe(false)
+    })
   })
 })

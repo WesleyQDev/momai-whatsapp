@@ -9,6 +9,24 @@ function usesLocalInstallRegistry() {
   return process.env.MOMAI_IS_PACKAGED !== '1'
 }
 
+/**
+ * Return the effective filesystem mode for extensions.
+ *
+ * - In packaged/production builds the only valid source is the remote
+ *   community store, so the effective mode is always `'store'`. Symlinks and
+ *   local dev-extensions.json are development-only concepts and must not
+ *   influence production installs or registry scans.
+ * - In development the user chooses between `'symlink'` (local checkouts via
+ *   `.dev/<id>` symlinks) and `'store_test'` (test community installs from a
+ *   local `dev-extensions.json`).
+ */
+function getEffectiveDevMode(settingsDevMode) {
+  if (process.env.MOMAI_IS_PACKAGED === '1') {
+    return 'store'
+  }
+  return settingsDevMode || 'symlink'
+}
+
 function _normalizeCommunityCatalog(community) {
   const items = Array.isArray(community) ? community : []
   return {
@@ -63,6 +81,7 @@ function _clearInstallRegistryCache() {
 module.exports = {
   usesLocalInstallRegistry,
   loadInstallRegistry,
+  getEffectiveDevMode,
   _setInstallRegistryForTests,
   _clearInstallRegistryCache
 }

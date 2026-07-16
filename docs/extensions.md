@@ -346,6 +346,8 @@ O catálogo de extensões disponíveis na loja é buscado dinamicamente de:
 
 O cache local de busca de extensões é atualizado a cada hora.
 
+Em builds empacotadas (produção), o MomAI opera no modo **Store**: as extensões são baixadas do catálogo remoto e instaladas diretamente em `data/extensions/<id>/`. A configuração de desenvolvimento `dev_mode` (symlink/store_test) e o arquivo local `dev-extensions.json` são ignorados em produção.
+
 ### Estrutura e Interface das Extensões
 
 - `src/renderer/src/views/ExtensionsView.tsx` - Visualização da loja e gerenciador de extensões.

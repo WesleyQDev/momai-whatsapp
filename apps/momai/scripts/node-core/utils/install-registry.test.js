@@ -1,6 +1,7 @@
 const {
   usesLocalInstallRegistry,
   loadInstallRegistry,
+  getEffectiveDevMode,
   _setInstallRegistryForTests,
   _clearInstallRegistryCache
 } = require('./install-registry')
@@ -85,5 +86,26 @@ describe('install-registry', () => {
     } finally {
       communityRegistry.fetchRegistry = originalFetchRegistry
     }
+  })
+
+  describe('getEffectiveDevMode', () => {
+    it('returns store in packaged builds regardless of settings', () => {
+      process.env.MOMAI_IS_PACKAGED = '1'
+      expect(getEffectiveDevMode('symlink')).toBe('store')
+      expect(getEffectiveDevMode('store_test')).toBe('store')
+      expect(getEffectiveDevMode(undefined)).toBe('store')
+    })
+
+    it('returns settings dev_mode in development', () => {
+      delete process.env.MOMAI_IS_PACKAGED
+      expect(getEffectiveDevMode('symlink')).toBe('symlink')
+      expect(getEffectiveDevMode('store_test')).toBe('store_test')
+    })
+
+    it('defaults to symlink in development when no setting is provided', () => {
+      delete process.env.MOMAI_IS_PACKAGED
+      expect(getEffectiveDevMode(undefined)).toBe('symlink')
+      expect(getEffectiveDevMode(null)).toBe('symlink')
+    })
   })
 })
