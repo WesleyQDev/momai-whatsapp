@@ -1,6 +1,13 @@
 const { createSettingsRoutes } = require('../api/routes/settings.routes')
 
 describe('settings routes', () => {
+  const originalPackaged = process.env.MOMAI_IS_PACKAGED
+
+  afterEach(() => {
+    if (originalPackaged === undefined) delete process.env.MOMAI_IS_PACKAGED
+    else process.env.MOMAI_IS_PACKAGED = originalPackaged
+  })
+
   function makeCtx(overrides = {}) {
     const store = {
       settings: {
@@ -180,5 +187,36 @@ describe('settings routes', () => {
     } finally {
       extensionsRoutes.invalidateExtensionsPayloadCache = original
     }
+  })
+
+  test('PATCH /settings ignores dev_mode changes in packaged builds', async () => {
+    // In production the effective mode is always 'store'; changing the raw
+    // dev_mode setting must not deactivate extensions or refresh the registry.
+    process.env.MOMAI_IS_PACKAGED = '1'
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    const stopAllPersistent = vi.fn().mockResolvedValue(undefined)
+    const { ctx } = makeCtx({
+      readJsonBody: async () => ({ dev_mode: 'store_test' }),
+      skillRegistry: {
+        refresh,
+        getAll: () => []
+      },
+      extensionHostManager: {
+        stopAllPersistent,
+        startPersistent: vi.fn()
+      }
+    })
+    ctx.store.extensions = [{ id: 'whatsapp', enabled: true, source: 'store' }]
+    const handler = createSettingsRoutes(ctx)
+
+    await handler({ method: 'PATCH' }, {}, '/settings', {
+      searchParams: new URLSearchParams()
+    })
+
+    // Raw setting is still saved (UI compatibility), but no mode switch side effects.
+    expect(ctx.store.settings.dev_mode).toBe('store_test')
+    expect(ctx.store.extensions[0].enabled).toBe(true)
+    expect(stopAllPersistent).not.toHaveBeenCalled()
+    expect(refresh).not.toHaveBeenCalled()
   })
 })

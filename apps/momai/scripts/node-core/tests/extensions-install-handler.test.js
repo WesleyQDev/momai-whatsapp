@@ -178,10 +178,16 @@ describe('POST /extensions/install — multi-stage NDJSON error paths', () => {
     expect(lines.some((l) => l && l.stage === 'downloading')).toBe(false)
   })
 
-  it('emits a no_installable_release error NDJSON chunk when fetchReleases returns empty', async () => {
-    _setCommunityRegistryForTests(
-      makeMockCommunityRegistry({ releases: [] })
-    )
+  it('emits a no_installable_release error NDJSON chunk when fetchReleases returns empty AND the catalog has no download_url fallback', async () => {
+    const catEntry = { id: 'test-ext', repo: REPO }
+    _setCommunityRegistryForTests({
+      fetchRegistry: async () => ({ extensions: [catEntry] }),
+      fetchReleases: async () => [],
+      fetchManifest: async () => null
+    })
+    // Ensure the install registry has no download_url for this id so the
+    // catalog-fallback path is also empty.
+    _setRegistry({ extensions: [catEntry] })
 
     const ctx = makeCtx({
       readJsonBody: async () => ({ id: 'test-ext' })
@@ -206,4 +212,5 @@ describe('POST /extensions/install — multi-stage NDJSON error paths', () => {
     // No progress stage chunk should precede the early termination.
     expect(lines.some((l) => l && l.stage === 'downloading')).toBe(false)
   })
+
 })

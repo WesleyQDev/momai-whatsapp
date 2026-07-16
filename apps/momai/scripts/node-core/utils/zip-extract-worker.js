@@ -1,8 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
-const { execFile } = require('node:child_process')
 
-const DEFAULT_TIMEOUT_MS = 30000
+const DEFAULT_TIMEOUT_MS = 120000
 
 function isUnsafeEntryPath(entryName) {
   if (typeof entryName !== 'string' || entryName.length === 0) return true
@@ -16,7 +15,7 @@ function isUnsafeEntryPath(entryName) {
   return false
 }
 
-function validateArchive(zipPath, destDir) {
+function extractZip(zipPath, destDir) {
   return new Promise((resolve, reject) => {
     const yauzl = require('yauzl')
     yauzl.open(zipPath, { lazyEntries: true, autoClose: true }, (err, zipfile) => {
@@ -43,7 +42,31 @@ function validateArchive(zipPath, destDir) {
         ) {
           return fail(new Error(`Zip Slip detected: ${entry.fileName}`))
         }
-        zipfile.readEntry()
+
+        if (/\/$/.test(entry.fileName)) {
+          // Directory entry
+          fs.mkdir(destPath, { recursive: true }, (err) => {
+            if (err) return fail(err)
+            zipfile.readEntry()
+          })
+        } else {
+          // File entry
+          const parentDir = path.dirname(destPath)
+          fs.mkdir(parentDir, { recursive: true }, (err) => {
+            if (err) return fail(err)
+            zipfile.openReadStream(entry, (err, readStream) => {
+              if (err) return fail(err)
+              const writeStream = fs.createWriteStream(destPath)
+              writeStream.on('error', (err) => {
+                fail(err)
+              })
+              writeStream.on('finish', () => {
+                zipfile.readEntry()
+              })
+              readStream.pipe(writeStream)
+            })
+          })
+        }
       })
       zipfile.on('end', () => {
         if (bad) return
@@ -55,47 +78,6 @@ function validateArchive(zipPath, destDir) {
       zipfile.readEntry()
     })
   })
-}
-
-function extractWithPowerShell(zipPath, destDir) {
-  return new Promise((resolve, reject) => {
-    const ps = process.platform === 'win32' ? 'powershell.exe' : 'powershell'
-    const args = [
-      '-NoProfile',
-      '-NonInteractive',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-Command',
-      `Expand-Archive -LiteralPath "${zipPath}" -DestinationPath "${destDir}" -Force`
-    ]
-    execFile(ps, args, { windowsHide: true }, (err, stdout, stderr) => {
-      if (err) {
-        const msg = (stderr && stderr.toString()) || err.message
-        return reject(new Error(`Expand-Archive failed: ${msg.trim()}`))
-      }
-      resolve()
-    })
-  })
-}
-
-function extractWithSystemUnzip(zipPath, destDir) {
-  return new Promise((resolve, reject) => {
-    execFile(
-      'unzip',
-      ['-o', zipPath, '-d', destDir],
-      { windowsHide: true },
-      (err) => (err ? reject(err) : resolve())
-    )
-  })
-}
-
-async function extractZip(zipPath, destDir) {
-  fs.mkdirSync(destDir, { recursive: true })
-  await validateArchive(zipPath, destDir)
-  if (process.platform === 'win32') {
-    return extractWithPowerShell(zipPath, destDir)
-  }
-  return extractWithSystemUnzip(zipPath, destDir)
 }
 
 function send(result) {

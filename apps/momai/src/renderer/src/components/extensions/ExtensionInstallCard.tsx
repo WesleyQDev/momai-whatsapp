@@ -59,10 +59,10 @@ function ProgressCard({
 
   return (
     <div className="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2">
-      <div className="flex items-center justify-between text-xs font-semibold">
+      <div className="flex items-center justify-between gap-2 text-xs font-semibold">
         <span className="text-zinc-200 truncate max-w-[150px]">{extName}</span>
         <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0">
-          {stageLabel}
+          {" "}{stageLabel}
         </span>
       </div>
 

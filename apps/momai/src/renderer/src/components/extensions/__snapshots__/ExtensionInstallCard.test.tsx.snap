@@ -63,7 +63,7 @@ exports[`ExtensionInstallCard > progress variant snapshot 1`] = `
     class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between text-xs font-semibold"
+      class="flex items-center justify-between gap-2 text-xs font-semibold"
     >
       <span
         class="text-zinc-200 truncate max-w-[150px]"
@@ -73,7 +73,7 @@ exports[`ExtensionInstallCard > progress variant snapshot 1`] = `
       <span
         class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        extensions.stages.downloading
+         extensions.stages.downloading
       </span>
     </div>
     <div
@@ -99,7 +99,7 @@ exports[`ExtensionInstallCard > renders stage done 1`] = `
     class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between text-xs font-semibold"
+      class="flex items-center justify-between gap-2 text-xs font-semibold"
     >
       <span
         class="text-zinc-200 truncate max-w-[150px]"
@@ -109,7 +109,7 @@ exports[`ExtensionInstallCard > renders stage done 1`] = `
       <span
         class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        extensions.stages.done
+         extensions.stages.done
       </span>
     </div>
     <div
@@ -135,7 +135,7 @@ exports[`ExtensionInstallCard > renders stage downloading 1`] = `
     class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between text-xs font-semibold"
+      class="flex items-center justify-between gap-2 text-xs font-semibold"
     >
       <span
         class="text-zinc-200 truncate max-w-[150px]"
@@ -145,7 +145,7 @@ exports[`ExtensionInstallCard > renders stage downloading 1`] = `
       <span
         class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        extensions.stages.downloading
+         extensions.stages.downloading
       </span>
     </div>
     <div
@@ -171,7 +171,7 @@ exports[`ExtensionInstallCard > renders stage extracting 1`] = `
     class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between text-xs font-semibold"
+      class="flex items-center justify-between gap-2 text-xs font-semibold"
     >
       <span
         class="text-zinc-200 truncate max-w-[150px]"
@@ -181,7 +181,7 @@ exports[`ExtensionInstallCard > renders stage extracting 1`] = `
       <span
         class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        extensions.stages.extracting
+         extensions.stages.extracting
       </span>
     </div>
     <div
@@ -207,7 +207,7 @@ exports[`ExtensionInstallCard > renders stage indexing 1`] = `
     class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between text-xs font-semibold"
+      class="flex items-center justify-between gap-2 text-xs font-semibold"
     >
       <span
         class="text-zinc-200 truncate max-w-[150px]"
@@ -217,7 +217,7 @@ exports[`ExtensionInstallCard > renders stage indexing 1`] = `
       <span
         class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        extensions.stages.indexing
+         extensions.stages.indexing
       </span>
     </div>
     <div
@@ -243,7 +243,7 @@ exports[`ExtensionInstallCard > renders stage linking_deps 1`] = `
     class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between text-xs font-semibold"
+      class="flex items-center justify-between gap-2 text-xs font-semibold"
     >
       <span
         class="text-zinc-200 truncate max-w-[150px]"
@@ -253,7 +253,7 @@ exports[`ExtensionInstallCard > renders stage linking_deps 1`] = `
       <span
         class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        extensions.stages.linking_deps
+         extensions.stages.linking_deps
       </span>
     </div>
     <div
@@ -279,7 +279,7 @@ exports[`ExtensionInstallCard > renders stage starting_worker 1`] = `
     class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between text-xs font-semibold"
+      class="flex items-center justify-between gap-2 text-xs font-semibold"
     >
       <span
         class="text-zinc-200 truncate max-w-[150px]"
@@ -289,7 +289,7 @@ exports[`ExtensionInstallCard > renders stage starting_worker 1`] = `
       <span
         class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        extensions.stages.starting_worker
+         extensions.stages.starting_worker
       </span>
     </div>
     <div
@@ -315,7 +315,7 @@ exports[`ExtensionInstallCard > renders stage verifying 1`] = `
     class="w-full max-w-md p-3 rounded-xl bg-zinc-900 border border-white/5 text-zinc-100 shadow-xl flex flex-col gap-2"
   >
     <div
-      class="flex items-center justify-between text-xs font-semibold"
+      class="flex items-center justify-between gap-2 text-xs font-semibold"
     >
       <span
         class="text-zinc-200 truncate max-w-[150px]"
@@ -325,7 +325,7 @@ exports[`ExtensionInstallCard > renders stage verifying 1`] = `
       <span
         class="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0"
       >
-        extensions.stages.verifying
+         extensions.stages.verifying
       </span>
     </div>
     <div

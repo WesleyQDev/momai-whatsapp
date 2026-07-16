@@ -28,6 +28,7 @@ function writeManifest(dir, manifest) {
 describe('createSkillRegistry: dev mode (.dev folder) isolation', () => {
   let dataDir
   let builtinSkillsDir
+  const originalPackaged = process.env.MOMAI_IS_PACKAGED
 
   beforeEach(() => {
     dataDir = makeTmpDataDir()
@@ -41,6 +42,8 @@ describe('createSkillRegistry: dev mode (.dev folder) isolation', () => {
     try {
       fs.rmSync(dataDir, { recursive: true, force: true })
     } catch {}
+    if (originalPackaged === undefined) delete process.env.MOMAI_IS_PACKAGED
+    else process.env.MOMAI_IS_PACKAGED = originalPackaged
   })
 
   it('in symlink mode: loads extension from .dev/<id> when it exists', async () => {
@@ -103,6 +106,26 @@ describe('createSkillRegistry: dev mode (.dev folder) isolation', () => {
     const registry = createSkillRegistry({ dataDir, builtinSkillsDir })
     expect(registry.extensionsDevDir).toBe(path.join(dataDir, 'extensions', '.dev'))
     cleanup()
+  })
+
+  it('in packaged builds: scans extensionsDir/<id> even when settings say symlink', () => {
+    // Production builds must ignore the dev_mode setting and always load
+    // store-installed extensions from extensionsDir/<id>.
+    process.env.MOMAI_IS_PACKAGED = '1'
+    const cleanup = makeFakeSharedState('symlink')
+
+    const realDir = path.join(dataDir, 'extensions', 'whatsapp')
+    writeManifest(realDir, { id: 'whatsapp', name: 'WhatsApp Store', version: '1.0.0' })
+
+    const registry = createSkillRegistry({ dataDir, builtinSkillsDir })
+
+    cleanup()
+    return registry.refresh().then(() => {
+      const skill = registry.getAll().find((s) => s.id === 'whatsapp')
+      expect(skill).toBeTruthy()
+      expect(skill.dir).toBe(path.resolve(realDir))
+      expect(skill.manifest.name).toBe('WhatsApp Store')
+    })
   })
 })
 

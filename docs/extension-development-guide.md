@@ -57,6 +57,9 @@ Exemplo mínimo de manifesto para uma extensão com UI e backend em JS:
 
 ## 2. Fluxo de Desenvolvimento Local (Symlinks)
 
+> [!IMPORTANT]
+> **Os modos abaixo existem apenas para desenvolvimento.** Em builds empacotadas (produção/NSIS) o MomAI sempre usa o modo **Store**: extensões são instaladas diretamente em `{DATA_DIR}/extensions/<id>/` a partir do catálogo remoto `community-extensions.json`. A configuração `dev_mode` é ignorada em produção; symlinks em `.dev/` e o arquivo local `dev-extensions.json` não são usados.
+
 Para desenvolver e testar uma extensão em tempo real com o MomAI rodando em modo de desenvolvimento (`pnpm dev`), você deve usar links simbólicos (**symlinks**). Isso permite que o código da extensão viva fora do repositório principal do MomAI.
 
 ### Passo 1: Clonar a Extensão
@@ -66,11 +69,12 @@ Clone o repositório da sua extensão em qualquer pasta de desenvolvimento de su
 Crie um link de diretório que aponte da **subpasta `.dev/`** dentro do diretório de extensões ativas do MomAI para a pasta física da sua extensão.
 
 > [!IMPORTANT]
-> **Os dois modos são ambientes completamente separados**, não compartilham extensões instaladas. O switcher "Dev (Symlinks)" e "Testar Loja" controla **qual raiz de filesystem** o MomAI varre naquele momento:
-> - Em modo **Dev (Symlinks)** (padrão), o MomAI lê **apenas** `data/extensions/.dev/<id>`. Só aparecem extensões que têm um symlink (ou pasta) criado manualmente em `.dev/`.
-> - Em modo **Testar Loja**, o MomAI lê **apenas** `data/extensions/<id>`. Só aparecem extensões que foram baixadas pelo instalador.
+> **Os dois modos de desenvolvimento são ambientes completamente separados**, não compartilham extensões instaladas. O switcher "Dev (Symlinks)" e "Testar Loja" controla **qual raiz de filesystem** o MomAI varre naquele momento:
+> - Em modo **Dev (Symlinks)** (padrão em dev), o MomAI lê **apenas** `data/extensions/.dev/<id>`. Só aparecem extensões que têm um symlink (ou pasta) criado manualmente em `.dev/`.
+> - Em modo **Testar Loja**, o MomAI lê **apenas** `data/extensions/<id>`. Só aparecem extensões que foram baixadas pelo instalador a partir do `dev-extensions.json` local.
 > - Trocar de modo **não move nem copia** nada entre as duas raízes. Cada ambiente é independente.
 > - O `uninstallExtension` remove **ambas** as raízes, então você não acumula lixo se esquecer de trocar de modo.
+> - Em builds empacotadas o conceito de modo não existe: o MomAI sempre instala e escaneia `data/extensions/<id>` diretamente (modo Store).
 
 *   **No Windows (PowerShell):**
     > [!TIP]
