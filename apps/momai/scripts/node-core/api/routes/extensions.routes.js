@@ -235,10 +235,37 @@ async function resolveInstallVersion({
   } else {
     // 5c. Default — best compatible release.
     release = findBestCompatibleRelease(releases, appVersion)
+
+    // Fallback: if GitHub releases fetch failed (rate limit, network, DNS)
+    // or no release passed the compat check, use the catalog entry's pin
+    // (download_url + version) shipped in `community-extensions.json`. This
+    // is the primary install path in packed builds where there is no
+    // GITHUB_TOKEN and the GitHub API endpoint may be unavailable.
+    if (!release && catalogEntry.download_url) {
+      const catalogVersion =
+        (typeof catalogEntry.version === 'string' && catalogEntry.version.trim())
+          ? catalogEntry.version.trim()
+          : null
+      release = {
+        version: catalogVersion,
+        tag: catalogVersion ? `v${catalogVersion}` : null,
+        download_url: catalogEntry.download_url,
+        changelog: '',
+        date: null,
+        prerelease: false,
+        momai_compat: manifestCompat || null
+      }
+      headCheckRequired = true
+      console.log(
+        `[resolveInstallVersion] using catalog fallback for ${id}: ` +
+        `url=${catalogEntry.download_url} version=${catalogVersion || 'unknown'}`
+      )
+    }
   }
 
   // 6. No installable release available.
   if (!release) {
+    console.log(`[resolveInstallVersion] no_installable_release: id=${id} appVersion=${appVersion} releases=${releases.length} repo=${repo} releases_versions=${releases.map(r => r.version + '(compat=' + r.momai_compat + ')').join(', ')}`)
     return {
       ok: false,
       status: 409,
@@ -928,6 +955,8 @@ function createExtensionsRoutes(context) {
         requested.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '') || crypto.randomUUID()
       const extDir = path.join(skillRegistry.extensionsDir, id)
 
+      console.log(`[ExtensionsAPI] POST /extensions/install id=${id}`)
+
       res.writeHead(200, {
         'Content-Type': 'application/x-ndjson',
         'Transfer-Encoding': 'chunked',
@@ -962,7 +991,16 @@ function createExtensionsRoutes(context) {
           path.resolve(__dirname, '..', '..', '..', '..', 'package.json')
         )
         appVersion = pkg.version || '0.0.0'
-      } catch {}
+      } catch {
+        // ASAR-packed builds may not resolve the `../../../../package.json`
+        // path above. Fall back to the sibling production package.json, then
+        // to the MOMAI_APP_VERSION env var injected at build time.
+        try {
+          appVersion = require(path.resolve(__dirname, '..', 'package.json')).version || '0.0.0'
+        } catch {
+          appVersion = process.env.MOMAI_APP_VERSION || '0.0.0'
+        }
+      }
 
       const result = await resolveInstallVersion({
         id,

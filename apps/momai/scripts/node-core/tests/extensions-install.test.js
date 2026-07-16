@@ -261,7 +261,10 @@ describe('resolveInstallVersion', () => {
     expect(result.id).toBe('nonexistent')
   })
 
-  it('fetchReleases network failure treated as empty (no_installable_release)', async () => {
+  it('fetchReleases network failure falls back to catalog download_url when available', async () => {
+    // Packed builds without GITHUB_TOKEN may hit GitHub API rate limits.
+    // In that case fetchReleases throws and resolveInstallVersion should
+    // fall back to the catalog entry's pinned download_url/version.
     const registry = {
       fetchRegistry: async () => ({ extensions: [CAT_ENTRY] }),
       fetchReleases: async () => {
@@ -274,6 +277,29 @@ describe('resolveInstallVersion', () => {
       payload: {},
       communityRegistry: registry,
       loadInstallRegistry: makeMockLoadRegistry({ catalog: { extensions: [CAT_ENTRY] } }),
+      appVersion: '1.5.2'
+    })
+    expect(result.ok).toBe(true)
+    expect(result.release.download_url).toBe(CAT_ENTRY.download_url)
+    expect(result.headCheckRequired !== false).toBe(true)
+  })
+
+  it('fetchReleases network failure returns no_installable_release when catalog has no download_url', async () => {
+    // Genuine unrecoverable case: releases failed AND the catalog entry
+    // ships no pinned download_url.
+    const catEntry = { id: 'whatsapp', repo: CAT_ENTRY.repo }
+    const registry = {
+      fetchRegistry: async () => ({ extensions: [catEntry] }),
+      fetchReleases: async () => {
+        throw new Error('network down')
+      },
+      fetchManifest: async () => null
+    }
+    const result = await resolveInstallVersion({
+      id: 'whatsapp',
+      payload: {},
+      communityRegistry: registry,
+      loadInstallRegistry: makeMockLoadRegistry({ catalog: { extensions: [catEntry] } }),
       appVersion: '1.5.2'
     })
     expect(result.ok).toBe(false)
