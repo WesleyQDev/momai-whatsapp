@@ -13,12 +13,7 @@ function _normalizeCommunityCatalog(community) {
   const items = Array.isArray(community) ? community : []
   return {
     extensions: items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      author: item.author,
-      version: item.version,
-      download_url: item.download_url,
+      ...item,
       is_official: item.is_official ?? item.author === 'WesleyQDev'
     }))
   }
