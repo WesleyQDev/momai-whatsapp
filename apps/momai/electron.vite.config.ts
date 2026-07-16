@@ -45,10 +45,13 @@ function skillBundlesPlugin(): Plugin {
         userExtensionsDir
       ].filter(Boolean)
 
-      const skillDir = candidates.find((d) => existsSync(d))
+      const skillDir = candidates.find((d) => {
+        if (!existsSync(d)) return false
+        const full = join(d, 'dist', filePath)
+        return existsSync(full)
+      })
       if (!skillDir) return null
       const fullPath = join(skillDir, 'dist', filePath)
-      if (!existsSync(fullPath)) return null
       return readFileSync(fullPath, 'utf-8')
     }
   }

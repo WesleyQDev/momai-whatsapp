@@ -3,7 +3,7 @@ const path = require('node:path')
 const os = require('node:os')
 const { fork } = require('node:child_process')
 
-const DEFAULT_TIMEOUT_MS = 30000
+const DEFAULT_TIMEOUT_MS = 120000
 const WORKER_PATH = path.join(__dirname, 'zip-extract-worker.js')
 
 function isUnsafeEntryPath(entryName) {
