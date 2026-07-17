@@ -870,7 +870,7 @@ function SkillDetailView({
                   {!skill.enabled && <PowerIcon className="w-4 h-4" />}
                   {skill.enabled ? 'Desativar' : 'Ativar'}
                 </button>
-                {!skill.isSymlink && (
+                {!skill.isSymlink && skill.category !== 'core' && (
                   <button
                     onClick={() => onUninstall(skill)}
                     className="px-5 py-2 rounded-xl text-xs font-bold text-zinc-500 border border-zinc-800 hover:text-red-400 hover:border-red-500/40 transition-all uppercase tracking-widest"
