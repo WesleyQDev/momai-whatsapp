@@ -255,7 +255,7 @@ export default function LateralBar({
                   markAsSeen(ext.id)
                   onNavigate(route)
                 }}
-                title={ext.name}
+                title={isChat ? t('sidebar.chat') || 'Chat' : ext.name}
                 id={isChat ? 'tutorial-chat' : undefined}
                 className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 ${isActive ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
               >
