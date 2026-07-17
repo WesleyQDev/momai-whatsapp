@@ -1187,7 +1187,7 @@ function createExtensionsRoutes(context) {
           id,
           name: id,
           description: 'Extension installed by Node core',
-          category: 'builtin',
+          category: 'extension',
           enabled: true,
           source: devMode
         }
@@ -1200,6 +1200,11 @@ function createExtensionsRoutes(context) {
 
       sendInstallStage('indexing', { percent: 0, globalPercent: 90 })
       await skillRegistry.loadExtensions()
+
+      // Stop any existing persistent worker before restarting — this
+      // handles updates where the old worker may still be running and
+      // holding ports/resources.
+      await extensionHostManager.stopPersistent(id).catch(() => {})
 
       // Start the persistent worker immediately if the extension runs in the background
       const skill = skillRegistry.getById(id)
@@ -1249,12 +1254,18 @@ function createExtensionsRoutes(context) {
       }
       let found = store.extensions.find((item) => item.id === extId)
       if (!found) {
-        // Allow toggling builtins/packaged by creating a store entry
+        // Create a store entry so the toggle state can be persisted.
+        // Use the correct category based on the skill kind.
+        const existingSkill = skillRegistry.getById(extId)
+        const category =
+          existingSkill?.kind === 'builtin' || existingSkill?.kind === 'packaged'
+            ? 'builtin'
+            : 'extension'
         found = {
           id: extId,
           name: extId,
           description: '',
-          category: 'builtin',
+          category,
           enabled: true,
           source: getEffectiveDevMode(store?.settings?.dev_mode)
         }
@@ -1335,7 +1346,10 @@ function createExtensionsRoutes(context) {
       }
       // Single, mode-stable key — also drop any legacy `<id>_dev` entry from
       // pre-fix installs so we don't leave orphans behind.
-      store.extensions = store.extensions.filter((item) => item.id !== extId && item.id !== `${extId}_dev`)
+      // Use in-place mutation to keep the reference in sync with shared.store.extensions.
+      const filtered = store.extensions.filter((item) => item.id !== extId && item.id !== `${extId}_dev`)
+      store.extensions.length = 0
+      store.extensions.push(...filtered)
       // Wipe BOTH the real install dir AND any dev symlink so uninstall
       // works regardless of which mode the user is in.
       removeExtensionArtifacts(skillRegistry.extensionsDir, extensionsDevDir, extId)

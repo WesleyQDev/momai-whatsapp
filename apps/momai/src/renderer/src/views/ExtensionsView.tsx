@@ -1341,21 +1341,8 @@ export default function ExtensionsView() {
     if (!uninstallTarget) return
     const targetId = uninstallTarget.id
 
-    // Dismiss the modal alert immediately
+    // Dismiss the modal immediately
     setUninstallTarget(null)
-
-    // Optimistic UI update: Remove the uninstalled extension from the list immediately
-    setAllSkills((prev) => prev.filter((s) => s.id !== targetId))
-    if (selectedSkill?.id === targetId) {
-      setSelectedSkill((prev) => {
-        if (!prev) return null
-        return {
-          ...prev,
-          category: 'store',
-          installed: false
-        }
-      })
-    }
     localStorage.removeItem(`${targetId}_has_connected_once`)
 
     try {
@@ -1368,6 +1355,10 @@ export default function ExtensionsView() {
           const manifest = await fetchExtensionManifest(updated.id)
           setSelectedManifest(manifest)
         }
+      } else {
+        // Extension not in community catalog — go back to list
+        setSelectedSkill(null)
+        setSelectedManifest(null)
       }
     } catch (err) {
       alert(t('extensions.errors.uninstall', { error: String(err) }))
