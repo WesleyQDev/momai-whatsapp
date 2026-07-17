@@ -642,7 +642,7 @@ function SkillDetailView({
       .finally(() => {
         setLoadingReleases(false)
       })
-  }, [releasesExpanded, skill.id, skill.repo])
+  }, [releasesExpanded, skill.id, skill.repo, skill.version])
 
   useEffect(() => {
     const hasFullReadme = skill.instructions && skill.instructions.length > 200
@@ -1339,23 +1339,40 @@ export default function ExtensionsView() {
 
   const confirmUninstall = async () => {
     if (!uninstallTarget) return
+    const targetId = uninstallTarget.id
+
+    // Dismiss the modal alert immediately
+    setUninstallTarget(null)
+
+    // Optimistic UI update: Remove the uninstalled extension from the list immediately
+    setAllSkills((prev) => prev.filter((s) => s.id !== targetId))
+    if (selectedSkill?.id === targetId) {
+      setSelectedSkill((prev) => {
+        if (!prev) return null
+        return {
+          ...prev,
+          category: 'store',
+          installed: false
+        }
+      })
+    }
+    localStorage.removeItem(`${targetId}_has_connected_once`)
+
     try {
-      await uninstallExtension(uninstallTarget.id)
+      await uninstallExtension(targetId)
       const freshData = await loadData(true)
-      const updated = freshData.find((s) => s.id === uninstallTarget.id)
+      const updated = freshData.find((s) => s.id === targetId)
       if (updated) {
         setSelectedSkill(updated)
         if (updated.repo) {
           const manifest = await fetchExtensionManifest(updated.id)
           setSelectedManifest(manifest)
         }
-      } else {
-        setSelectedSkill(null)
       }
     } catch (err) {
       alert(t('extensions.errors.uninstall', { error: String(err) }))
-    } finally {
-      setUninstallTarget(null)
+      // Revert / refresh the state on failure
+      loadData(true)
     }
   }
 

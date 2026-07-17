@@ -483,7 +483,8 @@ async function installExtensionDependencies(extDir) {
       await execFileAsync(npmCmd, ['install', '--production', '--no-audit', '--no-fund'], {
         cwd: extDir,
         timeout: 120000,
-        stdio: 'pipe'
+        stdio: 'pipe',
+        shell: true
       })
       console.log(`[extensions] npm install completed for ${path.basename(extDir)}`)
       return
