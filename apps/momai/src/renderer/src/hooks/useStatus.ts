@@ -284,7 +284,8 @@ export function useStatus() {
       checkStatus()
       checkInitProgress()
 
-      const pollInterval = !backendOnline || isBooting || (initProgress >= 100 && !isReady) ? 2000 : 8000
+      const pollInterval =
+        !backendOnline || isBooting || (initProgress >= 100 && !isReady) ? 2000 : 8000
       statusInterval = setInterval(checkStatus, pollInterval)
     }
 

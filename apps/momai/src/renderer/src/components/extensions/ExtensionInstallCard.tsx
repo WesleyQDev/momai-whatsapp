@@ -62,7 +62,8 @@ function ProgressCard({
       <div className="flex items-center justify-between gap-2 text-xs font-semibold">
         <span className="text-zinc-200 truncate max-w-[150px]">{extName}</span>
         <span className="text-[10px] text-amber-500 font-bold uppercase tracking-wider shrink-0">
-          {" "}{stageLabel}
+          {' '}
+          {stageLabel}
         </span>
       </div>
 
@@ -73,11 +74,7 @@ function ProgressCard({
         />
       </div>
 
-      {subLine && (
-        <div className="text-[10px] text-zinc-500 font-medium truncate">
-          {subLine}
-        </div>
-      )}
+      {subLine && <div className="text-[10px] text-zinc-500 font-medium truncate">{subLine}</div>}
     </div>
   )
 }
@@ -126,7 +123,14 @@ function ErrorCard({
     <div className="w-full max-w-md p-3 rounded-xl bg-red-950/20 border border-red-800/40 text-zinc-100 shadow-xl flex flex-col gap-2">
       <div className="flex items-start gap-2.5">
         <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500/20 text-red-300 shrink-0">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <circle cx="12" cy="12" r="10" />
             <line x1="12" y1="8" x2="12" y2="13" />
             <circle cx="12" cy="16.5" r="0.5" fill="currentColor" />

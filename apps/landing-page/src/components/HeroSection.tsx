@@ -115,7 +115,9 @@ export function HeroSection() {
           </a>
           <button
             onClick={() => {
-              document.getElementById('download')?.scrollIntoView({ behavior: 'smooth' });
+              document
+                .getElementById("download")
+                ?.scrollIntoView({ behavior: "smooth" });
             }}
             className="text-sm text-[var(--text-secondary)] no-underline opacity-70 transition-all hover:text-[var(--accent)] hover:opacity-100 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           >

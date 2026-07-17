@@ -1199,9 +1199,7 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
     try {
       // Count currently-active extensions in the previous mode so we can
       // tell the user how many were deactivated by the security policy.
-      const wasActive = allSkills.filter(
-        (s) => s.category === 'extension' && s.enabled
-      ).length
+      const wasActive = allSkills.filter((s) => s.category === 'extension' && s.enabled).length
       await updateSettingsPartial({ dev_mode: mode })
       setDevMode(mode)
       const fresh = await loadData(true)

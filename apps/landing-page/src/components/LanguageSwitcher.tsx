@@ -6,7 +6,12 @@ const BrFlag = () => (
     <rect width="36" height="36" fill="#009B3A" rx="2" />
     <path d="M18 6L32 18L18 30L4 18Z" fill="#FEDF00" />
     <circle cx="18" cy="18" r="6" fill="#002776" />
-    <path d="M12.5 18.5C14 16.5 16 16 18 16.5C20 17 22 18 23.5 18.5" stroke="#fff" strokeWidth="0.8" fill="none" />
+    <path
+      d="M12.5 18.5C14 16.5 16 16 18 16.5C20 17 22 18 23.5 18.5"
+      stroke="#fff"
+      strokeWidth="0.8"
+      fill="none"
+    />
   </svg>
 );
 

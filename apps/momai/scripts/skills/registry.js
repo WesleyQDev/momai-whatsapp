@@ -474,7 +474,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     // enabled after a registry reload.
     try {
       const shared = require('../node-core/services/shared-state')
-      const storeExtensions = (shared.store?.extensions) || []
+      const storeExtensions = shared.store?.extensions || []
       for (const [id, skill] of state.extensions) {
         const entry =
           storeExtensions.find((e) => e.id === id) ||

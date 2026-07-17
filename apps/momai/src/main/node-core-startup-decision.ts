@@ -1,10 +1,7 @@
 export type NodeCoreHttpStatus = 'reachable' | 'stale' | 'foreign'
 
 export type NodeCoreStartupAction =
-  | 'start_fresh'
-  | 'reuse'
-  | 'kill_and_restart'
-  | 'error_port_conflict'
+  'start_fresh' | 'reuse' | 'kill_and_restart' | 'error_port_conflict'
 
 export interface NodeCoreStartupInput {
   tcpReachable: boolean

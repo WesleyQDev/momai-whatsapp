@@ -272,11 +272,7 @@ describe('extractZip', () => {
 
   it('rejects with a timeout error when the worker is killed', async () => {
     const hangScript = path.join(workDir, 'hang.js')
-    fs.writeFileSync(
-      hangScript,
-      'setInterval(() => {}, 1000)',
-      'utf8'
-    )
+    fs.writeFileSync(hangScript, 'setInterval(() => {}, 1000)', 'utf8')
     const child = fork(hangScript, [], { stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
     const start = Date.now()
     await new Promise((resolve) => {

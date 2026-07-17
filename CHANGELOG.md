@@ -2,6 +2,23 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 1.5.4 - 2026-07-17
+
+### ✨ Novidades
+
+- **Abertura instantânea de Configurações**: Implementado cache local para as preferências do usuário e definições de hardware, permitindo que a janela de Configurações abra imediatamente sem exibir telas de carregamento ou skeletons.
+- **Boot resiliente da interface**: O painel de Configurações e o Gerenciador de Extensões agora aguardam a inicialização do servidor backend local em segundo plano de forma silenciosa, eliminando popups de erro e skeletons desnecessários durante o boot do aplicativo.
+- **Navegação aprimorada no menu lateral**: Corrigida a tradução dinâmica do rótulo da aba de Chat no menu lateral para refletir corretamente o idioma ativo do usuário.
+- **Desinstalação rápida de Extensões**: A remoção de extensões agora limpa as sessões ativas do usuário instantaneamente e fecha o diálogo de confirmação sem travamentos ou atrasos na tela.
+
+### 🐛 Correções
+
+- **Ajustes de configurações sem travamentos**: A alteração do nível de inteligência artificial (AI Tier) e preferências agora reinicia o modelo local Llama de forma assíncrona em segundo plano, evitando que o salvamento das opções trave a interface ou resulte em erro 503.
+- **Persistência de Extensões desativadas**: Corrigido um erro de sincronização que fazia com que extensões desativadas pelo usuário fossem reativadas sozinhas após a recarga em segundo plano do registro.
+- **Atualização segura de Extensões**: O instalador de extensões agora encerra workers em segundo plano ativos antes de aplicar a nova versão, prevenindo conflitos de porta de rede e vazamentos de recursos do sistema.
+- **Instalação de extensões no Windows**: Corrigida a detecção do utilitário `npm` no Windows, garantindo que o instalador chame o comando correto (`npm.cmd` com shell) e baixe as dependências com sucesso.
+- **Reconexão automática rápida**: Ajustada a frequência de atualização do monitor de status do sistema para pesquisar ativamente a cada 2 segundos quando o servidor local está offline, reduzindo o tempo de resposta para reatar a comunicação.
+
 ## 1.5.3 - 2026-07-13
 
 ### 🧹 Outros

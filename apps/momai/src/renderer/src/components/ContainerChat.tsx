@@ -620,11 +620,12 @@ export default function ContainerChat({
           <span className="text-[9px] font-bold text-white/40 bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-md border border-white/5 transition-colors uppercase tracking-[0.1em]">
             {statusInfo.llama_runtime.loaded_model_name}
           </span>
-          {statusInfo?.semantic_runtime?.embedding_ready && statusInfo?.semantic_runtime?.embedding_model && (
-            <span className="text-[8px] font-medium text-emerald-400/60 bg-black/10 px-1.5 py-0.5 rounded-full backdrop-blur-sm border border-emerald-400/10 transition-opacity uppercase tracking-[0.08em]">
-              EMB {statusInfo.semantic_runtime.embedding_model}
-            </span>
-          )}
+          {statusInfo?.semantic_runtime?.embedding_ready &&
+            statusInfo?.semantic_runtime?.embedding_model && (
+              <span className="text-[8px] font-medium text-emerald-400/60 bg-black/10 px-1.5 py-0.5 rounded-full backdrop-blur-sm border border-emerald-400/10 transition-opacity uppercase tracking-[0.08em]">
+                EMB {statusInfo.semantic_runtime.embedding_model}
+              </span>
+            )}
         </div>
       )}
     </div>

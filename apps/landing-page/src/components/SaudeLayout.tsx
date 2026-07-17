@@ -56,9 +56,9 @@ export function SaudeLayout() {
                 <Link
                   to="/saude/doar"
                   className={`rounded-full px-3 py-1.5 text-sm font-medium no-underline transition-colors ${
-                      isActive("/saude/doar")
-                        ? "bg-[rgba(16,185,129,0.25)] text-[#10b981]"
-                        : "bg-[rgba(16,185,129,0.15)] text-[#10b981] hover:bg-[rgba(16,185,129,0.25)]"
+                    isActive("/saude/doar")
+                      ? "bg-[rgba(16,185,129,0.25)] text-[#10b981]"
+                      : "bg-[rgba(16,185,129,0.15)] text-[#10b981] hover:bg-[rgba(16,185,129,0.25)]"
                   }`}
                 >
                   Doar
@@ -72,11 +72,7 @@ export function SaudeLayout() {
               to="/"
               className="hidden items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-sm text-[#8b949e] no-underline transition-colors hover:border-white/20 hover:text-[#e6edf3] md:inline-flex"
             >
-              <img
-                src="/icon.png"
-                alt="Desktop"
-                className="h-5 w-5 rounded"
-              />
+              <img src="/icon.png" alt="Desktop" className="h-5 w-5 rounded" />
               MomAI Desktop
             </Link>
 
@@ -86,11 +82,7 @@ export function SaudeLayout() {
               rel="noreferrer"
               className="hidden items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-[#e6edf3] no-underline transition-colors hover:bg-white/20 md:inline-flex"
             >
-              <svg
-                viewBox="0 0 24 24"
-                className="h-4 w-4"
-                fill="currentColor"
-              >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
                 <path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.199l2.302 1.33a1 1 0 010 1.74l-2.302 1.33-2.532-2.2 2.532-2.2zM5.864 2.658L16.8 8.99l-2.302 2.302-8.634-8.634z" />
               </svg>
               Google Play
@@ -138,9 +130,7 @@ export function SaudeLayout() {
                     to={link.to}
                     onClick={() => setMenuOpen(false)}
                     className={`block text-sm no-underline ${
-                      isActive(link.to)
-                        ? "text-[#10b981]"
-                        : "text-[#8b949e]"
+                      isActive(link.to) ? "text-[#10b981]" : "text-[#8b949e]"
                     }`}
                   >
                     {link.label}

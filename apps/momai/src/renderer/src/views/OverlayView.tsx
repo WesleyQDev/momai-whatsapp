@@ -23,10 +23,17 @@ export default function OverlayView() {
           return contentData
         }
 
-        const prevJid = prevData.structuredResponse?.data?.contactJid || prevData.structuredResponse?.data?.contact
-        const newJid = contentData.structuredResponse?.data?.contactJid || contentData.structuredResponse?.data?.contact
-        const prevMsg = prevData.structuredResponse?.data?.message || prevData.structuredResponse?.data?.text
-        const newMsg = contentData.structuredResponse?.data?.message || contentData.structuredResponse?.data?.text
+        const prevJid =
+          prevData.structuredResponse?.data?.contactJid ||
+          prevData.structuredResponse?.data?.contact
+        const newJid =
+          contentData.structuredResponse?.data?.contactJid ||
+          contentData.structuredResponse?.data?.contact
+        const prevMsg =
+          prevData.structuredResponse?.data?.message || prevData.structuredResponse?.data?.text
+        const newMsg =
+          contentData.structuredResponse?.data?.message ||
+          contentData.structuredResponse?.data?.text
         const prevTs = prevData.structuredResponse?.data?.timestamp
         const newTs = contentData.structuredResponse?.data?.timestamp
 

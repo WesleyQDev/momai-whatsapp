@@ -10,7 +10,12 @@ const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { isPrivateIp } = require('../../utils/ip-check')
 const { verifyChecksum } = require('../../utils/extension-checksum')
 const { corsHeaders } = require('../../infrastructure/http-helpers')
-const { loadInstallRegistry, usesLocalInstallRegistry, getEffectiveDevMode, _setInstallRegistryForTests } = require('../../utils/install-registry')
+const {
+  loadInstallRegistry,
+  usesLocalInstallRegistry,
+  getEffectiveDevMode,
+  _setInstallRegistryForTests
+} = require('../../utils/install-registry')
 const communityRegistry = require('../../services/community-registry')
 const { satisfiesRange, findBestCompatibleRelease } = require('../../utils/semver-compat')
 const shared = require('../../services/shared-state')
@@ -43,10 +48,9 @@ async function validateInstallUrl(id, downloadUrl) {
   }
   const isMatch =
     ext.download_url === downloadUrl ||
-    (ext.repo && (
-      downloadUrl.startsWith(`https://github.com/${ext.repo}/releases/`) ||
-      downloadUrl.startsWith(`https://api.github.com/repos/${ext.repo}/`)
-    ))
+    (ext.repo &&
+      (downloadUrl.startsWith(`https://github.com/${ext.repo}/releases/`) ||
+        downloadUrl.startsWith(`https://api.github.com/repos/${ext.repo}/`)))
   if (!isMatch) {
     const err = new Error('download_url does not match registry or repository')
     err.status = 403
@@ -126,9 +130,7 @@ async function resolveInstallVersion({
   loadInstallRegistry: loadInstallRegistryFn,
   fetchHeadStatus
 }) {
-  const headCheck = typeof fetchHeadStatus === 'function'
-    ? fetchHeadStatus
-    : async () => 200
+  const headCheck = typeof fetchHeadStatus === 'function' ? fetchHeadStatus : async () => 200
 
   // 1. Look up the extension in the merged install registry.
   // We MUST go through `loadInstallRegistry` (not `communityRegistry.fetchRegistry`
@@ -150,7 +152,9 @@ async function resolveInstallVersion({
       catalog = {
         extensions: Array.isArray(community)
           ? community
-          : (community && Array.isArray(community.extensions) ? community.extensions : [])
+          : community && Array.isArray(community.extensions)
+            ? community.extensions
+            : []
       }
     } catch {
       catalog = { extensions: [] }
@@ -191,12 +195,10 @@ async function resolveInstallVersion({
   }
 
   // 4. Select a release candidate based on the payload.
-  const payloadVersion = payload && typeof payload.version === 'string'
-    ? payload.version.trim()
-    : ''
-  const payloadUrl = payload && typeof payload.download_url === 'string'
-    ? payload.download_url.trim()
-    : ''
+  const payloadVersion =
+    payload && typeof payload.version === 'string' ? payload.version.trim() : ''
+  const payloadUrl =
+    payload && typeof payload.download_url === 'string' ? payload.download_url.trim() : ''
 
   let release = null
   let headCheckRequired = false
@@ -220,9 +222,7 @@ async function resolveInstallVersion({
   } else if (payloadVersion) {
     // 5b. Explicit version. Compare case-insensitively after stripping 'v'.
     const wanted = payloadVersion.toLowerCase().replace(/^v/i, '')
-    release = releases.find((r) =>
-      String(r.version || '').toLowerCase() === wanted
-    ) || null
+    release = releases.find((r) => String(r.version || '').toLowerCase() === wanted) || null
     if (!release) {
       return {
         ok: false,
@@ -243,7 +243,7 @@ async function resolveInstallVersion({
     // GITHUB_TOKEN and the GitHub API endpoint may be unavailable.
     if (!release && catalogEntry.download_url) {
       const catalogVersion =
-        (typeof catalogEntry.version === 'string' && catalogEntry.version.trim())
+        typeof catalogEntry.version === 'string' && catalogEntry.version.trim()
           ? catalogEntry.version.trim()
           : null
       release = {
@@ -258,14 +258,16 @@ async function resolveInstallVersion({
       headCheckRequired = true
       console.log(
         `[resolveInstallVersion] using catalog fallback for ${id}: ` +
-        `url=${catalogEntry.download_url} version=${catalogVersion || 'unknown'}`
+          `url=${catalogEntry.download_url} version=${catalogVersion || 'unknown'}`
       )
     }
   }
 
   // 6. No installable release available.
   if (!release) {
-    console.log(`[resolveInstallVersion] no_installable_release: id=${id} appVersion=${appVersion} releases=${releases.length} repo=${repo} releases_versions=${releases.map(r => r.version + '(compat=' + r.momai_compat + ')').join(', ')}`)
+    console.log(
+      `[resolveInstallVersion] no_installable_release: id=${id} appVersion=${appVersion} releases=${releases.length} repo=${repo} releases_versions=${releases.map((r) => r.version + '(compat=' + r.momai_compat + ')').join(', ')}`
+    )
     return {
       ok: false,
       status: 409,
@@ -452,14 +454,10 @@ async function installExtensionDependencies(extDir) {
   // Resolve npm — Electron's PATH may not include system npm
   function findNpm() {
     const nodeDir = path.dirname(process.execPath)
-    const candidates = process.platform === 'win32'
-      ? [
-          path.join(nodeDir, 'npm.cmd'),
-          path.join(nodeDir, 'npm'),
-          'npm.cmd',
-          'npm'
-        ]
-      : [path.join(nodeDir, 'npm'), 'npm']
+    const candidates =
+      process.platform === 'win32'
+        ? [path.join(nodeDir, 'npm.cmd'), path.join(nodeDir, 'npm'), 'npm.cmd', 'npm']
+        : [path.join(nodeDir, 'npm'), 'npm']
     for (const c of candidates) {
       try {
         if (c !== 'npm' && c !== 'npm.cmd') {
@@ -824,7 +822,10 @@ function createExtensionsRoutes(context) {
         sendJson(res, 400, { ok: false, error: 'invalid_path' })
         return true
       }
-      const dataDir = process.env.MOMAI_NODE_CORE_DATA_DIR || process.env.MOMAI_DATA_DIR || path.resolve(__dirname, '..', '..', 'data')
+      const dataDir =
+        process.env.MOMAI_NODE_CORE_DATA_DIR ||
+        process.env.MOMAI_DATA_DIR ||
+        path.resolve(__dirname, '..', '..', 'data')
       const fullPath = path.join(dataDir, 'extensions', extId, filePath)
       if (!fs.existsSync(fullPath)) {
         sendJson(res, 404, { ok: false, error: 'file_not_found' })
@@ -836,7 +837,7 @@ function createExtensionsRoutes(context) {
       else if (ext === '.mp3') mime = 'audio/mpeg'
       else if (ext === '.wav') mime = 'audio/wav'
       else if (ext === '.m4a') mime = 'audio/x-m4a'
-      
+
       res.writeHead(200, {
         'Content-Type': mime,
         'Cache-Control': 'no-cache',
@@ -873,7 +874,7 @@ function createExtensionsRoutes(context) {
       try {
         const community = await communityRegistry.fetchRegistry()
         let item = community.find((e) => e.id === id)
-        
+
         // If not found in remote community, and we are in dev, check local dev-extensions
         if (!item && usesLocalInstallRegistry()) {
           const localRegistry = await loadInstallRegistry()
@@ -916,7 +917,10 @@ function createExtensionsRoutes(context) {
     if (pathname.match(/^\/extensions\/[^/]+\/releases$/) && req.method === 'GET') {
       const id = pathname.split('/')[2]
       try {
-        const { categorizeReleases, findBestCompatibleRelease } = require('../../utils/semver-compat')
+        const {
+          categorizeReleases,
+          findBestCompatibleRelease
+        } = require('../../utils/semver-compat')
 
         const community = await communityRegistry.fetchRegistry()
         let item = community.find((e) => e.id === id)
@@ -928,11 +932,17 @@ function createExtensionsRoutes(context) {
 
         // Also check installed extensions for repo info
         const skillRegistry = shared.skillRegistry
-        const installed = skillRegistry ? skillRegistry.getAll().find((s) => (s.manifest?.id || s.id) === id) : null
+        const installed = skillRegistry
+          ? skillRegistry.getAll().find((s) => (s.manifest?.id || s.id) === id)
+          : null
         const repo = item?.repo || installed?.manifest?.repo || null
 
         if (!repo) {
-          sendJson(res, 200, { releases: [], installed_version: installed?.manifest?.version || null, recommended_version: null })
+          sendJson(res, 200, {
+            releases: [],
+            installed_version: installed?.manifest?.version || null,
+            recommended_version: null
+          })
           return true
         }
 
@@ -1007,9 +1017,7 @@ function createExtensionsRoutes(context) {
       //   {id, download_url}        — legacy explicit URL (backward-compat)
       let appVersion = '0.0.0'
       try {
-        const pkg = require(
-          path.resolve(__dirname, '..', '..', '..', '..', 'package.json')
-        )
+        const pkg = require(path.resolve(__dirname, '..', '..', '..', '..', 'package.json'))
         appVersion = pkg.version || '0.0.0'
       } catch {
         // ASAR-packed builds may not resolve the `../../../../package.json`
@@ -1155,12 +1163,7 @@ function createExtensionsRoutes(context) {
 
       // Wipe the artifact from the OPPOSITE mode before we install — keeps
       // the two modes from accumulating parallel copies of the same id.
-      cleanupOppositeModeArtifact(
-        skillRegistry.extensionsDir,
-        extensionsDevDir,
-        id,
-        devMode
-      )
+      cleanupOppositeModeArtifact(skillRegistry.extensionsDir, extensionsDevDir, id, devMode)
 
       // In dev symlink mode the scan only sees .dev/<id>, so we materialise a
       // symlink pointing at the freshly extracted directory. The user can
@@ -1171,10 +1174,7 @@ function createExtensionsRoutes(context) {
         try {
           ensureDevSymlink(skillRegistry.extensionsDir, extensionsDevDir, id)
         } catch (err) {
-          console.log(
-            `[extensions] Failed to create dev symlink for ${id}:`,
-            err.message
-          )
+          console.log(`[extensions] Failed to create dev symlink for ${id}:`, err.message)
         }
       }
 
@@ -1210,7 +1210,9 @@ function createExtensionsRoutes(context) {
       const skill = skillRegistry.getById(id)
       if (skill && skill.manifest?.background) {
         sendInstallStage('starting_worker', { percent: 0, globalPercent: 95 })
-        console.log(`[extensions] Starting persistent worker for newly installed extension: ${skill.id}`)
+        console.log(
+          `[extensions] Starting persistent worker for newly installed extension: ${skill.id}`
+        )
         extensionHostManager
           .startPersistent(skill.id, skill.dir, skill.manifest)
           .then(() => console.log(`[ext] Started persistent worker after install: ${skill.id}`))
@@ -1347,7 +1349,9 @@ function createExtensionsRoutes(context) {
       // Single, mode-stable key — also drop any legacy `<id>_dev` entry from
       // pre-fix installs so we don't leave orphans behind.
       // Use in-place mutation to keep the reference in sync with shared.store.extensions.
-      const filtered = store.extensions.filter((item) => item.id !== extId && item.id !== `${extId}_dev`)
+      const filtered = store.extensions.filter(
+        (item) => item.id !== extId && item.id !== `${extId}_dev`
+      )
       store.extensions.length = 0
       store.extensions.push(...filtered)
       // Wipe BOTH the real install dir AND any dev symlink so uninstall

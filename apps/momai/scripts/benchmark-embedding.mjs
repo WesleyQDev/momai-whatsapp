@@ -14,10 +14,22 @@ const RESULTS_FILE = path.resolve(__dirname, 'benchmark-results.json')
 
 const QUERIES = [
   { name: 'curta (2 palavras)', text: 'inteligência artificial' },
-  { name: 'média (8 palavras)', text: 'como funciona a memória semântica do assistente virtual local' },
-  { name: 'longa (20 palavras)', text: 'quais são as melhores práticas para implementar busca semântica em aplicações desktop com modelos de embedding rodando localmente no computador' },
-  { name: 'multi-idioma', text: 'machine learning and natural language processing with semantic search and retrieval augmented generation for local first applications' },
-  { name: 'técnica', text: 'LanceDB vector database similarity search with cosine distance embedding model quantization GGUF llama.cpp inference server' },
+  {
+    name: 'média (8 palavras)',
+    text: 'como funciona a memória semântica do assistente virtual local'
+  },
+  {
+    name: 'longa (20 palavras)',
+    text: 'quais são as melhores práticas para implementar busca semântica em aplicações desktop com modelos de embedding rodando localmente no computador'
+  },
+  {
+    name: 'multi-idioma',
+    text: 'machine learning and natural language processing with semantic search and retrieval augmented generation for local first applications'
+  },
+  {
+    name: 'técnica',
+    text: 'LanceDB vector database similarity search with cosine distance embedding model quantization GGUF llama.cpp inference server'
+  }
 ]
 
 function log(msg) {
@@ -53,7 +65,7 @@ function p99(arr) {
 function stddev(arr) {
   if (arr.length < 2) return 0
   const m = mean(arr)
-  const sq = arr.map(v => (v - m) ** 2)
+  const sq = arr.map((v) => (v - m) ** 2)
   return Math.sqrt(sq.reduce((a, b) => a + b, 0) / (arr.length - 1))
 }
 
@@ -61,10 +73,13 @@ async function waitForServer(url, timeoutMs = 30000) {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     try {
-      const resp = await fetch(`${url}/health`, { method: 'GET', signal: AbortSignal.timeout(2000) })
+      const resp = await fetch(`${url}/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(2000)
+      })
       if (resp.ok) return true
     } catch {}
-    await new Promise(r => setTimeout(r, 300))
+    await new Promise((r) => setTimeout(r, 300))
   }
   return false
 }
@@ -91,13 +106,9 @@ async function warmupServer(url, count = 3) {
     try {
       await embedQuery('warmup request to initialize model', url)
     } catch {}
-    await new Promise(r => setTimeout(r, 200))
+    await new Promise((r) => setTimeout(r, 200))
   }
 }
-
-
-
-
 
 async function runBenchmark(modelPath, modelLabel) {
   return new Promise(async (resolve, reject) => {
@@ -132,24 +143,39 @@ async function runBenchmark(modelPath, modelLabel) {
     } catch {}
 
     // Start llama-server
-    const proc = spawn(LLAMA_SERVER, [
-      '-m', modelPath,
-      '--port', String(BENCH_PORT),
-      '--embedding',
-      '--pooling', 'last',
-      '--parallel', '2',
-      '--ctx-size', '2048',
-      '--threads', '4',
-      '-ngl', '0'
-    ], {
-      cwd: path.dirname(LLAMA_SERVER),
-      stdio: ['ignore', 'pipe', 'pipe']
-    })
+    const proc = spawn(
+      LLAMA_SERVER,
+      [
+        '-m',
+        modelPath,
+        '--port',
+        String(BENCH_PORT),
+        '--embedding',
+        '--pooling',
+        'last',
+        '--parallel',
+        '2',
+        '--ctx-size',
+        '2048',
+        '--threads',
+        '4',
+        '-ngl',
+        '0'
+      ],
+      {
+        cwd: path.dirname(LLAMA_SERVER),
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    )
 
     let stdoutData = ''
     let stderrData = ''
-    proc.stdout.on('data', d => { stdoutData += String(d) })
-    proc.stderr.on('data', d => { stderrData += String(d) })
+    proc.stdout.on('data', (d) => {
+      stdoutData += String(d)
+    })
+    proc.stderr.on('data', (d) => {
+      stderrData += String(d)
+    })
 
     log(`Server PID: ${proc.pid}`)
 
@@ -164,7 +190,7 @@ async function runBenchmark(modelPath, modelLabel) {
 
     // Cold start: first request after server starts
     log('--- Cold start ---')
-    await new Promise(r => setTimeout(r, 100))
+    await new Promise((r) => setTimeout(r, 100))
     const coldResult = await embedQuery('cold start test query', BENCH_URL)
     results.cold_start_ms = coldResult.elapsed
     log(`Cold start: ${coldResult.elapsed}ms`)
@@ -192,7 +218,7 @@ async function runBenchmark(modelPath, modelLabel) {
           log(`    Run ${i + 1} failed: ${err.message}`)
         }
         // Small delay between runs
-        await new Promise(r => setTimeout(r, 50))
+        await new Promise((r) => setTimeout(r, 50))
       }
 
       results.queries[q.name] = {
@@ -209,11 +235,13 @@ async function runBenchmark(modelPath, modelLabel) {
         all_ms: latencies
       }
 
-      log(`      mean=${results.queries[q.name].mean_ms}ms median=${results.queries[q.name].median_ms}ms p95=${results.queries[q.name].p95_ms}ms`)
+      log(
+        `      mean=${results.queries[q.name].mean_ms}ms median=${results.queries[q.name].median_ms}ms p95=${results.queries[q.name].p95_ms}ms`
+      )
     }
 
     // Calculate overall summary for warm queries
-    const allQueryLatencies = Object.values(results.queries).flatMap(q => q.all_ms || [])
+    const allQueryLatencies = Object.values(results.queries).flatMap((q) => q.all_ms || [])
     results.summary = {
       total_queries_measured: allQueryLatencies.length,
       overall_mean_ms: Math.round(mean(allQueryLatencies) * 100) / 100,
@@ -222,14 +250,16 @@ async function runBenchmark(modelPath, modelLabel) {
       overall_p99_ms: Math.round(p99(allQueryLatencies) * 100) / 100,
       overall_min_ms: Math.min(...allQueryLatencies),
       overall_max_ms: Math.max(...allQueryLatencies),
-      overall_stddev_ms: Math.round(stddev(allQueryLatencies) * 100) / 100,
+      overall_stddev_ms: Math.round(stddev(allQueryLatencies) * 100) / 100
     }
 
     // Cleanup
     log('--- Cleaning up ---')
     proc.kill('SIGTERM')
     setTimeout(() => {
-      try { proc.kill('SIGKILL') } catch {}
+      try {
+        proc.kill('SIGKILL')
+      } catch {}
     }, 3000)
 
     resolve(results)
@@ -239,7 +269,7 @@ async function runBenchmark(modelPath, modelLabel) {
 async function main() {
   const args = process.argv.slice(2)
   const modelPath = args[0]
-  
+
   if (!modelPath) {
     console.error('Usage: node benchmark-embedding.mjs <path-to-gguf>')
     console.error('')
@@ -247,7 +277,7 @@ async function main() {
     const modelsDir = MODELS_DIR
     if (existsSync(modelsDir)) {
       const { readdirSync } = await import('node:fs')
-      const files = readdirSync(modelsDir).filter(f => f.endsWith('.gguf'))
+      const files = readdirSync(modelsDir).filter((f) => f.endsWith('.gguf'))
       for (const f of files) {
         console.error(`  ${path.join(modelsDir, f)}`)
       }
@@ -280,28 +310,38 @@ async function main() {
   console.log('BENCHMARK RESULTS')
   console.log('='.repeat(60))
   console.log(`Model: ${results.model}`)
-  console.log(`Size: ${results.model_size_mb}MB | Params: ${results.model_params} | Quant: ${results.quantization}`)
+  console.log(
+    `Size: ${results.model_size_mb}MB | Params: ${results.model_params} | Quant: ${results.quantization}`
+  )
   console.log('')
   console.log(`Cold start (first request): ${results.cold_start_ms}ms`)
   console.log(`Warm start (after warmup):  ${results.warm_start_ms}ms`)
   console.log('')
   console.log('Query benchmarks (10 runs each, warm cache):')
-  console.log(`${'Query'.padEnd(25)} ${'Mean'.padEnd(10)} ${'Median'.padEnd(10)} ${'P95'.padEnd(10)} ${'Min'.padEnd(10)} ${'Max'.padEnd(10)} ${'StdDev'.padEnd(10)}`)
+  console.log(
+    `${'Query'.padEnd(25)} ${'Mean'.padEnd(10)} ${'Median'.padEnd(10)} ${'P95'.padEnd(10)} ${'Min'.padEnd(10)} ${'Max'.padEnd(10)} ${'StdDev'.padEnd(10)}`
+  )
   console.log('-'.repeat(85))
   for (const [name, q] of Object.entries(results.queries)) {
-    console.log(`${name.padEnd(25)} ${String(q.mean_ms).padEnd(10)} ${String(q.median_ms).padEnd(10)} ${String(q.p95_ms).padEnd(10)} ${String(q.min_ms).padEnd(10)} ${String(q.max_ms).padEnd(10)} ${String(q.stddev_ms).padEnd(10)}`)
+    console.log(
+      `${name.padEnd(25)} ${String(q.mean_ms).padEnd(10)} ${String(q.median_ms).padEnd(10)} ${String(q.p95_ms).padEnd(10)} ${String(q.min_ms).padEnd(10)} ${String(q.max_ms).padEnd(10)} ${String(q.stddev_ms).padEnd(10)}`
+    )
   }
   console.log('')
   console.log('Overall:')
   const s = results.summary
-  console.log(`  Mean: ${s.overall_mean_ms}ms | Median: ${s.overall_median_ms}ms | P95: ${s.overall_p95_ms}ms | P99: ${s.overall_p99_ms}ms`)
-  console.log(`  Min: ${s.overall_min_ms}ms | Max: ${s.overall_max_ms}ms | StdDev: ${s.overall_stddev_ms}ms`)
+  console.log(
+    `  Mean: ${s.overall_mean_ms}ms | Median: ${s.overall_median_ms}ms | P95: ${s.overall_p95_ms}ms | P99: ${s.overall_p99_ms}ms`
+  )
+  console.log(
+    `  Min: ${s.overall_min_ms}ms | Max: ${s.overall_max_ms}ms | StdDev: ${s.overall_stddev_ms}ms`
+  )
   console.log(`  Total queries measured: ${s.total_queries_measured}`)
   console.log('')
   console.log(`Results saved to: ${RESULTS_FILE}`)
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('Benchmark failed:', err)
   process.exit(1)
 })

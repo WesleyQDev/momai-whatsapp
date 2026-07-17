@@ -3,7 +3,11 @@ const path = require('node:path')
 const shared = require('./shared-state')
 const communityRegistry = require('./community-registry')
 const { usesLocalInstallRegistry, loadInstallRegistry } = require('../utils/install-registry')
-const { compareVersions, satisfiesRange, findBestCompatibleRelease } = require('../utils/semver-compat')
+const {
+  compareVersions,
+  satisfiesRange,
+  findBestCompatibleRelease
+} = require('../utils/semver-compat')
 const store = shared.store
 
 function getAppVersion() {
@@ -34,8 +38,7 @@ function isSkillEnabledByStore(skill) {
   // back-compat reads, but never write to it.
   const extensions = (currentStore && currentStore.extensions) || []
   const entry =
-    extensions.find((e) => e.id === skill.id) ||
-    extensions.find((e) => e.id === `${skill.id}_dev`)
+    extensions.find((e) => e.id === skill.id) || extensions.find((e) => e.id === `${skill.id}_dev`)
   if (!entry) {
     // Default state: builtins/packaged start enabled, extensions start disabled unless explicitly enabled
     if (skill.kind === 'builtin' || skill.kind === 'packaged') return true
@@ -147,9 +150,16 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         source,
         intents: manifest.intents || [],
         tags: manifest.tags || [],
-        icon: manifest.icon || (community.find((c) => c.id === (manifest.id || skill.id))?.icon) || null,
-        icon_url: manifest.icon_url || (community.find((c) => c.id === (manifest.id || skill.id))?.icon_url) || null,
-        icon_bg: manifest.icon_bg || (community.find((c) => c.id === (manifest.id || skill.id))?.icon_bg) || null,
+        icon:
+          manifest.icon || community.find((c) => c.id === (manifest.id || skill.id))?.icon || null,
+        icon_url:
+          manifest.icon_url ||
+          community.find((c) => c.id === (manifest.id || skill.id))?.icon_url ||
+          null,
+        icon_bg:
+          manifest.icon_bg ||
+          community.find((c) => c.id === (manifest.id || skill.id))?.icon_bg ||
+          null,
         author: manifest.author || null,
         repo: repo,
         stars: stars,
@@ -206,9 +216,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
 
   // Fetch stars for community extensions that have a repo
   const communityStarsMap = new Map()
-  const communityWithRepo = community.filter(
-    (item) => !installedIds.has(item.id) && item.repo
-  )
+  const communityWithRepo = community.filter((item) => !installedIds.has(item.id) && item.repo)
   for (let i = 0; i < communityWithRepo.length; i += BATCH_SIZE) {
     const batch = communityWithRepo.slice(i, i + BATCH_SIZE)
     await Promise.all(
@@ -291,7 +299,10 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
             latestCompatible = best.version
           }
         } catch (e) {
-          console.warn(`[SkillOrchestrator] Failed to fetch releases for update check on ${ext.id}:`, e.message)
+          console.warn(
+            `[SkillOrchestrator] Failed to fetch releases for update check on ${ext.id}:`,
+            e.message
+          )
         }
       }
 

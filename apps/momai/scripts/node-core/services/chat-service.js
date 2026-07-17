@@ -504,9 +504,7 @@ async function streamLlamaChat(req, res, payload) {
       debug(`[TTS-DEBUG] enqueueAutoTts SKIPPED: cleaned.length=${cleaned.length}`)
       return
     }
-    debug(
-      `[TTS-DEBUG] enqueueAutoTts CALLING triggerAutoTts: cleaned="${cleaned.slice(0, 60)}"`
-    )
+    debug(`[TTS-DEBUG] enqueueAutoTts CALLING triggerAutoTts: cleaned="${cleaned.slice(0, 60)}"`)
     ttsQueue.push(cleaned)
     if (ttsQueue.length > TTS_QUEUE_MAX) {
       ttsQueue.shift()
@@ -549,9 +547,7 @@ async function streamLlamaChat(req, res, payload) {
     }
     const pending = assembled.slice(ttsCursor)
     if (!pending) {
-      debug(
-        `[TTS-DEBUG] flushTtsChunks(${final}) blocked: pending empty, ttsCursor=${ttsCursor}`
-      )
+      debug(`[TTS-DEBUG] flushTtsChunks(${final}) blocked: pending empty, ttsCursor=${ttsCursor}`)
       return
     }
     if (!final && pending.length < prebufferChars) {

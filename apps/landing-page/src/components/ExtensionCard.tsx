@@ -260,7 +260,7 @@ export function ExtensionCard({
       <div className="relative">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div
-            className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-xl ${iconBgStyle ? '' : `bg-gradient-to-br ${gradClass}`} shadow-lg shadow-black/20`}
+            className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-xl ${iconBgStyle ? "" : `bg-gradient-to-br ${gradClass}`} shadow-lg shadow-black/20`}
             style={iconBgStyle}
           >
             <div className="absolute inset-0 rounded-xl bg-white/10" />
@@ -269,7 +269,11 @@ export function ExtensionCard({
           <div className="flex items-center gap-2">
             {stars != null && stars > 0 && (
               <div className="flex items-center gap-1 text-[10px] text-amber-400 font-bold bg-amber-400/10 px-1.5 py-0.5 rounded-md">
-                <svg className="h-3 w-3 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="h-3 w-3 text-amber-400"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                 </svg>
                 {stars}

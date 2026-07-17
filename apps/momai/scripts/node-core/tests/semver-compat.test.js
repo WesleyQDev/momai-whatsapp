@@ -73,6 +73,6 @@ test('categorizeReleases groups compatible and incompatible versions', () => {
   ]
 
   const { compatible, incompatible } = categorizeReleases(releases, '1.5.2')
-  expect(compatible.map(r => r.version)).toEqual(['0.3.16', '0.3.15'])
-  expect(incompatible.map(r => r.version)).toEqual(['0.4.0'])
+  expect(compatible.map((r) => r.version)).toEqual(['0.3.16', '0.3.15'])
+  expect(incompatible.map((r) => r.version)).toEqual(['0.4.0'])
 })

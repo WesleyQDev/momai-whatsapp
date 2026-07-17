@@ -82,7 +82,15 @@ function InlineSvgIcon({ svg, className }: { svg: string; className?: string }) 
   // <foreignObject>, javascript: URLs, and other XSS vectors.
   const sanitized = DOMPurify.sanitize(svg, {
     USE_PROFILES: { svg: true },
-    ADD_ATTR: ['fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'fill-opacity', 'stroke-opacity']
+    ADD_ATTR: [
+      'fill',
+      'stroke',
+      'stroke-width',
+      'stroke-linecap',
+      'stroke-linejoin',
+      'fill-opacity',
+      'stroke-opacity'
+    ]
   })
 
   // Strip width/height from the root <svg> (caller controls size via

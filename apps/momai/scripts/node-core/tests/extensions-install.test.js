@@ -73,21 +73,26 @@ function makeMockRegistry({ catalog, releases, manifest }) {
 }
 
 function makeMockLoadRegistry({ catalog, throwError = false }) {
-  if (throwError) return async () => { throw new Error('loadInstallRegistry failed') }
+  if (throwError)
+    return async () => {
+      throw new Error('loadInstallRegistry failed')
+    }
   return async () => catalog
 }
 
 const CAT_ENTRY = {
   id: 'whatsapp',
   repo: 'WesleyQDev/momai-whatsapp-extension',
-  download_url: 'https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.3.30/whatsapp-0.3.30.zip'
+  download_url:
+    'https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.3.30/whatsapp-0.3.30.zip'
 }
 
 const RELEASES = [
   {
     version: '0.3.30',
     tag: 'v0.3.30',
-    download_url: 'https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.3.30/whatsapp-0.3.30.zip',
+    download_url:
+      'https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.3.30/whatsapp-0.3.30.zip',
     changelog: 'whatsapp 0.3.30',
     date: '2026-06-01',
     prerelease: false,
@@ -96,7 +101,8 @@ const RELEASES = [
   {
     version: '0.3.0',
     tag: 'v0.3.0',
-    download_url: 'https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.3.0/whatsapp-0.3.0.zip',
+    download_url:
+      'https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.3.0/whatsapp-0.3.0.zip',
     changelog: 'whatsapp 0.3.0',
     date: '2026-05-20',
     prerelease: false,
@@ -105,7 +111,8 @@ const RELEASES = [
   {
     version: '0.4.0',
     tag: 'v0.4.0',
-    download_url: 'https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.4.0/whatsapp-0.4.0.zip',
+    download_url:
+      'https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.4.0/whatsapp-0.4.0.zip',
     changelog: 'whatsapp 0.4.0',
     date: '2026-06-15',
     prerelease: false,
@@ -114,7 +121,8 @@ const RELEASES = [
   {
     version: '0.2.0',
     tag: 'v0.2.0',
-    download_url: 'https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.2.0/whatsapp-0.2.0.zip',
+    download_url:
+      'https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.2.0/whatsapp-0.2.0.zip',
     changelog: 'whatsapp 0.2.0',
     date: '2026-05-01',
     prerelease: false,
@@ -324,15 +332,19 @@ describe('resolveInstallVersion', () => {
     }
     const registry = makeMockRegistry({
       catalog: communityOnlyCatalog,
-      releases: { 'WesleyQDev/momai-system-info': [{
-        version: '0.1.0',
-        tag: 'v0.1.0',
-        download_url: 'https://example/system-info.zip',
-        changelog: '',
-        date: null,
-        prerelease: false,
-        momai_compat: null
-      }] }
+      releases: {
+        'WesleyQDev/momai-system-info': [
+          {
+            version: '0.1.0',
+            tag: 'v0.1.0',
+            download_url: 'https://example/system-info.zip',
+            changelog: '',
+            date: null,
+            prerelease: false,
+            momai_compat: null
+          }
+        ]
+      }
     })
     const result = await resolveInstallVersion({
       id: 'system_info',

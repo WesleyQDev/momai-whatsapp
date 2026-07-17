@@ -2,7 +2,10 @@ const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
 
-const { createExtensionsRoutes, cleanupOppositeModeArtifact } = require('../api/routes/extensions.routes')
+const {
+  createExtensionsRoutes,
+  cleanupOppositeModeArtifact
+} = require('../api/routes/extensions.routes')
 
 function makeTmpDataDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'momai-ext-helper-'))
@@ -98,7 +101,11 @@ describe('extensions.routes — mode isolation helpers', () => {
       fs.mkdirSync(extensionsDevDir, { recursive: true })
       fs.symlinkSync(realDir, devLink, 'dir')
 
-      const store = { extensions: [{ id: 'whatsapp', enabled: true, source: 'symlink' }], settings: { dev_mode: 'symlink' }, skillKeywords: {} }
+      const store = {
+        extensions: [{ id: 'whatsapp', enabled: true, source: 'symlink' }],
+        settings: { dev_mode: 'symlink' },
+        skillKeywords: {}
+      }
       const calls = []
       const ctx = {
         skillRegistry: makeRegistryWithInstallPaths({ extensionsDir, extensionsDevDir }),

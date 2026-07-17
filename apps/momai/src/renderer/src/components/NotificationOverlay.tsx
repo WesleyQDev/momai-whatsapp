@@ -193,7 +193,8 @@ export default function NotificationOverlay() {
         if (event.eventType === 'connection_status') {
           const status = event.data?.status
           if (status === 'disconnected') {
-            const hasConnectedOnce = localStorage.getItem(`${skill.id}_has_connected_once`) === 'true'
+            const hasConnectedOnce =
+              localStorage.getItem(`${skill.id}_has_connected_once`) === 'true'
             if (!hasConnectedOnce) {
               console.log(
                 `[NotificationOverlay] Skipped disconnected overlay update for ${skill.id} because it has not connected once yet`
@@ -531,11 +532,7 @@ function NotificationCard({
 
       {data?.audioUrl && (
         <div className="mt-1.5 mb-3 max-w-[280px]">
-          <audio
-            src={data.audioUrl}
-            controls
-            className="w-full h-8 accent-accent"
-          />
+          <audio src={data.audioUrl} controls className="w-full h-8 accent-accent" />
         </div>
       )}
 

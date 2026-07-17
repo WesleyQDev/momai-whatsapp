@@ -46,7 +46,10 @@ function App() {
           <Route path="/saude/como-usar" element={<SaudeComoUsarPage />} />
           <Route path="/saude/contato" element={<SaudeContatoPage />} />
           <Route path="/saude/doar" element={<SaudeDoarPage />} />
-          <Route path="/saude/reportar-erro" element={<SaudeReportarErroPage />} />
+          <Route
+            path="/saude/reportar-erro"
+            element={<SaudeReportarErroPage />}
+          />
         </Route>
       </Routes>
     </HashRouter>

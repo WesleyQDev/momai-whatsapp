@@ -67,9 +67,7 @@ export function ExtensionsPage() {
         extensions.map(async (ext) => {
           if (!ext.repo) return { id: ext.id, stars: 0 };
           try {
-            const res = await fetch(
-              `https://api.github.com/repos/${ext.repo}`,
-            );
+            const res = await fetch(`https://api.github.com/repos/${ext.repo}`);
             if (!res.ok) return { id: ext.id, stars: 0 };
             const data = await res.json();
             return { id: ext.id, stars: data.stargazers_count || 0 };
@@ -78,9 +76,7 @@ export function ExtensionsPage() {
           }
         }),
       );
-      setStarsMap(
-        Object.fromEntries(results.map((r) => [r.id, r.stars])),
-      );
+      setStarsMap(Object.fromEntries(results.map((r) => [r.id, r.stars])));
     };
     fetchStars();
   }, [extensions]);
@@ -163,7 +159,8 @@ export function ExtensionsPage() {
     const iconBgStyle = selectedExtension.icon_bg
       ? { background: selectedExtension.icon_bg }
       : undefined;
-    const authorUsername = selectedExtension.repo?.split("/")[0] || selectedExtension.author;
+    const authorUsername =
+      selectedExtension.repo?.split("/")[0] || selectedExtension.author;
     return (
       <div className="relative mx-auto max-w-4xl px-6 py-16 sm:px-8 lg:px-12">
         <div
@@ -197,7 +194,7 @@ export function ExtensionsPage() {
 
         <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-8 pb-8 border-b border-[var(--border-color)]">
           <div
-            className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl ${iconBgStyle ? '' : `bg-gradient-to-br ${gradClass}`} shadow-xl flex items-center justify-center shrink-0 relative overflow-hidden`}
+            className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl ${iconBgStyle ? "" : `bg-gradient-to-br ${gradClass}`} shadow-xl flex items-center justify-center shrink-0 relative overflow-hidden`}
             style={iconBgStyle}
           >
             <div className="absolute inset-0 bg-white/[0.08]" />
@@ -258,13 +255,19 @@ export function ExtensionsPage() {
                 </span>
                 {extStars > 0 ? (
                   <div className="flex items-center gap-1.5 text-sm text-amber-400 font-bold">
-                    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                    <svg
+                      className="h-4 w-4"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                     </svg>
                     {extStars}
                   </div>
                 ) : (
-                  <span className="text-xs text-[var(--text-tertiary)] font-bold">N/A</span>
+                  <span className="text-xs text-[var(--text-tertiary)] font-bold">
+                    N/A
+                  </span>
                 )}
               </div>
             </div>
@@ -276,7 +279,11 @@ export function ExtensionsPage() {
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-secondary)] rounded-xl text-[10px] font-bold hover:text-[var(--text)] hover:border-[var(--accent)]/30 transition-all uppercase tracking-widest no-underline"
               >
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     fillRule="evenodd"
                     d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
@@ -295,8 +302,18 @@ export function ExtensionsPage() {
               <div className="absolute -top-px left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/20 to-transparent" />
               <div className="pt-10">
                 <h2 className="mb-6 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-                  <svg className="h-4 w-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg
+                    className="h-4 w-4 text-[var(--accent)]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                   {t("extensoes.sobre")}
                 </h2>
@@ -304,9 +321,24 @@ export function ExtensionsPage() {
                   {readmeLoading && (
                     <div className="flex items-center justify-center py-12">
                       <div className="flex items-center gap-3 text-sm text-[var(--text-tertiary)]">
-                        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        <svg
+                          className="h-4 w-4 animate-spin"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          />
                         </svg>
                         {t("extensoes.loading")}
                       </div>
@@ -333,15 +365,27 @@ export function ExtensionsPage() {
                         prose-th:text-[var(--text)] prose-th:border-b-[var(--border-color)]
                         prose-td:border-b-[var(--border-color)]"
                       dangerouslySetInnerHTML={{
-                        __html: DOMPurify.sanitize(marked.parse(readme) as string),
+                        __html: DOMPurify.sanitize(
+                          marked.parse(readme) as string,
+                        ),
                       }}
                     />
                   )}
                   {!readme && !readmeLoading && !readmeError && (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
                       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--feature-border)] bg-[var(--bg-secondary)]">
-                        <svg className="h-8 w-8 text-[var(--text-tertiary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        <svg
+                          className="h-8 w-8 text-[var(--text-tertiary)]"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
                         </svg>
                       </div>
                       <p className="text-sm italic text-[var(--text-tertiary)]">
@@ -359,20 +403,47 @@ export function ExtensionsPage() {
               <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--bg)]/80 p-5 backdrop-blur-xl">
                 <div className="mb-3 flex items-center gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/10">
-                    <svg className="h-4 w-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                    <svg
+                      className="h-4 w-4 text-amber-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
+                      />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-[var(--text)]">{t("extensoes.permissoes")}</h3>
-                    <p className="text-[11px] text-[var(--text-tertiary)]">{t("extensoes.permissoesDesc")}</p>
+                    <h3 className="text-sm font-bold text-[var(--text)]">
+                      {t("extensoes.permissoes")}
+                    </h3>
+                    <p className="text-[11px] text-[var(--text-tertiary)]">
+                      {t("extensoes.permissoesDesc")}
+                    </p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {(manifest.permissions as string[]).map((perm) => (
-                    <span key={perm} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/15 bg-amber-500/8 px-2.5 py-1 text-xs font-semibold text-amber-300">
-                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
+                    <span
+                      key={perm}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/15 bg-amber-500/8 px-2.5 py-1 text-xs font-semibold text-amber-300"
+                    >
+                      <svg
+                        className="h-3 w-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"
+                        />
                       </svg>
                       {perm}
                     </span>
@@ -381,26 +452,47 @@ export function ExtensionsPage() {
               </div>
             ) : null}
 
-            {(manifest?.storage as { description?: string; locations?: string[] } | undefined) ? (
+            {(manifest?.storage as
+              { description?: string; locations?: string[] } | undefined) ? (
               <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--bg)]/80 p-5 backdrop-blur-xl">
                 <div className="mb-3 flex items-center gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/10">
-                    <svg className="h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+                    <svg
+                      className="h-4 w-4 text-blue-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125"
+                      />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-[var(--text)]">{t("extensoes.armazenamento")}</h3>
-                    <p className="text-[11px] text-[var(--text-tertiary)]">{t("extensoes.armazenamentoDesc")}</p>
+                    <h3 className="text-sm font-bold text-[var(--text)]">
+                      {t("extensoes.armazenamento")}
+                    </h3>
+                    <p className="text-[11px] text-[var(--text-tertiary)]">
+                      {t("extensoes.armazenamentoDesc")}
+                    </p>
                   </div>
                 </div>
                 <p className="mb-3 text-sm text-[var(--text-secondary)]">
                   {(manifest.storage as { description?: string }).description}
                 </p>
-                {(manifest.storage as { locations?: string[] }).locations?.length ? (
+                {(manifest.storage as { locations?: string[] }).locations
+                  ?.length ? (
                   <div className="flex flex-wrap gap-2">
-                    {(manifest.storage as { locations: string[] }).locations.map((loc) => (
-                      <span key={loc} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/15 bg-blue-500/8 px-2.5 py-1 text-xs font-semibold text-blue-300 font-mono">
+                    {(
+                      manifest.storage as { locations: string[] }
+                    ).locations.map((loc) => (
+                      <span
+                        key={loc}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/15 bg-blue-500/8 px-2.5 py-1 text-xs font-semibold text-blue-300 font-mono"
+                      >
                         {loc}
                       </span>
                     ))}
@@ -413,20 +505,49 @@ export function ExtensionsPage() {
               <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--bg)]/80 p-5 backdrop-blur-xl">
                 <div className="mb-3 flex items-center gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-500/20 bg-purple-500/10">
-                    <svg className="h-4 w-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+                    <svg
+                      className="h-4 w-4 text-purple-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"
+                      />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-[var(--text)]">{t("extensoes.voz")}</h3>
-                    <p className="text-[11px] text-[var(--text-tertiary)]">{t("extensoes.vozDesc")}</p>
+                    <h3 className="text-sm font-bold text-[var(--text)]">
+                      {t("extensoes.voz")}
+                    </h3>
+                    <p className="text-[11px] text-[var(--text-tertiary)]">
+                      {t("extensoes.vozDesc")}
+                    </p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {Object.keys(manifest.voiceHooks as Record<string, unknown>).map((hook) => (
-                    <span key={hook} className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/15 bg-purple-500/8 px-2.5 py-1 text-xs font-semibold text-purple-300">
-                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+                  {Object.keys(
+                    manifest.voiceHooks as Record<string, unknown>,
+                  ).map((hook) => (
+                    <span
+                      key={hook}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/15 bg-purple-500/8 px-2.5 py-1 text-xs font-semibold text-purple-300"
+                    >
+                      <svg
+                        className="h-3 w-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"
+                        />
                       </svg>
                       {hook}
                     </span>

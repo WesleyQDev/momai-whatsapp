@@ -36,10 +36,7 @@ function extractZip(zipPath, destDir) {
           return fail(new Error(`Refusing unsafe zip entry: ${entry.fileName}`))
         }
         const destPath = path.resolve(resolvedRoot, entry.fileName)
-        if (
-          destPath !== resolvedRoot &&
-          !destPath.startsWith(resolvedRoot + path.sep)
-        ) {
+        if (destPath !== resolvedRoot && !destPath.startsWith(resolvedRoot + path.sep)) {
           return fail(new Error(`Zip Slip detected: ${entry.fileName}`))
         }
 

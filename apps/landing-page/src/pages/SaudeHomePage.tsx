@@ -65,7 +65,15 @@ const FEATURES = [
     description:
       "Monitore sua alimentação de forma simples. A MomAI Saúde ajuda você a manter o equilíbrio nutricional diário.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-6 w-6"
+      >
         <path d="M3 3v18h18" />
         <path d="M7 16l4-8 4 4 4-8" />
       </svg>
@@ -76,7 +84,15 @@ const FEATURES = [
     description:
       "Acompanhe seu progresso diário automaticamente. Visualize seus passos, distância e metas batidas.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-6 w-6"
+      >
         <path d="M2 12c1-3 3-5 5-5s4 3 5 3 3-3 5-3 4 2 5 5" />
         <path d="M2 17c1-3 3-5 5-5s4 3 5 3 3-3 5-3 4 2 5 5" />
       </svg>
@@ -87,7 +103,15 @@ const FEATURES = [
     description:
       "Mantenha-se hidratado com lembretes inteligentes. Registre seu consumo e complete seu desafio diário.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-6 w-6"
+      >
         <path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z" />
       </svg>
     ),
@@ -97,7 +121,15 @@ const FEATURES = [
     description:
       "Seus dados de saúde nunca saem do dispositivo. Sem nuvem, sem rastreamento, apenas você e seu progresso.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-6 w-6"
+      >
         <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
         <path d="M7 11V7a5 5 0 0110 0v4" />
       </svg>
@@ -108,7 +140,15 @@ const FEATURES = [
     description:
       "Agende horários para água, remédios ou treinos. A MomAI Saúde mantém você no ritmo certo o dia todo.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-6 w-6"
+      >
         <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
         <path d="M13.73 21a2 2 0 01-3.46 0" />
       </svg>
@@ -119,7 +159,15 @@ const FEATURES = [
     description:
       "Receba dicas personalizadas baseadas no seu perfil, rodando IA de forma 100% local e segura.",
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-6 w-6"
+      >
         <circle cx="12" cy="12" r="10" />
         <line x1="12" y1="16" x2="12" y2="12" />
         <line x1="12" y1="8" x2="12.01" y2="8" />
@@ -175,7 +223,9 @@ function useScrollReveal() {
 }
 
 export function SaudeHomePage() {
-  const [modalTopic, setModalTopic] = useState<(typeof HEALTH_TOPICS)[number] | null>(null);
+  const [modalTopic, setModalTopic] = useState<
+    (typeof HEALTH_TOPICS)[number] | null
+  >(null);
   const heroRef = useScrollReveal();
   const tipsRef = useScrollReveal();
   const featuresRef = useScrollReveal();
@@ -200,7 +250,10 @@ export function SaudeHomePage() {
       </div>
 
       {/* Hero Section */}
-      <section ref={heroRef} className="fade-in relative z-10 mx-auto flex max-w-5xl flex-col items-center px-6 pb-20 pt-24 text-center">
+      <section
+        ref={heroRef}
+        className="fade-in relative z-10 mx-auto flex max-w-5xl flex-col items-center px-6 pb-20 pt-24 text-center"
+      >
         <div className="mb-5 inline-block rounded-full border border-[rgba(16,185,129,0.2)] bg-[rgba(16,185,129,0.1)] px-4 py-1.5 text-sm font-medium text-[#10b981]">
           Sua Assistente de Saúde
         </div>
@@ -244,7 +297,10 @@ export function SaudeHomePage() {
       </section>
 
       {/* Health Tips Cards */}
-      <section ref={tipsRef} className="fade-in relative z-10 mx-auto max-w-5xl px-6 pb-24">
+      <section
+        ref={tipsRef}
+        className="fade-in relative z-10 mx-auto max-w-5xl px-6 pb-24"
+      >
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {HEALTH_TOPICS.map((topic) => (
             <button
@@ -286,7 +342,13 @@ export function SaudeHomePage() {
               onClick={() => setModalTopic(null)}
               className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-[#8b949e] transition-colors hover:text-[#e6edf3]"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                className="h-4 w-4"
+              >
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
@@ -304,7 +366,8 @@ export function SaudeHomePage() {
               <h2
                 className="mb-3 text-xl font-bold"
                 style={{
-                  background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
+                  background:
+                    "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
@@ -320,7 +383,10 @@ export function SaudeHomePage() {
               </h3>
               <ul className="space-y-2">
                 {modalTopic.tips.map((tip) => (
-                  <li key={tip} className="flex items-center gap-2.5 text-sm text-[#e6edf3]">
+                  <li
+                    key={tip}
+                    className="flex items-center gap-2.5 text-sm text-[#e6edf3]"
+                  >
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[rgba(16,185,129,0.15)] text-[10px] text-[#10b981]">
                       ✓
                     </span>
@@ -334,7 +400,10 @@ export function SaudeHomePage() {
       )}
 
       {/* Features Section */}
-      <section ref={featuresRef} className="fade-in relative z-10 bg-[#0d1117] px-6 py-24">
+      <section
+        ref={featuresRef}
+        className="fade-in relative z-10 bg-[#0d1117] px-6 py-24"
+      >
         <div className="mx-auto max-w-5xl">
           <div className="mb-16 text-center">
             <h2
@@ -349,8 +418,8 @@ export function SaudeHomePage() {
               Por que escolher a MomAI Saúde?
             </h2>
             <p className="text-base text-[#8b949e]">
-              Uma assistente projetada para quem valoriza privacidade, controle e
-              simplicidade.
+              Uma assistente projetada para quem valoriza privacidade, controle
+              e simplicidade.
             </p>
           </div>
 

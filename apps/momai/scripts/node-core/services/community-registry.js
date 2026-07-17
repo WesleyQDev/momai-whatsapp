@@ -164,21 +164,17 @@ class CommunityRegistryService {
       headers['Authorization'] = `Bearer ${token}`
     }
     client
-      .get(
-        url,
-        { headers },
-        (res) => {
-          let data = ''
-          res.on('data', (chunk) => (data += chunk))
-          res.on('end', () => {
-            try {
-              const stars = JSON.parse(data).stargazers_count || 0
-              this.starsCache.set(repo, { stars, timestamp: Date.now() })
-              console.log(`[CommunityRegistry] Background update: ${repo} has ${stars} stars`)
-            } catch {}
-          })
-        }
-      )
+      .get(url, { headers }, (res) => {
+        let data = ''
+        res.on('data', (chunk) => (data += chunk))
+        res.on('end', () => {
+          try {
+            const stars = JSON.parse(data).stargazers_count || 0
+            this.starsCache.set(repo, { stars, timestamp: Date.now() })
+            console.log(`[CommunityRegistry] Background update: ${repo} has ${stars} stars`)
+          } catch {}
+        })
+      })
       .on('error', () => {})
   }
 
@@ -205,10 +201,14 @@ class CommunityRegistryService {
     try {
       const url = `https://api.github.com/repos/${repo}/releases?per_page=15`
       console.log(`[CommunityRegistry] Fetching releases for ${repo}...`)
-      const data = await this._httpGet(url, {
-        'User-Agent': 'MomAI-App',
-        Accept: 'application/vnd.github.v3+json'
-      }, 3000)
+      const data = await this._httpGet(
+        url,
+        {
+          'User-Agent': 'MomAI-App',
+          Accept: 'application/vnd.github.v3+json'
+        },
+        3000
+      )
       const ghReleases = JSON.parse(data)
       if (!Array.isArray(ghReleases)) return []
 
@@ -231,15 +231,14 @@ class CommunityRegistryService {
       if (token && url.includes('api.github.com')) {
         finalHeaders['Authorization'] = `Bearer ${token}`
       }
-      const req = client
-        .get(url, { headers: finalHeaders }, (res) => {
-          if (res.statusCode < 200 || res.statusCode >= 300) {
-            return reject(new Error(`Status Code: ${res.statusCode}`))
-          }
-          let data = ''
-          res.on('data', (chunk) => (data += chunk))
-          res.on('end', () => resolve(data))
-        })
+      const req = client.get(url, { headers: finalHeaders }, (res) => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          return reject(new Error(`Status Code: ${res.statusCode}`))
+        }
+        let data = ''
+        res.on('data', (chunk) => (data += chunk))
+        res.on('end', () => resolve(data))
+      })
       req.on('error', reject)
       req.setTimeout(timeoutMs, () => {
         req.destroy()
