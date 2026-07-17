@@ -621,6 +621,13 @@ async function startServer() {
 
     if (typeof process.send === 'function') {
       process.send({ type: 'node-core-log', message: msg })
+      // Send an early ready message so Electron Main and frontend know the HTTP server is up
+      // and can load settings/extensions immediately without waiting for the Llama brain to load.
+      process.send({
+        type: 'node-core-ready',
+        brainReady: false,
+        isLoading: true
+      })
     }
     void announceReady()
 

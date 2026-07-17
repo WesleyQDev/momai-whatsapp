@@ -169,20 +169,14 @@ function createSettingsRoutes(context) {
           }
         }
 
-        const ready = await maybeRestartLlamaOnTierChange(
+        void maybeRestartLlamaOnTierChange(
           prevTier,
           store.settings.ai_tier || 'pro',
           prevBackend,
           normalizeBackendMode(store.settings.local_backend || 'auto')
-        )
-        if (!ready) {
-          sendJson(res, 503, {
-            status: 'error',
-            message: context.llamaState.lastError || 'Failed to initialize selected model'
-          })
-          return true
-        }
-        void syncWakeWordState('settings_patch')
+        ).then((ready) => {
+          if (ready) void syncWakeWordState('settings_patch')
+        })
         const response = { ...store.settings }
         sendJson(res, 200, response)
       } catch (error) {
@@ -219,20 +213,14 @@ function createSettingsRoutes(context) {
 
       context.broadcast({ type: 'model_changed', data: { new_mode: 'local' } })
 
-      const ready = await maybeRestartLlamaOnTierChange(
+      void maybeRestartLlamaOnTierChange(
         prevTier,
         mode,
         normalizeBackendMode(store.settings.local_backend || 'auto'),
         normalizeBackendMode(store.settings.local_backend || 'auto')
-      )
-      if (!ready) {
-        sendJson(res, 503, {
-          status: 'error',
-          message: context.llamaState.lastError || 'Failed to initialize selected model'
-        })
-        return true
-      }
-      void syncWakeWordState('mode_change')
+      ).then((ready) => {
+        if (ready) void syncWakeWordState('mode_change')
+      })
       sendJson(res, 200, { status: 'ok', mode: 'local' })
       return true
     }

@@ -1165,7 +1165,11 @@ function enrichExtensionWithManifest(ext: Extension, manifest: Record<string, an
 }
 
 /* ─── Main View ─── */
-export default function ExtensionsView() {
+interface ExtensionsViewProps {
+  statusInfo?: any
+}
+
+export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {}) {
   const { t, locale } = useI18n()
   const location = useLocation()
   const [allSkills, setAllSkills] = useState<Extension[]>([])
@@ -1231,15 +1235,47 @@ export default function ExtensionsView() {
       return data
     } catch (err) {
       console.error('Erro ao carregar skills:', err)
-      alert(t('extensions.errors.fetch', { error: String(err) }))
+      const isBackendReady = statusInfo?.status === 'ok'
+      if (!silent && isBackendReady) {
+        alert(t('extensions.errors.fetch', { error: String(err) }))
+      }
       return []
     } finally {
       setLoading(false)
     }
   }
 
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
-    loadData()
+    let cancelled = false
+
+    const loadWithRetry = async (attempt = 0) => {
+      const data = await loadData(true) // Silent — no alert during boot
+      if (cancelled) return
+      if (data.length === 0 && attempt < 15) {
+        // Server not ready yet — keep skeleton visible and retry
+        setLoading(true)
+        retryTimerRef.current = setTimeout(() => loadWithRetry(attempt + 1), 2000)
+      }
+    }
+
+    loadWithRetry()
+
+    const handleReady = () => {
+      // Backend just became available — cancel any pending retry and load immediately
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = null
+      }
+      loadWithRetry(0)
+    }
+    window.addEventListener('momai_backend_ready', handleReady)
+    return () => {
+      cancelled = true
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+      window.removeEventListener('momai_backend_ready', handleReady)
+    }
   }, [locale])
 
   useEffect(() => {
