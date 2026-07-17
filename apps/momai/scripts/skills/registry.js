@@ -466,6 +466,29 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
         state.extensions.set(skill.id, skill)
       }
     }
+
+    // Apply store-persisted enabled state to each extension so that
+    // skill.enabled reflects the user's toggle choice rather than the
+    // default from SKILL.md / manifest.json.  This eliminates the dual
+    // source of truth that caused toggled-off extensions to reappear as
+    // enabled after a registry reload.
+    try {
+      const shared = require('../node-core/services/shared-state')
+      const storeExtensions = shared.store?.extensions || []
+      for (const [id, skill] of state.extensions) {
+        const entry =
+          storeExtensions.find((e) => e.id === id) ||
+          storeExtensions.find((e) => e.id === `${id}_dev`)
+        if (entry) {
+          skill.enabled = entry.enabled !== false
+        }
+        // If no store entry exists the extension was never toggled by the
+        // user — keep the default from SKILL.md/manifest (usually true).
+      }
+    } catch {
+      // shared-state may not be available during tests
+    }
+
     _skillsGeneration++
   }
 

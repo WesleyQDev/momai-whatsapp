@@ -18,7 +18,7 @@ const STEPS = [
     alt: "Contagem de Passos",
     badge: "Passo 2",
     title: "Monitore seus Passos",
-    desc: 'Acesse a aba <strong>Passos</strong> para ver sua evolução diária. Você pode iniciar uma caminhada manual ou sincronizar seus dados diretamente com o <strong>Google Fit</strong> para maior precisão.',
+    desc: "Acesse a aba <strong>Passos</strong> para ver sua evolução diária. Você pode iniciar uma caminhada manual ou sincronizar seus dados diretamente com o <strong>Google Fit</strong> para maior precisão.",
   },
   {
     num: 3,
@@ -26,7 +26,7 @@ const STEPS = [
     alt: "Configuração de Perfil",
     badge: "Passo 3",
     title: "Configure seu Perfil",
-    desc: 'Acesse a aba <strong>Perfil</strong> para inserir seus dados como peso, altura e metas. Isso permite que a MomAI Saúde calcule suas necessidades calóricas e metas de passos de forma personalizada.',
+    desc: "Acesse a aba <strong>Perfil</strong> para inserir seus dados como peso, altura e metas. Isso permite que a MomAI Saúde calcule suas necessidades calóricas e metas de passos de forma personalizada.",
   },
   {
     num: 4,
@@ -34,7 +34,7 @@ const STEPS = [
     alt: "Configurações do App",
     badge: "Passo 4",
     title: "Personalize o App",
-    desc: 'Na aba <strong>Config</strong>, você pode alternar entre os temas claro e escuro, além de configurar a <strong>Voz da MomAI</strong> e ativar a fala automática para interagir com a assistente de saúde.',
+    desc: "Na aba <strong>Config</strong>, você pode alternar entre os temas claro e escuro, além de configurar a <strong>Voz da MomAI</strong> e ativar a fala automática para interagir com a assistente de saúde.",
   },
 ];
 

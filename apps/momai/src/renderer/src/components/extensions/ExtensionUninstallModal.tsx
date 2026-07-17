@@ -32,7 +32,8 @@ export default function ExtensionUninstallModal({
   const title = titleTranslated === TITLE_KEY ? `Desinstalar ${ext.name}?` : titleTranslated
 
   const bodyTranslated = t(BODY_KEY)
-  const body = bodyTranslated === BODY_KEY ? 'Os dados salvos da extensão serão mantidos.' : bodyTranslated
+  const body =
+    bodyTranslated === BODY_KEY ? 'Os dados salvos da extensão serão mantidos.' : bodyTranslated
 
   const cancelTranslated = t(CANCEL_KEY)
   const cancelLabel = cancelTranslated === CANCEL_KEY ? 'Cancelar' : cancelTranslated

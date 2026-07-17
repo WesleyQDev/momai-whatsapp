@@ -1,4 +1,6 @@
 {
+  "sidebar.chat": "Chat",
+  "sidebar.agenda": "Termine",
   "sidebar.notes": "Notizen",
   "sidebar.store": "Erweiterungs-Store",
   "sidebar.settings": "Einstellungen",

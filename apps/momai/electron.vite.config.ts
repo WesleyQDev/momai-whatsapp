@@ -23,7 +23,13 @@ function skillBundlesPlugin(): Plugin {
 
       let userExtensionsDir = ''
       if (process.platform === 'win32') {
-        userExtensionsDir = join(process.env.APPDATA || '', 'MomAI-Dev', 'data', 'extensions', skillId)
+        userExtensionsDir = join(
+          process.env.APPDATA || '',
+          'MomAI-Dev',
+          'data',
+          'extensions',
+          skillId
+        )
       } else if (process.platform === 'darwin') {
         userExtensionsDir = join(
           process.env.HOME || '',
@@ -35,7 +41,14 @@ function skillBundlesPlugin(): Plugin {
           skillId
         )
       } else {
-        userExtensionsDir = join(process.env.HOME || '', '.config', 'MomAI-Dev', 'data', 'extensions', skillId)
+        userExtensionsDir = join(
+          process.env.HOME || '',
+          '.config',
+          'MomAI-Dev',
+          'data',
+          'extensions',
+          skillId
+        )
       }
 
       const candidates = [

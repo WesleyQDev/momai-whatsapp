@@ -42,11 +42,7 @@ function extractZip(zipPath, destDir, options = {}) {
     fs.mkdirSync(resolvedRoot, { recursive: true })
 
     const jobFile = path.join(os.tmpdir(), `momai-zip-${process.pid}-${Date.now()}.json`)
-    fs.writeFileSync(
-      jobFile,
-      JSON.stringify({ zipPath, destDir: resolvedRoot }),
-      'utf8'
-    )
+    fs.writeFileSync(jobFile, JSON.stringify({ zipPath, destDir: resolvedRoot }), 'utf8')
 
     const child = fork(WORKER_PATH, [jobFile], { stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })
     let settled = false

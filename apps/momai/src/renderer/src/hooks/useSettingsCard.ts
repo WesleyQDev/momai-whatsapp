@@ -61,39 +61,62 @@ const TIER_DEFAULTS: Record<string, { tts_enabled: boolean; wake_word_enabled: b
   ultra: { tts_enabled: true, wake_word_enabled: true }
 }
 
+const SETTINGS_CACHE_KEY = 'momai_settings_cache'
+const TIERS_CACHE_KEY = 'momai_tiers_config_cache'
+
+const DEFAULT_SETTINGS: Settings = {
+  user_name: '',
+  assistant_persona: '',
+  ai_provider: 'local',
+  ai_model: '',
+  local_backend: 'auto',
+  tts_engine: 'edge-tts',
+  tts_voice: '',
+  tts_enabled: true,
+  wake_word_enabled: false,
+  wake_word_sensitivity: 5,
+  locale: 'pt-BR',
+  daily_briefing_enabled: false,
+  greeting_auto_saudacao: true,
+  greeting_resumo: true,
+  greeting_acao: '',
+  greeting_fixa: '',
+  ai_tier: 'pro',
+  auto_start_llm: true,
+  context_window_mode: 'min',
+  context_window_tokens: 2048,
+  skip_intro: false,
+  keep_in_tray: true
+}
+
+function readCachedSettings(): Settings | null {
+  try {
+    const raw = localStorage.getItem(SETTINGS_CACHE_KEY)
+    return raw ? (JSON.parse(raw) as Settings) : null
+  } catch {
+    return null
+  }
+}
+
+function readCachedTiers(): any {
+  try {
+    const raw = localStorage.getItem(TIERS_CACHE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
 export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void) => {
   const { t, setLocale } = useI18n()
   const [activeTab, setActiveTab] = useState<Tab>(initialTab)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(() => !readCachedSettings())
   const [showHelp, setShowHelp] = useState(false)
   const [theme, setTheme] = useState<Theme>(
     (document.documentElement.getAttribute('data-theme') as Theme) || 'dark'
   )
 
-  const [settings, setSettings] = useState<Settings>({
-    user_name: '',
-    assistant_persona: '',
-    ai_provider: 'local',
-    ai_model: '',
-    local_backend: 'auto',
-    tts_engine: 'edge-tts',
-    tts_voice: '',
-    tts_enabled: true,
-    wake_word_enabled: false,
-    wake_word_sensitivity: 5,
-    locale: 'pt-BR',
-    daily_briefing_enabled: false,
-    greeting_auto_saudacao: true,
-    greeting_resumo: true,
-    greeting_acao: '',
-    greeting_fixa: '',
-    ai_tier: 'pro',
-    auto_start_llm: true,
-    context_window_mode: 'min',
-    context_window_tokens: 2048,
-    skip_intro: false,
-    keep_in_tray: true
-  })
+  const [settings, setSettings] = useState<Settings>(() => readCachedSettings() || DEFAULT_SETTINGS)
 
   const settingsRef = useRef(settings)
   useEffect(() => {
@@ -119,7 +142,7 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   })
   const [appVersion, setAppVersion] = useState('1.0.0')
   const [isAdvancedHardwareOpen, setIsAdvancedHardwareOpen] = useState(false)
-  const [tiersConfig, setTiersConfig] = useState<any>(null)
+  const [tiersConfig, setTiersConfig] = useState<any>(() => readCachedTiers())
   const [expandedLang, setExpandedLang] = useState<string | null>('p')
   const [isDevMode, setIsDevMode] = useState(
     () => localStorage.getItem('momai_dev_mode') === 'true'
@@ -282,11 +305,12 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     [onClose]
   )
 
-  const loadSettings = useCallback(async () => {
+  const loadSettings = useCallback(async (): Promise<boolean> => {
     try {
       const res = await api.get('/settings')
       if (res.data) {
         setSettings(res.data)
+        localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(res.data))
         if (res.data.locale) {
           setLocale(res.data.locale)
         }
@@ -295,9 +319,12 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
       const statusRes = await api.get('/status')
       if (statusRes.data) {
         setTiersConfig(statusRes.data.tiers_config)
+        localStorage.setItem(TIERS_CACHE_KEY, JSON.stringify(statusRes.data.tiers_config))
       }
+      return true
     } catch (error) {
       console.error('Error loading settings:', error)
+      return false
     } finally {
       setIsLoading(false)
     }
@@ -366,14 +393,30 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
   }, [onClose])
 
   const isFirstRenderRef = useRef(true)
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const settingsLoadedRef = useRef(false)
+
   useEffect(() => {
     if (!isFirstRenderRef.current) return
     isFirstRenderRef.current = false
 
-    loadSettings()
-    checkLocalStatus()
-    loadGamingApps()
-    loadEconomyConfig()
+    const loadAllWithRetry = async (attempt = 0) => {
+      const ok = await loadSettings()
+      if (ok) {
+        settingsLoadedRef.current = true
+        checkLocalStatus()
+        loadGamingApps()
+        loadEconomyConfig()
+      } else if (attempt < 20) {
+        // Only show skeleton if we have no cached data at all
+        if (!settingsLoadedRef.current && !readCachedSettings()) {
+          setIsLoading(true)
+        }
+        retryTimerRef.current = setTimeout(() => loadAllWithRetry(attempt + 1), 1500)
+      }
+    }
+
+    loadAllWithRetry()
 
     // Fetch current economy state on mount (covers race condition with IPC)
     ;(window as any).api
@@ -410,14 +453,28 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
       checkLocalStatus()
     }
 
+    const handleBackendReady = () => {
+      // Backend just became available — cancel any pending retry and load immediately
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = null
+      }
+      // Only show skeleton if no cached data
+      if (!readCachedSettings()) setIsLoading(true)
+      loadAllWithRetry(0)
+    }
+
     window.addEventListener('ai_model_changed', handleModelChange)
     window.addEventListener('momai_setup_progress', handleSetupProgress)
     window.addEventListener('momai_setup_complete', handleSetupComplete)
+    window.addEventListener('momai_backend_ready', handleBackendReady)
     return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
       cleanup?.()
       window.removeEventListener('ai_model_changed', handleModelChange)
       window.removeEventListener('momai_setup_progress', handleSetupProgress)
       window.removeEventListener('momai_setup_complete', handleSetupComplete)
+      window.removeEventListener('momai_backend_ready', handleBackendReady)
     }
   }, [loadSettings, checkLocalStatus, loadGamingApps, loadEconomyConfig])
 

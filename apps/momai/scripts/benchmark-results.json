@@ -20,18 +20,7 @@
         "p95_ms": 69,
         "p99_ms": 69,
         "stddev_ms": 12.98,
-        "all_ms": [
-          69,
-          28,
-          29,
-          28,
-          27,
-          28,
-          28,
-          29,
-          27,
-          28
-        ]
+        "all_ms": [69, 28, 29, 28, 27, 28, 28, 29, 27, 28]
       },
       "média (8 palavras)": {
         "text": "como funciona a memória semântica do assistente virtual local",
@@ -44,18 +33,7 @@
         "p95_ms": 133,
         "p99_ms": 133,
         "stddev_ms": 33.59,
-        "all_ms": [
-          133,
-          29,
-          28,
-          29,
-          28,
-          26,
-          26,
-          26,
-          25,
-          25
-        ]
+        "all_ms": [133, 29, 28, 29, 28, 26, 26, 26, 25, 25]
       },
       "longa (20 palavras)": {
         "text": "quais são as melhores práticas para implementar busca semântica em aplicações desktop com modelos de embedding rodando localmente no computador",
@@ -68,18 +46,7 @@
         "p95_ms": 190,
         "p99_ms": 190,
         "stddev_ms": 51.76,
-        "all_ms": [
-          190,
-          25,
-          26,
-          27,
-          27,
-          25,
-          27,
-          26,
-          27,
-          27
-        ]
+        "all_ms": [190, 25, 26, 27, 27, 25, 27, 26, 27, 27]
       },
       "multi-idioma": {
         "text": "machine learning and natural language processing with semantic search and retrieval augmented generation for local first applications",
@@ -92,18 +59,7 @@
         "p95_ms": 116,
         "p99_ms": 116,
         "stddev_ms": 28.61,
-        "all_ms": [
-          116,
-          26,
-          25,
-          26,
-          25,
-          27,
-          24,
-          26,
-          25,
-          26
-        ]
+        "all_ms": [116, 26, 25, 26, 25, 27, 24, 26, 25, 26]
       },
       "técnica": {
         "text": "LanceDB vector database similarity search with cosine distance embedding model quantization GGUF llama.cpp inference server",
@@ -116,18 +72,7 @@
         "p95_ms": 151,
         "p99_ms": 151,
         "stddev_ms": 39.64,
-        "all_ms": [
-          151,
-          26,
-          26,
-          25,
-          26,
-          25,
-          25,
-          26,
-          26,
-          26
-        ]
+        "all_ms": [151, 26, 26, 25, 26, 25, 25, 26, 26, 26]
       }
     },
     "summary": {
@@ -162,18 +107,7 @@
         "p95_ms": 29,
         "p99_ms": 29,
         "stddev_ms": 1.9,
-        "all_ms": [
-          29,
-          27,
-          27,
-          23,
-          25,
-          23,
-          24,
-          25,
-          25,
-          26
-        ]
+        "all_ms": [29, 27, 27, 23, 25, 23, 24, 25, 25, 26]
       },
       "média (8 palavras)": {
         "text": "como funciona a memória semântica do assistente virtual local",
@@ -186,18 +120,7 @@
         "p95_ms": 61,
         "p99_ms": 61,
         "stddev_ms": 3.61,
-        "all_ms": [
-          55,
-          49,
-          51,
-          50,
-          51,
-          51,
-          55,
-          53,
-          61,
-          56
-        ]
+        "all_ms": [55, 49, 51, 50, 51, 51, 55, 53, 61, 56]
       },
       "longa (20 palavras)": {
         "text": "quais são as melhores práticas para implementar busca semântica em aplicações desktop com modelos de embedding rodando localmente no computador",
@@ -210,18 +133,7 @@
         "p95_ms": 169,
         "p99_ms": 169,
         "stddev_ms": 23.82,
-        "all_ms": [
-          98,
-          97,
-          102,
-          169,
-          95,
-          92,
-          92,
-          90,
-          94,
-          91
-        ]
+        "all_ms": [98, 97, 102, 169, 95, 92, 92, 90, 94, 91]
       },
       "multi-idioma": {
         "text": "machine learning and natural language processing with semantic search and retrieval augmented generation for local first applications",
@@ -234,18 +146,7 @@
         "p95_ms": 66,
         "p99_ms": 66,
         "stddev_ms": 2,
-        "all_ms": [
-          66,
-          63,
-          61,
-          62,
-          64,
-          60,
-          62,
-          59,
-          62,
-          61
-        ]
+        "all_ms": [66, 63, 61, 62, 64, 60, 62, 59, 62, 61]
       },
       "técnica": {
         "text": "LanceDB vector database similarity search with cosine distance embedding model quantization GGUF llama.cpp inference server",
@@ -258,18 +159,7 @@
         "p95_ms": 77,
         "p99_ms": 77,
         "stddev_ms": 3.71,
-        "all_ms": [
-          67,
-          69,
-          74,
-          77,
-          71,
-          73,
-          75,
-          67,
-          76,
-          69
-        ]
+        "all_ms": [67, 69, 74, 77, 71, 73, 75, 67, 76, 69]
       }
     },
     "summary": {

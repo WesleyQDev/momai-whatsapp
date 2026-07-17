@@ -107,15 +107,13 @@ describe('installExtension', () => {
   beforeEach(() => {
     // window.api is set in test-setup.ts but getSessionToken is not.
     ;(window as any).api = {
-      ...((window as any).api),
+      ...(window as any).api,
       getSessionToken: vi.fn(() => 'mock-token')
     }
   })
 
   it('posts { id } when no version/downloadUrl is provided', async () => {
-    const fetchMock = vi.fn(() =>
-      Promise.resolve(makeNdjsonResponse([{ ok: true }]))
-    )
+    const fetchMock = vi.fn(() => Promise.resolve(makeNdjsonResponse([{ ok: true }])))
     vi.stubGlobal('fetch', fetchMock)
 
     await installExtension('my-ext')
@@ -128,9 +126,7 @@ describe('installExtension', () => {
   })
 
   it('posts { id, version } when version is provided', async () => {
-    const fetchMock = vi.fn(() =>
-      Promise.resolve(makeNdjsonResponse([{ ok: true }]))
-    )
+    const fetchMock = vi.fn(() => Promise.resolve(makeNdjsonResponse([{ ok: true }])))
     vi.stubGlobal('fetch', fetchMock)
 
     await installExtension('my-ext', { version: '0.3.30' })
@@ -143,9 +139,7 @@ describe('installExtension', () => {
   })
 
   it('posts { id, download_url } when downloadUrl is provided (back-compat)', async () => {
-    const fetchMock = vi.fn(() =>
-      Promise.resolve(makeNdjsonResponse([{ ok: true }]))
-    )
+    const fetchMock = vi.fn(() => Promise.resolve(makeNdjsonResponse([{ ok: true }])))
     vi.stubGlobal('fetch', fetchMock)
 
     await installExtension('my-ext', { downloadUrl: 'https://example.com/x.zip' })

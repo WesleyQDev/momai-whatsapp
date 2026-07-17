@@ -13,8 +13,7 @@ describe('chat-parser', () => {
     })
 
     it('extracts token from delta content', () => {
-      const line =
-        'data: {"choices":[{"delta":{"content":"hello"},"finish_reason":null}]}'
+      const line = 'data: {"choices":[{"delta":{"content":"hello"},"finish_reason":null}]}'
       const result = parseLlamaDataLine(line)
       expect(result.type).toBe('token')
       expect(result.token).toBe('hello')

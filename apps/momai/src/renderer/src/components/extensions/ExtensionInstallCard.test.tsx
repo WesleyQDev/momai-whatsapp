@@ -48,10 +48,7 @@ const errorFixture = (overrides: Partial<InstallError> = {}): InstallError => ({
 describe('ExtensionInstallCard', () => {
   it('progress variant snapshot', () => {
     const { asFragment } = render(
-      <ExtensionInstallCard
-        progress={progressFixture()}
-        extName="WhatsApp"
-      />
+      <ExtensionInstallCard progress={progressFixture()} extName="WhatsApp" />
     )
     expect(asFragment()).toMatchSnapshot()
   })
@@ -78,7 +75,12 @@ describe('ExtensionInstallCard', () => {
   it('shows generic eta message when eta_seconds > 30', () => {
     const { container } = render(
       <ExtensionInstallCard
-        progress={progressFixture({ eta_seconds: 60, bytes_done: 1000, bytes_total: 2000, speed_bps: 100 })}
+        progress={progressFixture({
+          eta_seconds: 60,
+          bytes_done: 1000,
+          bytes_total: 2000,
+          speed_bps: 100
+        })}
         extName="WhatsApp"
       />
     )
@@ -129,7 +131,9 @@ describe('ExtensionInstallCard', () => {
       <ExtensionInstallCard
         error={errorFixture()}
         extName="WhatsApp"
-        onDismiss={() => { dismissed = true }}
+        onDismiss={() => {
+          dismissed = true
+        }}
       />
     )
     getByRole('button').click()

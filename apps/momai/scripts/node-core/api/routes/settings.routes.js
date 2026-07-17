@@ -59,8 +59,13 @@ function createSettingsRoutes(context) {
         const isDevModeSwitch = safePayload.dev_mode && newDevMode !== prevDevMode
 
         if (isDevModeSwitch) {
-          console.log(`[settings] dev_mode changing from ${prevDevMode} to ${newDevMode}. Stopping old extension workers...`)
-          if (context.extensionHostManager && typeof context.extensionHostManager.stopAllPersistent === 'function') {
+          console.log(
+            `[settings] dev_mode changing from ${prevDevMode} to ${newDevMode}. Stopping old extension workers...`
+          )
+          if (
+            context.extensionHostManager &&
+            typeof context.extensionHostManager.stopAllPersistent === 'function'
+          ) {
             await context.extensionHostManager.stopAllPersistent().catch(() => {})
           }
         }
@@ -80,8 +85,8 @@ function createSettingsRoutes(context) {
             }
           }
           console.log(
-          `[settings] Deactivated all extensions for the dev_mode switch (${prevDevMode} → ${newDevMode}). User must re-enable them in the new mode.`
-        )
+            `[settings] Deactivated all extensions for the dev_mode switch (${prevDevMode} → ${newDevMode}). User must re-enable them in the new mode.`
+          )
         }
         if (payload.tts_engine) {
           const tier = store.settings.ai_tier || 'pro'
@@ -137,7 +142,9 @@ function createSettingsRoutes(context) {
           // data/extensions/<id> is what's visible in store_test mode.
           // In production (store mode) the effective mode never changes, so
           // this block is skipped.
-          console.log(`[settings] dev_mode changing from ${prevDevMode} to ${newDevMode}. Refreshing skill registry...`)
+          console.log(
+            `[settings] dev_mode changing from ${prevDevMode} to ${newDevMode}. Refreshing skill registry...`
+          )
           if (context.skillRegistry && typeof context.skillRegistry.refresh === 'function') {
             await context.skillRegistry.refresh().catch(() => {})
           }
@@ -148,10 +155,7 @@ function createSettingsRoutes(context) {
             const { invalidateExtensionsPayloadCache } = require('./extensions.routes')
             invalidateExtensionsPayloadCache()
           } catch (err) {
-            console.log(
-              '[settings] Failed to invalidate extensions payload cache:',
-              err.message
-            )
+            console.log('[settings] Failed to invalidate extensions payload cache:', err.message)
           }
           const newSkills = context.skillRegistry ? context.skillRegistry.getAll() : []
           for (const skill of newSkills) {
@@ -160,29 +164,29 @@ function createSettingsRoutes(context) {
               const entry =
                 store.extensions.find((e) => e.id === skill.id) ||
                 store.extensions.find((e) => e.id === `${skill.id}_dev`)
-              const isEnabled = entry ? entry.enabled !== false : (skill.kind === 'builtin' || skill.kind === 'packaged')
+              const isEnabled = entry
+                ? entry.enabled !== false
+                : skill.kind === 'builtin' || skill.kind === 'packaged'
               if (isEnabled && context.extensionHostManager) {
-                console.log(`[settings] Spawning persistent worker for ${skill.id} in ${newDevMode} mode...`)
-                await context.extensionHostManager.startPersistent(skill.id, skill.dir, skill.manifest).catch(() => {})
+                console.log(
+                  `[settings] Spawning persistent worker for ${skill.id} in ${newDevMode} mode...`
+                )
+                await context.extensionHostManager
+                  .startPersistent(skill.id, skill.dir, skill.manifest)
+                  .catch(() => {})
               }
             }
           }
         }
 
-        const ready = await maybeRestartLlamaOnTierChange(
+        void maybeRestartLlamaOnTierChange(
           prevTier,
           store.settings.ai_tier || 'pro',
           prevBackend,
           normalizeBackendMode(store.settings.local_backend || 'auto')
-        )
-        if (!ready) {
-          sendJson(res, 503, {
-            status: 'error',
-            message: context.llamaState.lastError || 'Failed to initialize selected model'
-          })
-          return true
-        }
-        void syncWakeWordState('settings_patch')
+        ).then((ready) => {
+          if (ready) void syncWakeWordState('settings_patch')
+        })
         const response = { ...store.settings }
         sendJson(res, 200, response)
       } catch (error) {
@@ -219,20 +223,14 @@ function createSettingsRoutes(context) {
 
       context.broadcast({ type: 'model_changed', data: { new_mode: 'local' } })
 
-      const ready = await maybeRestartLlamaOnTierChange(
+      void maybeRestartLlamaOnTierChange(
         prevTier,
         mode,
         normalizeBackendMode(store.settings.local_backend || 'auto'),
         normalizeBackendMode(store.settings.local_backend || 'auto')
-      )
-      if (!ready) {
-        sendJson(res, 503, {
-          status: 'error',
-          message: context.llamaState.lastError || 'Failed to initialize selected model'
-        })
-        return true
-      }
-      void syncWakeWordState('mode_change')
+      ).then((ready) => {
+        if (ready) void syncWakeWordState('mode_change')
+      })
       sendJson(res, 200, { status: 'ok', mode: 'local' })
       return true
     }

@@ -153,20 +153,14 @@ function createStatusRoutes(context) {
         if (!store.settings.tts_engine) store.settings.tts_engine = 'edge-tts'
       }
       saveStoreNow()
-      const ready = await maybeRestartLlamaOnTierChange(
+      void maybeRestartLlamaOnTierChange(
         prevTier,
         requestedTier,
         prevBackend,
         normalizeBackendMode(store.settings.local_backend || 'auto')
-      )
-      if (!ready) {
-        sendJson(res, 503, {
-          status: 'error',
-          message: llamaState.lastError || 'Failed to initialize selected model'
-        })
-        return true
-      }
-      void syncWakeWordState('setup_apply_tier')
+      ).then((ready) => {
+        if (ready) void syncWakeWordState('setup_apply_tier')
+      })
       sendJson(res, 200, { status: 'ok', ai_tier: store.settings.ai_tier })
       return true
     }

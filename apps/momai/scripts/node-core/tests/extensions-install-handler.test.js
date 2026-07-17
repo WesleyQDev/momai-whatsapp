@@ -47,14 +47,20 @@ function makeNdjsonRes() {
   }
   return {
     res,
-    get ended() { return ended },
+    get ended() {
+      return ended
+    },
     ndjsonLines() {
       const joined = chunks.join('')
       return joined
         .split('\n')
         .filter((l) => l.length > 0)
         .map((l) => {
-          try { return JSON.parse(l) } catch { return l }
+          try {
+            return JSON.parse(l)
+          } catch {
+            return l
+          }
         })
     }
   }
@@ -139,18 +145,14 @@ function makeCtx(overrides = {}) {
 describe('POST /extensions/install — multi-stage NDJSON error paths', () => {
   beforeEach(() => {
     _setRegistry(INSTALL_REGISTRY)
-    _setCommunityRegistryForTests(
-      makeMockCommunityRegistry({ releases: [COMPATIBLE_RELEASE] })
-    )
+    _setCommunityRegistryForTests(makeMockCommunityRegistry({ releases: [COMPATIBLE_RELEASE] }))
   })
   afterAll(() => {
     _setCommunityRegistryForTests(null)
   })
 
   it('emits an incompatible_version error NDJSON chunk when the requested version is incompatible', async () => {
-    _setCommunityRegistryForTests(
-      makeMockCommunityRegistry({ releases: [INCOMPATIBLE_RELEASE] })
-    )
+    _setCommunityRegistryForTests(makeMockCommunityRegistry({ releases: [INCOMPATIBLE_RELEASE] }))
 
     const ctx = makeCtx({
       readJsonBody: async () => ({ id: 'test-ext', version: '0.4.0' })
@@ -158,12 +160,9 @@ describe('POST /extensions/install — multi-stage NDJSON error paths', () => {
     const handler = createExtensionsRoutes(ctx)
     const recorder = makeNdjsonRes()
 
-    const handled = await handler(
-      { method: 'POST' },
-      recorder.res,
-      '/extensions/install',
-      { searchParams: new URLSearchParams() }
-    )
+    const handled = await handler({ method: 'POST' }, recorder.res, '/extensions/install', {
+      searchParams: new URLSearchParams()
+    })
 
     expect(handled).toBe(true)
     expect(recorder.ended).toBe(true)
@@ -195,12 +194,9 @@ describe('POST /extensions/install — multi-stage NDJSON error paths', () => {
     const handler = createExtensionsRoutes(ctx)
     const recorder = makeNdjsonRes()
 
-    const handled = await handler(
-      { method: 'POST' },
-      recorder.res,
-      '/extensions/install',
-      { searchParams: new URLSearchParams() }
-    )
+    const handled = await handler({ method: 'POST' }, recorder.res, '/extensions/install', {
+      searchParams: new URLSearchParams()
+    })
 
     expect(handled).toBe(true)
     expect(recorder.ended).toBe(true)
@@ -212,5 +208,4 @@ describe('POST /extensions/install — multi-stage NDJSON error paths', () => {
     // No progress stage chunk should precede the early termination.
     expect(lines.some((l) => l && l.stage === 'downloading')).toBe(false)
   })
-
 })

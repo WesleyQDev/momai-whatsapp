@@ -89,10 +89,10 @@ export function SaudeContatoPage() {
       <h1
         className="mb-3 text-center font-flex text-5xl font-normal leading-[1.1] tracking-tight"
         style={{
-            background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
+          background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+          backgroundClip: "text",
         }}
       >
         Fale Conosco
@@ -132,8 +132,8 @@ export function SaudeContatoPage() {
           Outras dúvidas?
         </h2>
         <p className="mb-6 text-[#8b949e]">
-          Para outras questões, sugestões ou relatórios de bugs, você também pode
-          abrir uma issue no GitHub.
+          Para outras questões, sugestões ou relatórios de bugs, você também
+          pode abrir uma issue no GitHub.
         </p>
         <a
           href="https://github.com/WesleyQDev/MomAI-App/issues"

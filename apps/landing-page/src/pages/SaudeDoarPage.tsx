@@ -15,7 +15,10 @@ export function SaudeDoarPage() {
   return (
     <div className="mx-auto max-w-[800px] px-8 py-24 text-center">
       <div className="mb-12">
-        <div className="mb-4 text-5xl" style={{ animation: "heartbeat 1.5s ease-in-out infinite" }}>
+        <div
+          className="mb-4 text-5xl"
+          style={{ animation: "heartbeat 1.5s ease-in-out infinite" }}
+        >
           ❤️
         </div>
         <h1
@@ -92,8 +95,8 @@ export function SaudeDoarPage() {
         </p>
         <p className="mb-6 text-sm leading-relaxed text-[#8b949e]">
           Toda doação, não importa o valor, é imensamente bem-vinda. Ela ajuda a
-          cobrir os custos de desenvolvimento e, principalmente, motiva o projeto a
-          continuar evoluindo para novas funcionalidades de bem-estar.
+          cobrir os custos de desenvolvimento e, principalmente, motiva o
+          projeto a continuar evoluindo para novas funcionalidades de bem-estar.
         </p>
 
         <div className="rounded-xl bg-gradient-to-r from-[rgba(16,185,129,0.1)] to-[rgba(6,182,212,0.1)] p-6 text-center">

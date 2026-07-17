@@ -231,10 +231,18 @@ export function DownloadSection() {
             rel="noreferrer"
             className="flex items-center gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg)] p-4 no-underline transition-all hover:border-[var(--accent)] hover:bg-[var(--bg-secondary)]"
           >
-            <img src="/saude/icon.png" alt="" className="h-10 w-10 rounded-lg" />
+            <img
+              src="/saude/icon.png"
+              alt=""
+              className="h-10 w-10 rounded-lg"
+            />
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-[var(--text)]">MomAI Saúde</span>
-              <span className="text-xs text-[var(--text-tertiary)]">Google Play</span>
+              <span className="text-sm font-medium text-[var(--text)]">
+                MomAI Saúde
+              </span>
+              <span className="text-xs text-[var(--text-tertiary)]">
+                Google Play
+              </span>
             </div>
           </a>
           <a
@@ -243,10 +251,18 @@ export function DownloadSection() {
             rel="noreferrer"
             className="flex items-center gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg)] p-4 no-underline transition-all hover:border-[var(--accent)] hover:bg-[var(--bg-secondary)]"
           >
-            <img src="/financas-icon.png" alt="" className="h-10 w-10 rounded-lg" />
+            <img
+              src="/financas-icon.png"
+              alt=""
+              className="h-10 w-10 rounded-lg"
+            />
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-[var(--text)]">MomAI Finanças</span>
-              <span className="text-xs text-[var(--text-tertiary)]">Google Play</span>
+              <span className="text-sm font-medium text-[var(--text)]">
+                MomAI Finanças
+              </span>
+              <span className="text-xs text-[var(--text-tertiary)]">
+                Google Play
+              </span>
             </div>
           </a>
           <a
@@ -255,17 +271,31 @@ export function DownloadSection() {
             rel="noreferrer"
             className="flex items-center gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg)] p-4 no-underline transition-all hover:border-[var(--accent)] hover:bg-[var(--bg-secondary)]"
           >
-            <img src="/mwscan-icon.png" alt="" className="h-10 w-10 rounded-lg" />
+            <img
+              src="/mwscan-icon.png"
+              alt=""
+              className="h-10 w-10 rounded-lg"
+            />
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-[var(--text)]">MW Scan</span>
-              <span className="text-xs text-[var(--text-tertiary)]">Google Play</span>
+              <span className="text-sm font-medium text-[var(--text)]">
+                MW Scan
+              </span>
+              <span className="text-xs text-[var(--text-tertiary)]">
+                Google Play
+              </span>
             </div>
           </a>
           <div className="flex items-center gap-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg)] p-4 opacity-50">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--bg-secondary)] text-lg">📱</div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--bg-secondary)] text-lg">
+              📱
+            </div>
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-[var(--text)]">MomAI Mobile</span>
-              <span className="text-xs text-[var(--text-tertiary)]">Em breve</span>
+              <span className="text-sm font-medium text-[var(--text)]">
+                MomAI Mobile
+              </span>
+              <span className="text-xs text-[var(--text-tertiary)]">
+                Em breve
+              </span>
             </div>
           </div>
         </div>

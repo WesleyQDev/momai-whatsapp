@@ -1,11 +1,7 @@
 const { _testExports } = require('../services/chat-service')
 
-const {
-  detectLanguageTag,
-  normalizeLanguageTag,
-  normalizeForMatch,
-  resolveResponseLanguage
-} = _testExports
+const { detectLanguageTag, normalizeLanguageTag, normalizeForMatch, resolveResponseLanguage } =
+  _testExports
 
 describe('chat-language', () => {
   describe('normalizeLanguageTag', () => {

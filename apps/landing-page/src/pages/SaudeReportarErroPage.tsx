@@ -4,7 +4,8 @@ export function SaudeReportarErroPage() {
       <h1
         className="mb-2 text-center font-flex text-5xl font-normal"
         style={{
-          background: "var(--gradient-primary, linear-gradient(135deg, #10b981 0%, #06b6d4 100%))",
+          background:
+            "var(--gradient-primary, linear-gradient(135deg, #10b981 0%, #06b6d4 100%))",
           WebkitBackgroundClip: "text",
           WebkitTextFillColor: "transparent",
           backgroundClip: "text",
@@ -23,11 +24,18 @@ export function SaudeReportarErroPage() {
         action="https://formsubmit.co/wesleyqueirozdeveloper@gmail.com"
         method="POST"
       >
-        <input type="hidden" name="_subject" value="Novo relatório de erro - MomAI Saúde" />
+        <input
+          type="hidden"
+          name="_subject"
+          value="Novo relatório de erro - MomAI Saúde"
+        />
         <input type="hidden" name="_captcha" value="false" />
 
         <div className="mb-6">
-          <label htmlFor="titulo" className="mb-2 block font-medium text-[#e6edf3]">
+          <label
+            htmlFor="titulo"
+            className="mb-2 block font-medium text-[#e6edf3]"
+          >
             Título
           </label>
           <input
@@ -41,7 +49,10 @@ export function SaudeReportarErroPage() {
         </div>
 
         <div className="mb-6">
-          <label htmlFor="descricao" className="mb-2 block font-medium text-[#e6edf3]">
+          <label
+            htmlFor="descricao"
+            className="mb-2 block font-medium text-[#e6edf3]"
+          >
             Descrição
           </label>
           <textarea

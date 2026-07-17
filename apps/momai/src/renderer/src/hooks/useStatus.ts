@@ -284,13 +284,12 @@ export function useStatus() {
       checkStatus()
       checkInitProgress()
 
-      if (!backendOnline) return
-
-      const pollInterval = isBooting || (initProgress >= 100 && !isReady) ? 2000 : 8000
+      const pollInterval =
+        !backendOnline || isBooting || (initProgress >= 100 && !isReady) ? 2000 : 8000
       statusInterval = setInterval(checkStatus, pollInterval)
     }
 
-    if (backendOnline && isBooting && initProgress < 100) {
+    if (isBooting && initProgress < 100) {
       initInterval = setInterval(checkInitProgress, 1500)
     }
 
@@ -299,7 +298,7 @@ export function useStatus() {
       clearInterval(statusInterval)
       if (initInterval) clearInterval(initInterval)
     }
-  }, [checkStatus, checkInitProgress, isBooting, backendOnline])
+  }, [checkStatus, checkInitProgress, isBooting, backendOnline, isReady, initProgress])
 
   // Visual progress simulation — animação autônoma lenta (ignora pulos do initProgress)
   // Timing targets: 0-30% em ~20s, 30-70% em ~30s, 70-96% em ~60s (~110s total)

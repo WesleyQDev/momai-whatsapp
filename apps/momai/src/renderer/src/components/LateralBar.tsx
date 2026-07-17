@@ -82,7 +82,15 @@ function InlineSvgIcon({ svg, className }: { svg: string; className?: string }) 
   // <foreignObject>, javascript: URLs, and other XSS vectors.
   const sanitized = DOMPurify.sanitize(svg, {
     USE_PROFILES: { svg: true },
-    ADD_ATTR: ['fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'fill-opacity', 'stroke-opacity']
+    ADD_ATTR: [
+      'fill',
+      'stroke',
+      'stroke-width',
+      'stroke-linecap',
+      'stroke-linejoin',
+      'fill-opacity',
+      'stroke-opacity'
+    ]
   })
 
   // Strip width/height from the root <svg> (caller controls size via
@@ -255,7 +263,7 @@ export default function LateralBar({
                   markAsSeen(ext.id)
                   onNavigate(route)
                 }}
-                title={ext.name}
+                title={isChat ? t('sidebar.chat') || 'Chat' : ext.name}
                 id={isChat ? 'tutorial-chat' : undefined}
                 className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 ${isActive ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
               >

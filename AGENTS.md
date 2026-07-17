@@ -439,6 +439,7 @@ Important: tests are still expected for behavior changes even if the current CI 
 
 Regras:
 
+- **NÃO se basear em mensagens de commit**: Mensagens de commit podem ser técnicas ou incompletas. O changelog deve ser baseado na **comparação direta dos códigos (git diff)** para levantar de forma precisa o real impacto das alterações no sistema.
 - Escrever para **usuários**, não para desenvolvedores. Usar linguagem simples e em português.
 - Destacar **o que muda na experiência do usuário** — novas features, correções de bugs visíveis, melhorias de performance perceptíveis.
 - **NÃO incluir:**

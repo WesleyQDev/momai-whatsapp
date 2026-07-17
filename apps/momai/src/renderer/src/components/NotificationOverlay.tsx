@@ -193,6 +193,14 @@ export default function NotificationOverlay() {
         if (event.eventType === 'connection_status') {
           const status = event.data?.status
           if (status === 'disconnected') {
+            const hasConnectedOnce =
+              localStorage.getItem(`${skill.id}_has_connected_once`) === 'true'
+            if (!hasConnectedOnce) {
+              console.log(
+                `[NotificationOverlay] Skipped disconnected overlay update for ${skill.id} because it has not connected once yet`
+              )
+              return
+            }
             if (isShowingMessageNotificationRef.current) {
               console.log(
                 '[NotificationOverlay] Skipped disconnected overlay update since a message notification is active'
@@ -214,6 +222,7 @@ export default function NotificationOverlay() {
               ;(window as any).api.openOverlay(overlayData)
             }
           } else if (status === 'connected') {
+            localStorage.setItem(`${skill.id}_has_connected_once`, 'true')
             if (!isShowingMessageNotificationRef.current) {
               if ((window as any).api?.closeOverlay) {
                 ;(window as any).api.closeOverlay()
@@ -224,6 +233,13 @@ export default function NotificationOverlay() {
         }
 
         if (event.eventType === 'qr_code') {
+          const hasConnectedOnce = localStorage.getItem(`${skill.id}_has_connected_once`) === 'true'
+          if (!hasConnectedOnce) {
+            console.log(
+              `[NotificationOverlay] Skipped QR overlay update for ${skill.id} because it has not connected once yet`
+            )
+            return
+          }
           if (isShowingMessageNotificationRef.current) {
             console.log(
               '[NotificationOverlay] Skipped QR overlay update since a message notification is active'
@@ -516,11 +532,7 @@ function NotificationCard({
 
       {data?.audioUrl && (
         <div className="mt-1.5 mb-3 max-w-[280px]">
-          <audio
-            src={data.audioUrl}
-            controls
-            className="w-full h-8 accent-accent"
-          />
+          <audio src={data.audioUrl} controls className="w-full h-8 accent-accent" />
         </div>
       )}
 

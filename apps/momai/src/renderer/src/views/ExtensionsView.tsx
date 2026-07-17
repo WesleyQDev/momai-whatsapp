@@ -642,7 +642,7 @@ function SkillDetailView({
       .finally(() => {
         setLoadingReleases(false)
       })
-  }, [releasesExpanded, skill.id, skill.repo])
+  }, [releasesExpanded, skill.id, skill.repo, skill.version])
 
   useEffect(() => {
     const hasFullReadme = skill.instructions && skill.instructions.length > 200
@@ -870,7 +870,7 @@ function SkillDetailView({
                   {!skill.enabled && <PowerIcon className="w-4 h-4" />}
                   {skill.enabled ? 'Desativar' : 'Ativar'}
                 </button>
-                {!skill.isSymlink && (
+                {!skill.isSymlink && skill.category !== 'core' && (
                   <button
                     onClick={() => onUninstall(skill)}
                     className="px-5 py-2 rounded-xl text-xs font-bold text-zinc-500 border border-zinc-800 hover:text-red-400 hover:border-red-500/40 transition-all uppercase tracking-widest"
@@ -1165,7 +1165,11 @@ function enrichExtensionWithManifest(ext: Extension, manifest: Record<string, an
 }
 
 /* ─── Main View ─── */
-export default function ExtensionsView() {
+interface ExtensionsViewProps {
+  statusInfo?: any
+}
+
+export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {}) {
   const { t, locale } = useI18n()
   const location = useLocation()
   const [allSkills, setAllSkills] = useState<Extension[]>([])
@@ -1195,9 +1199,7 @@ export default function ExtensionsView() {
     try {
       // Count currently-active extensions in the previous mode so we can
       // tell the user how many were deactivated by the security policy.
-      const wasActive = allSkills.filter(
-        (s) => s.category === 'extension' && s.enabled
-      ).length
+      const wasActive = allSkills.filter((s) => s.category === 'extension' && s.enabled).length
       await updateSettingsPartial({ dev_mode: mode })
       setDevMode(mode)
       const fresh = await loadData(true)
@@ -1231,15 +1233,47 @@ export default function ExtensionsView() {
       return data
     } catch (err) {
       console.error('Erro ao carregar skills:', err)
-      alert(t('extensions.errors.fetch', { error: String(err) }))
+      const isBackendReady = statusInfo?.status === 'ok'
+      if (!silent && isBackendReady) {
+        alert(t('extensions.errors.fetch', { error: String(err) }))
+      }
       return []
     } finally {
       setLoading(false)
     }
   }
 
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
-    loadData()
+    let cancelled = false
+
+    const loadWithRetry = async (attempt = 0) => {
+      const data = await loadData(true) // Silent — no alert during boot
+      if (cancelled) return
+      if (data.length === 0 && attempt < 15) {
+        // Server not ready yet — keep skeleton visible and retry
+        setLoading(true)
+        retryTimerRef.current = setTimeout(() => loadWithRetry(attempt + 1), 2000)
+      }
+    }
+
+    loadWithRetry()
+
+    const handleReady = () => {
+      // Backend just became available — cancel any pending retry and load immediately
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = null
+      }
+      loadWithRetry(0)
+    }
+    window.addEventListener('momai_backend_ready', handleReady)
+    return () => {
+      cancelled = true
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+      window.removeEventListener('momai_backend_ready', handleReady)
+    }
   }, [locale])
 
   useEffect(() => {
@@ -1339,10 +1373,16 @@ export default function ExtensionsView() {
 
   const confirmUninstall = async () => {
     if (!uninstallTarget) return
+    const targetId = uninstallTarget.id
+
+    // Dismiss the modal immediately
+    setUninstallTarget(null)
+    localStorage.removeItem(`${targetId}_has_connected_once`)
+
     try {
-      await uninstallExtension(uninstallTarget.id)
+      await uninstallExtension(targetId)
       const freshData = await loadData(true)
-      const updated = freshData.find((s) => s.id === uninstallTarget.id)
+      const updated = freshData.find((s) => s.id === targetId)
       if (updated) {
         setSelectedSkill(updated)
         if (updated.repo) {
@@ -1350,12 +1390,14 @@ export default function ExtensionsView() {
           setSelectedManifest(manifest)
         }
       } else {
+        // Extension not in community catalog — go back to list
         setSelectedSkill(null)
+        setSelectedManifest(null)
       }
     } catch (err) {
       alert(t('extensions.errors.uninstall', { error: String(err) }))
-    } finally {
-      setUninstallTarget(null)
+      // Revert / refresh the state on failure
+      loadData(true)
     }
   }
 
