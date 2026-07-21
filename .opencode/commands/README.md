@@ -12,6 +12,8 @@ Comandos customizados disponíveis via `/comando` no OpenCode.
 | `/llamareport` | Verifica versão do llama.cpp contra upstream e gera relatório de mudanças focado em Vulkan/AMD |
 | `/new-version` | Cria nova versão: gera changelog entry, commit e tag git |
 | `/release` | Build e release para Windows (.exe/.appx) e Linux. Suporta local (via script PowerShell) ou GitHub Actions. Verifica Docker se necessário |
+| `/analyze-issues` | Analisa issues do repositório WesleyQDev/MomAI: lista todas as abertas ordenadas por prioridade, ou analisa uma issue específica de forma amigável |
+| `/comandos` | Lista os comandos OpenCode disponíveis, lendo o README.md e apontando os não-documentados |
 
 ## Como Usar
 
