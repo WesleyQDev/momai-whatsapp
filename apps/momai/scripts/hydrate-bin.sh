@@ -29,6 +29,20 @@ hash_file() {
     fi
 }
 
+assert_sha256() {
+    local target="$1"
+    local expected="$2"
+    local actual
+    actual=$(hash_file "$target")
+    if [[ "$actual" != "$expected" ]]; then
+        echo "[MomAI] ERROR: SHA-256 mismatch for $target. Expected $expected, got $actual."
+        exit 1
+    fi
+}
+
+UV_VERSION="0.11.29"
+DEFAULT_LLAMA_VERSION="b10068"
+
 if [[ "$(uname -m)" == "aarch64" || "$(uname -m)" == "arm64" ]]; then
     ARCH="aarch64"
 else
@@ -44,13 +58,24 @@ else
     echo "[MomAI] Downloading UV..."
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    UV_URL="https://github.com/astral-sh/uv/releases/latest/download/uv-${ARCH}-apple-darwin.tar.gz"
+    UV_URL="https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${ARCH}-apple-darwin.tar.gz"
+    if [[ "$ARCH" == "aarch64" ]]; then
+        UV_SHA256="61c04acc52a33ef0f331e494bdfbedcdb6c26c6970c022ed3699e5860f8930e3"
+    else
+        UV_SHA256="c4c4de482da9ccdd076dc4fb5cfe7b740609029385c72f58606be3153602387d"
+    fi
 else
-    UV_URL="https://github.com/astral-sh/uv/releases/latest/download/uv-${ARCH}-unknown-linux-musl.tar.gz"
+    UV_URL="https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${ARCH}-unknown-linux-musl.tar.gz"
+    if [[ "$ARCH" == "aarch64" ]]; then
+        UV_SHA256="593d79a797ece3f1dfaaf3e0a973263422a135d9262c7dbc6cd75d9c11acc0b4"
+    else
+        UV_SHA256="46711858adb2a3acaa9cee00f9060688ad1fd5706aecc005b96a6a7f285a00b7"
+    fi
 fi
 
     UV_TAR="$BIN_DIR/uv.tar.gz"
     curl -L "$UV_URL" -o "$UV_TAR"
+    assert_sha256 "$UV_TAR" "$UV_SHA256"
     tar -xzf "$UV_TAR" -C "$BIN_DIR" --strip-components=1
     rm "$UV_TAR"
 
@@ -67,12 +92,23 @@ else
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
     PY_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20250115/cpython-3.12.8+20250115-${ARCH}-apple-darwin-install_only.tar.gz"
+    if [[ "$ARCH" == "aarch64" ]]; then
+        PY_SHA256="e29003b69465c33692830032d9d237d84ea43a2e8461db9134641640fb49f040"
+    else
+        PY_SHA256="b81ae8ea17fce6e173649120fcc4eda123bb8df54890894bbec432f527fbe75c"
+    fi
 else
     PY_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20250115/cpython-3.12.8+20250115-${ARCH}-unknown-linux-gnu-install_only.tar.gz"
+    if [[ "$ARCH" == "aarch64" ]]; then
+        PY_SHA256="2e08c1d4de239290b9fc3bef90f121349819b473149083470d16081dd293050c"
+    else
+        PY_SHA256="e5435e717c934ed30d4066f64e858497c27f37c1ba547f403b050d9221e50ea4"
+    fi
 fi
 
     PY_TAR="$BIN_DIR/python.tar.gz"
     curl -L "$PY_URL" -o "$PY_TAR"
+    assert_sha256 "$PY_TAR" "$PY_SHA256"
     rm -rf "$PYTHON_DIR"
     mkdir -p "$PYTHON_DIR"
     tar -xzf "$PY_TAR" -C "$PYTHON_DIR" --strip-components=1
@@ -88,10 +124,7 @@ echo "[MomAI] Hydration complete! UV and Python are ready in apps/momai/bin"
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     echo "[MomAI] Preparing llama.cpp Linux binaries..."
 
-    LLAMA_VERSION="${MOMAI_LLAMA_VERSION:-}"
-    if [[ -z "$LLAMA_VERSION" ]]; then
-        LLAMA_VERSION=$(curl -fsSL "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest" | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)
-    fi
+    LLAMA_VERSION="${MOMAI_LLAMA_VERSION:-$DEFAULT_LLAMA_VERSION}"
     if [[ -z "$LLAMA_VERSION" ]]; then
         echo "[MomAI] ERROR: Could not determine llama.cpp release tag."
         exit 1
@@ -100,9 +133,26 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
         CPU_ASSET="llama-${LLAMA_VERSION}-bin-ubuntu-arm64.tar.gz"
         VULKAN_ASSET="llama-${LLAMA_VERSION}-bin-ubuntu-vulkan-arm64.tar.gz"
+        DEFAULT_LLAMA_CPU_SHA256="2c0e4d3d5932e472b6c669090968fdc84a7f6a2940f2e8bb40fa03225bd01960"
+        DEFAULT_LLAMA_VULKAN_SHA256="c3c49e6e124a574165ca28317be021b1a12a2ea06977e3eb7daee3eb443eb186"
     else
         CPU_ASSET="llama-${LLAMA_VERSION}-bin-ubuntu-x64.tar.gz"
         VULKAN_ASSET="llama-${LLAMA_VERSION}-bin-ubuntu-vulkan-x64.tar.gz"
+        DEFAULT_LLAMA_CPU_SHA256="6bf3d20de562e4df230f1a7c54fb7a06a80c7ff40f5311c953e8255744be4eb2"
+        DEFAULT_LLAMA_VULKAN_SHA256="713641920dce6c8efb953ebc9ffa309977e200cec5e182e6ad0e8b086203cdc3"
+    fi
+
+    if [[ "$LLAMA_VERSION" == "$DEFAULT_LLAMA_VERSION" ]]; then
+        LLAMA_CPU_SHA256="$DEFAULT_LLAMA_CPU_SHA256"
+        LLAMA_VULKAN_SHA256="$DEFAULT_LLAMA_VULKAN_SHA256"
+    else
+        LLAMA_CPU_SHA256="${MOMAI_LLAMA_CPU_SHA256:-}"
+        LLAMA_VULKAN_SHA256="${MOMAI_LLAMA_VULKAN_SHA256:-}"
+    fi
+
+    if [[ -z "$LLAMA_CPU_SHA256" || -z "$LLAMA_VULKAN_SHA256" ]]; then
+        echo "[MomAI] ERROR: llama.cpp overrides require MOMAI_LLAMA_CPU_SHA256 and MOMAI_LLAMA_VULKAN_SHA256."
+        exit 1
     fi
 
     LLAMA_BASE_URL="https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_VERSION}"
@@ -148,11 +198,13 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 
         echo "[MomAI] Downloading llama CPU build: $CPU_ASSET"
         curl -fL "${LLAMA_BASE_URL}/${CPU_ASSET}" -o "$CPU_TAR"
+        assert_sha256 "$CPU_TAR" "$LLAMA_CPU_SHA256"
         extract_llama_tar "$CPU_TAR" "$CPU_DIR" || { echo "[MomAI] ERROR: Could not extract CPU llama-server."; exit 1; }
         rm -f "$CPU_TAR"
 
         echo "[MomAI] Downloading llama Vulkan build: $VULKAN_ASSET"
         curl -fL "${LLAMA_BASE_URL}/${VULKAN_ASSET}" -o "$VULKAN_TAR"
+        assert_sha256 "$VULKAN_TAR" "$LLAMA_VULKAN_SHA256"
         extract_llama_tar "$VULKAN_TAR" "$VULKAN_DIR" || { echo "[MomAI] ERROR: Could not extract Vulkan llama-server."; exit 1; }
         rm -f "$VULKAN_TAR"
 

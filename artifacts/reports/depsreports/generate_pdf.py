@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.colors import HexColor, black, white
@@ -10,8 +11,9 @@ from reportlab.platypus import (
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
 from reportlab.platypus.flowables import Flowable
 
-REPORT_PATH = r"C:\Users\wesle\dev\momai\depsreports\depscheck-2026-05-15-14-30-00.md"
-PDF_PATH = r"C:\Users\wesle\dev\momai\depsreports\depscheck-2026-05-15-14-30-00.pdf"
+REPORT_DIR = Path(__file__).resolve().parent
+REPORT_PATH = REPORT_DIR / "depscheck-2026-05-15-14-30-00.md"
+PDF_PATH = REPORT_DIR / "depscheck-2026-05-15-14-30-00.pdf"
 
 COLOR_GREEN = HexColor('#00b894')
 COLOR_YELLOW = HexColor('#fdcb6e')
@@ -516,7 +518,7 @@ def build_pdf():
     story.append(HRFlowable(width='100%', thickness=0.5, color=COLOR_BORDER))
     story.append(Paragraph(
         'MomAIOS Dependency Audit | Gerado em 2026-05-15 | '
-        'depsreports/depscheck-2026-05-15-14-30-00.md',
+        'artifacts/reports/depsreports/depscheck-2026-05-15-14-30-00.md',
         ParagraphStyle('Footer', fontSize=6.5, textColor=COLOR_GRAY, alignment=TA_CENTER, spaceBefore=3)))
 
     doc.build(story)

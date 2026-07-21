@@ -9,7 +9,7 @@ const { extractZip } = require('../../utils/zip-extract')
 const { createSkillLlmHelper } = require('../../services/skill-llm')
 const { isPrivateIp } = require('../../utils/ip-check')
 const { verifyChecksum } = require('../../utils/extension-checksum')
-const { corsHeaders } = require('../../infrastructure/http-helpers')
+const { corsHeaders, sendJson, readJsonBody } = require('../../infrastructure/http-helpers')
 const {
   loadInstallRegistry,
   usesLocalInstallRegistry,
@@ -85,6 +85,35 @@ async function validateInstallUrl(id, downloadUrl) {
       const err = new Error(`hostname resolves to private IP: ${address}`)
       err.status = 403
       throw err
+    }
+  }
+
+  return ext
+}
+
+const MAX_DOWNLOAD_SIZE = 50 * 1024 * 1024 // 50 MB
+const MAX_REDIRECTS = 5
+
+async function validateRedirectUrl(redirectUrl) {
+  let url
+  try {
+    url = new URL(redirectUrl)
+  } catch {
+    throw new Error('invalid redirect URL')
+  }
+  if (url.protocol !== 'https:') {
+    throw new Error('redirect downgraded from HTTPS to ' + url.protocol.replace(':', ''))
+  }
+  // DNS-resolve and check for private IP unless it's a trusted host
+  const isTrusted =
+    url.hostname === 'github.com' ||
+    url.hostname === 'raw.githubusercontent.com' ||
+    url.hostname.endsWith('.github.com') ||
+    url.hostname.endsWith('.githubassets.com')
+  if (!isTrusted) {
+    const { address } = await dns.lookup(url.hostname)
+    if (isPrivateIp(address)) {
+      throw new Error(`redirect hostname resolves to private IP: ${address}`)
     }
   }
 }
@@ -530,8 +559,8 @@ function invalidateExtensionsPayloadCache() {
 
 /* ── Helpers for downloading & extracting community extensions ── */
 
-function downloadFile(url, destPath, onProgress) {
-  return new Promise((resolve, reject) => {
+function downloadFile(url, destPath, onProgress, redirectDepth = 0) {
+  return new Promise(async (resolve, reject) => {
     const client = url.startsWith('https') ? https : http
     const file = fs.createWriteStream(destPath)
     const request = client.get(url, { headers: { 'User-Agent': 'MomAI-App' } }, (response) => {
@@ -540,9 +569,18 @@ function downloadFile(url, destPath, onProgress) {
         try {
           fs.unlinkSync(destPath)
         } catch {}
-        return downloadFile(response.headers.location, destPath, onProgress)
-          .then(resolve)
+        if (redirectDepth >= MAX_REDIRECTS) {
+          return reject(new Error('too many redirects'))
+        }
+        const nextUrl = new URL(response.headers.location, url).toString()
+        validateRedirectUrl(nextUrl)
+          .then(() =>
+            downloadFile(nextUrl, destPath, onProgress, redirectDepth + 1)
+              .then(resolve)
+              .catch(reject)
+          )
           .catch(reject)
+        return
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         file.close()
@@ -553,12 +591,28 @@ function downloadFile(url, destPath, onProgress) {
       }
 
       const totalBytes = parseInt(response.headers['content-length'] || '0', 10)
+      if (totalBytes > MAX_DOWNLOAD_SIZE) {
+        file.close()
+        try {
+          fs.unlinkSync(destPath)
+        } catch {}
+        return reject(new Error(`download size ${totalBytes} exceeds max ${MAX_DOWNLOAD_SIZE}`))
+      }
       let receivedBytes = 0
       let lastTime = Date.now()
       let lastBytes = 0
 
       response.on('data', (chunk) => {
         receivedBytes += chunk.length
+        if (receivedBytes > MAX_DOWNLOAD_SIZE) {
+          request.destroy()
+          file.close()
+          try {
+            fs.unlinkSync(destPath)
+          } catch {}
+          reject(new Error(`download exceeded max size ${MAX_DOWNLOAD_SIZE}`))
+          return
+        }
         const now = Date.now()
         if (now - lastTime >= 500) {
           const speedBps = ((receivedBytes - lastBytes) / (now - lastTime)) * 1000
@@ -617,6 +671,41 @@ function flattenExtractedDir(extractDir) {
 
 function isValidExtensionId(id) {
   return typeof id === 'string' && /^[a-z0-9-]+$/.test(id)
+}
+
+function resolveStoragePath(dataDir, extId, filePath) {
+  // Block Windows drive letter paths (e.g. C:\Windows) on any platform
+  if (/^[a-zA-Z]:[\\/]/.test(filePath)) {
+    return null
+  }
+
+  const base = path.resolve(dataDir, 'extensions', extId)
+  const resolved = path.resolve(base, filePath)
+
+  // Canonical containment — resolved path must start with base
+  if (!resolved.startsWith(base + path.sep) && resolved !== base) {
+    return null
+  }
+
+  // Double-encoded traversal guard — recursively decode and re-check
+  let decoded = filePath
+  let prev = ''
+  let depth = 0
+  while (decoded !== prev && depth < 4) {
+    prev = decoded
+    try {
+      decoded = decodeURIComponent(decoded)
+    } catch {
+      break
+    }
+    const reResolved = path.resolve(base, decoded)
+    if (!reResolved.startsWith(base + path.sep) && reResolved !== base) {
+      return null
+    }
+    depth++
+  }
+
+  return resolved
 }
 
 function resolveExtensionDir(extensionsDir, extId) {
@@ -751,6 +840,18 @@ function createExtensionsRoutes(context) {
     extensionHostManager = { sendToPersistent: async () => ({ ok: false, error: 'not_available' }) }
   } = context
 
+  async function readSafe(req, res) {
+    try {
+      return await readJsonBody(req)
+    } catch (err) {
+      if (err.code === 'INVALID_JSON') {
+        sendJson(res, 400, { ok: false, error: 'invalid_json' })
+        return null
+      }
+      throw err
+    }
+  }
+
   async function getExtensionsPayload(lang) {
     const now = Date.now()
     const currentDevMode = getEffectiveDevMode(store?.settings?.dev_mode)
@@ -818,15 +919,19 @@ function createExtensionsRoutes(context) {
     if (storageMatch && req.method === 'GET') {
       const extId = storageMatch[1]
       const filePath = storageMatch[2]
-      if (filePath.includes('..')) {
-        sendJson(res, 400, { ok: false, error: 'invalid_path' })
+      if (!isValidExtensionId(extId)) {
+        sendJson(res, 400, { ok: false, error: 'invalid_extension_id' })
         return true
       }
       const dataDir =
         process.env.MOMAI_NODE_CORE_DATA_DIR ||
         process.env.MOMAI_DATA_DIR ||
         path.resolve(__dirname, '..', '..', 'data')
-      const fullPath = path.join(dataDir, 'extensions', extId, filePath)
+      const fullPath = resolveStoragePath(dataDir, extId, filePath)
+      if (!fullPath) {
+        sendJson(res, 400, { ok: false, error: 'invalid_path' })
+        return true
+      }
       if (!fs.existsSync(fullPath)) {
         sendJson(res, 404, { ok: false, error: 'file_not_found' })
         return true
@@ -849,7 +954,8 @@ function createExtensionsRoutes(context) {
 
     for (const mounted of mountedSkillRoutes) {
       if (mounted.path === pathname && mounted.method === req.method) {
-        const body = await readJsonBody(req).catch(() => ({}))
+        const body = await readSafe(req, res)
+        if (body === null) return true
         await mounted.handler({ ...req, body }, res)
         return true
       }
@@ -979,7 +1085,8 @@ function createExtensionsRoutes(context) {
     }
 
     if (pathname === '/extensions/install' && req.method === 'POST') {
-      const payload = await readJsonBody(req).catch(() => ({}))
+      const payload = await readSafe(req, res)
+      if (payload === null) return true
       const requested = String(payload.id || crypto.randomUUID()).toLowerCase()
       const id =
         requested.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '') || crypto.randomUUID()
@@ -1316,7 +1423,8 @@ function createExtensionsRoutes(context) {
     }
 
     if (pathname === '/extensions/uninstall' && req.method === 'POST') {
-      const payload = await readJsonBody(req).catch(() => ({}))
+      const payload = await readSafe(req, res)
+      if (payload === null) return true
       const extId = String(payload.id || '').trim()
       if (!isValidExtensionId(extId)) {
         sendJson(res, 400, { ok: false, error: 'invalid_extension_id' })
@@ -1378,7 +1486,8 @@ function createExtensionsRoutes(context) {
     ) {
       const parts = pathname.split('/').filter(Boolean)
       const extId = parts[1]
-      const body = await readJsonBody(req).catch(() => ({}))
+      const body = await readSafe(req, res)
+      if (body === null) return true
       const actionName = String(body.action || 'default')
       const actionPayload = body.payload || {}
 
@@ -1492,7 +1601,8 @@ function createExtensionsRoutes(context) {
 
     /* ── Generic LLM completion for extensions ── */
     if (pathname === '/extensions/llm/complete' && req.method === 'POST') {
-      const body = await readJsonBody(req).catch(() => ({}))
+      const body = await readSafe(req, res)
+      if (body === null) return true
       const prompt = String(body.prompt || body.user || '')
       if (!prompt) {
         sendJson(res, 200, { text: '' })
@@ -1524,7 +1634,8 @@ function createExtensionsRoutes(context) {
     const cmdMatch = pathname.match(/^\/extensions\/([^/]+)\/command$/)
     if (cmdMatch && req.method === 'POST') {
       const extId = cmdMatch[1]
-      const body = await readJsonBody(req).catch(() => ({}))
+      const body = await readSafe(req, res)
+      if (body === null) return true
       try {
         const result = await extensionHostManager.sendToPersistent(extId, {
           toolName: body.toolName,
@@ -1544,6 +1655,9 @@ function createExtensionsRoutes(context) {
 module.exports = {
   createExtensionsRoutes,
   validateInstallUrl,
+  validateRedirectUrl,
+  MAX_DOWNLOAD_SIZE,
+  MAX_REDIRECTS,
   resolveInstallVersion,
   cleanupOppositeModeArtifact,
   invalidateExtensionsPayloadCache,

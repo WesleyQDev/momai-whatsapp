@@ -51,7 +51,7 @@ Para cada mudança relevante, pesquise:
 
 ### 5. Gerar relatório
 
-Crie `llamareports/llamareport-YYYY-MM-DD-HH-mm-ss.md` com:
+Crie `artifacts/reports/llamareports/llamareport-YYYY-MM-DD-HH-mm-ss.md` com:
 
 #### Capa
 - Título: "Llama.cpp Upgrade Report - MomAI"

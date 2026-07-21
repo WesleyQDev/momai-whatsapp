@@ -26,7 +26,7 @@ Se o usuário especificou algo (ex: `/auditoria apps/momai/src/components`), a a
 
 ## Relatório PDF
 
-Crie o diretório `auditorias/` se não existir. Gere primeiro o relatório em Markdown em `auditorias/auditoria-YYYY-MM-DD-HH-mm-ss.md` e depois converta para PDF no mesmo local (mesmo nome, extensão .pdf). Mantenha AMBOS os arquivos — o .md para agentes lerem no futuro, o .pdf para humanos.
+Crie o diretório `artifacts/reports/auditorias/` se não existir. Gere primeiro o relatório em Markdown em `artifacts/reports/auditorias/auditoria-YYYY-MM-DD-HH-mm-ss.md` e depois converta para PDF no mesmo local (mesmo nome, extensão .pdf). Mantenha AMBOS os arquivos — o .md para agentes lerem no futuro, o .pdf para humanos.
 
 O relatório deve conter:
 - Capa com título "Relatório de Auditoria - MomAIOS", data, escopo

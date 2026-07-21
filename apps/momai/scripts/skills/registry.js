@@ -258,11 +258,9 @@ async function loadSkillFromDir({ dir, kind, expectedId }) {
 function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   const extensionsDir = path.join(dataDir, 'extensions')
   const extensionsDevDir = path.join(extensionsDir, '.dev')
-  const packagedSkillsDir = path.resolve(__dirname, 'packaged')
   let _skillsGeneration = 0
   const state = {
     builtins: new Map(),
-    packaged: new Map(),
     extensions: new Map()
   }
 
@@ -304,86 +302,6 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       _skillsGeneration++
     } catch (err) {
       log(`[skills] FATAL: Failed to read builtinSkillsDir: ${err.message}`)
-    }
-  }
-
-  async function loadPackaged() {
-    if (state.packaged.size > 0) return // Skip if already loaded
-    state.packaged.clear()
-    const log = (msg) => {
-      if (typeof process.send === 'function') {
-        process.send({ type: 'node-core-log', message: msg })
-      }
-    }
-
-    if (!fs.existsSync(packagedSkillsDir)) {
-      log(`[skills] Packaged skills dir not found: ${packagedSkillsDir}`)
-      return
-    }
-
-    try {
-      const items = fs.readdirSync(packagedSkillsDir)
-      for (const name of items) {
-        const dir = path.join(packagedSkillsDir, name)
-        const stat = fs.statSync(dir, { throwIfNoEntry: false })
-        if (!stat || !stat.isDirectory()) continue
-
-        const skillMdPath = path.join(dir, 'SKILL.md')
-        if (!fs.existsSync(skillMdPath)) continue
-
-        const parsed = parseSkillMarkdown(skillMdPath)
-        if (!parsed) continue
-
-        const runtimePath = path.join(dir, 'runtime.js')
-        let runtime = null
-        if (fs.existsSync(runtimePath)) {
-          try {
-            const { pathToFileURL } = require('node:url')
-            const imported = await import(pathToFileURL(runtimePath).href)
-            runtime = imported.default || imported
-          } catch (err) {
-            log(`[skills] Error loading runtime for packaged ${parsed.name}: ${err.message}`)
-            runtime = null
-          }
-        }
-
-        /* Load manifest.json if present */
-        let manifestExtra = null
-        const manifestPath = path.join(dir, 'manifest.json')
-        if (fs.existsSync(manifestPath)) {
-          try {
-            manifestExtra = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-          } catch {
-            /* ignore */
-          }
-        }
-
-        const skill = normalizeSkillRecord({
-          id: name || parsed.name,
-          kind: 'packaged',
-          parsed,
-          runtime,
-          dir
-        })
-        const permSchema = createPermissionSchema()
-        const mergedPerms = permSchema.mergeManifestPermissions(
-          skill.manifest.permissions,
-          manifestExtra?.permissions
-        )
-        const riskLevel = permSchema.calculateRiskLevel(mergedPerms)
-        skill.manifest = {
-          ...skill.manifest,
-          ...manifestExtra,
-          permissions: mergedPerms,
-          _permSummary: permSchema.getPermissionSummary(mergedPerms),
-          _riskLevel: riskLevel
-        }
-        state.packaged.set(skill.id, skill)
-      }
-      log(`[skills] Loaded ${state.packaged.size} packaged extension skills.`)
-      _skillsGeneration++
-    } catch (err) {
-      log(`[skills] Error loading packaged skills: ${err.message}`)
     }
   }
 
@@ -494,12 +412,11 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
 
   async function refresh() {
     await loadBuiltins()
-    await loadPackaged()
     await loadExtensions()
   }
 
   function getAll() {
-    return [...state.builtins.values(), ...state.packaged.values(), ...state.extensions.values()]
+    return [...state.builtins.values(), ...state.extensions.values()]
   }
 
   function getEnabled() {
@@ -509,7 +426,6 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   function getById(skillId) {
     return (
       state.builtins.get(skillId) ||
-      state.packaged.get(skillId) ||
       state.extensions.get(skillId) ||
       null
     )

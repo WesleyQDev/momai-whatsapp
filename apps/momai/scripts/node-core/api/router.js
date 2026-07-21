@@ -7,11 +7,11 @@ const PUBLIC_PATHS = new Set(['/health', '/extensions/events'])
 function isPublicPath(pathname, method) {
   if (method === 'OPTIONS') return true
   if (PUBLIC_PATHS.has(pathname)) return true
-  // Allow extension static assets since browser dynamic imports cannot send Authorization headers
-  if (
-    pathname.startsWith('/extensions/') &&
-    (pathname.includes('/dist/') || pathname.includes('/storage/'))
-  ) {
+  // Allow extension static and media assets since browser APIs (dynamic import, <audio>,
+  // <img>, EventSource) cannot send Authorization headers. Storage paths are included
+  // temporarily for audio/image playback; a future proxy/query-param scheme can close this.
+  // Path containment is enforced in extensions.routes.js with resolveStoragePath.
+  if (pathname.startsWith('/extensions/') && (pathname.includes('/dist/') || pathname.includes('/storage/'))) {
     return true
   }
   return false

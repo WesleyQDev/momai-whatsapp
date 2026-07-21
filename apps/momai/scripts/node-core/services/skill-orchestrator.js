@@ -192,7 +192,8 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         voiceHooks: manifest.voiceHooks || null,
         persistOnQuit: manifest.persistOnQuit || null,
         theme: manifest.theme || null,
-        toolPriority: manifest.toolPriority || null
+        toolPriority: manifest.toolPriority || null,
+        overlay: manifest.overlay || null
       }
     } catch (err) {
       console.error(`[SkillOrchestrator] Error mapping skill ${skill?.id}:`, err)

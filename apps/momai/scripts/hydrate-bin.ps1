@@ -22,19 +22,36 @@ function Remove-WithRetry {
     return $false
 }
 
+function Assert-Sha256 {
+    param([string]$Path, [string]$Expected)
+    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+    if ($actual -ne $Expected.ToLowerInvariant()) {
+        throw "SHA-256 mismatch for $Path. Expected $Expected, got $actual"
+    }
+}
+
+$uvVersion = "0.11.29"
+$uvSha256 = "a047d55651bc3e0ca24595b25ec4cfcb10f9dca9fb56514e661269b37d4fae68"
+$pythonSha256 = "86ee8267900240c96369adb2cbc1af8f543f860d2e22be5adb7362f3cbe61059"
+$vcRedistSha256 = "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b"
+$defaultLlamaVersion = "b10068"
+$defaultLlamaCpuSha256 = "01d5f30876acfb4a0be59396710f450213495c7181d8fbcce2fad045835ceb89"
+$defaultLlamaVulkanSha256 = "4f3e6fd215fdf22d2fd6232a5501f9e791a93d9193db4faf59e391eff90f6169"
+
 # 1. Download UV (skip if already present)
 $uvExe = Join-Path $binDir "uv.exe"
 if (Test-Path $uvExe) {
     Write-Host "[MomAI] UV already present, skipping download." -ForegroundColor Green
 } else {
     Write-Host "[MomAI] Downloading UV..." -ForegroundColor Cyan
-    $uvUrl = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip"
+    $uvUrl = "https://github.com/astral-sh/uv/releases/download/$uvVersion/uv-x86_64-pc-windows-msvc.zip"
     $uvZip = Join-Path $binDir "uv.zip"
     try {
         Get-ChildItem $binDir -Filter "uv*.exe" | Remove-Item -Force -ErrorAction SilentlyContinue
 
         curl.exe -L $uvUrl -o "$uvZip"
         if ($LASTEXITCODE -ne 0) { throw "Curl failed with exit code $LASTEXITCODE" }
+        Assert-Sha256 -Path $uvZip -Expected $uvSha256
 
         Expand-Archive -Path $uvZip -DestinationPath $binDir -Force
         Remove-Item $uvZip -ErrorAction SilentlyContinue
@@ -56,6 +73,7 @@ if (Test-Path $pythonExe) {
     try {
         curl.exe -L $pyUrl -o "$pyTar"
         if ($LASTEXITCODE -ne 0) { throw "Curl failed with exit code $LASTEXITCODE" }
+        Assert-Sha256 -Path $pyTar -Expected $pythonSha256
     } catch {
         Write-Error "[MomAI] Failed to download Python. URL: $pyUrl"
         return
@@ -111,6 +129,7 @@ if (Test-Path $vcExe) {
     try {
         curl.exe -L $vcUrl -o "$vcExe"
         if ($LASTEXITCODE -ne 0) { throw "Curl failed with exit code $LASTEXITCODE" }
+        Assert-Sha256 -Path $vcExe -Expected $vcRedistSha256
         Write-Host "[MomAI] VC Redist ready in $vcExe" -ForegroundColor Green
     } catch {
         Write-Warning "[MomAI] Failed to download VC Redist: $($_.Exception.Message)"
@@ -160,18 +179,12 @@ if (-not $forceHydrate -and (Test-Path $cpuExe) -and (Test-Path $vulkanExe)) {
         }
     }
 
-    $llamaVersion = $env:MOMAI_LLAMA_VERSION
-    if ([string]::IsNullOrWhiteSpace($llamaVersion)) {
-        try {
-            $release = Invoke-RestMethod -Uri "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
-            $llamaVersion = [string]$release.tag_name
-        } catch {
-            throw "[MomAI] Could not determine latest llama.cpp tag: $($_.Exception.Message)"
-        }
-    }
+    $llamaVersion = if ([string]::IsNullOrWhiteSpace($env:MOMAI_LLAMA_VERSION)) { $defaultLlamaVersion } else { $env:MOMAI_LLAMA_VERSION }
+    $llamaCpuSha256 = if ($llamaVersion -eq $defaultLlamaVersion) { $defaultLlamaCpuSha256 } else { $env:MOMAI_LLAMA_CPU_SHA256 }
+    $llamaVulkanSha256 = if ($llamaVersion -eq $defaultLlamaVersion) { $defaultLlamaVulkanSha256 } else { $env:MOMAI_LLAMA_VULKAN_SHA256 }
 
-    if ([string]::IsNullOrWhiteSpace($llamaVersion)) {
-        throw "[MomAI] Could not resolve llama.cpp version tag."
+    if ([string]::IsNullOrWhiteSpace($llamaCpuSha256) -or [string]::IsNullOrWhiteSpace($llamaVulkanSha256)) {
+        throw "[MomAI] llama.cpp overrides require MOMAI_LLAMA_CPU_SHA256 and MOMAI_LLAMA_VULKAN_SHA256."
     }
 
     $cpuAsset = "llama-$llamaVersion-bin-win-cpu-x64.zip"
@@ -185,11 +198,13 @@ if (-not $forceHydrate -and (Test-Path $cpuExe) -and (Test-Path $vulkanExe)) {
         Write-Host "[MomAI] Downloading llama CPU build: $cpuAsset" -ForegroundColor Cyan
         curl.exe -fL "$llamaBaseUrl/$cpuAsset" -o "$cpuZip"
         if ($LASTEXITCODE -ne 0) { throw "Curl failed downloading $cpuAsset (exit $LASTEXITCODE)" }
+        Assert-Sha256 -Path $cpuZip -Expected $llamaCpuSha256
         Expand-LlamaZip -ZipPath $cpuZip -TargetDir $cpuDir
 
         Write-Host "[MomAI] Downloading llama Vulkan build: $vulkanAsset" -ForegroundColor Cyan
         curl.exe -fL "$llamaBaseUrl/$vulkanAsset" -o "$vulkanZip"
         if ($LASTEXITCODE -ne 0) { throw "Curl failed downloading $vulkanAsset (exit $LASTEXITCODE)" }
+        Assert-Sha256 -Path $vulkanZip -Expected $llamaVulkanSha256
         Expand-LlamaZip -ZipPath $vulkanZip -TargetDir $vulkanDir
     } finally {
         if (Test-Path $cpuZip) { Remove-Item $cpuZip -Force -ErrorAction SilentlyContinue }

@@ -34,7 +34,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run pnpm audit
-        run: pnpm audit --audit-level critical
+        run: pnpm audit --audit-level high
         continue-on-error: true # npm audit endpoint retired (410); pending pnpm support for new bulk advisory API
 
   python-audit:
@@ -52,7 +52,6 @@ jobs:
 
       - name: Audit root dependencies
         run: uv audit
-        continue-on-error: true
 
       - name: Audit apps/core dependencies
         working-directory: apps/core

@@ -477,6 +477,24 @@ export interface Extension {
     label: string
     rule: string
   }
+  overlay?: {
+    initialStatusTool?: string
+    structuredResponseType?: string
+    size?: {
+      width?: number
+      height?: number
+    }
+    statusEvents?: Record<
+      string,
+      {
+        statusField?: string
+        disconnectedValues?: string[]
+        connectedValues?: string[]
+        qrField?: string
+        status?: string
+      }
+    >
+  }
   features?: {
     sidebar?: boolean
     sidebarPanel?: {
@@ -553,6 +571,7 @@ export interface InstallProgress {
   status: string
   percent: number
   global_percent: number
+  speed?: string
   bytes_total?: number | null
   bytes_done?: number | null
   speed_bps?: number | null
@@ -596,7 +615,19 @@ export async function installExtension(
     body: JSON.stringify(body)
   })
 
-  if (!response.ok) throw new Error('Erro ao iniciar instalação de extensão')
+  if (!response.ok) {
+    let errorBody = ''
+    try {
+      errorBody = await response.text()
+    } catch {}
+    throw new Error(
+      `Erro ao instalar extensão: HTTP ${response.status}${errorBody ? ' — ' + errorBody.slice(0, 200) : ''}`
+    )
+  }
+
+  if (!response.body) {
+    throw new Error('Resposta sem corpo — o servidor pode não ter iniciado o download')
+  }
 
   if (response.body) {
     const reader = response.body.getReader()
@@ -604,7 +635,27 @@ export async function installExtension(
     let buffer = ''
     while (true) {
       const { done, value } = await reader.read()
-      if (done) break
+      if (done) {
+        // Process any remaining content in the buffer after stream ends
+        if (buffer.trim()) {
+          try {
+            const data = JSON.parse(buffer)
+            if (data.status) {
+              opts?.onProgress?.(data)
+            }
+            if (data.error) {
+              throw new Error(data.error)
+            }
+          } catch (e) {
+            if (e instanceof SyntaxError) {
+              // Incomplete JSON in the trailing buffer — ignore
+            } else {
+              throw e
+            }
+          }
+        }
+        break
+      }
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
       buffer = lines.pop() || ''
@@ -625,11 +676,9 @@ export async function installExtension(
               return
             }
           } catch (e) {
-            if (
-              e instanceof Error &&
-              e.message !== 'Unexpected end of JSON input' &&
-              e.message !== 'Unexpected token o in JSON at position 1'
-            ) {
+            if (e instanceof SyntaxError) {
+              // Malformed JSON line in NDJSON stream — ignore
+            } else {
               throw e
             }
           }

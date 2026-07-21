@@ -9,7 +9,7 @@
 **Tech Stack:** TypeScript, Node.js, Python/FastAPI, Electron 42, vitest, pytest, Electron `safeStorage`, Python `slowapi`.
 
 **Reference spec:** `docs/superpowers/specs/2026-06-21-security-hardening-design.md` (Phase 3 section)
-**Reference audit:** `auditorias/auditoria-seguranca-2026-06-21.md` (M1–M8)
+**Reference audit:** `artifacts/reports/auditorias/auditoria-seguranca-2026-06-21.md` (M1–M8)
 **Reference remaining work:** `docs/superpowers/specs/2026-06-21-security-hardening-remaining-work.md`
 
 ---

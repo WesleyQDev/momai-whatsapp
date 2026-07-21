@@ -32,7 +32,6 @@ function skillBundlesPlugin() {
       const [, skillId, filePath] = match
       if (filePath.includes('..') || filePath.includes('\\')) return null
       const candidates = [
-        resolve(APP_DIR, 'scripts/skills/packaged', skillId),
         resolve(APP_DIR, 'data/extensions', skillId)
       ]
       const skillDir = candidates.find((d) => existsSync(d))

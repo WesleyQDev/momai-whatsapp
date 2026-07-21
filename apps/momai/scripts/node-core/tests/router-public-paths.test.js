@@ -35,6 +35,11 @@ describe('isPublicPath', () => {
     expect(isPublicPath('/extensions/launcher/dist/panel.js', 'GET')).toBe(true)
   })
 
+  it('bypasses GET /extensions/:id/storage/* for media playback (<audio>/<img> cannot send auth headers)', () => {
+    expect(isPublicPath('/extensions/whatsapp/storage/audio.ogg', 'GET')).toBe(true)
+    expect(isPublicPath('/extensions/launcher/storage/config.json', 'GET')).toBe(true)
+  })
+
   it('does not bypass other paths', () => {
     expect(isPublicPath('/settings', 'GET')).toBe(false)
     expect(isPublicPath('/extensions', 'GET')).toBe(false)

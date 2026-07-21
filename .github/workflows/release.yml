@@ -7,6 +7,9 @@ on:
         description: "Version tag (e.g. v1.5.3). Required for manual runs."
         required: true
         type: string
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -28,7 +31,7 @@ jobs:
           node-version: "20"
           cache: "pnpm"
 
-      - name: Get version from tag
+      - name: Get version
         id: version
         shell: bash
         run: |
@@ -47,11 +50,32 @@ jobs:
           cd apps/momai
           pnpm version "$CLEAN_VERSION" --no-git-tag-version --allow-same-version
 
+      - name: Validate version
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          CLEAN="${VERSION#v}"
+          if ! echo "$CLEAN" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+            echo "ERROR: Invalid version format: $CLEAN"
+            echo "Must match semver (e.g. 1.5.3 or 1.5.3-beta.1)"
+            exit 1
+          fi
+          echo "Version validated: $CLEAN"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Run Node.js audit (release gate)
+        run: pnpm audit --audit-level high
+        continue-on-error: false
+
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
+
+      - name: Run Python audit apps/core (release gate)
+        run: uv audit
+        working-directory: apps/core
+        continue-on-error: false
 
       - name: Download dependency wheels
         shell: pwsh
@@ -113,7 +137,7 @@ jobs:
           node-version: "20"
           cache: "pnpm"
 
-      - name: Get version from tag
+      - name: Get version
         id: version
         shell: bash
         run: |
@@ -132,6 +156,18 @@ jobs:
           cd apps/momai
           pnpm version "$CLEAN_VERSION" --no-git-tag-version --allow-same-version
 
+      - name: Validate version
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          CLEAN="${VERSION#v}"
+          if ! echo "$CLEAN" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+            echo "ERROR: Invalid version format: $CLEAN"
+            echo "Must match semver (e.g. 1.5.3 or 1.5.3-beta.1)"
+            exit 1
+          fi
+          echo "Version validated: $CLEAN"
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -148,8 +184,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Run Node.js audit (release gate)
+        run: pnpm audit --audit-level high
+        continue-on-error: false
+
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
+
+      - name: Run Python audit apps/core (release gate)
+        run: uv audit
+        working-directory: apps/core
+        continue-on-error: false
 
       - name: Download dependency wheels
         run: |
@@ -233,13 +278,14 @@ jobs:
           name: linux-artifacts
           path: dist/linux
 
-      - name: Get version from tag
+      - name: Get version
         id: version
+        shell: bash
         run: |
           if [ -n "${{ inputs.tag }}" ]; then
-            echo "VERSION=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+            echo "VERSION=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
           else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: List release files

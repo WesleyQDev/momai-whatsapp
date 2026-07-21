@@ -9,7 +9,7 @@
 **Tech Stack:** TypeScript, Node.js, Python/FastAPI, Electron 42, vitest, pytest, pnpm overrides, uv.
 
 **Reference spec:** `docs/superpowers/specs/2026-06-21-security-hardening-design.md` (Phase 2 section)
-**Reference audit:** `auditorias/auditoria-seguranca-2026-06-21.md` (H1–H9)
+**Reference audit:** `artifacts/reports/auditorias/auditoria-seguranca-2026-06-21.md` (H1–H9)
 **Reference remaining work:** `docs/superpowers/specs/2026-06-21-security-hardening-remaining-work.md`
 
 ---
@@ -1265,7 +1265,7 @@ audit-known fix versions; bump further if newer versions are out."
 cd apps/core && uv pip list --format=json 2>&1 | head -5
 ```
 
-Then look at the audit's "20 Python CVEs" list in `auditorias/auditoria-seguranca-2026-06-21.md` to know which packages to expect to be updated.
+Then look at the audit's "20 Python CVEs" list in `artifacts/reports/auditorias/auditoria-seguranca-2026-06-21.md` to know which packages to expect to be updated.
 
 - [ ] **Step 2: Refresh the lockfile**
 

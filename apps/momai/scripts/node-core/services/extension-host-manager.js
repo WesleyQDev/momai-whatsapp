@@ -86,16 +86,13 @@ const SAFE_ENV = {
   PATH: process.env.PATH,
   HOME: process.env.HOME,
   USERPROFILE: process.env.USERPROFILE,
-  LANG: process.env.LANG,
-  LC_ALL: process.env.LC_ALL,
-  NODE_ENV: process.env.NODE_ENV,
-  NODE_PATH: process.env.NODE_PATH,
-  TMP: process.env.TMP,
-  TEMP: process.env.TEMP,
   SystemRoot: process.env.SystemRoot,
   WINDIR: process.env.WINDIR,
   APPDATA: process.env.APPDATA,
   LOCALAPPDATA: process.env.LOCALAPPDATA,
+  TMP: process.env.TMP,
+  TEMP: process.env.TEMP,
+  NODE_PATH: process.env.NODE_PATH,
   ELECTRON_RUN_AS_NODE: '1'
 }
 
@@ -195,6 +192,13 @@ class ExtensionHostManager extends EventEmitter {
 
     const bgScript = manifest.backgroundScript || 'runtime.js'
     const hostPath = path.join(skillPath, bgScript)
+
+    // Prevent path traversal via untrusted manifest.backgroundScript
+    const resolvedBase = path.resolve(skillPath)
+    const resolvedScript = path.resolve(skillPath, bgScript)
+    if (!resolvedScript.startsWith(resolvedBase + path.sep) && resolvedScript !== resolvedBase) {
+      throw new Error('backgroundScript path escapes extension directory')
+    }
     const dataDir = process.env.MOMAI_NODE_CORE_DATA_DIR || process.env.MOMAI_DATA_DIR || ''
 
     const extNodeModules = path.join(skillPath, 'node_modules')
@@ -225,10 +229,14 @@ class ExtensionHostManager extends EventEmitter {
           this.emit(`${skillId}:ready`)
           break
         case 'event':
-          extensionEvents.broadcast(msg.eventType, msg.data || {})
+          if (typeof msg.eventType === 'string' && msg.eventType.length > 0) {
+            extensionEvents.broadcast(msg.eventType, typeof msg.data === 'object' && msg.data !== null ? msg.data : {})
+          }
           break
         case 'structured_response':
-          extensionEvents.broadcast('structured_response', { skillId, ...msg.data })
+          if (msg.data && typeof msg.data.type === 'string') {
+            extensionEvents.broadcast('structured_response', { skillId, ...msg.data })
+          }
           break
         case 'response':
           this._resolvePending(msg.requestId, msg.result)
@@ -249,6 +257,12 @@ class ExtensionHostManager extends EventEmitter {
       if (pendingReject) {
         this.pendingReady.delete(skillId)
         pendingReject(new Error(`Worker exited with code ${code} before ready`))
+      }
+
+      // Reject all pending calls — the worker process is gone
+      for (const [reqId, pending] of this.pendingCalls) {
+        pending.reject(new Error(`Extension host ${skillId} exited unexpectedly (code ${code})`))
+        this.pendingCalls.delete(reqId)
       }
 
       const count = (this.restartCounts.get(skillId) || 0) + 1
@@ -293,7 +307,13 @@ class ExtensionHostManager extends EventEmitter {
     const requestId = ++this.requestIdCounter
     return new Promise((resolve, reject) => {
       this.pendingCalls.set(requestId, { resolve, reject })
-      child.send({ type: 'execute', requestId, payload })
+      try {
+        child.send({ type: 'execute', requestId, payload })
+      } catch (err) {
+        this.pendingCalls.delete(requestId)
+        reject(new Error('Extension host is not available'))
+        return
+      }
       setTimeout(() => {
         if (this.pendingCalls.has(requestId)) {
           this.pendingCalls.delete(requestId)
@@ -306,6 +326,9 @@ class ExtensionHostManager extends EventEmitter {
   async sendToPersistent(skillId, message) {
     const entry = this.persistentHosts.get(skillId)
     if (!entry) throw new Error(`No persistent host for ${skillId}`)
+    if (entry.child.killed || !entry.child.connected) {
+      throw new Error(`Extension host ${skillId} is not connected`)
+    }
     return this._sendRequest(entry.child, message)
   }
 
@@ -365,3 +388,4 @@ class ExtensionHostManager extends EventEmitter {
 // Singleton instance
 const instance = new ExtensionHostManager()
 module.exports = instance
+module.exports.SAFE_ENV = SAFE_ENV

@@ -3,8 +3,11 @@ const realLookup = dns.lookup
 
 const {
   validateInstallUrl,
-  _setRegistry,
-  resolveInstallVersion
+  validateRedirectUrl,
+  MAX_DOWNLOAD_SIZE,
+  MAX_REDIRECTS,
+  resolveInstallVersion,
+  _setRegistry
 } = require('../api/routes/extensions.routes.js')
 
 const mockLookup = vi.fn()
@@ -33,7 +36,7 @@ describe('validateInstallUrl', () => {
     mockLookup.mockResolvedValue({ address: '1.2.3.4' })
     await expect(
       validateInstallUrl('whatsapp', 'https://registry.example.com/whatsapp.zip')
-    ).resolves.toBeUndefined()
+    ).resolves.toMatchObject({ id: 'whatsapp' })
   })
 
   it('rejects an id not in the registry', async () => {
@@ -59,6 +62,54 @@ describe('validateInstallUrl', () => {
     await expect(
       validateInstallUrl('whatsapp', 'https://registry.example.com/whatsapp.zip')
     ).rejects.toMatchObject({ status: 403 })
+  })
+})
+
+describe('validateRedirectUrl', () => {
+  beforeEach(() => {
+    mockLookup.mockReset()
+  })
+
+  it('accepts a valid HTTPS URL from GitHub', async () => {
+    await expect(
+      validateRedirectUrl('https://github.com/user/repo/releases/download/v1.0/ext.zip')
+    ).resolves.toBeUndefined()
+  })
+
+  it('accepts a valid HTTPS URL from non-GitHub host (with public IP)', async () => {
+    mockLookup.mockResolvedValue({ address: '1.2.3.4' })
+    await expect(
+      validateRedirectUrl('https://cdn.example.com/extension.zip')
+    ).resolves.toBeUndefined()
+  })
+
+  it('rejects HTTP redirect (scheme downgrade)', async () => {
+    await expect(
+      validateRedirectUrl('http://cdn.example.com/extension.zip')
+    ).rejects.toThrow(/redirect downgraded/)
+  })
+
+  it('rejects redirect URL resolving to private IP', async () => {
+    mockLookup.mockResolvedValue({ address: '127.0.0.1' })
+    await expect(
+      validateRedirectUrl('https://internal.example.com/extension.zip')
+    ).rejects.toThrow(/private IP/)
+  })
+
+  it('rejects invalid URL strings', async () => {
+    await expect(
+      validateRedirectUrl('not-a-url')
+    ).rejects.toThrow(/invalid redirect URL/)
+  })
+})
+
+describe('download constraints', () => {
+  it('MAX_DOWNLOAD_SIZE is 50 MB', () => {
+    expect(MAX_DOWNLOAD_SIZE).toBe(50 * 1024 * 1024)
+  })
+
+  it('MAX_REDIRECTS is 5', () => {
+    expect(MAX_REDIRECTS).toBe(5)
   })
 })
 

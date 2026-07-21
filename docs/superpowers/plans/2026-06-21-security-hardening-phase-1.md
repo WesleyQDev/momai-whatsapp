@@ -9,7 +9,7 @@
 **Tech Stack:** TypeScript, Node.js, Python/FastAPI, Electron 42, vitest, pytest.
 
 **Reference spec:** `docs/superpowers/specs/2026-06-21-security-hardening-design.md`
-**Reference audit:** `auditorias/auditoria-seguranca-2026-06-21.md`
+**Reference audit:** `artifacts/reports/auditorias/auditoria-seguranca-2026-06-21.md`
 
 ---
 
@@ -1614,7 +1614,7 @@ If no changes, skip.
 
 ```bash
 git push origin main
-gh pr create --title "Security hardening Phase 1: auth + CORS + injection fixes" --body "Closes audit items C1, C2, C4, C5, partial C3 from auditorias/auditoria-seguranca-2026-06-21.md
+gh pr create --title "Security hardening Phase 1: auth + CORS + injection fixes" --body "Closes audit items C1, C2, C4, C5, partial C3 from artifacts/reports/auditorias/auditoria-seguranca-2026-06-21.md
 
 Adds session-token authentication to all Node Core and Python API routes. Restricts CORS to an explicit allowlist. Replaces exec() with spawn() in /launcher/open and the launcher skill. Validates /extensions/install URLs against the community registry.
 

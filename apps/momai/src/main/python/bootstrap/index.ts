@@ -207,7 +207,7 @@ export async function bootstrapPython(
   sendInitProgress('Verificando integridade do sistema...', 5)
 
   const uvExe = isDev
-    ? 'uv'
+    ? join(app.getAppPath(), 'bin', process.platform === 'win32' ? 'uv.exe' : 'uv')
     : join(process.resourcesPath, 'bin', process.platform === 'win32' ? 'uv.exe' : 'uv')
 
   logger.info(`[Bootstrap] Verificando ambiente em: ${venvPath}`)

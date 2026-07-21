@@ -140,8 +140,8 @@ coverage/
 .nyc_output/
 *.tgz
 .turbo
-auditorias/*.pdf
-depsreports/*.pdf
+artifacts/reports/auditorias/*.pdf
+artifacts/reports/depsreports/*.pdf
 
 # ====================
 # Secrets / Keys
@@ -168,8 +168,30 @@ nul
 # ====================
 # Runtime Data (app-generated JSON, never source)
 # ====================
+# Runtime data (user-generated, never source)
 apps/momai/data/
 data/
+
+# WhatsApp extension runtime data
+apps/momai/data/extensions/whatsapp/
+# Messages and settings
+apps/momai/data/messages.json
+apps/momai/data/node-core-store.json
+
+# Generated local analysis/build artifacts
+apps/momai/build_log.txt
+apps/momai/.graphify_detect.json
+apps/momai/.graphify_python
+apps/fortscript/ruff_output.txt
+
+# Root-level runtime data
+/data/node-core-store.json
+/data/semantic/
+
+# Core runtime data (user-generated, not source)
+apps/core/notes/
+apps/core/momai_db/
+apps/core/apps/
 
 # Worktrees
 .worktrees/

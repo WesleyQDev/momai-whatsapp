@@ -135,7 +135,7 @@ Os hooks são DX complementar — não substituem a validação do CI.
 ### Validation
 
 - Before a PR, run the relevant validation locally. At minimum, for app code, use `pnpm lint`, `pnpm typecheck`, and relevant tests.
-- The current CI workflow is not the complete quality bar. CI currently blocks committed `.env` files and runs MomAI lint/typecheck; agents should still run tests when behavior changes.
+- The current CI workflow is not the complete quality bar. CI currently runs 7 parallel jobs: blocks committed `.env` files, verifies no `packaged/` directory exists, runs MomAI lint/typecheck, runs Vitest tests, runs Python pytest, and audits Node.js (`pnpm audit`) and Python (`uv audit`) dependencies. Agents should still run tests when behavior changes.
 - Do not weaken, delete, or skip tests just to make a change pass.
 - Tests should assert user- or contract-visible behavior, not mirror implementation details.
 

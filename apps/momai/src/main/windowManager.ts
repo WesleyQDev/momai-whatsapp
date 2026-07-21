@@ -285,11 +285,21 @@ export function registerIpcHandlers(): void {
 }
 
 function getOverlayDimensions(data?: {
+  overlaySize?: { width?: number; height?: number }
   structuredResponse?: { type?: string; data?: { conversationHistory?: unknown[] } }
 }) {
   const type = data?.structuredResponse?.type
   if (type === 'extension-panel') {
     return { width: 440, height: 420 }
+  }
+
+  const requestedWidth = data?.overlaySize?.width
+  const requestedHeight = data?.overlaySize?.height
+  if (requestedWidth && requestedHeight) {
+    return {
+      width: Math.min(Math.max(requestedWidth, 320), 900),
+      height: Math.min(Math.max(requestedHeight, 240), 720)
+    }
   }
   const historyLen = data?.structuredResponse?.data?.conversationHistory?.length ?? 0
   const width = 440
@@ -473,6 +483,25 @@ function createMainWindow(): BrowserWindow {
       )
     }
     return { action: 'deny' }
+  })
+
+  // Block main window navigation to untrusted origins (Electron security boundary)
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const parsed = (() => {
+      try {
+        return new URL(url)
+      } catch {
+        return null
+      }
+    })()
+    if (!parsed) {
+      event.preventDefault()
+      return
+    }
+    if (parsed.protocol === 'file:') return
+    if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') return
+    logger.warn(`[WindowManager] Blocked will-navigate to untrusted origin: ${url}`)
+    event.preventDefault()
   })
 
   // Tratamento de CTRL+R: em dev reinicia frontend+backend, em prod bloqueia

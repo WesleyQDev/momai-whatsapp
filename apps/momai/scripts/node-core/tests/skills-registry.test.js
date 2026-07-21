@@ -108,4 +108,33 @@ describe('createSkillRegistry.loadExtensions', () => {
     expect(all[0].id).toBe('legacy')
     expect(all[0].manifest.name).toBe('legacy')
   })
+
+  it('loads tools from manifest.json when runtime is not imported (extension discovery read-only)', async () => {
+    const extDir = path.join(workDir, 'data', 'extensions', 'manifest-tools')
+    fs.mkdirSync(extDir, { recursive: true })
+    writeJson(path.join(extDir, 'manifest.json'), {
+      id: 'manifest-tools',
+      name: 'Manifest Tools Extension',
+      description: 'Extension that declares tools exclusively in manifest.json',
+      tools: [
+        { name: 'tool_a', description: 'Tool A from manifest', parameters: { type: 'object', properties: {} } },
+        { name: 'tool_b', description: 'Tool B from manifest', parameters: { type: 'object', properties: { query: { type: 'string' } } } }
+      ]
+    })
+
+    const reg = createSkillRegistry({
+      dataDir: path.join(workDir, 'data'),
+      builtinSkillsDir: builtinDir
+    })
+    await reg.loadExtensions()
+    const all = reg.getAll()
+    expect(all).toHaveLength(1)
+    const sk = all[0]
+    expect(sk.id).toBe('manifest-tools')
+    expect(sk.kind).toBe('extension')
+    expect(sk.manifest.tools).toHaveLength(2)
+    expect(sk.manifest.tools[0].name).toBe('tool_a')
+    expect(sk.manifest.tools[0].description).toBe('Tool A from manifest')
+    expect(sk.manifest.tools[1].name).toBe('tool_b')
+  })
 })

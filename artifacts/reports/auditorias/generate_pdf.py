@@ -13,7 +13,7 @@ from reportlab.platypus import (
 )
 from reportlab.lib import colors
 
-MD_FILE = r'C:\Users\wesle\dev\momai\auditorias\auditoria-2026-06-23-08-47-50.md'
+MD_FILE = os.path.join(os.path.dirname(__file__), 'auditoria-2026-06-23-08-47-50.md')
 PDF_FILE = MD_FILE.replace('.md', '.pdf')
 
 SEVERITY_COLORS = {

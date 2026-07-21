@@ -12,7 +12,7 @@
 
 **Tech Stack:** Electron 42 · electron-builder 26 · NSIS 3.x · Node.js 22 · Python 3.12+ · SQLAlchemy 2 · better-sqlite3 (a introduzir) · safeStorage (Electron) · AES-256-GCM (Node crypto) · LanceDB 0.27
 
-**Report de origem:** `auditorias/auditoria-persistencia-bancos-seguranca-2026-06-23.md`
+**Report de origem:** `artifacts/reports/auditorias/auditoria-persistencia-bancos-seguranca-2026-06-23.md`
 
 ---
 

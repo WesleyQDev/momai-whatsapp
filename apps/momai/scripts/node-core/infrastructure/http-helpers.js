@@ -73,11 +73,26 @@ function readJsonBody(req) {
       try {
         resolve(JSON.parse(body))
       } catch {
-        reject(new Error('Invalid JSON body'))
+        const err = new Error('Invalid JSON body')
+        err.statusCode = 400
+        err.code = 'INVALID_JSON'
+        reject(err)
       }
     })
     req.on('error', reject)
   })
+}
+
+async function readJsonBodySafe(req, res) {
+  try {
+    return await readJsonBody(req)
+  } catch (err) {
+    if (err.code === 'INVALID_JSON') {
+      sendJson(res, 400, { ok: false, error: 'invalid_json' })
+      return null
+    }
+    throw err
+  }
 }
 
 function sidecarHeaders(extra) {
@@ -97,5 +112,6 @@ module.exports = {
   writeSse,
   endSse,
   readJsonBody,
+  readJsonBodySafe,
   sidecarHeaders
 }

@@ -1,3 +1,6 @@
+const path = require('node:path')
+const fs = require('node:fs')
+const os = require('node:os')
 const { createExtensionsRoutes } = require('../api/routes/extensions.routes')
 
 function makeMockRes() {
@@ -194,5 +197,109 @@ describe('dynamic skill route mounting', () => {
     expect(executeHook).not.toHaveBeenCalled()
     expect(loadExtensions).not.toHaveBeenCalled()
     expect(saveStore).not.toHaveBeenCalled()
+  })
+})
+
+describe('storage route security', () => {
+  let tmpDir
+  let storageFile
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'momai-storage-test-'))
+    const extDir = path.join(tmpDir, 'extensions', 'testext')
+    fs.mkdirSync(extDir, { recursive: true })
+    storageFile = path.join(extDir, 'test.ogg')
+    fs.writeFileSync(storageFile, 'fake audio')
+    process.env.MOMAI_NODE_CORE_DATA_DIR = tmpDir
+  })
+
+  afterEach(() => {
+    delete process.env.MOMAI_NODE_CORE_DATA_DIR
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }) } catch {}
+  })
+
+  it('rejects literal .. traversal', async () => {
+    const { ctx, calls } = makeCtx({
+      readJsonBody: async () => ({})
+    })
+    const handler = createExtensionsRoutes(ctx)
+
+    const handled = await handler(
+      { method: 'GET' }, {},
+      '/extensions/testext/storage/../../../etc/passwd',
+      { searchParams: new URLSearchParams() }
+    )
+
+    expect(handled).toBe(true)
+    expect(calls.status).toBe(400)
+    expect(calls.data).toEqual({ ok: false, error: 'invalid_path' })
+  })
+
+  it('rejects encoded %2e%2e traversal', async () => {
+    const { ctx, calls } = makeCtx({
+      readJsonBody: async () => ({})
+    })
+    const handler = createExtensionsRoutes(ctx)
+
+    const handled = await handler(
+      { method: 'GET' }, {},
+      '/extensions/testext/storage/%2e%2e/%2e%2e/etc/passwd',
+      { searchParams: new URLSearchParams() }
+    )
+
+    expect(handled).toBe(true)
+    expect(calls.status).toBe(400)
+    expect(calls.data).toEqual({ ok: false, error: 'invalid_path' })
+  })
+
+  it('rejects double-encoded %252e%252e traversal', async () => {
+    const { ctx, calls } = makeCtx({
+      readJsonBody: async () => ({})
+    })
+    const handler = createExtensionsRoutes(ctx)
+
+    const handled = await handler(
+      { method: 'GET' }, {},
+      '/extensions/testext/storage/%252e%252e/%252e%252e/etc/passwd',
+      { searchParams: new URLSearchParams() }
+    )
+
+    expect(handled).toBe(true)
+    expect(calls.status).toBe(400)
+    expect(calls.data).toEqual({ ok: false, error: 'invalid_path' })
+  })
+
+  it('rejects invalid extension id (non-alphanumeric)', async () => {
+    const { ctx, calls } = makeCtx({
+      readJsonBody: async () => ({})
+    })
+    const handler = createExtensionsRoutes(ctx)
+
+    const handled = await handler(
+      { method: 'GET' }, {},
+      '/extensions/../storage/file.txt',
+      { searchParams: new URLSearchParams() }
+    )
+
+    expect(handled).toBe(true)
+    expect(calls.status).toBe(400)
+    expect(calls.data).toEqual({ ok: false, error: 'invalid_extension_id' })
+  })
+
+  it('rejects escape via absolute path', async () => {
+    const { ctx, calls } = makeCtx({
+      readJsonBody: async () => ({})
+    })
+    const handler = createExtensionsRoutes(ctx)
+
+    const handled = await handler(
+      { method: 'GET' }, {},
+      '/extensions/testext/storage/C:/Windows/System32/drivers/etc/hosts',
+      { searchParams: new URLSearchParams() }
+    )
+
+    expect(handled).toBe(true)
+    expect(calls.status).toBe(400)
+    expect(calls.data).toEqual({ ok: false, error: 'invalid_path' })
   })
 })

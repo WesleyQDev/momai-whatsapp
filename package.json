@@ -22,8 +22,6 @@
     "typecheck": "turbo run typecheck",
     "format": "turbo run format",
     "test": "turbo run test",
-    "docs": "cd apps/docs && mint dev",
-    "docs:internal": "pnpm --filter internal-docs start",
     "release": "pwsh -NoProfile -File scripts/release.ps1",
     "build:all": "pwsh -NoProfile -File scripts/build-all.ps1",
     "deploy:ghpages": "node scripts/sync-gh-pages.js",

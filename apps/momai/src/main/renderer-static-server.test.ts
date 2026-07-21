@@ -25,7 +25,7 @@ describe('resolveRendererAssetPath', () => {
     expect(resolveRendererAssetPath(root, '/extensions/foo/page.js')).toBe(join(root, 'index.html'))
   })
 
-  it('resolves extension files from userData or packaged directories', () => {
+  it('resolves extension files from userData directory', () => {
     const root = mkdtempSync(join(tmpdir(), 'momai-renderer-'))
     writeFileSync(join(root, 'index.html'), '<html></html>')
 
@@ -42,16 +42,7 @@ describe('resolveRendererAssetPath', () => {
     })
 
     try {
-      // 1. Test resolution from packaged skills
-      const packagedDistDir = join(tempAppDir, 'scripts', 'skills', 'packaged', 'myext', 'dist')
-      mkdirSync(packagedDistDir, { recursive: true })
-      writeFileSync(join(packagedDistDir, 'page.js'), 'console.log("packaged")')
-
-      expect(resolveRendererAssetPath(root, '/extensions/myext/dist/page.js')).toBe(
-        join(packagedDistDir, 'page.js')
-      )
-
-      // 2. Test resolution from userData (installed extension)
+      // 1. Test resolution from userData (installed extension)
       const userDistDir = join(tempUserDir, 'data', 'extensions', 'myext2', 'dist')
       mkdirSync(userDistDir, { recursive: true })
       writeFileSync(join(userDistDir, 'page.js'), 'console.log("user")')

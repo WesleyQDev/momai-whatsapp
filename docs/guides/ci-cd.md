@@ -16,10 +16,19 @@ on:
     branches: [main, develop]
 ```
 
-**Jobs:**
-- `lint-typescript`: Lint + Typecheck da app MomAI
+**Jobs (executados em paralelo, 7 ao total):**
 
-**Passos:**
+| Job | Descrição |
+|-----|-----------|
+| `block-env-files` | Bloqueia commit de `.env` e `.env.*` (exceto `.env.example`). Compara diff com a base branch. |
+| `verify-no-packaged` | Verifica que `apps/momai/scripts/skills/packaged/` não existe — política de extensões descentralizadas. |
+| `lint-typescript` | Lint (ESLint) + Typecheck (TypeScript) da app MomAI. |
+| `test` | Testes unitários Vitest: `pnpm --filter momai test -- --run`. |
+| `test-core` | Testes Python Core: `uv run pytest -v` em `apps/core/`. |
+| `pnpm-audit` | Auditoria de dependências Node.js: `pnpm audit --audit-level high`. |
+| `uv-audit` | Auditoria de dependências Python: `uv audit` em `apps/core/`. |
+
+**Passos (job `lint-typescript`):**
 1. Checkout do repositório
 2. Setup pnpm + Node.js 20 (com cache)
 3. `pnpm install --frozen-lockfile`

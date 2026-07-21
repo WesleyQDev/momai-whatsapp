@@ -224,14 +224,14 @@ describe('installExtension', () => {
     vi.unstubAllGlobals()
   })
 
-  it('throws "Erro ao iniciar instalação de extensão" when response is not ok', async () => {
+  it('throws "Erro ao instalar extensão: HTTP 500" when response is not ok', async () => {
     const fetchMock = vi.fn(() =>
       Promise.resolve({ ok: false, status: 500, body: null } as unknown as Response)
     )
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(installExtension('my-ext')).rejects.toThrow(
-      'Erro ao iniciar instalação de extensão'
+      'Erro ao instalar extensão: HTTP 500'
     )
     vi.unstubAllGlobals()
   })

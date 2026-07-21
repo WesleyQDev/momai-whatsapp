@@ -2,6 +2,24 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
+## 1.5.5 - 2026-07-20
+
+### ✨ Novidades
+
+- **Loja de Extensões renovada**: Navegue por cards visuais, filtre por tags e descubra destaques em destaque. Abas separadas para Loja e Instaladas facilitam o gerenciamento.
+- **Segurança em instalações**: Extensões baixadas agora passam por verificação de integridade e validação contra o catálogo oficial, impedindo a instalação de arquivos adulterados.
+- **Navegação segura**: O aplicativo agora bloqueia automaticamente redirecionamentos para sites não confiáveis, protegendo contra links maliciosos.
+- **Verificação de componentes**: Downloads de componentes do sistema agora têm verificação de integridade, garantindo que apenas arquivos originais sejam instalados.
+
+### 🐛 Correções
+
+- **Compatibilidade de extensões no Windows**: Restauradas as variáveis de ambiente necessárias para o funcionamento correto de extensões no Windows.
+- **Proteção de arquivos de extensões**: Arquivos usados por extensões agora têm camadas extras de proteção contra acesso indevido a pastas do sistema.
+
+### 🧹 Outros
+
+- Melhorias internas de segurança e estabilidade.
+
 ## 1.5.4 - 2026-07-17
 
 ### ✨ Novidades
@@ -18,6 +36,9 @@ Acompanhe todas as atualizações e mudanças da MomAI.
 - **Atualização segura de Extensões**: O instalador de extensões agora encerra workers em segundo plano ativos antes de aplicar a nova versão, prevenindo conflitos de porta de rede e vazamentos de recursos do sistema.
 - **Instalação de extensões no Windows**: Corrigida a detecção do utilitário `npm` no Windows, garantindo que o instalador chame o comando correto (`npm.cmd` com shell) e baixe as dependências com sucesso.
 - **Reconexão automática rápida**: Ajustada a frequência de atualização do monitor de status do sistema para pesquisar ativamente a cada 2 segundos quando o servidor local está offline, reduzindo o tempo de resposta para reatar a comunicação.
+- **Barra de progresso de instalação**: Resolvido o congelamento da barra de progresso em 90% durante o download/instalação de extensões nas versões .exe e .appx.
+- **Detecção de Extensões**: Corrigido bug em produção que impedia o aplicativo de identificar e listar extensões instaladas (como o WhatsApp) após a conclusão do instalador.
+- **Cards de notificação do WhatsApp**: Corrigido problema que impedia a exibição instantânea de notificações recebidas logo após a instalação da extensão, sem necessidade de reinicialização.
 
 ## 1.5.3 - 2026-07-13
 

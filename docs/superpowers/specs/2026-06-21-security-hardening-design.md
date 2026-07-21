@@ -2,7 +2,7 @@
 
 ## Summary
 
-Fix all security vulnerabilities identified in `auditorias/auditoria-seguranca-2026-06-21.md`, delivered in 4 sequential PRs (one per phase). The work is structured from most critical (remote code execution via websites) to lowest priority (hardening polish).
+Fix all security vulnerabilities identified in `artifacts/reports/auditorias/auditoria-seguranca-2026-06-21.md`, delivered in 4 sequential PRs (one per phase). The work is structured from most critical (remote code execution via websites) to lowest priority (hardening polish).
 
 The single most critical issue is a combination of three failures: (1) the local Node Core and Python servers have no authentication, (2) they advertise permissive CORS (`*`) to the browser, and (3) several endpoints accept user input that flows into shell commands without sanitization. Together these allow **any website the user visits to silently execute arbitrary code on their machine** through a simple `fetch('http://127.0.0.1:8050/...')` call. Phase 1 fixes this combination.
 
