@@ -419,7 +419,6 @@
   "onboarding.ttsEngine.edge-tts": "Edge TTS",
   "onboarding.ttsEngine.edge-tts.desc": "High quality, requires internet",
   "onboarding.ttsEngine.internetHint": "Requires internet connection",
-  "onboarding.ttsPrivacyNotice": "Your text is sent to Microsoft servers for speech synthesis. For full privacy, use Kokoro (local).",
   "onboarding.voiceSection": "Voice Settings",
   "onboarding.personalitySection": "Personality",
   "onboarding.voiceSample": "Listen to Sample",

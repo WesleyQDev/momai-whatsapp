@@ -1039,27 +1039,6 @@ export default function OnboardingCard({ onFinish }: OnboardingCardProps) {
                     </div>
                   </div>
 
-                  {selectedEngine === 'edge-tts' && (
-                    <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs">
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="shrink-0 mt-0.5"
-                      >
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="12" y1="8" x2="12" y2="12" />
-                        <line x1="12" y1="16" x2="12.01" y2="16" />
-                      </svg>
-                      <span>{t('onboarding.ttsPrivacyNotice')}</span>
-                    </div>
-                  )}
-
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-text-muted ml-0.5">
                       {t('onboarding.voiceLabel')}

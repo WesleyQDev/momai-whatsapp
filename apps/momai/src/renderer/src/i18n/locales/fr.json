@@ -370,7 +370,6 @@
   "onboarding.ttsEngine.edge-tts": "Edge TTS",
   "onboarding.ttsEngine.edge-tts.desc": "Haute qualité, nécessite internet",
   "onboarding.ttsEngine.internetHint": "Nécessite une connexion internet",
-  "onboarding.ttsPrivacyNotice": "Votre texte est envoyé aux serveurs Microsoft pour la synthèse vocale. Pour une confidentialité totale, utilisez Kokoro (local).",
   "onboarding.voiceSection": "Configuration Vocale",
   "onboarding.personalitySection": "Personnalité",
   "onboarding.voiceSample": "Écouter un Échantillon",
