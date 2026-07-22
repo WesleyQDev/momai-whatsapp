@@ -106,6 +106,18 @@ interface MomaiAPI {
   markAppReady: () => void
   resetOnboarding: () => void
   markOverlayReady: () => void
+  onTrayStateUpdate: (
+    callback: (state: {
+      llama: { running: boolean; loading: boolean; ready: boolean }
+      economy: { active: boolean; reason: 'idle' | 'game' | null; secondsUntilSoneca: number }
+      variantName: string
+    }) => void
+  ) => () => void
+  trayActionStart: () => Promise<boolean>
+  trayActionStop: () => Promise<boolean>
+  trayActionRestart: () => Promise<boolean>
+  trayActionOpen: () => Promise<boolean>
+  trayActionQuit: () => Promise<boolean>
   invoke: (channel: string, ...args: any[]) => Promise<any>
   send: (channel: string, ...args: any[]) => void
   on: (channel: string, listener: (...args: any[]) => void) => () => void

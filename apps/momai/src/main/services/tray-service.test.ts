@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { TrayService, type TrayServiceDeps } from './tray-service'
 import type { VariantConfig } from '../variants'
 import * as electronMock from 'electron'
+import type { EconomyService } from '../economyService'
 
 const trayInstance = vi.hoisted(() => ({
   setToolTip: vi.fn(),
@@ -9,19 +10,36 @@ const trayInstance = vi.hoisted(() => ({
   on: vi.fn(),
   destroy: vi.fn()
 }))
-const menuInstance = vi.hoisted(() => ({}))
+
+const menuWindowInstance = vi.hoisted(() => ({
+  show: vi.fn(),
+  close: vi.fn(),
+  hide: vi.fn(),
+  isVisible: vi.fn(() => false),
+  sendState: vi.fn()
+}))
 
 vi.mock('electron', () => ({
   Tray: vi.fn(function () {
     return trayInstance
   }),
-  Menu: { buildFromTemplate: vi.fn(() => menuInstance) },
+  Menu: { buildFromTemplate: vi.fn(() => ({})) },
   nativeImage: { createFromPath: vi.fn(() => ({})) },
   app: { quit: vi.fn() }
 }))
 
+vi.mock('./tray-menu-window', () => ({
+  TrayMenuWindow: vi.fn(function () {
+    return menuWindowInstance
+  })
+}))
+
 vi.mock('../constants', () => ({
   ICON_PATH: '/fake/path/icon.png'
+}))
+
+vi.mock('../economyService', () => ({
+  EconomyService: class {}
 }))
 
 const baseVariant: VariantConfig = {
@@ -48,11 +66,13 @@ function makeDeps(overrides: Partial<TrayServiceDeps> = {}): TrayServiceDeps {
     } as any,
     llama: {
       start: vi.fn().mockResolvedValue(undefined),
-      stop: vi.fn().mockResolvedValue(undefined)
+      stop: vi.fn().mockResolvedValue(undefined),
+      getStatus: vi.fn().mockResolvedValue({ running: false, ready: false, loading: false })
     },
     keepInTray: { isEnabled: vi.fn(() => true) },
     isQuitting: vi.fn(() => false),
     variant: baseVariant,
+    getEconomy: undefined,
     ...overrides
   }
 }
@@ -62,21 +82,23 @@ describe('TrayService', () => {
     vi.clearAllMocks()
   })
 
-  it('creates a Tray and registers click handler on start()', () => {
+  it('creates a Tray and registers click and right-click handlers on start()', () => {
     const deps = makeDeps()
     const svc = new TrayService(deps)
     svc.start()
     expect(electronMock.Tray).toHaveBeenCalledTimes(1)
     expect(trayInstance.on).toHaveBeenCalledWith('click', expect.any(Function))
+    expect(trayInstance.on).toHaveBeenCalledWith('right-click', expect.any(Function))
     svc.stop()
   })
 
-  it('destroys the tray on stop()', () => {
+  it('destroys the tray and closes menu window on stop()', () => {
     const deps = makeDeps()
     const svc = new TrayService(deps)
     svc.start()
     svc.stop()
     expect(trayInstance.destroy).toHaveBeenCalled()
+    expect(menuWindowInstance.close).toHaveBeenCalled()
   })
 
   it('sets tooltip containing the variant appName', () => {
@@ -84,17 +106,6 @@ describe('TrayService', () => {
     const svc = new TrayService(deps)
     svc.start()
     expect(trayInstance.setToolTip).toHaveBeenCalledWith(expect.stringContaining('MomAI (Dev)'))
-    svc.stop()
-  })
-
-  it('builds a context menu with Abrir and Sair items', () => {
-    const deps = makeDeps()
-    const svc = new TrayService(deps)
-    svc.start()
-    const template = vi.mocked(electronMock.Menu.buildFromTemplate).mock.calls[0][0]
-    const labels = template.map((item: any) => item.label)
-    expect(labels).toContain('Abrir')
-    expect(labels).toContain('Sair')
     svc.stop()
   })
 
@@ -106,7 +117,7 @@ describe('TrayService', () => {
     svc.stop()
   })
 
-  it('on close with keepInTray=true: hides window and stops llama, does not call app.quit()', () => {
+  it('on close with keepInTray=true: hides window and stops llama', () => {
     const deps = makeDeps()
     const svc = new TrayService(deps)
     svc.start()
@@ -134,7 +145,7 @@ describe('TrayService', () => {
     svc.stop()
   })
 
-  it('on close when isQuitting=true: returns early, no preventDefault, no actions', () => {
+  it('on close when isQuitting=true: returns early', () => {
     const deps = makeDeps({ isQuitting: vi.fn(() => true) })
     const svc = new TrayService(deps)
     svc.start()
@@ -148,7 +159,7 @@ describe('TrayService', () => {
     svc.stop()
   })
 
-  it('on tray click when window is visible: hides and stops llama', () => {
+  it('on tray click when window is visible: hides menuWindow, hides window, and stops llama', () => {
     const deps = makeDeps({
       window: { ...makeDeps().window, isVisible: vi.fn(() => true) } as any
     })
@@ -156,12 +167,13 @@ describe('TrayService', () => {
     svc.start()
     const clickHandler = trayInstance.on.mock.calls.find((c: any) => c[0] === 'click')![1]
     clickHandler()
+    expect(menuWindowInstance.hide).toHaveBeenCalled()
     expect(deps.window.hide).toHaveBeenCalled()
     expect(deps.llama.stop).toHaveBeenCalled()
     svc.stop()
   })
 
-  it('on tray click when window is hidden: shows, focuses, and starts llama', () => {
+  it('on tray click when window is hidden: hides menuWindow, shows, focuses, and starts llama', () => {
     const deps = makeDeps({
       window: { ...makeDeps().window, isVisible: vi.fn(() => false) } as any
     })
@@ -169,33 +181,85 @@ describe('TrayService', () => {
     svc.start()
     const clickHandler = trayInstance.on.mock.calls.find((c: any) => c[0] === 'click')![1]
     clickHandler()
+    expect(menuWindowInstance.hide).toHaveBeenCalled()
     expect(deps.window.show).toHaveBeenCalled()
     expect(deps.window.focus).toHaveBeenCalled()
     expect(deps.llama.start).toHaveBeenCalled()
     svc.stop()
   })
 
-  it('"Abrir" menu item: shows, focuses, starts llama', () => {
+  it('right-click calls TrayMenuWindow.show() with state and does not call sendState separately', async () => {
     const deps = makeDeps()
     const svc = new TrayService(deps)
     svc.start()
-    const template = vi.mocked(electronMock.Menu.buildFromTemplate).mock.calls[0][0]
-    const abrir = template.find((item: any) => item.label === 'Abrir') as any
-    abrir.click()
-    expect(deps.window.show).toHaveBeenCalled()
-    expect(deps.window.focus).toHaveBeenCalled()
-    expect(deps.llama.start).toHaveBeenCalled()
+    const rightClickHandler = trayInstance.on.mock.calls.find(
+      (c: any) => c[0] === 'right-click'
+    )![1]
+    rightClickHandler()
+    await new Promise((resolve) => setTimeout(resolve))
+    expect(menuWindowInstance.show).toHaveBeenCalledWith(
+      trayInstance,
+      expect.objectContaining({ variantName: 'MomAI (Dev)' })
+    )
+    expect(menuWindowInstance.sendState).not.toHaveBeenCalled()
     svc.stop()
   })
 
-  it('"Sair" menu item: calls app.quit()', () => {
+  it('updates tooltip periodically via timer', () => {
+    vi.useFakeTimers()
     const deps = makeDeps()
     const svc = new TrayService(deps)
     svc.start()
-    const template = vi.mocked(electronMock.Menu.buildFromTemplate).mock.calls[0][0]
-    const sair = template.find((item: any) => item.label === 'Sair') as any
-    sair.click()
-    expect(electronMock.app.quit).toHaveBeenCalled()
+    const callsBefore = trayInstance.setToolTip.mock.calls.length
+    vi.advanceTimersByTime(3000)
+    expect(trayInstance.setToolTip.mock.calls.length).toBeGreaterThan(callsBefore)
     svc.stop()
+    vi.useRealTimers()
+  })
+
+  it('state timer sends state to menu window periodically', async () => {
+    vi.useFakeTimers()
+    const deps = makeDeps()
+    const svc = new TrayService(deps)
+    svc.start()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(menuWindowInstance.sendState).toHaveBeenCalledWith(
+      expect.objectContaining({ variantName: 'MomAI (Dev)' })
+    )
+    const callsBefore = menuWindowInstance.sendState.mock.calls.length
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(menuWindowInstance.sendState.mock.calls.length).toBeGreaterThan(callsBefore)
+    svc.stop()
+    vi.useRealTimers()
+  })
+
+  it('tooltip shows soneca countdown when economy is available', () => {
+    vi.useFakeTimers()
+    const mockEconomy = {
+      getTimeUntilNextSoneca: vi.fn(() => 120),
+      getState: vi.fn(() => ({ active: false, reason: null, detectedGames: [] }))
+    } as unknown as EconomyService
+    const deps = makeDeps({ getEconomy: () => mockEconomy })
+    const svc = new TrayService(deps)
+    svc.start()
+    vi.advanceTimersByTime(1000)
+    expect(trayInstance.setToolTip).toHaveBeenCalledWith(expect.stringContaining('soneca em'))
+    svc.stop()
+    vi.useRealTimers()
+  })
+
+  it('tooltip shows sleeping indicator when soneca is active', () => {
+    vi.useFakeTimers()
+    const mockEconomy = {
+      getTimeUntilNextSoneca: vi.fn(() => 0),
+      getState: vi.fn(() => ({ active: true, reason: 'idle', detectedGames: [] }))
+    } as unknown as EconomyService
+    const deps = makeDeps({ getEconomy: () => mockEconomy })
+    const svc = new TrayService(deps)
+    svc.start()
+    vi.advanceTimersByTime(1000)
+    expect(trayInstance.setToolTip).toHaveBeenCalledWith(expect.stringContaining('soneca ativa'))
+    svc.stop()
+    vi.useRealTimers()
   })
 })

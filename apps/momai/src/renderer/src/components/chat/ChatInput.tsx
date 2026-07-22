@@ -85,7 +85,8 @@ export default function ChatInput({
   const recordingRef = useRef(false)
   const historyNavIndexRef = useRef<number>(-1)
   const historyDraftRef = useRef<string>('')
-  const isBrainUnavailable = statusInfo ? !statusInfo.brain_ready || statusInfo.is_loading : false
+  const isBrainStopped = statusInfo ? !statusInfo.brain_ready && !statusInfo.is_loading : false
+  const isBrainLoadingOnly = statusInfo ? statusInfo.is_loading : false
   const pythonStatus = usePythonStatus()
 
   const {
@@ -239,7 +240,7 @@ export default function ChatInput({
   }, [isDropdownOpen])
 
   const handleSend = useCallback(() => {
-    const blocked = isLoading || isModeChanging || (isBrainUnavailable && !idleSonecaActive)
+    const blocked = isLoading || isModeChanging || isBrainLoadingOnly
     if (!localText.trim() || blocked) return
     addToHistory(localText)
     historyNavIndexRef.current = -1
@@ -251,8 +252,7 @@ export default function ChatInput({
     localText,
     isLoading,
     isModeChanging,
-    isBrainUnavailable,
-    idleSonecaActive,
+    isBrainLoadingOnly,
     addToHistory,
     clearSuggestion,
     onSend
@@ -561,7 +561,7 @@ export default function ChatInput({
                   disabled={
                     isLoading ||
                     isModeChanging ||
-                    (isBrainUnavailable && !idleSonecaActive) ||
+                    (isBrainStopped && !idleSonecaActive) ||
                     aiTier !== 'ultra' ||
                     !pythonStatus.online
                   }
@@ -610,9 +610,7 @@ export default function ChatInput({
                   type="button"
                   className="bg-transparent text-text-muted rounded-full w-8 h-8 flex items-center justify-center transition-all hover:scale-110 hover:text-text hover:bg-white/5 active:scale-90 disabled:opacity-40"
                   onClick={handleSend}
-                  disabled={
-                    isLoading || isModeChanging || (isBrainUnavailable && !idleSonecaActive)
-                  }
+                  disabled={isLoading || isModeChanging || isBrainLoadingOnly}
                   title="Enviar mensagem"
                 >
                   <PaperAirplaneIcon className="w-5 h-5" />

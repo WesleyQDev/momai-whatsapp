@@ -78,19 +78,30 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
 
     economyService.setIsWindowMinimized(() => {
       const win = getMainWindow()
-      return win ? win.isMinimized() : false
+      if (!win) return false
+      // Janela oculta (tray) ou minimizada = inativa para soneca
+      return win.isMinimized() || !win.isVisible()
     })
 
-    let windowMinimizedAt = 0
-    economyService.setWindowMinimizedSeconds(() => {
-      if (windowMinimizedAt === 0) return 0
-      return (Date.now() - windowMinimizedAt) / 1000
+    // Rastreamento de inatividade DENTRO do app (só reinicia se mexer na janela da MomAI)
+    let lastAppInteractionAt = Date.now()
+    economyService.setAppIdleSeconds(() => {
+      return (Date.now() - lastAppInteractionAt) / 1000
     })
-    const trackMinimize = () => {
-      windowMinimizedAt = Date.now()
+    const trackAppInteraction = () => {
+      lastAppInteractionAt = Date.now()
     }
-    const trackRestore = () => {
-      windowMinimizedAt = 0
+
+    let windowInactiveAt = 0
+    economyService.setWindowMinimizedSeconds(() => {
+      if (windowInactiveAt === 0) return 0
+      return (Date.now() - windowInactiveAt) / 1000
+    })
+    const trackInactive = () => {
+      windowInactiveAt = Date.now()
+    }
+    const trackActive = () => {
+      windowInactiveAt = 0
     }
 
     const win = getMainWindow()
@@ -98,14 +109,33 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
       if (windowListeners && windowListeners.win === win) {
         win.removeListener('minimize', windowListeners.onMinimize)
         win.removeListener('restore', windowListeners.onRestore)
+        win.removeListener('hide', windowListeners.onHide)
+        win.removeListener('show', windowListeners.onShow)
+        win.removeListener('focus', windowListeners.onFocus)
       } else if (windowListeners && windowListeners.win && !windowListeners.win.isDestroyed()) {
         windowListeners.win.removeListener('minimize', windowListeners.onMinimize)
         windowListeners.win.removeListener('restore', windowListeners.onRestore)
+        windowListeners.win.removeListener('hide', windowListeners.onHide)
+        windowListeners.win.removeListener('show', windowListeners.onShow)
+        windowListeners.win.removeListener('focus', windowListeners.onFocus)
       }
-      win.on('minimize', trackMinimize)
-      win.on('restore', trackRestore)
-      windowListeners = { win, onMinimize: trackMinimize, onRestore: trackRestore }
+      win.on('minimize', trackInactive)
+      win.on('restore', trackActive)
+      win.on('hide', trackInactive)
+      win.on('show', trackActive)
+      win.on('focus', trackAppInteraction)
+      windowListeners = {
+        win,
+        onMinimize: trackInactive,
+        onRestore: trackActive,
+        onHide: trackInactive,
+        onShow: trackActive,
+        onFocus: trackAppInteraction
+      }
     }
+
+    // Reseta contagem de interação se o app estiver ativo no momento do setup
+    trackAppInteraction()
 
     const [gamingRes, configRes] = await Promise.all([
       authFetch(`http://${apiHost}:${apiPort}/system/gaming-apps`),
@@ -133,13 +163,71 @@ async function startEconomyService(apiHost: string, apiPort: number): Promise<vo
       logger.warn('[CoreManager] Failed to load economy preferences:', err)
     }
 
+    ipcMain.handle('interaction:ping', () => {
+      trackAppInteraction()
+      return true
+    })
+
     ipcMain.handle('economy:dismiss', async () => {
       await economyService!.dismiss()
       return true
     })
 
+    ipcMain.handle('llama:start', async () => {
+      try {
+        await authFetch(`http://${apiHost}:${apiPort}/llama/start`, { method: 'POST' })
+        return true
+      } catch {
+        return false
+      }
+    })
+
     ipcMain.handle('economy:reinstate-sleep', async () => {
       economyService!.reinstateSleep()
+      return true
+    })
+
+    ipcMain.handle('tray:action-start', async () => {
+      try {
+        await authFetch(`http://${apiHost}:${apiPort}/llama/start`, { method: 'POST' })
+        return true
+      } catch {
+        return false
+      }
+    })
+
+    ipcMain.handle('tray:action-stop', async () => {
+      try {
+        await authFetch(`http://${apiHost}:${apiPort}/llama/stop`, { method: 'POST' })
+        return true
+      } catch {
+        return false
+      }
+    })
+
+    ipcMain.handle('tray:action-restart', async () => {
+      try {
+        await authFetch(`http://${apiHost}:${apiPort}/llama/stop`, { method: 'POST' })
+        await authFetch(`http://${apiHost}:${apiPort}/llama/start`, { method: 'POST' })
+        return true
+      } catch {
+        return false
+      }
+    })
+
+    ipcMain.handle('tray:action-open', () => {
+      const win = getMainWindow()
+      if (win) {
+        if (win.isMinimized()) win.restore()
+        win.show()
+        win.focus()
+        authFetch(`http://${apiHost}:${apiPort}/llama/start`, { method: 'POST' }).catch(() => {})
+      }
+      return true
+    })
+
+    ipcMain.handle('tray:action-quit', () => {
+      app.quit()
       return true
     })
 
@@ -156,10 +244,17 @@ let coreReadyPromise: Promise<void> | null = null
 let restartAttempts = 0
 let isStoppingCore = false
 let economyService: EconomyService | null = null
+
+export function getEconomyService(): EconomyService | null {
+  return economyService
+}
 let windowListeners: {
   win: ReturnType<typeof getMainWindow>
   onMinimize: () => void
   onRestore: () => void
+  onHide: () => void
+  onShow: () => void
+  onFocus: () => void
 } | null = null
 
 const LLAMA_LOG_NOISE_PATTERNS = [
@@ -964,10 +1059,13 @@ export async function shutdownCoreBackend(): Promise<void> {
   }
 
   if (windowListeners) {
-    const { win, onMinimize, onRestore } = windowListeners
+    const { win, onMinimize, onRestore, onHide, onShow, onFocus } = windowListeners
     if (win && !win.isDestroyed()) {
       win.removeListener('minimize', onMinimize)
       win.removeListener('restore', onRestore)
+      win.removeListener('hide', onHide)
+      win.removeListener('show', onShow)
+      win.removeListener('focus', onFocus)
     }
     windowListeners = null
   }

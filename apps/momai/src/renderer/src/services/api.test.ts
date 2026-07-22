@@ -230,9 +230,7 @@ describe('installExtension', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(installExtension('my-ext')).rejects.toThrow(
-      'Erro ao instalar extensão: HTTP 500'
-    )
+    await expect(installExtension('my-ext')).rejects.toThrow('Erro ao instalar extensão: HTTP 500')
     vi.unstubAllGlobals()
   })
 })

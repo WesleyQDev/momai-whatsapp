@@ -18,6 +18,7 @@ interface MessageListProps {
   speakingMessageId?: string | null
   statusInfo: StatusData | null
   ttsEnabled?: boolean
+  llmStarting?: boolean
 }
 
 const MessageList = memo(function MessageList({
@@ -35,7 +36,8 @@ const MessageList = memo(function MessageList({
   onRegenerateMessage,
   speakingMessageId = null,
   statusInfo,
-  ttsEnabled = false
+  ttsEnabled = false,
+  llmStarting = false
 }: MessageListProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const isAtBottomRef = useRef(true)
@@ -138,6 +140,7 @@ const MessageList = memo(function MessageList({
                   : () => onSendMessage(msg.content)
               }
               aiTier={statusInfo?.ai_tier || 'pro'}
+              llmStarting={llmStarting}
             />
           )
         })

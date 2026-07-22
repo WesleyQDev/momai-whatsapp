@@ -69,9 +69,7 @@ export function resolveRendererAssetPath(rootDir: string, requestPath: string): 
     const skillId = match[1]
     const filePath = match[2]
     if (!filePath.includes('..') && !filePath.includes('\\')) {
-      const candidates = [
-        join(app.getPath('userData'), 'data', 'extensions', skillId)
-      ]
+      const candidates = [join(app.getPath('userData'), 'data', 'extensions', skillId)]
       for (const dir of candidates) {
         const fullPath = join(dir, 'dist', filePath)
         if (existsSync(fullPath) && statSync(fullPath).isFile()) {

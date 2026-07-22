@@ -12,6 +12,9 @@ def include_routes():
     api_router.include_router(
         settings.router, dependencies=[Depends(verify_token)]
     )
+    # WebSocket route — não usa verify_token porque WebSocket não pode
+    # enviar header Authorization. A auth é feita via query token no handler.
+    api_router.include_router(voice.ws_router)
     # All other routes are auth-gated via the verify_token dependency.
     api_router.include_router(
         voice.router, dependencies=[Depends(verify_token)]

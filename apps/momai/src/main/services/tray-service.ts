@@ -1,9 +1,12 @@
-import { Tray, Menu, nativeImage, app } from 'electron'
+import { Tray, nativeImage, app } from 'electron'
 import type { BrowserWindow } from 'electron'
-import type { LlamaControl } from './llama-control'
+import type { LlamaControl, LlamaRuntimeStatus } from './llama-control'
 import type { KeepInTrayReader } from './keep-in-tray-reader'
 import type { VariantConfig } from '../variants'
+import type { EconomyService } from '../economyService'
 import { ICON_PATH } from '../constants'
+import { TrayMenuWindow } from './tray-menu-window'
+import type { TrayState } from './tray-menu-window'
 
 export interface TrayServiceDeps {
   window: BrowserWindow
@@ -11,11 +14,16 @@ export interface TrayServiceDeps {
   keepInTray: KeepInTrayReader
   isQuitting: () => boolean
   variant: VariantConfig
+  getEconomy?: () => EconomyService | null
 }
 
 export class TrayService {
   private tray: Tray | null = null
   private closeHandlerInstalled = false
+  private stateTimer: ReturnType<typeof setInterval> | null = null
+  private tooltipTimer: ReturnType<typeof setInterval> | null = null
+  private llamaStatus: LlamaRuntimeStatus = { running: false, ready: false, loading: false }
+  private menuWindow = new TrayMenuWindow()
 
   constructor(private readonly deps: TrayServiceDeps) {}
 
@@ -23,9 +31,26 @@ export class TrayService {
     if (this.tray) return
     this.createTrayIcon()
     this.installCloseHandler()
+
+    this.tooltipTimer = setInterval(() => {
+      this.updateTooltip()
+    }, 1000)
+
+    this.stateTimer = setInterval(() => {
+      this.updateState()
+    }, 1000)
   }
 
   stop(): void {
+    if (this.stateTimer) {
+      clearInterval(this.stateTimer)
+      this.stateTimer = null
+    }
+    if (this.tooltipTimer) {
+      clearInterval(this.tooltipTimer)
+      this.tooltipTimer = null
+    }
+    this.menuWindow.close()
     this.tray?.destroy()
     this.tray = null
   }
@@ -33,24 +58,74 @@ export class TrayService {
   private createTrayIcon(): void {
     const tray = new Tray(nativeImage.createFromPath(ICON_PATH))
     tray.setToolTip(this.deps.variant.appName)
-    tray.setContextMenu(this.buildContextMenu())
     tray.on('click', () => this.onTrayClick())
+    tray.on('right-click', () => this.onTrayRightClick())
     this.tray = tray
   }
 
-  private buildContextMenu(): Menu {
-    return Menu.buildFromTemplate([
-      {
-        label: 'Abrir',
-        click: () => this.showWindow()
-      },
-      {
-        label: 'Sair',
-        click: () => {
-          app.quit()
-        }
+  private onTrayRightClick(): void {
+    void this.deps.llama.getStatus().then((s) => {
+      this.llamaStatus = s
+      this.menuWindow.show(this.tray!, this.buildState())
+    })
+  }
+
+  private buildState(): TrayState {
+    const economy = this.deps.getEconomy?.()
+    let secondsUntilSoneca = -1
+    let economyActive = false
+    let economyReason: 'idle' | 'game' | null = null
+    if (economy) {
+      secondsUntilSoneca = economy.getTimeUntilNextSoneca()
+      const state = economy.getState()
+      economyActive = state.active
+      if (state.reason === 'idle') {
+        economyReason = 'idle'
+      } else if (state.reason === 'gaming') {
+        economyReason = 'game'
       }
-    ])
+    }
+    return {
+      llama: this.llamaStatus,
+      economy: { active: economyActive, reason: economyReason, secondsUntilSoneca },
+      variantName: this.deps.variant.appName
+    }
+  }
+
+  private updateState(): void {
+    void this.deps.llama.getStatus().then((s) => {
+      this.llamaStatus = s
+      this.menuWindow.sendState(this.buildState())
+    })
+  }
+
+  private updateTooltip(): void {
+    if (!this.tray) return
+
+    const s = this.llamaStatus
+    const name = this.deps.variant.appName
+
+    const economy = this.deps.getEconomy?.()
+    if (economy) {
+      const remaining = economy.getTimeUntilNextSoneca()
+      const state = economy.getState()
+
+      if (state.active && state.reason === 'idle') {
+        this.tray.setToolTip(`${name} — LLM parado · soneca ativa`)
+        return
+      }
+      if (remaining > 0) {
+        const min = Math.floor(remaining / 60)
+        const sec = remaining % 60
+        this.tray.setToolTip(
+          `${name} — LLM ${s.running ? 'ativo' : 'parado'} · soneca em ${min}min ${sec}s`
+        )
+        return
+      }
+    }
+
+    const status = s.loading ? 'iniciando' : s.running ? 'ativo' : 'parado'
+    this.tray.setToolTip(`${name} — LLM ${status}`)
   }
 
   private installCloseHandler(): void {
@@ -75,6 +150,7 @@ export class TrayService {
   }
 
   private onTrayClick(): void {
+    this.menuWindow.hide()
     if (this.deps.window.isVisible()) {
       this.deps.window.hide()
       void this.deps.llama.stop()

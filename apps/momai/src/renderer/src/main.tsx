@@ -18,6 +18,7 @@ import { HashRouter, Routes, Route } from 'react-router-dom'
 import App from './App'
 import OverlayView from './views/OverlayView'
 import ErrorBoundary from './components/ErrorBoundary'
+import TrayMenuView from './views/TrayMenuView'
 import { I18nProvider } from './i18n'
 
 createRoot(document.getElementById('root')!).render(
@@ -27,6 +28,7 @@ createRoot(document.getElementById('root')!).render(
         <HashRouter>
           <Routes>
             <Route path="/overlay" element={<OverlayView />} />
+            <Route path="/tray-menu" element={<TrayMenuView />} />
             <Route path="/*" element={<App />} />
           </Routes>
         </HashRouter>

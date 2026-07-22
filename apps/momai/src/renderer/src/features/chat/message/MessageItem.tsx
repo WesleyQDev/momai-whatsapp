@@ -56,6 +56,7 @@ interface MessageItemProps {
   onRetry?: () => void
   aiTier?: string | null
   ttsEnabled?: boolean
+  llmStarting?: boolean
 }
 
 const MessageItem = memo(
@@ -71,7 +72,8 @@ const MessageItem = memo(
     onDelete,
     onRetry,
     aiTier = 'pro',
-    ttsEnabled = false
+    ttsEnabled = false,
+    llmStarting = false
   }: MessageItemProps): JSX.Element {
     const { t } = useI18n()
 
@@ -282,7 +284,9 @@ const MessageItem = memo(
                                 '...'
                               : state.displayActivities.length > 0
                                 ? 'Executando...'
-                                : 'Pensando...'
+                                : llmStarting
+                                  ? 'Iniciando LLM...'
+                                  : 'Pensando...'
                           return (
                             <div className="flex items-center gap-1.5 mt-1 min-h-[16px]">
                               <span className="text-[13px] text-zinc-400 animate-pulse">

@@ -50,12 +50,19 @@ const ALLOWED_INVOKE_CHANNELS = new Set([
   'tts:get-config',
   'tts:update-config',
   'tts:is-speaking',
+  'tray:action-start',
+  'tray:action-stop',
+  'tray:action-restart',
+  'tray:action-open',
+  'tray:action-quit',
   'economy:get-state',
   'economy:get-catalog',
   'economy:scan-libraries',
   'economy:dismiss',
   'economy:reinstate-sleep',
   'economy:get-preferences',
+  'llama:start',
+  'interaction:ping',
   'economy:set-game-preference',
   'notes:list',
   'notes:get',
@@ -110,6 +117,7 @@ const ALLOWED_ON_CHANNELS = new Set([
   'python-status',
   'update-overlay-content',
   'overlay-closed',
+  'tray:state-update',
   'tts:speaking-start',
   'tts:speaking-end',
   'tts:error',
@@ -211,6 +219,8 @@ const momaiAPI = {
   getEconomyCatalog: (): Promise<any[]> => ipcRenderer.invoke('economy:get-catalog'),
   scanEconomyLibraries: (): Promise<any[]> => ipcRenderer.invoke('economy:scan-libraries'),
   dismissEconomy: (): Promise<boolean> => ipcRenderer.invoke('economy:dismiss'),
+  startLlama: (): Promise<boolean> => ipcRenderer.invoke('llama:start'),
+  reportInteraction: (): Promise<boolean> => ipcRenderer.invoke('interaction:ping'),
   reinstateEconomySleep: (): Promise<boolean> => ipcRenderer.invoke('economy:reinstate-sleep'),
   getEconomyPreferences: (): Promise<Record<string, boolean>> =>
     ipcRenderer.invoke('economy:get-preferences'),
@@ -338,6 +348,22 @@ const momaiAPI = {
   markAppReady: (): void => ipcRenderer.send('app-ready'),
   resetOnboarding: (): void => ipcRenderer.send('reset-onboarding'),
   markOverlayReady: (): void => ipcRenderer.send('overlay-ready'),
+  onTrayStateUpdate: (
+    callback: (state: {
+      llama: { running: boolean; loading: boolean; ready: boolean }
+      economy: { active: boolean; reason: 'idle' | 'game' | null; secondsUntilSoneca: number }
+      variantName: string
+    }) => void
+  ) => {
+    const handler = (_: any, state: any) => callback(state)
+    ipcRenderer.on('tray:state-update', handler)
+    return () => ipcRenderer.removeListener('tray:state-update', handler)
+  },
+  trayActionStart: (): Promise<boolean> => ipcRenderer.invoke('tray:action-start'),
+  trayActionStop: (): Promise<boolean> => ipcRenderer.invoke('tray:action-stop'),
+  trayActionRestart: (): Promise<boolean> => ipcRenderer.invoke('tray:action-restart'),
+  trayActionOpen: (): Promise<boolean> => ipcRenderer.invoke('tray:action-open'),
+  trayActionQuit: (): Promise<boolean> => ipcRenderer.invoke('tray:action-quit'),
   // Generic IPC helpers for renderer code that uses dynamic channels
   // (e.g., ttsService subscribes to 'tts:speaking-start', etc.). Every
   // channel is validated against an allowlist before being forwarded.

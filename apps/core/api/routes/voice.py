@@ -10,9 +10,13 @@ logger = logging.getLogger("momai.api.voice")
 
 
 router = APIRouter(prefix="/voice", tags=["voice"])
+# Router separado para WebSocket — não herda verify_token do router principal,
+# pois WebSocket não pode enviar header Authorization como HTTP.
+# A autenticação é feita via verify_ws_token com query param dentro do handler.
+ws_router = APIRouter(prefix="/voice", tags=["voice"])
 
 
-@router.websocket("/ws")
+@ws_router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     import app_state
 

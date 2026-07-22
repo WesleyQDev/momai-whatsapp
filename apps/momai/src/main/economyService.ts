@@ -61,6 +61,7 @@ export class EconomyService {
   private getSystemIdleTime: () => number = () => 0
   private isWindowMinimized: () => boolean = () => false
   private getWindowMinimizedSeconds: () => number = () => 0
+  private getAppIdleSeconds: () => number = () => 0
 
   private idleTimeoutAppOpen = 5
   private idleTimeoutMinimized = 1
@@ -110,6 +111,23 @@ export class EconomyService {
   getState(): EconomyState {
     return { ...this.currentState }
   }
+  /** Retorna segundos restantes até ativar soneca, 0 se já ativa, -1 se desligada. */
+  getTimeUntilNextSoneca(): number {
+    const minimized = this.isWindowMinimized()
+
+    const timeoutMinutes = minimized ? this.idleTimeoutMinimized : this.idleTimeoutAppOpen
+    if (timeoutMinutes <= 0) return -1
+    if (this.currentState.active && this.currentState.reason === 'idle') return 0
+
+    if (minimized) {
+      return Math.max(0, Math.ceil(timeoutMinutes * 60 - this.getWindowMinimizedSeconds()))
+    }
+
+    // Janela visível: usa inatividade do app (só conta se não mexer na MomAI)
+    const appIdle = this.getAppIdleSeconds()
+    const elapsedSeconds = appIdle > 0 ? appIdle : this.getSystemIdleTime()
+    return Math.max(0, Math.ceil(timeoutMinutes * 60 - elapsedSeconds))
+  }
 
   setGamingApps(apps: GamingApp[]): void {
     this.gamingApps = apps
@@ -141,6 +159,10 @@ export class EconomyService {
 
   setWindowMinimizedSeconds(fn: () => number): void {
     this.getWindowMinimizedSeconds = fn
+  }
+
+  setAppIdleSeconds(fn: () => number): void {
+    this.getAppIdleSeconds = fn
   }
 
   setIdleTimeouts(appOpen: number, minimized: number): void {
@@ -290,7 +312,15 @@ export class EconomyService {
     const timeoutMinutes = minimized ? this.idleTimeoutMinimized : this.idleTimeoutAppOpen
     if (timeoutMinutes <= 0) return false
 
-    const elapsedSeconds = minimized ? this.getWindowMinimizedSeconds() : this.getSystemIdleTime()
+    // Janela minimizada/oculta: conta tempo desde que foi escondida
+    if (minimized) {
+      return this.getWindowMinimizedSeconds() >= timeoutMinutes * 60
+    }
+
+    // Janela visível: usa inatividade DENTRO do app (só reinicia se mexer na MomAI)
+    const appIdle = this.getAppIdleSeconds()
+    // Fallback: se appIdle for 0 (ainda sem interação registrada), usa system idle
+    const elapsedSeconds = appIdle > 0 ? appIdle : this.getSystemIdleTime()
 
     return elapsedSeconds >= timeoutMinutes * 60
   }

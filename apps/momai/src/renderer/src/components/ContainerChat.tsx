@@ -199,11 +199,23 @@ export default function ContainerChat({
   } | null>(null)
 
   const [localDismissed, setLocalDismissed] = useState(false)
-  const [wakingFromSoneca, setWakingFromSoneca] = useState(false)
+  const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
+  const isBrainReady = statusInfo?.brain_ready ?? false
+  const isBrainLoading = statusInfo?.is_loading ?? false
+  const isIdleSoneca = !!economyState?.active && economyState.detectedGames.length === 0
 
+  // Reporta interação do usuário com o app pro main process
+  // (pra soneca não reiniciar quando usa outros programas)
   useEffect(() => {
-    if (!economyState?.active) setWakingFromSoneca(false)
-  }, [economyState])
+    const report = () => (window as any).api?.reportInteraction?.()
+    const opts = { capture: true, passive: true }
+    document.addEventListener('mousedown', report, opts)
+    document.addEventListener('keydown', report, opts)
+    return () => {
+      document.removeEventListener('mousedown', report, opts)
+      document.removeEventListener('keydown', report, opts)
+    }
+  }, [])
 
   useEffect(() => {
     const cleanup = (window as any).api?.onEconomyStateChange?.(
@@ -217,21 +229,22 @@ export default function ContainerChat({
     )
     return () => cleanup?.()
   }, [])
-  const [localSessionTitle, setLocalSessionTitle] = useState<string | null>(null)
-  const isBrainReady = statusInfo?.brain_ready ?? false
-  const isBrainLoading = statusInfo?.is_loading ?? false
-  const isIdleSoneca = !!economyState?.active && economyState.detectedGames.length === 0
+
+  const llmStarting = !isBrainReady && !isBrainLoading
 
   const handleSendDuringSoneca = useCallback(
     (content?: string) => {
       if (content === undefined) return
-      if (isIdleSoneca && !isBrainReady) {
-        setWakingFromSoneca(true)
-        ;(window as any).api?.dismissEconomy?.().catch(() => {})
+      if (llmStarting) {
+        if (isIdleSoneca) {
+          ;(window as any).api?.dismissEconomy?.().catch(() => {})
+        } else {
+          ;(window as any).api?.startLlama?.().catch(() => {})
+        }
       }
       onSendMessage(content)
     },
-    [isIdleSoneca, isBrainReady, onSendMessage]
+    [llmStarting, isIdleSoneca, onSendMessage]
   )
   const isSystemDone = initProgress >= 100 && !isBooting
 
@@ -559,6 +572,7 @@ export default function ContainerChat({
                     speakingMessageId={speakingMessageId}
                     statusInfo={statusInfo}
                     ttsEnabled={settings?.tts_enabled ?? false}
+                    llmStarting={llmStarting}
                   />
                 )}
               </div>
@@ -590,12 +604,6 @@ export default function ContainerChat({
 
             {/* Fixed Input Area */}
             <div className="w-full max-w-3xl mx-auto z-30 pb-2">
-              {wakingFromSoneca && (
-                <div className="flex items-center justify-center gap-2 mb-2 animate-in fade-in slide-in-from-bottom-1 duration-300">
-                  <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                  <span className="text-xs font-medium text-accent">Saindo do modo soneca...</span>
-                </div>
-              )}
               <ChatInput
                 text={text}
                 onSend={handleSendDuringSoneca}

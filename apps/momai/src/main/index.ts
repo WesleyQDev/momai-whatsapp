@@ -12,7 +12,8 @@ import {
   shutdownCoreBackend,
   ensurePythonSidecar,
   forceKillAllSync,
-  stopActiveServices
+  stopActiveServices,
+  getEconomyService
 } from './coreManager'
 import { logger, getLogsPath, getMainLogPath } from './logger'
 import { setupUpdater } from './updater'
@@ -291,10 +292,11 @@ app.whenReady().then(async () => {
   if (mainWindow) {
     const trayService = new TrayService({
       window: mainWindow,
-      llama: new HttpLlamaControl(),
+      llama: new HttpLlamaControl(CURRENT_VARIANT.llamaPort),
       keepInTray: new FileKeepInTrayReader(),
       isQuitting: () => state.isQuitting,
-      variant: CURRENT_VARIANT
+      variant: CURRENT_VARIANT,
+      getEconomy: getEconomyService
     })
     trayService.start()
   }
