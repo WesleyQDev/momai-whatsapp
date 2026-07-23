@@ -189,6 +189,7 @@ function getThreadMessages(store, threadId) {
 function listSessions(store) {
   const out = []
   for (const [threadId, msgs] of Object.entries(store.thread_messages)) {
+    if (msgs.length === 0) continue
     const last = msgs[msgs.length - 1]
     const firstUser = msgs.find((m) => m.role === 'user')
     out.push({
