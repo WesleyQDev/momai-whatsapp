@@ -240,7 +240,7 @@ export function useChat() {
                 ...msg,
                 content: message,
                 toolSteps: nextSteps,
-                structuredResponse: detail.structuredResponse || msg.structuredResponse
+                structuredResponses: detail.structuredResponses || msg.structuredResponses
               }
             })
         })

@@ -46,6 +46,7 @@ const NOTES_INDEX_FILE = path.join(NOTES_DIR, '.index.json')
 const SEMANTIC_DIR = path.join(DATA_DIR, 'semantic')
 const SEMANTIC_DB_DIR = path.join(SEMANTIC_DIR, 'lancedb')
 const CACHE_DIR = path.join(DATA_DIR, 'cache')
+const MEMORIES_DIR = path.join(DATA_DIR, 'memories')
 const METRICS_FILE = path.join(CACHE_DIR, 'observability-metrics.json')
 const PROMPTS_DIR = path.resolve(__dirname, '..', '..', '..', 'prompts')
 
@@ -91,6 +92,7 @@ module.exports = {
   SEMANTIC_DIR,
   SEMANTIC_DB_DIR,
   CACHE_DIR,
+  MEMORIES_DIR,
   METRICS_FILE,
   PROMPTS_DIR,
   MAX_EMBEDDING_CACHE_SIZE,

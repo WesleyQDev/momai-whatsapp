@@ -88,15 +88,14 @@ function parseSkillMarkdown(filePath) {
 }
 
 function normalizeSkillRecord({ id, kind, parsed, runtime, dir }) {
-  const tools = Array.isArray(runtime?.tools)
-    ? runtime.tools
-        .filter((t) => t && t.name)
-        .map((t) => ({
-          name: String(t.name),
-          description: String(t.description || ''),
-          parameters: t.parameters
-        }))
-    : []
+  const rawTools = Array.isArray(runtime?.tools) ? runtime.tools : (Array.isArray(parsed.frontmatter.tools) ? parsed.frontmatter.tools : [])
+  const tools = rawTools
+    .filter((t) => t && t.name)
+    .map((t) => ({
+      name: String(t.name),
+      description: String(t.description || ''),
+      parameters: t.parameters
+    }))
 
   let entries
   try {
@@ -224,7 +223,8 @@ async function loadSkillFromDir({ dir, kind, expectedId }) {
             author: manifestObj.author || null,
             version: manifestObj.version || null,
             tags: manifestObj.tags || [],
-            permissions: manifestObj.permissions || []
+            permissions: manifestObj.permissions || [],
+            tools: manifestObj.tools || []
           }
         },
         runtime: null,
@@ -648,6 +648,34 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     }))
   }
 
+  function executeMetaTool(toolName, args) {
+    if (toolName === 'list_skills') {
+      const query = String(args?.query || '').trim()
+      if (!query) return 'Use a query to search for skills (e.g., "weather", "launcher").'
+      const results = discoverTopN(query, 5)
+      if (results.length === 0) return `No skills found for "${query}".`
+      return results
+        .map((r) => `- ${r.id}: ${(r.description || '').slice(0, 100)}`)
+        .join('\n')
+    }
+    if (toolName === 'request_skill') {
+      const skillName = String(args?.skill_name || '').trim()
+      const skill = getById(skillName)
+      if (!skill) {
+        return JSON.stringify({
+          error: `Skill '${skillName}' not found. Use list_skills to see available skills.`
+        })
+      }
+      const tools = skill.manifest?.tools || []
+      if (tools.length === 0) return `Skill '${skillName}' is loaded but has no specific tools.`
+      return `Skill '${skillName}' loaded. Available tools: ${tools.map((t) => t.name).join(', ')}.`
+    }
+    if (toolName === 'memory') {
+      return 'Memory tool available. Actions: add, delete, list. Targets: user, knowledge. (Executed at chat-service level)'
+    }
+    throw new Error(`Unknown meta-tool: ${toolName}`)
+  }
+
   let _toolsCache = null
   let _toolsCacheGeneration = 0
 
@@ -658,6 +686,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
 
     const skills = skillIds ? getEnabled().filter((s) => skillIds.includes(s.id)) : getEnabled()
     const functions = []
+    const toolToSkillMap = new Map()
 
     for (const skill of skills) {
       const tools = skill.manifest.tools || []
@@ -679,6 +708,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
             }
           }
         })
+        toolToSkillMap.set(skill.id, skill.id)
         continue
       }
 
@@ -687,7 +717,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
           type: 'function',
           function: {
             name: tool.name,
-            description: `${tool.description}\n\nSkill: ${skill.manifest.name}`,
+            description: tool.description,
             parameters: tool.parameters || {
               type: 'object',
               properties: {
@@ -700,12 +730,13 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
             }
           }
         })
+        toolToSkillMap.set(tool.name, skill.id)
       }
     }
 
     _toolsCache = functions
     _toolsCacheGeneration = _skillsGeneration
-    return functions
+    return { tools: functions, toolToSkillMap }
   }
 
   function buildUseSkillTool(skills) {
@@ -745,6 +776,7 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     discoverTopN,
     execute,
     executeHook,
+    executeMetaTool,
     getSkillsWithHook,
     toListPayload,
     toOpenAITools,

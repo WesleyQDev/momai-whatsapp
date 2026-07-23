@@ -84,7 +84,7 @@ export interface Message {
   cards?: Card[]
   toolSteps?: any[]
   activeSkill?: string
-  structuredResponse?: StructuredResponse
+  structuredResponses?: StructuredResponse[]
 }
 
 export interface StatusData {
@@ -122,7 +122,7 @@ export interface ChatStreamCallbacks {
   onCards?: (cards: Card[]) => void
   onToolSteps?: (steps: any[]) => void
   onActiveSkill?: (skillName: string) => void
-  onStructuredResponse?: (response: StructuredResponse) => void
+  onStructuredResponses?: (responses: StructuredResponse[]) => void
 }
 
 export interface ChatMessageOptions {
@@ -220,8 +220,10 @@ export async function sendChatMessage(
             callbacks.onActiveSkill(data.active_skill)
           }
 
-          if (data.structured_response && callbacks.onStructuredResponse) {
-            callbacks.onStructuredResponse(data.structured_response)
+          if (data.structured_responses && callbacks.onStructuredResponses) {
+            callbacks.onStructuredResponses(data.structured_responses)
+          } else if (data.structured_response && callbacks.onStructuredResponses) {
+            callbacks.onStructuredResponses([data.structured_response])
           }
 
           if (data.error) {

@@ -6,7 +6,8 @@ const {
   buildToolResultPreview,
   pickToolSkillIds,
   shouldPreferSilentForCodeRequest,
-  containsCodeLikeContent
+  containsCodeLikeContent,
+  estimateToolTokens
 } = _testExports
 
 describe('chat-skills-utils', () => {
@@ -83,8 +84,7 @@ describe('chat-skills-utils', () => {
       const result = pickToolSkillIds({
         discoveredSkillIds: ['a', 'b', 'c'],
         routedSkillId: null,
-        topScores: { a: 0.5, b: 0.9, c: 0.7 },
-        maxSkills: 5
+        topScores: { a: 0.5, b: 0.9, c: 0.7 }
       })
       expect(result).toEqual(['b', 'c', 'a'])
     })
@@ -96,27 +96,48 @@ describe('chat-skills-utils', () => {
         topScores: { a: 0.5, b: 0.9, c: 0.7 }
       })
       expect(result[0]).toBe('x')
-      expect(result.length).toBeLessThanOrEqual(2)
+      expect(result.length).toBeGreaterThan(0)
     })
 
-    it('respects maxSkills', () => {
+    it('includes activeSkillIds in result', () => {
       const result = pickToolSkillIds({
-        discoveredSkillIds: ['a', 'b', 'c', 'd', 'e'],
+        discoveredSkillIds: ['a', 'b'],
         routedSkillId: null,
-        topScores: { a: 0.5, b: 0.9, c: 0.7, d: 0.6, e: 0.4 },
-        maxSkills: 2
+        topScores: { a: 0.5, b: 0.9 },
+        activeSkillIds: ['c', 'd']
       })
-      expect(result).toHaveLength(2)
+      expect(result).toContain('c')
+      expect(result).toContain('d')
     })
 
     it('deduplicates', () => {
       const result = pickToolSkillIds({
         discoveredSkillIds: ['a', 'b', 'c', 'a'],
         routedSkillId: null,
-        topScores: { a: 0.5, b: 0.9 },
-        maxSkills: 4
+        topScores: { a: 0.5, b: 0.9 }
       })
       expect(new Set(result).size).toBe(result.length)
+    })
+  })
+
+  describe('estimateToolTokens', () => {
+    it('estimates tokens for a simple tool definition', () => {
+      const result = estimateToolTokens({
+        type: 'function',
+        function: {
+          name: 'test_tool',
+          description: 'A test tool',
+          parameters: {
+            type: 'object',
+            properties: {
+              input: { type: 'string' }
+            },
+            required: ['input']
+          }
+        }
+      })
+      expect(typeof result).toBe('number')
+      expect(result).toBeGreaterThan(0)
     })
   })
 

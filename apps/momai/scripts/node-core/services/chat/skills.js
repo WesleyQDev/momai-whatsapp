@@ -25,19 +25,32 @@ function buildToolResultPreview(result) {
   return ''
 }
 
-function pickToolSkillIds({ discoveredSkillIds, routedSkillId, topScores, maxSkills = 2 }) {
-  const ranked = [...new Set(discoveredSkillIds)]
+function estimateToolTokens(toolDef) {
+  try {
+    const json = JSON.stringify(toolDef)
+    return Math.ceil(json.length / 3)
+  } catch {
+    return 50
+  }
+}
+
+function pickToolSkillIds({ discoveredSkillIds, routedSkillId, topScores, activeSkillIds }) {
+  const allIds = new Set([
+    ...(activeSkillIds || []),
+    ...discoveredSkillIds
+  ])
+
+  const ranked = [...allIds]
     .map((id) => ({ id, score: Number(topScores?.[id] || 0) }))
     .sort((a, b) => b.score - a.score)
     .map((x) => x.id)
 
-  if (!routedSkillId) return ranked.slice(0, maxSkills)
+  if (!routedSkillId) return ranked
 
   const out = [routedSkillId]
   for (const id of ranked) {
     if (id === routedSkillId) continue
     out.push(id)
-    if (out.length >= maxSkills) break
   }
   return out
 }
@@ -46,5 +59,6 @@ module.exports = {
   shouldExposeSkillTools,
   normalizeDiscoveryText,
   buildToolResultPreview,
+  estimateToolTokens,
   pickToolSkillIds
 }

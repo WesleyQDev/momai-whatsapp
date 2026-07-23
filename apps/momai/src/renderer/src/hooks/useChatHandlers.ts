@@ -587,7 +587,7 @@ export function useChatHandlers({
               if (lastIdx >= 0) {
                 updated[lastIdx] = {
                   ...updated[lastIdx],
-                  structuredResponse: data.structured_response
+                  structuredResponses: data.structured_responses || (data.structured_response ? [data.structured_response] : updated[lastIdx].structuredResponses)
                 }
               }
               return updated

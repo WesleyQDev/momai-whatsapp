@@ -1,5 +1,6 @@
 import { Settings, LocalDetails } from '../../../../hooks/useSettingsCard'
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
+import { api } from '../../../../services/api'
 
 interface BrainTabProps {
   t: any
@@ -115,6 +116,44 @@ export const BrainTab = React.memo(
       settings.ai_tier === 'ultra' ? 3.8 : settings.ai_tier === 'pro' ? 2.2 : 1.3
     const estimatedTotalGb = estimatedModelGb + estimatedCtxGb
 
+    const [memoryFiles, setMemoryFiles] = useState<Record<string, string>>({})
+    const [savingFile, setSavingFile] = useState<string | null>(null)
+
+    const loadMemoryFile = async (name: string) => {
+      try {
+        const res = await api.get(`/memories/${name}`)
+        if (res.data?.content !== undefined) {
+          setMemoryFiles((prev) => ({ ...prev, [name]: res.data.content }))
+        }
+      } catch { /* ignore */ }
+    }
+
+    const saveMemoryFile = async (name: string) => {
+      setSavingFile(name)
+      try {
+        await api.patch(`/memories/${name}`, { content: memoryFiles[name] || '' })
+      } catch (e) {
+        console.error('Error saving memory file:', e)
+      } finally {
+        setSavingFile(null)
+      }
+    }
+
+    useEffect(() => {
+      loadMemoryFile('usuario')
+      loadMemoryFile('persona')
+      loadMemoryFile('conhecimento')
+    }, [])
+
+    /* Sync context_window_tokens to hardware-calculated value when mode is auto */
+    useEffect(() => {
+      if (currentMode === 'custom') return
+      const expected = modeTokens[currentMode]
+      if (expected && expected !== currentTokens && (vramGb > 0 || ramGb > 0)) {
+        updateField('context_window_tokens', expected, true)
+      }
+    }, [vramGb, ramGb, currentMode])
+
     return (
       <div className="space-y-5">
         <div className="flex items-center justify-between border-b border-border/40 pb-3">
@@ -135,18 +174,53 @@ export const BrainTab = React.memo(
         </div>
 
         <div className="space-y-4">
-          {/* Persona Section */}
+          {/* Memory Section */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wide">
-              {t('settings.general.personaLabel')}
+            <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wide mb-3 block">
+              Memória Persistente
             </label>
-            <textarea
-              value={settings.assistant_persona}
-              onChange={(e) => updateField('assistant_persona', e.target.value)}
-              onBlur={() => saveSettings(settings)}
-              className="w-full h-28 bg-input border border-border/60 rounded-lg px-3 py-2.5 text-xs text-text focus:border-accent/40 outline-none resize-none transition-all leading-relaxed placeholder:text-text-muted/30"
-              placeholder={t('settings.general.personaPlaceholder')}
-            />
+            {[
+              { key: 'usuario', label: 'Usuário', desc: 'Preferências e dados pessoais' },
+              { key: 'persona', label: 'Persona', desc: 'Identidade e tom da MomAI' },
+              { key: 'conhecimento', label: 'Conhecimento', desc: 'Fatos aprendidos pela IA' }
+            ].map(({ key, label, desc }) => (
+              <div key={key} className="mb-3">
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <span className="text-xs font-semibold text-text">{label}</span>
+                    <span className="text-[10px] text-text-muted ml-2">{desc}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-medium tabular-nums ${(memoryFiles[key] || '').length > 2100 ? 'text-red-400' : 'text-text-muted'}`}>
+                      {(memoryFiles[key] || '').length}/2200
+                    </span>
+                    <button
+                      onClick={() => saveMemoryFile(key)}
+                      disabled={savingFile === key}
+                      className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors disabled:opacity-50"
+                    >
+                      {savingFile === key ? 'Salvando...' : 'Salvar'}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await api.delete(`/memories/${key}`)
+                        loadMemoryFile(key)
+                      }}
+                      className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide bg-white/5 border border-border/40 text-text-muted hover:text-red-400 hover:border-red-400/30 transition-colors"
+                      title="Resetar para o padrão"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  value={memoryFiles[key] || ''}
+                  onChange={(e) => setMemoryFiles((prev) => ({ ...prev, [key]: e.target.value }))}
+                  className="w-full h-20 bg-input border border-border/60 rounded-lg px-3 py-2 text-xs text-text focus:border-accent/40 outline-none resize-none transition-all font-mono leading-relaxed placeholder:text-text-muted/30"
+                  placeholder={`# ${label}\nFatos...`}
+                />
+              </div>
+            ))}
           </div>
 
           {/* Modelo Ativo */}

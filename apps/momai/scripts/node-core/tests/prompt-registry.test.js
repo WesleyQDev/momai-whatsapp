@@ -1,0 +1,136 @@
+const path = require('node:path')
+const fs = require('node:fs')
+const os = require('node:os')
+const { createPromptRegistry } = require('../../prompt-registry')
+
+describe('prompt-registry (refactored)', () => {
+  let promptsDir
+  let tmpDir
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prompt-registry-test-'))
+    promptsDir = path.join(tmpDir, 'prompts')
+    fs.mkdirSync(promptsDir, { recursive: true })
+    fs.writeFileSync(path.join(promptsDir, 'prompts.json'), JSON.stringify({
+      version: 'test',
+      default_persona: 'You are MomAI test.',
+      default_style: 'balanced',
+      system_template: '{{stable_tier}}\n\n{{context_tier}}\n\n{{volatile_tier}}',
+      tiers: {
+        pro: {
+          response_style: 'balanced',
+          tier_instructions: 'Be direct.'
+        }
+      },
+      fallback_replies: {
+        default: 'Fallback: {{summary}}.'
+      }
+    }), 'utf8')
+  })
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  describe('buildStableTier', () => {
+    it('returns stable prompt with persona and rules', () => {
+      const reg = createPromptRegistry({ promptsDir })
+      const result = reg.buildStableTier({
+        userName: 'TestUser',
+        persona: 'You are MomAI custom.',
+        responseStyle: 'balanced',
+        tier: 'pro'
+      })
+      expect(result).toContain('You are MomAI')
+      expect(result).toContain('TestUser')
+      expect(result).toContain('Be direct')
+      expect(result).not.toContain('<')
+      expect(result).not.toContain('max_sentences')
+      expect(result).not.toContain('Greet')
+    })
+  })
+
+  describe('buildContextTier', () => {
+    it('returns empty when no memories directory', () => {
+      const reg = createPromptRegistry({ promptsDir })
+      const result = reg.buildContextTier({ memoriesDir: path.join(tmpDir, 'nonexistent') })
+      expect(result.trim()).toBe('')
+    })
+
+    it('formats memory files with bullets', () => {
+      const memoriesDir = path.join(tmpDir, 'memories')
+      fs.mkdirSync(memoriesDir, { recursive: true })
+      fs.writeFileSync(path.join(memoriesDir, 'usuario.md'), 'gosta de tecnologia\n§\nprefere resposta curta', 'utf8')
+      fs.writeFileSync(path.join(memoriesDir, 'persona.md'), 'MomAI é assistente pessoal', 'utf8')
+      fs.writeFileSync(path.join(memoriesDir, 'conhecimento.md'), 'Python é usado para IA', 'utf8')
+
+      const reg = createPromptRegistry({ promptsDir })
+      const result = reg.buildContextTier({ memoriesDir })
+      expect(result).toContain('-- User Profile --')
+      expect(result).toContain('- gosta de tecnologia')
+      expect(result).toContain('- prefere resposta curta')
+      expect(result).toContain('-- MomAI Identity --')
+      expect(result).toContain('MomAI é assistente pessoal')
+      expect(result).toContain('-- Known Facts --')
+      expect(result).toContain('Python é usado para IA')
+      expect(result).not.toContain('§')
+    })
+  })
+
+  describe('buildVolatileTier', () => {
+    it('returns session info and greeting policy', () => {
+      const reg = createPromptRegistry({ promptsDir })
+      const result = reg.buildVolatileTier({
+        threadId: 'test-123',
+        modelName: 'Qwen3.5-4B',
+        tier: 'pro',
+        locale: 'pt-BR',
+        hasHistory: false
+      })
+      expect(result).toContain('test-123')
+      expect(result).toContain('Qwen3.5-4B')
+      expect(result).toContain('pt-BR')
+      expect(result).toContain('greet naturally')
+    })
+
+    it('uses different greeting for ongoing conversation', () => {
+      const reg = createPromptRegistry({ promptsDir })
+      const result = reg.buildVolatileTier({
+        threadId: 'test-456',
+        modelName: 'Qwen3.5-4B',
+        tier: 'pro',
+        locale: 'pt-BR',
+        hasHistory: true
+      })
+      expect(result).toContain('Continue')
+      expect(result).not.toContain('greet')
+    })
+  })
+
+  describe('buildSystemPrompt cache', () => {
+    it('caches stable+context across calls with same sessionKey', () => {
+      const reg = createPromptRegistry({ promptsDir })
+      const input = {
+        tier: 'pro',
+        userName: 'User',
+        persona: 'You are MomAI.',
+        memoryContext: '',
+        toolInstruction: '',
+        responseStyle: 'balanced',
+        responseLanguage: 'pt-BR',
+        hasHistory: false
+      }
+      const r1 = reg.buildSystemPrompt(input)
+      const r2 = reg.buildSystemPrompt(input)
+      // Stable content (before volatile tier) should be identical — proves cache hit
+      const stablePortion1 = r1.split('Conversation:')[0]
+      const stablePortion2 = r2.split('Conversation:')[0]
+      expect(stablePortion1).toBe(stablePortion2)
+      // Both have full content including rebuilt volatile/clock
+      expect(r1).toContain('# RUNTIME CLOCK')
+      expect(r2).toContain('# RUNTIME CLOCK')
+      // Timestamps differ (volatile rebuilt each call)
+      expect(r1).not.toBe(r2)
+    })
+  })
+})

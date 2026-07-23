@@ -322,9 +322,9 @@ const MessageItem = memo(
                   )}
 
                   {/* Structured Response */}
-                  {isLastPart && message.structuredResponse && (
+                  {isLastPart && message.structuredResponses && message.structuredResponses.length > 0 && (
                     <StructuredResponse
-                      response={message.structuredResponse}
+                      responses={message.structuredResponses}
                       isSpeaking={isSpeaking}
                     />
                   )}
@@ -464,7 +464,7 @@ const MessageItem = memo(
       prev.message.sources === next.message.sources &&
       prev.message.snippets === next.message.snippets &&
       prev.message.cards === next.message.cards &&
-      prev.message.structuredResponse === next.message.structuredResponse &&
+      prev.message.structuredResponses === next.message.structuredResponses &&
       prev.isSpeaking === next.isSpeaking &&
       prev.isLoading === next.isLoading
     )

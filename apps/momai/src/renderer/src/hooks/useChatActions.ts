@@ -314,12 +314,12 @@ export function useChatActions({
                   last.role === 'assistant' ? { ...last, activeSkill: skillName } : last
               })
             },
-            onStructuredResponse: (response) => {
+            onStructuredResponses: (responses) => {
               if (currentThreadRef.current !== messageThreadId) return
               dispatch({
                 type: 'UPDATE_LAST_MESSAGE',
                 updater: (last) =>
-                  last.role === 'assistant' ? { ...last, structuredResponse: response } : last
+                  last.role === 'assistant' ? { ...last, structuredResponses: responses } : last
               })
             },
             onDone: () => {

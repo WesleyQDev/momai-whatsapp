@@ -33,8 +33,8 @@ vi.mock('./components/MessageHeader', () => ({
 }))
 
 vi.mock('./components/StructuredResponse', () => ({
-  StructuredResponse: ({ response }: any) => (
-    <div data-testid="structured-response">{response.type}</div>
+  StructuredResponse: ({ responses }: any) => (
+    <div data-testid="structured-response">{responses?.[0]?.type}</div>
   )
 }))
 
@@ -221,7 +221,7 @@ describe('MessageItem', () => {
     render(
       <MessageItem
         {...defaultProps}
-        message={{ role: 'assistant', content: 'some text', structuredResponse }}
+        message={{ role: 'assistant', content: 'some text', structuredResponses: [structuredResponse] }}
       />
     )
 

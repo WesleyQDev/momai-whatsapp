@@ -1,6 +1,9 @@
 const path = require('node:path')
+const fs = require('node:fs')
 const { filterToEditableSettings } = require('../../config/settings-allowlist.js')
 const { getEffectiveDevMode } = require('../../utils/install-registry.js')
+const { MEMORIES_DIR } = require('../../config/constants')
+const { createMemoryFS } = require('../../infrastructure/memory-fs')
 
 function createSettingsRoutes(context) {
   const {
@@ -272,6 +275,49 @@ function createSettingsRoutes(context) {
     if (pathname === '/mode/call-mode/status' && req.method === 'GET') {
       sendJson(res, 200, { call_mode: Boolean(store.call_mode) })
       return true
+    }
+
+    const memFSopts = { memoriesDir: MEMORIES_DIR, userName: store.settings.user_name }
+
+    if (pathname === '/memories' && req.method === 'GET') {
+      const memFS = createMemoryFS(memFSopts)
+      const files = memFS.listMemoryFiles()
+      sendJson(res, 200, files)
+      return true
+    }
+
+    const memoriesMatch = pathname.match(/^\/memories\/(usuario|persona|conhecimento)$/)
+    if (memoriesMatch) {
+      const memFS = createMemoryFS(memFSopts)
+      const filename = memoriesMatch[1]
+
+      if (req.method === 'GET') {
+        const result = memFS.readMemoryFile(filename)
+        sendJson(res, 200, result)
+        return true
+      }
+
+      if (req.method === 'PATCH') {
+        try {
+          const payload = await context.readJsonBody(req).catch(() => ({}))
+          const content = String(payload.content || '').replace(/\0/g, '').trim()
+          const result = memFS.writeMemoryFile(filename, content)
+          sendJson(res, 200, result)
+          return true
+        } catch (error) {
+          const status = error.message.includes('exceeds') ? 400 : 500
+          sendJson(res, status, { status: 'error', message: error.message })
+          return true
+        }
+      }
+
+      if (req.method === 'DELETE') {
+        const fp = path.join(MEMORIES_DIR, `${filename}.md`)
+        if (fs.existsSync(fp)) fs.unlinkSync(fp)
+        const result = memFS.readMemoryFile(filename)
+        sendJson(res, 200, result)
+        return true
+      }
     }
 
     return false

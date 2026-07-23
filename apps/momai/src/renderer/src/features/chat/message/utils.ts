@@ -33,6 +33,10 @@ export const humanizeToolName = (name: string) => {
     lower.includes('use_skill')
   )
     return 'Skill'
+  if (lower === 'memory') return 'Memória'
+  if (lower === 'list_skills') return 'Buscar skills'
+  if (lower === 'request_skill') return 'Carregar skill'
+  if (lower === 'search_history' || lower.includes('search_history')) return 'Buscar histórico'
 
   const fallback = name || 'Ferramenta'
   return fallback.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())

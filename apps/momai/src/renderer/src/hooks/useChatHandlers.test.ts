@@ -322,10 +322,10 @@ describe('useChatHandlers', () => {
         })
       })
 
-      expect(hook.getMessages()[1].structuredResponse).toEqual({
+      expect(hook.getMessages()[1].structuredResponses).toEqual([{
         type: 'weather',
         data: { temp: 25, condition: 'sunny' }
-      })
+      }])
     })
 
     it('handles assistant with tool_steps', () => {
