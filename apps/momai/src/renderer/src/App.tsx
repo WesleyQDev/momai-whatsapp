@@ -189,6 +189,15 @@ function App(): React.JSX.Element {
 
       <div
         className="h-full flex flex-col overflow-hidden bg-bg"
+        onContextMenu={(e) => {
+          const target = e.target as HTMLElement
+          const isEditable =
+            target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA' ||
+            target.isContentEditable ||
+            target.closest('input, textarea, [contenteditable]')
+          if (!isEditable && !e.defaultPrevented) e.preventDefault()
+        }}
         style={{
           transition: 'opacity 0.6s ease-in',
           opacity: showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked ? 0 : 1,
