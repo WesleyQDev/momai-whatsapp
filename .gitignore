@@ -203,3 +203,6 @@ apps/core/apps/
 # Agente Skills (working state, not project code)
 # ====================
 .specs/
+
+.superpowers/
+# Superpowers agent scratch files.superpowers/

@@ -33,17 +33,18 @@ const DEFAULT_TIERS = {
   },
   ultra: {
     file: 'Qwen3.5-4B-Q4_K_M.gguf',
-    repo: 'unsloth/Qwen3.5-4B-GGUF',
+    repo: 'unsloth/Qwen3.5-4B-MTP-GGUF',
     enable_vision: false,
+    mtp: true,
     ctx_size: 8192,
     request_ctx_size: 8192,
     gpu_layers: 99,
-    temperature: 0.7,
-    top_p: 0.8,
+    temperature: 0.5,
+    top_p: 0.9,
     top_k: 20,
-    presence_penalty: 0.6,
+    presence_penalty: 0.2,
     repetition_penalty: 1.05,
-    max_tokens: 512,
+    max_tokens: 2048,
     embedding_file: 'LFM2.5-Embedding-350M-Q8_0.gguf',
     embedding_repo: 'LiquidAI/LFM2.5-Embedding-350M-GGUF'
   }

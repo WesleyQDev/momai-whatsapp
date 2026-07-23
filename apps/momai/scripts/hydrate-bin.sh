@@ -41,7 +41,7 @@ assert_sha256() {
 }
 
 UV_VERSION="0.11.29"
-DEFAULT_LLAMA_VERSION="b10068"
+DEFAULT_LLAMA_VERSION="b10094"
 
 if [[ "$(uname -m)" == "aarch64" || "$(uname -m)" == "arm64" ]]; then
     ARCH="aarch64"
@@ -133,13 +133,13 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
         CPU_ASSET="llama-${LLAMA_VERSION}-bin-ubuntu-arm64.tar.gz"
         VULKAN_ASSET="llama-${LLAMA_VERSION}-bin-ubuntu-vulkan-arm64.tar.gz"
-        DEFAULT_LLAMA_CPU_SHA256="2c0e4d3d5932e472b6c669090968fdc84a7f6a2940f2e8bb40fa03225bd01960"
-        DEFAULT_LLAMA_VULKAN_SHA256="c3c49e6e124a574165ca28317be021b1a12a2ea06977e3eb7daee3eb443eb186"
+        DEFAULT_LLAMA_CPU_SHA256="74962a2993c750fd0bef0fb16c640c74180c5b0d85f8e3ebd9bd4eabc58590f7"
+        DEFAULT_LLAMA_VULKAN_SHA256="886b750244f8866935539f2f1daea5478b1273f4c710557aa9e3b9830af9ed30"
     else
         CPU_ASSET="llama-${LLAMA_VERSION}-bin-ubuntu-x64.tar.gz"
         VULKAN_ASSET="llama-${LLAMA_VERSION}-bin-ubuntu-vulkan-x64.tar.gz"
-        DEFAULT_LLAMA_CPU_SHA256="6bf3d20de562e4df230f1a7c54fb7a06a80c7ff40f5311c953e8255744be4eb2"
-        DEFAULT_LLAMA_VULKAN_SHA256="713641920dce6c8efb953ebc9ffa309977e200cec5e182e6ad0e8b086203cdc3"
+        DEFAULT_LLAMA_CPU_SHA256="5bb4bdac5ea2384ddc89eee01b64fa9d845ff6d5a375cf1051a29f4cbe311cbe"
+        DEFAULT_LLAMA_VULKAN_SHA256="e5a53e07660c77362942d05c24d52f25d7fe861e391b34c9dbf13496852dc078"
     fi
 
     if [[ "$LLAMA_VERSION" == "$DEFAULT_LLAMA_VERSION" ]]; then

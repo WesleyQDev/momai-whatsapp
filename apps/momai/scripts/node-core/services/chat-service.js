@@ -1025,6 +1025,8 @@ async function streamLlamaChat(req, res, payload) {
         stream: true,
         temperature: Number.isFinite(tier.temperature) ? tier.temperature : 0.7,
         top_p: Number.isFinite(tier.top_p) ? tier.top_p : 1,
+        presence_penalty: Number.isFinite(tier.presence_penalty) ? tier.presence_penalty : 0,
+        repetition_penalty: Number.isFinite(tier.repetition_penalty) ? tier.repetition_penalty : 1,
         max_tokens: computeDynamicMaxTokens(
           Number.isFinite(tier.max_tokens) ? tier.max_tokens : 320,
           estimatedPromptTokens,
@@ -1704,6 +1706,8 @@ async function streamLlamaChat(req, res, payload) {
         stream: true,
         temperature: Number.isFinite(tier.temperature) ? Math.min(0.7, tier.temperature) : 0.5,
         top_p: Number.isFinite(tier.top_p) ? tier.top_p : 1,
+        presence_penalty: Number.isFinite(tier.presence_penalty) ? tier.presence_penalty : 0,
+        repetition_penalty: Number.isFinite(tier.repetition_penalty) ? tier.repetition_penalty : 1,
         max_tokens: computeDynamicMaxTokens(
           Math.max(Number(tier.max_tokens || 320), 700),
           estimatedContinuationPromptTokens,

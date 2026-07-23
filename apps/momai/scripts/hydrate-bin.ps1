@@ -34,9 +34,9 @@ $uvVersion = "0.11.29"
 $uvSha256 = "a047d55651bc3e0ca24595b25ec4cfcb10f9dca9fb56514e661269b37d4fae68"
 $pythonSha256 = "86ee8267900240c96369adb2cbc1af8f543f860d2e22be5adb7362f3cbe61059"
 $vcRedistSha256 = "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b"
-$defaultLlamaVersion = "b10068"
-$defaultLlamaCpuSha256 = "01d5f30876acfb4a0be59396710f450213495c7181d8fbcce2fad045835ceb89"
-$defaultLlamaVulkanSha256 = "4f3e6fd215fdf22d2fd6232a5501f9e791a93d9193db4faf59e391eff90f6169"
+$defaultLlamaVersion = "b10094"
+$defaultLlamaCpuSha256 = "4a7982257a1b567f90ccd191802b31e50d9aa9b10dc0190c3e0cadede3bef699"
+$defaultLlamaVulkanSha256 = "177ac2c14182f8082dd3a51edec8383186d851aac868cdac83e7d21e93f2ce3c"
 
 # 1. Download UV (skip if already present)
 $uvExe = Join-Path $binDir "uv.exe"

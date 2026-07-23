@@ -517,6 +517,10 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
               )
             ]
 
+            if (tierConfig.mtp) {
+              args.push('--spec-type', 'draft-mtp', '--spec-draft-n-max', '2')
+            }
+
             if (backend === 'cpu') args.push('--no-mmap')
             else args.push('--mmap')
 
