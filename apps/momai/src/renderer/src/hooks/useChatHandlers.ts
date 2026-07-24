@@ -12,6 +12,8 @@ import {
   createAssistantMessageId
 } from '../utils/chatUtils'
 
+import { getTTSServiceRenderer } from '../services/ttsService'
+
 interface UseChatHandlersProps {
   messagesRef: React.MutableRefObject<Message[]>
   dispatch: React.Dispatch<ChatAction>
@@ -61,8 +63,14 @@ export function useChatHandlers({
             dispatch({ type: 'SET_SPEAKING', messageId: messages[idx].id })
           }
         }
-      } else if (msg.type === 'tts_stop') {
+      } else if (msg.type === 'tts_stop' || msg.type === 'tts_interrupted') {
         dispatch({ type: 'SET_SPEAKING', messageId: null })
+        dispatch({ type: 'SET_VOICE_STATUS', status: 'listening' })
+        const tts = getTTSServiceRenderer()
+        tts.stopCurrentAudio()
+        tts.stop()
+      } else if (msg.type === 'tts_chunk_start') {
+        window.dispatchEvent(new CustomEvent('momai_tts_chunk_start', { detail: msg }))
       } else if (msg.type === 'voice_bands') {
         window.dispatchEvent(new CustomEvent('momai_voice_bands', { detail: msg.bands }))
       } else if (msg.type === 'voice_volume') {
@@ -587,7 +595,11 @@ export function useChatHandlers({
               if (lastIdx >= 0) {
                 updated[lastIdx] = {
                   ...updated[lastIdx],
-                  structuredResponses: data.structured_responses || (data.structured_response ? [data.structured_response] : updated[lastIdx].structuredResponses)
+                  structuredResponses:
+                    data.structured_responses ||
+                    (data.structured_response
+                      ? [data.structured_response]
+                      : updated[lastIdx].structuredResponses)
                 }
               }
               return updated

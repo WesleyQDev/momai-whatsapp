@@ -125,7 +125,9 @@ export const BrainTab = React.memo(
         if (res.data?.content !== undefined) {
           setMemoryFiles((prev) => ({ ...prev, [name]: res.data.content }))
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     const saveMemoryFile = async (name: string) => {
@@ -191,7 +193,9 @@ export const BrainTab = React.memo(
                     <span className="text-[10px] text-text-muted ml-2">{desc}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-medium tabular-nums ${(memoryFiles[key] || '').length > 2100 ? 'text-red-400' : 'text-text-muted'}`}>
+                    <span
+                      className={`text-[10px] font-medium tabular-nums ${(memoryFiles[key] || '').length > 2100 ? 'text-red-400' : 'text-text-muted'}`}
+                    >
                       {(memoryFiles[key] || '').length}/2200
                     </span>
                     <button

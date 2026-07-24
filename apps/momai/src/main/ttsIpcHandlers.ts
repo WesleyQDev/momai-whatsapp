@@ -103,6 +103,15 @@ export function setupTTSHandlers() {
     })
   })
 
+  ttsService.on('stop-audio', () => {
+    const windows = require('electron').BrowserWindow.getAllWindows()
+    windows.forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send('tts:stop-audio')
+      }
+    })
+  })
+
   ttsService.on('error', (error) => {
     const windows = require('electron').BrowserWindow.getAllWindows()
     windows.forEach((win) => {
@@ -112,14 +121,15 @@ export function setupTTSHandlers() {
     })
   })
 
-  ttsService.on('play-audio-buffer', (buffer: Buffer) => {
+  ttsService.on('play-audio-buffer', (buffer: Buffer, text?: string) => {
     const windows = require('electron').BrowserWindow.getAllWindows()
     windows.forEach((win) => {
       if (!win.isDestroyed()) {
         const isMp3 = buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0
         win.webContents.send('tts:play-audio-buffer', {
           data: buffer, // Enviar buffer bruto (mais rápido que base64)
-          mimeType: isMp3 ? 'audio/mpeg' : 'audio/wav'
+          mimeType: isMp3 ? 'audio/mpeg' : 'audio/wav',
+          text
         })
       }
     })

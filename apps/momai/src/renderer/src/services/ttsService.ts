@@ -51,7 +51,7 @@ class TTSServiceRenderer {
     }
   }
 
-  private stopCurrentAudio() {
+  public stopCurrentAudio() {
     const hadAudio = this.currentSources.size > 0 || !!this.currentHtmlAudio
     for (const src of this.currentSources) {
       try {
@@ -86,18 +86,29 @@ class TTSServiceRenderer {
         }
       })
     )
+    this.cleanupFns.push(
+      on('tts:stop-audio', () => {
+        this.stopCurrentAudio()
+      })
+    )
     this.cleanupFns.push(on('tts:error', (error) => this.emit('error', error)))
     this.cleanupFns.push(on('tts:engine-changed', (engine) => this.emit('engine-changed', engine)))
     this.cleanupFns.push(on('tts:voice-changed', (voice) => this.emit('voice-changed', voice)))
     this.cleanupFns.push(
-      on('tts:play-audio-buffer', (payload: { data: Uint8Array; mimeType: string }) => {
-        this.playAudioBuffer(payload)
-      })
+      on(
+        'tts:play-audio-buffer',
+        (payload: { data: Uint8Array; mimeType: string; text?: string }) => {
+          this.playAudioBuffer(payload)
+        }
+      )
     )
   }
 
-  private async playAudioBuffer(payload: { data: Uint8Array; mimeType: string }) {
-    this.hasLocalAudio = true
+  private async playAudioBuffer(payload: { data: Uint8Array; mimeType: string; text?: string }) {
+    if (!this.hasLocalAudio) {
+      this.hasLocalAudio = true
+      this.emit('speaking-start')
+    }
     try {
       const bytes = payload.data
 
@@ -121,6 +132,16 @@ class TTSServiceRenderer {
         this.checkAllAudioEnded()
       }
       source.start(startTime)
+
+      window.dispatchEvent(
+        new CustomEvent('momai_audio_playback_started', {
+          detail: {
+            text: payload.text || '',
+            duration: audioBuffer.duration,
+            startTime
+          }
+        })
+      )
 
       this.nextScheduleTime = startTime + audioBuffer.duration
     } catch (err) {

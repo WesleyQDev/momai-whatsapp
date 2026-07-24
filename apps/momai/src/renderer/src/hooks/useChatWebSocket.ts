@@ -108,7 +108,7 @@ export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocket
         }
       }
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (!isUnmounting) {
           console.debug('[WS] Disconnected, scheduling reconnect...')
           scheduleReconnect()
@@ -117,7 +117,7 @@ export function useChatWebSocket({ threadId, handleWsMessage }: UseChatWebSocket
 
       ws.onerror = (err) => {
         if (!isBooting) {
-          console.error('Erro no WebSocket:', err)
+          console.error('[WS] Erro de conexao:', err)
         }
       }
     }

@@ -1,16 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useI18n } from '../../i18n'
-import { stripMarkdown } from '../../utils/text'
+import { stripEmojisAndMarkdown, stripMarkdown } from '../../utils/text'
 
 const CallModeContent = ({
   onEndCall,
-  onStopVoice,
   history = [],
   status = 'idle',
   isSpeaking = false
 }: {
   onEndCall: () => void
-  onStopVoice?: () => void
   history?: { id: string; role: 'user' | 'assistant'; content: string }[]
   status?: 'idle' | 'listening' | 'processing'
   isSpeaking?: boolean
@@ -21,20 +19,183 @@ const CallModeContent = ({
   const smoothedBandsRef = useRef<number[]>(new Array(16).fill(0))
   const phaseRef = useRef<number>(0)
 
-  // Listen for frequency bands from Python
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const micStreamRef = useRef<MediaStream | null>(null)
+
+  const [activePhraseWords, setActivePhraseWords] = useState<string[]>([])
+  const [wordIndex, setWordIndex] = useState(0)
+  const [chunkPacingMs, setChunkPacingMs] = useState<number>(320)
+  const [phraseId, setPhraseId] = useState(0)
+
+  // Direct 60fps Web Audio API mic capture (ChatGPT-style zero latency reaction)
+  useEffect(() => {
+    let isMounted = true
+
+    async function initMic() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true }
+        })
+        if (!isMounted) {
+          stream.getTracks().forEach((t) => t.stop())
+          return
+        }
+        micStreamRef.current = stream
+
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+        const audioCtx = new AudioCtx()
+        audioContextRef.current = audioCtx
+
+        const analyser = audioCtx.createAnalyser()
+        analyser.fftSize = 64
+        analyser.smoothingTimeConstant = 0.75
+        analyserRef.current = analyser
+
+        const source = audioCtx.createMediaStreamSource(stream)
+        source.connect(analyser)
+      } catch (err) {
+        console.warn('[CallMode] Web Audio mic capture fallback:', err)
+      }
+    }
+
+    initMic()
+
+    return () => {
+      isMounted = false
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach((t) => t.stop())
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {})
+      }
+    }
+  }, [])
+
+  const lastBandTimeRef = useRef<number>(0)
+  const phraseStartTimeRef = useRef<number>(0)
+  const phraseDurationMsRef = useRef<number>(1000)
+
+  // Listen for frequency bands & volume & dynamic phrase audio duration from Python
   useEffect(() => {
     const handleBands = (e: CustomEvent) => {
       const allSubChunks = e.detail as number[][]
       if (allSubChunks && allSubChunks.length > 0) {
-        // Use the last sub-chunk for real-time feel
         bandsRef.current = allSubChunks[allSubChunks.length - 1]
+        lastBandTimeRef.current = Date.now()
       }
     }
+
+    const handleVolume = (e: CustomEvent) => {
+      const vol = e.detail
+      if (typeof vol === 'number' && vol > 0.01) {
+        bandsRef.current = bandsRef.current.map((_, i) => {
+          const spread = Math.sin((i / 15) * Math.PI)
+          return Math.min(1, vol * spread * (0.8 + Math.random() * 0.4))
+        })
+      } else if (Array.isArray(vol) && vol.length > 0) {
+        bandsRef.current = vol
+      }
+    }
+
+    const handleAudioPlaybackStarted = (e: CustomEvent) => {
+      const detail = e.detail || {}
+      const duration = Number(detail.duration || 0)
+      const rawText = String(detail.text || '').trim()
+
+      if (rawText) {
+        const cleaned = stripEmojisAndMarkdown(rawText)
+        const words = cleaned.split(/\s+/).filter(Boolean)
+
+        if (words.length > 0) {
+          setActivePhraseWords(words)
+          setWordIndex(0)
+          setPhraseId((prev) => prev + 1)
+          phraseStartTimeRef.current = Date.now()
+          phraseDurationMsRef.current = Math.max(800, duration * 1000)
+        }
+      }
+    }
+
     window.addEventListener('momai_voice_bands' as any, handleBands as any)
-    return () => window.removeEventListener('momai_voice_bands' as any, handleBands as any)
+    window.addEventListener('momai_voice_volume' as any, handleVolume as any)
+    window.addEventListener(
+      'momai_audio_playback_started' as any,
+      handleAudioPlaybackStarted as any
+    )
+    return () => {
+      window.removeEventListener('momai_voice_bands' as any, handleBands as any)
+      window.removeEventListener('momai_voice_volume' as any, handleVolume as any)
+      window.removeEventListener(
+        'momai_audio_playback_started' as any,
+        handleAudioPlaybackStarted as any
+      )
+    }
   }, [])
 
-  // High-performance canvas animation
+  const activePhraseWordsRef = useRef<string[]>([])
+
+  useEffect(() => {
+    activePhraseWordsRef.current = activePhraseWords
+  }, [activePhraseWords])
+
+  // 60fps real-time clock synchronization with physical audio playback
+  useEffect(() => {
+    if (!isSpeaking || activePhraseWords.length === 0) return
+
+    let animFrameId: number
+
+    const tick = () => {
+      const words = activePhraseWordsRef.current
+      if (words.length > 0) {
+        const elapsed = Date.now() - phraseStartTimeRef.current
+        const progress = Math.min(1.0, Math.max(0, elapsed / phraseDurationMsRef.current))
+        const targetIdx = Math.min(words.length - 1, Math.floor(progress * words.length))
+        setWordIndex(targetIdx)
+      }
+      if (isSpeaking) {
+        animFrameId = requestAnimationFrame(tick)
+      }
+    }
+
+    animFrameId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(animFrameId)
+  }, [isSpeaking, phraseId])
+
+  // Keep refs for status/isSpeaking so the render loop reads them without restarting
+  const statusRef = useRef(status)
+  const isSpeakingRef = useRef(isSpeaking)
+
+  useEffect(() => {
+    statusRef.current = status
+  }, [status])
+
+  useEffect(() => {
+    isSpeakingRef.current = isSpeaking
+  }, [isSpeaking])
+
+  // Animated interpolation refs — these lerp smoothly toward their targets every frame
+  const animatedSpeedRef = useRef(0.015)
+  const animatedOpacityRef = useRef(0.4)
+  // Color channels: [r1,g1,b1, r2,g2,b2, r3,g3,b3, r4,g4,b4] for 4-stop gradient
+  const animatedColorsRef = useRef([
+    236,
+    72,
+    153, // #ec4899
+    168,
+    85,
+    247, // #a855f7
+    6,
+    182,
+    212, // #06b6d4
+    16,
+    185,
+    129 // #10b981
+  ])
+  const animatedWhiteOpacityRef = useRef(0.2)
+  const animatedWhiteScaleRef = useRef(0.3)
+
+  // High-performance canvas animation (single persistent loop — never restarts)
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -42,26 +203,22 @@ const CallModeContent = ({
     if (!ctx) return
 
     let animationFrameId: number
+    const micDataArray = new Uint8Array(32)
+
+    // Lerp helper
+    const lerp = (current: number, target: number, speed: number) =>
+      current + (target - current) * speed
 
     const render = () => {
       const width = canvas.width
       const height = canvas.height
+      const curStatus = statusRef.current
+      const curSpeaking = isSpeakingRef.current
+
       ctx.clearRect(0, 0, width, height)
 
-      const isActive = status !== 'processing' || isSpeaking
-      phaseRef.current += 0.04 + (isActive ? 0.04 : 0)
-
-      // Smooth the bands for fluid motion
-      for (let i = 0; i < 16; i++) {
-        const target = isActive ? bandsRef.current[i] || 0 : 0
-        // Interpolation to avoid jitter
-        smoothedBandsRef.current[i] += (target - smoothedBandsRef.current[i]) * 0.15
-        // Reset base bands slightly so they don't get stuck
-        bandsRef.current[i] *= 0.92
-      }
-
       const drawWave = (
-        color: string,
+        color: string | CanvasGradient,
         opacity: number,
         scale: number,
         phaseShift: number,
@@ -74,22 +231,16 @@ const CallModeContent = ({
 
         for (let x = 0; x <= width; x += 2) {
           const normX = x / width
-          // Gaussian envelope to keep waves in the center
           const envelope = Math.pow(Math.sin(normX * Math.PI), 1.5)
 
-          // Get the relevant frequency band for this X position
-          // Using 16 bands spread across the width
           const bandIdx = Math.floor(normX * 15)
           const nextBandIdx = Math.min(15, bandIdx + 1)
           const bandLerp = (normX * 15) % 1
 
-          // Interpolate between bands for smooth "mountains"
           const bandValue =
             smoothedBandsRef.current[bandIdx] * (1 - bandLerp) +
             smoothedBandsRef.current[nextBandIdx] * bandLerp
 
-          // Create the "Mountain" effect
-          // Amplitude is driven by the frequency band at that specific point
           const peakHeight = bandValue * (height / 2) * scale
           const baseNoise = Math.sin(normX * 5 + phaseRef.current + phaseShift) * (height / 15)
 
@@ -105,229 +256,194 @@ const CallModeContent = ({
         ctx.stroke()
       }
 
-      // Gradients (Pink -> Purple -> Cyan)
-      const gradient = ctx.createLinearGradient(0, 0, width, 0)
-      gradient.addColorStop(0, '#ec4899')
-      gradient.addColorStop(0.5, '#a855f7')
-      gradient.addColorStop(1, '#06b6d4')
-
-      // Draw 5 layers with different scales and sensitivities
-      for (let i = 0; i < 5; i++) {
-        const shift = i * 0.8
-        const scale = 0.5 + (4 - i) * 0.15
-        const opacity = 0.9 - i * 0.15
-        drawWave(gradient as any, opacity, scale, shift, (i - 2) * 3)
+      // Direct Web Audio API mic input reading (Instant 60fps audio reactivity)
+      let micActive = false
+      if (analyserRef.current) {
+        analyserRef.current.getByteFrequencyData(micDataArray)
+        let sum = 0
+        let maxVal = 0
+        for (let i = 0; i < 16; i++) {
+          const val = (micDataArray[i] || 0) / 255
+          sum += val
+          if (val > maxVal) maxVal = val
+          if (val > 0.08 && !curSpeaking && curStatus !== 'processing') {
+            bandsRef.current[i] = Math.max(bandsRef.current[i] || 0, (val - 0.06) * 1.6)
+          }
+        }
+        // Moderate threshold: sum > 0.9 and maxVal > 0.12 prevents keyboard typing & background noise from triggering micActive
+        micActive = sum > 0.9 && maxVal > 0.12 && !curSpeaking && curStatus !== 'processing'
       }
 
-      // Bright white accent line for the peak
-      drawWave('#fff', 0.2, 0.4, 0, 0)
+      // --- Smooth interpolation targets based on current state ---
+      // Wave speed targets
+      const targetSpeed = micActive
+        ? 0.09
+        : curSpeaking
+          ? 0.055
+          : curStatus === 'processing'
+            ? 0.045
+            : 0.015
+
+      // Color targets based on state
+      let targetColors: number[]
+      if (micActive) {
+        targetColors = [255, 75, 31, 255, 144, 104, 248, 181, 0, 252, 227, 138]
+      } else if (curStatus === 'processing' && !curSpeaking) {
+        targetColors = [139, 92, 246, 168, 85, 247, 6, 182, 212, 59, 130, 246]
+      } else {
+        targetColors = [236, 72, 153, 168, 85, 247, 6, 182, 212, 16, 185, 129]
+      }
+
+      // Opacity and scale targets for the 5-wave group
+      const targetOpacity = curStatus === 'idle' && !curSpeaking ? 0.4 : curSpeaking ? 0.9 : 0.85
+      const targetWhiteOpacity = curSpeaking ? 0.6 : curStatus === 'processing' ? 0.7 : 0.2
+      const targetWhiteScale = curSpeaking ? 0.5 : curStatus === 'processing' ? 0.5 : 0.3
+
+      // --- Smooth interpolation at ~2-3% per frame (organic feel at 60fps ≈ 1-2s transition) ---
+      const transitionSpeed = 0.025
+      const colorSpeed = 0.03
+
+      animatedSpeedRef.current = lerp(animatedSpeedRef.current, targetSpeed, transitionSpeed)
+      animatedOpacityRef.current = lerp(animatedOpacityRef.current, targetOpacity, transitionSpeed)
+      animatedWhiteOpacityRef.current = lerp(
+        animatedWhiteOpacityRef.current,
+        targetWhiteOpacity,
+        transitionSpeed
+      )
+      animatedWhiteScaleRef.current = lerp(
+        animatedWhiteScaleRef.current,
+        targetWhiteScale,
+        transitionSpeed
+      )
+
+      // Interpolate colors channel by channel
+      const curColors = animatedColorsRef.current
+      for (let c = 0; c < 12; c++) {
+        curColors[c] = lerp(curColors[c], targetColors[c], colorSpeed)
+      }
+
+      // Apply smooth wave phase advance
+      phaseRef.current += animatedSpeedRef.current
+
+      // --- Band target computation (all states unified, smooth blending) ---
+      for (let i = 0; i < 16; i++) {
+        let target = bandsRef.current[i] || 0
+
+        if (curSpeaking) {
+          const pulse = (Math.sin(phaseRef.current * 3 + i * 0.5) + 1) / 2
+          target = Math.max(target, 0.12 + pulse * 0.25)
+        } else if (curStatus === 'processing') {
+          const pulse = (Math.sin(phaseRef.current * 2.5 + i * 0.4) + 1) / 2
+          const secondary = (Math.cos(phaseRef.current * 1.8 - i * 0.3) + 1) / 2
+          target = Math.max(target, 0.15 + pulse * 0.2 + secondary * 0.1)
+        } else {
+          // idle / listening — gentle breathing
+          const pulse = (Math.sin(phaseRef.current * 1.2 + i * 0.3) + 1) / 2
+          target = Math.max(target, 0.015 + pulse * 0.025)
+        }
+
+        // Slow smoothing factor for organic transitions (0.06 ≈ ~1s settle time)
+        smoothedBandsRef.current[i] += (target - smoothedBandsRef.current[i]) * 0.06
+        // Gentle decay so bands don't snap to zero
+        bandsRef.current[i] *= 0.93
+      }
+
+      // Build interpolated gradient from animated color channels
+      const cc = animatedColorsRef.current
+      const gradient = ctx.createLinearGradient(0, 0, width, 0)
+      gradient.addColorStop(0, `rgb(${cc[0] | 0},${cc[1] | 0},${cc[2] | 0})`)
+      gradient.addColorStop(0.35, `rgb(${cc[3] | 0},${cc[4] | 0},${cc[5] | 0})`)
+      gradient.addColorStop(0.7, `rgb(${cc[6] | 0},${cc[7] | 0},${cc[8] | 0})`)
+      gradient.addColorStop(1, `rgb(${cc[9] | 0},${cc[10] | 0},${cc[11] | 0})`)
+
+      for (let i = 0; i < 5; i++) {
+        const shift = i * 0.85
+        const scale = 0.55 + (4 - i) * 0.13
+        const opacity = animatedOpacityRef.current - i * 0.12
+        drawWave(gradient, Math.max(0.05, opacity), scale, shift, (i - 2) * 3.5)
+      }
+
+      drawWave('#fff', animatedWhiteOpacityRef.current, animatedWhiteScaleRef.current, 0, 0)
 
       animationFrameId = requestAnimationFrame(render)
     }
 
     render()
     return () => cancelAnimationFrame(animationFrameId)
-  }, [status, isSpeaking])
-  // 1. Word-by-word stream logic
-  const lastAssistant = history.filter((h) => h.role === 'assistant').pop()
-  const lastUser = history.filter((h) => h.role === 'user').pop()
+  }, []) // Empty deps — loop runs once, reads state via refs
 
-  const [displayedWords, setDisplayedWords] = useState<string[]>([])
-  const [wordIndex, setWordIndex] = useState(0)
-  const lastMsgRef = useRef<string | null>(null)
-  const wordsRef = useRef<string[]>([])
-  const scrollRef = useRef<HTMLDivElement>(null)
+  // Active spoken sentence calculator (Displays full natural spoken sentence)
+  const activeSentenceData = (() => {
+    if (activePhraseWords.length === 0) return { words: [], activeIndex: -1 }
 
-  useEffect(() => {
-    if (!lastAssistant) {
-      setDisplayedWords([])
-      setWordIndex(0)
-      lastMsgRef.current = null
-      wordsRef.current = []
-      return
+    const idx = Math.min(wordIndex, activePhraseWords.length - 1)
+
+    return {
+      words: activePhraseWords,
+      activeIndex: idx
     }
-
-    const content = stripMarkdown(lastAssistant.content)
-    const words = content.split(/\s+/).filter(Boolean)
-    wordsRef.current = words
-
-    // Detect if this is a NEW message (not just a streaming update)
-    // We prefer ID, but fallback to a stable prefix if ID is not available
-    const msgId = lastAssistant.id ?? content.slice(0, 50)
-
-    // If the message is shorter than what we had, or ID changed, it's new
-    const isNewMessage =
-      lastMsgRef.current !== msgId &&
-      (!lastMsgRef.current || !content.startsWith(lastMsgRef.current.toString().slice(0, 20)))
-
-    if (isNewMessage) {
-      setDisplayedWords([])
-      setWordIndex(0)
-      lastMsgRef.current = msgId
-    }
-  }, [lastAssistant?.content, lastAssistant?.id])
-
-  // Independent animation timer
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setWordIndex((prev) => {
-        const words = wordsRef.current
-        if (prev < words.length) {
-          const next = prev + 1
-          setDisplayedWords(words.slice(0, next))
-          return next
-        }
-        return prev
-      })
-    }, 150) // Faster (150ms) for better responsiveness
-
-    return () => clearInterval(timer)
-  }, [])
-
-  // 2. Auto-scroll to bottom as words appear
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: 'smooth'
-      })
-    }
-  }, [displayedWords])
+  })()
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-between py-16 px-8 bg-transparent relative overflow-hidden">
-      {/* Background Deep Glow */}
-      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-64 bg-accent/5 blur-[120px] pointer-events-none" />
+    <div className="flex-1 flex flex-col items-center justify-center gap-8 py-10 px-6 bg-transparent relative overflow-hidden h-full">
+      {/* Background Deep Glow - centered */}
+      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-80 bg-accent/5 blur-[120px] pointer-events-none" />
 
-      {/* 1. TOP: User Phrase (Minimal & Stable) */}
-      <div className="w-full max-w-[700px] relative z-20 min-h-[80px] flex items-end justify-center pb-6">
-        {(() => {
-          if (!lastUser)
-            return (
-              <div className="flex flex-col items-center justify-center gap-2">
-                <span className="text-[10px] font-black tracking-[0.8em] text-accent/80 uppercase drop-shadow-[0_0_8px_rgba(139,92,246,0.3)]">
-                  Escutando
-                </span>
-                <div className="flex gap-2 h-4 items-center">
-                  <div className="w-1 h-1 rounded-full bg-accent animate-[bounce_0.8s_infinite]" />
-                  <div className="w-1 h-1 rounded-full bg-accent animate-[bounce_0.8s_0.15s_infinite]" />
-                  <div className="w-1 h-1 rounded-full bg-accent animate-[bounce_0.8s_0.3s_infinite]" />
-                </div>
-              </div>
-            )
-
-          return (
-            <div className="flex flex-col items-center animate-in fade-in duration-700">
-              <span className="text-[8px] font-black tracking-[0.4em] text-white/20 uppercase mb-2">
-                Entrada de Voz
-              </span>
-              <p className="text-center text-sm text-white/80 font-medium italic leading-relaxed px-12 opacity-60">
-                "{stripMarkdown(lastUser.content)}"
-              </p>
-            </div>
-          )
-        })()}
+      {/* 1. TOP STATUS BADGE (Ultra-Minimalist Modern Typography) */}
+      <div className="relative z-20 h-10 flex items-center justify-center">
+        {status === 'listening' && (
+          <span className="text-[10px] font-medium tracking-[0.3em] text-emerald-300/80 uppercase select-none animate-in fade-in duration-300">
+            Ouvindo
+          </span>
+        )}
+        {status === 'processing' && (
+          <div className="flex items-center gap-2 select-none animate-in fade-in duration-300">
+            <div className="w-2 h-2 rounded-full bg-purple-400 animate-bounce [animation-delay:-0.3s]" />
+            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:-0.15s]" />
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" />
+          </div>
+        )}
       </div>
 
-      {/* 2. CENTER: THE WAVE (The heart of the UI) */}
-      <div className="w-full relative h-[250px] flex items-center justify-center">
+      {/* 2. CENTER: THE WAVE (Centered in the screen with dynamic glow) */}
+      <div className="w-full relative flex-1 max-h-[320px] flex items-center justify-center z-10 my-auto">
+        {(status === 'processing' || isSpeaking) && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+            <div className="w-48 h-48 rounded-full border-2 border-purple-500/20 border-t-purple-400 border-r-indigo-400 animate-spin blur-[1px] shadow-[0_0_30px_rgba(168,85,247,0.3)]" />
+            <div className="absolute w-36 h-36 rounded-full border border-indigo-400/30 border-b-emerald-400 animate-spin [animation-direction:reverse] [animation-duration:3s]" />
+          </div>
+        )}
         <canvas
           ref={canvasRef}
           width={1000}
-          height={250}
-          className="w-full h-full max-w-[950px] drop-shadow-[0_0_40px_rgba(168,85,247,0.3)]"
+          height={300}
+          className={`w-full h-full max-w-[950px] transition-all duration-700 relative z-10 ${
+            isSpeaking
+              ? 'drop-shadow-[0_0_60px_rgba(236,72,153,0.75)] scale-105'
+              : status === 'processing'
+                ? 'drop-shadow-[0_0_50px_rgba(99,102,241,0.65)] scale-95 animate-pulse'
+                : 'drop-shadow-[0_0_40px_rgba(168,85,247,0.4)] scale-100'
+          }`}
         />
         {/* Subtle scanline aesthetic */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.05)_50%),linear-gradient(90deg,rgba(255,0,0,0.01),rgba(0,255,0,0.005),rgba(0,0,255,0.01))] bg-[length:100%_4px,3px_100%] pointer-events-none opacity-20" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.05)_50%),linear-gradient(90deg,rgba(255,0,0,0.01),rgba(0,255,0,0.005),rgba(0,0,255,0.01))] bg-[length:100%_4px,3px_100%] pointer-events-none opacity-10" />
       </div>
 
-      {/* 3. BOTTOM: Assistant Display (Cinematic Subtitles) */}
-      <div className="w-full max-w-[700px] relative z-20 h-[140px] flex flex-col items-center">
-        {/* The Fade Mask - creates the "vanishing upwards" effect */}
-        <div
-          ref={scrollRef}
-          className="w-full h-full overflow-y-auto no-scrollbar scroll-smooth px-12 pb-4"
-          style={{
-            maskImage: 'linear-gradient(to bottom, transparent 0%, black 40%, black 100%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 40%, black 100%)'
-          }}
-        >
-          <div className="flex flex-wrap justify-center gap-x-2 gap-y-1.5 pt-12">
-            {status === 'processing' && displayedWords.length === 0 && (
-              <span className="text-xl font-semibold tracking-tight text-white/20 animate-pulse italic">
-                Pensando...
-              </span>
-            )}
-            {displayedWords.map((word, idx) => {
-              const isLatest = idx === displayedWords.length - 1
-              const shouldHighlight = isLatest && isSpeaking
+      {/* 3. SUBTITLES AREA — Disabled per user request */}
 
-              return (
-                <span
-                  key={`${idx}-${word}`}
-                  className={`text-xl font-semibold tracking-tight transition-all duration-1000 ease-out fill-mode-both animate-in fade-in slide-in-from-bottom-2 ${
-                    shouldHighlight
-                      ? 'text-white scale-105 drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]'
-                      : 'text-white/40 blur-[0.2px]'
-                  }`}
-                >
-                  {word}
-                </span>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Minimal Accent Bar */}
-        <div className="w-12 h-[1px] bg-accent/20 mt-4" />
-      </div>
-
-      {/* 4. FOOTER: Actions */}
-      <div className="flex items-center gap-8 relative z-20">
-        {isSpeaking && onStopVoice && (
-          <button
-            type="button"
-            onClick={onStopVoice}
-            className="group flex flex-col items-center gap-3 transition-all duration-300 active:scale-95"
-          >
-            <div className="w-12 h-12 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center group-hover:bg-accent/20 group-hover:border-accent/40 transition-all duration-500 shadow-accent-glow">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className="text-accent group-hover:scale-110 transition-transform"
-              >
-                <rect x="6" y="6" width="12" height="12" rx="1.5" />
-              </svg>
-            </div>
-            <span className="text-[8px] font-black tracking-[0.5em] uppercase text-accent/60 group-hover:text-accent transition-colors">
-              Parar
-            </span>
-          </button>
-        )}
-
+      {/* 4. END CALL BUTTON (Anchored naturally at the bottom) */}
+      <div className="relative z-30">
         <button
           type="button"
           onClick={onEndCall}
-          className="group flex flex-col items-center gap-3 transition-all duration-300 active:scale-95"
+          className="w-14 h-14 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 flex items-center justify-center group transition-all duration-300 hover:bg-red-500/20 hover:border-red-500/40 hover:shadow-[0_0_25px_rgba(239,68,68,0.2)] hover:scale-105 active:scale-95"
+          title="Encerrar Sessão"
         >
-          <div className="w-12 h-12 rounded-full bg-red-500/5 border border-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 group-hover:border-red-500/40 transition-all duration-500">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              className="text-red-500/80 group-hover:text-red-500 transform rotate-135"
-            >
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-            </svg>
+          {/* Sleek rotating X icon */}
+          <div className="w-5 h-5 relative rotate-45 group-hover:rotate-90 transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
+            <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-[2px] bg-white/60 group-hover:bg-red-400 rounded-full transition-colors duration-300" />
+            <div className="absolute left-1/2 -translate-x-1/2 top-0 bottom-0 w-[2px] bg-white/60 group-hover:bg-red-400 rounded-full transition-colors duration-300" />
           </div>
-          <span className="text-[8px] font-black tracking-[0.5em] uppercase text-red-500/40 group-hover:text-red-500 transition-colors">
-            Encerrar
-          </span>
         </button>
       </div>
     </div>

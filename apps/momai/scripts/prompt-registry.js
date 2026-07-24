@@ -119,16 +119,13 @@ function createPromptRegistry({ promptsDir }) {
     const persona = input.persona || prompts.default_persona || ''
     const lines = [
       `You are MomAI, ${sanitize(input.userName || 'Usuário')}'s assistant.`,
-      '',
-      persona ? `${sanitize(persona)}\n` : '',
-      '- Be warm and natural.',
-      '- Use the skills listed when relevant.',
-      '- Use search_history when the user asks about past messages (message_number=0 for first).',
-      '- When the user asks for multiple things, use one tool per round.',
-      '',
-      tierCfg.tier_instructions ? `${sanitize(String(tierCfg.tier_instructions))}` : ''
+      persona ? sanitize(persona) : '',
+      '- Be warm, natural, and helpful.',
+      '- Use skills listed when relevant.',
+      tierCfg.tier_instructions ? sanitize(String(tierCfg.tier_instructions)) : ''
     ]
-    return lines.filter(Boolean).join('\n')
+    const uniqueLines = [...new Set(lines.filter(Boolean))]
+    return uniqueLines.join('\n')
   }
 
   function buildContextTier(input) {
@@ -142,30 +139,24 @@ function createPromptRegistry({ promptsDir }) {
     }
     const sections = []
     for (const name of ALLOWED_FILENAMES) {
+      if (name === 'persona') continue // Skip persona.md as persona is already in stable tier
       const file = memFS.readMemoryFile(name)
       if (!file.content.trim()) continue
-      const label =
-        name === 'usuario' ? '-- User Profile --' :
-        name === 'persona' ? '-- MomAI Identity --' :
-        '-- Known Facts --'
-      const bullets = file.entries.map((e) => `- ${e}`).join('\n')
-      sections.push(`${label}\n${bullets}`)
+      const label = name === 'usuario' ? '-- User Profile --' : '-- Known Facts --'
+      const lines = file.content
+        .split('\n')
+        .map((l) => l.replace(/^#+\s*.*$/, '').trim())
+        .filter((l) => l && l !== '-' && l !== '§')
+      if (lines.length === 0) continue
+      const formatted = lines.map((l) => (l.startsWith('-') ? l : `- ${l}`)).join('\n')
+      sections.push(`${label}\n${formatted}`)
     }
     if (sections.length === 0) return ''
     return ['', sections.join('\n\n'), ''].join('\n')
   }
 
   function buildVolatileTier(input) {
-    const lines = [
-      `Conversation: ${input.threadId || 'default'}`,
-      `Model: ${input.modelName || 'local'} (${input.tier || 'pro'})`,
-      `User language: ${input.locale || 'pt-BR'}`,
-      '',
-      input.hasHistory
-        ? 'Continue the conversation — be direct.'
-        : 'This is a new conversation — greet naturally.'
-    ]
-    return lines.join('\n')
+    return input.hasHistory ? '' : 'This is a new conversation — greet naturally.'
   }
 
   function buildSystemPrompt(input) {

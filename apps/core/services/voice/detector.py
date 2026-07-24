@@ -1,4 +1,5 @@
 import asyncio
+import collections
 import queue
 import threading
 import logging
@@ -108,21 +109,23 @@ class WakeWordDetector:
         self.sample_rate = 16000
 
         # --- Speech detection parameters (wake word mode) ---
-        self.speech_energy_threshold = 0.015  # Was 0.008, increased to avoid silence triggers
+        self.speech_energy_threshold = 0.010  # Sensitive threshold for normal speaking volume
         self.silence_chunks_required = 5    # Give more breathing room (1.25s instead of 0.75s)
         self.min_speech_chunks = 2
         self.max_recording_duration = 15.0
 
-        # --- Call mode parameters (higher thresholds to avoid false triggers) ---
-        self.call_energy_threshold = 0.02   # Balanced for call mode
-        self.call_silence_chunks = 4        # Balanced end-of-speech
-        self.call_min_speech_chunks = 2     # Allow shorter responses
-        self.call_interrupt_threshold = 0.06 # Higher to avoid echo interruption
-        self.post_tts_cooldown = 1.2        # More breathing room after smooth TTS
+        # --- Call mode parameters (balanced thresholds to prevent speaker echo & typing triggers) ---
+        self.call_energy_threshold = 0.008  # Ultra-sensitive threshold to capture soft voice starting words
+        self.call_silence_chunks = 5        # 1.25s end-of-speech detection for natural pauses without cutting off mid-sentence
+        self.call_min_speech_chunks = 1     # Allow short 1-word responses ("Sim", "Não", "Oi") without discarding
+        self.call_interrupt_threshold = 0.010 # Instant interruption threshold even for soft speaking during TTS
+        self.interrupt_speech_counter = 0    # Counter for sustained speech chunks to avoid false keyboard click triggers
+        self.post_tts_cooldown = 1.0        # Smooth post-speech cooldown after TTS finishes
         self._tts_stop_time = 0.0
 
         # --- State machine ---
         self.state = self.STATE_IDLE
+        self.ring_buffer = collections.deque(maxlen=2)  # 500ms pre-speech buffer so initial syllables are never clipped
         self.speech_buffer = []
         self.tts_buffer = []
         self.tts_buffer_samples = 0
@@ -251,12 +254,16 @@ class WakeWordDetector:
                         _last_diag_time = now
                     
                     if app_state.active_websockets:
-                        sub_chunks = np.array_split(chunk, 5)
-                        all_bands = []
-                        for sc in sub_chunks:
-                            fft_res = np.abs(np.fft.rfft(sc))
-                            bands = np.array_split(fft_res, 16)
-                            all_bands.append([float(np.mean(b)) for b in bands])
+                        if energy < 0.008:
+                            # Noise gate: Keep visualizer canvas calm on ambient noise and keyboard clicks
+                            all_bands = [[0.0] * 16 for _ in range(5)]
+                        else:
+                            sub_chunks = np.array_split(chunk, 5)
+                            all_bands = []
+                            for sc in sub_chunks:
+                                fft_res = np.abs(np.fft.rfft(sc))
+                                bands = np.array_split(fft_res, 16)
+                                all_bands.append([float(np.mean(b)) for b in bands])
 
                         if app_state.main_loop:
                             asyncio.run_coroutine_threadsafe(
@@ -285,13 +292,13 @@ class WakeWordDetector:
                     silence_req = self.call_silence_chunks if in_call_mode else self.silence_chunks_required
                     min_speech = self.call_min_speech_chunks if in_call_mode else self.min_speech_chunks
 
-                    # Post-TTS cooldown: ignore audio shortly after TTS stops
-                    # to prevent self-recognition from speaker echo
+                    # Post-TTS cooldown: ignore audio when IDLE shortly after TTS stops
+                    # to prevent self-recognition from speaker tail echo, but NEVER discard active STATE_LISTENING user recording.
                     if not tts_speaking:
+                        self._tts_bg_energy = self._tts_bg_energy * 0.88 + 0.005 * 0.12
                         if self._tts_stop_time > 0 and (time.time() - self._tts_stop_time) < self.post_tts_cooldown:
-                            if self.state == self.STATE_LISTENING:
-                                self._reset_state()
-                            continue
+                            if self.state == self.STATE_IDLE and energy < 0.022:
+                                continue
 
                     # Track when TTS stops for cooldown
                     if tts_speaking:
@@ -300,24 +307,47 @@ class WakeWordDetector:
                     elif self._tts_stop_time == 0.0:
                         self._tts_stop_time = time.time()
 
-                    # In call mode: interrupt TTS when user speaks (by energy threshold).
-                    # In normal mode: detect energy spike and immediately send for wake word check.
-                    if tts_speaking:
-                        if in_call_mode:
-                            energy = self._get_chunk_energy(chunk)
-                            if energy > self.call_interrupt_threshold:
-                                try:
-                                    tts.stop_all()
-                                except Exception:
-                                    pass
-                                self._set_state(self.STATE_LISTENING)
-                                self.speech_buffer = [chunk]
-                                self.speech_chunk_count = 1
-                                self.silence_counter = 0
-                                self.recorded_samples = len(chunk)
-                                continue
-                            else:
-                                continue
+                    # When TTS is speaking: interrupt on sustained human speech over speaker output (only in Call Mode)
+                    if tts_speaking and self.state != self.STATE_LISTENING:
+                        if not in_call_mode:
+                            continue
+                        energy = self._get_chunk_energy(chunk)
+                        # Adaptively track speaker output echo baseline
+                        self._tts_bg_energy = self._tts_bg_energy * 0.85 + energy * 0.15
+                        # Dynamic interruption threshold set above speaker output echo floor
+                        thresh = max(0.020, self._tts_bg_energy * 1.75)
+                        if energy > thresh:
+                            self.interrupt_speech_counter += 1
+                        else:
+                            self.interrupt_speech_counter = 0
+
+                        # Fire interruption on 2 consecutive chunks (500ms of sustained human voice over TTS)
+                        if self.interrupt_speech_counter >= 2:
+                            logger.info(
+                                "[WakeWord] Instant speech onset interruption triggered (energy=%.5f > thresh=%.5f). Stopping TTS & LLM...",
+                                energy, thresh
+                            )
+                            self.interrupt_speech_counter = 0
+                            self.tts_buffer = []
+                            self.tts_buffer_samples = 0
+                            app_state.external_tts_speaking = False
+                            try:
+                                tts.stop_all()
+                            except Exception:
+                                pass
+                            if app_state.main_loop:
+                                asyncio.run_coroutine_threadsafe(
+                                    app_state.notify_interruption(),
+                                    app_state.main_loop
+                                )
+                            self._set_state(self.STATE_LISTENING)
+                            self.speech_buffer = [chunk]
+                            self.speech_chunk_count = 1
+                            self.silence_counter = 0
+                            self.recorded_samples = len(chunk)
+                            continue
+                        else:
+                            continue
                         # During TTS, accumulate audio and detect energy spike (user speaking).
                         # Once we have enough samples OR an energy spike, send for transcription.
                         energy = self._get_chunk_energy(chunk)
@@ -344,12 +374,14 @@ class WakeWordDetector:
                     is_speech = energy > energy_thresh
 
                     if self.state == self.STATE_IDLE:
+                        self.ring_buffer.append(chunk)
                         if energy > energy_thresh:
                             self._set_state(self.STATE_LISTENING)
-                            self.speech_buffer = [chunk]
+                            self.speech_buffer = list(self.ring_buffer)
+                            self.ring_buffer.clear()
                             self.speech_chunk_count = 1
                             self.silence_counter = 0
-                            self.recorded_samples = len(chunk)
+                            self.recorded_samples = sum(len(c) for c in self.speech_buffer)
                             logger.info("[WakeWord] Speech detected (energy=%.5f > %.5f), recording...", energy, energy_thresh)
 
                     elif self.state == self.STATE_LISTENING:
@@ -359,6 +391,13 @@ class WakeWordDetector:
                         if is_speech:
                             self.speech_chunk_count += 1
                             self.silence_counter = 0
+
+                            # Sustained speech confirmed during active TTS playback. Stop TTS & notify interruption
+                            if self.speech_chunk_count == 2 and tts_speaking and app_state.main_loop:
+                                asyncio.run_coroutine_threadsafe(
+                                    app_state.notify_interruption(),
+                                    app_state.main_loop
+                                )
 
                             # Real-time/Partial transcription:
                             # Every ~500ms (2 chunks of 250ms), try a partial transcription
@@ -382,7 +421,7 @@ class WakeWordDetector:
 
                         # Check if enough silence has passed to consider speech ended
                         elif self.silence_counter >= silence_req:
-                            if self.speech_chunk_count >= min_speech:
+                            if self.speech_chunk_count >= min_speech or self.active_recording_had_tts or in_call_mode:
                                 logger.debug(
                                     f"[WakeWord] Speech ended. "
                                     f"Duration: {recording_duration:.1f}s, "
@@ -397,6 +436,8 @@ class WakeWordDetector:
                                 self._reset_state()
 
                     if self.state == self.STATE_PROCESSING:
+                        if in_call_mode and self.speech_chunk_count >= 2:
+                            self._play_feedback("success")  # Soft feedback chime on real speech sentences in Call Mode
                         self._enqueue_recording()
                         self._reset_state(silent=True)
 
@@ -457,6 +498,12 @@ class WakeWordDetector:
 
     def _enqueue_partial_recording(self):
         """Queue partial audio for real-time feedback."""
+        try:
+            if app_state.is_call_mode():
+                return  # Skip partial transcriptions in Call Mode to keep queue clean & instant
+        except Exception:
+            pass
+
         if not self.speech_buffer or len(self.speech_buffer) < 4:
             return
 
@@ -516,23 +563,30 @@ class WakeWordDetector:
 
         try:
             # Optimized parameters for accuracy and low latency
-            # Disable VAD when TTS was speaking (audio may have mixed TTS echo +
-            # user voice that VAD would incorrectly filter as non-speech).
-            use_vad = not had_tts
+            # Disable VAD in Call Mode or when TTS was speaking, so Whisper never incorrectly drops user speech.
+            in_call = False
+            try:
+                in_call = app_state.is_call_mode()
+            except Exception:
+                pass
+
+            use_vad = not had_tts and not in_call
+            prompt = None if in_call else "Luna. MomAI. Assistente virtual."
+
             segments, info = self.model.transcribe(
                 audio,
                 language="pt",
-                beam_size=1 if is_partial else 2,
+                beam_size=1,
                 best_of=1,
-                initial_prompt="Luna. MomAI. Assistente virtual. Comandos em português brasileiro.",
+                initial_prompt=prompt,
                 vad_filter=use_vad,
                 vad_parameters=dict(
                     min_silence_duration_ms=400 if use_vad else 0,
                     speech_pad_ms=250 if use_vad else 0,
-                    threshold=0.5 if use_vad else 0.0,
+                    threshold=0.3 if use_vad else 0.0,
                 ),
-                no_speech_threshold=0.6 if use_vad else 0.0,
-                log_prob_threshold=-1.0,
+                no_speech_threshold=0.6 if use_vad else None,
+                log_prob_threshold=-1.0 if use_vad else None,
                 condition_on_previous_text=False,
                 suppress_blank=True,
             )
@@ -540,7 +594,7 @@ class WakeWordDetector:
             raw_text = "".join([s.text for s in segments]).strip()
 
             if not raw_text:
-                logger.info("[WakeWord] Empty transcription from Whisper (duration=%.1fs, partial=%s)", duration, is_partial)
+                logger.warning("[WakeWord] Whisper returned empty transcription (duration=%.1fs, in_call=%s)", duration, in_call)
                 return
 
             # Clean text from Whisper artifacts and punctuation
@@ -606,7 +660,8 @@ class WakeWordDetector:
                 return
 
             if not is_repeat:
-                logger.info(f"[WakeWord] Transcribed: '{raw_text}'")
+                t_transcribe_end = time.time()
+                logger.info(f"[WakeWord][VoiceLatency] Transcribed in {(t_transcribe_end - now):.3f}s: '{raw_text}'")
                 self._handle_transcription(text, raw_text, had_tts)
                 self.last_text = text
                 self.last_text_time = now

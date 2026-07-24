@@ -75,9 +75,9 @@ async function triggerAutoTts(text, capturedGen) {
     )
     return
   }
-  if (stopGenerationRequested || stopVoiceRequested) {
+  if (stopGenerationRequested) {
     console.log(
-      `[NodeCore][Voice] Auto TTS cancelled: stop flag is true (stopGen=${stopGenerationRequested} stopVoice=${stopVoiceRequested})`
+      `[NodeCore][Voice] Auto TTS cancelled: stopGenerationRequested is true`
     )
     return
   }
@@ -137,6 +137,11 @@ async function triggerAutoTts(text, capturedGen) {
       const requestId = `tts-speak-${ttsSpeakMsgId}-${Date.now()}`
       const promise = new Promise((resolve, reject) => {
         ttsSpeakPending.set(requestId, { resolve, reject })
+      })
+      broadcast({
+        type: 'tts_chunk_start',
+        text: cleaned,
+        duration: Math.max(1.0, cleaned.length * 0.065)
       })
       process.send({
         type: 'tts-speak',
@@ -352,8 +357,16 @@ async function syncPythonCallModeState(reason = 'unknown') {
   throw new Error(msg)
 }
 
+function stopAutoTts() {
+  if (typeof process.send === 'function') {
+    debug('[NodeCore][Voice] stopAutoTts sending tts-stop IPC to main process')
+    process.send({ type: 'tts-stop' })
+  }
+}
+
 module.exports = {
   triggerAutoTts,
+  stopAutoTts,
   syncWakeWordState,
   syncPythonCallModeState,
   ensurePython,

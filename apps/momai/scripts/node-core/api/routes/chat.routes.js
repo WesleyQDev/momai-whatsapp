@@ -84,6 +84,16 @@ function createChatRoutes(context) {
       return true
     }
 
+    if (pathname === '/voice/tts-status' && req.method === 'POST') {
+      try {
+        await proxyToPython(req, res, pathname)
+      } catch (error) {
+        // TTS status is best-effort; don't fail loudly
+        sendJson(res, 200, { success: true, degraded: true })
+      }
+      return true
+    }
+
     if (pathname === '/chat/stream' && req.method === 'POST') {
       const payload = await context.readJsonBody(req).catch(() => ({}))
       try {
@@ -102,10 +112,12 @@ function createChatRoutes(context) {
     }
 
     if (pathname === '/chat/stop' && req.method === 'POST') {
-      context.stopGenerationRequested = true
-      for (const controller of activeChatControllers) {
-        controller.abort()
-      }
+      try {
+        const chatService = require('../../services/chat-service')
+        if (typeof chatService.stopAllGenerationAndTts === 'function') {
+          chatService.stopAllGenerationAndTts()
+        }
+      } catch (err) {}
       try {
         const pythonBase = await ensurePython()
         await fetch(`${pythonBase}/chat/stop-voice`, {

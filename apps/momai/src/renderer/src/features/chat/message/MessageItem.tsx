@@ -322,12 +322,14 @@ const MessageItem = memo(
                   )}
 
                   {/* Structured Response */}
-                  {isLastPart && message.structuredResponses && message.structuredResponses.length > 0 && (
-                    <StructuredResponse
-                      responses={message.structuredResponses}
-                      isSpeaking={isSpeaking}
-                    />
-                  )}
+                  {isLastPart &&
+                    message.structuredResponses &&
+                    message.structuredResponses.length > 0 && (
+                      <StructuredResponse
+                        responses={message.structuredResponses}
+                        isSpeaking={isSpeaking}
+                      />
+                    )}
                 </React.Fragment>
               )
             })}

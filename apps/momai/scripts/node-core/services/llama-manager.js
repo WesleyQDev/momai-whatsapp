@@ -502,19 +502,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
               '-b',
               '2048',
               '-ub',
-              '512',
-              '--top-p',
-              String(Number.isFinite(tierConfig.top_p) ? tierConfig.top_p : 1),
-              '--top-k',
-              String(Number.isFinite(tierConfig.top_k) ? tierConfig.top_k : 20),
-              '--presence-penalty',
-              String(
-                Number.isFinite(tierConfig.presence_penalty) ? tierConfig.presence_penalty : 0
-              ),
-              '--repeat-penalty',
-              String(
-                Number.isFinite(tierConfig.repetition_penalty) ? tierConfig.repetition_penalty : 1
-              )
+              '512'
             ]
 
             if (tierConfig.mtp) {

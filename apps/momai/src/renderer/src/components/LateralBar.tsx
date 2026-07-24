@@ -19,12 +19,7 @@ import { useI18n } from '../i18n'
 
 const STORAGE_KEY = 'momai_sidebar_order'
 
-const DEFAULT_ORDER = [
-  'chat',
-  'notes',
-  'agenda',
-  'youtube'
-]
+const DEFAULT_ORDER = ['chat', 'notes', 'agenda', 'youtube']
 
 const BOTTOM_ITEMS = ['store', 'observability', 'about']
 

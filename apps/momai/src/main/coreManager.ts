@@ -572,6 +572,13 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
         return
       }
 
+      case 'tts-stop': {
+        logger.info('[CoreManager] Received tts-stop IPC from Node Core. Stopping ttsService...')
+        getTTSService().stop()
+        notifyPythonTtsStatus(false)
+        return
+      }
+
       case 'tts-speak': {
         if (state.isQuitting || isStoppingCore) {
           if (child.connected) {
@@ -733,6 +740,9 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
 
       await ttsService.speak(text, engine || 'edge-tts')
 
+      // Notify Python that TTS has finished so external_tts_speaking resets
+      await notifyPythonTtsStatus(false)
+
       logger.info('[CoreManager] ttsService.speak() DONE')
 
       if (child.connected) {
@@ -744,6 +754,8 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
       }
     } catch (error: any) {
       logger.error(`[CoreManager] TTS speak failed: ${error?.message || error}`)
+      // Reset Python's external_tts_speaking flag on error too
+      notifyPythonTtsStatus(false)
       if (child.connected) {
         child.send({
           type: 'tts-speak-result',
@@ -752,9 +764,6 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
           error: error?.message || String(error)
         })
       }
-    } finally {
-      // Always notify stopped
-      await notifyPythonTtsStatus(false)
     }
   }
 }

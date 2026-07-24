@@ -3,6 +3,11 @@ import { renderHook, act } from '@testing-library/react'
 import { useChatHandlers } from './useChatHandlers'
 import { Message } from '../services/api'
 
+const mockTTS = { stopCurrentAudio: vi.fn(), stop: vi.fn() }
+vi.mock('../services/ttsService', () => ({
+  getTTSServiceRenderer: () => mockTTS
+}))
+
 function setupHook(initialMessages: Message[] = []) {
   let messages = [...initialMessages]
 
@@ -322,10 +327,12 @@ describe('useChatHandlers', () => {
         })
       })
 
-      expect(hook.getMessages()[1].structuredResponses).toEqual([{
-        type: 'weather',
-        data: { temp: 25, condition: 'sunny' }
-      }])
+      expect(hook.getMessages()[1].structuredResponses).toEqual([
+        {
+          type: 'weather',
+          data: { temp: 25, condition: 'sunny' }
+        }
+      ])
     })
 
     it('handles assistant with tool_steps', () => {

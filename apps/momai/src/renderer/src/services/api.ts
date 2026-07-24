@@ -820,7 +820,14 @@ export async function setCallMode(enabled: boolean): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ enabled })
   })
-  if (!response.ok) throw new Error('Erro ao definir modo chamada')
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`HTTP ${response.status}: ${body.slice(0, 200)}`)
+  }
+  const body = await response.json().catch(() => ({}))
+  if (body.status === 'error') {
+    throw new Error(body.message || 'Call mode rejeitado pelo backend')
+  }
 }
 
 // --- QUICK VOICE TRANSCRIPTION ---

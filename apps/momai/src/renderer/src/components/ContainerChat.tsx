@@ -147,7 +147,6 @@ const CallModeUI = ({
 }) => (
   <CallModeContent
     onEndCall={onEndCall}
-    onStopVoice={onStopVoice}
     history={history}
     status={status}
     isSpeaking={isSpeaking}
@@ -493,7 +492,7 @@ export default function ContainerChat({
           onEndCall={onToggleCallMode || (() => {})}
           onStopVoice={stopCurrentVoice}
           history={callHistory}
-          status={voiceStatus}
+          status={isLoading || voiceStatus === 'processing' ? 'processing' : voiceStatus}
           isSpeaking={speakingMessageId !== null && speakingMessageId !== undefined}
         />
       ) : (
@@ -623,7 +622,7 @@ export default function ContainerChat({
         </div>
       )}
 
-      {statusInfo?.llama_runtime?.loaded_model_name && (
+      {!isCallMode && statusInfo?.llama_runtime?.loaded_model_name && (
         <div className="absolute bottom-1.5 right-4 z-50 pointer-events-none select-none flex items-center gap-1.5">
           <span className="text-[9px] font-bold text-white/40 bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-md border border-white/5 transition-colors uppercase tracking-[0.1em]">
             {statusInfo.llama_runtime.loaded_model_name}

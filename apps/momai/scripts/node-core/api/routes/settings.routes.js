@@ -3,6 +3,7 @@ const fs = require('node:fs')
 const { filterToEditableSettings } = require('../../config/settings-allowlist.js')
 const { getEffectiveDevMode } = require('../../utils/install-registry.js')
 const { MEMORIES_DIR } = require('../../config/constants')
+const shared = require('../../services/shared-state')
 const { createMemoryFS } = require('../../infrastructure/memory-fs')
 
 function createSettingsRoutes(context) {
@@ -260,6 +261,7 @@ function createSettingsRoutes(context) {
       }
 
       store.call_mode = enabled
+      shared.store.call_mode = enabled
       saveStore()
       try {
         await syncPythonCallModeState('call_mode_change')

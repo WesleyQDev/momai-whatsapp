@@ -69,8 +69,6 @@ describe('prompt-registry (refactored)', () => {
       expect(result).toContain('-- User Profile --')
       expect(result).toContain('- gosta de tecnologia')
       expect(result).toContain('- prefere resposta curta')
-      expect(result).toContain('-- MomAI Identity --')
-      expect(result).toContain('MomAI é assistente pessoal')
       expect(result).toContain('-- Known Facts --')
       expect(result).toContain('Python é usado para IA')
       expect(result).not.toContain('§')
@@ -78,7 +76,7 @@ describe('prompt-registry (refactored)', () => {
   })
 
   describe('buildVolatileTier', () => {
-    it('returns session info and greeting policy', () => {
+    it('returns greeting for new conversation', () => {
       const reg = createPromptRegistry({ promptsDir })
       const result = reg.buildVolatileTier({
         threadId: 'test-123',
@@ -87,13 +85,10 @@ describe('prompt-registry (refactored)', () => {
         locale: 'pt-BR',
         hasHistory: false
       })
-      expect(result).toContain('test-123')
-      expect(result).toContain('Qwen3.5-4B')
-      expect(result).toContain('pt-BR')
       expect(result).toContain('greet naturally')
     })
 
-    it('uses different greeting for ongoing conversation', () => {
+    it('returns empty for ongoing conversation', () => {
       const reg = createPromptRegistry({ promptsDir })
       const result = reg.buildVolatileTier({
         threadId: 'test-456',
@@ -102,8 +97,7 @@ describe('prompt-registry (refactored)', () => {
         locale: 'pt-BR',
         hasHistory: true
       })
-      expect(result).toContain('Continue')
-      expect(result).not.toContain('greet')
+      expect(result).toBe('')
     })
   })
 
@@ -122,14 +116,11 @@ describe('prompt-registry (refactored)', () => {
       }
       const r1 = reg.buildSystemPrompt(input)
       const r2 = reg.buildSystemPrompt(input)
-      // Stable content (before volatile tier) should be identical — proves cache hit
-      const stablePortion1 = r1.split('Conversation:')[0]
-      const stablePortion2 = r2.split('Conversation:')[0]
-      expect(stablePortion1).toBe(stablePortion2)
-      // Both have full content including rebuilt volatile/clock
+      // Both have full content including volatile/clock
       expect(r1).toContain('# RUNTIME CLOCK')
       expect(r2).toContain('# RUNTIME CLOCK')
-      // Timestamps differ (volatile rebuilt each call)
+      expect(r1).toContain('greet naturally')
+      // Timestamps differ (rebuilt each call)
       expect(r1).not.toBe(r2)
     })
   })

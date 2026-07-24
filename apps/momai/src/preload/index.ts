@@ -120,6 +120,7 @@ const ALLOWED_ON_CHANNELS = new Set([
   'tray:state-update',
   'tts:speaking-start',
   'tts:speaking-end',
+  'tts:stop-audio',
   'tts:error',
   'tts:engine-changed',
   'tts:voice-changed',

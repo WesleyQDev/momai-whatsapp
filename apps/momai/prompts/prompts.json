@@ -6,15 +6,15 @@
   "tiers": {
     "lite": {
       "response_style": "balanced",
-      "tier_instructions": "Be clear, practical, and polite. Prefer short paragraphs. Ask for clarification only when necessary. When a tool result is available, use it as the source of truth."
+      "tier_instructions": "Be clear and direct."
     },
     "pro": {
       "response_style": "balanced",
-      "tier_instructions": "Be direct and useful. Prioritize concrete next actions. Keep explanations focused and concise. When a tool result is available, start with the factual result before elaborating."
+      "tier_instructions": "Be direct and useful."
     },
     "ultra": {
-      "response_style": "concise",
-      "tier_instructions": "Reply with objective, short answers. When a tool was executed, start with the practical result in the first line. Expand only when the user explicitly asks for more detail."
+      "response_style": "balanced",
+      "tier_instructions": "Be helpful, warm, and direct."
     }
   },
   "fallback_replies": {

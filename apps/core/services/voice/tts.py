@@ -417,6 +417,17 @@ class TTSManager:
                                     logger.debug(f"[TTS Stream] Starting playback for first chunk")
                                     playback_started = True
                                 
+                                if app_state.main_loop:
+                                    chunk_duration = float(len(play_data)) / float(play_sr)
+                                    asyncio.run_coroutine_threadsafe(
+                                        app_state.broadcast_to_sockets({
+                                            "type": "tts_chunk_start",
+                                            "duration": chunk_duration,
+                                            "text": text
+                                        }),
+                                        app_state.main_loop
+                                    )
+
                                 sd.play(play_data, samplerate=play_sr)
                                 
                                 if app_state.active_websockets:

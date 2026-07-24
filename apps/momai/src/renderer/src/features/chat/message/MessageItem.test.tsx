@@ -221,7 +221,11 @@ describe('MessageItem', () => {
     render(
       <MessageItem
         {...defaultProps}
-        message={{ role: 'assistant', content: 'some text', structuredResponses: [structuredResponse] }}
+        message={{
+          role: 'assistant',
+          content: 'some text',
+          structuredResponses: [structuredResponse]
+        }}
       />
     )
 

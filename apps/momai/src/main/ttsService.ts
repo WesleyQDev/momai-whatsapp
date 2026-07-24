@@ -326,7 +326,7 @@ export class TTSService extends EventEmitter {
           logger.debug(
             `[TTSService] Emitting audio buffer for sentence ${i + 1}, len: ${audioBuffer.length}`
           )
-          this.emit('play-audio-buffer', audioBuffer)
+          this.emit('play-audio-buffer', audioBuffer, sentence)
         }
       }
 
@@ -372,6 +372,7 @@ export class TTSService extends EventEmitter {
     if (this.isSpeaking) {
       this.sayInstance?.stop()
       this.isSpeaking = false
+      this.emit('stop-audio')
       this.emit('speaking-end')
     }
   }

@@ -15,7 +15,11 @@ export const StructuredResponse: React.FC<StructuredResponseProps> = ({
   return (
     <>
       {responses.map((r, i) => (
-        <div key={i} data-structured-response className="transition-all duration-500 animate-in fade-in py-0.5">
+        <div
+          key={i}
+          data-structured-response
+          className="transition-all duration-500 animate-in fade-in py-0.5"
+        >
           <StructuredResponseRenderer response={r} isSpeaking={isSpeaking} />
         </div>
       ))}

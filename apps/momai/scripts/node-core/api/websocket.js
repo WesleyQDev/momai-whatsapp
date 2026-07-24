@@ -136,6 +136,7 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
 
   if (WebSocketServer && server) {
     wss = new WebSocketServer({ noServer: true })
+    info('[WS] WebSocket server created (noServer mode)')
 
     const { isValidWsUpgrade } = require('../middleware/ws-auth.js')
 
@@ -145,11 +146,16 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
         socket.destroy()
         return
       }
+      const provided = require('../middleware/ws-auth.js').extractWsToken(url)
+      const expected = require('../config/security.js').getSessionToken()
       if (!isValidWsUpgrade(url)) {
+        info(`[WS] Rejected: provided="${provided?.slice(0, 12)}..." expected="${expected?.slice(0, 12)}..."`)
+        info(`[WS] Full token comparison: provided=${provided === expected}`)
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
         socket.destroy()
         return
       }
+      info('[WS] Upgrade accepted')
 
       wss.handleUpgrade(req, socket, head, (ws) => {
         wss.emit('connection', ws, req)
@@ -170,6 +176,9 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
         }
         if (parsed?.type === 'session_sync') {
           ws.send(JSON.stringify({ type: 'session_sync', ok: true }))
+          if (parsed.thread_id && pythonWs?.readyState === WebSocket.OPEN) {
+            pythonWs.send(JSON.stringify({ type: 'session_sync', thread_id: parsed.thread_id }))
+          }
         }
       })
 

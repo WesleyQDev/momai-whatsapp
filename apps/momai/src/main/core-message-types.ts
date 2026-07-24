@@ -51,12 +51,17 @@ export type SecureStorageDecryptMessage = {
   payload?: { encryptedBase64?: string }
 }
 
+export type TtsStopMessage = {
+  type: 'tts-stop'
+}
+
 export type NodeCoreMessage =
   | NodeCoreReadyMessage
   | NodeCoreLogMessage
   | NodeCoreErrorMessage
   | EnsurePythonRequestMessage
   | TtsSpeakMessage
+  | TtsStopMessage
   | KeychainEncryptMessage
   | KeychainDecryptMessage
   | SecureStorageEncryptMessage
@@ -72,6 +77,7 @@ export function isNodeCoreMessage(value: unknown): value is NodeCoreMessage {
     case 'node-core-error':
     case 'ensure-python':
     case 'tts-speak':
+    case 'tts-stop':
     case 'keychain:encrypt':
     case 'keychain:decrypt':
     case 'secure-storage:encrypt':

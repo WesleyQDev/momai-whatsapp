@@ -11,16 +11,12 @@ function defaultFor(name, userName) {
     const profileName = String(userName || '').trim() || 'User'
     return `## User Profile
 - Name: ${profileName}
-- Communication language: pt-BR
 
 ## Preferences
 - 
 
 ## Facts
-- 
-
-## Communication Style
-- Prefers direct and concise answers`
+- `
   }
   if (name === 'persona') {
     return `You are MomAI, a warm and helpful assistant created by Wesley Developer Studios.

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 import logging
@@ -28,8 +29,14 @@ async def websocket_endpoint(websocket: WebSocket):
     logger.debug("[VoiceWS] New connection accepted")
     try:
         while True:
-            # Keep connection alive and wait for client to close
-            await websocket.receive_text()
+            raw = await websocket.receive_text()
+            try:
+                msg = json.loads(raw)
+                if msg.get("type") == "session_sync" and msg.get("thread_id"):
+                    app_state.last_thread_id = msg["thread_id"]
+                    logger.debug("[VoiceWS] Session synced: %s", msg["thread_id"])
+            except json.JSONDecodeError:
+                pass
     except WebSocketDisconnect:
         app_state.remove_websocket(websocket)
         logger.debug("[VoiceWS] Connection closed")

@@ -72,7 +72,8 @@ const MessageList = memo(function MessageList({
 
     if (isNewMessage || isAtBottomRef.current) {
       const lastMsg = messages[messages.length - 1]
-      const hasStructuredCard = lastMsg?.role === 'assistant' && lastMsg?.structuredResponses?.length
+      const hasStructuredCard =
+        lastMsg?.role === 'assistant' && lastMsg?.structuredResponses?.length
 
       if (hasStructuredCard && containerRef.current) {
         setTimeout(() => {

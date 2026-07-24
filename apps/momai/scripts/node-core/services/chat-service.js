@@ -74,6 +74,24 @@ let generationId = 0
 const activeChatControllers = new Set()
 const activeGenerationThreads = new Set()
 
+function stopAllGenerationAndTts() {
+  debug('[chat] stopAllGenerationAndTts called: stopping LLM and TTS')
+  stopGenerationRequested = true
+  stopVoiceRequested = true
+  generationId += 1
+  for (const controller of activeChatControllers) {
+    try {
+      controller.abort()
+    } catch {}
+  }
+  activeChatControllers.clear()
+  activeGenerationThreads.clear()
+  try {
+    const { stopAutoTts } = require('./tts-service')
+    stopAutoTts()
+  } catch {}
+}
+
 async function tokenizePrompt(messages) {
   try {
     const text = messages.map((m) => `${m.role}: ${m.content}`).join('\n')
@@ -409,6 +427,7 @@ async function streamLlamaChat(req, res, payload) {
   const responseLanguage = resolveResponseLanguage(content, threadId)
   const fallbackLanguage = normalizeLanguageTag(store.settings.locale || 'pt-BR')
   const speakResponse = payload.speak_response !== false
+  const isVoiceCommand = Boolean(payload.is_voice_command || payload.is_call_mode)
   const silentForCodeIntent = shouldPreferSilentForCodeRequest(content)
   const tierName = store.settings.ai_tier || 'pro'
   const isUltra = tierName === 'ultra'
@@ -508,7 +527,8 @@ async function streamLlamaChat(req, res, payload) {
   }
 
   let semanticPromise = null
-  if (isUltra) {
+  const isExplicitMemorySearch = /\b(pesquisar|buscar|pesquise|procure|minhas?\s+notas|lembrete|mem[óo]ria)\b/i.test(content)
+  if (isUltra && (!isVoiceCommand || isExplicitMemorySearch)) {
     const { syncSkillAndToolIndexes, syncNoteIndex } = require('./semantic-engine')
     syncSkillAndToolIndexes(false).catch((err) => debug('[background]', err?.message || err))
     syncNoteIndex(false).catch((err) => debug('[background]', err?.message || err))
@@ -536,14 +556,17 @@ async function streamLlamaChat(req, res, payload) {
     }
   }
 
+  const isExplicitSkillRequest = /\b(abrir|abram|executar|rodar|pesquisar\s+no|youtube|whatsapp|skill|ferramenta|criar|agendar)\b/i.test(content)
+  const isVoiceFastPath = isVoiceCommand && !isExplicitSkillRequest
+
   const baseCtx = Number(llamaState.contextTotalTokens || 2048)
-  const dynamicHistoryBudget = Math.max(450, Math.floor(baseCtx * 0.62))
-  const history = buildHistoryWithinBudget(getThreadMessages(threadId), dynamicHistoryBudget).map(
-    (msg) => ({
-      role: msg.role === 'assistant' ? 'assistant' : 'user',
-      content: sanitizePromptText(String(msg.content || ''))
-    })
-  )
+  const dynamicHistoryBudget = isVoiceFastPath ? 150 : Math.max(450, Math.floor(baseCtx * 0.62))
+  const threadMsgs = getThreadMessages(threadId)
+  const rawHistory = isVoiceFastPath ? threadMsgs.slice(-2) : buildHistoryWithinBudget(threadMsgs, dynamicHistoryBudget)
+  const history = rawHistory.map((msg) => ({
+    role: msg.role === 'assistant' ? 'assistant' : 'user',
+    content: sanitizePromptText(String(msg.content || ''))
+  }))
 
   if (semanticPromise) {
     try {
@@ -605,8 +628,8 @@ async function streamLlamaChat(req, res, payload) {
   let assembled = ''
   let bufferedStructuredResponses = []
   let ttsCursor = 0
-  const prebufferChars = Math.max(40, Number(store.settings.prebuffer_chars || 90))
-  const TTS_QUEUE_MAX = 3
+  // Ultra-low prebuffer threshold for voice fast path for ChatGPT-style sub-second voice startup
+  const prebufferChars = isVoiceFastPath ? 20 : Math.max(15, Number(store.settings.prebuffer_chars || 25))
   let ttsProcessing = false
   const ttsQueue = []
 
@@ -618,16 +641,17 @@ async function streamLlamaChat(req, res, payload) {
     }
     debug(`[TTS-DEBUG] enqueueAutoTts CALLING triggerAutoTts: cleaned="${cleaned.slice(0, 60)}"`)
     ttsQueue.push(cleaned)
-    if (ttsQueue.length > TTS_QUEUE_MAX) {
-      ttsQueue.shift()
-    }
     processTtsQueue()
   }
 
   async function processTtsQueue() {
-    if (ttsProcessing) return
+    if (ttsProcessing || currentGen !== generationId || stopGenerationRequested) return
     ttsProcessing = true
     while (ttsQueue.length > 0) {
+      if (currentGen !== generationId || stopGenerationRequested) {
+        ttsQueue.length = 0
+        break
+      }
       const chunk = ttsQueue.shift()
       try {
         await triggerAutoTts(chunk, currentGen)
@@ -662,21 +686,22 @@ async function streamLlamaChat(req, res, payload) {
       debug(`[TTS-DEBUG] flushTtsChunks(${final}) blocked: pending empty, ttsCursor=${ttsCursor}`)
       return
     }
-    if (!final && pending.length < prebufferChars) {
-      debug(
-        `[TTS-DEBUG] flushTtsChunks(${final}) blocked: pending.length=${pending.length} < prebufferChars=${prebufferChars}`
-      )
-      return
-    }
 
     let cut = -1
-    for (let i = pending.length - 1; i >= 0; i -= 1) {
+    for (let i = 0; i < pending.length; i += 1) {
       const ch = pending[i]
-      if (ch === '.' || ch === '!' || ch === '?' || ch === '\n' || ch === ';' || ch === ':') {
+      if (ch === '.' || ch === '!' || ch === '?' || ch === '\n') {
+        cut = i + 1
+        break
+      }
+      // Only cut at commas/semicolons if phrase is long enough (> 50 chars)
+      if ((ch === ',' || ch === ';' || ch === ':') && i >= 50) {
         cut = i + 1
         break
       }
     }
+
+    // Flush TTS chunks on natural sentence boundaries (punctuation) to keep phrases complete and intact
 
     if (!final && cut <= 0) return
     if (final && cut <= 0) cut = pending.length
@@ -820,7 +845,7 @@ async function streamLlamaChat(req, res, payload) {
 
     const discoveryLimit = 5
 
-    {
+    if (!isVoiceFastPath) {
       const topN = await (async () => {
         if (isUltra) {
           const semanticResults = await getTop5SkillsSemantic(discoveryContent)
@@ -999,14 +1024,21 @@ async function streamLlamaChat(req, res, payload) {
     if (extraSystemInstructions.length > 0) {
       promptText += `\n\n${extraSystemInstructions.join('\n\n')}`
     }
-    const finalPrompt = promptText || DEFAULT_SYSTEM_PROMPT
+    let finalPrompt = promptText
+    if (isVoiceFastPath) {
+      const userLocale = store.settings.locale || 'pt-BR'
+      finalPrompt = `${promptText}\n\nVOICE MODE INSTRUCTION:\nRespond in the user's language (${userLocale}) naturally, warmly, directly, and concisely (1 to 3 short sentences for spoken playback). Do not use markdown formatting like bold, lists, code blocks, or headers.`
+      toolsPayload = []
+    }
     const systemMessage = {
       role: 'system',
       content: sanitizePromptText(finalPrompt)
     }
 
-    /* Prepend meta-tools to tools payload (always available) */
-    toolsPayload = [...META_TOOL_DEFS, ...toolsPayload]
+    /* Prepend meta-tools to tools payload (always available except on voice fast path) */
+    if (!isVoiceFastPath) {
+      toolsPayload = [...META_TOOL_DEFS, ...toolsPayload]
+    }
 
     /* Round loop: LLM ve tools, decide se chama alguma, resultado volta */
     let round = 0
@@ -1024,9 +1056,10 @@ async function streamLlamaChat(req, res, payload) {
         model: 'gpt-4o',
         stream: true,
         temperature: Number.isFinite(tier.temperature) ? tier.temperature : 0.7,
-        top_p: Number.isFinite(tier.top_p) ? tier.top_p : 1,
+        top_p: Number.isFinite(tier.top_p) ? tier.top_p : 0.9,
+        top_k: Number.isFinite(tier.top_k) ? tier.top_k : 40,
         presence_penalty: Number.isFinite(tier.presence_penalty) ? tier.presence_penalty : 0,
-        repetition_penalty: Number.isFinite(tier.repetition_penalty) ? tier.repetition_penalty : 1,
+        repeat_penalty: Number.isFinite(tier.repetition_penalty) ? tier.repetition_penalty : 1,
         max_tokens: computeDynamicMaxTokens(
           Number.isFinite(tier.max_tokens) ? tier.max_tokens : 320,
           estimatedPromptTokens,
@@ -1063,6 +1096,34 @@ async function streamLlamaChat(req, res, payload) {
         })
         .catch((err) => debug('[background] tokenizePrompt failed:', err?.message || err))
 
+async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
+  let lastErr = null
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const resp = await fetch(url, options)
+      if (resp.ok || resp.status === 400) {
+        return resp
+      }
+      const text = await resp.text().catch(() => '')
+      lastErr = new Error(`HTTP ${resp.status}: ${text.slice(0, 240)}`)
+      warn(`[chat] LLM attempt ${attempt}/${maxAttempts} returned status ${resp.status}`)
+    } catch (err) {
+      if (options.signal?.aborted) {
+        throw err
+      }
+      lastErr = err
+      warn(`[chat] LLM attempt ${attempt}/${maxAttempts} failed: ${err.message}`)
+    }
+
+    if (attempt < maxAttempts) {
+      const delay = Math.min(1200, 350 * Math.pow(2, attempt - 1))
+      debug(`[chat] Retrying local LLM completion in ${delay}ms (attempt ${attempt + 1}/${maxAttempts})...`)
+      await new Promise((r) => setTimeout(r, delay))
+    }
+  }
+  throw lastErr
+}
+
       {
         const _sse = writeSse(res, { status: 'responding' })
         if (_sse instanceof Promise) await _sse
@@ -1073,12 +1134,12 @@ async function streamLlamaChat(req, res, payload) {
       info(
         `[timing] pre-llama overhead: ${tPreFetch - t0}ms (tier=${tierName}, tools=${toolsPayload.length}, sysPromptLen=${systemMessage.content.length}, historyLen=${currentMessages.length})`
       )
-      let llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
+      let llamaResp = await fetchLlamaWithRetry(`${getLlamaBaseUrl()}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify(requestBody)
-      })
+      }, 3)
       info(`[timing] llama first response: ${Date.now() - tPreFetch}ms (after pre-llama overhead)`)
 
       if (!llamaResp.ok || !llamaResp.body) {
@@ -1129,12 +1190,12 @@ async function streamLlamaChat(req, res, payload) {
               `[chat] Context overflow detected. Retrying with compacted payload (level ${i + 1}).`
             )
 
-            llamaResp = await fetch(`${getLlamaBaseUrl()}/v1/chat/completions`, {
+            llamaResp = await fetchLlamaWithRetry(`${getLlamaBaseUrl()}/v1/chat/completions`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               signal: controller.signal,
               body: JSON.stringify(retryBody)
-            })
+            }, 3)
             if (llamaResp.ok && llamaResp.body) {
               recovered = true
               break
@@ -1982,25 +2043,13 @@ async function runVoiceCommand(payload = {}) {
   let content = String(payload.content || '').trim()
   if (!content) return
   const originalContent = content
-
-  content = `[INSTRUCAO: Mensagem transcrita por voz. Use as ferramentas disponiveis para obter informacoes atualizadas.]\n${content}`
-
   const threadId = String(payload.thread_id || 'default')
   const speakResponse = payload.speak_response !== false
   debug(`[voice-cmd] runVoiceCommand called: content="${content.slice(0, 80)}", thread=${threadId}`)
 
   // Stop any ongoing generation and TTS before starting a new voice command.
   // This prevents the previous LLM from mixing with the new command.
-  if (activeGenerationThreads.has(threadId)) {
-    info(`[voice-cmd] Stopping previous generation on thread ${threadId} for new voice command`)
-    for (const controller of activeChatControllers) {
-      try {
-        controller.abort()
-      } catch {}
-    }
-    activeChatControllers.clear()
-    activeGenerationThreads.delete(threadId)
-  }
+  stopAllGenerationAndTts()
   stopGenerationRequested = false
   stopVoiceRequested = false
 
@@ -2069,6 +2118,7 @@ async function runVoiceCommand(payload = {}) {
     discovery_content: originalContent,
     thread_id: threadId,
     speak_response: speakResponse,
+    is_voice_command: true,
     memory_sources: keywordWebSources?.length ? keywordWebSources : undefined
   })
 
@@ -2112,6 +2162,7 @@ module.exports = {
   parseLlamaDataLine,
   runVoiceCommand,
   buildObservabilityTrace,
+  stopAllGenerationAndTts,
   stopGenerationRequested,
   stopVoiceRequested,
   activeChatControllers,

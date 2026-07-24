@@ -117,8 +117,7 @@ describe('ContainerChat', () => {
     render(<ContainerChat {...defaultProps} isCallMode={true} />)
     await act(() => Promise.resolve())
     expect(screen.queryByTestId('chat-input')).not.toBeInTheDocument()
-    expect(screen.getByText('Escutando')).toBeInTheDocument()
-    expect(screen.getByText('Encerrar')).toBeInTheDocument()
+    expect(screen.getByTitle('Encerrar Sessão')).toBeInTheDocument()
   })
 
   it('renders loading state', async () => {

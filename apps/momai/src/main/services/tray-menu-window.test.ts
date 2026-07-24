@@ -192,9 +192,7 @@ describe('TrayMenuWindow', () => {
   it('did-fail-load logs error and closes window', () => {
     trayMenu.show(mockTray as any)
 
-    const failHandler = mockWin.webContents.on.mock.calls.find(
-      (c) => c[0] === 'did-fail-load'
-    )?.[1]
+    const failHandler = mockWin.webContents.on.mock.calls.find((c) => c[0] === 'did-fail-load')?.[1]
     expect(failHandler).toBeDefined()
 
     failHandler(null, -3, 'ERR_FILE_NOT_FOUND')

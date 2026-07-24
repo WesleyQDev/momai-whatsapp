@@ -312,6 +312,12 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
         token = os.getenv("MOMAI_SESSION_TOKEN", "")
         headers = {"Authorization": f"Bearer {token}"} if token else {}
 
+        # Always stop any previous active TTS audio before starting a new voice command response
+        try:
+            await notify_interruption()
+        except Exception:
+            pass
+
         client = await get_http_client()
         response = await client.post(node_url, json=payload, headers=headers)
         if response.status_code >= 400:
@@ -329,6 +335,28 @@ async def process_voice_command(text: str, speak_response: bool = True) -> None:
             })
         except Exception:
             pass
+
+
+async def notify_interruption() -> None:
+    """Notifies Node Core and sockets to immediately stop LLM generation & TTS playback on speech interruption."""
+    global external_tts_speaking
+    external_tts_speaking = False
+    try:
+        await broadcast_to_sockets({"type": "tts_interrupted"})
+        await broadcast_to_sockets({"type": "voice_status", "status": "listening"})
+    except Exception:
+        pass
+    try:
+        node_host = os.getenv("MOMAI_NODE_CORE_HOST", "127.0.0.1")
+        node_port = int(os.getenv("MOMAI_NODE_CORE_PORT", "8000"))
+        node_url = f"http://{node_host}:{node_port}/chat/stop"
+        token = os.getenv("MOMAI_SESSION_TOKEN", "")
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        client = await get_http_client()
+        await client.post(node_url, headers=headers)
+        logger.info("[Voice] Sent /chat/stop signal to Node Core on user speech interruption")
+    except Exception as exc:
+        logger.debug("[Voice] Failed to send /chat/stop signal: %s", exc)
 
 
 async def close_http_client() -> None:
