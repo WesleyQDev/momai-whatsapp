@@ -75,7 +75,7 @@ function App(): React.JSX.Element {
   const [showSettings, setShowSettings] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [settingsTab, setSettingsTab] = useState<
-    'general' | 'brain' | 'voice' | 'economy' | 'updates'
+    'general' | 'memoria' | 'modelo' | 'voice' | 'economy' | 'updates'
   >('general')
   const [historyOpen, setHistoryOpen] = useState(false)
   const [showOverlay, setShowOverlay] = useState(false)
@@ -103,7 +103,7 @@ function App(): React.JSX.Element {
   }, [])
 
   const openSettings = useCallback(
-    (tab: 'general' | 'brain' | 'voice' | 'economy' | 'updates' = 'general') => {
+    (tab: 'general' | 'memoria' | 'modelo' | 'voice' | 'economy' | 'updates' = 'general') => {
       setSettingsTab(tab)
       setShowSettings(true)
     },
@@ -164,6 +164,7 @@ function App(): React.JSX.Element {
     '/notes': 'NotesDashboard',
     '/agenda': 'RemindersDashboard',
     '/about': 'AboutDashboard',
+    '/logs': 'LogsDashboard',
     '/observability': 'ObservabilityDashboard',
     '/': 'ChatDashboard'
   }

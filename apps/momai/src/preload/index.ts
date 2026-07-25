@@ -155,6 +155,23 @@ const momaiAPI = {
   close: (): void => ipcRenderer.send('window-close'),
   getLogsPath: (): Promise<string> => ipcRenderer.invoke('get-logs-path'),
   openLogsFolder: (): Promise<void> => ipcRenderer.invoke('open-logs-folder'),
+  openDataFolder: (): Promise<void> => ipcRenderer.invoke('open-data-folder'),
+  getDataPath: (): Promise<string> => ipcRenderer.invoke('get-data-path'),
+  openInstallPath: (): Promise<void> => ipcRenderer.invoke('open-install-path'),
+  getInstallPath: (): Promise<string> => ipcRenderer.invoke('get-install-path'),
+  openLogFile: (): Promise<void> => ipcRenderer.invoke('open-log-file'),
+  openModelsFolder: (): Promise<void> => ipcRenderer.invoke('open-models-folder'),
+  getModelsPath: (): Promise<string> => ipcRenderer.invoke('get-models-path'),
+  openLlamaFolder: (): Promise<void> => ipcRenderer.invoke('open-llama-folder'),
+  getLlamaPath: (): Promise<string> => ipcRenderer.invoke('get-llama-path'),
+  checkModelFile: (fileName: string): Promise<{ exists: boolean }> => ipcRenderer.invoke('check-model-file', fileName),
+  startLogStream: (): Promise<void> => ipcRenderer.invoke('start-log-stream'),
+  stopLogStream: (): Promise<void> => ipcRenderer.invoke('stop-log-stream'),
+  onLogLine: (callback: (line: any) => void) => {
+    const handler = (_: any, line: any) => callback(line)
+    ipcRenderer.on('log-line', handler)
+    return () => ipcRenderer.removeListener('log-line', handler)
+  },
   readLogs: (lines?: number): Promise<any> => ipcRenderer.invoke('read-logs', lines),
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('get-app-version'),
   isFirstLaunch: (): Promise<boolean> => ipcRenderer.invoke('is-first-launch'),

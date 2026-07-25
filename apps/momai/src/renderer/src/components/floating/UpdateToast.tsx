@@ -4,7 +4,7 @@ import { useI18n } from '../../i18n'
 interface UpdateToastProps {
   installedVersion?: string
   latestVersion?: string
-  onOpenSettings: (tab: 'general' | 'brain' | 'voice') => void
+  onOpenSettings: (tab: 'general' | 'memoria' | 'modelo') => void
 }
 
 export default function UpdateToast({
@@ -77,7 +77,7 @@ export default function UpdateToast({
 
         <button
           onClick={() => {
-            onOpenSettings('brain')
+            onOpenSettings('memoria')
             setIsVisible(false)
           }}
           className="w-full py-2 bg-accent text-white text-[10px] font-black uppercase rounded-lg hover:opacity-90 transition-all shadow-lg shadow-accent/20"

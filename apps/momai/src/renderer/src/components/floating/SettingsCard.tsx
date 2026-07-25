@@ -5,6 +5,7 @@ import { useWindowMaximized } from '../../hooks/useWindowMaximized'
 import { Sidebar } from './settings/Sidebar'
 import { GeneralTab } from './settings/tabs/GeneralTab'
 import { BrainTab } from './settings/tabs/BrainTab'
+import { ModelTab } from './settings/tabs/ModelTab'
 import { VoiceTab } from './settings/tabs/VoiceTab'
 import { EconomyTab } from './settings/tabs/EconomyTab'
 import { UpdatesTab } from './settings/tabs/UpdatesTab'
@@ -138,16 +139,22 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
         />
       )}
 
-      {activeTab === 'brain' && (
+      {activeTab === 'memoria' && (
         <BrainTab
           t={t}
           settings={settings}
           tiersConfig={tiersConfig}
-          localDetails={localDetails}
-          isAdvancedHardwareOpen={isAdvancedHardwareOpen}
-          setIsAdvancedHardwareOpen={setIsAdvancedHardwareOpen}
           updateField={updateField}
-          saveSettings={saveSettings}
+        />
+      )}
+
+      {activeTab === 'modelo' && (
+        <ModelTab
+          t={t}
+          settings={settings}
+          tiersConfig={tiersConfig}
+          localDetails={localDetails}
+          updateField={updateField}
           checkLocalStatus={checkLocalStatus}
         />
       )}
@@ -192,8 +199,6 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
       {activeTab === 'developer' && (
         <DeveloperTab t={t} handleDevMode={handleDevMode} onClose={onClose} />
       )}
-
-      {activeTab === 'logs' && <LogsCard onClose={() => setActiveTab('general')} />}
     </div>
   )
 

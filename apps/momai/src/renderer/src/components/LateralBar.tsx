@@ -19,7 +19,7 @@ import { useI18n } from '../i18n'
 
 const STORAGE_KEY = 'momai_sidebar_order'
 
-const DEFAULT_ORDER = ['chat', 'notes', 'agenda', 'youtube']
+const DEFAULT_ORDER = ['chat', 'notes', 'agenda', 'youtube', 'logs']
 
 const BOTTOM_ITEMS = ['store', 'observability', 'about']
 
@@ -125,26 +125,31 @@ function resolveSkillIcon(ext: any): React.ComponentType<any> | string {
   return PuzzlePieceIcon
 }
 
-function loadOrder(): string[] {
+function loadOrder(skipLogs = false): string[] {
+  const hideLogs = skipLogs || localStorage.getItem('momai_logs_enabled') !== 'true'
+  const defaults = hideLogs ? DEFAULT_ORDER.filter((id) => id !== 'logs') : [...DEFAULT_ORDER]
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
       const parsed = JSON.parse(stored) as string[]
       if (Array.isArray(parsed) && parsed.length > 0) {
         const valid = parsed.filter((id) => !id.startsWith('__'))
-        return valid.length > 0 ? valid : [...DEFAULT_ORDER]
+        const merged = [...new Set([...valid, ...defaults])]
+        saveOrder(merged)
+        return merged
       }
     }
   } catch {}
-  return [...DEFAULT_ORDER]
+  saveOrder(defaults)
+  return defaults
 }
 
 function saveOrder(order: string[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(order))
 }
 
-function useSidebarOrder() {
-  const [order, setOrder] = useState<string[]>(loadOrder)
+function useSidebarOrder(isDev: boolean) {
+  const [order, setOrder] = useState<string[]>(() => loadOrder(!isDev))
 
   const reorder = useCallback((fromIndex: number, toIndex: number) => {
     setOrder((prev) => {
@@ -174,7 +179,7 @@ function useSidebarOrder() {
     })
   }, [])
 
-  return { order, reorder, ensureInOrder }
+  return { order, setOrder, reorder, ensureInOrder }
 }
 
 export default function LateralBar({
@@ -197,9 +202,15 @@ export default function LateralBar({
       return []
     }
   })
+  const [devMode, setDevMode] = useState(
+    () => localStorage.getItem('momai_dev_mode') === 'true'
+  )
+  const [logsEnabled, setLogsEnabled] = useState(
+    () => localStorage.getItem('momai_logs_enabled') === 'true'
+  )
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [dropIdx, setDropIdx] = useState<number | null>(null)
-  const { order, reorder, ensureInOrder } = useSidebarOrder()
+  const { order, setOrder, reorder, ensureInOrder } = useSidebarOrder(devMode)
 
   const markAsSeen = (extId: string) => {
     if (!seenPanels.includes(extId)) {
@@ -238,8 +249,18 @@ export default function LateralBar({
     const handler = () => {
       setObservabilityEnabled(localStorage.getItem('momai_observability_enabled') === 'true')
     }
+    const devHandler = () => {
+      const enabled = localStorage.getItem('momai_dev_mode') === 'true'
+      setDevMode(enabled)
+      setLogsEnabled(localStorage.getItem('momai_logs_enabled') === 'true')
+      setOrder(loadOrder(!enabled))
+    }
     window.addEventListener('momai_observability_sync', handler)
-    return () => window.removeEventListener('momai_observability_sync', handler)
+    window.addEventListener('momai_dev_mode_sync', devHandler)
+    return () => {
+      window.removeEventListener('momai_observability_sync', handler)
+      window.removeEventListener('momai_dev_mode_sync', devHandler)
+    }
   }, [])
 
   const loadExtensions = useCallback(async () => {
@@ -436,6 +457,26 @@ export default function LateralBar({
     </button>
   )
 
+  const renderLogs = () => {
+    const isActive = activeRoute === '/logs'
+    return (
+      <button
+        onClick={() => onNavigate('/logs')}
+        title="Logs"
+        className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 ${isActive ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
+      >
+        {isActive && (
+          <div className={`absolute ${isCompact ? '-left-2 h-4' : '-left-3 h-6'} w-1 bg-accent rounded-r-full animate-fade-in`} />
+        )}
+        <svg className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" />
+          <line x1="8" y1="10" x2="16" y2="10" />
+          <line x1="8" y1="14" x2="12" y2="14" />
+        </svg>
+      </button>
+    )
+  }
+
   const renderExtensionGroup = () => <>{otherExtensions.map((ext) => renderExt(ext))}</>
 
   const renderPanelExtensions = () => {
@@ -593,6 +634,8 @@ export default function LateralBar({
     if (itemId === 'notes') return withDrag(itemId, idx, renderNotes())
     if (itemId === 'agenda') return withDrag(itemId, idx, renderScheduler())
     if (itemId === 'youtube') return withDrag(itemId, idx, renderYouTube())
+    if (itemId === 'logs' && !logsEnabled) return null
+    if (itemId === 'logs') return withDrag(itemId, idx, renderLogs())
     if (itemId.startsWith('ext:')) {
       const ext = otherExtensions.find((e) => e.id === itemId.slice(4))
       if (!ext) return null

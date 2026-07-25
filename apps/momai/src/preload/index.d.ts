@@ -15,6 +15,19 @@ interface MomaiAPI {
   close: () => void
   getLogsPath: () => Promise<string>
   openLogsFolder: () => Promise<void>
+  openDataFolder: () => Promise<void>
+  getDataPath: () => Promise<string>
+  openInstallPath: () => Promise<void>
+  getInstallPath: () => Promise<string>
+  openLogFile: () => Promise<void>
+  openModelsFolder: () => Promise<void>
+  getModelsPath: () => Promise<string>
+  openLlamaFolder: () => Promise<void>
+  getLlamaPath: () => Promise<string>
+  checkModelFile: (fileName: string) => Promise<{ exists: boolean }>
+  startLogStream: () => Promise<void>
+  stopLogStream: () => Promise<void>
+  onLogLine: (callback: (line: any) => void) => () => void
   readLogs: (lines?: number) => Promise<{
     success: boolean
     entries?: Array<{

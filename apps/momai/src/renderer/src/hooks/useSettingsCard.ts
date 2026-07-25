@@ -8,7 +8,7 @@ import {
 } from '../services/api'
 import { useI18n } from '../i18n'
 
-export type Tab = 'general' | 'brain' | 'updates' | 'economy' | 'voice' | 'logs' | 'developer'
+export type Tab = 'general' | 'memoria' | 'modelo' | 'voice' | 'economy' | 'updates' | 'developer'
 export type Theme = 'dark' | 'light'
 
 export interface Settings {

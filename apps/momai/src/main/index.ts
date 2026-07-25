@@ -45,7 +45,8 @@ import {
   createYouTubeBeforeSendHeadersHandler,
   getYouTubeWebRequestFilterUrls
 } from './youtube-session'
-import { join } from 'path'
+import { join, dirname } from 'path'
+import { existsSync, mkdirSync } from 'fs'
 
 // Initialize first launch state correctly at startup
 state.isFirstLaunch = !isOnboardingCompleted()
@@ -99,6 +100,32 @@ ipcMain.handle('open-logs-folder', () => {
   const mainLogPath = getMainLogPath()
   shell.showItemInFolder(mainLogPath)
 })
+ipcMain.handle('open-data-folder', () => shell.openPath(app.getPath('userData')))
+ipcMain.handle('get-data-path', () => app.getPath('userData'))
+ipcMain.handle('open-install-path', () => shell.openPath(dirname(app.getPath('exe'))))
+ipcMain.handle('get-install-path', () => dirname(app.getPath('exe')))
+ipcMain.handle('open-log-file', () => {
+  const mainLogPath = getMainLogPath()
+  shell.openPath(mainLogPath)
+})
+ipcMain.handle('open-models-folder', async () => {
+  const modelsDir = process.env.MOMAI_MODELS_DIR || join(app.getPath('userData'), 'data', 'models')
+  if (!existsSync(modelsDir)) { mkdirSync(modelsDir, { recursive: true }) }
+  const result = await shell.openPath(modelsDir)
+  if (result) logger.warn('[Electron] open-models-folder:', result)
+})
+ipcMain.handle('get-models-path', () => process.env.MOMAI_MODELS_DIR || join(app.getPath('userData'), 'data', 'models'))
+ipcMain.handle('open-llama-folder', async () => {
+  const llamaDir = join(app.getAppPath(), 'bin', 'llama')
+  const result = await shell.openPath(llamaDir)
+  if (result) logger.warn('[Electron] open-llama-folder:', result)
+})
+ipcMain.handle('get-llama-path', () => join(app.getAppPath(), 'bin', 'llama'))
+ipcMain.handle('check-model-file', async (_, fileName: string) => {
+  const modelsDir = join(app.getPath('userData'), 'data', 'models')
+  const filePath = join(modelsDir, fileName)
+  return { exists: existsSync(filePath) }
+})
 ipcMain.handle('read-logs', async (_, lines = 200) => {
   try {
     const fs = await import('fs/promises')
@@ -129,6 +156,61 @@ ipcMain.handle('read-logs', async (_, lines = 200) => {
     return { success: true, entries: logEntries }
   } catch (error) {
     return { success: false, error: String(error) }
+  }
+})
+
+// Log streaming state for real-time terminal view
+const logStreamWatchers = new Map<string, { watcher: ReturnType<typeof import('fs').watch>; pos: number }>()
+ipcMain.handle('start-log-stream', (event) => {
+  const mainLogPath = getMainLogPath()
+  const fs = require('fs') as typeof import('fs')
+  const sender = event.sender
+
+  // Clean up previous watcher for this sender
+  const key = event.sender.id.toString()
+  const existing = logStreamWatchers.get(key)
+  if (existing) {
+    existing.watcher.close()
+    logStreamWatchers.delete(key)
+  }
+
+  let pos = 0
+  try { pos = fs.statSync(mainLogPath).size } catch {}
+
+  const watcher = fs.watch(mainLogPath, () => {
+    try {
+      const currentSize = fs.statSync(mainLogPath).size
+      if (currentSize <= pos) { pos = currentSize; return }
+      const fd = fs.openSync(mainLogPath, 'r')
+      const buf = Buffer.alloc(currentSize - pos)
+      fs.readSync(fd, buf, 0, buf.length, pos)
+      fs.closeSync(fd)
+      pos = currentSize
+      const lines = buf.toString('utf-8').split('\n').filter(Boolean)
+      for (const line of lines) {
+        const match = line.match(/^\[(\d{2}):(\d{2}):(\d{2})\.(\d{3})\]\s*\[(\w+)\]\s*(.*)$/)
+        if (match) {
+          const [, h, min, s, ms, level, message] = match
+          sender.send('log-line', { timestamp: `${h}:${min}:${s}.${ms}`, level: level.toLowerCase(), component: detectLogComponent(message), message, raw: line })
+        } else {
+          sender.send('log-line', { timestamp: '', level: 'info', component: 'system', message: line, raw: line })
+        }
+      }
+    } catch {}
+  })
+
+  logStreamWatchers.set(key, { watcher, pos })
+  sender.on('destroyed', () => {
+    watcher.close()
+    logStreamWatchers.delete(key)
+  })
+})
+ipcMain.handle('stop-log-stream', (event) => {
+  const key = event.sender.id.toString()
+  const existing = logStreamWatchers.get(key)
+  if (existing) {
+    existing.watcher.close()
+    logStreamWatchers.delete(key)
   }
 })
 

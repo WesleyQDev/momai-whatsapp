@@ -200,6 +200,7 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
           if ((settings as any).greeting_auto_saudacao !== false) {
             parts.push(saudacao)
           }
+          parts.push('verifique meus compromissos de hoje na agenda')
           if ((settings as any).greeting_resumo !== false) {
             parts.push(`faça um resumo do dia de hoje, ${dia}, ${data}`)
           }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { FunnelIcon, ArrowPathIcon, TrashIcon } from '@heroicons/react/24/outline'
 import ConfirmDialog from '../../ConfirmDialog'
 
@@ -54,7 +54,19 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
   )
   const [showDevResetConfirm, setShowDevResetConfirm] = useState(false)
   const [isDevResetting, setIsDevResetting] = useState(false)
+  const [logPaths, setLogPaths] = useState({ logs: '', data: '', install: '', logFile: '', models: '', llama: '' })
   const isElectronDev = (window as any).momaiAPI?.isDev?.() === true
+
+  useEffect(() => {
+    const logsP = window.api.getLogsPath()
+    const dataP = (window.api as any).getDataPath?.()?.catch?.() ?? Promise.resolve('')
+    const installP = (window.api as any).getInstallPath?.()?.catch?.() ?? Promise.resolve('')
+    const modelsP = (window.api as any).getModelsPath?.()?.catch?.() ?? Promise.resolve('')
+    const llamaP = (window.api as any).getLlamaPath?.()?.catch?.() ?? Promise.resolve('')
+    Promise.all([logsP, dataP, installP, modelsP, llamaP]).then(([logs, data, install, models, llama]) => {
+      setLogPaths({ logs, data, install, logFile: logs ? logs.replace(/\/$/, '') + '\\main.log' : '', models, llama })
+    }).catch(() => {})
+  }, [])
 
   const handleDevReset = async () => {
     setIsDevResetting(true)
@@ -324,28 +336,74 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
         </div>
       )}
 
-      {isDevMode && logsEnabled && <LogsPanel />}
-
-      {/* Danger Zone — only visible when running via `pnpm run dev` */}
-      {isElectronDev && (
-        <div className="bg-red-500/[0.04] rounded-xl border border-red-500/30 overflow-hidden">
-          <div className="flex items-center justify-between p-4 gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <TrashIcon className="shrink-0 text-red-400" width={20} height={20} />
-              <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-xs font-semibold text-red-300">Reset to Zero (dev only)</span>
-                <span className="text-[11px] text-text-muted font-medium">
-                  Apaga TUDO: banco, mensagens, LLMs locais, cache, Python env e dados das skills
-                  (auth/QR do WhatsApp, contatos, histórico).
-                  <br />O código das skills em <code>apps/momai/scripts/skills/</code> é preservado
-                  (está no monorepo).
-                </span>
-              </div>
+      {/* Pastas do Sistema */}
+      <div className="bg-white/[0.03] rounded-xl border border-border/40 overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border/20">
+          <svg className="shrink-0 text-accent" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+          <span className="text-xs font-bold text-text">Pastas do Sistema</span>
+        </div>
+        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button onClick={() => window.api.openLogsFolder()} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors">
+            <span className="text-base">📂</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-semibold text-text">Abrir pasta de logs</span>
+              <span className="text-[10px] text-text-muted/60 truncate">{logPaths.logs}</span>
             </div>
+          </button>
+          <button onClick={() => window.api.openDataFolder()} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors">
+            <span className="text-base">📁</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-semibold text-text">Abrir pasta de dados</span>
+              <span className="text-[10px] text-text-muted/60 truncate">{logPaths.data || logPaths.logs?.replace(/\\logs$/, '')}</span>
+            </div>
+          </button>
+          <button onClick={() => window.api.openInstallPath()} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors">
+            <span className="text-base">📦</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-semibold text-text">Abrir pasta de instalação</span>
+              <span className="text-[10px] text-text-muted/60 truncate">{logPaths.install}</span>
+            </div>
+          </button>
+          <button onClick={() => window.api.openLogFile()} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors">
+            <span className="text-base">📄</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-semibold text-text">Abrir arquivo de log</span>
+              <span className="text-[10px] text-text-muted/60 truncate">{logPaths.logFile}</span>
+            </div>
+          </button>
+          <button onClick={() => window.api.openModelsFolder()} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors">
+            <span className="text-base">🤖</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-semibold text-text">Abrir pasta de modelos</span>
+              <span className="text-[10px] text-text-muted/60 truncate">{logPaths.models}</span>
+            </div>
+          </button>
+          <button onClick={() => window.api.openLlamaFolder()} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors">
+            <span className="text-base">⚙️</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-semibold text-text">Abrir pasta llama.cpp</span>
+              <span className="text-[10px] text-text-muted/60 truncate">{logPaths.llama}</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Dev Only — reset tool */}
+      {isElectronDev && (
+        <div className="bg-white/[0.03] rounded-xl border border-red-500/20 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-red-500/10">
+            <TrashIcon className="shrink-0 text-red-400" width={16} height={16} />
+            <span className="text-xs font-bold text-red-300">Reset to Zero</span>
+            <span className="ml-auto text-[10px] text-red-400/50 font-mono">dev only</span>
+          </div>
+          <div className="flex items-center justify-between p-4 gap-4">
+            <span className="text-[11px] text-text-muted leading-relaxed">
+              Apaga cache, mensagens, modelos locais e dados das skills. Preserva o código do monorepo.
+            </span>
             <button
               data-testid="dev-reset-button"
               onClick={() => setShowDevResetConfirm(true)}
-              className="shrink-0 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-white bg-red-500/80 hover:bg-red-500 rounded-lg border border-red-400/50 transition-colors"
+              className="shrink-0 px-3 py-1.5 text-[11px] font-bold tracking-wider text-red-300 hover:text-white bg-red-500/10 hover:bg-red-500/30 rounded-lg border border-red-500/20 border-b-red-500/40 transition-all active:scale-95"
             >
               Reset
             </button>
@@ -370,55 +428,47 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
 }
 
 function LogsPanel() {
-  const [entries, setEntries] = useState<LogEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [filterLevel, setFilterLevel] = useState<string>('all')
-  const [filterComponent, setFilterComponent] = useState<string>('all')
-  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [streamLines, setStreamLines] = useState<LogEntry[]>([])
+  const streamContainerRef = useRef<HTMLDivElement>(null)
 
-  const fetchLogs = async () => {
-    setLoading(true)
-    try {
-      const result = await window.api.readLogs(300)
-      if (result?.success) {
-        setEntries(result.entries || [])
-      }
-    } catch (err) {
-      console.error('Failed to fetch logs:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  // Load existing logs + start streaming new ones
   useEffect(() => {
-    fetchLogs()
-    let interval: NodeJS.Timeout | null = null
-    if (autoRefresh) {
-      interval = setInterval(fetchLogs, 2000)
-    }
+    // Load existing logs first
+    window.api.readLogs(500).then((result) => {
+      if (result?.success) {
+        setStreamLines(result.entries || [])
+      }
+    }).catch(() => {}).finally(() => setLoading(false))
+
+    // Start streaming new log lines
+    window.api.startLogStream?.()
+    const cleanup = window.api.onLogLine?.((line) => {
+      setStreamLines((prev) => {
+        const next = [...prev, line]
+        return next.length > 1000 ? next.slice(-1000) : next
+      })
+    })
+
     return () => {
-      if (interval) clearInterval(interval)
+      cleanup?.()
+      window.api.stopLogStream?.()
     }
-  }, [autoRefresh])
+  }, [])
 
-  const filteredEntries = useMemo(() => {
-    return entries.filter((e) => {
-      if (filterLevel !== 'all' && e.level !== filterLevel) return false
-      if (filterComponent !== 'all' && e.component !== filterComponent) return false
-      return true
-    })
-  }, [entries, filterLevel, filterComponent])
+  // Auto-scroll
+  useEffect(() => {
+    if (streamContainerRef.current) {
+      streamContainerRef.current.scrollTop = streamContainerRef.current.scrollHeight
+    }
+  }, [streamLines])
 
-  const groupedByComponent = useMemo(() => {
-    const groups: Record<string, LogEntry[]> = {}
-    filteredEntries.forEach((e) => {
-      if (!groups[e.component]) groups[e.component] = []
-      groups[e.component].push(e)
-    })
-    return groups
-  }, [filteredEntries])
-
-  const components = Object.keys(COMPONENT_META)
+  const handleClearLogs = async () => {
+    try {
+      await (window as any).momaiAPI?.privacy?.devReset?.()
+      setStreamLines([])
+    } catch {}
+  }
 
   return (
     <div
@@ -431,143 +481,35 @@ function LogsPanel() {
         </h3>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
-              autoRefresh ? 'bg-green-500/20 text-green-400' : 'bg-text/5 text-text-muted'
-            }`}
+            onClick={handleClearLogs}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
           >
-            <span
-              className={`w-2 h-2 rounded-full ${autoRefresh ? 'bg-green-400 animate-pulse' : 'bg-text-muted'}`}
-            />
-            Auto-refresh
-          </button>
-          <button
-            onClick={fetchLogs}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
-          >
-            <ArrowPathIcon className="w-3.5 h-3.5" />
-            Atualizar
+            <TrashIcon className="w-3 h-3" />
+            Limpar
           </button>
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar de Filtros */}
-        <div className="w-48 border-r border-border bg-sidebar p-4 flex flex-col gap-3 shrink-0">
-          <div className="flex items-center gap-2 text-sm font-bold text-text-muted mb-2">
-            <FunnelIcon className="w-4 h-4" />
-            Filtros
+      <div
+        ref={streamContainerRef}
+        className="flex-1 overflow-y-auto bg-[#0d1117] p-4 font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-all"
+        style={{ fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace" }}
+      >
+        {loading && (
+          <div className="text-text-muted/40 italic">Carregando logs...</div>
+        )}
+        {!loading && streamLines.length === 0 && (
+          <div className="text-text-muted/40 italic">Nenhum log encontrado.</div>
+        )}
+        {streamLines.map((line, i) => (
+          <div key={i} className="hover:bg-white/[0.02]">
+            <span className="text-text-muted/40">{line.timestamp}</span>{' '}
+            <span className={`${line.level === 'error' ? 'text-red-400' : line.level === 'warn' ? 'text-yellow-400' : 'text-text-muted/60'}`}>
+              [{line.level.toUpperCase()}]
+            </span>{' '}
+            <span className="text-gray-300">{line.message}</span>
           </div>
-
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-bold text-text-muted/50 uppercase">Nível</span>
-            {['all', 'debug', 'info', 'warn', 'error'].map((level) => (
-              <button
-                key={level}
-                onClick={() => setFilterLevel(level)}
-                className={`text-left px-2 py-1 rounded text-xs font-mono transition-colors ${
-                  filterLevel === level
-                    ? 'bg-accent/20 text-accent'
-                    : 'text-text-muted hover:bg-text/5 hover:text-text'
-                }`}
-              >
-                {level === 'all' ? 'Todos' : level.toUpperCase()}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-1 mt-3">
-            <span className="text-xs font-bold text-text-muted/50 uppercase">Componente</span>
-            {['all', ...components].map((comp) => (
-              <button
-                key={comp}
-                onClick={() => setFilterComponent(comp)}
-                className={`text-left px-2 py-1 rounded text-xs font-mono transition-colors flex items-center gap-1.5 ${
-                  filterComponent === comp
-                    ? 'bg-accent/20 text-accent'
-                    : 'text-text-muted hover:bg-text/5 hover:text-text'
-                }`}
-              >
-                {comp !== 'all' && (
-                  <span className={COMPONENT_META[comp]?.color}>{COMPONENT_META[comp]?.icon}</span>
-                )}
-                {comp === 'all' ? 'Todos' : COMPONENT_META[comp]?.label || comp}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Conteúdo Principal - Tabelas por Componente */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-          {loading ? (
-            <div className="flex items-center justify-center h-full text-text-muted text-sm">
-              Carregando logs...
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {Object.entries(groupedByComponent).map(([component, logs]) => {
-                const meta = COMPONENT_META[component] || COMPONENT_META.system
-                return (
-                  <div
-                    key={component}
-                    className="bg-zinc-900/50 rounded-xl border border-border/20 overflow-hidden"
-                  >
-                    <div
-                      className={`flex items-center gap-2 px-4 py-3 bg-zinc-900 border-b border-border/20`}
-                    >
-                      <span className={`text-lg ${meta.color}`}>{meta.icon}</span>
-                      <span className={`text-xs font-bold ${meta.color}`}>{meta.label}</span>
-                      <span className="ml-auto text-xs text-text-muted">{logs.length} eventos</span>
-                    </div>
-                    <table className="w-full text-xs font-mono">
-                      <thead>
-                        <tr className="border-b border-border/10">
-                          <th className="px-4 py-2 text-left text-text-muted/50 font-bold">Time</th>
-                          <th className="px-4 py-2 text-left text-text-muted/50 font-bold">
-                            Level
-                          </th>
-                          <th className="px-4 py-2 text-left text-text-muted/50 font-bold">
-                            Message
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {logs
-                          .slice(-20)
-                          .reverse()
-                          .map((entry, idx) => (
-                            <tr
-                              key={idx}
-                              className="border-b border-border/5 hover:bg-white/[0.02] transition-colors"
-                            >
-                              <td className="px-4 py-2 text-text-muted whitespace-nowrap">
-                                {entry.timestamp}
-                              </td>
-                              <td
-                                className={`px-4 py-2 font-bold ${LEVEL_COLORS[entry.level] || ''}`}
-                              >
-                                <span className="mr-1">{LEVEL_ICONS[entry.level]}</span>
-                                {entry.level.toUpperCase()}
-                              </td>
-                              <td className="px-4 py-2 text-zinc-300 truncate max-w-md">
-                                {entry.message}
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )
-              })}
-
-              {Object.keys(groupedByComponent).length === 0 && (
-                <div className="text-center text-text-muted text-sm py-10">
-                  Nenhum log encontrado para os filtros selecionados
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        ))}
       </div>
     </div>
   )

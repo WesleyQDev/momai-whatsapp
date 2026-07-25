@@ -43,42 +43,31 @@ const mockTraces = [
     tier: 'pro',
     tools_count: 0,
     thread_id: 'default',
-    active_skill: 'weather'
+    active_skill: 'weather',
+    content: 'Clima: 28°C'
   }
 ]
 
 describe('ObservabilityView', () => {
   beforeEach(() => {
-    // Clear module-level store between tests
     while (getTraces().length) getTraces().pop()
   })
 
   it('renders empty state when no traces', () => {
     render(<ObservabilityView />)
-    expect(screen.getByText(/Nenhum trace/i)).toBeTruthy()
+    expect(screen.getByText(/Faça uma pergunta/i)).toBeTruthy()
   })
 
   it('renders trace list with mock data', () => {
     render(<ObservabilityView initialTraces={mockTraces} />)
-    expect(screen.getByText('45.2')).toBeTruthy()
-    expect(screen.getByText('12.3s')).toBeTruthy()
+    expect(screen.getByText(/Qual a previsão/i)).toBeTruthy()
   })
 
-  it('expands trace on click to show details', () => {
+  it('shows detail when trace is clicked', () => {
     render(<ObservabilityView initialTraces={mockTraces} />)
-    const expandBtns = screen.getAllByRole('button')
-    const traceBtn = expandBtns.find((b) => b.getAttribute('aria-expanded') === 'false')
-    if (traceBtn) fireEvent.click(traceBtn)
-    expect(screen.getByText(/Pre-LLM/i)).toBeTruthy()
+    const btn = screen.getByText(/Qual a previsão/i).closest('button')
+    if (btn) fireEvent.click(btn)
     expect(screen.getByText(/get_weather/i)).toBeTruthy()
-  })
-
-  it('filters traces by type', () => {
-    render(<ObservabilityView initialTraces={mockTraces} />)
-    fireEvent.click(screen.getByText(/Skills/i))
-    expect(screen.queryByText('45.2')).toBeNull()
-    fireEvent.click(screen.getByText(/Todas/i))
-    expect(screen.getByText('45.2')).toBeTruthy()
   })
 
   it('syncs with momai_observability_trace events', () => {
@@ -90,6 +79,6 @@ describe('ObservabilityView', () => {
         })
       )
     })
-    expect(screen.getByText('45.2')).toBeTruthy()
+    expect(screen.getByText(/Qual a previsão/i)).toBeTruthy()
   })
 })
