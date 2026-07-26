@@ -37,6 +37,9 @@ const SETTINGS_EDITABLE_KEYS = new Set([
   'idle_timeout_minimized',
   'auto_detect_known_games',
   'developer_mode',
+  'logs_enabled',
+  'observability_enabled',
+  'show_context_ring',
   'dev_mode',
   'keep_in_tray'
 ])

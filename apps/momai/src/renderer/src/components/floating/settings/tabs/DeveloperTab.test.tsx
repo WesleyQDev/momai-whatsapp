@@ -2,9 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import DeveloperTab from './DeveloperTab'
 
+vi.mock('../../../../services/api', () => ({
+  updateSettingsPartial: vi.fn(() => Promise.resolve())
+}))
+
 function renderTab(isDevMode = true) {
   localStorage.setItem('momai_dev_mode', String(isDevMode))
   localStorage.removeItem('momai_observability_enabled')
+  localStorage.removeItem('momai_logs_enabled')
   const handleDevMode = vi.fn()
   return render(<DeveloperTab t={(key: string) => key} handleDevMode={handleDevMode} />)
 }
@@ -42,6 +47,30 @@ describe('DeveloperTab - Observability toggle', () => {
     fireEvent.click(toggle)
 
     const calls = dispatchSpy.mock.calls.filter(([e]) => e.type === 'momai_observability_sync')
+    expect(calls.length).toBe(1)
+    expect((calls[0][0] as CustomEvent).detail).toBe(true)
+  })
+})
+
+describe('DeveloperTab - Logs toggle', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    vi.clearAllMocks()
+  })
+
+  it('shows logs toggle when dev mode is active', () => {
+    renderTab(true)
+    expect(screen.getByTestId('logs-toggle')).toBeTruthy()
+  })
+
+  it('toggles logs on click and dispatches momai_logs_sync', () => {
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+    renderTab(true)
+    const toggle = screen.getByTestId('logs-toggle')
+    fireEvent.click(toggle)
+
+    expect(localStorage.getItem('momai_logs_enabled')).toBe('true')
+    const calls = dispatchSpy.mock.calls.filter(([e]) => e.type === 'momai_logs_sync')
     expect(calls.length).toBe(1)
     expect((calls[0][0] as CustomEvent).detail).toBe(true)
   })

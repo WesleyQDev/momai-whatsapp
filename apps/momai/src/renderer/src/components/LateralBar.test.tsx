@@ -44,6 +44,36 @@ describe('LateralBar - observability button', () => {
   })
 })
 
+describe('LateralBar - logs button', () => {
+  it('shows logs button when dev mode is active and logs are enabled', () => {
+    localStorage.setItem('momai_dev_mode', 'true')
+    localStorage.setItem('momai_logs_enabled', 'true')
+    render(<LateralBar activeRoute="/" onNavigate={vi.fn()} />)
+    expect(screen.getByTitle('Logs')).toBeTruthy()
+  })
+
+  it('hides logs button when logs are disabled', () => {
+    localStorage.setItem('momai_dev_mode', 'true')
+    localStorage.setItem('momai_logs_enabled', 'false')
+    render(<LateralBar activeRoute="/" onNavigate={vi.fn()} />)
+    expect(screen.queryByTitle('Logs')).toBeNull()
+  })
+
+  it('syncs dynamically when momai_logs_sync event fires', () => {
+    localStorage.setItem('momai_dev_mode', 'true')
+    localStorage.setItem('momai_logs_enabled', 'false')
+    const { rerender } = render(<LateralBar activeRoute="/" onNavigate={vi.fn()} />)
+    expect(screen.queryByTitle('Logs')).toBeNull()
+
+    localStorage.setItem('momai_logs_enabled', 'true')
+    act(() => {
+      window.dispatchEvent(new CustomEvent('momai_logs_sync', { detail: true }))
+    })
+    rerender(<LateralBar activeRoute="/" onNavigate={vi.fn()} />)
+    expect(screen.getByTitle('Logs')).toBeTruthy()
+  })
+})
+
 describe('LateralBar - extension panels and New badge', () => {
   beforeEach(() => {
     localStorage.clear()

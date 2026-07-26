@@ -134,7 +134,8 @@ function loadOrder(skipLogs = false): string[] {
       const parsed = JSON.parse(stored) as string[]
       if (Array.isArray(parsed) && parsed.length > 0) {
         const valid = parsed.filter((id) => !id.startsWith('__'))
-        const merged = [...new Set([...valid, ...defaults])]
+        const validFiltered = hideLogs ? valid.filter((id) => id !== 'logs') : valid
+        const merged = [...new Set([...validFiltered, ...defaults])]
         saveOrder(merged)
         return merged
       }
@@ -253,11 +254,19 @@ export default function LateralBar({
       setLogsEnabled(localStorage.getItem('momai_logs_enabled') === 'true')
       setOrder(loadOrder(!enabled))
     }
+    const logsHandler = () => {
+      const isDev = localStorage.getItem('momai_dev_mode') === 'true'
+      const enabled = localStorage.getItem('momai_logs_enabled') === 'true'
+      setLogsEnabled(enabled)
+      setOrder(loadOrder(!isDev))
+    }
     window.addEventListener('momai_observability_sync', handler)
     window.addEventListener('momai_dev_mode_sync', devHandler)
+    window.addEventListener('momai_logs_sync', logsHandler)
     return () => {
       window.removeEventListener('momai_observability_sync', handler)
       window.removeEventListener('momai_dev_mode_sync', devHandler)
+      window.removeEventListener('momai_logs_sync', logsHandler)
     }
   }, [])
 

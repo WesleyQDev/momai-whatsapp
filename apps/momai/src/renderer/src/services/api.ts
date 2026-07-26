@@ -878,6 +878,10 @@ export interface SettingsData {
   context_window_tokens?: number
   skip_intro?: boolean
   daily_briefing_enabled?: boolean
+  developer_mode?: boolean
+  logs_enabled?: boolean
+  observability_enabled?: boolean
+  show_context_ring?: boolean
   dev_mode?: string
 }
 

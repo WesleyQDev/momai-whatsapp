@@ -49,6 +49,8 @@ import {
 import { join, dirname } from 'path'
 import { existsSync, mkdirSync } from 'fs'
 
+let trayService: TrayService | null = null
+
 // Initialize first launch state correctly at startup
 state.isFirstLaunch = !isOnboardingCompleted()
 
@@ -422,7 +424,7 @@ app.whenReady().then(async () => {
   createWindow()
   const mainWindow = getMainWindow()
   if (mainWindow) {
-    const trayService = new TrayService({
+    trayService = new TrayService({
       window: mainWindow,
       llama: new HttpLlamaControl(CURRENT_VARIANT.llamaPort),
       keepInTray: new FileKeepInTrayReader(),
@@ -452,6 +454,14 @@ app.on('before-quit', (e) => {
   globalShortcut.unregisterAll()
   cleanupTTSHandlers()
   stopRendererStaticServer()
+  trayService?.stop()
+
+  // Fechar imediatamente todas as janelas para dar resposta instantânea ao usuário
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.destroy()
+    }
+  }
 
   void (async () => {
     try {

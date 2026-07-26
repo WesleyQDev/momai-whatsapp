@@ -93,6 +93,28 @@ export function useAppInitialization(isOnline: boolean, isReady: boolean) {
         if (data.ai_tier) {
           localStorage.setItem('momai_ai_tier', data.ai_tier)
         }
+        if (typeof data.developer_mode === 'boolean') {
+          localStorage.setItem('momai_dev_mode', String(data.developer_mode))
+          window.dispatchEvent(
+            new CustomEvent('momai_dev_mode_sync', { detail: data.developer_mode })
+          )
+        }
+        if (typeof data.logs_enabled === 'boolean') {
+          localStorage.setItem('momai_logs_enabled', String(data.logs_enabled))
+          window.dispatchEvent(new CustomEvent('momai_logs_sync', { detail: data.logs_enabled }))
+        }
+        if (typeof data.observability_enabled === 'boolean') {
+          localStorage.setItem('momai_observability_enabled', String(data.observability_enabled))
+          window.dispatchEvent(
+            new CustomEvent('momai_observability_sync', { detail: data.observability_enabled })
+          )
+        }
+        if (typeof data.show_context_ring === 'boolean') {
+          localStorage.setItem('momai_show_context_ring', String(data.show_context_ring))
+          window.dispatchEvent(
+            new CustomEvent('momai_context_ring_sync', { detail: data.show_context_ring })
+          )
+        }
 
         if (data && data.onboarding_completed === false && !onboardingAttempted) {
           setShowOnboarding(true)

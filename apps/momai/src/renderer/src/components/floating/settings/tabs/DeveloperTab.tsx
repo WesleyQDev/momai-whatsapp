@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { FunnelIcon, ArrowPathIcon, TrashIcon } from '@heroicons/react/24/outline'
 import ConfirmDialog from '../../ConfirmDialog'
+import { updateSettingsPartial } from '../../../../services/api'
 
 interface LogEntry {
   timestamp: string
@@ -168,14 +169,30 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
       else setObservabilityEnabled(localStorage.getItem('momai_observability_enabled') === 'true')
     }
 
+    const handleLogsSync = (event: Event) => {
+      const detail = (event as CustomEvent<boolean>).detail
+      if (typeof detail === 'boolean') setLogsEnabled(detail)
+      else setLogsEnabled(localStorage.getItem('momai_logs_enabled') === 'true')
+    }
+
+    const handleContextRingSync = (event: Event) => {
+      const detail = (event as CustomEvent<boolean>).detail
+      if (typeof detail === 'boolean') setShowContextRing(detail)
+      else setShowContextRing(localStorage.getItem('momai_show_context_ring') === 'true')
+    }
+
     window.addEventListener('momai_dev_mode_sync', syncDevMode as EventListener)
     window.addEventListener('momai_observability_sync', handleObservabilitySync as EventListener)
+    window.addEventListener('momai_logs_sync', handleLogsSync as EventListener)
+    window.addEventListener('momai_context_ring_sync', handleContextRingSync as EventListener)
     return () => {
       window.removeEventListener('momai_dev_mode_sync', syncDevMode as EventListener)
       window.removeEventListener(
         'momai_observability_sync',
         handleObservabilitySync as EventListener
       )
+      window.removeEventListener('momai_logs_sync', handleLogsSync as EventListener)
+      window.removeEventListener('momai_context_ring_sync', handleContextRingSync as EventListener)
     }
   }, [])
 
@@ -251,6 +268,8 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
                 const next = !logsEnabled
                 setLogsEnabled(next)
                 localStorage.setItem('momai_logs_enabled', String(next))
+                window.dispatchEvent(new CustomEvent('momai_logs_sync', { detail: next }))
+                updateSettingsPartial({ logs_enabled: next }).catch(() => {})
               }}
               className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${logsEnabled ? 'bg-accent/80' : 'bg-white/10'}`}
             >
@@ -296,6 +315,7 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
                 setObservabilityEnabled(next)
                 localStorage.setItem('momai_observability_enabled', String(next))
                 window.dispatchEvent(new CustomEvent('momai_observability_sync', { detail: next }))
+                updateSettingsPartial({ observability_enabled: next }).catch(() => {})
               }}
               className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${observabilityEnabled ? 'bg-accent/80' : 'bg-white/10'}`}
             >
@@ -341,6 +361,7 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
                 localStorage.setItem('momai_show_context_ring', String(next))
                 window.dispatchEvent(new CustomEvent('momai_context_ring_sync', { detail: next }))
                 setShowContextRing(next)
+                updateSettingsPartial({ show_context_ring: next }).catch(() => {})
               }}
               className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${showContextRing ? 'bg-accent/80' : 'bg-white/10'}`}
             >

@@ -2,43 +2,54 @@
 
 Acompanhe todas as atualizações e mudanças da MomAI.
 
-## 1.5.5 - 2026-07-20
+## 1.6.0 - 2026-07-26
 
 ### ✨ Novidades
 
-- **Loja de Extensões renovada**: Navegue por cards visuais, filtre por tags e descubra destaques em destaque. Abas separadas para Loja e Instaladas facilitam o gerenciamento.
-- **Segurança em instalações**: Extensões baixadas agora passam por verificação de integridade e validação contra o catálogo oficial, impedindo a instalação de arquivos adulterados.
-- **Navegação segura**: O aplicativo agora bloqueia automaticamente redirecionamentos para sites não confiáveis, protegendo contra links maliciosos.
-- **Verificação de componentes**: Downloads de componentes do sistema agora têm verificação de integridade, garantindo que apenas arquivos originais sejam instalados.
+- **Loja de Extensões renovada**: Navegue por cards visuais, filtre por tags e descubra destaques em destaque. Abas separadas para Loja e Instaladas facilitam o gerenciamento. (@WesleyQDev, @AndersonTavares0)
+- **Segurança em instalações**: Extensões baixadas agora passam por verificação de integridade e validação contra o catálogo oficial, impedindo a instalação de arquivos adulterados. (@AndersonTavares0)
+- **Navegação segura**: O aplicativo agora bloqueia automaticamente redirecionamentos para sites não confiáveis, protegendo contra links maliciosos. (@AndersonTavares0)
+- **Verificação de componentes**: Downloads de componentes do sistema agora têm verificação de integridade, garantindo que apenas arquivos originais sejam instalados. (@AndersonTavares0)
+- **Editor de Notas estilo Obsidian**: Nova experiência de edição de notas com visualização em tempo real, links entre notas (wiki-style), grafo interativo de conexões e salvamento automático — sua central de conhecimento pessoal integrada à MomAI. (@WesleyQDev)
+- **Memória expansível com arquivos .md**: O sistema de memória agora lê arquivos Markdown da pasta `momai/` para enriquecer o conhecimento da IA. Crie prompts personalizados e a assistente absorve o conteúdo automaticamente. (@WesleyQDev)
+- **Barra lateral reorganizável**: Ícones de conversas podem ser reordenados com arrastar e soltar, deixando seus chats favoritos sempre no topo. (@WesleyQDev)
+- **Limpeza automática de conversas**: Sessões vazias (sem mensagens) são removidas automaticamente da lista, mantendo seu histórico organizado. (@WesleyQDev)
+- **Menu da bandeja com status ao vivo**: O menu da bandeja do sistema agora mostra o status do modelo de IA e o tempo restante da soneca em tempo real. (@WesleyQDev)
+
+### ⚙️ Melhorias
+
+- **Modo Chamada mais estável**: Sincronização de conversas melhorada entre a interface e o servidor de voz, eliminando desconexões durante chamadas. (@WesleyQDev)
+- **Logs mais legíveis**: Painel de desenvolvimento agora exibe logs organizados e com botões para acessar pastas de diagnóstico. (@WesleyQDev)
+- **Motor de IA atualizado**: Parâmetros de inferência ajustados e nova versão do llama.cpp para respostas mais rápidas e precisas. (@WesleyQDev)
+- **Carregamento progressivo**: Extensões e componentes agora carregam em etapas, reduzindo o tempo de inicialização. (@WesleyQDev)
+- **Comunicação de rede aprimorada**: Novo sistema de streaming para chats mais rápidos e confiáveis. (@WesleyQDev)
 
 ### 🐛 Correções
 
-- **Compatibilidade de extensões no Windows**: Restauradas as variáveis de ambiente necessárias para o funcionamento correto de extensões no Windows.
-- **Proteção de arquivos de extensões**: Arquivos usados por extensões agora têm camadas extras de proteção contra acesso indevido a pastas do sistema.
-
-### 🧹 Outros
-
-- Melhorias internas de segurança e estabilidade.
+- **Compatibilidade de extensões no Windows**: Restauradas as variáveis de ambiente necessárias para o funcionamento correto de extensões no Windows. (@WesleyQDev)
+- **Proteção de arquivos de extensões**: Arquivos usados por extensões agora têm camadas extras de proteção contra acesso indevido a pastas do sistema. (@WesleyQDev)
+- **Tela de boas-vindas menos intrusiva**: Notificação sobre privacidade do TTS removida do onboarding inicial. (@WesleyQDev)
+- **Progressão de prompts por nível**: Prompts de IA ajustados por nível (Lite/Pro/Ultra) para respostas mais coerentes em cada plano. (@WesleyQDev)
+- Correções gerais de estabilidade e desempenho. (@WesleyQDev)
 
 ## 1.5.4 - 2026-07-17
 
 ### ✨ Novidades
 
-- **Abertura instantânea de Configurações**: Implementado cache local para as preferências do usuário e definições de hardware, permitindo que a janela de Configurações abra imediatamente sem exibir telas de carregamento ou skeletons.
-- **Boot resiliente da interface**: O painel de Configurações e o Gerenciador de Extensões agora aguardam a inicialização do servidor backend local em segundo plano de forma silenciosa, eliminando popups de erro e skeletons desnecessários durante o boot do aplicativo.
-- **Navegação aprimorada no menu lateral**: Corrigida a tradução dinâmica do rótulo da aba de Chat no menu lateral para refletir corretamente o idioma ativo do usuário.
-- **Desinstalação rápida de Extensões**: A remoção de extensões agora limpa as sessões ativas do usuário instantaneamente e fecha o diálogo de confirmação sem travamentos ou atrasos na tela.
+- **Abertura instantânea de Configurações**: A janela de Configurações agora abre imediatamente sem exibir telas de carregamento, graças ao cache local de preferências do usuário.
+- **Boot resiliente da interface**: O painel de Configurações e o Gerenciador de Extensões aguardam a inicialização do servidor em segundo plano, eliminando popups de erro durante a inicialização.
+- **Desinstalação rápida de Extensões**: A remoção de extensões agora limpa as sessões ativas instantaneamente e fecha o diálogo sem travamentos.
 
 ### 🐛 Correções
 
-- **Ajustes de configurações sem travamentos**: A alteração do nível de inteligência artificial (AI Tier) e preferências agora reinicia o modelo local Llama de forma assíncrona em segundo plano, evitando que o salvamento das opções trave a interface ou resulte em erro 503.
-- **Persistência de Extensões desativadas**: Corrigido um erro de sincronização que fazia com que extensões desativadas pelo usuário fossem reativadas sozinhas após a recarga em segundo plano do registro.
-- **Atualização segura de Extensões**: O instalador de extensões agora encerra workers em segundo plano ativos antes de aplicar a nova versão, prevenindo conflitos de porta de rede e vazamentos de recursos do sistema.
-- **Instalação de extensões no Windows**: Corrigida a detecção do utilitário `npm` no Windows, garantindo que o instalador chame o comando correto (`npm.cmd` com shell) e baixe as dependências com sucesso.
-- **Reconexão automática rápida**: Ajustada a frequência de atualização do monitor de status do sistema para pesquisar ativamente a cada 2 segundos quando o servidor local está offline, reduzindo o tempo de resposta para reatar a comunicação.
-- **Barra de progresso de instalação**: Resolvido o congelamento da barra de progresso em 90% durante o download/instalação de extensões nas versões .exe e .appx.
-- **Detecção de Extensões**: Corrigido bug em produção que impedia o aplicativo de identificar e listar extensões instaladas (como o WhatsApp) após a conclusão do instalador.
-- **Cards de notificação do WhatsApp**: Corrigido problema que impedia a exibição instantânea de notificações recebidas logo após a instalação da extensão, sem necessidade de reinicialização.
+- **Ajustes sem travamentos**: Alterar o nível de IA ou preferências agora reinicia o modelo em segundo plano, sem travar a interface.
+- **Extensões desativadas permanecem desativadas**: Corrigido erro que reativava extensões após recarga do registro.
+- **Atualização segura de Extensões**: Workers ativos são encerrados antes de instalar uma nova versão, prevenindo conflitos.
+- **Instalação no Windows**: Corrigida detecção do npm no Windows para baixar dependências corretamente.
+- **Reconexão automática mais rápida**: Monitor de status agora pesquisa a cada 2 segundos quando o servidor está offline.
+- **Barra de progresso sem congelamento**: Corrigido travamento em 90% durante instalação de extensões.
+- **Detecção de Extensões**: Extensões instaladas agora são identificadas e listadas corretamente.
+- **Notificações instantâneas**: Notificações do WhatsApp aparecem imediatamente após a instalação, sem precisar reiniciar.
 
 ## 1.5.3 - 2026-07-13
 
@@ -48,78 +59,54 @@ Acompanhe todas as atualizações e mudanças da MomAI.
 
 ## 1.5.2 - 2026-07-04
 
-Correções de segurança, estabilidade do WhatsApp e melhorias no build
-
 ### 🔒 Segurança
 
-- **Ícones SVG sanitizados**: Ícones SVG de extensões agora passam por DOMPurify antes de renderizar, prevenindo ataques de XSS via SVG malicioso.
-- **Canais IPC validados**: Canais de comunicação entre renderer e main process agora são validados contra allowlist no preload, prevenindo acesso não autorizado.
-- **Mensagens de erro sanitizadas**: Exceções HTTP agora sanitizam detalhes antes de retornar ao cliente, evitando vazamento de informações sensíveis.
-- **Token de sessão via ambiente**: Token de sessão agora é passado via variável de ambiente em vez de argumentos de linha de comando, prevenindo exposição em listagens de processos.
-- **ID de extensão validado**: Desinstalação de extensões agora valida o ID contra a lista de instaladas, prevenindo remoção arbitrária.
+- **Ícones SVG sanitizados**: Ícones de extensões agora são verificados antes de exibir, prevenindo ataques de segurança. (@AndersonTavares0)
+- **Canais de comunicação validados**: A comunicação interna do aplicativo agora passa por validação de segurança. (@AndersonTavares0)
+- **Mensagens de erro seguras**: Detalhes de erros são sanitizados para não vazar informações sensíveis. (@AndersonTavares0)
+- **Token de sessão protegido**: Sessão do usuário agora é gerenciada de forma mais segura. (@AndersonTavares0)
+- **Desinstalação validada**: ID de extensão é verificado antes de remover, prevenindo exclusão acidental. (@AndersonTavares0)
 
 ### 🐛 Correções
 
-- **WhatsApp em builds empacotadas**: Corrigido spawn do worker, startup imediato e verificação de status do overlay na extensão WhatsApp.
-- **Extração de ZIP no Windows**: Múltiplas correções para travamento de extração de ZIP no Windows — workers forkados com timeout SIGKILL, serialização de escrita e eventos de stream corrigidos.
-- **Instalação de extensões**: DNS lookup ignorado em hosts confiáveis para evitar timeout na instalação.
-- **Registry de extensões**: Extensões que declaram apenas `manifest.json` (sem `SKILL.md`) agora são carregadas corretamente.
-
-### ⚙️ Melhorias
-
-- **Build multi-plataforma**: Novo script `build-all.ps1` para builds via act (multi-arch).
-- **Release: exclude appx**: Build AppX não é mais incluído no upload do GitHub Release.
-- **Release: MakeLatest flag**: Flag `-MakeLatest` adicionada ao script de release para controle da tag latest.
+- **WhatsApp em versões instaladas**: Corrigido funcionamento da extensão WhatsApp em builds empacotadas.
+- **Extração de ZIP no Windows**: Múltiplas correções para travamentos ao extrair arquivos no Windows.
+- **Instalação de extensões mais rápida**: DNS ignorado em hosts confiáveis para evitar timeouts.
+- **Registry de extensões**: Extensões com apenas `manifest.json` agora carregam corretamente.
 
 ## 1.5.1 - 2026-06-28
 
-Melhorias no download de modelos e correções gerais de extensões
-
 ### 🐛 Correções
 
-- **Confiabilidade no download de modelos**: Implementação de range requests, tentativas automáticas com backoff linear e timeouts de inatividade para garantir downloads robustos e resilientes de modelos de IA de grande porte.
-- **Resolução de bugs nas configurações**: Correção de problemas no painel de configurações e no carregamento dinâmico de extensões da comunidade.
-- **Player do YouTube**: Correções e restrições na integração e reprodução do player do YouTube no chat.
+- **Download de modelos mais confiável**: Implementação de retentativas automáticas e timeouts para garantir downloads robustos de modelos de IA.
+- **Correções nas configurações**: Problemas no painel de configurações e carregamento de extensões da comunidade resolvidos.
+- **Player do YouTube**: Correções na integração e reprodução de vídeos no chat.
 
 ## 1.5.0 - 2026-06-26
 
 ### ✨ Novas Funcionalidades
 
-- **Interface de extensões personalizada**: Extensões agora podem ter suas próprias interfaces visuais — tanto telas completas quanto painéis laterais — integradas de forma nativa ao app.
-
-- **Atalhos de voz por extensão**: Cada extensão pode registrar comandos de voz específicos. Por exemplo, diga "responda" para interagir com uma extensão de mensagens diretamente pelo chat.
-
-- **Priorização dinâmica de contexto**: O app ajusta automaticamente quais ferramentas e extensões são priorizadas conforme o contexto da conversa.
-
-- **Privacidade transparente**: Painel de Privacidade agora mostra todos os dados salvos por cada extensão ativa, com opções de exportação e exclusão (conformidade LGPD).
-
-- **Salvamento automático ao fechar**: Dados das extensões são salvos automaticamente ao fechar o app para evitar perda de informações.
-
-- **Visual atualizado**: Barra lateral e painel de extensões dinâmicos, com cores e ícones específicos para cada extensão instalada.
-
-- **Notificações unificadas**: Central de notificações integrada para todas as extensões ativas.
+- **Interface de extensões personalizada**: Extensões agora podem ter suas próprias interfaces visuais — telas completas e painéis laterais — integradas de forma nativa ao app.
+- **Atalhos de voz por extensão**: Cada extensão pode registrar comandos de voz específicos. Diga "responda" para interagir com uma extensão de mensagens diretamente pelo chat.
+- **Priorização inteligente de contexto**: O app ajusta automaticamente quais ferramentas usar conforme o contexto da conversa.
+- **Painel de Privacidade**: Visualize todos os dados salvos por cada extensão ativa, com opções de exportação e exclusão.
+- **Salvamento automático ao fechar**: Dados das extensões são salvos automaticamente ao fechar o app.
+- **Visual atualizado**: Barra lateral e painel de extensões com cores e ícones específicos para cada extensão.
+- **Central de Notificações**: Notificações unificadas para todas as extensões ativas.
 
 ### 🐛 Correções
 
-- Correções na construção de extensões para compatibilidade com builds empacotadas.
-- Restauração de dependências de runtime que estavam ausentes em extensões.
+- Correções na construção de extensões para compatibilidade com diferentes versões do app.
+- Dependências de extensões restauradas.
 
 ## 1.4.1 - 2026-05-27
 
-Correções na extensão WhatsApp e no pipeline de dependências
-
 ### 🐛 Correções
 
-- **ASAR + cpSync**: Substituído `fs.cpSync` por cópia arquivo-por-arquivo (`readFileSync` + `writeFileSync`) para compatibilidade com Electron ASAR em builds empacotadas (APPX, NSIS)
-- **Resolução de dependências**: Adicionado `process.resourcesPath` + `require.resolve` fallback para encontrar deps dentro do ASAR
-- **Falha não-fatal**: Instalação de dependências não quebra mais a extensão se um dep opcional falhar
-- **Landing page**: Ícones de extensão com filtro `brightness-0 invert` para SVGs externos exibirem branco em fundo colorido
-- **.gitignore**: Corrigido conflito da regra `lib/` (Python template) com `apps/landing-page/src/lib/`
-
-### ✨ Melhorias
-
-- **WhatsApp extensão**: QR code funcional em builds APPX, dependências copiadas corretamente (230 pacotes, 8336 arquivos)
-- **Deploy landing page**: `git pull --rebase` antes do push para evitar race condition
+- **Compatibilidade com pacotes do app**: Corrigida incompatibilidade entre extensões e o formato de pacote do Electron em versões instaladas.
+- **Dependências de extensões**: Dependências agora são encontradas corretamente em todas as versões do aplicativo.
+- **Instalação resiliente**: Falha em uma dependência opcional não quebra mais a instalação da extensão.
+- **QR Code do WhatsApp**: Agora funciona em todas as versões do aplicativo.
 
 ## 1.4.0 - 2026-05-10
 
@@ -127,327 +114,252 @@ Integração WhatsApp, Extensões, Modo Economia e Desempenho
 
 ### ✨ Novas Funcionalidades
 
-- **WhatsApp**: Integração completa via Baileys — overlay de notificações, comandos de voz ("responda"), card de chat, envio de mensagens, grupos e contatos
-- **Extensões**: Sistema de extensões com workers persistentes, dependências copiadas do app, NODE_PATH, eventos SSE, permissões granulares, painel lateral dinâmico
-- **Keyword Router**: Atalhos de voz para skills — "responda", "pesquise", comandos customizados por extensão
-- **Modo Economia**: Detecção automática de jogos (Steam/Epic), pausa do LLM durante jogos, overlay de RAM/VRAM liberados, catálogo com capas
-- **TTS Engine Selector**: Escolha entre edge-tts (cloud) e kokoro (local) no onboarding e configurações
-- **Observability**: Traços de execução, timeline, filtros, gráficos, persistência em disco
-- **Dev Tools**: Painel de desenvolvimento com toggles de logs, observability e context ring
-- **llama.cpp b9165**: Atualização massiva (+169 releases) do motor de inferência
+- **WhatsApp**: Integração completa com notificações, comandos de voz ("responda"), cards de chat, envio de mensagens, grupos e contatos.
+- **Sistema de Extensões**: Workers persistentes, painel lateral dinâmico e permissões granulares para extensões instaladas.
+- **Atalhos de voz para ferramentas**: Comandos como "responda" e "pesquise" ativam ferramentas específicas diretamente pela voz.
+- **Modo Economia**: Detecta automaticamente quando você está jogando, pausa a IA para liberar recursos e mostra quanto de memória foi recuperado.
+- **Seletor de Voz (TTS)**: Escolha entre voz via nuvem (edge-tts) ou local (kokoro) nas configurações.
+- **Ferramentas de Diagnóstico**: Visualize tempos de execução, timelines e filtros para entender o funcionamento interno do app.
+- **Motor de IA atualizado**: Versão mais recente do llama.cpp com melhorias de desempenho e estabilidade.
 
 ### ⚙️ Melhorias
 
-- **Performance**: SQLAlchemy assíncrono, httpx pool, cache TTL de settings, FFT condicional, WebSocket concorrente, SSE backpressure, TTS throttling, pruning de mensagens, consolidação de useReducer
-- **Testes**: Suite completa com ~30 arquivos de teste (hooks, componentes, serviços, utilitários)
-- **Overlay onboarding**: Transição suave de tier com overlay + loading, polling de status
-- **Deploy manual**: Substituída GitHub Pages action por script de deploy direto
-- **Regras .gitignore**: Adicionado `worktrees/`, `runtime-data/`
+- **Desempenho geral**: Aplicativo mais rápido e responsivo com otimizações de comunicação e processamento.
+- **Transição entre planos mais suave**: Troca de nível de IA com overlay e indicador de progresso.
 
 ### 🐛 Correções
 
-- **Call mode**: Rollback frontend, sync startup, ws resync, error feedback
-- **TTS**: Cleanup de AudioContext, speak handler não-bloqueante
-- **Reminders**: Limite de repeat_count, correção de triggers múltiplos
-- **Settings cache**: NameError de variável após import
-- **Economy**: Race conditions, toggle persistência, cobertura de jogos (Fortnite, Firestone)
-- **CORS**: PUT method adicionado para skills keywords API
-- **Various**: build, typecheck, lint fixes
-
-## 1.3.0 - 2026-05-02
+- **Modo Chamada**: Estabilidade melhorada na comunicação por voz.
+- **Voz (TTS)**: Áudio mais estável e sem travamentos.
+- **Lembretes**: Limite de repetições e correção de gatilhos duplicados.
+- **Modo Economia**: Detecção de jogos mais precisa (incluindo Fortnite) e toggle persistente.
+- **Comunicação entre servidores**: Correções de permissões para APIs de extensões.
+- Várias correções de estabilidade e compatibilidade.
 
 ## 1.2.0 - 2026-04-22
 
 Estabilidade do Sistema, Melhorias de Áudio e Refinamento de Interface
 
-## ✨ Novas Funcionalidades
+### ✨ Novas Funcionalidades
 
-- **Suporte a Resposta por Voz em Lembretes:** Adicionada opção para ativar respostas por voz (TTS) em lembretes agendados.
-- **Melhorias no Visualizador de Clima:** Renderização aprimorada de tabelas de previsão do tempo com suporte a emojis e layouts mais ricos.
-- **Gerenciamento de Estado de Voz:** Implementação de rotas de API para controle refinado de wake word e serviços de transcrição.
-- **Atualização das Políticas de Privacidade:** Inclusão de termos sobre rastreamento de localização e uso de dados de sensores.
+- **Voz em Lembretes**: Adicionada opção para ativar respostas por voz em lembretes agendados.
+- **Visualizador de Clima melhorado**: Previsão do tempo com emojis e layouts mais ricos.
+- **Maior controle sobre configurações de voz**: Gerenciamento avançado de wake word e serviços de transcrição.
+- **Políticas de Privacidade atualizadas**: Inclusão de termos sobre rastreamento de localização e uso de dados.
 
-## ⚙️ Melhorias
+### ⚙️ Melhorias
 
-- **Estabilização do Boot:** Refinamento da sequência de carregamento e da barra de progresso para evitar oscilações visuais e garantir um feedback preciso do estado do backend.
-- **Otimização do Startup do Backend:** Melhoria na lógica de inicialização do Python e do servidor llama, com tratamento de erros mais robusto e logging detalhado.
-- **Processo de Build Aprimorado:** Adicionado sistema de cache para dependências nos scripts de build e seleção dinâmica de portas para o servidor de inferência.
-- **Compatibilidade Linux:** Melhoria no download de wheels e resolução de caminhos de ícones.
+- **Inicialização mais estável**: Barra de progresso sem oscilações e feedback preciso do estado do servidor.
+- **Backend mais robusto**: Tratamento de erros melhorado e logs detalhados durante a inicialização.
+- **Compatibilidade Linux**: Melhorias para funcionamento em distribuições Linux.
 
-## 🐛 Correções
+### 🐛 Correções
 
-- **Renderização de Markdown:** Corrigido problema onde o texto em negrito não era renderizado corretamente em builds de produção no Windows.
-- **Ícones no Windows:** Resolvida a falha que impedia a exibição do ícone personalizado do executável no Windows.
-- **Persistência de Estado do Chat:** Corrigido bug onde a barra de progresso resetava ao navegar entre abas.
-- **Notificações Acumuladas:** Evitada a exibição de múltiplas notificações de lembretes antigos ao reiniciar o aplicativo.
+- **Texto em negrito no Windows**: Corrigida renderização de markdown em builds de produção.
+- **Ícone do app no Windows**: Ícone personalizado agora aparece corretamente no executável.
+- **Barra de progresso**: Não reseta mais ao navegar entre abas.
+- **Notificações acumuladas**: Lembretes antigos não aparecem mais todos de uma vez ao reiniciar.
 
 ## 0.7.0 - 2026-02-26
 
 Refinamento da Interface, Gestão de Lembretes e Melhorias no Instalador de Extensões
 
-## ✨ Novas Funcionalidades
+### ✨ Novas Funcionalidades
 
-- **Interface de Notas Refinada:** Novo layout estilo abas para visualização de notas, proporcionando uma organização visual mais limpa.
-- **Edição Inline de Lembretes:** Facilitada a gestão de lembretes com formulários de edição integrados diretamente na lista.
-- **Redirecionamento Inteligente:** O aplicativo agora redireciona automaticamente para a home ao alterar o modo de IA (Lite/Pro/Ultra), garantindo consistência no estado da aplicação.
+- **Interface de Notas Refinada**: Novo layout estilo abas para visualização de notas, proporcionando uma organização visual mais limpa.
+- **Edição Inline de Lembretes**: Facilitada a gestão de lembretes com formulários de edição integrados diretamente na lista.
+- **Redirecionamento Inteligente**: O aplicativo agora redireciona automaticamente para a home ao alterar o modo de IA (Lite/Pro/Ultra), garantindo consistência no estado da aplicação.
 
-## ⚙️ Melhorias
+### ⚙️ Melhorias
 
-- **Instalador de Extensões:** Melhoria na lógica de download do GitHub, com suporte a diretórios aninhados e maior transparência sobre a origem da extensão.
-- **Estética Minimalista:** Refinamento dos textos da tela de carregamento e dos cards de planos para uma interface mais limpa e direta.
-- **UX de Configurações:** Remoção de confirmações desnecessárias ao reiniciar o processo de boas-vindas.
+- **Instalador de Extensões**: Melhoria na lógica de download do GitHub, com suporte a diretórios aninhados e maior transparência sobre a origem da extensão.
+- **Estética Minimalista**: Refinamento dos textos da tela de carregamento e dos cards de planos para uma interface mais limpa e direta.
+- **UX de Configurações**: Remoção de confirmações desnecessárias ao reiniciar o processo de boas-vindas.
 
-## 🐛 Correções
+### 🐛 Correções
 
-- **Scroll do Chat:** Resolvido o problema onde a barra de rolagem do chat ficava travada ou inativa.
-- **Botão de Interrupção:** Corrigido bug onde o botão de "Stop" não aparecia consistentemente durante o processamento da IA.
-- **Persistência de Extensões:** Melhorada a robustez do instalador para evitar problemas de permissão e garantir que extensões persistam após atualizações.
+- **Scroll do Chat**: Resolvido o problema onde a barra de rolagem do chat ficava travada ou inativa.
+- **Botão de Interrupção**: Corrigido bug onde o botão de "Stop" não aparecia consistentemente durante o processamento da IA.
+- **Persistência de Extensões**: Melhorada a robustez do instalador para evitar problemas de permissão e garantir que extensões persistam após atualizações.
 
 ## 0.6.0 - 2026-02-24
 
-Histórico de Conversas, Orquestração Agêntica e Melhorias no Instalador
+Histórico de Conversas, Agente mais Inteligente e Melhorias no Instalador
 
-## ✨ Novas Funcionalidades
+### ✨ Novas Funcionalidades
 
-- **Histórico de Conversas Dinâmico:** Nova seção na sidebar para gerenciar conversas anteriores, com geração automática de títulos curtos via IA baseada na primeira mensagem.
-- **Orquestração Langgraph:** Migração do workflow do agente para uma arquitetura baseada em Langgraph, permitindo fluxos de raciocínio mais complexos e controle fino sobre a execução de ferramentas.
-- **Mapeamento de Intenções:** Novo sistema de descoberta de habilidades (Skills) baseado em intenção, garantindo que o agente utilize a ferramenta correta para cada necessidade do usuário.
-- **Reset de Boas-vindas:** Adicionado botão nas configurações para reiniciar o processo de onboarding e tela de boas-vindas.
+- **Histórico de Conversas**: Nova seção na barra lateral para gerenciar conversas anteriores, com títulos gerados automaticamente pela IA.
+- **Agente mais inteligente**: Fluxos de raciocínio avançados que permitem à IA entender melhor suas intenções e usar as ferramentas certas para cada tarefa.
+- **Reset de Boas-vindas**: Botão nas configurações para reiniciar o processo de onboarding.
 
-## ⚙️ Melhorias
+### ⚙️ Melhorias
 
-- **Limites Dinâmicos de Ferramentas:** Implementação de regras de limite de chamadas de ferramentas configuráveis por Skill via metadados.
-- **Instalador Silencioso (One-Click):** Configuração do instalador Windows para modo "One-Click", reduzindo a fricção no primeiro contato do usuário com o app.
-- **Estabilidade do Backend:** Substituição de blocos de captura de erro genéricos (`except: pass`) por logging informativo em diversos módulos do Core.
+- **Instalador com um clique**: Configuração do instalador Windows para modo simplificado, reduzindo a fricção no primeiro contato.
 
-## 🐛 Correções
+### 🐛 Correções
 
-- **Consistência de Respostas:** Melhoria na lógica do Manager Agent para evitar respostas de "não sei" quando há skills relevantes disponíveis.
+- **Respostas mais precisas**: Corrigido problema onde a IA respondia "não sei" mesmo tendo ferramentas disponíveis para ajudar.
 
 ## 0.5.8 - 2026-02-22
 
 Melhorias de Performance, Áudio e Estabilidade
 
-## ✨ Melhorias
+### ✨ Melhorias
 
-- **Otimização de Pesquisa:** Implementação de buscas assíncronas com `duckduckgo-search` e redução de latência nas ferramentas de pesquisa.
-- **Boot do Python mais rápido:** Otimização dos módulos de inicialização, reduzindo significativamente o tempo de carregamento do backend.
-- **Fallback de Áudio Universal:** Implementação de playback via Web Audio API no Electron como fallback, garantindo funcionamento do som mesmo em sistemas sem PortAudio.
-- **Gestão de Lembretes:** Melhoria na latência da skill de lembretes através da exposição direta de ferramentas ao agente principal.
-- **Instalador e Manutenção:** O desinstalador agora realiza uma limpeza profunda de dados residuais (`momai.db`, venv, etc.) para garantir instalações limpas.
+- **Pesquisas mais rápidas**: Buscas na internet com menor tempo de resposta.
+- **Inicialização mais rápida**: Backend Python carrega em menos tempo.
+- **Áudio universal**: Reprodução de som funciona mesmo em sistemas sem bibliotecas de áudio nativas.
+- **Lembretes mais rápidos**: Melhor tempo de resposta para lembretes agendados.
+- **Desinstalação completa**: O desinstalador agora remove todos os dados residuais para instalações limpas.
 
-## 🐛 Correções
+### 🐛 Correções
 
-- **Lógica de Boas-vindas:** Corrigido bug onde a tela de boas-vindas sumia antes da conclusão da instalação dos LLMs.
-- **Onboarding Repetitivo:** Resolvido o problema onde a tela de onboarding reaparecia em todas as inicializações do aplicativo.
-- **Estabilidade no Linux:** Melhoria no foco da janela e tratamento de caminhos em sistemas de arquivos somente-leitura (AppImage).
+- **Tela de boas-vindas**: Corrigido bug onde ela sumia antes da instalação dos modelos de IA.
+- **Onboarding repetitivo**: Tela de boas-vindas não aparece mais em toda inicialização.
+- **Estabilidade no Linux**: Melhorias de foco da janela e suporte a sistemas de arquivos somente-leitura (AppImage).
 
 ## 0.4.4 - 2026-02-21
 
-Correção de Caminho do Core no Linux
+### 🐛 Correções
 
-## 🐛 Correções
-
-- **Caminho do Core não era passado corretamente:** Corrigido bug onde o Electron copiava o core para um diretório temporário gravável, mas ainda passava o caminho original (somente-leitura) ao iniciar o Python. Agora o `MOMAI_CORE_PATH` aponta para o diretório correto.
+- **Caminho do Core no Linux**: Corrigido bug onde o Electron copiava o core para um diretório temporário, mas ainda passava o caminho original ao iniciar o Python.
 
 ## 0.4.2 - 2026-02-21
 
-Correção de Fallback de Áudio
+### 🐛 Correções
 
-## 🐛 Correções
-
-- **Sounddevice não encontrado em todos os módulos:** Corrigido erro `OSError: PortAudio library not found` que ainda ocorria em outros módulos de áudio. Adicionado fallback em `detector.py` e `quick_transcriber.py`, permitindo que o aplicativo inicie normalmente mesmo sem a biblioteca PortAudio instalada.
+- **Áudio mais robusto**: Corrigido erro de biblioteca de áudio ausente em todos os módulos do sistema, permitindo que o app inicie mesmo sem PortAudio instalado.
 
 ## 0.4.1 - 2026-02-21
 
-Correção de Dependência de Áudio
+### 🐛 Correções
 
-## 🐛 Correções
-
-- **Fallback de Áudio para Frontend:** Adicionado fallback para o frontend tocar áudio quando a biblioteca PortAudio não está disponível no sistema. Isso permite que o MomAI inicie normalmente mesmo sem dependências de áudio nativas, utilizando o navegador para reprodução de áudio.
+- **Fallback de áudio**: Adicionada alternativa para tocar áudio quando a biblioteca PortAudio não está disponível, usando o navegador para reprodução.
 
 ## 0.4.0 - 2026-02-21
 
-Portabilidade de Áudio e Limpeza de Dependências
+### ⚙️ Melhorias
 
-## ✨ Melhorias
-
-- **Portabilidade de Áudio (Linux e Windows):** Substituição do `pyaudio` pelo `sounddevice` em todo o núcleo (Core). O `sounddevice` utiliza `CFFI`, o que elimina a necessidade de compiladores (`gcc`) ou ferramentas de build na máquina do usuário, tornando a instalação automática do ambiente Python muito mais confiável.
-- **Remoção de Dependências Obsoletas:** Removidos pacotes como `pvporcupine`, `pygetwindow` e `pyrect` que não eram mais utilizados, reduzindo o tamanho do ambiente e evitando conflitos de instalação.
+- **Áudio mais estável e instalação simplificada**: Substituição da biblioteca de áudio por uma versão mais portável que não exige compiladores ou ferramentas de build, tornando a instalação automática muito mais confiável no Windows e Linux.
+- **Remoção de dependências obsoletas**: Pacotes não utilizados foram removidos, reduzindo o tamanho do ambiente e evitando conflitos.
 
 ## 0.3.6 - 2026-02-21
 
-Correção Crítica - AppImage Read-Only File System
+### 🐛 Correções
 
-## 🐛 Correções
-
-- **Fix Read-Only File System no AppImage:** Corrigido problema crítico onde a instalação de dependências falhava com "Read-only file system" ao tentar criar `core.egg-info`. Agora o sistema detecta automaticamente quando o diretório do core é somente-leitura e copia os arquivos para um diretório temporário antes de instalar.
+- **AppImage Linux**: Corrigido erro crítico onde a instalação de dependências falhava ao tentar escrever em sistema de arquivos somente-leitura. Agora o sistema detecta e copia os arquivos para um diretório temporário.
 
 ## 0.3.5 - 2026-02-21
 
-Correções e Melhorias de Compatibilidade Linux
+### 🐛 Correções
 
-## 🐛 Correções
-
-- **Suporte a Binários Linux para Llama.cpp:** Corrigido problema crítico onde o downloader tentava baixar binários Windows no Linux. Agora o sistema detecta corretamente o sistema operacional e baixa os binários apropriados (Ubuntu x64 CPU/Vulkan).
-- **Detecção de Hardware GPU no Linux:** Corrigida a detecção de GPUs NVIDIA no Linux para usar Vulkan como backend (não há binário CUDA oficial para Linux/Ubuntu no llama.cpp).
-- **Monitor de Processo Pai no Linux:** Corrigido problema onde o processo Python ficava órfão quando o Electron crashava no Linux. Agora o `monitor_parent()` funciona em todas as plataformas.
-- **Mensagem de Erro Read-Only Melhorada:** Adicionada detecção de AppImage e Snap com mensagens de erro específicas quando o filesystem é somente-leitura.
-- **Locale do Sistema:** Removido locale hardcoded `pt_BR.UTF-8` que poderia falhar em sistemas sem essa locale. Agora usa a locale do sistema ou `C.UTF-8` como fallback.
-- **Caminhos XDG Corrigidos:** Corrigido o script de diagnóstico `diagnostic.sh` para usar `XDG_DATA_HOME` (consistent com Electron) em vez de `XDG_CONFIG_HOME` para venv e logs.
+- **Suporte a Linux**: Corrigido download de binários corretos para Linux (estava baixando versão Windows).
+- **Detecção de GPU no Linux**: Corrigida detecção de placas NVIDIA no Linux.
+- **Processo órfão no Linux**: Corrigido problema onde o Python ficava rodando mesmo após fechar o app.
+- **Mensagens de erro melhores**: Detecção de AppImage e Snap com mensagens específicas.
+- **Idioma do sistema**: Agora respeita o idioma configurado no sistema operacional.
+- **Pastas de dados corrigidas**: Diretórios de dados agora seguem o padrão do Linux.
 
 ## 0.3.4 - 2026-02-21
 
-Correção de Bug Crítico de Setup
+### 🐛 Correções
 
-## 🐛 Correções
-
-- **Ambiente Virtual Recriado Ignorado:** Corrigido bug onde a criação de um novo ambiente virtual não invalidava o SyncLock, causando salto da instalação de dependências. Agora, ao criar um novo venv, o lock é invalidado para garantir que as dependências sejam sempre instaladas.
+- **Ambiente virtual recriado corretamente**: Ao criar um novo ambiente Python, as dependências agora são sempre reinstaladas, evitando conflitos de versão.
 
 ## 0.3.3 - 2026-02-21
 
-Correções Críticas de Setup e Dependências
+### 🐛 Correções
 
-## 🐛 Correções
-
-- **Falha de Inicialização (python-dotenv):** Adicionada a dependência missing `python-dotenv` ao core, corrigindo o erro `ModuleNotFoundError: No module named 'dotenv'` que impedia o boot do backend no Linux.
-- **Sincronização Forçada de Ambiente:** Melhorada a lógica do `SyncLock` para detectar mudanças de versão do aplicativo. Agora o MomAI forçará a atualização das dependências sempre que uma nova versão for instalada, evitando que o bootstrap pule atualizações cruciais.
+- **Falha de inicialização no Linux**: Adicionada dependência ausente que impedia o backend de iniciar.
+- **Sincronização forçada**: O app agora atualiza as dependências sempre que uma nova versão é instalada.
 
 ## 0.3.1 - 2026-02-21
 
-Melhorias na Interface e Versionamento
+### ⚙️ Melhorias
 
-## ✨ Melhorias
-
-- **Versionamento Dinâmico:** A versão exibida na janela "Sobre" (TitleBar) agora é carregada dinamicamente das configurações do aplicativo, garantindo que sempre reflita a versão real da release.
+- **Versão correta na tela Sobre**: A versão exibida no aplicativo agora reflete a versão real da instalação.
 
 ## 0.3.0 - 2026-02-21
 
-Suporte ao FortScript no build de produção
+Suporte ao Modo Economia em produção
 
-## ✨ Melhorias
+### ⚙️ Melhorias
 
-- **Modo Economia (FortScript) em Produção:** Corrigido problema onde o monitor de recursos (FortScript) não funcionava na versão instalada. A pasta `fortscript` agora é incluída corretamente no pacote e as dependências necessárias foram adicionadas ao ambiente virtual do core.
-- **Correção de "Read-only file system" no Linux:** Resolvido o erro de bootstrap que impedia o MomAI de iniciar em ambientes Linux (AppImage) ao tentar rodar `pip install -e`. Agora o sistema identifica as dependências e as instala diretamente, evitando tentativas de escrita na partição montada do AppImage.
+- **Modo Economia funcionando em versões instaladas**: O monitor de recursos agora funciona corretamente na versão instalada do app.
+- **Correção para Linux**: Resolvido erro de inicialização em ambientes Linux (AppImage) ao instalar dependências.
 
 ## 0.2.10 - 2026-02-21
 
-Correção crítica de instalação no Linux e Melhorias de Renderização
+### 🐛 Correções
 
-## 🐛 Correções
-
-- **Carregamento Infinito (uv_not_found) no Linux:** Corrigido bug crítico no script de build onde os binários essenciais (`uv` e `python`) eram colocados na pasta incorreta durante a geração do AppImage e pacote DEB. Isso fazia com que o instalador fosse gerado vazio, resultando em uma tela de carregamento que não exibia a interface de erro e ficava em loop infinito no ambiente Linux.
-- **Janela Minimizada no Ubuntu/Wayland:** Adicionado delay de tempo de recuperação e a chamada obrigatória `win.moveTop()` no Linux para contornar comportamento de sistemas operacionais onde a janela mesmo com bounds ativados poderia ficar retida em estado recuado na barra superior do GNOME.
+- **Correção crítica no Linux**: Corrigido bug onde o instalador era gerado vazio, resultando em tela de carregamento infinito no Linux.
+- **Janela minimizada no Ubuntu/Wayland**: Corrigido problema onde a janela aparecia minimizada no GNOME.
 
 ## 0.2.9 - 2026-02-21
 
-Correções de renderização da janela no Linux (Wayland)
+### 🐛 Correções
 
-## 🐛 Correções
-
-- **Janela Invisível no Ubuntu/Wayland e VMs:** Resolvido o problema onde o aplicativo rodava em segundo plano mas a interface gráfica não aparecia em máquinas virtuais (Hyper-V, VirtualBox) e Wayland. A aceleração de hardware do Electron foi desativada nativamente no Linux para evitar falhas silenciosas de renderização de GPU que ocultavam a janela. Além disso, a janela agora utiliza `setBounds` com cálculo das margens úteis da tela para simular maximização de forma segura.
+- **Janela invisível no Ubuntu/Wayland**: Resolvido problema onde o app rodava em segundo plano mas a tela não aparecia em máquinas virtuais e Wayland.
 
 ## 0.2.7 - 2026-02-21
 
-Correção da hint de voice activation
+### ⚙️ Melhorias
 
-## ✨ Melhorias
+- **Dica de ativação por voz**: Mensagem "Tente dizer Luna" agora aparece sempre na tela inicial.
 
-- **Hint de Ativação por Voz:** Corrigido bug onde a mensagem "Tente dizer Luna" nem sempre aparecia na interface inicial. Agora a hint é exibida sempre, independentemente de qualquer configuração.
+### 🗑️ Remoções
 
-## 🗑️ Remoções
-
-- **Toggle de Wake Word nas Configurações:** Removida a opção de ativar/desativar a wake word das configurações de voz.
+- **Toggle de Wake Word**: Opção de ativar/desativar a palavra de ativação removida das configurações de voz.
 
 ## 0.2.5 - 2026-02-21
 
-Correções de Inicialização (DLL failure)
+### ⚙️ Melhorias
 
-## ✨ Melhorias
-
-- **Detecção de Dependências do Windows:** Adicionada detecção específica para o erro "Uma rotina de inicialização da biblioteca de vínculo dinâmico (DLL) falhou" (comum no NumPy/Torch). O aplicativo agora identifica automaticamente quando o Microsoft Visual C++ Redistributable está faltando e fornece o link direto para instalação, evitando loops de reinicialização.
+- **Detecção de dependências do Windows**: O app agora identifica quando o Visual C++ Redistributable está faltando e fornece o link para instalação, evitando loops de inicialização.
 
 ## 0.2.4 - 2026-02-21
 
-Melhorias Visuais e de Inicialização
+### ⚙️ Melhorias
 
-## ✨ Melhorias
-
-- **Feedback de Inicialização:** Adicionada barra de progresso e mensagens de status detalhadas durante o bootstrap do ambiente Python.
+- **Feedback de inicialização**: Barra de progresso e mensagens de status durante a preparação do ambiente Python.
 
 ## 0.2.3 - 2026-02-21
 
-Correções de Janela no Linux
+### 🐛 Correções
 
-## Correções
-
-- **Inicialização no Ubuntu/Linux:** Corrigido problema onde o aplicativo iniciava minimizado em alguns ambientes Linux (como GNOME). Adicionada lógica de foco explícito e um pequeno delay na maximização para garantir que o Gerenciador de Janelas processe a exibição corretamente.
-
-## 0.2.2 - 2026-02-21
-
-Correções e Estabilidade
-
-## Correções de Infraestrutura
-
-- **Colisão de Artefatos no GitHub Release:** Corrigido o erro que causava falha na etapa final do pipeline de publicação por tentar fazer o upload de dois arquivos `builder-debug.yml` idênticos (gerados pelos builds de Windows e Linux) simultaneamente para o mesmo Release. Evitando o erro `HTTP 422: Validation Failed`.
-
-## 0.2.1 - 2026-02-21
-
-Correções e Estabilidade
-
-## Correções de Infraestrutura
-
-- **Rotina de Build CI Linux:** Removida dependência obsoleta (`libgconf-2-4`) do pipeline de integração contínua. Essa mudança garante suporte total a compilações nativas de pacotes linux rodando nas imagens atualizadas e imutáveis `ubuntu-24.04` do GitHub.
+- **Inicialização no Linux**: Corrigido problema onde o aplicativo iniciava minimizado em alguns ambientes Linux (GNOME).
 
 ## 0.2.0 - 2026-02-21
 
 Suporte Oficial para Linux
 
-## Novas Funcionalidades
+### ✨ Novas Funcionalidades
 
-- **Compatibilidade com Linux (AppImage & DEB):** Implementação de suporte nativo para distribuições Linux. O sistema agora realiza o bootstrap automatizado do ambiente Python e gerencia dependências de áudio (PortAudio/ALSA) de forma transparente, garantindo paridade de recursos com a versão Windows.
-- **Distribuição Inteligente Segura:** O portal oficial implementa agora lógica de detecção de SO via User-Agent para fornecer automaticamente o binário mais adequado (AppImage/deb/exe), otimizando o fluxo de aquisição para novos usuários.
+- **Compatibilidade com Linux**: Suporte nativo para distribuições Linux (AppImage e DEB). O sistema gerencia dependências de áudio de forma transparente, com paridade de recursos com a versão Windows.
 
-## Melhorias de Infraestrutura
+### ⚙️ Melhorias
 
-- **Build Engine Unificado:** Reestruturação do pipeline de CI/CD (GitHub Actions) para suportar compilação paralela multi-arch. Isso garante que todas as futuras atualizações sejam entregues simultaneamente para Windows e Linux com integridade verificada.
-- **Ambiente de Runtime Isolado:** Refinamento dos scripts de inicialização para garantir permissões de execução corretas em ambientes POSIX, aumentando a robustez do software em diferentes distribuições.
-
----
+- **Runtime isolado**: Inicialização mais robusta em diferentes distribuições Linux.
 
 ## 0.1.3 - 2026-02-21
 
-Correção de compatibilidade com usernames do Windows que contêm espaços.
+### 🐛 Correções
 
-## 🐛 Correções
-
-- **Falha ao iniciar em contas Windows com espaços no nome:** Corrigido erro crítico onde o bootstrap do ambiente Python falhava em computadores cujo nome de usuário do Windows continha espaços (ex: "Central de Veiculos"). O processo `uv` recebia o caminho partido pelo `cmd.exe`, resultando no erro `'C:\Users\Nome' não é reconhecido como um comando interno`.
-
----
+- **Falha ao iniciar em contas Windows com espaços no nome**: Corrigido erro crítico onde o bootstrap falhava em computadores cujo nome de usuário continha espaços.
 
 ## 0.1.2 - 2026-02-21
 
-Correções no sistema de aceleração por hardware.
+### 🐛 Correções
 
-## 🐛 Correções
-
-- **Aceleração automática preferia CPU ao invés da GPU:** Corrigido bug onde o modo "Automático" nas configurações de aceleração ignorava a GPU do usuário e utilizava CPU. A detecção de hardware foi aprimorada para identificar corretamente GPUs NVIDIA (CUDA), AMD/Intel (Vulkan) mesmo quando nenhum engine estava instalado, e o status exibido nas configurações agora reflete o backend real sendo utilizado.
-
----
+- **Aceleração automática preferia CPU ao invés da GPU**: Corrigido bug onde o modo "Automático" ignorava a GPU do usuário. A detecção de hardware foi aprimorada para identificar GPUs NVIDIA (CUDA), AMD/Intel (Vulkan) e o status exibido agora reflete o backend real.
 
 ## 0.1.1 - 2026-02-21
 
-Essa versão engloba todas as novidades preparadas para a v0.1.0, junto com correções críticas no sistema de atualizações!
+### ✨ Novas Funcionalidades
 
-## 🚀 Novas Funcionalidades
+- **Versão do app na interface**: A versão agora é exibida dinamicamente na tela de boas-vindas e nas configurações.
+- **Novo recurso de consulta de versão**: Endpoint dedicado para verificar a versão atual do aplicativo.
 
-- **Versionamento dinâmico na interface:** A versão do aplicativo agora é exibida dinamicamente na tela de onboarding inicial e no painel de configurações, sempre refletindo a versão atual da release.
-- **Novo endpoint de versão:** Adicionado endpoint dedicado para consulta da versão atual da aplicação.
+### 🐛 Correções
 
-## ⚙️ Melhorias
-
-- **Sincronização automática de versão no CI/CD:** O pipeline de integração contínua agora atualiza automaticamente a versão no `package.json` ao publicar uma tag de release, eliminando a necessidade de atualização manual a cada novo lançamento.
-
-## 🐛 Correções
-
-- **Falha no pipeline de release:** Corrigido erro no workflow de publicação automática que impedia a criação correta da release v0.1.0.
+- **Correções no sistema de atualizações**: Corrigido erro no processo de publicação que impedia a criação correta de novas versões.

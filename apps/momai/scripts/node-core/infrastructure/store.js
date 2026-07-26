@@ -51,7 +51,11 @@ function defaultStore() {
       greeting_auto_saudacao: true,
       greeting_resumo: true,
       greeting_acao: '',
-      greeting_fixa: ''
+      greeting_fixa: '',
+      developer_mode: false,
+      logs_enabled: false,
+      observability_enabled: false,
+      show_context_ring: false
     },
     mode: 'local',
     call_mode: false,

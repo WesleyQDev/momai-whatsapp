@@ -4,7 +4,8 @@ import {
   stopVoice,
   stopGeneration,
   fetchEconomyConfig,
-  updateEconomyConfig
+  updateEconomyConfig,
+  updateSettingsPartial
 } from '../services/api'
 import { useI18n } from '../i18n'
 
@@ -367,8 +368,24 @@ export const useSettingsCard = (initialTab: Tab = 'general', onClose: () => void
     const current = localStorage.getItem('momai_dev_mode') === 'true'
     const next = !current
     localStorage.setItem('momai_dev_mode', String(next))
+    localStorage.setItem('momai_logs_enabled', 'false')
+    localStorage.setItem('momai_observability_enabled', 'false')
+    localStorage.setItem('momai_show_context_ring', 'false')
+
     window.dispatchEvent(new CustomEvent('momai_dev_mode_sync', { detail: next }))
+    window.dispatchEvent(new CustomEvent('momai_logs_sync', { detail: false }))
+    window.dispatchEvent(new CustomEvent('momai_observability_sync', { detail: false }))
+    window.dispatchEvent(new CustomEvent('momai_context_ring_sync', { detail: false }))
+
     setIsDevMode(next)
+    updateSettingsPartial({
+      developer_mode: next,
+      logs_enabled: false,
+      observability_enabled: false,
+      show_context_ring: false
+    }).catch((err) => {
+      console.error('Failed to save developer_mode setting:', err)
+    })
   }, [])
 
   const resetOnboarding = useCallback(async () => {
