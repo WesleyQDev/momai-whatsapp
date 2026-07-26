@@ -14,6 +14,7 @@ Comandos customizados disponíveis via `/comando` no OpenCode.
 | `/release` | Build e release para Windows (.exe/.appx) e Linux. Suporta local (via script PowerShell) ou GitHub Actions. Verifica Docker se necessário |
 | `/analyze-issues` | Analisa issues do repositório WesleyQDev/MomAI: lista todas as abertas ordenadas por prioridade, ou analisa uma issue específica de forma amigável |
 | `/comandos` | Lista os comandos OpenCode disponíveis, lendo o README.md e apontando os não-documentados |
+| `/blog` | Cria posts para o blog da MomAI com base no diff entre versões git. Gera versões pt-BR, en e resumo para LinkedIn |
 
 ## Como Usar
 

@@ -60,7 +60,21 @@ Requer input `tag` (ex: `v1.6.0`). O CI:
 2. **build-linux**: Linux .AppImage/.deb no `ubuntu-latest`
 3. **release**: Publica em `WesleyQDev/MomAI-App`
 
-## 3. Executar
+## 4. Atualizar descrição da release no MomAI-App
+
+Após o build e upload, a release em `WesleyQDev/MomAI-App` precisa de uma descrição em português para os usuários. A descrição deve:
+
+- Ser em português, linguagem clara para usuário final
+- Resumir as principais mudanças da versão (use o `CHANGELOG.md` como base)
+- Incluir os créditos dos contribuidores
+- Ser adicionada via `gh release edit <tag> --notes-file <arquivo>`
+
+Comando:
+```bash
+gh release edit vX.Y.Z --notes-file /caminho/para/notas.md -R WesleyQDev/MomAI-App
+```
+
+## 5. Executar
 
 Baseado nas escolhas do usuário, execute o comando apropriado.
 

@@ -1,0 +1,25 @@
+Nos últimos 4 meses, tirei um chat com IA local e transformei em algo maior do que eu esperava.
+
+A MomAI foi da versão 1.2 à 1.6 — 17 versões, centenas de commits, e um monte de coisa que eu nunca tinha feito antes: extensões com interface própria, integração com WhatsApp, um editor de notas estilo Obsidian, segurança de verdade, e um sistema de voz que não desconecta no meio da conversa.
+
+O resultado é uma assistente que roda 100% no seu computador. Sem nuvem, sem assinatura, sem seus dados saindo da máquina.
+
+Algumas coisas que entraram nessas versões:
+
+🧩 Extensões com UI própria, WhatsApp integrado (notificações, comandos de voz), Loja reformulada
+📝 Editor de notas estilo Obsidian + memória da IA lendo arquivos .md
+🎙️ Seletor de voz (nuvem ou local), Modo Chamada reescrito
+⚡ Modelo Ultra com MTP (multi-token prediction), embedding trocado por um 52% mais rápido
+🔒 Sanitização de SVG, validação de IPC, verificação de integridade em instalações
+🎮 Modo Economia que pausa a IA quando você abre um jogo
+
+Foi um projeto massa de construir, e ainda tem muito chão pela frente.
+
+Disponível na Microsoft Store (winget) e Linux. Tudo local, sem nuvem.
+
+Post completo no blog: [link]
+Baixar: [link da Microsoft Store]
+
+Créditos ao @AndersonTavares0 que mandou ver na parte de segurança.
+
+#MomAI #IALocal #Privacidade #ProjetoPessoal
