@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { GitHubIcon, YouTubeIcon } from "./Icons";
 import { useTranslation } from "react-i18next";
 import { GITHUB_REPO_URL } from "@/constants";

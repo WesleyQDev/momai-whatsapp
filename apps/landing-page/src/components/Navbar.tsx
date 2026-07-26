@@ -4,7 +4,7 @@ import { useOSDetection } from "@/hooks/useOSDetection";
 import { useGitHubRelease } from "@/hooks/useGitHubRelease";
 import { useDownloadTracking } from "@/hooks/useDownloadTracking";
 import { useTranslation } from "react-i18next";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router";
 import { useState, useCallback, useRef } from "react";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { SunIcon, MoonIcon, Bars3Icon, XMarkIcon } from "./Icons";

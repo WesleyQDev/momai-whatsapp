@@ -1,4 +1,4 @@
-import { Link, useLocation, Outlet } from "react-router-dom";
+import { Link, useLocation, Outlet } from "react-router";
 import { useState } from "react";
 
 const SAUDE_NAV = [

@@ -5,7 +5,7 @@ import {
   onConnectionChange,
   getConnectionStatus
 } from './services/api'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router'
 import LateralBar from './components/LateralBar'
 import { useChat } from './hooks/useChat'
 import { useStatus } from './hooks/useStatus'

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 const GOOGLE_PLAY_URL =
   "https://play.google.com/store/apps/details?id=com.wesleyqdev.momaisaude&pcampaignid=web_share";

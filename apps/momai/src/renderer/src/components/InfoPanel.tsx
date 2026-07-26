@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import RemindersSidebar from './chat/RemindersSidebar'
 import { ChatHistoryPopover } from './chat/ChatHistoryPopover'
 import { AssistantStatus } from './AssistantStatus'

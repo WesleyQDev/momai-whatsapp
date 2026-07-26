@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../../services/api'
 import { useI18n } from '../../i18n'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 
 interface TutorialTourProps {
   onFinish: () => void

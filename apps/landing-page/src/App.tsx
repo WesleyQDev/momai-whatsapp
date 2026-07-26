@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Outlet } from "react-router-dom";
+import { HashRouter, Routes, Route, Outlet } from "react-router";
 import { BackgroundEffects } from "./components/BackgroundEffects";
 import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";

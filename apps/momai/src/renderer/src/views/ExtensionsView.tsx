@@ -89,7 +89,7 @@ function useDragScroll(scrollRef: React.RefObject<HTMLDivElement | null>) {
     grabCursor: 'grab' as const
   }
 }
-import { useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {

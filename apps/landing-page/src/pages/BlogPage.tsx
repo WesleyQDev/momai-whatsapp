@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { loadBlogPosts } from "../lib/blog";

@@ -32,7 +32,18 @@
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.28.1+sha512.7d7dbbca9e99447b7c3bf7a73286afaaf6be99251eb9498baefa7d406892f67b879adb3a1d7e687fc4ccc1a388c7175fbaae567a26ab44d1067b54fcb0d6a316",
   "devDependencies": {
-    "concurrently": "^9.2.3",
+    "concurrently": "^9.2.4",
     "turbo": "^2.9.14"
+  },
+  "pnpm": {
+    "overrides": {
+      "tar": ">=7.5.19",
+      "brace-expansion": ">=5.0.8",
+      "postcss": ">=8.5.18",
+      "builder-util-runtime": ">=9.7.0",
+      "minimatch": ">=10.0.1",
+      "ws": ">=8.21.0",
+      "app-builder-lib": ">=26.15.0"
+    }
   }
 }

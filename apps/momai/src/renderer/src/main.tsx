@@ -14,7 +14,7 @@ import './assets/main.css'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { HashRouter, Routes, Route } from 'react-router-dom'
+import { HashRouter, Routes, Route } from 'react-router'
 import App from './App'
 import OverlayView from './views/OverlayView'
 import ErrorBoundary from './components/ErrorBoundary'

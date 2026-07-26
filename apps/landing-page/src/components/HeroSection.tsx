@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { WIN_STORE_URL } from "@/constants";
 import { useOSDetection } from "@/hooks/useOSDetection";
 import { useGitHubRelease } from "@/hooks/useGitHubRelease";
