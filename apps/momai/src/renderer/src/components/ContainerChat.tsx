@@ -400,9 +400,9 @@ export default function ContainerChat({
   const showLoading =
     isTierChanging ||
     isBooting ||
-    (!animationFinished && !hasUserData) ||
-    (isModeChanging && !hasUserData) ||
-    (isBrainLoading && !isBrainReady && !hasUserData)
+    isModeChanging ||
+    !animationFinished ||
+    (isBrainLoading && !isBrainReady)
 
   const econActive =
     economyState?.active && economyState.detectedGames.length > 0 && !localDismissed
@@ -496,7 +496,7 @@ export default function ContainerChat({
           isSpeaking={speakingMessageId !== null && speakingMessageId !== undefined}
         />
       ) : (
-        <div className="flex flex-col flex-1 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-700 ease-out fill-mode-both">
+        <div className="flex flex-col flex-1 overflow-hidden animate-in fade-in zoom-in-[0.98] slide-in-from-bottom-3 duration-700 ease-out fill-mode-both">
           <div className="flex items-center justify-between gap-4 px-4 pt-4 pb-2 z-20">
             <span className="flex-1 text-[11px] font-bold text-text/40 uppercase tracking-wider truncate">
               {(() => {

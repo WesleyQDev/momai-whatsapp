@@ -41,12 +41,16 @@ export default function LogsView() {
   }
 
   useEffect(() => {
-    window.api.readLogs(500).then((r) => {
-      if (r?.success) {
-        const raw = (r.entries || []).map((e: any) => e.raw || '').filter(Boolean)
-        setLines(mergeLines(raw))
-      }
-    }).catch(() => {}).finally(() => setLoading(false))
+    window.api
+      .readLogs(500)
+      .then((r) => {
+        if (r?.success) {
+          const raw = (r.entries || []).map((e: any) => e.raw || '').filter(Boolean)
+          setLines(mergeLines(raw))
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
 
     window.api.startLogStream?.()
     const cleanup = window.api.onLogLine?.((line: any) => {
@@ -101,13 +105,16 @@ export default function LogsView() {
     return ''
   }
 
-  const filtered = filter === 'all' ? lines : lines.filter((l) => {
-    const level = lineLevel(l)
-    if (filter === 'error') return level === 'error' || hasErr(l)
-    if (filter === 'warn') return level === 'warn'
-    if (filter === 'other') return level === null && !hasErr(l)
-    return level === filter
-  })
+  const filtered =
+    filter === 'all'
+      ? lines
+      : lines.filter((l) => {
+          const level = lineLevel(l)
+          if (filter === 'error') return level === 'error' || hasErr(l)
+          if (filter === 'warn') return level === 'warn'
+          if (filter === 'other') return level === null && !hasErr(l)
+          return level === filter
+        })
 
   const activeLabel = LEVEL_OPTIONS.find((o) => o.key === filter)?.label || 'Filtrar'
 
@@ -143,14 +150,32 @@ export default function LogsView() {
   return (
     <div className="h-full flex flex-col bg-bg">
       <div className="flex items-center gap-2 px-4 py-2 border-b border-border/10 bg-sidebar/30 shrink-0">
-        <svg className="w-4 h-4 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="10" x2="16" y2="10" /><line x1="8" y1="14" x2="12" y2="14" /></svg>
+        <svg
+          className="w-4 h-4 text-text-muted"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <rect x="2" y="3" width="20" height="14" rx="2" />
+          <line x1="8" y1="10" x2="16" y2="10" />
+          <line x1="8" y1="14" x2="12" y2="14" />
+        </svg>
         <span className="text-xs font-bold text-text/60 uppercase tracking-wider">Logs</span>
         <div className="ml-auto relative" ref={filterRef}>
           <button
             onClick={() => setFilterOpen(!filterOpen)}
             className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-bold bg-white/[0.04] hover:bg-white/[0.08] border border-border/20 text-text-muted hover:text-text transition-colors"
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+            <svg
+              className="w-3.5 h-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
             {activeLabel}
           </button>
           {filterOpen && (
@@ -158,19 +183,28 @@ export default function LogsView() {
               {LEVEL_OPTIONS.map((opt) => (
                 <button
                   key={opt.key}
-                  onClick={() => { setFilter(opt.key); setFilterOpen(false) }}
+                  onClick={() => {
+                    setFilter(opt.key)
+                    setFilterOpen(false)
+                  }}
                   className={`w-full text-left px-3 py-2 text-[12px] font-medium transition-colors flex items-center gap-2 ${
                     filter === opt.key
-                      ? opt.key === 'error' ? 'text-red-400 bg-red-500/10'
-                        : opt.key === 'warn' ? 'text-yellow-400 bg-yellow-500/10'
-                        : opt.key === 'info' ? 'text-blue-400 bg-blue-500/10'
-                        : opt.key === 'other' ? 'text-cyan-400 bg-cyan-500/10'
-                        : 'text-accent bg-accent/10'
+                      ? opt.key === 'error'
+                        ? 'text-red-400 bg-red-500/10'
+                        : opt.key === 'warn'
+                          ? 'text-yellow-400 bg-yellow-500/10'
+                          : opt.key === 'info'
+                            ? 'text-blue-400 bg-blue-500/10'
+                            : opt.key === 'other'
+                              ? 'text-cyan-400 bg-cyan-500/10'
+                              : 'text-accent bg-accent/10'
                       : 'text-text-muted hover:text-text hover:bg-white/[0.04]'
                   }`}
                 >
                   {opt.key !== 'all' && (
-                    <span className={`w-1.5 h-1.5 rounded-full ${opt.key === 'error' ? 'bg-red-400' : opt.key === 'warn' ? 'bg-yellow-400' : opt.key === 'info' ? 'bg-blue-400' : 'bg-cyan-400'}`} />
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${opt.key === 'error' ? 'bg-red-400' : opt.key === 'warn' ? 'bg-yellow-400' : opt.key === 'info' ? 'bg-blue-400' : 'bg-cyan-400'}`}
+                    />
                   )}
                   {opt.label}
                 </button>
@@ -200,7 +234,15 @@ export default function LogsView() {
                 <span className={cls}>{raw}</span>
               ) : (
                 colorizeLine(raw).map((part, j) =>
-                  part.color ? <span key={j} className={part.color}>{part.text}</span> : <span key={j} className="text-gray-400">{part.text}</span>
+                  part.color ? (
+                    <span key={j} className={part.color}>
+                      {part.text}
+                    </span>
+                  ) : (
+                    <span key={j} className="text-gray-400">
+                      {part.text}
+                    </span>
+                  )
                 )
               )}
             </div>

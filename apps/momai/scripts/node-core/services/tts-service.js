@@ -292,7 +292,7 @@ async function syncWakeWordState(reason = 'unknown') {
 
       if (response.ok) {
         info(
-          `[NodeCore][Voice] Wake-word synced (${reason}): ${shouldEnable ? 'enabled' : 'disabled'}${attempt > 1 ? ` (retry ${attempt}/${maxAttempts})` : ''}`
+          `[NodeCore][Voice] Wake-word synced (${reason}): ${shouldEnable ? 'enabled' : 'disabled'}${attempt > 1 ? ` (succeeded on attempt ${attempt}/${maxAttempts})` : ''}`
         )
         return
       }
@@ -335,7 +335,7 @@ async function syncPythonCallModeState(reason = 'unknown') {
 
       if (response.ok) {
         info(
-          `[NodeCore][Voice] Call-mode synced (${reason}): ${enabled ? 'enabled' : 'disabled'}${attempt > 1 ? ` (retry ${attempt}/${maxAttempts})` : ''}`
+          `[NodeCore][Voice] Call-mode synced (${reason}): ${enabled ? 'enabled' : 'disabled'}${attempt > 1 ? ` (succeeded on attempt ${attempt}/${maxAttempts})` : ''}`
         )
         return
       }

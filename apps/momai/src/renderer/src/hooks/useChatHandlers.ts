@@ -586,7 +586,7 @@ export function useChatHandlers({
           })
         }
 
-        if (data.structured_response) {
+        if (data.structured_response || data.structured_responses) {
           dispatch({
             type: 'UPDATE_MESSAGES',
             updater: (prev) => {

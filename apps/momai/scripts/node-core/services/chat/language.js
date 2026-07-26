@@ -140,7 +140,7 @@ function localizeReply(language, key, summary, reason, userName) {
       return `Oi${name}! Estou online. Como posso te ajudar agora?`
     }
     if (key === 'reason')
-      return `O modelo local ficou indisponível no momento (${safeReason}). Posso tentar novamente em seguida.`
+      return 'Não foi possível conectar ao modelo local no momento. Por favor, tente novamente em instantes.'
     if (key === 'with_memory')
       return `Entendi seu pedido: "${safeSummary}". Também considerei o contexto das suas notas locais.`
     return `Entendi seu pedido: "${safeSummary}". Vou seguir com isso.`
@@ -153,7 +153,7 @@ function localizeReply(language, key, summary, reason, userName) {
       return `Hi${name}! I am online. How can I help you now?`
     }
     if (key === 'reason')
-      return `Local model unavailable right now (${safeReason}). Fallback reply for: "${safeSummary}".`
+      return 'Unable to connect to the local model right now. Please try again in a moment.'
     if (key === 'with_memory')
       return `Got it: "${safeSummary}". I also considered your local notes context.`
     return `Got it: "${safeSummary}". I will proceed with that.`
@@ -166,7 +166,7 @@ function localizeReply(language, key, summary, reason, userName) {
       return `Hola${name}! Estou en linea. Como posso te ajudar agora?`
     }
     if (key === 'reason')
-      return `Modelo local no disponible en este momento (${safeReason}). Respuesta de respaldo para: "${safeSummary}".`
+      return 'No se pudo conectar al modelo local en este momento. Por favor, inténtalo de nuevo en unos momentos.'
     if (key === 'with_memory')
       return `Entendi tu pedido: "${safeSummary}". Tambien considere el contexto de tus notas locales.`
     return `Entendi tu pedido: "${safeSummary}". Voy a continuar con eso.`

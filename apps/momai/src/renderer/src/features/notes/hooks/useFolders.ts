@@ -68,7 +68,7 @@ export function useFolders(filteredNotes: NoteSummary[]): Omit<
   ) => Promise<void>
 } {
   const [folders, setFolders] = useState<string[]>([])
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']))
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root', '__memory']))
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)

@@ -23,7 +23,8 @@ const {
 const { pruneThread } = require('../infrastructure/store')
 const { splitTokens, sanitizePromptText } = require('../utils/text')
 const { isoNow } = require('../utils/time')
-const { ensureLlamaReady, getLlamaBaseUrl, saveStore } = require('./llama-manager')
+const llamaManager = require('./llama-manager')
+const { getLlamaBaseUrl, saveStore } = llamaManager
 const { runSemanticMemoryRetrieval, getTop5SkillsSemantic } = require('./semantic-engine')
 const { isSkillEnabledByStore, getEnabledSkills } = require('./skill-orchestrator')
 const { routeByKeyword } = require('./keyword-router')
@@ -182,6 +183,7 @@ function getThreadMessages(threadId) {
 
 function appendMessage(threadId, role, content, extras = {}) {
   const messages = getThreadMessages(threadId)
+  const structuredResp = extras.structured_responses || extras.structured_response
   const item = {
     id: store.next_message_id++,
     role,
@@ -191,9 +193,8 @@ function appendMessage(threadId, role, content, extras = {}) {
     snippets: extras.snippets ? JSON.stringify(extras.snippets) : null,
     cards: extras.cards ? JSON.stringify(extras.cards) : null,
     graph_data: extras.graph_data || null,
-    structured_response: extras.structured_response
-      ? JSON.stringify(extras.structured_response)
-      : null
+    structured_response: structuredResp ? JSON.stringify(structuredResp) : null,
+    is_interrupted: extras.is_interrupted ? true : undefined
   }
   messages.push(item)
   saveStore()
@@ -228,7 +229,7 @@ function buildLocalizedFallbackReply({ key, summary, reason, language, userName 
       return `Oi${name}! Estou online. Como posso te ajudar agora?`
     }
     if (key === 'reason')
-      return `O modelo local ficou indisponível no momento (${safeReason}). Posso tentar novamente em seguida.`
+      return 'Não foi possível conectar ao modelo local no momento. Por favor, tente novamente em instantes.'
     if (key === 'with_memory')
       return `Entendi seu pedido: "${safeSummary}". Também considerei o contexto das suas notas locais.`
     return `Entendi seu pedido: "${safeSummary}". Vou seguir com isso.`
@@ -241,7 +242,7 @@ function buildLocalizedFallbackReply({ key, summary, reason, language, userName 
       return `Hi${name}! I am online. How can I help you now?`
     }
     if (key === 'reason')
-      return `Local model unavailable right now (${safeReason}). Fallback reply for: "${safeSummary}".`
+      return 'Unable to connect to the local model right now. Please try again in a moment.'
     if (key === 'with_memory')
       return `Got it: "${safeSummary}". I also considered your local notes context.`
     return `Got it: "${safeSummary}". I will proceed with that.`
@@ -254,7 +255,7 @@ function buildLocalizedFallbackReply({ key, summary, reason, language, userName 
       return `Hola${name}! Estou en linea. Como posso te ajudar agora?`
     }
     if (key === 'reason')
-      return `Modelo local no disponible en este momento (${safeReason}). Respuesta de respaldo para: "${safeSummary}".`
+      return 'No se pudo conectar al modelo local en este momento. Por favor, inténtalo de nuevo en unos momentos.'
     if (key === 'with_memory')
       return `Entendi tu pedido: "${safeSummary}". Tambien considere el contexto de tus notas locales.`
     return `Entendi tu pedido: "${safeSummary}". Voy a continuar con eso.`
@@ -409,7 +410,14 @@ If there is new information about the user (preferences, facts, personal details
 async function streamLlamaChat(req, res, payload) {
   const content = String(payload.content || '')
   const discoveryContent = normalizeDiscoveryText(payload.discovery_content || content)
-  const threadId = String(payload.thread_id || 'default')
+  const rawThreadId = String(payload.thread_id || '').trim()
+  const { setActiveThreadId, getActiveThreadId } = require('./shared-state')
+  let threadId = rawThreadId
+  if (!threadId || threadId === 'default') {
+    threadId = getActiveThreadId()
+  } else {
+    setActiveThreadId(threadId)
+  }
 
   /* Evita geracoes concorrentes para a mesma thread */
   if (activeGenerationThreads.has(threadId)) {
@@ -427,7 +435,8 @@ async function streamLlamaChat(req, res, payload) {
   const responseLanguage = resolveResponseLanguage(content, threadId)
   const fallbackLanguage = normalizeLanguageTag(store.settings.locale || 'pt-BR')
   const speakResponse = payload.speak_response !== false
-  const isVoiceCommand = Boolean(payload.is_voice_command || payload.is_call_mode)
+  const isCallMode = Boolean(payload.is_call_mode || store.call_mode)
+  const isVoiceCommand = Boolean(payload.is_voice_command)
   const silentForCodeIntent = shouldPreferSilentForCodeRequest(content)
   const tierName = store.settings.ai_tier || 'pro'
   const isUltra = tierName === 'ultra'
@@ -507,10 +516,15 @@ async function streamLlamaChat(req, res, payload) {
   debug(
     `[chat] llamaState BEFORE ensureLlamaReady: ready=${llamaState.ready}, starting=${llamaState.starting}, lastError=${llamaState.lastError}, process=${!!llamaState.process}, port=${llamaState.port}`
   )
-  const ready = await ensureLlamaReady()
+  let ready = await llamaManager.ensureLlamaReady()
   debug(
     `[chat] ensureLlamaReady returned: ${ready}, llamaState.ready=${llamaState.ready}, lastError=${llamaState.lastError}`
   )
+  if (!ready) {
+    warn(`[chat] Initial ensureLlamaReady failed (${llamaState.lastError || 'unavailable'}). Retrying with forceRestart...`)
+    await new Promise((r) => setTimeout(r, 800))
+    ready = await llamaManager.ensureLlamaReady(true)
+  }
   if (!ready) {
     warn(`[chat] FALLBACK triggered! reason=${llamaState.lastError || 'llama unavailable'}`)
     await streamFallbackResponse(
@@ -528,7 +542,7 @@ async function streamLlamaChat(req, res, payload) {
 
   let semanticPromise = null
   const isExplicitMemorySearch = /\b(pesquisar|buscar|pesquise|procure|minhas?\s+notas|lembrete|mem[óo]ria)\b/i.test(content)
-  if (isUltra && (!isVoiceCommand || isExplicitMemorySearch)) {
+  if (isUltra && (!isCallMode || isExplicitMemorySearch)) {
     const { syncSkillAndToolIndexes, syncNoteIndex } = require('./semantic-engine')
     syncSkillAndToolIndexes(false).catch((err) => debug('[background]', err?.message || err))
     syncNoteIndex(false).catch((err) => debug('[background]', err?.message || err))
@@ -557,12 +571,12 @@ async function streamLlamaChat(req, res, payload) {
   }
 
   const isExplicitSkillRequest = /\b(abrir|abram|executar|rodar|pesquisar\s+no|youtube|whatsapp|skill|ferramenta|criar|agendar)\b/i.test(content)
-  const isVoiceFastPath = isVoiceCommand && !isExplicitSkillRequest
+  const isVoiceResponse = isCallMode || isVoiceCommand || speakResponse
 
-  const baseCtx = Number(llamaState.contextTotalTokens || 2048)
-  const dynamicHistoryBudget = isVoiceFastPath ? 150 : Math.max(450, Math.floor(baseCtx * 0.62))
+  const baseCtx = Number(llamaState.contextTotalTokens || 8192)
+  const dynamicHistoryBudget = Math.max(450, Math.floor(baseCtx * 0.62))
   const threadMsgs = getThreadMessages(threadId)
-  const rawHistory = isVoiceFastPath ? threadMsgs.slice(-2) : buildHistoryWithinBudget(threadMsgs, dynamicHistoryBudget)
+  const rawHistory = buildHistoryWithinBudget(threadMsgs, dynamicHistoryBudget)
   const history = rawHistory.map((msg) => ({
     role: msg.role === 'assistant' ? 'assistant' : 'user',
     content: sanitizePromptText(String(msg.content || ''))
@@ -628,8 +642,8 @@ async function streamLlamaChat(req, res, payload) {
   let assembled = ''
   let bufferedStructuredResponses = []
   let ttsCursor = 0
-  // Ultra-low prebuffer threshold for voice fast path for ChatGPT-style sub-second voice startup
-  const prebufferChars = isVoiceFastPath ? 20 : Math.max(15, Number(store.settings.prebuffer_chars || 25))
+  // Ultra-low prebuffer threshold for voice responses for sub-second voice startup
+  const prebufferChars = isVoiceResponse ? 20 : Math.max(15, Number(store.settings.prebuffer_chars || 25))
   let ttsProcessing = false
   const ttsQueue = []
 
@@ -845,58 +859,56 @@ async function streamLlamaChat(req, res, payload) {
 
     const discoveryLimit = 5
 
-    if (!isVoiceFastPath) {
-      const topN = await (async () => {
-        if (isUltra) {
-          const semanticResults = await getTop5SkillsSemantic(discoveryContent)
-          const topSemanticScore = semanticResults[0]?.score || 0
+    const topN = await (async () => {
+      if (isUltra) {
+        const semanticResults = await getTop5SkillsSemantic(discoveryContent)
+        const topSemanticScore = semanticResults[0]?.score || 0
 
-          let lexicalResults = []
-          if (skillRegistry && typeof skillRegistry.discoverTopN === 'function') {
-            lexicalResults = skillRegistry.discoverTopN(discoveryContent, discoveryLimit)
-          }
-
-          // If semantic confidence is weak, rely on lexical ranking
-          if (semanticResults.length > 0 && topSemanticScore >= 0.35) {
-            const blended = new Map()
-            for (const r of semanticResults) {
-              blended.set(r.id, { id: r.id, score: (r.score || 0) * 0.7 })
-            }
-            for (const r of lexicalResults) {
-              const prev = blended.get(r.id)
-              const add = (r.confidence || 0) * 0.3
-              blended.set(r.id, { id: r.id, score: (prev?.score || 0) + add })
-            }
-            const ranked = [...blended.values()]
-              .sort((a, b) => b.score - a.score)
-              .slice(0, discoveryLimit)
-            ranked.forEach((r) => {
-              topScores[r.id] = r.score
-            })
-            return ranked.map((r) => r.id)
-          }
-
-          if (lexicalResults.length > 0) {
-            lexicalResults.forEach((x) => {
-              topScores[x.id] = x.confidence
-            })
-            return lexicalResults.map((x) => x.id)
-          }
-          return semanticResults.slice(0, discoveryLimit).map((r) => r.id)
-        }
+        let lexicalResults = []
         if (skillRegistry && typeof skillRegistry.discoverTopN === 'function') {
-          const d = skillRegistry.discoverTopN(discoveryContent, discoveryLimit)
-          if (d.length > 0) {
-            d.forEach((x) => {
-              topScores[x.id] = x.confidence
-            })
-            return d.map((x) => x.id)
-          }
+          lexicalResults = skillRegistry.discoverTopN(discoveryContent, discoveryLimit)
         }
-        return []
-      })()
-      discoveredSkillIds = topN
-    }
+
+        // If semantic confidence is weak, rely on lexical ranking
+        if (semanticResults.length > 0 && topSemanticScore >= 0.35) {
+          const blended = new Map()
+          for (const r of semanticResults) {
+            blended.set(r.id, { id: r.id, score: (r.score || 0) * 0.7 })
+          }
+          for (const r of lexicalResults) {
+            const prev = blended.get(r.id)
+            const add = (r.confidence || 0) * 0.3
+            blended.set(r.id, { id: r.id, score: (prev?.score || 0) + add })
+          }
+          const ranked = [...blended.values()]
+            .sort((a, b) => b.score - a.score)
+            .slice(0, discoveryLimit)
+          ranked.forEach((r) => {
+            topScores[r.id] = r.score
+          })
+          return ranked.map((r) => r.id)
+        }
+
+        if (lexicalResults.length > 0) {
+          lexicalResults.forEach((x) => {
+            topScores[x.id] = x.confidence
+          })
+          return lexicalResults.map((x) => x.id)
+        }
+        return semanticResults.slice(0, discoveryLimit).map((r) => r.id)
+      }
+      if (skillRegistry && typeof skillRegistry.discoverTopN === 'function') {
+        const d = skillRegistry.discoverTopN(discoveryContent, discoveryLimit)
+        if (d.length > 0) {
+          d.forEach((x) => {
+            topScores[x.id] = x.confidence
+          })
+          return d.map((x) => x.id)
+        }
+      }
+      return []
+    })()
+    discoveredSkillIds = topN
 
     let toolInstruction = null
     let directSkillResult = null
@@ -949,10 +961,10 @@ async function streamLlamaChat(req, res, payload) {
       toolsPayload = result.tools || []
       toolToSkillMap = result.toolToSkillMap || new Map()
 
-      /* Orçamento dinâmico: 15% do context window para tools de skill */
+      /* Orçamento dinâmico: piso mínimo de 900 tokens para garantir envio das ferramentas em contextos curtos (2048 tokens) */
       const contextTotal = Number(llamaState.contextTotalTokens || 8192)
-      const BUDGET_RATIO = 0.15
-      const budgetTokens = Math.floor(contextTotal * BUDGET_RATIO)
+      const BUDGET_RATIO = 0.30
+      const budgetTokens = Math.max(900, Math.floor(contextTotal * BUDGET_RATIO))
       const estimatedTokens = toolsPayload.reduce((s, t) => s + estimateToolTokens(t), 0)
       if (estimatedTokens > budgetTokens && skillIdsForTools.length > 1) {
         const sorted = [...skillIdsForTools].sort((a, b) => {
@@ -1025,20 +1037,17 @@ async function streamLlamaChat(req, res, payload) {
       promptText += `\n\n${extraSystemInstructions.join('\n\n')}`
     }
     let finalPrompt = promptText
-    if (isVoiceFastPath) {
+    if (isVoiceResponse) {
       const userLocale = store.settings.locale || 'pt-BR'
-      finalPrompt = `${promptText}\n\nVOICE MODE INSTRUCTION:\nRespond in the user's language (${userLocale}) naturally, warmly, directly, and concisely (1 to 3 short sentences for spoken playback). Do not use markdown formatting like bold, lists, code blocks, or headers.`
-      toolsPayload = []
+      finalPrompt = `${promptText}\n\nVOICE MODE INSTRUCTION:\nRespond in the user's language (${userLocale}) naturally, warmly, directly, and concisely (1 to 3 short sentences for spoken playback). Do not use markdown formatting like bold, lists, code blocks, or headers unless requested.`
     }
     const systemMessage = {
       role: 'system',
       content: sanitizePromptText(finalPrompt)
     }
 
-    /* Prepend meta-tools to tools payload (always available except on voice fast path) */
-    if (!isVoiceFastPath) {
-      toolsPayload = [...META_TOOL_DEFS, ...toolsPayload]
-    }
+    /* Prepend meta-tools to tools payload */
+    toolsPayload = [...META_TOOL_DEFS, ...toolsPayload]
 
     /* Round loop: LLM ve tools, decide se chama alguma, resultado volta */
     let round = 0
@@ -1113,10 +1122,19 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
       }
       lastErr = err
       warn(`[chat] LLM attempt ${attempt}/${maxAttempts} failed: ${err.message}`)
+
+      if (attempt < maxAttempts) {
+        try {
+          debug(`[chat] Attempting llamaManager.ensureLlamaReady(true) to recover server before retry ${attempt + 1}...`)
+          await llamaManager.ensureLlamaReady(true)
+        } catch (recErr) {
+          debug(`[chat] Server auto-recovery attempt failed: ${recErr.message}`)
+        }
+      }
     }
 
     if (attempt < maxAttempts) {
-      const delay = Math.min(1200, 350 * Math.pow(2, attempt - 1))
+      const delay = Math.min(1500, 500 * Math.pow(2, attempt - 1))
       debug(`[chat] Retrying local LLM completion in ${delay}ms (attempt ${attempt + 1}/${maxAttempts})...`)
       await new Promise((r) => setTimeout(r, delay))
     }
@@ -1423,15 +1441,18 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
                   const m = allMsgs[idx]
                   result = `[#${idx}][${m.role}] ${String(m.content || '').slice(0, 1000)}`
                 } else {
-                  result = `Message #${idx} not found. There are ${allMsgs.length} messages across all sessions.`
+                  const scopeStr = args.all_sessions ? 'across all sessions' : 'in current session'
+                  result = `Message #${idx} not found. There are ${allMsgs.length} messages ${scopeStr}.`
                 }
               } else {
                 const q = String(args.query || '').trim().toLowerCase()
                 if (!q) { result = 'Provide a query or message_number.'; return }
                 const results = []
                 const MAX_RESULTS = 5
-                const allThreads = { ...(store.thread_messages || {}) }
-                for (const messages of Object.values(allThreads)) {
+                const sourceThreads = args.all_sessions
+                  ? Object.values({ ...(store.thread_messages || {}) })
+                  : [(store.thread_messages || {})[threadId] || []]
+                for (const messages of sourceThreads) {
                   if (results.length >= MAX_RESULTS) break
                   for (const msg of messages) {
                     if (results.length >= MAX_RESULTS) break
@@ -1441,9 +1462,10 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
                     }
                   }
                 }
+                const scopeLabel = args.all_sessions ? 'any session' : 'current session'
                 result = results.length > 0
                   ? `Messages matching "${args.query}":\n${results.join('\n---\n')}`
-                  : `No messages found matching "${args.query}" in any session.`
+                  : `No messages found matching "${args.query}" in ${scopeLabel}.`
               }
             }
 
@@ -1997,6 +2019,33 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
     }
     endSse(res)
   } catch (error) {
+    const isAbortedByUser =
+      stopGenerationRequested ||
+      controller.signal?.aborted ||
+      closed ||
+      error?.name === 'AbortError' ||
+      /aborted/i.test(error?.message || '')
+
+    if (isAbortedByUser) {
+      debug('[chat] Request interrupted by user')
+      appendMessage(threadId, 'assistant', assembled.trim() || 'Interrupted.', {
+        sources: memorySources.length ? memorySources : undefined,
+        graph_data:
+          activeSkill || toolSteps.length
+            ? { active_skill: activeSkill, tool_steps: toolSteps }
+            : null,
+        is_interrupted: true
+      })
+      stopVoiceRequested = false
+      flushTtsChunks(true)
+      {
+        const _sse = writeSse(res, { done: true, is_interrupted: true })
+        if (_sse instanceof Promise) await _sse
+      }
+      endSse(res)
+      return
+    }
+
     const userName = store.settings.user_name || 'Usuário'
     const fallbackMsg = generateFallbackReply(
       content,
@@ -2043,7 +2092,14 @@ async function runVoiceCommand(payload = {}) {
   let content = String(payload.content || '').trim()
   if (!content) return
   const originalContent = content
-  const threadId = String(payload.thread_id || 'default')
+  const rawThreadId = String(payload.thread_id || '').trim()
+  const { getActiveThreadId, setActiveThreadId } = require('./shared-state')
+  let threadId = rawThreadId
+  if (!threadId || threadId === 'default') {
+    threadId = getActiveThreadId()
+  } else {
+    setActiveThreadId(threadId)
+  }
   const speakResponse = payload.speak_response !== false
   debug(`[voice-cmd] runVoiceCommand called: content="${content.slice(0, 80)}", thread=${threadId}`)
 

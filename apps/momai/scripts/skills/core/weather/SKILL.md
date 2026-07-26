@@ -52,10 +52,11 @@ Skill de previsao do tempo baseada em API externa.
 
 ## Quando usar
 
-- Quando o usuario perguntar sobre o clima atual ou previsao para os proximos dias.
+- Quando o usuario perguntar sobre o clima atual ou previsao do tempo.
 
 ## Comportamento
 
 - Use a ferramenta `get_weather` passando a localizacao se o usuario especificar.
 - Se o usuario nao especificar a localizacao, tente obter dos settings ou pergunte ao usuario.
-- A ferramenta retorna dados meteorologicos em tempo real e previsao.
+- A ferramenta retorna dados meteorologicos para a localidade.
+- A mensagem gerada para o usuário deve ser **amigável e curta**, focando **apenas no dia de HOJE**, sem falar das próximas semanas ou dos próximos dias.

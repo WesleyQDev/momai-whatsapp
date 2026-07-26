@@ -54,7 +54,14 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
   )
   const [showDevResetConfirm, setShowDevResetConfirm] = useState(false)
   const [isDevResetting, setIsDevResetting] = useState(false)
-  const [logPaths, setLogPaths] = useState({ logs: '', data: '', install: '', logFile: '', models: '', llama: '' })
+  const [logPaths, setLogPaths] = useState({
+    logs: '',
+    data: '',
+    install: '',
+    logFile: '',
+    models: '',
+    llama: ''
+  })
   const isElectronDev = (window as any).momaiAPI?.isDev?.() === true
 
   useEffect(() => {
@@ -63,9 +70,18 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
     const installP = (window.api as any).getInstallPath?.()?.catch?.() ?? Promise.resolve('')
     const modelsP = (window.api as any).getModelsPath?.()?.catch?.() ?? Promise.resolve('')
     const llamaP = (window.api as any).getLlamaPath?.()?.catch?.() ?? Promise.resolve('')
-    Promise.all([logsP, dataP, installP, modelsP, llamaP]).then(([logs, data, install, models, llama]) => {
-      setLogPaths({ logs, data, install, logFile: logs ? logs.replace(/\/$/, '') + '\\main.log' : '', models, llama })
-    }).catch(() => {})
+    Promise.all([logsP, dataP, installP, modelsP, llamaP])
+      .then(([logs, data, install, models, llama]) => {
+        setLogPaths({
+          logs,
+          data,
+          install,
+          logFile: logs ? logs.replace(/\/$/, '') + '\\main.log' : '',
+          models,
+          llama
+        })
+      })
+      .catch(() => {})
   }, [])
 
   const handleDevReset = async () => {
@@ -339,46 +355,76 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
       {/* Pastas do Sistema */}
       <div className="bg-white/[0.03] rounded-xl border border-border/40 overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border/20">
-          <svg className="shrink-0 text-accent" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+          <svg
+            className="shrink-0 text-accent"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+          </svg>
           <span className="text-xs font-bold text-text">Pastas do Sistema</span>
         </div>
         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <button onClick={() => window.api.openLogsFolder()} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors">
+          <button
+            onClick={() => window.api.openLogsFolder()}
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors"
+          >
             <span className="text-base">📂</span>
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-semibold text-text">Abrir pasta de logs</span>
               <span className="text-[10px] text-text-muted/60 truncate">{logPaths.logs}</span>
             </div>
           </button>
-          <button onClick={() => window.api.openDataFolder()} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors">
+          <button
+            onClick={() => window.api.openDataFolder()}
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors"
+          >
             <span className="text-base">📁</span>
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-semibold text-text">Abrir pasta de dados</span>
-              <span className="text-[10px] text-text-muted/60 truncate">{logPaths.data || logPaths.logs?.replace(/\\logs$/, '')}</span>
+              <span className="text-[10px] text-text-muted/60 truncate">
+                {logPaths.data || logPaths.logs?.replace(/\\logs$/, '')}
+              </span>
             </div>
           </button>
-          <button onClick={() => window.api.openInstallPath()} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors">
+          <button
+            onClick={() => window.api.openInstallPath()}
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors"
+          >
             <span className="text-base">📦</span>
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-semibold text-text">Abrir pasta de instalação</span>
               <span className="text-[10px] text-text-muted/60 truncate">{logPaths.install}</span>
             </div>
           </button>
-          <button onClick={() => window.api.openLogFile()} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors">
+          <button
+            onClick={() => window.api.openLogFile()}
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors"
+          >
             <span className="text-base">📄</span>
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-semibold text-text">Abrir arquivo de log</span>
               <span className="text-[10px] text-text-muted/60 truncate">{logPaths.logFile}</span>
             </div>
           </button>
-          <button onClick={() => window.api.openModelsFolder()} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors">
+          <button
+            onClick={() => window.api.openModelsFolder()}
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors"
+          >
             <span className="text-base">🤖</span>
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-semibold text-text">Abrir pasta de modelos</span>
               <span className="text-[10px] text-text-muted/60 truncate">{logPaths.models}</span>
             </div>
           </button>
-          <button onClick={() => window.api.openLlamaFolder()} className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors">
+          <button
+            onClick={() => window.api.openLlamaFolder()}
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] border border-border/20 text-left transition-colors"
+          >
             <span className="text-base">⚙️</span>
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-semibold text-text">Abrir pasta llama.cpp</span>
@@ -398,7 +444,8 @@ export default function DeveloperTab({ t, handleDevMode, onClose }: DeveloperTab
           </div>
           <div className="flex items-center justify-between p-4 gap-4">
             <span className="text-[11px] text-text-muted leading-relaxed">
-              Apaga cache, mensagens, modelos locais e dados das skills. Preserva o código do monorepo.
+              Apaga cache, mensagens, modelos locais e dados das skills. Preserva o código do
+              monorepo.
             </span>
             <button
               data-testid="dev-reset-button"
@@ -435,11 +482,15 @@ function LogsPanel() {
   // Load existing logs + start streaming new ones
   useEffect(() => {
     // Load existing logs first
-    window.api.readLogs(500).then((result) => {
-      if (result?.success) {
-        setStreamLines(result.entries || [])
-      }
-    }).catch(() => {}).finally(() => setLoading(false))
+    window.api
+      .readLogs(500)
+      .then((result) => {
+        if (result?.success) {
+          setStreamLines(result.entries || [])
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
 
     // Start streaming new log lines
     window.api.startLogStream?.()
@@ -495,16 +546,16 @@ function LogsPanel() {
         className="flex-1 overflow-y-auto bg-[#0d1117] p-4 font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-all"
         style={{ fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace" }}
       >
-        {loading && (
-          <div className="text-text-muted/40 italic">Carregando logs...</div>
-        )}
+        {loading && <div className="text-text-muted/40 italic">Carregando logs...</div>}
         {!loading && streamLines.length === 0 && (
           <div className="text-text-muted/40 italic">Nenhum log encontrado.</div>
         )}
         {streamLines.map((line, i) => (
           <div key={i} className="hover:bg-white/[0.02]">
             <span className="text-text-muted/40">{line.timestamp}</span>{' '}
-            <span className={`${line.level === 'error' ? 'text-red-400' : line.level === 'warn' ? 'text-yellow-400' : 'text-text-muted/60'}`}>
+            <span
+              className={`${line.level === 'error' ? 'text-red-400' : line.level === 'warn' ? 'text-yellow-400' : 'text-text-muted/60'}`}
+            >
               [{line.level.toUpperCase()}]
             </span>{' '}
             <span className="text-gray-300">{line.message}</span>

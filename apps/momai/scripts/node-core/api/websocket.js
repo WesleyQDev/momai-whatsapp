@@ -99,6 +99,15 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
       resetReconnectDelay()
       syncPythonCallModeState('ws_reconnect')
       syncWakeWordState('ws_reconnect')
+      try {
+        const { getActiveThreadId } = require('../services/shared-state')
+        const currentThread = getActiveThreadId()
+        if (currentThread && currentThread !== 'default' && pythonWs?.readyState === 1) {
+          pythonWs.send(JSON.stringify({ type: 'session_sync', thread_id: currentThread }))
+        }
+      } catch (e) {
+        /* ignore */
+      }
     })
 
     pythonWs.on('message', (data) => {
@@ -175,8 +184,16 @@ function setupWebSocket({ server, store, llamaState, info, HOST, PORT }) {
           return
         }
         if (parsed?.type === 'session_sync') {
+          if (parsed.thread_id) {
+            try {
+              const { setActiveThreadId } = require('../services/shared-state')
+              setActiveThreadId(parsed.thread_id)
+            } catch (e) {
+              /* ignore */
+            }
+          }
           ws.send(JSON.stringify({ type: 'session_sync', ok: true }))
-          if (parsed.thread_id && pythonWs?.readyState === WebSocket.OPEN) {
+          if (parsed.thread_id && pythonWs?.readyState === 1) {
             pythonWs.send(JSON.stringify({ type: 'session_sync', thread_id: parsed.thread_id }))
           }
         }

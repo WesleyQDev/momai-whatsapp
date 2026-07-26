@@ -299,7 +299,7 @@ function createSettingsRoutes(context) {
         return true
       }
 
-      if (req.method === 'PATCH') {
+      if (req.method === 'POST' || req.method === 'PATCH' || req.method === 'PUT') {
         try {
           const payload = await context.readJsonBody(req).catch(() => ({}))
           const content = String(payload.content || '').replace(/\0/g, '').trim()

@@ -24,6 +24,16 @@ describe('YouTubeCard', () => {
       origin: 'http://localhost:48291',
       href: 'http://localhost:48291/index.html'
     })
+    vi.stubGlobal('api', {
+      getSessionToken: () => 'test-token'
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ ok: true, videos: [] })
+      })
+    )
   })
 
   afterEach(() => {
@@ -89,5 +99,82 @@ describe('YouTubeCard', () => {
     const iframe = container.querySelector('iframe')
     expect(iframe?.getAttribute('src')).not.toContain('origin=')
     expect(iframe?.getAttribute('src')).not.toContain('widget_referrer=')
+  })
+
+  it('renders autoplay toggle button active by default and allows toggling', () => {
+    const mockMultipleVideos = [
+      { id: 'v1', title: 'Video 1', channel: 'Ch 1', thumbnail: 'thumb1' },
+      { id: 'v2', title: 'Video 2', channel: 'Ch 2', thumbnail: 'thumb2' }
+    ]
+    render(<YouTubeCard data={{ query: 'Music', videos: mockMultipleVideos }} isSpeaking={false} />)
+
+    const autoplayBtn = screen.getByTitle('Autoplay')
+    expect(autoplayBtn).toBeTruthy()
+    expect(screen.getByText('Autoplay')).toBeTruthy()
+
+    fireEvent.click(autoplayBtn)
+  })
+
+  it('automatically plays next video when current video ends and autoplay is active', async () => {
+    const mockMultipleVideos = [
+      { id: 'v1', title: 'Video 1', channel: 'Ch 1', thumbnail: 'thumb1' },
+      { id: 'v2', title: 'Video 2', channel: 'Ch 2', thumbnail: 'thumb2' }
+    ]
+    const { container } = render(
+      <YouTubeCard data={{ query: 'Music', videos: mockMultipleVideos }} isSpeaking={false} />
+    )
+
+    const overlay = container.querySelector('.group\\/overlay') as HTMLElement
+    await act(async () => {
+      fireEvent.click(overlay)
+    })
+
+    await waitFor(() => {
+      expect(container.querySelector('iframe')?.getAttribute('src')).toContain('embed/v1')
+    })
+
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: JSON.stringify({ event: 'infoDelivery', info: { playerState: 0 } })
+        })
+      )
+    })
+
+    await waitFor(() => {
+      expect(container.querySelector('iframe')?.getAttribute('src')).toContain('embed/v2')
+    })
+  })
+
+  it('does not play next video when autoplay is turned off', async () => {
+    const mockMultipleVideos = [
+      { id: 'v1', title: 'Video 1', channel: 'Ch 1', thumbnail: 'thumb1' },
+      { id: 'v2', title: 'Video 2', channel: 'Ch 2', thumbnail: 'thumb2' }
+    ]
+    const { container } = render(
+      <YouTubeCard data={{ query: 'Music', videos: mockMultipleVideos }} isSpeaking={false} />
+    )
+
+    const autoplayBtn = screen.getByTitle('Autoplay')
+    fireEvent.click(autoplayBtn)
+
+    const overlay = container.querySelector('.group\\/overlay') as HTMLElement
+    await act(async () => {
+      fireEvent.click(overlay)
+    })
+
+    await waitFor(() => {
+      expect(container.querySelector('iframe')?.getAttribute('src')).toContain('embed/v1')
+    })
+
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: JSON.stringify({ event: 'infoDelivery', info: { playerState: 0 } })
+        })
+      )
+    })
+
+    expect(container.querySelector('iframe')?.getAttribute('src')).toContain('embed/v1')
   })
 })

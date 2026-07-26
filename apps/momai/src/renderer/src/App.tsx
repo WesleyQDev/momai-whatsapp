@@ -1,4 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import {
+  startHealthCheck,
+  stopHealthCheck,
+  onConnectionChange,
+  getConnectionStatus
+} from './services/api'
 import { useNavigate, useLocation } from 'react-router-dom'
 import LateralBar from './components/LateralBar'
 import { useChat } from './hooks/useChat'
@@ -100,6 +106,12 @@ function App(): React.JSX.Element {
       window.removeEventListener('momai_tier_change_start', handleStart)
       window.removeEventListener('momai_tier_change_end', handleEnd)
     }
+  }, [])
+
+  // Server health check
+  useEffect(() => {
+    startHealthCheck(15000)
+    return () => stopHealthCheck()
   }, [])
 
   const openSettings = useCallback(

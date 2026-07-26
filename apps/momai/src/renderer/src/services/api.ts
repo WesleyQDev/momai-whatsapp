@@ -1,7 +1,7 @@
 import { cleanMomaiActions, stripEmojisAndMarkdown } from '../utils/text'
 import { API_URL } from '../constants'
 
-async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   // Use the renderer's native fetch (Chromium's) instead of
   // window.api.apiFetch. The preload's fetch in Electron 42 is undici
   // (Node.js), which sends user-agent "node" and ignores the origin's
@@ -34,21 +34,85 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
 // request/response endpoints where you want .ok/.data/.status.
 async function apiCall(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  maxRetries = 2
 ): Promise<{
   ok: boolean
   status: number
   data: any
 }> {
-  const res = await apiFetch(path, options)
-  const text = await res.text()
-  const data = text ? JSON.parse(text) : undefined
-  if (!res.ok) {
-    const err: any = new Error(`HTTP ${res.status}: ${res.statusText}`)
-    err.response = { status: res.status, statusText: res.statusText, data }
-    throw err
+  let lastError: unknown = null
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await apiFetch(path, options)
+      const text = await res.text()
+      const data = text ? JSON.parse(text) : undefined
+      if (!res.ok) {
+        const err: any = new Error(`HTTP ${res.status}: ${res.statusText}`)
+        err.response = { status: res.status, statusText: res.statusText, data }
+        throw err
+      }
+      return { ok: res.ok, status: res.status, data }
+    } catch (err: any) {
+      lastError = err
+      if (attempt < maxRetries && isNetworkError(err)) {
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)))
+        continue
+      }
+      throw err
+    }
   }
-  return { ok: res.ok, status: res.status, data }
+  throw lastError
+}
+
+function isNetworkError(err: any): boolean {
+  if (err instanceof TypeError && err.message === 'Failed to fetch') return true
+  if (err?.message?.includes('network') || err?.message?.includes('NetworkError')) return true
+  if (err?.message?.includes('ERR_CONNECTION_REFUSED')) return true
+  return false
+}
+
+// Connection monitoring
+type ConnectionListener = (online: boolean) => void
+const connectionListeners = new Set<ConnectionListener>()
+let isOnline = true
+let healthCheckTimer: number | null = null
+
+export function onConnectionChange(fn: ConnectionListener) {
+  connectionListeners.add(fn)
+  return () => connectionListeners.delete(fn)
+}
+
+export function getConnectionStatus() {
+  return isOnline
+}
+
+function setOnline(online: boolean) {
+  if (isOnline === online) return
+  isOnline = online
+  connectionListeners.forEach((fn) => fn(online))
+}
+
+async function checkHealth() {
+  try {
+    await apiFetch('/health')
+    setOnline(true)
+  } catch {
+    setOnline(false)
+  }
+}
+
+export function startHealthCheck(intervalMs = 15000) {
+  stopHealthCheck()
+  checkHealth()
+  healthCheckTimer = window.setInterval(checkHealth, intervalMs)
+}
+
+export function stopHealthCheck() {
+  if (healthCheckTimer !== null) {
+    window.clearInterval(healthCheckTimer)
+    healthCheckTimer = null
+  }
 }
 
 export const api = {
@@ -84,7 +148,9 @@ export interface Message {
   cards?: Card[]
   toolSteps?: any[]
   activeSkill?: string
+  structuredResponse?: StructuredResponse
   structuredResponses?: StructuredResponse[]
+  is_interrupted?: boolean
 }
 
 export interface StatusData {
@@ -123,6 +189,7 @@ export interface ChatStreamCallbacks {
   onToolSteps?: (steps: any[]) => void
   onActiveSkill?: (skillName: string) => void
   onStructuredResponses?: (responses: StructuredResponse[]) => void
+  onInterrupted?: () => void
 }
 
 export interface ChatMessageOptions {
@@ -228,6 +295,10 @@ export async function sendChatMessage(
 
           if (data.error) {
             callbacks.onError(data.error)
+          }
+
+          if (data.is_interrupted && callbacks.onInterrupted) {
+            callbacks.onInterrupted()
           }
 
           if (data.done) {
@@ -352,14 +423,25 @@ export async function fetchChatHistory(threadId: string = 'default'): Promise<Me
   const messages = await response.json()
   if (!Array.isArray(messages)) return []
 
-  return messages.map((msg: any) => ({
-    ...msg,
-    sources: safeJsonParse(msg.sources),
-    snippets: safeJsonParse(msg.snippets),
-    cards: safeJsonParse(msg.cards),
-    toolSteps: msg.graph_data && msg.graph_data.tool_steps ? msg.graph_data.tool_steps : undefined,
-    structuredResponse: safeJsonParse(msg.structured_response)
-  }))
+  return messages.map((msg: any) => {
+    const rawStructured = safeJsonParse(msg.structured_response)
+    const structuredResponses = Array.isArray(rawStructured)
+      ? rawStructured
+      : rawStructured
+        ? [rawStructured]
+        : undefined
+
+    return {
+      ...msg,
+      sources: safeJsonParse(msg.sources),
+      snippets: safeJsonParse(msg.snippets),
+      cards: safeJsonParse(msg.cards),
+      toolSteps:
+        msg.graph_data && msg.graph_data.tool_steps ? msg.graph_data.tool_steps : undefined,
+      structuredResponse: Array.isArray(rawStructured) ? rawStructured[0] : rawStructured,
+      structuredResponses
+    }
+  })
 }
 
 export interface ChatSession {

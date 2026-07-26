@@ -1,5 +1,13 @@
 import React from 'react'
-import { PanelLeftClose, PanelLeftOpen, Trash2, Plus, ChevronRight, Network } from 'lucide-react'
+import {
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Trash2,
+  Plus,
+  ChevronRight
+} from 'lucide-react'
 import { useI18n } from '../../../i18n'
 
 interface Tab {
@@ -16,12 +24,13 @@ interface NoteToolbarProps {
   openTabIds: string[]
   notes: any[]
   onToggleSidebar: () => void
+  onToggleRightPanel: () => void
+  isRightPanelCollapsed: boolean
   onCreateNote: () => void
   onCloseTab: (e: React.MouseEvent, tabId: string) => void
   onSelectNote: (noteId: string, forceNewTab: boolean, selectTitle: boolean) => void
   onDeleteNote: (id?: string) => void
   onFocusTitle: () => void
-  onShowGraph: () => void
   t: (key: string) => string
 }
 
@@ -34,16 +43,18 @@ export default function NoteToolbar({
   openTabIds,
   notes,
   onToggleSidebar,
+  onToggleRightPanel,
+  isRightPanelCollapsed,
   onCreateNote,
   onCloseTab,
   onSelectNote,
   onDeleteNote,
   onFocusTitle,
-  onShowGraph,
   t
 }: NoteToolbarProps) {
   return (
     <div className="flex items-center gap-1 flex-1 overflow-hidden h-full pt-1.5">
+      {/* Left Sidebar Toggle */}
       <button
         onClick={onToggleSidebar}
         className={`p-1.5 transition-all rounded-md ${isSidebarCollapsed ? 'text-accent bg-accent/10' : 'text-text-muted hover:text-text hover:bg-white/5'}`}
@@ -92,7 +103,7 @@ export default function NoteToolbar({
       {/* Add Tab Button */}
       {!isNotesUiLocked && (
         <button
-          onClick={onCreateNote}
+          onClick={() => onCreateNote()}
           className="p-1 text-text-muted/40 hover:text-text hover:bg-white/10 rounded-md transition-all ml-1 mb-1"
           title={t('notes.newNote')}
         >
@@ -100,14 +111,20 @@ export default function NoteToolbar({
         </button>
       )}
 
-      {/* Graph View Button */}
-      <button
-        onClick={onShowGraph}
-        className="p-1.5 text-text-muted hover:text-accent hover:bg-accent/10 rounded-md transition-all ml-2"
-        title="Visualização de Grafo"
-      >
-        <Network className="w-4 h-4" />
-      </button>
+      {/* Right Panel Toggle on the Far Right */}
+      <div className="ml-auto flex items-center pr-2 mb-1">
+        <button
+          onClick={onToggleRightPanel}
+          className={`p-1.5 transition-all rounded-md ${!isRightPanelCollapsed ? 'text-accent bg-accent/10' : 'text-text-muted hover:text-text hover:bg-white/5'}`}
+          title="Toggle Outline / Grafo"
+        >
+          {!isRightPanelCollapsed ? (
+            <PanelRightClose className="w-4 h-4" />
+          ) : (
+            <PanelRightOpen className="w-4 h-4" />
+          )}
+        </button>
+      </div>
     </div>
   )
 }

@@ -39,7 +39,7 @@ export interface UseNotesReturn {
   isCreatingDefaultNote: React.MutableRefObject<boolean>
   loadNotes: () => Promise<void>
   selectNote: (noteId: string, forceNewTab?: boolean, selectTitleOnOpen?: boolean) => Promise<void>
-  handleCreateNote: () => Promise<void>
+  handleCreateNote: (folderPath?: string) => Promise<void>
   handleDeleteNote: (id?: string) => void
   confirmDeleteNote: (targetId: string) => Promise<void>
   handleImport: (files: FileList | null) => Promise<void>
@@ -226,18 +226,21 @@ export function useNotes(): UseNotesReturn {
     [t, saveTimer]
   )
 
-  const handleCreateNote = useCallback(async () => {
-    if (isNotesUiLocked) return
-    setError(null)
-    setNotesInitProgress(0)
-    try {
-      const note = await createMemoryNote(t('notes.newNoteTitleDefault'), '')
-      setNotes((prev) => [note, ...prev])
-      await selectNote(note.id, true, true)
-    } catch (err) {
-      setError(t('notes.errors.create'))
-    }
-  }, [isNotesUiLocked, t, selectNote])
+  const handleCreateNote = useCallback(
+    async (folderPath?: string) => {
+      if (isNotesUiLocked) return
+      setError(null)
+      setNotesInitProgress(0)
+      try {
+        const note = await createMemoryNote(t('notes.newNoteTitleDefault'), '', folderPath)
+        setNotes((prev) => [note, ...prev])
+        await selectNote(note.id, true, true)
+      } catch (err) {
+        setError(t('notes.errors.create'))
+      }
+    },
+    [isNotesUiLocked, t, selectNote]
+  )
 
   const handleDeleteNote = useCallback((id?: string) => {
     // This just sets up the confirmation - handled by parent

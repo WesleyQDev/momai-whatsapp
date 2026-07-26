@@ -406,6 +406,19 @@ class TestStartStop:
         det.stop()
         assert det.running is False
 
+    def test_watchdog_triggers_restart_when_listener_dies(self):
+        det = _make_detector()
+        det.model = MagicMock()
+        det.wake_word_active = True
+        det.running = False
+        det.start = MagicMock()
+
+        # Simulate dead threads while should_be_running is True
+        det._stop_event.is_set = MagicMock(side_effect=[False, False, True])
+        with patch("time.sleep"):
+            det._watchdog_loop()
+        det.start.assert_called_once()
+
 
 class TestExtractReply:
     """Tests for WhatsAppReplyDetector._extract_reply (pure string logic)."""

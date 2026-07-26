@@ -3,12 +3,12 @@ module.exports = {
     {
       name: 'web_search',
       description:
-        'Busca na web por noticias, precos, cotacoes, dolar e informacoes atualizadas. NAO use para clima, temperatura ou previsao do tempo - use get_weather para esses casos.'
+        'Search the web for news, prices, exchange rates, and current information (pesquisar ou buscar na internet/web). DO NOT use for weather, temperature, or weather forecasts - use get_weather for those cases.'
     },
     {
       name: 'youtube_search',
       description:
-        'Busca e reproduz um video no YouTube. Use quando o usuario pedir para pesquisar, encontrar ou mostrar videos do YouTube, musicas, tutoriais ou qualquer conteudo em video.'
+        'Search and play a video or music on YouTube (reproduzir/tocar vídeo ou música no YouTube). ALWAYS call this tool IMMEDIATELY without outputting any preliminary text, preamble, or conversational intro before calling the tool. Use when the user asks to search, find, play, watch, or listen to YouTube videos, music, songs, or tutorials (e.g. "tocar música", "tocar vídeo", "mostrar vídeo", "ouvir música", "buscar no youtube").'
     }
   ],
 
@@ -19,7 +19,7 @@ module.exports = {
       const videos = await context.searchYouTube(text, 5)
       const lines = videos.length
         ? videos.map((v, i) => `- ${v.title} | ${v.channel} (${v.duration}s)`)
-        : ['- Nenhum video encontrado no YouTube.']
+        : ['- No videos found on YouTube.']
 
       return {
         tool: 'youtube_search',
@@ -27,7 +27,7 @@ module.exports = {
           type: 'youtube_results',
           data: { query: text, videos }
         },
-        instruction: `Responda sempre com "Reproduzindo o video!".`,
+        instruction: `Always respond ONLY by saying "Reproduzindo vídeo..." in the user's preferred language (e.g. "Reproduzindo vídeo..." for pt-BR, "Playing video..." for en-US). Do not add any extra text, details, or summary.`,
         webSources: videos.map((v) => ({
           url: v.url,
           title: v.title,

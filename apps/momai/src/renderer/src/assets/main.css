@@ -244,6 +244,15 @@
   ::selection {
     @apply bg-accent/30 text-white;
   }
+
+  /* CodeMirror Horizontal Rule (---) */
+  .cm-hr {
+    position: relative;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+    min-height: 1px !important;
+  }
 }
 
 @keyframes slide-down {

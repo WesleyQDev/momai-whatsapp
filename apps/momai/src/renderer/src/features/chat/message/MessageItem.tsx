@@ -6,6 +6,7 @@ import { ExtrasRenderer } from '../../../components/chat/ExtrasRenderer'
 import MessageContextMenu from '../../../components/chat/MessageContextMenu'
 import { DynamicRenderer } from '../../../components/DynamicRenderer'
 import { useI18n } from '../../../i18n'
+import { ArrowPathIcon } from '@heroicons/react/24/outline'
 import { MarkdownRenderer } from './components/MarkdownRenderer'
 import { ToolSteps } from './components/ToolSteps'
 import { MessageActions } from './components/MessageActions'
@@ -170,6 +171,111 @@ const MessageItem = memo(
       ttsState.handleStopVoiceClick()
     }
 
+    const isInterrupted =
+      message.role === 'assistant' &&
+      !isLoading &&
+      Boolean(
+        message.is_interrupted ||
+        message.content === 'Interrupted.' ||
+        message.content === '...' ||
+        (message.content === '' &&
+          !message.toolSteps?.length &&
+          !message.structuredResponses?.length &&
+          !message.structuredResponse)
+      )
+
+    if (isInterrupted) {
+      return (
+        <div
+          onContextMenu={handleContextMenu}
+          className="relative flex flex-col gap-3 w-full my-3 animate-in fade-in duration-300 select-none"
+        >
+          {/* Context Menu */}
+          {state.contextMenu && (
+            <MessageContextMenu
+              x={state.contextMenu.x}
+              y={state.contextMenu.y}
+              isUser={false}
+              onClose={() => state.setContextMenu(null)}
+              onCopy={handleCopy}
+              onSpeak={onSpeak || (() => {})}
+              onDelete={onDelete || (() => {})}
+              onRetry={onRetry}
+              showSpeak={false}
+            />
+          )}
+
+          {/* Divider line with centered text */}
+          <div className="flex items-center gap-4 w-full my-1">
+            <div className="flex-1 h-[1px] bg-zinc-300/60 dark:bg-zinc-800"></div>
+            <span className="text-xs sm:text-sm font-medium text-zinc-500 dark:text-zinc-400 select-none">
+              Você interrompeu a resposta
+            </span>
+            <div className="flex-1 h-[1px] bg-zinc-300/60 dark:bg-zinc-800"></div>
+          </div>
+
+          {/* Action buttons (icon only, matching Gemini style) */}
+          <div className="flex items-center gap-1 pl-0.5">
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="inline-flex items-center justify-center p-2 rounded-lg hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors opacity-70 hover:opacity-100 cursor-pointer active:scale-95"
+                title="Refazer resposta"
+                aria-label="Refazer resposta"
+              >
+                <ArrowPathIcon className="w-[15px] h-[15px]" />
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleReportResponse}
+              className="inline-flex items-center justify-center p-2 rounded-lg hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-red-500 transition-colors opacity-70 hover:opacity-100 cursor-pointer active:scale-95"
+              title={t('chat.report.title') || 'Denunciar resposta'}
+              aria-label="Denunciar resposta"
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                <line x1="4" y1="22" x2="4" y2="15" />
+              </svg>
+            </button>
+          </div>
+
+          {state.showReportConfirm && (
+            <div className="w-full max-w-[320px] p-3 rounded-xl border border-border/20 bg-card/95 shadow-xl backdrop-blur-sm">
+              <p className="text-xs text-text-muted leading-relaxed">{t('chat.report.message')}</p>
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCancelReport}
+                  className="px-3 py-1.5 rounded-lg text-xs border border-border/20 bg-white/5 hover:bg-white/10 text-text-muted transition-colors"
+                >
+                  {t('chat.report.cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmReport}
+                  className="px-3 py-1.5 rounded-lg text-xs bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 transition-colors"
+                >
+                  {t('chat.report.confirm')}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )
+    }
+
     return (
       <div
         onContextMenu={handleContextMenu}
@@ -323,10 +429,16 @@ const MessageItem = memo(
 
                   {/* Structured Response */}
                   {isLastPart &&
-                    message.structuredResponses &&
-                    message.structuredResponses.length > 0 && (
+                    ((message.structuredResponses && message.structuredResponses.length > 0) ||
+                      message.structuredResponse) && (
                       <StructuredResponse
-                        responses={message.structuredResponses}
+                        responses={
+                          message.structuredResponses && message.structuredResponses.length > 0
+                            ? message.structuredResponses
+                            : message.structuredResponse
+                              ? [message.structuredResponse]
+                              : []
+                        }
                         isSpeaking={isSpeaking}
                       />
                     )}
@@ -467,6 +579,7 @@ const MessageItem = memo(
       prev.message.snippets === next.message.snippets &&
       prev.message.cards === next.message.cards &&
       prev.message.structuredResponses === next.message.structuredResponses &&
+      prev.message.structuredResponse === next.message.structuredResponse &&
       prev.isSpeaking === next.isSpeaking &&
       prev.isLoading === next.isLoading
     )

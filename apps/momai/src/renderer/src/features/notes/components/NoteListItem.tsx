@@ -1,5 +1,4 @@
 import React from 'react'
-import { FileText } from 'lucide-react'
 import { useI18n } from '../../../i18n'
 import { NoteSummary } from '../../../services/api'
 
@@ -65,7 +64,6 @@ export default function NoteListItem({
             : 'text-text-muted/80 hover:bg-white/5 hover:text-text'
         }`}
       >
-        <FileText className="w-3.5 h-3.5 opacity-50 group-hover:opacity-80 shrink-0" />
         <span className="text-xs truncate flex-1">{note.title || t('notes.untitled')}</span>
         {isActive && (
           <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4/5 bg-accent rounded-r-full"></div>

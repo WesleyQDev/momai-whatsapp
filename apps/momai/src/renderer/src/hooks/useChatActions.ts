@@ -104,6 +104,20 @@ export function useChatActions({
       console.error('Erro ao parar geração:', err)
     } finally {
       dispatch({ type: 'SET_LOADING', isLoading: false })
+      dispatch({
+        type: 'UPDATE_LAST_MESSAGE',
+        updater: (last) => {
+          if (last.role === 'assistant') {
+            const cleanContent = last.content === '...' ? '' : last.content
+            return {
+              ...last,
+              content: cleanContent,
+              is_interrupted: true
+            }
+          }
+          return last
+        }
+      })
     }
   }, [dispatch])
 
@@ -320,6 +334,19 @@ export function useChatActions({
                 type: 'UPDATE_LAST_MESSAGE',
                 updater: (last) =>
                   last.role === 'assistant' ? { ...last, structuredResponses: responses } : last
+              })
+            },
+            onInterrupted: () => {
+              if (currentThreadRef.current !== messageThreadId) return
+              dispatch({
+                type: 'UPDATE_LAST_MESSAGE',
+                updater: (last) => {
+                  if (last.role === 'assistant') {
+                    const cleanContent = last.content === '...' ? '' : last.content
+                    return { ...last, content: cleanContent, is_interrupted: true }
+                  }
+                  return last
+                }
               })
             },
             onDone: () => {

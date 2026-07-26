@@ -49,7 +49,7 @@ describe('chat-fallback', () => {
         reason: 'model unavailable',
         language: 'pt-BR'
       })
-      expect(result).toContain('model unavailable')
+      expect(result).toContain('Não foi possível conectar ao modelo local')
     })
 
     it('returns with_memory message in pt-BR', () => {

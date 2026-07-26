@@ -202,9 +202,7 @@ export default function LateralBar({
       return []
     }
   })
-  const [devMode, setDevMode] = useState(
-    () => localStorage.getItem('momai_dev_mode') === 'true'
-  )
+  const [devMode, setDevMode] = useState(() => localStorage.getItem('momai_dev_mode') === 'true')
   const [logsEnabled, setLogsEnabled] = useState(
     () => localStorage.getItem('momai_logs_enabled') === 'true'
   )
@@ -466,9 +464,19 @@ export default function LateralBar({
         className={`group relative ${isCompact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} shrink-0 bg-transparent border-none flex items-center justify-center transition-all duration-300 ease-out hover:bg-accent/10 ${isActive ? 'text-accent bg-accent/5' : 'text-text-muted hover:text-text'}`}
       >
         {isActive && (
-          <div className={`absolute ${isCompact ? '-left-2 h-4' : '-left-3 h-6'} w-1 bg-accent rounded-r-full animate-fade-in`} />
+          <div
+            className={`absolute ${isCompact ? '-left-2 h-4' : '-left-3 h-6'} w-1 bg-accent rounded-r-full animate-fade-in`}
+          />
         )}
-        <svg className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          className={`${isCompact ? 'w-4 h-4' : 'w-5 h-5'} transition-all duration-300 ease-out group-hover:scale-110`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <rect x="2" y="3" width="20" height="14" rx="2" />
           <line x1="8" y1="10" x2="16" y2="10" />
           <line x1="8" y1="14" x2="12" y2="14" />

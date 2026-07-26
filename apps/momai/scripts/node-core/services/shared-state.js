@@ -7,6 +7,18 @@ let skillRegistry = null
 let promptRegistry = null
 let broadcast = null
 
+let activeThreadId = 'default'
+
+function setActiveThreadId(id) {
+  if (typeof id === 'string' && id.trim()) {
+    activeThreadId = id.trim()
+  }
+}
+
+function getActiveThreadId() {
+  return activeThreadId || 'default'
+}
+
 const observabilityBuffer = []
 
 module.exports = {
@@ -17,5 +29,7 @@ module.exports = {
   skillRegistry,
   promptRegistry,
   broadcast,
-  observabilityBuffer
+  observabilityBuffer,
+  setActiveThreadId,
+  getActiveThreadId
 }

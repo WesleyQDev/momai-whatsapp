@@ -1,5 +1,6 @@
 {
   "sidebar.chat": "Chat",
+  "youtube.autoplay": "Reprodução automática",
   "sidebar.agenda": "Agenda",
   "sidebar.notes": "Notas",
   "sidebar.store": "Loja de Extensões",
@@ -168,8 +169,8 @@
   "notes.errors.moveNote": "Erro ao mover nota",
   "notes.errors.import": "Erro ao importar notas",
   "notes.newNoteTitleDefault": "Nova nota",
-  "notes.welcome.title": "Bem-vindo ao Sistema de Notas",
-  "notes.welcome.content": "# 📝 Bem-vindo ao Sistema de Notas\nAqui é onde toda a memória estruturada da MomAI fica guardada!\n\n## 🧠 Como isso funciona?\nQuando você pedir para \"Anotar algo\", \"Salvar essa ideia\" ou \"Lembrar disso para mais tarde\", eu virei aqui e criarei uma nota organizadinha pra você.\n\n## ✍️ O que você pode fazer por aqui:\n- **Organizar suas ideias:** Escreva manualmente o que desejar. Damos suporte a Markdown, então sinta-se livre para usar negrito, títulos e listas!\n- **Arrastar e Soltar:** Você pode importar e exportar arquivos `.md` tranquilamente pelo botão de pastas acima.\n- **Pedir resumos:** Como minhas anotações formam a minha \"memória principal\", você pode voltar ao bate-papo e me pedir coisas como: \"O que tenho nas minhas notas sobre X?\" ou \"Leia minhas notas e faça um resumo\". Eu vou acessar isso instantaneamente!\n\n> 💡 **Dica da Luna:** Você pode renomear uma nota clicando com o botão direito sobre ela na barra lateral.\n\nSinta-se em casa, suas informações estão estruturadas e seguras!",
+  "notes.welcome.title": "Bem-vindo à MomAI",
+  "notes.welcome.content": "# 🚀 Bem-vindo à MomAI\n\nA **MomAI** foi desenvolvida para ser o seu ecossistema privado de inteligência artificial, organização e conhecimento pessoal. Tudo funciona **100% localmente** no seu computador, garantindo total privacidade e controle sobre seus dados.\n\n---\n\n## 🧠 Seu Segundo Cérebro\n- **Anotações Inteligentes:** Crie e edite notas ricas com suporte a Markdown.\n- **Rede de Conhecimento:** Conecte ideias facilmente digitando `[[` para vincular notas.\n- **Grafo Visual:** Acompanhe a evolução do seu conhecimento no painel de conexões.\n\n---\n\n## 🤖 Assistência & Automação\n- **Conversas & Voz:** Interaja via chat ou comandos de voz.\n- **Lembretes & Tarefas:** Agende compromissos e mantenha seu dia organizado.\n- **Extensões & Skills:** Expanda as capacidades da MomAI instalando novas ferramentas na loja.\n\n---\n\n## 🔒 Privacidade em Primeiro Lugar\nSeus arquivos, notas e memórias pertencem exclusivamente a você. Nenhum dado sai do seu computador.\n\n---\n\n> ✨ Explore as abas laterais e comece a construir seu espaço de trabalho inteligente!",
   "notes.confirmDelete": "Deseja remover esta nota?",
   "notes.confirmDeleteMessage": "Tem certeza que deseja excluir esta nota? Esta ação não pode ser desfeita.",
   "notes.deleteTooltip": "Excluir nota",

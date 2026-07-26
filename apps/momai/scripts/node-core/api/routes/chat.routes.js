@@ -1,4 +1,5 @@
 const { corsHeaders, sidecarHeaders } = require('../../infrastructure/http-helpers')
+const { searchYouTube } = require('../../services/chat/search')
 
 function createChatRoutes(context) {
   const {
@@ -134,6 +135,31 @@ function createChatRoutes(context) {
     if (pathname === '/chat/context/reset' && req.method === 'POST') {
       llamaState.contextUsedTokens = 0
       sendJson(res, 200, { status: 'ok', context_used_tokens: 0 })
+      return true
+    }
+
+    if (pathname === '/chat/youtube-recommendations' && req.method === 'GET') {
+      const q = parsedUrl.searchParams
+        ? parsedUrl.searchParams.get('q')
+        : parsedUrl.query
+        ? parsedUrl.query.q
+        : ''
+      const rawLimit = parsedUrl.searchParams
+        ? parsedUrl.searchParams.get('limit')
+        : parsedUrl.query
+        ? parsedUrl.query.limit
+        : '5'
+      const limit = Math.min(Number(rawLimit) || 5, 10)
+      if (!q) {
+        sendJson(res, 200, { ok: true, videos: [] })
+        return true
+      }
+      try {
+        const videos = await searchYouTube(q, limit)
+        sendJson(res, 200, { ok: true, videos })
+      } catch (err) {
+        sendJson(res, 500, { ok: false, error: String(err) })
+      }
       return true
     }
 

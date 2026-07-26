@@ -12,6 +12,18 @@ const WeatherCard = ({ data }) => {
   const today = forecast?.[0]
   const rest = forecast?.slice(1) || []
 
+  const rawCurrentTemp =
+    typeof current === 'string' || typeof current === 'number'
+      ? current
+      : (current?.temp ?? current?.temperature ?? current?.temp_c ?? current?.value)
+
+  const mainTempDisplay =
+    rawCurrentTemp !== undefined && rawCurrentTemp !== null
+      ? extractTemp(rawCurrentTemp)
+      : today
+        ? extractTemp(today.max)
+        : 'N/D'
+
   return (
     <div className="my-3 rounded-2xl border border-border/20 bg-zinc-900 dark:bg-zinc-900/90 text-white overflow-hidden shadow-xl">
       <div className="px-5 pt-4 pb-2">
@@ -27,7 +39,7 @@ const WeatherCard = ({ data }) => {
             <div>
               <div className="flex items-baseline gap-1">
                 <span className="text-[48px] font-light leading-none tracking-tight">
-                  {extractTemp(today.max)}
+                  {mainTempDisplay}
                 </span>
                 <span className="text-[20px] text-white/50 font-light">°C</span>
               </div>

@@ -219,4 +219,25 @@ describe('settings routes', () => {
     expect(stopAllPersistent).not.toHaveBeenCalled()
     expect(refresh).not.toHaveBeenCalled()
   })
+
+  test('POST /memories/:name and PATCH /memories/:name write memory content correctly', async () => {
+    const { ctx, getLast } = makeCtx({
+      readJsonBody: async () => ({ content: 'Nova memoria do usuario' })
+    })
+    const handler = createSettingsRoutes(ctx)
+
+    const handledPost = await handler({ method: 'POST' }, {}, '/memories/usuario', {
+      searchParams: new URLSearchParams()
+    })
+    expect(handledPost).toBe(true)
+    expect(getLast().status).toBe(200)
+
+    const handledGet = await handler({ method: 'GET' }, {}, '/memories/usuario', {
+      searchParams: new URLSearchParams()
+    })
+    expect(handledGet).toBe(true)
+    expect(getLast().status).toBe(200)
+    expect(getLast().data.content).toBe('Nova memoria do usuario')
+  })
 })
+

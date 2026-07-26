@@ -34,6 +34,7 @@ export function useTTS() {
         if (configResponse.success && configResponse.data) {
           setConfig(configResponse.data)
           setCurrentEngine(configResponse.data.engine)
+          await loadVoicesForEngine(configResponse.data.engine)
         }
         setIsReady(true)
       } catch (err) {

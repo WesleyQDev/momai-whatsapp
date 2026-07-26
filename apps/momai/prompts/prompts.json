@@ -20,7 +20,7 @@
   "fallback_replies": {
     "empty": "Pode me mandar uma pergunta para eu te ajudar.",
     "greeting": "Oi, {{user_name}}! Estou aqui para ajudar. Como posso ser útil hoje? 👋",
-    "reason": "Modelo local indisponivel no momento ({{reason}}). Resposta de fallback para: \"{{summary}}\".",
+    "reason": "Não foi possível conectar ao modelo local no momento. Por favor, tente novamente em instantes.",
     "with_memory": "Entendi seu pedido: \"{{summary}}\". Considerei tambem o contexto das suas notas locais para responder.",
     "default": "Entendi seu pedido: \"{{summary}}\". Vou seguir com isso."
   }

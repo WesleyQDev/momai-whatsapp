@@ -164,7 +164,8 @@ const momaiAPI = {
   getModelsPath: (): Promise<string> => ipcRenderer.invoke('get-models-path'),
   openLlamaFolder: (): Promise<void> => ipcRenderer.invoke('open-llama-folder'),
   getLlamaPath: (): Promise<string> => ipcRenderer.invoke('get-llama-path'),
-  checkModelFile: (fileName: string): Promise<{ exists: boolean }> => ipcRenderer.invoke('check-model-file', fileName),
+  checkModelFile: (fileName: string): Promise<{ exists: boolean }> =>
+    ipcRenderer.invoke('check-model-file', fileName),
   startLogStream: (): Promise<void> => ipcRenderer.invoke('start-log-stream'),
   stopLogStream: (): Promise<void> => ipcRenderer.invoke('stop-log-stream'),
   onLogLine: (callback: (line: any) => void) => {

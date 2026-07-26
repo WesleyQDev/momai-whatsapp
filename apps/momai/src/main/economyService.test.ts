@@ -10,6 +10,7 @@ describe('EconomyService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     service = new EconomyService()
+    service.execCmd = vi.fn().mockReturnValue('')
     service.httpGet = vi.fn().mockResolvedValue({
       gaming_mode_enabled: true,
       idle_timeout_app_open: 5,

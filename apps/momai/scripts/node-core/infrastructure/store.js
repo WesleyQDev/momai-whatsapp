@@ -5,8 +5,12 @@ const { THREAD_RETENTION_DAYS, REMINDER_RETENTION_DAYS } = require('../config/co
 const { pruneStaleThreads } = require('./retention')
 const { purgeExpiredReminders } = require('../services/reminder-service')
 
-const DATA_DIR = process.env.MOMAI_NODE_CORE_DATA_DIR || path.join(process.cwd(), 'data')
-const STORE_FILE = path.join(DATA_DIR, 'node-core-store.json')
+function getDataDir() {
+  return process.env.MOMAI_NODE_CORE_DATA_DIR || path.join(process.cwd(), 'data')
+}
+function getStoreFile() {
+  return path.join(getDataDir(), 'node-core-store.json')
+}
 const PROMPTS_DIR = path.resolve(__dirname, '..', '..', 'prompts')
 
 let promptRegistry = null
@@ -79,8 +83,9 @@ function defaultStore() {
 }
 
 function loadStore() {
-  if (!fs.existsSync(STORE_FILE)) return defaultStore()
-  const raw = fs.readFileSync(STORE_FILE, 'utf8')
+  const storeFile = getStoreFile()
+  if (!fs.existsSync(storeFile)) return defaultStore()
+  const raw = fs.readFileSync(storeFile, 'utf8')
   if (!raw || !raw.trim()) return defaultStore()
 
   let parsed
@@ -114,11 +119,12 @@ function saveStore(store) {
   _saveTimer = setTimeout(() => {
     _saveTimer = null
     try {
+      const storeFile = getStoreFile()
       const start = Date.now()
-      const tmp = STORE_FILE + '.tmp.' + Date.now()
+      const tmp = storeFile + '.tmp.' + Date.now()
       const data = JSON.stringify(store)
       fs.writeFileSync(tmp, data, 'utf8')
-      fs.renameSync(tmp, STORE_FILE)
+      fs.renameSync(tmp, storeFile)
       // hot path: debounced save on every message append
       if (Date.now() - start > 100) {
         warn(`[Store] saveStore took ${Date.now() - start}ms (${data.length} bytes)`)
@@ -135,11 +141,13 @@ function saveStoreNow(store) {
     _saveTimer = null
   }
   try {
+    fs.mkdirSync(getDataDir(), { recursive: true })
+    const storeFile = getStoreFile()
     const start = Date.now()
-    const tmp = STORE_FILE + '.tmp.' + Date.now()
+    const tmp = storeFile + '.tmp.' + Date.now()
     const data = JSON.stringify(store)
     fs.writeFileSync(tmp, data, 'utf8')
-    fs.renameSync(tmp, STORE_FILE)
+    fs.renameSync(tmp, storeFile)
     if (Date.now() - start > 100) {
       warn(`[Store] saveStoreNow took ${Date.now() - start}ms (${data.length} bytes)`)
     }
@@ -148,10 +156,39 @@ function saveStoreNow(store) {
   }
 }
 
-function appendMessage(store, threadId, role, content, extras = {}) {
-  const messages = store.thread_messages[threadId] || []
+function appendMessage(
+  storeOrThreadId,
+  threadIdOrRole,
+  roleOrContent,
+  contentOrExtras = {},
+  optionalExtras = {}
+) {
+  let targetStore = store
+  let threadId
+  let role
+  let content
+  let extras
+
+  if (typeof storeOrThreadId === 'string') {
+    threadId = storeOrThreadId
+    role = threadIdOrRole
+    content = roleOrContent
+    extras = contentOrExtras || {}
+  } else {
+    targetStore = storeOrThreadId || store
+    threadId = threadIdOrRole
+    role = roleOrContent
+    content = contentOrExtras
+    extras = optionalExtras || {}
+  }
+
+  if (!targetStore.thread_messages[threadId]) {
+    targetStore.thread_messages[threadId] = []
+  }
+  const messages = targetStore.thread_messages[threadId]
+  const structuredResp = extras.structured_responses || extras.structured_response
   const item = {
-    id: store.next_message_id++,
+    id: targetStore.next_message_id++,
     role,
     content,
     created_at: new Date().toISOString(),
@@ -159,13 +196,12 @@ function appendMessage(store, threadId, role, content, extras = {}) {
     snippets: extras.snippets ? JSON.stringify(extras.snippets) : null,
     cards: extras.cards ? JSON.stringify(extras.cards) : null,
     graph_data: extras.graph_data || null,
-    structured_response: extras.structured_response
-      ? JSON.stringify(extras.structured_response)
-      : null
+    structured_response: structuredResp ? JSON.stringify(structuredResp) : null,
+    is_interrupted: extras.is_interrupted ? true : undefined
   }
   messages.push(item)
-  store.thread_messages[threadId] = messages
-  saveStore(store)
+  targetStore.thread_messages[threadId] = messages
+  saveStore(targetStore)
   return item
 }
 

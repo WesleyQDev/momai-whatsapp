@@ -112,16 +112,47 @@ function createPromptRegistry({ promptsDir }) {
 
   let _systemPromptCache = null
 
+  function getMemoriesMtime(memoriesDir) {
+    if (!memoriesDir || !fs.existsSync(memoriesDir)) return 0
+    let maxMtime = 0
+    for (const name of ALLOWED_FILENAMES) {
+      const fp = path.join(memoriesDir, `${name}.md`)
+      if (fs.existsSync(fp)) {
+        try {
+          const stat = fs.statSync(fp)
+          if (stat.mtimeMs > maxMtime) maxMtime = stat.mtimeMs
+        } catch {}
+      }
+    }
+    return maxMtime
+  }
+
   function buildStableTier(input) {
     const prompts = loadPrompts()
     const tier = ['lite', 'pro', 'ultra'].includes(input.tier) ? input.tier : 'pro'
     const tierCfg = (prompts.tiers && prompts.tiers[tier]) || prompts.tiers.pro || prompts.tiers.lite || {}
-    const persona = input.persona || prompts.default_persona || ''
+
+    let personaContent = ''
+    if (input.memoriesDir && fs.existsSync(input.memoriesDir)) {
+      try {
+        const memFS = createMemoryFS({ memoriesDir: input.memoriesDir, userName: input.userName })
+        const file = memFS.readMemoryFile('persona')
+        if (file && file.content && file.content.trim()) {
+          personaContent = file.content.trim()
+        }
+      } catch {}
+    }
+
+    if (!personaContent) {
+      personaContent = (input.persona && input.persona !== 'MomAI' ? input.persona : '') || prompts.default_persona || ''
+    }
+
     const lines = [
       `You are MomAI, ${sanitize(input.userName || 'Usuário')}'s assistant.`,
-      persona ? sanitize(persona) : '',
+      personaContent ? sanitize(personaContent) : '',
       '- Be warm, natural, and helpful.',
       '- Use skills listed when relevant.',
+      '- When using a tool, execute the tool call directly without outputting preliminary intro text or chatter beforehand.',
       tierCfg.tier_instructions ? sanitize(String(tierCfg.tier_instructions)) : ''
     ]
     const uniqueLines = [...new Set(lines.filter(Boolean))]
@@ -160,7 +191,8 @@ function createPromptRegistry({ promptsDir }) {
   }
 
   function buildSystemPrompt(input) {
-    const sessionKey = `${input.threadId || 'default'}:${input.persona || ''}:${input.locale || ''}:${input.tier || 'pro'}`
+    const memoriesMtime = getMemoriesMtime(input.memoriesDir)
+    const sessionKey = `${input.threadId || 'default'}:${input.userName || ''}:${input.persona || ''}:${input.locale || ''}:${input.tier || 'pro'}:${memoriesMtime}`
 
     // Volatile is ALWAYS rebuilt every call (greeting policy, timestamp, model info)
     const volatileTier = buildVolatileTier({
@@ -180,7 +212,8 @@ function createPromptRegistry({ promptsDir }) {
         userName: input.userName,
         persona: input.persona,
         responseStyle: input.responseStyle,
-        tier: input.tier
+        tier: input.tier,
+        memoriesDir: input.memoriesDir
       })
       context = buildContextTier({
         memoriesDir: input.memoriesDir

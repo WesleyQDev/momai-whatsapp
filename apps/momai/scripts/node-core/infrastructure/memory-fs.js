@@ -29,6 +29,20 @@ Be concise, be warm, be useful.`
 }
 
 function createMemoryFS({ memoriesDir, userName }) {
+  // One-time migration: copy files from old data/memories/ to new data/notes/memoria/
+  const oldDir = path.join(memoriesDir, '..', '..', 'memories')
+  const oldDirResolved = path.resolve(oldDir)
+  if (oldDirResolved !== path.resolve(memoriesDir) && fs.existsSync(oldDirResolved)) {
+    if (!fs.existsSync(memoriesDir)) fs.mkdirSync(memoriesDir, { recursive: true })
+    for (const name of ALLOWED_FILENAMES) {
+      const oldFp = path.join(oldDirResolved, `${name}.md`)
+      const newFp = path.join(memoriesDir, `${name}.md`)
+      if (fs.existsSync(oldFp) && !fs.existsSync(newFp)) {
+        fs.copyFileSync(oldFp, newFp)
+      }
+    }
+  }
+
   function filePathFor(name) {
     if (!ALLOWED_FILENAMES.includes(name)) {
       throw new Error(`Invalid filename: ${name}. Allowed: ${ALLOWED_FILENAMES.join(', ')}`)

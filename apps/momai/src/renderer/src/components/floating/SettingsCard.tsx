@@ -140,12 +140,7 @@ export default function SettingsCard({ onClose, initialTab = 'general' }: Settin
       )}
 
       {activeTab === 'memoria' && (
-        <BrainTab
-          t={t}
-          settings={settings}
-          tiersConfig={tiersConfig}
-          updateField={updateField}
-        />
+        <BrainTab t={t} settings={settings} tiersConfig={tiersConfig} updateField={updateField} />
       )}
 
       {activeTab === 'modelo' && (

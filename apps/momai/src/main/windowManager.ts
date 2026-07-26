@@ -1,13 +1,4 @@
-import {
-  BrowserWindow,
-  screen,
-  shell,
-  ipcMain,
-  Menu,
-  nativeImage,
-  app,
-  Notification
-} from 'electron'
+import { BrowserWindow, screen, shell, ipcMain, Menu, app, Notification } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import {
@@ -29,6 +20,7 @@ import { shouldBlockDevToolsShortcut } from './security/devtools-block'
 import { secureWriteFileSync } from './security/fs-permissions'
 import { ensureRendererStaticServer } from './renderer-static-server'
 import { resolveRendererLoadUrl } from './renderer-load-path'
+import { CURRENT_VARIANT } from './variants'
 
 const RENDERER_DIR = join(__dirname, '../renderer')
 
@@ -320,6 +312,7 @@ export function createOverlayWindow(data?: any): void {
   if (!state.overlayWindow || state.overlayWindow.isDestroyed()) {
     isNew = true
     const overlayWindow = new BrowserWindow({
+      title: CURRENT_VARIANT.appName,
       width,
       height,
       show: false,
@@ -388,6 +381,7 @@ export function createOverlayWindow(data?: any): void {
 
 function createMainWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
+    title: CURRENT_VARIANT.appName,
     width: 880,
     height: 670,
     show: false,
@@ -395,7 +389,7 @@ function createMainWindow(): BrowserWindow {
     frame: false,
     resizable: true,
     center: true,
-    icon: nativeImage.createFromPath(ICON_PATH),
+    icon: ICON_PATH,
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -407,6 +401,10 @@ function createMainWindow(): BrowserWindow {
       ]
     }
   })
+
+  if (process.platform === 'win32') {
+    mainWindow.setIcon(ICON_PATH)
+  }
 
   setMainWindow(mainWindow)
 

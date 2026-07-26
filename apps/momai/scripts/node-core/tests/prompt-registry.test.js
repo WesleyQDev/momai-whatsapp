@@ -120,8 +120,31 @@ describe('prompt-registry (refactored)', () => {
       expect(r1).toContain('# RUNTIME CLOCK')
       expect(r2).toContain('# RUNTIME CLOCK')
       expect(r1).toContain('greet naturally')
-      // Timestamps differ (rebuilt each call)
       expect(r1).not.toBe(r2)
+    })
+
+    it('loads custom persona from persona.md in memoriesDir and invalidates cache when updated', () => {
+      const memoriesDir = path.join(tmpDir, 'memories')
+      fs.mkdirSync(memoriesDir, { recursive: true })
+      fs.writeFileSync(path.join(memoriesDir, 'persona.md'), 'Assistente especialista em código e humor.', 'utf8')
+
+      const reg = createPromptRegistry({ promptsDir })
+      const input = {
+        tier: 'pro',
+        userName: 'User',
+        memoriesDir,
+        hasHistory: true
+      }
+      const r1 = reg.buildSystemPrompt(input)
+      expect(r1).toContain('Assistente especialista em código e humor.')
+
+      // Update persona.md
+      fs.writeFileSync(path.join(memoriesDir, 'persona.md'), 'Assistente de culinária e receitas.', 'utf8')
+
+      const r2 = reg.buildSystemPrompt(input)
+      expect(r2).toContain('Assistente de culinária e receitas.')
+      expect(r2).not.toContain('Assistente especialista em código e humor.')
     })
   })
 })
+

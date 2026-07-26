@@ -172,30 +172,23 @@ class CallModeControl(BaseModel):
 async def control_wake_word(control: WakeWordControl):
     """
     Enables or disables the wake word detector.
-    Used by Electron to pause wake word when window is minimized.
+    Controlled by Node core / Electron settings sync.
     """
     try:
         import app_state
-        from app_state import get_settings_cached
 
         # Ignora tentativas de religar durante uma sessao de reply do WhatsApp
         if control.enabled and _whatsapp_reply_active:
             logger.info("[VoiceAPI] Ignoring wake word enable: WhatsApp reply active")
             return {"success": False, "message": "WhatsApp reply active"}
 
-        # Prevent enabling if Lite tier
-        settings = await get_settings_cached()
-        
-        if not control.enabled or (settings and settings.ai_tier != "ultra"):
-            if app_state.ww:
-                logger.info("[VoiceAPI] Stopping and clearing wake word detector due to disable/tier change.")
+        if not control.enabled:
+            if app_state.ww and not app_state.is_call_mode():
+                logger.info("[VoiceAPI] Stopping wake word detector due to disable request.")
+                app_state.ww.wake_word_active = False
                 app_state.ww.stop()
                 app_state.ww = None
-            
-            if not control.enabled:
-                return {"success": True, "message": "Wake word disabled"}
-            else:
-                return {"success": False, "message": "Wake word only available in Ultra tier"}
+            return {"success": True, "message": "Wake word disabled"}
 
         if not app_state.ww:
             await ensure_wake_word_detector()
@@ -206,13 +199,41 @@ async def control_wake_word(control: WakeWordControl):
                 app_state.ww.start()
             logger.info("[VoiceAPI] Wake word enabled")
             return {"success": True, "message": "Wake word enabled"}
-        
-        return {"success": False, "message": "Failed to initialize detector"}
 
+        return {"success": False, "message": "Failed to initialize detector"}
 
     except Exception as e:
         logger.error("[VoiceAPI] Wake word control error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/wake-word/health")
+async def get_wake_word_health():
+    """Returns detailed health metrics for the wake word detector thread."""
+    import app_state
+
+    if not app_state.ww:
+        return {"status": "inactive", "running": False, "healthy": False}
+
+    is_running = app_state.ww.running
+    listener_alive = app_state.ww.thread is not None and app_state.ww.thread.is_alive()
+    healthy = is_running and listener_alive
+
+    if not healthy and app_state.ww.wake_word_active:
+        logger.warning("[VoiceAPI] Health check detected dead detector thread. Auto-healing...")
+        try:
+            app_state.ww.start()
+            healthy = True
+        except Exception as e:
+            logger.error("[VoiceAPI] Auto-heal failed: %s", e)
+
+    return {
+        "status": "active" if app_state.ww.wake_word_active else "paused",
+        "running": is_running,
+        "listener_alive": listener_alive,
+        "healthy": healthy,
+        "state": app_state.ww.state,
+    }
 
 
 @router.post("/call-mode")
@@ -239,13 +260,7 @@ async def control_call_mode(control: CallModeControl):
                 if not app_state.ww.running:
                     app_state.ww.start()
             else:
-                # Keep running only if explicit wake-word setting is enabled.
-                from app_state import get_settings_cached
-                settings = await get_settings_cached()
-
-                keep_wake_word = bool(settings and settings.wake_word_enabled and settings.ai_tier == "ultra")
-                if not keep_wake_word:
-                    app_state.ww.wake_word_active = False
+                if not app_state.ww.wake_word_active:
                     app_state.ww.stop()
                     app_state.ww = None
 

@@ -239,14 +239,19 @@ export function useEditorExtensions() {
           padding: '0 !important'
         },
         '.cm-activeLine .cm-md-hidden': {
-          opacity: '0.35 !important',
-          width: 'auto !important',
-          fontSize: 'inherit !important',
-          display: 'inline !important',
-          lineHeight: 'inherit !important',
-          height: 'auto !important',
+          opacity: '0 !important',
+          width: '0 !important',
+          display: 'inline-block !important',
+          overflow: 'hidden !important',
+          fontSize: '0 !important',
+          lineHeight: '0 !important',
+          height: '0 !important',
           margin: '0 !important',
           padding: '0 !important'
+        },
+        '.cm-wiki-bracket-hidden': {
+          opacity: '0.4 !important',
+          color: 'var(--accent, #818cf8)'
         }
       }),
       EditorView.updateListener.of((update) => {
@@ -290,20 +295,64 @@ export function useEditorExtensions() {
               const line = doc.line(i)
               const text = line.text
               const isActive = i === activeLineNo
-
-              if (isActive) continue
-
+              const cursorPos = view.state.selection.main.head
               const from = line.from
+              const cursorNear = (p: number, margin = 3) => Math.abs(cursorPos - p) <= margin
+
+              const wikiFrom = line.from
+              const wikiMatches = [...text.matchAll(/\[\[([^\]]+)\]\]/g)]
+              for (const m of wikiMatches) {
+                const s = m.index!
+                const linkStart = wikiFrom + s
+                const linkEnd = wikiFrom + s + m[0].length
+                const cursorInside = cursorPos >= linkStart && cursorPos <= linkEnd
+                if (!cursorInside) {
+                  // Hide [[
+                  decos.push(Decoration.replace({}).range(wikiFrom + s, wikiFrom + s + 2))
+                  // Style link text
+                  decos.push(
+                    Decoration.mark({ class: 'cm-wiki-link' }).range(
+                      wikiFrom + s + 2,
+                      wikiFrom + s + m[0].length - 2
+                    )
+                  )
+                  // Hide ]]
+                  const e = s + m[0].length - 2
+                  decos.push(Decoration.replace({}).range(wikiFrom + e, wikiFrom + e + 2))
+                } else {
+                  // Cursor is inside: show full [[link]] with styling
+                  decos.push(Decoration.mark({ class: 'cm-wiki-link' }).range(linkStart, linkEnd))
+                }
+              }
+
+              const linkMatches = [...text.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)]
+              for (const m of linkMatches) {
+                const s = m.index!
+                const linkStart = line.from + s
+                const linkEnd = line.from + s + m[0].length
+                const cursorInside = cursorPos >= linkStart && cursorPos <= linkEnd
+                if (!cursorInside) {
+                  decos.push(
+                    Decoration.mark({ class: 'cm-md-hidden' }).range(linkStart, linkStart + 1)
+                  )
+                  const be = linkStart + 1 + m[1].length
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(be, be + 1))
+                  const ps = be + 1
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(ps, ps + 1))
+                  const pe = linkEnd - 1
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(pe, pe + 1))
+                }
+              }
 
               const hashes = text.match(/^(#{1,6})(\s)/)
-              if (hashes) {
+              if (hashes && !isActive) {
                 decos.push(
                   Decoration.mark({ class: 'cm-md-hidden' }).range(from, from + hashes[1].length)
                 )
               }
 
               const quote = text.match(/^(\s*>)(\s)/)
-              if (quote) {
+              if (quote && !isActive) {
                 decos.push(
                   Decoration.mark({ class: 'cm-md-hidden' }).range(from, from + quote[1].length)
                 )
@@ -333,85 +382,108 @@ export function useEditorExtensions() {
 
               const hr = text.match(/^(\s*)([-*_]{3,})(\s*)$/)
               if (hr) {
-                decos.push(Decoration.line({ class: 'cm-hr' }).range(line.from, line.to))
+                decos.push(Decoration.line({ class: 'cm-hr' }).range(line.from, line.from))
+                if (!isActive && line.from < line.to) {
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(line.from, line.to))
+                }
               }
 
               const boldMatches = [...text.matchAll(/\*\*(.+?)\*\*/g)]
               for (const m of boldMatches) {
-                const s = m.index!
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 2))
-                const e = s + m[0].length - 2
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 2))
+                const s = from + m.index!
+                const e = s + m[0].length
+                const cursorInside = cursorPos >= s && cursorPos <= e
+                if (!isActive || !(cursorInside || cursorNear(s) || cursorNear(e))) {
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(s, s + 2))
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(e - 2, e))
+                }
+              }
+
+              const underscoreBoldMatches = [...text.matchAll(/__(.+?)__/g)]
+              for (const m of underscoreBoldMatches) {
+                const s = from + m.index!
+                const e = s + m[0].length
+                const cursorInside = cursorPos >= s && cursorPos <= e
+                if (!isActive || !(cursorInside || cursorNear(s) || cursorNear(e))) {
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(s, s + 2))
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(e - 2, e))
+                }
               }
 
               const italicMatches = [...text.matchAll(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g)]
               for (const m of italicMatches) {
-                const s = m.index!
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 1))
-                const e = s + m[0].length - 1
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 1))
+                const s = from + m.index!
+                const e = s + m[0].length
+                const cursorInside = cursorPos >= s && cursorPos <= e
+                if (!isActive || !(cursorInside || cursorNear(s) || cursorNear(e))) {
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(s, s + 1))
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(e - 1, e))
+                }
+              }
+
+              const underscoreItalicMatches = [...text.matchAll(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g)]
+              for (const m of underscoreItalicMatches) {
+                const s = from + m.index!
+                const e = s + m[0].length
+                const cursorInside = cursorPos >= s && cursorPos <= e
+                if (!isActive || !(cursorInside || cursorNear(s) || cursorNear(e))) {
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(s, s + 1))
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(e - 1, e))
+                }
               }
 
               const strikeMatches = [...text.matchAll(/~~(.+?)~~/g)]
               for (const m of strikeMatches) {
-                const s = m.index!
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 2))
-                const e = s + m[0].length - 2
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 2))
+                const s = from + m.index!
+                const e = s + m[0].length
+                const cursorInside = cursorPos >= s && cursorPos <= e
+                if (!isActive || !(cursorInside || cursorNear(s) || cursorNear(e))) {
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(s, s + 2))
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(e - 2, e))
+                }
               }
 
               const codeMatches = [...text.matchAll(/`(.+?)`/g)]
               for (const m of codeMatches) {
-                const s = m.index!
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 1))
-                const e = s + m[0].length - 1
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 1))
-              }
-
-              const linkMatches = [...text.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)]
-              for (const m of linkMatches) {
-                const s = m.index!
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 1))
-                const be = s + 1 + m[1].length
-                decos.push(
-                  Decoration.mark({ class: 'cm-md-hidden' }).range(from + be, from + be + 1)
-                )
-                const ps = be + 1
-                decos.push(
-                  Decoration.mark({ class: 'cm-md-hidden' }).range(from + ps, from + ps + 1)
-                )
-                const pe = s + m[0].length - 1
-                decos.push(
-                  Decoration.mark({ class: 'cm-md-hidden' }).range(from + pe, from + pe + 1)
-                )
-              }
-
-              const wikiMatches = [...text.matchAll(/\[\[([^\]]+)\]\]/g)]
-              for (const m of wikiMatches) {
-                const s = m.index!
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 2))
-                const e = s + m[0].length - 2
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 2))
+                const s = from + m.index!
+                const e = s + m[0].length
+                const cursorInside = cursorPos >= s && cursorPos <= e
+                if (!isActive || !(cursorInside || cursorNear(s) || cursorNear(e))) {
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(s, s + 1))
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(e - 1, e))
+                }
               }
 
               const highlightMatches = [...text.matchAll(/==(.+?)==/g)]
               for (const m of highlightMatches) {
-                const s = m.index!
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 2))
-                const e = s + m[0].length - 2
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 2))
+                const s = from + m.index!
+                const e = s + m[0].length
+                const cursorInside = cursorPos >= s && cursorPos <= e
+                if (!isActive || !(cursorInside || cursorNear(s) || cursorNear(e))) {
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(s, s + 2))
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(e - 2, e))
+                }
               }
 
               const boldItalicMatches = [...text.matchAll(/\*\*\*(.+?)\*\*\*/g)]
               for (const m of boldItalicMatches) {
-                const s = m.index!
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + s, from + s + 3))
-                const e = s + m[0].length - 3
-                decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(from + e, from + e + 3))
+                const s = from + m.index!
+                const e = s + m[0].length
+                const cursorInside = cursorPos >= s && cursorPos <= e
+                if (!isActive || !(cursorInside || cursorNear(s) || cursorNear(e))) {
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(s, s + 3))
+                  decos.push(Decoration.mark({ class: 'cm-md-hidden' }).range(e - 3, e))
+                }
               }
             }
 
-            return Decoration.set(decos)
+            // CodeMirror RangeSet requires decorations to be strictly sorted by range position
+            decos.sort((a: any, b: any) => {
+              if (a.from !== b.from) return a.from - b.from
+              return (a.value?.startSide || 0) - (b.value?.startSide || 0)
+            })
+
+            return Decoration.set(decos, true)
           }
         },
         { decorations: (v) => v.decorations }

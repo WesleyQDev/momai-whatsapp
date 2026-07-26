@@ -43,9 +43,21 @@ describe('store: messages persist in node-core-store.json (no separate messages.
     expect(persisted.thread_messages['thread-1'][0].content).toBe('hello')
   })
 
-  it('module exports do not include the removed saveMessages or loadMessages', () => {
-    const storeModule = require('./store')
-    expect(storeModule.saveMessages).toBeUndefined()
-    expect(storeModule.loadMessages).toBeUndefined()
+  it('persists structured_responses when provided in extras', () => {
+    const { appendMessage, saveStoreNow, store } = require('./store')
+    const widgetData = [{ type: 'weather', data: { location: 'Curitiba', temp: '20°C' } }]
+
+    appendMessage('thread-widget-test', 'assistant', 'Aqui esta a previsao', {
+      structured_responses: widgetData
+    })
+    saveStoreNow(store)
+
+    const dataDir = process.env.MOMAI_NODE_CORE_DATA_DIR || tmpDir
+    const storePath = path.join(dataDir, 'node-core-store.json')
+    expect(fs.existsSync(storePath)).toBe(true)
+    const persisted = JSON.parse(fs.readFileSync(storePath, 'utf8'))
+    const savedMsg = persisted.thread_messages['thread-widget-test'][0]
+
+    expect(savedMsg.structured_response).toBe(JSON.stringify(widgetData))
   })
 })

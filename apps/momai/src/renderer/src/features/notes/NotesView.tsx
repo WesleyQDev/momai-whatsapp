@@ -1,17 +1,30 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { Trash2, PanelLeftClose, PanelLeftOpen, ChevronRight, Pencil, Folder } from 'lucide-react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import {
+  Trash2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ChevronRight,
+  Pencil,
+  Folder,
+  SquarePen,
+  FolderPlus
+} from 'lucide-react'
 import { useI18n } from '../../i18n'
 import ConfirmationCard from '../../components/floating/ConfirmationCard'
 import SlashCommandMenu from '../../components/notes/SlashCommandMenu'
+import { EditorView, ViewUpdate } from '@codemirror/view'
 import { useNotes } from './hooks/useNotes'
 import { useFolders } from './hooks/useFolders'
 import { useNoteSearch } from './hooks/useNoteSearch'
 import { useAutoSave } from './hooks/useAutoSave'
 import { useEditorExtensions, SlashMenuState } from './hooks/useEditorExtensions'
+import { useWikiLinkAutocomplete } from './hooks/useWikiLinkAutocomplete'
 import NoteSidebar from './components/NoteSidebar'
 import NoteEditor from './components/NoteEditor'
 import NoteToolbar from './components/NoteToolbar'
 import NoteGraphView from './components/NoteGraphView'
+import RightPanel from './components/RightPanel'
+import { useMemoryNotes, MEMORY_NOTE_PREFIX, MAX_MEMORY_CHARS } from './hooks/useMemoryNotes'
 import { NoteSummary } from '../../services/api'
 
 export default function NotesView() {
@@ -74,7 +87,14 @@ export default function NotesView() {
     handleRenameFolder
   } = useFolders(filteredNotes)
 
-  // Auto-save hook
+  // Editor extensions hook
+  const { editorViewRef, slashMenu, setSlashMenu, editorExtensions, handleSelectSlashCommand } =
+    useEditorExtensions()
+
+  // Memory notes hook
+  const { memoryNotesData, isMemoryNote, loadMemoryContent, saveMemoryContent } = useMemoryNotes()
+
+  // Auto-save hook (must be after useMemoryNotes for isMemoryNote access)
   useAutoSave({
     activeId,
     title,
@@ -83,15 +103,50 @@ export default function NotesView() {
     setIsSaving,
     setError,
     t,
-    setNotes
+    setNotes,
+    skipSave: isMemoryNote(activeId)
   })
 
-  // Editor extensions hook
-  const { editorViewRef, slashMenu, setSlashMenu, editorExtensions, handleSelectSlashCommand } =
-    useEditorExtensions()
+  // Auto-save for memory notes (separate from regular notes auto-save)
+  useEffect(() => {
+    if (!activeId || !isMemoryNote(activeId) || isLoading) return
+    if (title === lastSaved.current.title && content === lastSaved.current.content) return
+
+    const id = activeId
+    const timer = window.setTimeout(async () => {
+      try {
+        setIsSaving(true)
+        await saveMemoryContent(id, content)
+        if (activeId === id) {
+          lastSaved.current = { title, content }
+        }
+      } catch (err) {
+        setError(t('notes.errors.save'))
+      } finally {
+        setIsSaving(false)
+      }
+    }, 1000)
+
+    return () => window.clearTimeout(timer)
+  }, [
+    activeId,
+    title,
+    content,
+    isLoading,
+    isMemoryNote,
+    saveMemoryContent,
+    setIsSaving,
+    setError,
+    t
+  ])
+
+  // Wiki link autocomplete hook
+  const { wikiMenu, setWikiMenu, handleSelectWikiLink } = useWikiLinkAutocomplete(notes)
 
   // Local state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [rightPanelWidth, setRightPanelWidth] = useState(250)
+  const [isRightPanelCollapsed, setIsRightPanelCollapsed] = useState(false)
   const [isImportDropdownOpen, setIsImportDropdownOpen] = useState(false)
   const [openTabIds, setOpenTabIds] = useState<string[]>([])
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -106,7 +161,7 @@ export default function NotesView() {
     id: string
     type: 'note' | 'folder'
   } | null>(null)
-  const [showGraph, setShowGraph] = useState(false)
+  const [showFullGraph, setShowFullGraph] = useState(false)
 
   // Refs
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -117,6 +172,33 @@ export default function NotesView() {
   const shouldSelectTitleRef = useRef(false)
 
   // Setup auto-save (handled by useAutoSave hook above)
+
+  // Wiki link detection listener
+  const wikiLinkListener = useMemo(
+    () =>
+      EditorView.updateListener.of((update: ViewUpdate) => {
+        if (update.docChanged || update.selectionSet) {
+          const state = update.state
+          const pos = state.selection.main.head
+          const line = state.doc.lineAt(pos)
+          const lineText = line.text.slice(0, pos - line.from)
+          const match = lineText.match(/(?:^|\s)(\[\[)([^\]]*)$/)
+          if (match) {
+            const query = match[2]
+            const wikiPos = line.from + lineText.lastIndexOf('[[')
+            setTimeout(() => {
+              const coords = update.view.coordsAtPos(pos)
+              if (coords) {
+                setWikiMenu({ x: coords.left, y: coords.bottom + 8, query, pos: wikiPos })
+              }
+            }, 0)
+          } else {
+            setWikiMenu(null)
+          }
+        }
+      }),
+    [setWikiMenu]
+  )
 
   // Focus and select title
   const focusAndSelectTitle = () => {
@@ -138,10 +220,37 @@ export default function NotesView() {
   }, [activeId, title])
 
   // Select note wrapper
+  /* eslint-disable react-hooks/immutability */
   const handleSelectNote = useCallback(
     async (noteId: string, forceNewTab = false, selectTitleOnOpen = false) => {
       if (selectTitleOnOpen) shouldSelectTitleRef.current = true
       if (activeId === noteId && title !== '') return
+
+      // Memory note: load from memory API instead of notes IPC
+      if (isMemoryNote(noteId)) {
+        if (activeId && !openTabIds.includes(noteId) && !forceNewTab) {
+          silentDeleteIfEmpty(activeId, title, content)
+        }
+        setOpenTabIds((prev) => {
+          if (prev.includes(noteId)) return prev
+          if (forceNewTab || prev.length === 0) return [...prev, noteId]
+          return prev.map((id) => (id === activeId ? noteId : id))
+        })
+        setActiveId(noteId)
+        const memNote = memoryNotesData.find((n) => n.id === noteId)
+        setTitle(memNote?.title || '')
+        setIsLoading(true)
+        try {
+          const memContent = await loadMemoryContent(noteId)
+          setContent(memContent)
+          lastSaved.current = { title: memNote?.title || '', content: memContent }
+        } catch (err) {
+          setError(t('notes.errors.open'))
+        } finally {
+          setIsLoading(false)
+        }
+        return
+      }
 
       if (activeId && !openTabIds.includes(noteId) && !forceNewTab) {
         silentDeleteIfEmpty(activeId, title, content)
@@ -157,7 +266,100 @@ export default function NotesView() {
 
       await selectNote(noteId, forceNewTab, selectTitleOnOpen)
     },
-    [activeId, title, content, openTabIds, selectNote, silentDeleteIfEmpty]
+    [
+      activeId,
+      title,
+      content,
+      openTabIds,
+      selectNote,
+      silentDeleteIfEmpty,
+      isMemoryNote,
+      memoryNotesData,
+      loadMemoryContent,
+      setError,
+      t,
+      setIsLoading
+    ]
+  )
+  /* eslint-enable react-hooks/immutability */
+
+  // Wiki link click handler - navigate to note on click
+  /* eslint-disable react-hooks/refs */
+  const wikiLinkClickHandler = useMemo(
+    () =>
+      EditorView.domEventHandlers({
+        mousedown: (event, view) => {
+          if (event.button !== 0) return false
+          const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+          if (!pos) return false
+
+          const line = view.state.doc.lineAt(pos)
+          const text = line.text
+          const relPos = pos - line.from
+
+          const wikiMatches = [...text.matchAll(/\[\[([^\]]+)\]\]/g)]
+          for (const m of wikiMatches) {
+            const s = m.index!
+            const e = s + m[0].length
+            const textStart = s + 2
+            const textEnd = e - 2
+
+            // Only navigate if clicking strictly on the link text (purple text)
+            if (relPos >= textStart && relPos < textEnd) {
+              const linkTitle = m[1]
+              const note = notes.find((n) => {
+                if (n.title === linkTitle) return true
+                if (!n.path) return false
+                const parts = n.path.split('/')
+                const displayParts = parts[0] === 'notes' ? parts.slice(1, -1) : parts.slice(0, -1)
+                if (displayParts.length === 0) return false
+                return `${displayParts.join('/')}/${n.title}` === linkTitle
+              })
+              if (note) {
+                event.preventDefault()
+                handleSelectNote(note.id, false, false)
+                return true
+              }
+            } else if (relPos >= s && relPos <= e) {
+              // Clicked on side bracket area ([[ or ]]) - allow cursor placement to edit tag
+              return false
+            }
+          }
+          return false
+        },
+        contextmenu: (event, view) => {
+          const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+          if (!pos) return false
+
+          const line = view.state.doc.lineAt(pos)
+          const text = line.text
+          const relPos = pos - line.from
+
+          const wikiMatches = [...text.matchAll(/\[\[([^\]]+)\]\]/g)]
+          for (const m of wikiMatches) {
+            const s = m.index!
+            const e = s + m[0].length
+            if (relPos >= s && relPos <= e) {
+              event.preventDefault()
+              view.dispatch({
+                selection: { anchor: line.from + s + 2 },
+                scrollIntoView: true
+              })
+              view.focus()
+              return true
+            }
+          }
+          return false
+        }
+      }),
+    [notes, handleSelectNote]
+  )
+  /* eslint-enable react-hooks/refs */
+
+  // Combined editor extensions with wiki link click handler
+  const combinedEditorExtensions = useMemo(
+    () => [...editorExtensions, wikiLinkListener as any, wikiLinkClickHandler as any],
+    [editorExtensions, wikiLinkListener, wikiLinkClickHandler]
   )
 
   // Close tab
@@ -278,7 +480,7 @@ export default function NotesView() {
   // Delete handlers
   const handleDeleteNoteWrapper = (id?: string) => {
     const targetId = id || activeId
-    if (!targetId) return
+    if (!targetId || isMemoryNote(targetId)) return
     setDeleteConfirmTarget({ type: 'note', id: targetId })
   }
 
@@ -364,12 +566,33 @@ export default function NotesView() {
     folderInputRef.current?.click()
   }
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'F2') {
+        const tag = (e.target as HTMLElement).tagName
+        const isContentEditable = !!(e.target as HTMLElement).closest('[contenteditable]')
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || isContentEditable) return
+
+        if (isSidebarCollapsed) return
+
+        if (activeId && !renamingId && !isMemoryNote(activeId)) {
+          const note = notes.find((n) => n.id === activeId)
+          if (note) {
+            handleStartRename(activeId, note.title, 'note')
+          }
+        }
+      }
+    },
+    [activeId, renamingId, notes, handleStartRename, isSidebarCollapsed, isMemoryNote]
+  )
+
   // Root notes (notes not in any folder)
   const rootNotes = notesByFolder.root || []
 
   return (
     <div
-      className="flex-1 h-full bg-bg text-text flex font-sans overflow-hidden transition-colors duration-300"
+      className="flex-1 h-full bg-bg text-text flex font-sans overflow-hidden transition-colors duration-300 outline-none"
+      onKeyDown={handleKeyDown}
       onClick={() => {
         setContextMenu(null)
         setIsImportDropdownOpen(false)
@@ -406,7 +629,10 @@ export default function NotesView() {
         onContextMenuNote={(e, id) => handleContextMenu(e, id, 'note')}
         onDragStartNote={(e, id) => handleDragStart(e, id, 'note')}
         onCreateNote={handleCreateNote}
-        onCreateFolder={() => setIsCreatingFolder(true)}
+        onCreateFolder={() => {
+          if (isCreatingFolder) createFolder()
+          else setIsCreatingFolder(true)
+        }}
         onFolderNameChange={setNewFolderName}
         onImportDropdownToggle={() => setIsImportDropdownOpen(!isImportDropdownOpen)}
         onImportFiles={handleImportFiles}
@@ -415,6 +641,9 @@ export default function NotesView() {
         rootNotes={rootNotes}
         isLoading={isLoading}
         notes={notes}
+        memoryNotes={memoryNotesData}
+        onMemoryNoteSelect={(id) => handleSelectNote(id, false, false)}
+        onContextMenuMemoryNote={(e, id) => handleContextMenu(e, id, 'note')}
       />
 
       {/* Context Menu */}
@@ -424,48 +653,96 @@ export default function NotesView() {
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={() =>
-              handleStartRename(
-                contextMenu.id,
-                contextMenu.type === 'note'
-                  ? notes.find((n) => n.id === contextMenu.id)?.title || ''
-                  : contextMenu.id.split(/[/\\]/).pop() || '',
-                contextMenu.type
-              )
-            }
-            className="text-left px-3 py-1.5 text-xs text-text/80 hover:bg-white/5 hover:text-text flex items-center gap-2 transition-all"
-          >
-            <Pencil className="w-3.5 h-3.5 opacity-40" />
-            Renomear
-          </button>
+          {contextMenu.id === 'root' || isMemoryNote(contextMenu.id) ? (
+            <>
+              <button
+                onClick={() => {
+                  handleCreateNote()
+                  setContextMenu(null)
+                }}
+                className="text-left px-3 py-1.5 text-xs text-text/80 hover:bg-white/5 hover:text-text flex items-center gap-2 transition-all"
+              >
+                <SquarePen className="w-3.5 h-3.5 opacity-40" />
+                Criar nova nota
+              </button>
+              <button
+                onClick={() => {
+                  setIsCreatingFolder(true)
+                  setContextMenu(null)
+                }}
+                className="text-left px-3 py-1.5 text-xs text-text/80 hover:bg-white/5 hover:text-text flex items-center gap-2 transition-all"
+              >
+                <FolderPlus className="w-3.5 h-3.5 opacity-40" />
+                Criar nova pasta
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => {
+                  let folderPath: string | undefined
+                  if (contextMenu.type === 'folder') {
+                    folderPath = contextMenu.id
+                  } else if (contextMenu.type === 'note') {
+                    const note = notes.find((n) => n.id === contextMenu.id)
+                    if (note?.path) {
+                      const parts = note.path.split('/')
+                      folderPath = parts.slice(0, -1).join('/') || undefined
+                    }
+                  }
+                  handleCreateNote(folderPath)
+                  setContextMenu(null)
+                }}
+                className="text-left px-3 py-1.5 text-xs text-text/80 hover:bg-white/5 hover:text-text flex items-center gap-2 transition-all"
+              >
+                <SquarePen className="w-3.5 h-3.5 opacity-40" />
+                Criar nova nota
+              </button>
 
-          {contextMenu.type === 'note' && (
-            <button
-              onClick={() => {
-                window.api.notes.openFolder(contextMenu.id)
-                setContextMenu(null)
-              }}
-              className="text-left px-3 py-1.5 text-xs text-text/80 hover:bg-white/5 hover:text-text flex items-center gap-2 transition-all"
-            >
-              <Folder className="w-3.5 h-3.5 opacity-40" />
-              Abrir local do arquivo
-            </button>
+              <button
+                onClick={() =>
+                  handleStartRename(
+                    contextMenu.id,
+                    contextMenu.type === 'note'
+                      ? notes.find((n) => n.id === contextMenu.id)?.title || ''
+                      : contextMenu.id.split(/[/\\]/).pop() || '',
+                    contextMenu.type
+                  )
+                }
+                className="text-left px-3 py-1.5 text-xs text-text/80 hover:bg-white/5 hover:text-text flex items-center gap-2 transition-all"
+              >
+                <Pencil className="w-3.5 h-3.5 opacity-40" />
+                Renomear
+              </button>
+
+              {contextMenu.type === 'note' && (
+                <button
+                  onClick={() => {
+                    window.api.notes.openFolder(contextMenu.id)
+                    setContextMenu(null)
+                  }}
+                  className="text-left px-3 py-1.5 text-xs text-text/80 hover:bg-white/5 hover:text-text flex items-center gap-2 transition-all"
+                >
+                  <Folder className="w-3.5 h-3.5 opacity-40" />
+                  Abrir local do arquivo
+                </button>
+              )}
+
+              <div className="h-px bg-border/5 my-1 mx-2"></div>
+
+              <button
+                onClick={() => {
+                  if (contextMenu.type === 'note') handleDeleteNoteWrapper(contextMenu.id)
+                  else handleDeleteFolderWrapper(contextMenu.id)
+                  setContextMenu(null)
+                }}
+                className="text-left px-3 py-1.5 text-xs text-red-500/70 hover:bg-red-500/10 hover:text-red-500 flex items-center gap-2 transition-all"
+              >
+                <Trash2 className="w-3.5 h-3.5 opacity-40" />
+                Excluir
+              </button>
+            </>
           )}
-
-          <div className="h-px bg-border/5 my-1 mx-2"></div>
-
-          <button
-            onClick={() => {
-              if (contextMenu.type === 'note') handleDeleteNoteWrapper(contextMenu.id)
-              else handleDeleteFolderWrapper(contextMenu.id)
-              setContextMenu(null)
-            }}
-            className="text-left px-3 py-1.5 text-xs text-red-500/70 hover:bg-red-500/10 hover:text-red-500 flex items-center gap-2 transition-all"
-          >
-            <Trash2 className="w-3.5 h-3.5 opacity-40" />
-            Excluir
-          </button>
         </div>
       )}
 
@@ -485,12 +762,13 @@ export default function NotesView() {
             openTabIds={openTabIds}
             notes={notes}
             onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            onToggleRightPanel={() => setIsRightPanelCollapsed(!isRightPanelCollapsed)}
+            isRightPanelCollapsed={isRightPanelCollapsed}
             onCreateNote={handleCreateNote}
             onCloseTab={handleCloseTab}
             onSelectNote={handleSelectNote}
             onDeleteNote={handleDeleteNoteWrapper}
             onFocusTitle={focusAndSelectTitle}
-            onShowGraph={() => setShowGraph(true)}
             t={t}
           />
 
@@ -583,7 +861,21 @@ export default function NotesView() {
             onContentChange={setContent}
             onSelectSlashCommand={handleSelectSlashCommand}
             onCloseSlashMenu={() => setSlashMenu(null)}
-            editorExtensions={editorExtensions}
+            editorExtensions={combinedEditorExtensions}
+            wikiMenu={wikiMenu}
+            notes={notes}
+            onSelectWikiLink={handleSelectWikiLink}
+            onCloseWikiMenu={() => setWikiMenu(null)}
+            maxChars={isMemoryNote(activeId) ? MAX_MEMORY_CHARS : undefined}
+          />
+          <RightPanel
+            content={content}
+            notes={notes}
+            onExpandGraph={() => setShowFullGraph(true)}
+            width={rightPanelWidth}
+            onResize={setRightPanelWidth}
+            isCollapsed={isRightPanelCollapsed}
+            onToggle={() => setIsRightPanelCollapsed(!isRightPanelCollapsed)}
           />
         </div>
       </main>
@@ -622,7 +914,7 @@ export default function NotesView() {
       )}
 
       {/* Graph View */}
-      {showGraph && <NoteGraphView notes={notes} onClose={() => setShowGraph(false)} />}
+      {showFullGraph && <NoteGraphView notes={notes} onClose={() => setShowFullGraph(false)} />}
     </div>
   )
 }

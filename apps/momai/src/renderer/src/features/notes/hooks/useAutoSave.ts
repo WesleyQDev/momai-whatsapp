@@ -10,6 +10,7 @@ export interface UseAutoSaveParams {
   setError: React.Dispatch<React.SetStateAction<string | null>>
   t: (key: string) => string
   setNotes: React.Dispatch<React.SetStateAction<NoteSummary[]>>
+  skipSave?: boolean
 }
 
 export function useAutoSave({
@@ -20,13 +21,14 @@ export function useAutoSave({
   setIsSaving,
   setError,
   t,
-  setNotes
+  setNotes,
+  skipSave
 }: UseAutoSaveParams) {
   const saveTimer = useRef<number | null>(null)
   const lastSaved = useRef({ title: '', content: '' })
 
   useEffect(() => {
-    if (!activeId || isLoading) return
+    if (!activeId || isLoading || skipSave) return
     if (title === lastSaved.current.title && content === lastSaved.current.content) return
 
     if (saveTimer.current) window.clearTimeout(saveTimer.current)

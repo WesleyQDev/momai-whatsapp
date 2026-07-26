@@ -173,3 +173,57 @@ describe('extractLocation', () => {
     expect(extractLocation('Sao Paulo')).toBe('Sao Paulo')
   })
 })
+
+describe('weather runtime execute', () => {
+  const weatherRuntime = require('../../skills/core/weather/runtime')
+
+  test('retorna instrucao focada apenas no dia de hoje', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn().mockImplementation((url) => {
+      if (url.includes('geocoding-api.open-meteo.com')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              results: [{ name: 'São Paulo', admin1: 'SP', latitude: -23.55, longitude: -46.63 }]
+            })
+        })
+      }
+      if (url.includes('api.open-meteo.com')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              current: { temperature_2m: 22, weathercode: 0 },
+              daily: {
+                time: ['2026-07-26', '2026-07-27'],
+                weathercode: [0, 1],
+                temperature_2m_max: [25, 26],
+                temperature_2m_min: [15, 16]
+              },
+              hourly: {
+                time: ['2026-07-26T12:00'],
+                weathercode: [0]
+              }
+            })
+        })
+      }
+      return Promise.reject(new Error('URL desconhecida'))
+    })
+
+    try {
+      const result = await weatherRuntime.execute({
+        content: 'qual a previsao do tempo em Sao Paulo',
+        args: { location: 'Sao Paulo' }
+      })
+
+      expect(result.tool).toBe('get_weather')
+      expect(result.instruction).toContain('SOMENTE para HOJE em São Paulo, SP')
+      expect(result.instruction).toContain('Não fale nem mencione os próximos dias ou próximas semanas')
+      expect(result.instruction).toContain('Condição atual: ☀️ Ceu limpo (22°C)')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})
+

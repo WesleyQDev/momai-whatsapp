@@ -109,13 +109,13 @@ class WakeWordDetector:
         self.sample_rate = 16000
 
         # --- Speech detection parameters (wake word mode) ---
-        self.speech_energy_threshold = 0.010  # Sensitive threshold for normal speaking volume
+        self.speech_energy_threshold = 0.004  # High sensitivity threshold for instant wake word pickup
         self.silence_chunks_required = 5    # Give more breathing room (1.25s instead of 0.75s)
-        self.min_speech_chunks = 2
+        self.min_speech_chunks = 1          # Allow short 1-word wake triggers ("Luna") without discarding
         self.max_recording_duration = 15.0
 
         # --- Call mode parameters (balanced thresholds to prevent speaker echo & typing triggers) ---
-        self.call_energy_threshold = 0.008  # Ultra-sensitive threshold to capture soft voice starting words
+        self.call_energy_threshold = 0.004  # High sensitivity threshold to capture soft voice starting words
         self.call_silence_chunks = 5        # 1.25s end-of-speech detection for natural pauses without cutting off mid-sentence
         self.call_min_speech_chunks = 1     # Allow short 1-word responses ("Sim", "Não", "Oi") without discarding
         self.call_interrupt_threshold = 0.010 # Instant interruption threshold even for soft speaking during TTS
@@ -147,6 +147,7 @@ class WakeWordDetector:
         self._stop_event = threading.Event()
         self._last_keyword_time = 0
         self._seq_counter = 0
+        self.watchdog_thread = None
     
     def _load_model(self, retries=0):
         """Lazy load heavy dependencies and model."""
@@ -581,11 +582,11 @@ class WakeWordDetector:
                 initial_prompt=prompt,
                 vad_filter=use_vad,
                 vad_parameters=dict(
-                    min_silence_duration_ms=400 if use_vad else 0,
-                    speech_pad_ms=250 if use_vad else 0,
-                    threshold=0.3 if use_vad else 0.0,
+                    min_silence_duration_ms=300 if use_vad else 0,
+                    speech_pad_ms=300 if use_vad else 0,
+                    threshold=0.15 if use_vad else 0.0,
                 ),
-                no_speech_threshold=0.6 if use_vad else None,
+                no_speech_threshold=0.5 if use_vad else None,
                 log_prob_threshold=-1.0 if use_vad else None,
                 condition_on_previous_text=False,
                 suppress_blank=True,
@@ -906,6 +907,36 @@ class WakeWordDetector:
             self.flush_buffers()
             return
 
+    def _watchdog_loop(self):
+        """Watchdog loop that monitors listener thread health and automatically recovers/restarts on crash."""
+        logger.info("[WakeWord][Watchdog] Voice watchdog monitor active.")
+        while not self._stop_event.is_set():
+            time.sleep(3.0)
+            if self._stop_event.is_set():
+                break
+
+            in_call = False
+            try:
+                import app_state
+                in_call = app_state.is_call_mode()
+            except Exception:
+                pass
+
+            should_be_running = self.wake_word_active or in_call
+
+            if should_be_running:
+                is_listener_alive = self.thread is not None and self.thread.is_alive()
+                is_processor_alive = self.processing_thread is not None and self.processing_thread.is_alive()
+
+                if not self.running or not is_listener_alive or not is_processor_alive:
+                    logger.warning(
+                        "[WakeWord][Watchdog] Detector thread died or stopped unexpectedly (running=%s, listener_alive=%s, proc_alive=%s). Auto-restarting microphone listener...",
+                        self.running, is_listener_alive, is_processor_alive
+                    )
+                    self.running = False
+                    time.sleep(0.5)
+                    self.start()
+
     def start(self):
         """Start the detector in a background thread."""
         with self.lock:
@@ -918,6 +949,7 @@ class WakeWordDetector:
                         "[WakeWord] Sounddevice not available. Detector will not start."
                     )
                     return
+                self._stop_event.clear()
                 self.running = True
                 self.processing_thread = threading.Thread(
                     target=self._processing_loop, daemon=True
@@ -925,6 +957,10 @@ class WakeWordDetector:
                 self.thread = threading.Thread(target=self._listen_loop, daemon=True)
                 self.processing_thread.start()
                 self.thread.start()
+
+                if self.watchdog_thread is None or not self.watchdog_thread.is_alive():
+                    self.watchdog_thread = threading.Thread(target=self._watchdog_loop, daemon=True)
+                    self.watchdog_thread.start()
 
     def stop(self):
         """Stop the detector."""
@@ -934,6 +970,8 @@ class WakeWordDetector:
             self.thread.join(timeout=1)
         if self.processing_thread:
             self.processing_thread.join(timeout=1)
+        if self.watchdog_thread and self.watchdog_thread.is_alive():
+            self.watchdog_thread.join(timeout=1)
 
 
 if __name__ == "__main__":

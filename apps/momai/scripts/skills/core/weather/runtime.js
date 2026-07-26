@@ -98,6 +98,7 @@ async function resolveWeatherForecast(location) {
     'https://api.open-meteo.com/v1/forecast',
     `?latitude=${encodeURIComponent(String(place.latitude))}`,
     `&longitude=${encodeURIComponent(String(place.longitude))}`,
+    '&current=temperature_2m,weathercode',
     '&daily=weathercode,temperature_2m_max,temperature_2m_min',
     '&hourly=weathercode',
     '&timezone=auto',
@@ -125,6 +126,7 @@ async function resolveWeatherForecast(location) {
   const forecastData = await forecastResp.json().catch(() => null)
   const daily = forecastData?.daily
   const hourly = forecastData?.hourly
+  const currentData = forecastData?.current || forecastData?.current_weather
   const days = Array.isArray(daily?.time) ? daily.time.slice(0, 7) : []
 
   if (!days.length) {
@@ -148,12 +150,23 @@ async function resolveWeatherForecast(location) {
     }
   })
 
+  const rawCurrentTemp = currentData?.temperature_2m ?? currentData?.temperature
+  const currentCode = Number(currentData?.weathercode)
+  const currentMeta = Number.isFinite(currentCode) ? mapWeatherCode(currentCode) : rows[0]
+
+  const currentObj = {
+    temp: Number.isFinite(Number(rawCurrentTemp)) ? tempValue(rawCurrentTemp) : rows[0]?.max,
+    condition: currentMeta?.condition || rows[0]?.condition,
+    emoji: currentMeta?.emoji || rows[0]?.emoji
+  }
+
   const cityName = String(place.name || location)
   const adminName = String(place.admin1 || place.country || '').trim()
   const resolvedLocation = adminName ? `${cityName}, ${adminName}` : cityName
 
   return {
     resolvedLocation,
+    current: currentObj,
     rows,
     sourceUrl: forecastUrl
   }
@@ -203,14 +216,14 @@ module.exports = {
     {
       name: 'get_weather',
       description:
-        'Obtem previsao do tempo atualizada para uma cidade ou localidade. Use quando o usuario perguntar sobre clima, temperatura, se vai chover, fazer sol, etc.',
+        'Get updated weather forecast for a city or location (clima, chuva, temperatura, previsão do tempo). Use when the user asks about weather, temperature, rain, sun, etc.',
       parameters: {
         type: 'object',
         properties: {
           location: {
             type: 'string',
             description:
-              'Nome da cidade ou localidade (ex: "Sao Paulo", "Rio de Janeiro", "Nova York", "Londres")'
+              'City or location name (e.g. "Sao Paulo", "Rio de Janeiro", "New York", "London")'
           }
         },
         required: ['location']
@@ -244,22 +257,25 @@ module.exports = {
 
     if (structuredForecast?.rows?.length) {
       console.error(`[weather] OK: ${structuredForecast.resolvedLocation}`)
+      const today = structuredForecast.rows[0]
+      const current = structuredForecast.current || today
+
       return {
         tool: 'get_weather',
         structuredResponse: {
           type: 'weather',
           data: {
             location: structuredForecast.resolvedLocation,
-            current: structuredForecast.rows[0],
+            current,
             forecast: structuredForecast.rows
           }
         },
-        instruction: `Previsao do tempo para ${structuredForecast.resolvedLocation}:\n${structuredForecast.rows.map((r) => `${r.day}: ${r.emoji} ${r.condition}, ${r.min} a ${r.max}`).join('\n')}\n\nFonte: Open-Meteo`,
+        instruction: `Instrução para a resposta: Gere uma mensagem amigável e curta sobre a previsão do tempo SOMENTE para HOJE em ${structuredForecast.resolvedLocation}. Não fale nem mencione os próximos dias ou próximas semanas.\n\nDados de HOJE:\n- Condição atual: ${current.emoji} ${current.condition} (${current.temp})\n- Temperatura hoje: mínima de ${today.min} e máxima de ${today.max}\n\nFonte: Open-Meteo`,
         webSources: [
           {
             url: structuredForecast.sourceUrl,
             title: `Open-Meteo - ${structuredForecast.resolvedLocation}`,
-            snippet: 'Previsao de 7 dias',
+            snippet: 'Previsao do tempo para hoje',
             retrieval_type: 'web'
           }
         ]

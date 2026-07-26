@@ -35,6 +35,7 @@ import {
   updateNote
 } from './notesService'
 import { CURRENT_VARIANT } from './variants'
+import { ICON_PATH } from './constants'
 import { TrayService } from './services/tray-service'
 import { HttpLlamaControl } from './services/llama-control'
 import { FileKeepInTrayReader } from './services/keep-in-tray-reader'
@@ -110,11 +111,16 @@ ipcMain.handle('open-log-file', () => {
 })
 ipcMain.handle('open-models-folder', async () => {
   const modelsDir = process.env.MOMAI_MODELS_DIR || join(app.getPath('userData'), 'data', 'models')
-  if (!existsSync(modelsDir)) { mkdirSync(modelsDir, { recursive: true }) }
+  if (!existsSync(modelsDir)) {
+    mkdirSync(modelsDir, { recursive: true })
+  }
   const result = await shell.openPath(modelsDir)
   if (result) logger.warn('[Electron] open-models-folder:', result)
 })
-ipcMain.handle('get-models-path', () => process.env.MOMAI_MODELS_DIR || join(app.getPath('userData'), 'data', 'models'))
+ipcMain.handle(
+  'get-models-path',
+  () => process.env.MOMAI_MODELS_DIR || join(app.getPath('userData'), 'data', 'models')
+)
 ipcMain.handle('open-llama-folder', async () => {
   const llamaDir = join(app.getAppPath(), 'bin', 'llama')
   const result = await shell.openPath(llamaDir)
@@ -160,7 +166,10 @@ ipcMain.handle('read-logs', async (_, lines = 200) => {
 })
 
 // Log streaming state for real-time terminal view
-const logStreamWatchers = new Map<string, { watcher: ReturnType<typeof import('fs').watch>; pos: number }>()
+const logStreamWatchers = new Map<
+  string,
+  { watcher: ReturnType<typeof import('fs').watch>; pos: number }
+>()
 ipcMain.handle('start-log-stream', (event) => {
   const mainLogPath = getMainLogPath()
   const fs = require('fs') as typeof import('fs')
@@ -175,12 +184,17 @@ ipcMain.handle('start-log-stream', (event) => {
   }
 
   let pos = 0
-  try { pos = fs.statSync(mainLogPath).size } catch {}
+  try {
+    pos = fs.statSync(mainLogPath).size
+  } catch {}
 
   const watcher = fs.watch(mainLogPath, () => {
     try {
       const currentSize = fs.statSync(mainLogPath).size
-      if (currentSize <= pos) { pos = currentSize; return }
+      if (currentSize <= pos) {
+        pos = currentSize
+        return
+      }
       const fd = fs.openSync(mainLogPath, 'r')
       const buf = Buffer.alloc(currentSize - pos)
       fs.readSync(fd, buf, 0, buf.length, pos)
@@ -191,9 +205,21 @@ ipcMain.handle('start-log-stream', (event) => {
         const match = line.match(/^\[(\d{2}):(\d{2}):(\d{2})\.(\d{3})\]\s*\[(\w+)\]\s*(.*)$/)
         if (match) {
           const [, h, min, s, ms, level, message] = match
-          sender.send('log-line', { timestamp: `${h}:${min}:${s}.${ms}`, level: level.toLowerCase(), component: detectLogComponent(message), message, raw: line })
+          sender.send('log-line', {
+            timestamp: `${h}:${min}:${s}.${ms}`,
+            level: level.toLowerCase(),
+            component: detectLogComponent(message),
+            message,
+            raw: line
+          })
         } else {
-          sender.send('log-line', { timestamp: '', level: 'info', component: 'system', message: line, raw: line })
+          sender.send('log-line', {
+            timestamp: '',
+            level: 'info',
+            component: 'system',
+            message: line,
+            raw: line
+          })
         }
       }
     } catch {}
@@ -337,6 +363,30 @@ app.on('web-contents-created', (_event, contents) => {
 })
 
 app.whenReady().then(async () => {
+  // Ensure Windows taskbar resolves correct name & icon in dev mode
+  if (is.dev && process.platform === 'win32') {
+    try {
+      const shortcutPath = join(
+        app.getPath('appData'),
+        'Microsoft',
+        'Windows',
+        'Start Menu',
+        'Programs',
+        `${CURRENT_VARIANT.appName}.lnk`
+      )
+      shell.writeShortcutLink(shortcutPath, 'replace', {
+        target: process.execPath,
+        args: process.argv.slice(1).join(' '),
+        appUserModelId: CURRENT_VARIANT.appId,
+        icon: ICON_PATH,
+        iconIndex: 0,
+        description: CURRENT_VARIANT.appName
+      })
+    } catch (err) {
+      logger.warn('[Electron] Failed to create dev Start Menu shortcut:', err)
+    }
+  }
+
   // M3: Hide native menu bar in production to remove the "View > Toggle Developer Tools" entry
   if (!is.dev) {
     Menu.setApplicationMenu(null)

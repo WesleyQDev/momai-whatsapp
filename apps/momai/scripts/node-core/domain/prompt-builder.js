@@ -11,7 +11,7 @@ function setupPromptBuilder({ promptRegistry, normalizeLanguageTag }) {
         return `Hi${name}! I am online. How can I help you now?`
       }
       if (key === 'reason')
-        return `Local model unavailable right now (${safeReason}). Fallback reply for: "${safeSummary}".`
+        return 'Unable to connect to the local model right now. Please try again in a moment.'
       if (key === 'with_memory')
         return `Got it: "${safeSummary}". I also considered your local notes context.`
       return `Got it: "${safeSummary}". I will proceed with that.`
@@ -24,7 +24,7 @@ function setupPromptBuilder({ promptRegistry, normalizeLanguageTag }) {
         return `Hola${name}! Estoy en línea. ¿Cómo puedo ayudarte ahora?`
       }
       if (key === 'reason')
-        return `Modelo local no disponible en este momento (${safeReason}). Respuesta de respaldo para: "${safeSummary}".`
+        return 'No se pudo conectar al modelo local en este momento. Por favor, inténtalo de nuevo en unos momentos.'
       if (key === 'with_memory')
         return `Entendi tu pedido: "${safeSummary}". Tambien considere el contexto de tus notas locales.`
       return `Entendi tu pedido: "${safeSummary}". Voy a continuar con eso.`
