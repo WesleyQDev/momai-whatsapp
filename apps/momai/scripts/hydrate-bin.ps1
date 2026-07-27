@@ -235,7 +235,8 @@ Write-Host "[MomAI] Core dir: $coreDir" -ForegroundColor Gray
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "[MomAI] Failed to generate lockfile. Wheels will not be cached."
 } else {
-    if (Test-Path $wheelsDir) { Remove-WithRetry $wheelsDir | Out-Null }
+    $wheelsParent = Join-Path (Join-Path $binDir "wheels")
+    if (Test-Path $wheelsParent) { Remove-WithRetry $wheelsParent | Out-Null }
     New-Item -ItemType Directory -Path $wheelsDir | Out-Null
 
     if (Test-Path $wheelsReadyMarker) {

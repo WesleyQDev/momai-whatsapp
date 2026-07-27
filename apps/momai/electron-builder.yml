@@ -35,6 +35,8 @@ win:
         - '!**/python/bin/**'
         - '!**/python/Lib/test/**'
         - '!**/python/Lib/site-packages/tests/**'
+        - '!**/wheels/**'
+        - '!**/*.pdb'
     - from: 'bin/wheels'
       to: 'wheels'
     - from: 'resources'
@@ -143,6 +145,8 @@ linux:
       to: 'bin'
       filter:
         - '!**/share/terminfo/**'
+        - '!**/wheels/**'
+        - '!**/*.pdb'
     - from: 'bin/wheels'
       to: 'wheels'
     - from: 'resources'
