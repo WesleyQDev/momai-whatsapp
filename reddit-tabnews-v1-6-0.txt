@@ -1,0 +1,54 @@
+Desde a última publicação, se passaram 4 meses. E nesse tempo, meu projeto pessoal (uma assistente com IA que roda 100% local) passou por 17 versões e mudou mais do que eu esperava.
+
+Não vou fazer propaganda aqui. Vou compartilhar alguns problemas reais que apareceram no caminho e como resolvi (ou estou tentando resolver).
+
+### O problema do embedding lento
+
+A versão anterior usava Qwen3-Embedding-0.6B para busca semântica. Funcionava, mas era pesado: ~600MB de modelo, latência alta, e a consistência variava muito dependendo do hardware.
+
+Troquei para o LFM2.5-Embedding-350M, um modelo quase metade do tamanho. O resultado: 52% menos latência, 41% menos memória, e 5x mais consistência nos resultados. A busca por contexto ficou mais rápida e previsível.
+
+A lição: maior nem sempre é melhor. Um modelo menor e mais especializado ganhou do modelo maior em todos os aspectos.
+
+### Acelerando inferência com MTP
+
+No tier Ultra, o modelo principal (`Qwen3.5-4B`) foi substituído pela variante **MTP** (Multi-Token Prediction). Em vez de prever um token de cada vez, o modelo "chuta" vários tokens em paralelo e valida os melhores candidatos em lote. O ganho de velocidade é considerável, especialmente em GPUs com mais VRAM.
+
+Isso exigiu atualizar o llama.cpp da b9165 para a b10094, que trouxe suporte nativo a speculative decoding com MTP. Não foi só trocar o arquivo: precisei ajustar parâmetros de inferência (temperatura, top-p, presence penalty) por tier para cada modelo se comportar bem com as novas flags `--spec-type draft-mtp --spec-draft-n-max 2`.
+
+### Extensões com interface própria: o desafio da arquitetura
+
+Quando comecei, as extensões eram funções que o agente chamava. Simples, mas limitado. Quando o WhatsApp entrou no projeto, precisei de workers persistentes, notificações em tempo real, e uma interface visual.
+
+A saída foi transformar cada extensão em um artefato auto-contido (ZIP) que declara suas próprias rotas, eventos, comandos de voz e UI. O app carrega dinamicamente sem precisar saber o que cada extensão faz internamente.
+
+O maior desafio foi o isolamento: como garantir que uma extensão de terceiros não comprometa o sistema? A solução envolveu sanitização de SVG, validação de canais IPC, verificação de integridade nos downloads, e bloqueio de redirecionamentos maliciosos. Boa parte disso veio de contribuição do @AndersonTavares0.
+
+### Editor de notas: o que já existia ganhou uma repaginada
+
+O editor de notas não era novo, mas a versão anterior era básica demais. Na 1.6, reformulei ele no estilo Obsidian: preview em tempo real, links wiki entre notas (`[[link]]`), grafo de conexões, e (o mais útil) a IA passou a ler os arquivos .md que o usuário cria como contexto para as respostas.
+
+O resultado é que o usuário não depende só do que a IA aprendeu em conversas: qualquer documentação pessoal vira fonte de conhecimento.
+
+### Segurança: a parte que mais cresceu
+
+Entre todas as áreas, segurança foi a que mais recebeu commits. Não porque o projeto era inseguro, mas porque cada nova integração abre uma nova superfície de ataque. As medidas principais:
+
+- Sanitização de SVG (XSS via ícones de extensão)
+- Validação de IPC (canais de comunicação com allowlist)
+- Token de sessão via variável de ambiente (não aparece em processos)
+- Verificação de integridade em downloads (impede instalação de arquivos adulterados)
+- Painel de Privacidade com exportação e exclusão de dados (LGPD)
+
+### A parte mais difícil
+
+Honestamente? Foi manter a disciplina de não pular etapas. Quando você está sozinho no projeto, é tentador fazer "só mais um hotfix" sem testar, ou ignorar a dívida técnica porque "depois eu volto". Não funcionou uma única vez. Toda vez que tentei acelerar, voltei duas casas.
+
+Até recentemente eu tava tocando isso totalmente solo. Agora um amigo (@AndersonTavares0) entrou pra me ajudar a organizar, caçar bugs e dar ideias — e já fez uma diferença enorme, principalmente na parte de segurança. Mas ainda cabe mais gente.
+
+---
+
+Se alguém tiver interesse em contribuir com o projeto (mesmo sem retorno financeiro por enquanto), é só chegar. Tem bastante coisa pra fazer: desde issues de boas-vindas até features complexas.
+
+O post completo (bem mais longo, em formato review) está no blog: [link]
+Pra quem quiser testar: disponível na Microsoft Store (winget) e Linux em [momaiassistente.studio](https://momaiassistente.studio/)

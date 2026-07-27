@@ -58,7 +58,7 @@ Mesmo conteúdo, arquivo `v{X}-{Y}-{Z}.en.md`. Adapte o tom para o público inte
 No final de cada post, inclua onde baixar:
 - Microsoft Store / winget
 - Linux (AppImage/DEB)
-- Link pro site: `https://momai.app`
+- Link pro site: `https://momaiassistente.studio/`
 
 ## 5. Créditos
 
