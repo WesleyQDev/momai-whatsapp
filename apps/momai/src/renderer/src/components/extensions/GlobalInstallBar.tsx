@@ -21,7 +21,7 @@ function formatETA(seconds?: number | null): string {
   return `${Math.ceil(seconds)}s`
 }
 
-function renderIcon(icon?: string): JSX.Element | null {
+function renderIcon(icon?: string): React.ReactNode {
   if (!icon) return null
   if (icon.startsWith('<svg')) {
     return <span className="w-4 h-4 shrink-0" dangerouslySetInnerHTML={{ __html: icon }} />

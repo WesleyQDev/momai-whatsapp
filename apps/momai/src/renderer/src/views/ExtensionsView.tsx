@@ -533,7 +533,7 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
         >
           {skill.name}
         </h3>
-        {skill.source === 'dev' && (
+        {(skill.source as string) === 'dev' && (
           <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/25 mb-2 inline-block">
             Dev 🔧
           </span>
@@ -759,6 +759,7 @@ function SkillDetailView({
                     Incompatível mais recente
                   </span>
                 )}
+              </div>
               {skill.compat_status === 'incompatible' && (
                 <p className="text-red-500 text-sm font-medium">
                   {t('extensions.install.incompatible')} Atualize para a{' '}
