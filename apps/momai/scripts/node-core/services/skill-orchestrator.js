@@ -213,7 +213,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
     try {
       const localRegistry = await loadInstallRegistry()
       localExtensions = localRegistry.extensions || []
-      console.log(`[SkillOrchestrator] Loaded ${localExtensions.length} local extensions: ${localExtensions.map(e => e.id + '=' + e.version).join(', ')}`)
+      // debug: console.log(`[SkillOrchestrator] Loaded ${localExtensions.length} local extensions: ${localExtensions.map(e => e.id + '=' + e.version + (e.momai_compat ? ' compat=' + e.momai_compat : '')).join(', ')}`)
     } catch (err) {
       console.error('[SkillOrchestrator] Error reading local dev-extensions.json:', err.message)
     }
@@ -246,9 +246,8 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         raw.download_url = matchedLocal.download_url
         raw.is_official = matchedLocal.is_official !== false
         if (matchedLocal.version) raw.version = matchedLocal.version
-      }
-      if (raw.id === 'whatsapp') {
-        console.log(`[SkillOrchestrator] DEBUG whatsapp: raw.version=${raw.version} matchedLocal=${!!matchedLocal} localVersion=${matchedLocal?.version || 'none'}`)
+        if (matchedLocal.sdkVersion !== undefined) raw.sdkVersion = matchedLocal.sdkVersion
+        if (matchedLocal.momai_compat) raw.momai_compat = matchedLocal.momai_compat
       }
 
       return {
