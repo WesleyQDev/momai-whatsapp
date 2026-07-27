@@ -521,9 +521,9 @@ async function streamLlamaChat(req, res, payload) {
     `[chat] ensureLlamaReady returned: ${ready}, llamaState.ready=${llamaState.ready}, lastError=${llamaState.lastError}`
   )
   if (!ready) {
-    warn(`[chat] Initial ensureLlamaReady failed (${llamaState.lastError || 'unavailable'}). Retrying with forceRestart...`)
+    warn(`[chat] Initial ensureLlamaReady failed (${llamaState.lastError || 'unavailable'}). Retrying without force...`)
     await new Promise((r) => setTimeout(r, 800))
-    ready = await llamaManager.ensureLlamaReady(true)
+    ready = await llamaManager.ensureLlamaReady()
   }
   if (!ready) {
     warn(`[chat] FALLBACK triggered! reason=${llamaState.lastError || 'llama unavailable'}`)
@@ -1125,8 +1125,8 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
 
       if (attempt < maxAttempts) {
         try {
-          debug(`[chat] Attempting llamaManager.ensureLlamaReady(true) to recover server before retry ${attempt + 1}...`)
-          await llamaManager.ensureLlamaReady(true)
+          debug(`[chat] Attempting llamaManager.ensureLlamaReady() to recover server before retry ${attempt + 1}...`)
+          await llamaManager.ensureLlamaReady()
         } catch (recErr) {
           debug(`[chat] Server auto-recovery attempt failed: ${recErr.message}`)
         }

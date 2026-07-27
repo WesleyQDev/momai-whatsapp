@@ -603,6 +603,7 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
               if (llamaState.process === child) {
                 llamaState.ready = false
                 llamaState.starting = false
+                llamaState.startingPromise = null
                 llamaState.process = null
               }
             })
@@ -664,34 +665,50 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
           })
         })
 
-      for (let i = 0; i < backendAttempts.length; i += 1) {
+      let _autoRetried = false
+      for (;;) {
+        for (let i = 0; i < backendAttempts.length; i += 1) {
+          if (llamaStartGeneration !== myGeneration) {
+            debug(
+              `[llama] Backend loop cancelled (generation ${myGeneration} superseded by ${llamaStartGeneration})`
+            )
+            return false
+          }
+          const backend = backendAttempts[i]
+          const result = await startAttempt(backend, i > 0)
+          if (result.ok) return true
+          llamaState.lastError = result.reason
+          if (preferred !== 'auto') {
+            setInitStatus('error', 'Failed to initialize local model', 99, result.reason)
+            return false
+          }
+          if (i === 0 && backend === 'vulkan' && backendAttempts[i + 1] === 'cpu') {
+            /* Retry Vulkan once after a brief pause — transient port/GPU
+               contention (embedding server, stale process) can cause a
+               false-negative probe on AMD Windows drivers. */
+            await new Promise((r) => setTimeout(r, 2000))
+            const retry = await startAttempt(backend, true)
+            if (retry.ok) return true
+            if (typeof process.send === 'function') {
+              process.send({
+                type: 'node-core-log',
+                message: `[llama] Vulkan probe failed (${result.reason}). Falling back to CPU.`
+              })
+            }
+          }
+        }
+
+        if (_autoRetried) break
+        _autoRetried = true
+        debug(
+          `[llama] All backends failed. Auto-retrying once after 2s delay to mask transient port contention...`
+        )
+        await new Promise((r) => setTimeout(r, 2000))
         if (llamaStartGeneration !== myGeneration) {
           debug(
-            `[llama] Backend loop cancelled (generation ${myGeneration} superseded by ${llamaStartGeneration})`
+            `[llama] Auto-retry cancelled (generation ${myGeneration} superseded by ${llamaStartGeneration})`
           )
           return false
-        }
-        const backend = backendAttempts[i]
-        const result = await startAttempt(backend, i > 0)
-        if (result.ok) return true
-        llamaState.lastError = result.reason
-        if (preferred !== 'auto') {
-          setInitStatus('error', 'Failed to initialize local model', 99, result.reason)
-          return false
-        }
-        if (i === 0 && backend === 'vulkan' && backendAttempts[i + 1] === 'cpu') {
-          /* Retry Vulkan once after a brief pause — transient port/GPU
-             contention (embedding server, stale process) can cause a
-             false-negative probe on AMD Windows drivers. */
-          await new Promise((r) => setTimeout(r, 2000))
-          const retry = await startAttempt(backend, true)
-          if (retry.ok) return true
-          if (typeof process.send === 'function') {
-            process.send({
-              type: 'node-core-log',
-              message: `[llama] Vulkan probe failed (${result.reason}). Falling back to CPU.`
-            })
-          }
         }
       }
 
