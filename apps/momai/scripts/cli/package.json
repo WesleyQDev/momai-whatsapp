@@ -1,0 +1,17 @@
+{
+  "name": "momai-sdk",
+  "version": "1.0.0",
+  "description": "MomAI SDK — CLI tools for developing extensions",
+  "bin": {
+    "momai-sdk": "./index.js"
+  },
+  "scripts": {
+    "create": "node index.js create",
+    "dev": "node index.js dev",
+    "build": "node index.js build"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "yargs": "^17.7.2"
+  }
+}

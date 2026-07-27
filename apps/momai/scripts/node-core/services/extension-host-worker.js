@@ -80,6 +80,13 @@ async function init() {
 
 init()
 
+// Send heartbeat to parent process every 30 seconds
+setInterval(() => {
+  if (typeof process.send === 'function') {
+    process.send({ type: 'heartbeat', timestamp: Date.now() })
+  }
+}, 30000)
+
 process.on('message', async (msg) => {
   if (msg.type === 'execute') {
     try {
@@ -97,6 +104,14 @@ process.on('message', async (msg) => {
         requestId,
         result
       })
+
+      // Reset state between commands by reloading the runtime module
+      if (msg.reset !== false) {
+        const { pathToFileURL } = require('node:url')
+        delete require.cache[require.resolve(path.join(skillPath, 'runtime.js'))]
+        const imported = await import(pathToFileURL(path.join(skillPath, 'runtime.js')).href)
+        runtime = imported.default || imported
+      }
     } catch (err) {
       process.send({
         type: 'response',
@@ -104,5 +119,7 @@ process.on('message', async (msg) => {
         result: { ok: false, error: err.message }
       })
     }
+  } else if (msg.type === 'shutdown') {
+    process.exit(0)
   }
 })

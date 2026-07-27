@@ -8,6 +8,7 @@
     "../../packages/**/*.ts",
     "../../packages/**/*.tsx"
   ],
+  "exclude": ["../../packages/**/__tests__"],
   "compilerOptions": {
     "composite": true,
     "jsx": "react-jsx",

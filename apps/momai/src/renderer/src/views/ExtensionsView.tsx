@@ -94,7 +94,6 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   fetchExtensions,
-  installExtension,
   toggleExtension,
   uninstallExtension,
   fetchExtensionManifest,
@@ -102,11 +101,9 @@ import {
   fetchSettings,
   updateSettingsPartial,
   Extension,
-  ExtensionRelease,
-  InstallProgress,
-  InstallError
+  ExtensionRelease
 } from '../services/api'
-import ExtensionInstallCard from '../components/extensions/ExtensionInstallCard'
+import { useInstallProgress } from '../hooks/useInstallProgress'
 import ExtensionUninstallModal from '../components/extensions/ExtensionUninstallModal'
 import {
   WrenchIcon,
@@ -179,7 +176,6 @@ const iconMap: Record<string, React.ElementType> = {
   Cloud: CloudIcon,
   BookOpen: BookOpenIcon,
   RocketLaunch: RocketLaunchIcon,
-  launcher: RocketLaunchIcon,
   Launcher: RocketLaunchIcon,
   Wrench: WrenchIcon,
   Star: StarIcon,
@@ -332,6 +328,49 @@ function getAccentClasses(manifest?: any) {
       text: 'group-hover:text-violet-400'
     }
   )
+}
+
+/* ─── Extension Badges ─── */
+interface Badge {
+  label: string
+  className: string
+}
+
+function getExtensionBadges(skill: Extension): Badge[] {
+  const badges: Badge[] = []
+
+  if (skill.installed !== false && skill.category !== 'community') {
+    badges.push({
+      label: 'Instalada',
+      className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
+    })
+  }
+  if ((skill.source as string) === 'dev') {
+    badges.push({
+      label: 'Dev 🔧',
+      className: 'bg-amber-500/10 text-amber-400 border border-amber-500/25'
+    })
+  }
+  if (skill.updateAvailable) {
+    badges.push({
+      label: 'Atualização disponível',
+      className: 'bg-blue-500/10 text-blue-400 border border-blue-500/25 animate-pulse'
+    })
+  }
+  if (skill.compat_status === 'incompatible') {
+    badges.push({
+      label: 'Requer MomAI v1.7+',
+      className: 'bg-red-500/10 text-red-400 border border-red-500/25'
+    })
+  }
+  if (skill.worker_crashed) {
+    badges.push({
+      label: 'Worker crashed',
+      className: 'bg-red-500/10 text-red-400 border border-red-500/25 animate-pulse'
+    })
+  }
+
+  return badges
 }
 
 /* ─── Carousel Banner ─── */
@@ -529,6 +568,18 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
         >
           {skill.name}
         </h3>
+        {getExtensionBadges(skill).length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {getExtensionBadges(skill).map((badge, i) => (
+              <span
+                key={i}
+                className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${badge.className}`}
+              >
+                {badge.label}
+              </span>
+            ))}
+          </div>
+        )}
         <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed mb-4 min-h-[2.5rem]">
           {skill.description}
         </p>
@@ -588,6 +639,13 @@ function SkeletonCard() {
   )
 }
 
+function formatSize(bytes: number | null | undefined): string {
+  if (!bytes) return ''
+  const mb = bytes / (1024 * 1024)
+  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`
+  return `${mb.toFixed(0)} MB`
+}
+
 /* ─── Skill Detail (inline, keeps navbar) ─── */
 function SkillDetailView({
   skill,
@@ -595,22 +653,16 @@ function SkillDetailView({
   onInstall,
   onToggle,
   onUninstall,
-  installing,
-  installProgress,
-  installError,
   recommendedVersionByExtId,
-  onDismissError
+  installingId
 }: {
   skill: Extension
   onBack: () => void
   onInstall: (s: Extension, downloadUrl?: string) => void
   onToggle: (s: Extension) => void
   onUninstall: (s: Extension) => void
-  installing: string | null
-  installProgress?: InstallProgress | null
-  installError?: InstallError | null
   recommendedVersionByExtId?: Record<string, string | null>
-  onDismissError?: () => void
+  installingId?: string | null
 }) {
   const { t } = useI18n()
   const accentClasses = getAccentClasses(skill.manifest)
@@ -763,7 +815,7 @@ function SkillDetailView({
                   <button
                     onClick={() => onInstall(skill, undefined)}
                     disabled={
-                      installing === skill.id || recommendedVersionByExtId?.[skill.id] === null
+                      recommendedVersionByExtId?.[skill.id] === null
                     }
                     title={
                       recommendedVersionByExtId?.[skill.id] === null
@@ -806,58 +858,28 @@ function SkillDetailView({
               </a>
             )}
             {!isBuiltin && !isInstalled ? (
-              <div className="flex flex-col gap-2">
-                {installing === skill.id ? (
-                  <>
-                    {installProgress && (
-                      <ExtensionInstallCard progress={installProgress} extName={skill.name} />
-                    )}
-                    {installError && (
-                      <ExtensionInstallCard
-                        error={installError}
-                        extName={skill.name}
-                        onDismiss={onDismissError}
-                      />
-                    )}
-                  </>
-                ) : (
-                  <button
-                    onClick={() => onInstall(skill)}
-                    className={`px-8 py-2.5 text-white rounded-xl text-xs font-black transition-all uppercase tracking-widest relative overflow-hidden ${accentClasses.button}`}
-                  >
-                    <span className="relative z-10">Instalar</span>
-                  </button>
-                )}
-              </div>
+              <button
+                onClick={() => onInstall(skill)}
+                disabled={installingId === skill.id}
+                className={`px-8 py-2.5 text-white rounded-xl text-xs font-black transition-all uppercase tracking-widest relative overflow-hidden ${installingId === skill.id ? 'opacity-50 cursor-not-allowed' : ''} ${accentClasses.button}`}
+              >
+                <span className="relative z-10">
+                  {installingId === skill.id ? 'Instalando...' : 'Instalar'}
+                </span>
+              </button>
             ) : (
               <div className="flex items-center gap-3">
                 {skill.updateAvailable && (
-                  <div className="flex flex-col gap-1">
-                    {installing === skill.id ? (
-                      <>
-                        {installProgress && (
-                          <ExtensionInstallCard progress={installProgress} extName={skill.name} />
-                        )}
-                        {installError && (
-                          <ExtensionInstallCard
-                            error={installError}
-                            extName={skill.name}
-                            onDismiss={onDismissError}
-                          />
-                        )}
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => onInstall(skill)}
-                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black transition-all uppercase tracking-widest relative overflow-hidden active:scale-[0.98]"
-                      >
-                        <span className="relative z-10 flex items-center justify-center gap-1">
-                          <CloudArrowDownIcon className="w-3.5 h-3.5" />
-                          Atualizar
-                        </span>
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => onInstall(skill)}
+                    disabled={installingId === skill.id}
+                    className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all uppercase tracking-widest relative overflow-hidden active:scale-[0.98] ${installingId === skill.id ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+                  >
+                    <span className="relative z-10 flex items-center justify-center gap-1">
+                      {installingId === skill.id ? null : <CloudArrowDownIcon className="w-3.5 h-3.5" />}
+                      {installingId === skill.id ? 'Instalando...' : 'Atualizar'}
+                    </span>
+                  </button>
                 )}
                 <button
                   onClick={() => onToggle(skill)}
@@ -993,6 +1015,11 @@ function SkillDetailView({
                                     {new Date(rel.date).toLocaleDateString()}
                                   </span>
                                 )}
+                                {rel.download_size && (
+                                  <span className="text-[9px] text-zinc-600">
+                                    ↓ {formatSize(rel.download_size)} · ~{formatSize(rel.estimated_install_size)} instalado
+                                  </span>
+                                )}
                                 {isCurrent && (
                                   <span className="px-1.5 py-0.5 rounded bg-violet-500/10 border border-violet-500/20 text-[8px] text-violet-400 font-extrabold uppercase tracking-wide">
                                     Instalada
@@ -1014,7 +1041,7 @@ function SkillDetailView({
                               {rel.compatible ? (
                                 <button
                                   onClick={() => onInstall(skill, rel.download_url)}
-                                  disabled={installing === skill.id || isCurrent}
+                                  disabled={isCurrent}
                                   className={`px-2.5 py-1 rounded text-[8px] font-black uppercase tracking-wider transition-all border ${
                                     isCurrent
                                       ? 'border-zinc-800 text-zinc-650 cursor-default bg-zinc-900/20'
@@ -1174,9 +1201,7 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
   const location = useLocation()
   const [allSkills, setAllSkills] = useState<Extension[]>([])
   const [loading, setLoading] = useState(true)
-  const [installing, setInstalling] = useState<string | null>(null)
-  const [installProgress, setInstallProgress] = useState<InstallProgress | null>(null)
-  const [installError, setInstallError] = useState<InstallError | null>(null)
+  const { handleInstall: globalHandleInstall, simulateInstall, state: installState } = useInstallProgress()
   const [uninstallTarget, setUninstallTarget] = useState<{ id: string; name: string } | null>(null)
   const [recommendedVersionByExtId, setRecommendedVersionByExtId] = useState<
     Record<string, string | null>
@@ -1185,6 +1210,7 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
   const [selectedSkill, setSelectedSkill] = useState<Extension | null>(null)
   const [selectedManifest, setSelectedManifest] = useState<Record<string, any> | null>(null)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [activeTypeFilter, setActiveTypeFilter] = useState<string>('Todas')
   const [searchQuery, setSearchQuery] = useState('')
   const [devMode, setDevMode] = useState<'symlink' | 'store_test'>('symlink')
   const [switchingMode, setSwitchingMode] = useState<'symlink' | 'store_test' | null>(null)
@@ -1292,64 +1318,13 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
   }
 
   const handleInstall = async (ext: Extension, downloadUrl?: string) => {
-    setInstalling(ext.id)
-    setInstallProgress({
-      stage: 'downloading',
-      status: 'Iniciando...',
-      percent: 0,
-      global_percent: 0,
-      bytes_total: null,
-      bytes_done: null,
-      speed_bps: 0,
-      eta_seconds: null
-    })
-    setInstallError(null)
-    let errored = false
-    try {
-      await installExtension(
-        ext.id,
-        downloadUrl
-          ? {
-              downloadUrl,
-              onProgress: (p) => setInstallProgress(p),
-              onError: (e) => {
-                setInstallError(e)
-                errored = true
-              }
-            }
-          : {
-              onProgress: (p) => setInstallProgress(p),
-              onError: (e) => {
-                setInstallError(e)
-                errored = true
-              }
-            }
-      )
-      if (errored) return
+    await globalHandleInstall(ext.id, ext.name, ext.icon, downloadUrl)
+    if (!installState.error) {
       const freshData = await loadData(true)
-
-      // Update selectedSkill if it's the one we just installed
       if (selectedSkill?.id === ext.id) {
         const updated = freshData.find((s) => s.id === ext.id)
         if (updated) setSelectedSkill(updated)
         setSelectedManifest(null)
-      }
-    } catch (err) {
-      setInstallError({
-        ok: false,
-        status: 500,
-        error: 'install_failed',
-        message: String(err)
-      })
-      errored = true
-    } finally {
-      if (errored) {
-        // On error, keep installing set so the error card is visible.
-        // Clear it after a short delay so the user sees the error.
-        setTimeout(() => setInstalling(null), 5000)
-      } else {
-        setInstalling(null)
-        setInstallProgress(null)
       }
     }
   }
@@ -1434,7 +1409,15 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
       })
   }, [installedSkills])
 
-  const currentList = viewMode === 'library' ? [...builtinSkills, ...installedSkills] : storeSkills
+  const typeFilters = ['Todas', 'Skills', 'UI', 'Background', 'Temas']
+  const filteredByType = useMemo(() => {
+    if (activeTypeFilter === 'Todas') return storeSkills
+    const typeMap: Record<string, string> = { Skills: 'skill', UI: 'ui', Background: 'background', Temas: 'theme' }
+    const targetType = typeMap[activeTypeFilter]
+    return storeSkills.filter((s) => s.inferredTypes?.includes(targetType))
+  }, [storeSkills, activeTypeFilter])
+
+  const currentList = viewMode === 'library' ? [...builtinSkills, ...installedSkills] : filteredByType
 
   const allTags = useMemo(() => {
     const tags = new Set<string>()
@@ -1519,6 +1502,13 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
                         'Testar Loja'
                       )}
                     </button>
+                    <button
+                      onClick={() => simulateInstall('whatsapp', 'WhatsApp')}
+                      className="px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider text-zinc-600 hover:text-zinc-400 border border-dashed border-zinc-700/50 hover:border-zinc-500 transition-all"
+                      title="Simular instalação (debug)"
+                    >
+                      Simular
+                    </button>
                   </div>
                 )}
               </div>
@@ -1586,16 +1576,9 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
               }}
               onInstall={handleInstall}
               onToggle={handleToggle}
+              installingId={installState.id}
               onUninstall={handleUninstall}
-              installing={installing}
-              installProgress={installProgress}
-              installError={installError}
               recommendedVersionByExtId={recommendedVersionByExtId}
-              onDismissError={() => {
-                setInstallError(null)
-                setInstalling(null)
-                setInstallProgress(null)
-              }}
             />
           ) : (
             /* ─── List View ─── */
@@ -1783,6 +1766,23 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
                     </div>
                   ) : null}
 
+                  {/* Type Filter Tabs */}
+                  <div className="flex gap-2 mb-4">
+                    {typeFilters.map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setActiveTypeFilter(t)}
+                        className={`px-3 py-1 rounded-lg text-sm ${
+                          activeTypeFilter === t
+                            ? 'bg-accent text-white'
+                            : 'bg-zinc-800 text-zinc-400'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+
                   {/* Skills Grid */}
                   {loading || switchingMode ? (
                     <div className="w-full min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -1818,25 +1818,6 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
           onConfirm={confirmUninstall}
           onCancel={cancelUninstall}
         />
-      )}
-
-      {installing && !selectedSkill && (installProgress || installError) && (
-        <div className="fixed bottom-4 right-4 z-50 max-w-md">
-          <ExtensionInstallCard
-            progress={installError ? undefined : installProgress || undefined}
-            error={installError || undefined}
-            extName={allSkills.find((s) => s.id === installing)?.name || installing}
-            onDismiss={
-              installError
-                ? () => {
-                    setInstallError(null)
-                    setInstalling(null)
-                    setInstallProgress(null)
-                  }
-                : undefined
-            }
-          />
-        </div>
       )}
     </div>
   )

@@ -65,7 +65,9 @@ function enrichReleasesWithCompat(rawReleases, manifestCompat) {
         changelog: r.body || '',
         date: r.published_at || r.created_at || null,
         prerelease: r.prerelease || false,
-        momai_compat: compatFromBody || manifestCompat || null
+        momai_compat: compatFromBody || manifestCompat || null,
+        download_size: zipAsset?.size || null,
+        estimated_install_size: zipAsset?.size ? zipAsset.size * 3 : null
       }
     })
     .filter((r) => r.version && r.download_url)

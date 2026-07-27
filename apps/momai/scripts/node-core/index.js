@@ -536,6 +536,17 @@ async function startServer() {
     })
   ])
 
+  // Start extension dev watcher
+  let devWatcher = null
+  try {
+    const { ExtensionDevWatcher } = require('./services/extension-dev-watcher')
+    devWatcher = new ExtensionDevWatcher(_skillRegistry, require('./services/extension-events'), DATA_DIR)
+    devWatcher.start()
+    context.devWatcher = devWatcher
+  } catch (err) {
+    info('[dev-watcher] Failed to start:', err.message)
+  }
+
   // Setup WebSocket and update context with real functions
   if (websocket.setupWebSocket) {
     const wsResult = websocket.setupWebSocket({

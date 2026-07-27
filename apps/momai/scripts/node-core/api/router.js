@@ -2,7 +2,7 @@ const http = require('node:http')
 const { authMiddleware } = require('../middleware/auth.js')
 const { createRateLimiter } = require('../middleware/rate-limit.js')
 
-const PUBLIC_PATHS = new Set(['/health', '/extensions/events'])
+const PUBLIC_PATHS = new Set(['/health', '/extensions/events', '/extensions/dev-reload'])
 
 function isPublicPath(pathname, method) {
   if (method === 'OPTIONS') return true

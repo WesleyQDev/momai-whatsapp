@@ -1,0 +1,25 @@
+{
+  "name": "momai-sdk",
+  "version": "1.0.0",
+  "description": "MomAI Extension SDK — TypeScript types, mock implementation, and runtime adapter",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./mock": {
+      "types": "./mock/index.d.ts",
+      "default": "./mock/index.js"
+    }
+  },
+  "files": ["dist", "mock"],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

@@ -17,6 +17,13 @@ describe('extension-host-manager', () => {
     })
   })
 
+  describe('worker pool', () => {
+    it('should have pool configuration defaults', () => {
+      expect(manager.POOL_MAX_SIZE).toBe(2)
+      expect(manager.WORKER_TIMEOUT_MS).toBe(30000)
+    })
+  })
+
   describe('startPersistent path containment', () => {
     it('rejects backgroundScript that escapes the extension directory via ..', async () => {
       const skillPath = path.resolve('/tmp/ext/whatsapp')

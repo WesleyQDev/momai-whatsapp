@@ -1,0 +1,22 @@
+{
+  "id": "${id}",
+  "name": "${name}",
+  "version": "1.0.0",
+  "description": "A MomAI extension",
+  "sdkVersion": 1,
+  "momai_compat": ">=1.4.0",
+  "author": "",
+  "icon": "",
+  "background": false,
+  "ui": {
+    "page": false,
+    "panel": false
+  },
+  "eventTypes": [],
+  "tools": [],
+  "permissions": {
+    "network": { "allowed": false },
+    "filesystem": { "allowed": false },
+    "process": { "allowed": false }
+  }
+}

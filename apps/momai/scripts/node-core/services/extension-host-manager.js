@@ -9,6 +9,8 @@ const path = require('node:path')
 const fs = require('node:fs')
 const { EventEmitter } = require('node:events')
 const extensionEvents = require('./extension-events')
+const shared = require('./shared-state')
+const { ExtensionHealthCheck } = require('./extension-health')
 
 // Secure-storage bridge: forward safeStorage requests from extension workers
 // to the Electron main process, which holds the OS keychain handle.
@@ -125,6 +127,13 @@ class ExtensionHostManager extends EventEmitter {
     this.pendingReady = new Map()
     this.restartCounts = new Map()
     this.requestIdCounter = 0
+    // Worker pool for one-shot commands
+    this.workerPool = new Map() // skillId -> { workers: [], maxSize: number }
+    this.idleWorkers = [] // [{ skillId, worker, skillPath }]
+    this.POOL_MAX_SIZE = 2 // configurable pool size
+    this.WORKER_TIMEOUT_MS = 30000 // idle worker timeout
+    this._poolTimer = null
+    this.healthCheck = new ExtensionHealthCheck(this, shared.store)
   }
 
   _spawnHost(skillId, skillPath, extraEnv) {
@@ -183,8 +192,17 @@ class ExtensionHostManager extends EventEmitter {
   }
 
   async execute(skillId, skillPath, payload) {
-    const host = await this.getHost(skillId, skillPath, payload.manifest)
-    return this._sendRequest(host.process, payload)
+    if (payload.persistent) {
+      const host = await this.getHost(skillId, skillPath, payload.manifest)
+      return this._sendRequest(host.process, payload)
+    }
+    const worker = await this._getPooledWorker(skillId, skillPath)
+    try {
+      const result = await this._sendRequest(worker, payload)
+      return result
+    } finally {
+      this._releaseWorker(skillId, worker)
+    }
   }
 
   async startPersistent(skillId, skillPath, manifest) {
@@ -222,6 +240,8 @@ class ExtensionHostManager extends EventEmitter {
     })
     const entry = { child, skillId, manifest, startedAt: Date.now() }
     this.persistentHosts.set(skillId, entry)
+    this.healthCheck.register(skillId, skillPath, manifest)
+    this.healthCheck.start()
 
     child.on('message', (msg) => {
       switch (msg.type) {
@@ -244,6 +264,9 @@ class ExtensionHostManager extends EventEmitter {
         case 'log':
           console.log(`[ext:${skillId}]`, msg.message)
           break
+        case 'heartbeat':
+          this.healthCheck.recordHeartbeat(skillId)
+          break
         case 'secure-storage:encrypt':
         case 'secure-storage:decrypt':
           _forwardSecureStorageRequest(child, msg)
@@ -265,20 +288,10 @@ class ExtensionHostManager extends EventEmitter {
         this.pendingCalls.delete(reqId)
       }
 
-      const count = (this.restartCounts.get(skillId) || 0) + 1
-      this.restartCounts.set(skillId, count)
-
-      const entry = this.persistentHosts.get(skillId)
-      const ranLongEnough = entry && Date.now() - entry.startedAt > 60000
-
       this.persistentHosts.delete(skillId)
 
-      if (count <= 3 && ranLongEnough) {
-        const delay = Math.min(1000 * Math.pow(3, count - 1), 5000)
-        setTimeout(() => this.startPersistent(skillId, skillPath, manifest), delay)
-      } else {
-        this.emit(`${skillId}:crashed`, { code, restartCount: count })
-      }
+      // Delegate to health check for restart/crash handling
+      this.healthCheck.recordCrash(skillId)
     })
 
     return new Promise((resolve, reject) => {
@@ -323,6 +336,154 @@ class ExtensionHostManager extends EventEmitter {
     })
   }
 
+  _initPoolTimer() {
+    if (this._poolTimer) return
+    this._poolTimer = setInterval(() => this._reapIdleWorkers(), 15000)
+    this._poolTimer.unref()
+  }
+
+  _reapIdleWorkers() {
+    const now = Date.now()
+    const remaining = []
+    for (const entry of this.idleWorkers) {
+      if (now - entry.idleSince > this.WORKER_TIMEOUT_MS) {
+        try {
+          entry.worker.kill()
+        } catch {}
+        const pool = this.workerPool.get(entry.skillId)
+        if (pool) {
+          pool.workers = pool.workers.filter((w) => w !== entry.worker)
+        }
+      } else {
+        remaining.push(entry)
+      }
+    }
+    this.idleWorkers = remaining
+  }
+
+  _createPoolWorker(skillId, skillPath) {
+    const child = this._spawnHost(skillId, skillPath, {})
+    const workerEntry = { process: child, skillId, skillPath, busy: false }
+
+    child.on('message', (msg) => {
+      if (msg.type === 'ready') {
+        child._ready = true
+      } else if (msg.type === 'response') {
+        this._resolvePending(msg.requestId, msg.result)
+      } else if (msg.type === 'log') {
+        console.log(`[ext:pool:${skillId}] ${msg.message}`)
+      } else if (msg.type === 'secure-storage:encrypt' || msg.type === 'secure-storage:decrypt') {
+        _forwardSecureStorageRequest(child, msg)
+      }
+    })
+
+    child.on('exit', () => {
+      const pool = this.workerPool.get(skillId)
+      if (pool) {
+        pool.workers = pool.workers.filter((w) => w.process !== child)
+      }
+      this.idleWorkers = this.idleWorkers.filter((w) => w.worker !== child)
+    })
+
+    return workerEntry
+  }
+
+  async _getPooledWorker(skillId, skillPath) {
+    this._initPoolTimer()
+
+    if (!this.workerPool.has(skillId)) {
+      this.workerPool.set(skillId, { workers: [], maxSize: this.POOL_MAX_SIZE })
+    }
+    const pool = this.workerPool.get(skillId)
+
+    // Find an idle worker
+    const idleIndex = this.idleWorkers.findIndex((w) => w.skillId === skillId)
+    if (idleIndex !== -1) {
+      const entry = this.idleWorkers[idleIndex]
+      this.idleWorkers.splice(idleIndex, 1)
+      if (entry.worker.connected && !entry.worker.killed) {
+        entry.worker.busy = true
+        return entry.worker
+      }
+      // Idle worker died — remove from pool
+      pool.workers = pool.workers.filter((w) => w.process !== entry.worker)
+    }
+
+    // Create new worker if below pool limit
+    if (pool.workers.length < pool.maxSize) {
+      const worker = this._createPoolWorker(skillId, skillPath)
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Pool worker ready timeout')), 10000)
+        const check = () => {
+          if (worker.process._ready) {
+            clearTimeout(timeout)
+            resolve()
+          } else {
+            setTimeout(check, 50)
+          }
+        }
+        check()
+      })
+      worker.busy = true
+      pool.workers.push(worker)
+      return worker
+    }
+
+    // Pool at capacity — wait for an idle worker
+    return new Promise((resolve, reject) => {
+      const check = () => {
+        const idle = this.idleWorkers.findIndex((w) => w.skillId === skillId)
+        if (idle !== -1) {
+          const entry = this.idleWorkers[idle]
+          this.idleWorkers.splice(idle, 1)
+          if (entry.worker.connected && !entry.worker.killed) {
+            entry.worker.busy = true
+            resolve(entry.worker)
+            return
+          }
+          pool.workers = pool.workers.filter((w) => w.process !== entry.worker)
+        }
+        if (pool.workers.length < pool.maxSize) {
+          const worker = this._createPoolWorker(skillId, skillPath)
+          worker.busy = true
+          pool.workers.push(worker)
+          resolve(worker)
+          return
+        }
+        setTimeout(check, 100)
+      }
+      const timeout = setTimeout(() => reject(new Error('Pool worker timeout')), 15000)
+      check().finally(() => clearTimeout(timeout))
+    })
+  }
+
+  _releaseWorker(skillId, child) {
+    const pool = this.workerPool.get(skillId)
+    if (!pool) {
+      try { child.kill() } catch {}
+      return
+    }
+    child.busy = false
+    this.idleWorkers.push({ skillId, worker: child, skillPath: null, idleSince: Date.now() })
+  }
+
+  stopPool() {
+    if (this._poolTimer) {
+      clearInterval(this._poolTimer)
+      this._poolTimer = null
+    }
+    for (const entry of this.idleWorkers) {
+      try { entry.worker.kill() } catch {}
+    }
+    this.idleWorkers = []
+    for (const [skillId, pool] of this.workerPool) {
+      for (const worker of pool.workers) {
+        try { worker.process.kill() } catch {}
+      }
+    }
+    this.workerPool.clear()
+  }
+
   async sendToPersistent(skillId, message) {
     const entry = this.persistentHosts.get(skillId)
     if (!entry) throw new Error(`No persistent host for ${skillId}`)
@@ -338,6 +499,7 @@ class ExtensionHostManager extends EventEmitter {
     const { child } = entry
     this.persistentHosts.delete(skillId)
     this.restartCounts.delete(skillId)
+    this.healthCheck.unregister(skillId)
     try {
       child.send({ type: 'shutdown' })
     } catch {}
@@ -367,6 +529,7 @@ class ExtensionHostManager extends EventEmitter {
     for (const id of [...this.persistentHosts.keys()]) {
       await this.stopPersistent(id)
     }
+    this.healthCheck.stop()
   }
 
   terminate(skillId) {
@@ -382,6 +545,7 @@ class ExtensionHostManager extends EventEmitter {
       this.terminate(skillId)
     }
     this.stopAllPersistent()
+    this.stopPool()
   }
 }
 

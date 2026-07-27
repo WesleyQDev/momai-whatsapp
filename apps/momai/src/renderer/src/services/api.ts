@@ -588,6 +588,8 @@ export interface Extension {
     } | null
   }
   compat_status?: 'compatible' | 'incompatible' | 'unknown'
+  worker_crashed?: boolean
+  inferredTypes?: string[]
 }
 
 export interface ExtensionRelease {
@@ -600,6 +602,8 @@ export interface ExtensionRelease {
   compatible: boolean
   momai_compat?: string
   requires_momai?: string
+  download_size?: number | null
+  estimated_install_size?: number | null
 }
 
 export interface ExtensionReleasesResponse {

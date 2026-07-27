@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createElement } from 'react'
 import { getRenderer, hasRenderer } from '../components/chat/SkillResponseRegistry'
-import { loadSkillRenderer } from '../components/chat/ExtensionRendererLoader'
+import { loadSkillRenderer, ScopedExtensionContainer } from '../components/chat/ExtensionRendererLoader'
 
 export default function OverlayView() {
   const [data, setData] = useState<any>(null)
@@ -115,6 +115,7 @@ export default function OverlayView() {
           onClick={handleBackdropClick}
         >
           <div className="max-h-full flex flex-col min-h-0" onClick={(e) => e.stopPropagation()}>
+            <ScopedExtensionContainer extId={data.skillId || data.structuredResponse.type}>
             {createElement(Renderer, {
               data: {
                 ...data.structuredResponse.data,
@@ -122,6 +123,7 @@ export default function OverlayView() {
                 onSend: data.structuredResponse.data?.onSend
               }
             })}
+          </ScopedExtensionContainer>
           </div>
         </div>
       )

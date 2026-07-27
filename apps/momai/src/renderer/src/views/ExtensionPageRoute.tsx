@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router'
 import { useInstalledSkill } from '../hooks/useInstalledSkill'
-import { loadSkillRenderer } from '../components/chat/ExtensionRendererLoader'
+import { loadSkillRenderer, ScopedExtensionContainer } from '../components/chat/ExtensionRendererLoader'
 import { getRenderer } from '../components/chat/SkillResponseRegistry'
 import { ArrowPathIcon } from '@heroicons/react/24/outline'
 
@@ -65,5 +65,9 @@ export default function ExtensionPageRoute({ extensionId: propId, fallback: Fall
     )
   }
 
-  return <Component extensionId={skill.id} manifest={skill} />
+  return (
+    <ScopedExtensionContainer extId={skill.id}>
+      <Component extensionId={skill.id} manifest={skill} />
+    </ScopedExtensionContainer>
+  )
 }

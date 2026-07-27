@@ -27,6 +27,8 @@ import InfoPanel from './components/InfoPanel'
 import ExtensionPanel from './components/ExtensionPanel'
 import NotificationOverlay from './components/NotificationOverlay'
 import ExtensionPageRoute from './views/ExtensionPageRoute'
+import { InstallProgressProvider } from './stores/InstallProgressContext'
+import GlobalInstallBar from './components/extensions/GlobalInstallBar'
 import { useAudioFallback } from './hooks/useAudioFallback'
 import { useInitTtsRenderer } from './hooks/useInitTtsRenderer'
 import { useAppTheme } from './hooks/useAppTheme'
@@ -191,7 +193,7 @@ function App(): React.JSX.Element {
   const showSidebar = uiView === 'ChatDashboard'
 
   return (
-    <>
+    <InstallProgressProvider>
       {showWelcome && (
         <WelcomeScreen
           isFirstLaunch={isFirstLaunch}
@@ -389,7 +391,9 @@ function App(): React.JSX.Element {
           message={chat.voiceEngineLoading.message}
         />
       )}
-    </>
+
+      <GlobalInstallBar />
+    </InstallProgressProvider>
   )
 }
 

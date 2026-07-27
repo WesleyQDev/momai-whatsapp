@@ -2,6 +2,7 @@ const path = require('node:path')
 const fs = require('node:fs')
 const { filterToEditableSettings } = require('../../config/settings-allowlist.js')
 const { getEffectiveDevMode } = require('../../utils/install-registry.js')
+const { isSafeMode, setSafeMode } = require('../../services/extension-safe-mode')
 const { MEMORIES_DIR } = require('../../config/constants')
 const shared = require('../../services/shared-state')
 const { createMemoryFS } = require('../../infrastructure/memory-fs')
@@ -91,6 +92,13 @@ function createSettingsRoutes(context) {
           console.log(
             `[settings] Deactivated all extensions for the dev_mode switch (${prevDevMode} → ${newDevMode}). User must re-enable them in the new mode.`
           )
+        }
+        if (safePayload.safe_mode !== undefined && safePayload.safe_mode !== isSafeMode()) {
+          setSafeMode(safePayload.safe_mode)
+          if (safePayload.safe_mode && context.extensionHostManager) {
+            console.log('[settings] Safe mode enabled; stopping all persistent workers...')
+            await context.extensionHostManager.stopAllPersistent().catch(() => {})
+          }
         }
         if (payload.tts_engine) {
           const tier = store.settings.ai_tier || 'pro'

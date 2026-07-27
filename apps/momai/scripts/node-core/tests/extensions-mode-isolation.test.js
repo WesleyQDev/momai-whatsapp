@@ -127,7 +127,7 @@ describe('extensions.routes — mode isolation helpers', () => {
       })
 
       expect(handled).toBe(true)
-      expect(fs.existsSync(realDir)).toBe(false)
+      expect(fs.existsSync(realDir)).toBe(true)  // devMode=symlink, only .dev/ is removed
       expect(fs.existsSync(devLink)).toBe(false)
       expect(store.extensions).toEqual([])
 
@@ -238,7 +238,7 @@ describe('extensions.routes — mode isolation helpers', () => {
       expect(lstat.isSymbolicLink()).toBe(true)
     })
 
-    it('in store_test mode: removes .dev/<id> symlink or real directory', () => {
+    it('in store_test mode: preserves .dev/<id> symlink (symlinks represent local checkouts)', () => {
       const realDir = path.join(extensionsDir, 'whatsapp')
       const devLink = path.join(extensionsDevDir, 'whatsapp')
       writeManifest(realDir, { id: 'whatsapp', name: 'Real', version: '1.0.0' })
@@ -248,12 +248,10 @@ describe('extensions.routes — mode isolation helpers', () => {
       cleanupOppositeModeArtifact(extensionsDir, extensionsDevDir, 'whatsapp', 'store_test')
 
       expect(fs.existsSync(realDir)).toBe(true)
-      expect(fs.existsSync(devLink)).toBe(false)
+      expect(fs.existsSync(devLink)).toBe(true)  // symlinks are NEVER deleted
     })
 
-    it('in store mode (production): removes .dev/<id> symlink or real directory', () => {
-      // Production installs behave like store_test on disk: real dir at
-      // extensionsDir/<id>, no .dev symlink.
+    it('in store mode (production): preserves .dev/<id> symlink (symlinks represent local checkouts)', () => {
       const realDir = path.join(extensionsDir, 'whatsapp')
       const devLink = path.join(extensionsDevDir, 'whatsapp')
       writeManifest(realDir, { id: 'whatsapp', name: 'Real', version: '1.0.0' })
@@ -263,7 +261,7 @@ describe('extensions.routes — mode isolation helpers', () => {
       cleanupOppositeModeArtifact(extensionsDir, extensionsDevDir, 'whatsapp', 'store')
 
       expect(fs.existsSync(realDir)).toBe(true)
-      expect(fs.existsSync(devLink)).toBe(false)
+      expect(fs.existsSync(devLink)).toBe(true)  // symlinks are NEVER deleted
     })
   })
 })

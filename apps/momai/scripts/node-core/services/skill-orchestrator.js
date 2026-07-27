@@ -8,6 +8,7 @@ const {
   satisfiesRange,
   findBestCompatibleRelease
 } = require('../utils/semver-compat')
+const { inferExtensionTypes } = require('./extension-type-infer')
 const store = shared.store
 
 function getAppVersion() {
@@ -167,6 +168,8 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
           skill.kind === 'builtin' || skill.kind === 'packaged' || manifest.author === 'WesleyQDev',
         version: manifest.version || null,
         momai_compat: manifest.momai_compat || null,
+        sdkVersion: manifest.sdkVersion || 1,
+        inferredTypes: inferExtensionTypes(manifest),
         compat_status: computeCompatStatus(appVersion, manifest.momai_compat),
         tools: (manifest.tools || []).map((t) => t.name),
 

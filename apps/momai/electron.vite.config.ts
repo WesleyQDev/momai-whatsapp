@@ -102,7 +102,8 @@ export default defineConfig({
   renderer: {
     resolve: {
       alias: {
-        '@renderer': resolve(__dirname, 'src/renderer/src')
+        '@renderer': resolve(__dirname, 'src/renderer/src'),
+        'momai:sdk': resolve(__dirname, 'src/sdk/runtime.ts')
       },
       dedupe: [
         '@codemirror/state',

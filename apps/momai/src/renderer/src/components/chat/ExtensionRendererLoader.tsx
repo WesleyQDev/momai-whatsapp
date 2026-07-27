@@ -49,4 +49,13 @@ export async function loadSkillRenderer(
 const pageCache = new Map<string, any>()
 const panelCache = new Map<string, any>()
 
-export { GenericExtensionCard }
+function ScopedExtensionContainer({ extId, children, styles }: { extId: string; children: React.ReactNode; styles?: string }) {
+  return (
+    <div className={`ext-${extId}`}>
+      {styles && <style>{styles}</style>}
+      {children}
+    </div>
+  )
+}
+
+export { GenericExtensionCard, ScopedExtensionContainer }

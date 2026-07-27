@@ -10,7 +10,18 @@ Se você quer contribuir com código, docs ou ideias:
 |-----------|-----------|
 | [Guia de Desenvolvimento](development.md) | Setup, comandos, convenções de código |
 | [Arquitetura](architecture.md) | Visão geral do sistema, componentes, fluxos |
-| [Extensões/Skills](extensions.md) | Plataforma de extensões, runtime, UI |
+| [Extensões/Skills](extensions.md) | Plataforma de extensões, runtime, UI (visão geral) |
+| [SDK Referência](extension-sdk.md) | API completa do SDK `momai-sdk` |
+| [Guia de Build](extension-build.md) | Como criar o bundle da extensão (esbuild) |
+| [Manifest](extension-manifest.md) | Schema completo do manifest.json |
+| [Compatibilidade](extension-compatibilidade.md) | Versionamento (sdkVersion, momai_compat) |
+| [Segurança](extension-seguranca.md) | Permissões, path traversal, safe mode |
+| [Worker](extension-worker.md) | Health check, crash recovery, rollback |
+| [Dados](extension-dados.md) | Storage, migração, config/keychain |
+| [Funcionalidades Avançadas](extension-avancado.md) | OAuth, scheduler, notificações |
+| [Modos de Desenvolvimento](extension-modos.md) | Symlink, store_test, store, extensions-dev/ |
+| [Migration Guide](extension-migration.md) | Como migrar extensões existentes para a SDK |
+| [Guia de Publicação](extension-publishing-guide.md) | Como publicar no catálogo comunitário |
 | [Labels](labels.md) | Convenções de labels para issues e PRs |
 
 ### Aplicações

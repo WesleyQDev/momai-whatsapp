@@ -2,6 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { createPermissionSchema } = require('../node-core/permissions/schema')
 const extensionHostManager = require('../node-core/services/extension-host-manager')
+const { getExtensionsDevPath } = require('./extensions-dev-path')
 
 function parseListValue(value) {
   const raw = String(value || '').trim()
@@ -258,6 +259,7 @@ async function loadSkillFromDir({ dir, kind, expectedId }) {
 function createSkillRegistry({ dataDir, builtinSkillsDir }) {
   const extensionsDir = path.join(dataDir, 'extensions')
   const extensionsDevDir = path.join(extensionsDir, '.dev')
+  const extensionsDevPath = getExtensionsDevPath(dataDir)
   let _skillsGeneration = 0
   const state = {
     builtins: new Map(),
@@ -366,8 +368,11 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       scanRoots.push({ root: extensionsDir })
     }
 
+    // Always scan extensions-dev/ for external SDK dev workflow
+    scanRoots.push({ root: extensionsDevPath, source: 'dev' })
+
     const seenIds = new Set()
-    for (const { root } of scanRoots) {
+    for (const { root, source } of scanRoots) {
       if (!fs.existsSync(root)) continue
       for (const name of fs.readdirSync(root)) {
         // Skip the .dev folder when scanning extensionsDir (avoid recursion).
@@ -381,6 +386,12 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
         if (!skill) continue
         if (seenIds.has(skill.id)) continue
         seenIds.add(skill.id)
+
+        // Tag with source
+        if (source === 'dev') {
+          skill.source = 'dev'
+        }
+
         state.extensions.set(skill.id, skill)
       }
     }
