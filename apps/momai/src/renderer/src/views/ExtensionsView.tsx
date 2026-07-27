@@ -336,42 +336,7 @@ interface Badge {
   className: string
 }
 
-function getExtensionBadges(skill: Extension): Badge[] {
-  const badges: Badge[] = []
-
-  if (skill.installed !== false && skill.category !== 'community') {
-    badges.push({
-      label: 'Instalada',
-      className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
-    })
-  }
-  if ((skill.source as string) === 'dev') {
-    badges.push({
-      label: 'Dev 🔧',
-      className: 'bg-amber-500/10 text-amber-400 border border-amber-500/25'
-    })
-  }
-  if (skill.updateAvailable) {
-    badges.push({
-      label: 'Atualização disponível',
-      className: 'bg-blue-500/10 text-blue-400 border border-blue-500/25 animate-pulse'
-    })
-  }
-  if (skill.compat_status === 'incompatible') {
-    badges.push({
-      label: 'Requer MomAI v1.7+',
-      className: 'bg-red-500/10 text-red-400 border border-red-500/25'
-    })
-  }
-  if (skill.worker_crashed) {
-    badges.push({
-      label: 'Worker crashed',
-      className: 'bg-red-500/10 text-red-400 border border-red-500/25 animate-pulse'
-    })
-  }
-
-  return badges
-}
+/* Badges removidas — lojas não usam badges, apenas botões e mensagens claras */
 
 /* ─── Carousel Banner ─── */
 function FeaturedCarousel({
@@ -568,17 +533,10 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
         >
           {skill.name}
         </h3>
-        {getExtensionBadges(skill).length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {getExtensionBadges(skill).map((badge, i) => (
-              <span
-                key={i}
-                className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${badge.className}`}
-              >
-                {badge.label}
-              </span>
-            ))}
-          </div>
+        {skill.source === 'dev' && (
+          <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/25 mb-2 inline-block">
+            Dev 🔧
+          </span>
         )}
         <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed mb-4 min-h-[2.5rem]">
           {skill.description}
@@ -801,32 +759,11 @@ function SkillDetailView({
                     Incompatível mais recente
                   </span>
                 )}
-                {skill.compat_status === 'incompatible' && (
-                  <span
-                    className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-900/30 text-red-300 text-xs font-medium"
-                    title="Versão instalada não é compatível com a sua versão do MomAI"
-                  >
-                    {t('extensions.install.incompatible')}
-                  </span>
-                )}
-              </div>
               {skill.compat_status === 'incompatible' && (
-                <div className="mt-2">
-                  <button
-                    onClick={() => onInstall(skill, undefined)}
-                    disabled={
-                      recommendedVersionByExtId?.[skill.id] === null
-                    }
-                    title={
-                      recommendedVersionByExtId?.[skill.id] === null
-                        ? t('extensions.install.no_compatible')
-                        : ''
-                    }
-                    className="px-3 py-1.5 bg-blue-600/80 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all"
-                  >
-                    {t('extensions.actions.update')}
-                  </button>
-                </div>
+                <p className="text-red-500 text-sm font-medium">
+                  {t('extensions.install.incompatible')} Atualize para a{' '}
+                  {skill.momai_compat?.replace('>=', 'v') || 'versão mais recente'}
+                </p>
               )}
             </div>
             <div className="w-px h-6 bg-zinc-800" />
@@ -857,7 +794,7 @@ function SkillDetailView({
                 GitHub
               </a>
             )}
-            {!isBuiltin && !isInstalled ? (
+            {!isBuiltin && !isInstalled && skill.compat_status !== 'incompatible' ? (
               <button
                 onClick={() => onInstall(skill)}
                 disabled={installingId === skill.id}

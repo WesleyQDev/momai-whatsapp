@@ -1,52 +1,52 @@
 {
-    "extensions":  [
-                       {
-                           "id":  "system_info",
-                           "name":  "Dashboard do Sistema",
-                           "description":  "Veja o uso de recursos do seu computador em tempo real (Versão Remota).",
-                           "author":  "WesleyQDev",
-                           "version":  "0.1.0",
-                           "download_url":  "https://github.com/WesleyQDev/momai-system-info/archive/refs/tags/v0.1.zip",
-                           "is_official":  true
-                       },
-                       {
-                           "id":  "whatsapp",
-                           "name":  "WhatsApp",
-                           "description":  "Monitore e responda mensagens do WhatsApp",
-                           "category":  "utility",
-                           "icon":  "WhatsApp",
-                           "icon_url":  "https://raw.githubusercontent.com/WesleyQDev/momai-whatsapp-extension/main/icon.svg",
-                           "icon_bg":  "#25D366",
-                           "author":  "WesleyQDev",
-                           "version":  "0.4.0",
-                           "download_url":  "https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.3.40/momai-whatsapp-extension-v0.3.40.zip",
-                           "repo":  "WesleyQDev/momai-whatsapp-extension",
-                           "is_official":  true,
-                           "locales":  {
-                                           "pt-BR":  {
-                                                         "name":  "WhatsApp",
-                                                         "description":  "Monitore e responda mensagens do WhatsApp"
-                                                     }
-                                       }
-                       },
-                       {
-                           "id":  "launcher",
-                           "name":  "MomAI Open",
-                           "description":  "Opens programs, apps, folders, files and URLs on your computer via voice or text commands.",
-                           "category":  "utility",
-                           "icon":  "RocketLaunch",
-                           "icon_bg":  "#0066CC",
-                           "author":  "WesleyQDev",
-                           "version":  "1.0.0",
-                           "download_url":  "https://github.com/WesleyQDev/momai-open/archive/refs/heads/main.zip",
-                           "repo":  "WesleyQDev/momai-open",
-                           "is_official":  true,
-                           "locales":  {
-                                           "pt-BR":  {
-                                                         "name":  "MomAI Open",
-                                                         "description":  "Abre programas, aplicativos, pastas, arquivos e URLs no computador através de comandos de voz e texto."
-                                                     }
-                                       }
-                       }
-                   ]
+  "extensions": [
+    {
+      "id": "system_info",
+      "name": "Dashboard do Sistema",
+      "description": "Veja o uso de recursos do seu computador em tempo real (Versão Remota).",
+      "author": "WesleyQDev",
+      "version": "0.1.0",
+      "download_url": "https://github.com/WesleyQDev/momai-system-info/archive/refs/tags/v0.1.zip",
+      "is_official": true
+    },
+    {
+      "id": "whatsapp",
+      "name": "WhatsApp",
+      "description": "Monitore e responda mensagens do WhatsApp",
+      "category": "utility",
+      "icon": "WhatsApp",
+      "icon_url": "https://raw.githubusercontent.com/WesleyQDev/momai-whatsapp-extension/main/icon.svg",
+      "icon_bg": "#25D366",
+      "author": "WesleyQDev",
+      "version": "0.3.40",
+      "download_url": "https://github.com/WesleyQDev/momai-whatsapp-extension/releases/download/v0.3.40/momai-whatsapp-extension-v0.3.40.zip",
+      "repo": "WesleyQDev/momai-whatsapp-extension",
+      "is_official": true,
+      "locales": {
+        "pt-BR": {
+          "name": "WhatsApp",
+          "description": "Monitore e responda mensagens do WhatsApp"
+        }
+      }
+    },
+    {
+      "id": "launcher",
+      "name": "MomAI Open",
+      "description": "Opens programs, apps, folders, files and URLs on your computer via voice or text commands.",
+      "category": "utility",
+      "icon": "RocketLaunch",
+      "icon_bg": "#0066CC",
+      "author": "WesleyQDev",
+      "version": "1.1.0","sdkVersion": 1,"momai_compat": ">=1.7.0",
+      "download_url": "https://github.com/WesleyQDev/momai-open/archive/refs/heads/main.zip",
+      "repo": "WesleyQDev/momai-open",
+      "is_official": true,
+      "locales": {
+        "pt-BR": {
+          "name": "MomAI Open",
+          "description": "Abre programas, aplicativos, pastas, arquivos e URLs no computador através de comandos de voz e texto."
+        }
+      }
+    }
+  ]
 }

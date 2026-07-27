@@ -257,7 +257,10 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         is_official: raw.is_official || false,
         stars: communityStarsMap.get(raw.id) || 0,
         repo: raw.repo || null,
-        readme: localized.description || raw.description
+        readme: localized.description || raw.description,
+        sdkVersion: raw.sdkVersion || null,
+        momai_compat: raw.momai_compat || null,
+        compat_status: computeCompatStatus(appVersion, raw.momai_compat)
       }
     })
 
@@ -281,7 +284,10 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         readme: ext.description,
         icon: matchedComm ? matchedComm.icon : ext.icon || null,
         icon_url: matchedComm ? matchedComm.icon_url : ext.icon_url || null,
-        icon_bg: matchedComm ? matchedComm.icon_bg : ext.icon_bg || null
+        icon_bg: matchedComm ? matchedComm.icon_bg : ext.icon_bg || null,
+        sdkVersion: ext.sdkVersion || null,
+        momai_compat: ext.momai_compat || null,
+        compat_status: computeCompatStatus(appVersion, ext.momai_compat)
       })
     }
   }
