@@ -760,7 +760,7 @@ function SkillDetailView({
                   </span>
                 )}
               </div>
-              {skill.compat_status === 'incompatible' && (
+              {!isInstalled && skill.compat_status === 'incompatible' && (
                 <p className="text-red-500 text-sm font-medium">
                   {t('extensions.install.incompatible')} Atualize para a{' '}
                   {skill.momai_compat?.replace('>=', 'v') || 'versão mais recente'}
