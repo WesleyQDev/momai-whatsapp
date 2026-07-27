@@ -805,7 +805,7 @@ function SkillDetailView({
                   {installingId === skill.id ? 'Instalando...' : 'Instalar'}
                 </span>
               </button>
-            ) : (
+            ) : isInstalled ? (
               <div className="flex items-center gap-3">
                 {skill.updateAvailable && (
                   <button
@@ -839,7 +839,7 @@ function SkillDetailView({
                   </button>
                 )}
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
