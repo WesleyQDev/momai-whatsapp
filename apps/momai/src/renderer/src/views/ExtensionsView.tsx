@@ -744,7 +744,7 @@ function SkillDetailView({
               </span>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-zinc-300 font-bold">
-                  {recommendedVersion || skill.version || '1.0.0'}
+                  {skill.version || recommendedVersion || '1.0.0'}
                 </span>
                 {skill.updateAvailable && (
                   <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-[8px] text-blue-400 font-black uppercase tracking-wider animate-pulse">
