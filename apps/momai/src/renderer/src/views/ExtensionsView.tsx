@@ -805,6 +805,22 @@ function SkillDetailView({
                   {installingId === skill.id ? 'Instalando...' : 'Instalar'}
                 </span>
               </button>
+            ) : !isBuiltin && !isInstalled && skill.compat_status === 'incompatible' ? (
+              {(() => {
+                const compatReleases = releases.filter((r) => r.compatible)
+                const bestCompat = compatReleases.sort((a, b) => b.version.localeCompare(a.version, undefined, { numeric: true }))[0]
+                const compatVer = bestCompat?.version || recommendedVersion
+                if (!compatVer) return null
+                return (
+                  <button
+                    onClick={() => onInstall(skill, bestCompat?.download_url)}
+                    disabled={installingId === skill.id}
+                    className="px-6 py-2 rounded-xl text-xs font-black transition-all uppercase tracking-widest border border-zinc-600 text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                  >
+                    {installingId === skill.id ? 'Instalando...' : `Instalar v${compatVer} (compatível)`}
+                  </button>
+                )
+              })()}
             ) : isInstalled ? (
               <div className="flex items-center gap-3">
                 {skill.updateAvailable && (
