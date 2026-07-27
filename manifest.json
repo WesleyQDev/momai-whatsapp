@@ -11,7 +11,9 @@
   "background": true,
   "backgroundScript": "background-worker.js",
   "permissions": ["network:persistent", "storage:persistent"],
-  "version": "0.3.40",
+  "sdkVersion": 1,
+  "momai_compat": ">=1.4.0 <2.0.0",
+  "version": "0.4.0",
   "ui": {
     "page": "dist/page.js",
     "pageType": "whatsapp-page",

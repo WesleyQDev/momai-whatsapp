@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import QRCode from 'qrcode'
+import sdk from 'momai:sdk'
 import { api } from './services/api'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { resolveWhatsAppChannel } from './utils/whatsappChannel'
-import { registerRenderer } from './registry-bridge'
 import ImageViewer from 'momai:image-viewer'
 
 interface Message {
@@ -232,7 +232,7 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
     )
   }
 
-  registerRenderer('whatsapp-page', WhatsAppView)
+  sdk.registry.registerRenderer('whatsapp-page', WhatsAppView)
 
   const isPhone = /^[+\d\s().-]*$/.test(name)
   const isGroup = id.endsWith('@g.us')

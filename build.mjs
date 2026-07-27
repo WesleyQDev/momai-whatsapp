@@ -78,6 +78,8 @@ const options = {
   sourcemap: true,
   outdir: 'dist',
   logLevel: 'info',
+  external: ['react', 'react-dom', 'react/jsx-runtime', 'momai:sdk'],
+  external: ['momai:sdk'],
   plugins: [makeReactGlobalPlugin],
   alias: {
     'momai:registry': path.resolve(momaiSrcDir, 'components/chat/SkillResponseRegistry.ts'),
@@ -87,9 +89,6 @@ const options = {
     'momai:text': path.resolve(momaiSrcDir, 'utils/text.ts'),
     'momai:tts-service': path.resolve(momaiSrcDir, 'services/ttsService.ts'),
     'momai:image-viewer': path.resolve(momaiSrcDir, 'components/ImageViewer.tsx')
-  },
-  banner: {
-    js: `;(function(){if(typeof window!=='undefined'&&!window.__skillRendererRegistry){window.__skillRendererRegistry={registerRenderer:function(){}};}})();`
   }
 }
 

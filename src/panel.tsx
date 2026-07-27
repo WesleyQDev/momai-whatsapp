@@ -2,29 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { XMarkIcon, MicrophoneIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline'
 import QRCode from 'qrcode'
 import ImageViewer from 'momai:image-viewer'
-import { API_URL } from 'momai:constants'
-import { registerRenderer } from './registry-bridge'
-
-async function rendererFetch(path: string, options: RequestInit = {}): Promise<Response> {
-  const token = window.api.getSessionToken()
-  const headers: Record<string, any> = {
-    'Content-Type': 'application/json'
-  }
-  if (options.headers) {
-    const h = options.headers as Record<string, any> | Headers
-    if (h instanceof Headers) {
-      h.forEach((v, k) => {
-        headers[k] = v
-      })
-    } else {
-      Object.assign(headers, h)
-    }
-  }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
-  return fetch(path, { ...options, headers })
-}
+import sdk from 'momai:sdk'
 
 type HistoryLine = {
   direction: 'incoming' | 'outgoing'
@@ -161,11 +139,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     async (intent: string) => {
       const displayContact = senderName || contact
       try {
-        const res = await rendererFetch(`${API_URL}/extensions/llm/complete`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: [
+        const { data } = await sdk.api.post('/extensions/llm/complete', {
+          prompt: [
               'Escreva APENAS o texto de uma mensagem de WhatsApp a ser enviada.',
               `Contato: ${displayContact}`,
               isGroup ? `Grupo: ${groupName}` : '',
@@ -183,9 +158,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             ]
               .filter(Boolean)
               .join('\n')
-          })
         })
-        const data = await res.json().catch(() => ({}))
         const expanded = (data?.text || '').trim()
         return expanded || intent
       } catch {
@@ -211,18 +184,13 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
       setSending(true)
       try {
-        const res = await rendererFetch(`${API_URL}/extensions/whatsapp/command`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            toolName: 'send_message',
-            args: { contact: contactJid, message: body }
-          })
+        const result = await sdk.api.post('/extensions/whatsapp/command', {
+          toolName: 'send_message',
+          args: { contact: contactJid, message: body }
         })
-        const data = await res.json().catch(() => ({}))
         if (gen !== interactionGenRef.current) return
-        if (!res.ok || data?.ok === false) {
-          console.error('[WhatsAppNotificationCard] sendReply failed:', data?.error)
+        if (!result.ok || result.data?.ok === false) {
+          console.error('[WhatsAppNotificationCard] sendReply failed:', result.data?.error)
           setSending(false)
           return
         }
@@ -265,28 +233,25 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     setVoiceStatus('listening')
     ;(async () => {
       try {
-        const res = await rendererFetch(`${API_URL}/voice/whatsapp/reply/wait`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contact_jid: contactJid }),
-          signal: controller.signal
-        })
+        const result = await sdk.api.post('/voice/whatsapp/reply/wait', { contact_jid: contactJid })
 
-        if (cancelled || !res.ok) return
+        if (cancelled || voiceGen !== interactionGenRef.current || !result.ok) {
+          if (!cancelled && voiceGen === interactionGenRef.current) {
+            setVoiceStatus('error')
+          }
+          return
+        }
 
-        const result = await res.json()
-        if (cancelled || voiceGen !== interactionGenRef.current) return
-
-        if (result.text?.trim()) {
+        if (result.data?.text?.trim()) {
           setVoiceStatus('complete')
-          await sendReply(result.text.trim(), voiceGen)
-        } else if (result.status === 'timeout') {
+          await sendReply(result.data.text.trim(), voiceGen)
+        } else if (result.data?.status === 'timeout') {
           setVoiceStatus('timeout')
         } else {
           setVoiceStatus('idle')
         }
-      } catch (err: any) {
-        if (!cancelled && err?.name !== 'AbortError') {
+      } catch {
+        if (!cancelled) {
           setVoiceStatus('error')
         }
       }
@@ -539,13 +504,9 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
     setLoading(true)
     setError(null)
     try {
-      const res = await rendererFetch(`${API_URL}/extensions/whatsapp/restart`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force: true })
-      })
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`)
+      const result = await sdk.api.post('/extensions/whatsapp/restart', { force: true })
+      if (!result.ok) {
+        throw new Error(result.error || `HTTP error`)
       }
     } catch (err: any) {
       console.error('Failed to reconnect/restart WhatsApp:', err)
@@ -630,10 +591,5 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
   )
 }
 
-const _hostRegister =
-  typeof window !== 'undefined'
-    ? (window as any).__skillRendererRegistry?.registerRenderer
-    : undefined
-const _register = _hostRegister ?? registerRenderer
-_register('whatsapp-panel', WhatsAppNotificationCard)
-_register('whatsapp-reconnect', WhatsAppReconnectCard)
+sdk.registry.registerRenderer('whatsapp-panel', WhatsAppNotificationCard)
+sdk.registry.registerRenderer('whatsapp-reconnect', WhatsAppReconnectCard)
