@@ -1014,7 +1014,7 @@ export default function WhatsAppView() {
               <img
                 src={qrUrl}
                 alt="QR Code"
-                className="mx-auto rounded-xl"
+                className="block mx-auto rounded-xl"
                 width={256}
                 height={256}
               />
