@@ -570,7 +570,7 @@ async function streamLlamaChat(req, res, payload) {
     }
   }
 
-  const isExplicitSkillRequest = /\b(abrir|abram|executar|rodar|pesquisar\s+no|youtube|whatsapp|skill|ferramenta|criar|agendar)\b/i.test(content)
+  const isExplicitSkillRequest = /\b(abrir|abram|executar|rodar|pesquisar\s+no|youtube|skill|ferramenta|criar|agendar)\b/i.test(content)
   const isVoiceResponse = isCallMode || isVoiceCommand || speakResponse
 
   const baseCtx = Number(llamaState.contextTotalTokens || 8192)

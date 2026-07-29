@@ -64,6 +64,7 @@ function skillBundlesPlugin(): Plugin {
       })
       if (!skillDir) return null
       const fullPath = join(skillDir, 'dist', filePath)
+      this.addWatchFile(fullPath)
       return readFileSync(fullPath, 'utf-8')
     }
   }

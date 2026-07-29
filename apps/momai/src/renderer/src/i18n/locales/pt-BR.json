@@ -528,5 +528,21 @@
   "reminders.tooltips.repeat": "Faz o lembrete se repetir em intervalo",
   "reminders.tooltips.interval": "De quanto em quanto tempo o lembrete deve repetir",
   "reminders.tooltips.limit": "Quantas vezes o lembrete deve disparar antes de parar (vazio = infinito)",
-  "reminders.tooltips.voice": "Quando ativado, o lembrete é lido em voz alta ao disparar"
+  "reminders.tooltips.voice": "Quando ativado, o lembrete é lido em voz alta ao disparar",
+
+  "extensions.permissions.group.network": "Acessar a rede",
+  "extensions.permissions.group.storage": "Acessar armazenamento local",
+  "extensions.permissions.group.system": "Acessar informações do sistema",
+  "extensions.permissions.group.ui": "Modificar a interface",
+  "extensions.permissions.group.chat": "Acessar mensagens do chat",
+  "extensions.permissions.group.notifications": "Enviar notificações",
+  "extensions.permissions.group.browser": "Controlar o navegador",
+  "extensions.permissions.group.oauth": "Gerenciar autenticação",
+  "extensions.permissions.group.scheduler": "Agendar tarefas",
+  "extensions.permissions.group.events": "Ouvir eventos do sistema",
+  "extensions.permissions.group.llm": "Acessar o modelo de linguagem",
+  "extensions.permissions.group.config": "Ler configurações da extensão",
+  "extensions.permissions.group.registry": "Registrar comandos e atalhos",
+  "extensions.permissions.group.other": "Outras permissões",
+  "extensions.permissions.none": "Nenhuma permissão especial"
 }

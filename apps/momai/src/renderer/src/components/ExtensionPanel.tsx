@@ -103,12 +103,12 @@ export default function ExtensionPanel({
         {!connected && qrUrl && (
           <div className="text-center space-y-3">
             <p className="text-xs text-text-muted">
-              Abra o WhatsApp no celular e escaneie o QR code
+              Escaneie o QR code abaixo com o aplicativo para autenticar
             </p>
             <img
               src={qrUrl}
               alt="QR Code"
-              className="mx-auto rounded-xl border border-white/10"
+              className="block mx-auto rounded-xl border border-white/10"
               width={256}
               height={256}
             />

@@ -17,6 +17,19 @@ export default defineConfig({
     projects: [
       {
         test: {
+          name: 'sdk',
+          root: resolve(__dirname, 'src/sdk'),
+          environment: 'node',
+          include: ['**/*.test.ts'],
+          setupFiles: [resolve(__dirname, 'src/sdk/__tests__/test-setup.ts')],
+          coverage: {
+            include: ['src/sdk/**/*.ts'],
+            exclude: ['src/sdk/**/*.test.ts', 'src/sdk/__tests__/test-setup.ts']
+          }
+        }
+      },
+      {
+        test: {
           name: 'scripts',
           root: resolve(__dirname, 'scripts/node-core'),
           environment: 'node',

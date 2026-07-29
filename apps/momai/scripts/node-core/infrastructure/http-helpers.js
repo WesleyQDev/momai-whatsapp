@@ -6,7 +6,7 @@ function corsHeaders(req) {
   return {
     'Access-Control-Allow-Origin': isOriginAllowed(origin) ? origin : 'null',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-session-token',
     'Access-Control-Max-Age': '86400'
   }
 }

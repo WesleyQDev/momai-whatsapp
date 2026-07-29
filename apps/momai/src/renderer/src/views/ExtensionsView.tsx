@@ -143,6 +143,9 @@ import {
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { useI18n } from '../i18n'
+import { getPermissionGroup, groupPermissions } from '../utils/permission-groups'
+import { computeRecommendations } from '../utils/recommendations'
+import { computeCategories, inferExtensionCategory } from '../utils/category-inference'
 
 /* ─── Icon Registry ─── */
 const GitHubIcon = ({ className }: { className?: string }) => (
@@ -338,6 +341,113 @@ interface Badge {
 
 /* Badges removidas — lojas não usam badges, apenas botões e mensagens claras */
 
+/* ─── Hero Carousel (promotional, one slide at a time) ─── */
+function HeroCarousel({ onSelect }: { onSelect: (id: string) => void }) {
+  const [current, setCurrent] = useState(0)
+  const slides = [
+    {
+      id: 'assistente',
+      title: 'Extensões da Assistente',
+      description: 'Faça a MomAI cuidar dos seus sistemas, automatizar tarefas e conectar seus aplicativos favoritos — tudo por voz ou texto.',
+      gradient: 'from-violet-700 via-violet-600 to-purple-800',
+      svg: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+      action: null
+    },
+    {
+      id: 'whatsapp',
+      title: 'WhatsApp + MomAI',
+      description: 'Conecte seu WhatsApp à assistente e responda mensagens, monitore conversas e gerencie contatos sem precisar pegar o celular.',
+      gradient: 'from-emerald-700 via-emerald-600 to-green-800',
+      svg: 'M12 2C6.48 2 2 6.48 2 12c0 1.88.54 3.63 1.48 5.12L2 22l5.12-1.48C8.37 21.46 10.12 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z',
+      action: { label: 'Detalhe', extId: 'whatsapp' }
+    },
+    {
+      id: 'camera',
+      title: 'Monitoramento por Câmera',
+      description: 'Conecte uma câmera para monitorar sua saúde sem enviar seus dados para fora — tudo local e privado.',
+      gradient: 'from-sky-700 via-blue-600 to-indigo-800',
+      svg: 'M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z',
+      action: { label: 'Em breve', extId: null }
+    },
+    {
+      id: 'automacao',
+      title: 'Automação Residencial',
+      description: 'Controle dispositivos inteligentes, crie rotinas e automatize sua casa com comandos de voz.',
+      gradient: 'from-amber-700 via-orange-600 to-rose-800',
+      svg: 'M21 10.5h.375c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125H21M4.5 10.5h6.75V3.75M4.5 19.5V10.5m13.5 0v-3a2.25 2.25 0 0 0-2.25-2.25h-3',
+      action: { label: 'Em breve', extId: null }
+    }
+  ]
+
+  useEffect(() => {
+    if (slides.length <= 1) return
+    const timer = setInterval(() => setCurrent((p) => (p + 1) % slides.length), 10000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const prev = () => setCurrent((p) => (p - 1 + slides.length) % slides.length)
+  const next = () => setCurrent((p) => (p + 1) % slides.length)
+
+  const slide = slides[current]
+
+  return (
+    <div className="relative rounded-2xl overflow-hidden mb-8 h-56 md:h-72">
+      <div className={`absolute inset-0 bg-gradient-to-br ${slide.gradient}`} />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.12),transparent_70%)]" />
+
+      {/* Decorative SVG icon */}
+      <svg className="absolute -right-8 -top-8 w-64 h-64 text-white/5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.5">
+        <path d={slide.svg} />
+        <path d={slide.svg} transform="scale(1.5) translate(-4,-4)" opacity="0.5" />
+      </svg>
+      <svg className="absolute -left-4 bottom-4 w-32 h-32 text-white/5 rotate-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.5">
+        <path d={slide.svg} />
+      </svg>
+
+      {/* Side arrows */}
+      <button onClick={prev} className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-black/30 text-white/80 hover:bg-black/50 hover:text-white transition-all backdrop-blur-sm border border-white/10">
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+      </button>
+      <button onClick={next} className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-black/30 text-white/80 hover:bg-black/50 hover:text-white transition-all backdrop-blur-sm border border-white/10">
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+      </button>
+
+      <div className="relative z-10 h-full flex flex-col justify-between p-6 md:p-8">
+        <div>
+          <h3 className="text-xl md:text-2xl font-black text-white mb-2">{slide.title}</h3>
+          <p className="text-sm md:text-base text-white/80 max-w-xl leading-relaxed">{slide.description}</p>
+        </div>
+        <div className="flex items-center justify-between">
+          {slide.action ? (
+            <button
+              onClick={() => slide.action.extId && onSelect(slide.action.extId)}
+              className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${
+                slide.action.label === 'Em breve'
+                  ? 'bg-white/15 text-white/70 border border-white/20 cursor-default'
+                  : 'bg-white text-gray-900 hover:bg-white/90 active:scale-[0.97] shadow-lg'
+              }`}
+            >
+              {slide.action.label}
+            </button>
+          ) : <div />}
+          <div className="flex gap-1.5">
+            {slides.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setCurrent(i)}
+                className={`w-2 h-2 rounded-full transition-all ${
+                  i === current ? 'bg-white w-5' : 'bg-white/40 hover:bg-white/60'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ─── Carousel Banner ─── */
 function FeaturedCarousel({
   skills,
@@ -405,7 +515,7 @@ function FeaturedCarousel({
           const accentClasses = getAccentClasses(skill.manifest)
           return (
             <div
-              key={skill.id}
+              key={`${skill.id}-${skill.category}`}
               onClick={() => !dragScroll.isDraggingScroll() && onSelect(skill)}
               className={`shrink-0 w-72 h-40 rounded-xl overflow-hidden cursor-pointer group/card relative border border-zinc-700/50 transition-all hover:-translate-y-0.5 hover:shadow-lg ${accentClasses.border}`}
             >
@@ -453,7 +563,7 @@ const ActiveGlow = () => (
 )
 
 /* ─── Skill Card ─── */
-function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extension) => void }) {
+function SkillCard({ skill, onSelect, devMode }: { skill: Extension; onSelect: (s: Extension) => void; devMode?: string }) {
   const accentClasses = getAccentClasses(skill.manifest)
   const isInstalled =
     skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
@@ -486,7 +596,7 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
                 Comunidade
               </div>
             )}
-            {import.meta.env.DEV && skill.isSymlink && (
+            {import.meta.env.DEV && devMode === 'symlink' && skill.isSymlink && (
               <div
                 title={skill.symlinkPath || ''}
                 className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded-full text-[9px] font-bold uppercase tracking-wider border border-amber-500/25"
@@ -494,7 +604,7 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
                 Symlink
               </div>
             )}
-            {import.meta.env.DEV && !skill.isSymlink && skill.source === 'store_test' && (
+            {import.meta.env.DEV && devMode === 'store_test' && !skill.isSymlink && skill.source === 'store_test' && (
               <div
                 title="Instalado via Testar Loja — só fica ativo enquanto o modo Testar Loja estiver selecionado"
                 className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded-full text-[9px] font-bold uppercase tracking-wider border border-blue-500/25"
@@ -502,7 +612,7 @@ function SkillCard({ skill, onSelect }: { skill: Extension; onSelect: (s: Extens
                 Loja
               </div>
             )}
-            {import.meta.env.DEV && !skill.isSymlink && skill.source === 'symlink' && (
+            {import.meta.env.DEV && devMode === 'symlink' && !skill.isSymlink && skill.source === 'symlink' && (
               <div
                 title="Registrado no modo Dev — o symlink .dev/<id> ainda não foi criado pelo usuário"
                 className="flex items-center gap-1 px-2 py-0.5 bg-violet-500/10 text-violet-400 rounded-full text-[9px] font-bold uppercase tracking-wider border border-violet-500/25"
@@ -604,6 +714,124 @@ function formatSize(bytes: number | null | undefined): string {
   return `${mb.toFixed(0)} MB`
 }
 
+/* ─── Version History Section (reused in main column on mobile, sidebar on large) ─── */
+function VersionHistorySection({
+  loadingReleases,
+  releasesError,
+  releases,
+  installedVersion,
+  recommendedVersion,
+  skill,
+  inCard
+}: {
+  loadingReleases: boolean
+  releasesError: string | null
+  releases: ExtensionRelease[]
+  installedVersion: string | null
+  recommendedVersion: string | null
+  skill: Extension
+  inCard?: boolean
+}) {
+  const visibleReleases = useMemo(
+    () => [...releases].sort((a, b) => b.version.localeCompare(a.version, undefined, { numeric: true })).slice(0, 3),
+    [releases]
+  )
+  const repoUrl = skill.repo ? `https://github.com/${skill.repo}/releases` : null
+
+  const inner = (
+    <>
+      <h2 className="text-xs font-bold text-text-muted mb-4">
+        Histórico de Versões
+      </h2>
+      <div>
+        {loadingReleases && (
+          <p className="text-xs text-zinc-500 italic animate-pulse">
+            Carregando versões...
+          </p>
+        )}
+        {releasesError && (
+          <p className="text-xs text-red-400 italic">Erro: {releasesError}</p>
+        )}
+        {!loadingReleases && !releasesError && releases.length === 0 && (
+          <p className="text-xs text-zinc-500 italic">Nenhuma versão encontrada.</p>
+        )}
+        {!loadingReleases && !releasesError && releases.length > 0 && (
+          <div className="relative border-l border-zinc-850 ml-2 pl-4 space-y-5">
+            {visibleReleases.map((rel) => {
+              const isCurrent = !!(installedVersion && rel.version === installedVersion)
+              const isRecommended = !!(
+                recommendedVersion && rel.version === recommendedVersion
+              )
+              return (
+                <div key={rel.version} className="relative group/timeline text-left">
+                  <div
+                    className={`absolute -left-[23px] top-1 w-2.5 h-2.5 rounded-full border-2 border-zinc-900 transition-all ${
+                      isCurrent
+                        ? 'bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]'
+                        : rel.compatible
+                          ? 'bg-zinc-700 group-hover/timeline:bg-zinc-500'
+                          : 'bg-red-700 group-hover/timeline:bg-red-500'
+                    }`}
+                  />
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs text-white font-extrabold">
+                        v{rel.version}
+                      </span>
+                      {rel.date && (
+                        <span className="text-[9px] text-zinc-500">
+                          {new Date(rel.date).toLocaleDateString()}
+                        </span>
+                      )}
+                      {!rel.compatible && (
+                        <span className="text-[8px] font-bold text-red-400 uppercase tracking-wide bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
+                          Incompatível
+                        </span>
+                      )}
+                      {isCurrent && (
+                        <span className="px-1.5 py-0.5 rounded bg-violet-500/10 border border-violet-500/20 text-[8px] text-violet-400 font-extrabold uppercase tracking-wide">
+                          Instalada
+                        </span>
+                      )}
+                      {isRecommended && !isCurrent && (
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[8px] text-emerald-400 font-extrabold uppercase tracking-wide">
+                          Recomendada
+                        </span>
+                      )}
+                    </div>
+                    {rel.changelog && (
+                      <p className="text-[10px] text-zinc-400 leading-normal line-clamp-2">
+                        {rel.changelog}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+        {repoUrl && releases.length > 3 && (
+          <a
+            href={repoUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-4 block text-center text-[10px] font-bold text-zinc-500 hover:text-zinc-300 uppercase tracking-wider transition-colors no-underline border border-zinc-800 rounded-lg py-2 hover:border-zinc-700"
+          >
+            Ver todas as {releases.length} versões →
+          </a>
+        )}
+      </div>
+    </>
+  )
+
+  if (inCard) return inner
+  return (
+    <section className="bg-card rounded-2xl p-6 border border-zinc-800/60">
+      {inner}
+    </section>
+  )
+}
+
 /* ─── Skill Detail (inline, keeps navbar) ─── */
 function SkillDetailView({
   skill,
@@ -612,7 +840,10 @@ function SkillDetailView({
   onToggle,
   onUninstall,
   recommendedVersionByExtId,
-  installingId
+  installingId,
+  allSkills,
+  onSelectSkill,
+  devMode
 }: {
   skill: Extension
   onBack: () => void
@@ -621,12 +852,18 @@ function SkillDetailView({
   onUninstall: (s: Extension) => void
   recommendedVersionByExtId?: Record<string, string | null>
   installingId?: string | null
+  allSkills?: Extension[]
+  onSelectSkill?: (s: Extension) => void
+  devMode?: string
 }) {
   const { t } = useI18n()
   const accentClasses = getAccentClasses(skill.manifest)
   const isInstalled =
     skill.installed !== false && (skill.category === 'core' || skill.category === 'extension')
   const isBuiltin = skill.category === 'core'
+  if (skill.id === 'whatsapp') {
+    console.log('[DIAG] SkillDetailView whatsapp:', { id: skill.id, category: skill.category, installed: skill.installed, isInstalled, isBuiltin, compat: skill.compat_status, source: skill.source, isSymlink: skill.isSymlink, devMode })
+  }
 
   const [releasesExpanded, setReleasesExpanded] = useState(true)
   const [releases, setReleases] = useState<ExtensionRelease[]>([])
@@ -635,6 +872,11 @@ function SkillDetailView({
   const [installedVersion, setInstalledVersion] = useState<string | null>(null)
   const [recommendedVersion, setRecommendedVersion] = useState<string | null>(null)
   const [fetchedReadme, setFetchedReadme] = useState<string | null>(null)
+
+  const recommendations = useMemo(() => {
+    if (!allSkills || !allSkills.length) return []
+    return computeRecommendations(skill, allSkills, 12)
+  }, [skill, allSkills])
 
   const compatFallbackVersion = useMemo(() => {
     if (skill.compat_status !== 'incompatible') return null
@@ -684,8 +926,9 @@ function SkillDetailView({
 
   return (
     <div className="animate-fade-in max-w-6xl mx-auto px-6 pb-20">
+
       {/* Tighter Hero Header */}
-      <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-6 pb-6 border-b border-zinc-800/50">
+      <div className="relative flex flex-col md:flex-row items-center md:items-start gap-8 mb-6 pt-8 pb-6 border-b border-zinc-800/50">
         <div
           className={`w-20 h-20 md:w-24 md:h-24 rounded-2xl ${getIconBgStyle(skill) ? '' : `bg-gradient-to-br ${getSkillGradient(skill.name, skill.manifest)}`} shadow-xl ${accentClasses.shadow} flex items-center justify-center shrink-0 border-2 border-zinc-800 relative overflow-hidden`}
           style={getIconBgStyle(skill)}
@@ -698,155 +941,79 @@ function SkillDetailView({
         </div>
 
         <div className="flex-1 text-center md:text-left pt-0">
-          <div className="flex flex-col md:flex-row md:items-end gap-3 md:gap-4 mb-3">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight leading-none">
-                {skill.name}
-              </h1>
-            </div>
+          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mb-2">
+            <h1 className="text-2xl md:text-3xl font-black text-text tracking-tight leading-none">
+              {skill.name}
+            </h1>
             {skill.category === 'core' ? (
-              <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-md text-[9px] text-blue-400 font-black uppercase tracking-wider h-fit mb-0.5">
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-md text-[9px] text-blue-400 font-bold uppercase tracking-wider h-fit">
                 <CpuChipIcon className="w-3 h-3" />
-                Componente CORE
+                CORE
               </div>
             ) : skill.is_official ? (
-              <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md text-[9px] text-emerald-400 font-black uppercase tracking-wider h-fit mb-0.5">
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md text-[9px] text-emerald-400 font-bold uppercase tracking-wider h-fit">
                 <CheckBadgeIcon className="w-3 h-3" />
                 Oficial
               </div>
             ) : null}
-            {import.meta.env.DEV && skill.isSymlink && (
-              <div
-                title={skill.symlinkPath || ''}
-                className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-md text-[9px] text-amber-400 font-black uppercase tracking-wider h-fit mb-0.5"
-              >
-                Symlink: {skill.symlinkPath}
+            {import.meta.env.DEV && devMode === 'symlink' && skill.isSymlink && (
+              <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-md text-[9px] text-amber-400 font-bold uppercase tracking-wider h-fit">
+                Symlink
               </div>
             )}
           </div>
 
-          <p className="text-sm text-zinc-400 font-medium mb-6 max-w-2xl leading-relaxed">
-            {skill.description}
-          </p>
-
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-5 mb-8">
-            <div className="flex flex-col">
-              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter mb-1">
-                Autor
-              </span>
-              <div className="flex items-center gap-2">
-                {(skill.repo || (!skill.is_official && skill.author)) && (
-                  <img
-                    src={`https://avatars.githubusercontent.com/${encodeURIComponent((skill.repo?.split('/')[0] || skill.author || '').trim())}?s=64`}
-                    alt="Author"
-                    className="w-5 h-5 rounded-full border border-zinc-800 shadow-sm"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement
-                      if (!target.src.includes('github.png')) {
-                        target.src = 'https://github.com/github.png?s=64'
-                      }
-                    }}
-                  />
-                )}
-                <span className="text-sm text-white font-black">{skill.author || 'MomAI'}</span>
-              </div>
-            </div>
-            <div className="w-px h-6 bg-zinc-800" />
-            <div className="flex flex-col">
-              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">
-                Versão
-              </span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-zinc-300 font-bold">
-                  {skill.version || recommendedVersion || '1.0.0'}
-                </span>
-                {skill.updateAvailable && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-[8px] text-blue-400 font-black uppercase tracking-wider animate-pulse">
-                    Upgrade disponível ({skill.latestCompatibleVersion})
-                  </span>
-                )}
-                {skill.hasNewerIncompatible && (
-                  <span
-                    className="inline-flex items-center px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded text-[8px] text-amber-400 font-black uppercase tracking-wider"
-                    title="Requer versão mais recente do MomAI"
-                  >
-                    Incompatível mais recente
-                  </span>
-                )}
-              </div>
-              {!isInstalled && skill.compat_status === 'incompatible' && (
-                <p className="text-red-500 text-sm font-medium">
-                  {t('extensions.install.incompatible')} Atualize para a{' '}
-                  {skill.momai_compat?.replace('>=', 'v') || 'versão mais recente'}
-                </p>
+          <div className="flex items-center justify-center md:justify-start gap-3 text-xs text-text-muted flex-wrap mb-6">
+            <div className="flex items-center gap-1.5">
+              {(skill.repo || (!skill.is_official && skill.author)) && (
+                <img
+                  src={`https://avatars.githubusercontent.com/${encodeURIComponent((skill.repo?.split('/')[0] || skill.author || '').trim())}?s=32`}
+                  alt=""
+                  className="w-4 h-4 rounded-full border border-zinc-800"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    if (!target.src.includes('github.png')) {
+                      target.src = 'https://github.com/github.png?s=32'
+                    }
+                  }}
+                />
               )}
+              <span className="font-medium">{skill.author || 'MomAI'}</span>
             </div>
-            <div className="w-px h-6 bg-zinc-800" />
-            <div className="flex flex-col">
-              <span className="text-[9px] text-zinc-600 uppercase font-black tracking-tighter">
-                GitHub Stars
-              </span>
-              {skill.repo ? (
-                <div className="flex items-center gap-1.5 text-sm text-amber-400 font-black">
-                  <StarIconSolid className="w-4 h-4 text-amber-400" />
-                  {skill.stars || 0}
-                </div>
-              ) : (
-                <span className="text-xs text-zinc-500 font-bold">N/A</span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center md:justify-start gap-3">
+            <span className="text-zinc-700">·</span>
+            <span className="font-medium">v{recommendedVersion || skill.version || '1.0.0'}</span>
             {skill.repo && (
-              <a
-                href={`https://github.com/${skill.repo}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl text-[10px] font-bold hover:text-white hover:border-zinc-700 transition-all uppercase tracking-widest no-underline"
-              >
-                <GitHubIcon className="w-3.5 h-3.5" />
-                GitHub
-              </a>
+              <>
+                <span className="text-zinc-700">·</span>
+                <a
+                  href={`https://github.com/${skill.repo}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 text-text-muted hover:text-text transition-colors no-underline"
+                >
+                  <GitHubIcon className="w-3.5 h-3.5" />
+                  <span className="font-medium">{skill.stars || 0}</span>
+                </a>
+              </>
             )}
-            {!isBuiltin && !isInstalled && skill.compat_status !== 'incompatible' ? (
-              <button
-                onClick={() => onInstall(skill)}
-                disabled={installingId === skill.id}
-                className={`px-8 py-2.5 text-white rounded-xl text-xs font-black transition-all uppercase tracking-widest relative overflow-hidden ${installingId === skill.id ? 'opacity-50 cursor-not-allowed' : ''} ${accentClasses.button}`}
-              >
-                <span className="relative z-10">
-                  {installingId === skill.id ? 'Instalando...' : 'Instalar'}
-                </span>
-              </button>
-            ) : !isBuiltin && !isInstalled && skill.compat_status === 'incompatible' && compatFallbackVersion ? (
-              <button
-                onClick={() => onInstall(skill, compatFallbackUrl)}
-                disabled={installingId === skill.id}
-                className="px-6 py-2 rounded-xl text-xs font-black transition-all uppercase tracking-widest border border-zinc-600 text-zinc-300 hover:bg-zinc-800 hover:text-white"
-              >
-                {installingId === skill.id ? 'Instalando...' : `Instalar v${compatFallbackVersion} (compatível)`}
-              </button>
-            ) : isInstalled ? (
+          </div>
+            {isInstalled && (
               <div className="flex items-center gap-3">
                 {skill.updateAvailable && (
                   <button
                     onClick={() => onInstall(skill)}
                     disabled={installingId === skill.id}
-                    className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all uppercase tracking-widest relative overflow-hidden active:scale-[0.98] ${installingId === skill.id ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+                    className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg shadow-blue-500/25 ${installingId === skill.id ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-gradient-to-br from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 active:scale-[0.97] text-white'}`}
                   >
-                    <span className="relative z-10 flex items-center justify-center gap-1">
-                      {installingId === skill.id ? null : <CloudArrowDownIcon className="w-3.5 h-3.5" />}
-                      {installingId === skill.id ? 'Instalando...' : 'Atualizar'}
-                    </span>
+                    {installingId === skill.id ? 'Obtendo...' : 'Atualizar'}
                   </button>
                 )}
                 <button
                   onClick={() => onToggle(skill)}
-                  className={`inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black transition-all uppercase tracking-widest ${
+                  className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     skill.enabled
-                      ? 'bg-zinc-800/60 text-zinc-400 border border-zinc-700 hover:bg-zinc-800 hover:text-zinc-200 hover:border-zinc-600'
-                      : 'bg-emerald-600 text-white border border-emerald-500/50 shadow-lg shadow-emerald-500/25 hover:bg-emerald-500 hover:shadow-emerald-500/35 active:scale-[0.98]'
+                      ? 'bg-zinc-800/60 text-zinc-400 border border-zinc-700 hover:bg-zinc-800 hover:text-zinc-200'
+                      : 'bg-emerald-600 text-white border border-emerald-500/50 shadow-lg hover:bg-emerald-500'
                   }`}
                 >
                   {!skill.enabled && <PowerIcon className="w-4 h-4" />}
@@ -855,26 +1022,76 @@ function SkillDetailView({
                 {!skill.isSymlink && skill.category !== 'core' && (
                   <button
                     onClick={() => onUninstall(skill)}
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-zinc-500 border border-zinc-800 hover:text-red-400 hover:border-red-500/40 transition-all uppercase tracking-widest"
+                    className="px-4 py-2.5 rounded-xl text-xs font-bold text-zinc-400 border border-zinc-700 hover:text-red-400 hover:border-red-500/50 hover:bg-red-500/10 transition-all"
                   >
                     Desinstalar
                   </button>
                 )}
               </div>
-            ) : null}
+            )}
+            {!isInstalled && skill.hasNewerIncompatible && (
+              <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
+                Incompatível mais recente
+              </span>
+            )}
+
+          <p className="text-sm text-text-muted mb-6 max-w-2xl leading-relaxed">
+            {skill.description}
+          </p>
+
+          {!isInstalled && skill.compat_status === 'incompatible' && (
+            <p className="text-red-400 text-xs text-center md:text-left">
+              Esta extensão possui uma nova versão v{skill.version} que requer atualizar a MomAI para a{' '}
+              {skill.momai_compat?.replace('>=', 'v') || 'versão mais recente'}.
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-6">
+            {skill.tags?.[0] && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full bg-zinc-800 text-zinc-300 text-xs font-medium">
+                {skill.tags[0]}
+              </span>
+            )}
+            {!isBuiltin && !isInstalled && skill.compat_status !== 'incompatible' && (
+              <button
+                onClick={() => onInstall(skill)}
+                disabled={installingId === skill.id}
+                className={`px-10 py-3 text-white font-bold transition-all shadow-lg rounded-xl text-base ${installingId === skill.id ? 'opacity-50 cursor-not-allowed bg-violet-600' : 'bg-violet-600 hover:bg-violet-500 active:scale-[0.97]'}`}
+              >
+                {installingId === skill.id ? 'Obtendo...' : 'Obter'}
+              </button>
+            )}
+            {!isBuiltin && !isInstalled && skill.compat_status === 'incompatible' && compatFallbackVersion && (
+              <button
+                onClick={() => onInstall(skill, compatFallbackUrl)}
+                disabled={installingId === skill.id}
+                className="px-10 py-3 text-white font-bold transition-all shadow-lg rounded-xl text-base bg-violet-600 hover:bg-violet-500 active:scale-[0.97]"
+              >
+                {installingId === skill.id ? 'Obtendo...' : 'Obter'}
+              </button>
+            )}
+            {isInstalled && skill.updateAvailable && (
+              <button
+                onClick={() => onInstall(skill)}
+                disabled={installingId === skill.id}
+                className={`px-10 py-3 text-white font-bold transition-all shadow-lg rounded-xl text-base ${installingId === skill.id ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-violet-600 hover:bg-violet-500 active:scale-[0.97]'}`}
+              >
+                {installingId === skill.id ? 'Obtendo...' : 'Atualizar'}
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       {/* 2-Column Grid: Main content (left) + Sidebar (right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Main Column: About, Requirements, Version History */}
+        {/* Main Column: About + Requirements only (keeps full width on large) */}
         <div className="lg:col-span-9 space-y-6">
           {/* Description Section */}
-          <section className="bg-zinc-950/20 rounded-2xl p-8 border border-zinc-850 backdrop-blur-xl">
-            <h2 className="text-[10px] font-black text-zinc-455 mb-6 uppercase tracking-widest">
-              Sobre esta extensão
-            </h2>
+              <section className="bg-card rounded-2xl p-8 border border-zinc-800/60">
+                <h2 className="text-xs font-bold text-text-muted mb-5">
+                  Sobre esta extensão
+                </h2>
             <div
               className="prose prose-invert prose-zinc max-w-none 
               prose-headings:text-zinc-50 prose-headings:font-bold prose-headings:mt-6 prose-headings:mb-3
@@ -899,239 +1116,157 @@ function SkillDetailView({
             </div>
           </section>
 
-          {/* System Requirements */}
-          <section className="p-6 rounded-2xl bg-zinc-955/20 border border-zinc-850">
-            <h2 className="text-[10px] font-black text-zinc-455 mb-5 uppercase tracking-widest">
-              Requisitos do Sistema
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-zinc-900/50 border border-zinc-800 shadow-inner">
-                  <ShieldCheckIcon className="w-4 h-4 text-emerald-400/80" />
-                </div>
-                <div>
-                  <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-0.5">
-                    Arquitetura
-                  </p>
-                  <p className="text-xs text-zinc-200 font-bold">x64 / ARM64 / WSL2</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-zinc-900/50 border border-zinc-800 shadow-inner">
-                  <GlobeAltIcon className="w-4 h-4 text-sky-400/80" />
-                </div>
-                <div>
-                  <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-0.5">
-                    Internet
-                  </p>
-                  <p className="text-xs text-zinc-200 font-bold">Recomendado para atualizações</p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Version History Section - Timeline (below About) */}
+          {/* Version History Section - mobile only (below About) */}
           {skill.repo && (
-            <section className="bg-zinc-950/20 rounded-2xl p-6 border border-zinc-850 backdrop-blur-xl">
-              <h2 className="text-[10px] font-black text-zinc-450 mb-6 uppercase tracking-widest">
-                Histórico de Versões
-              </h2>
-              <div>
-                {loadingReleases && (
-                  <p className="text-xs text-zinc-500 italic animate-pulse">
-                    Carregando versões...
-                  </p>
-                )}
-                {releasesError && (
-                  <p className="text-xs text-red-400 italic">Erro: {releasesError}</p>
-                )}
-                {!loadingReleases && !releasesError && releases.length === 0 && (
-                  <p className="text-xs text-zinc-500 italic">Nenhuma versão encontrada.</p>
-                )}
-                {!loadingReleases && !releasesError && releases.length > 0 && (
-                  <div className="relative border-l border-zinc-850 ml-2 pl-4 space-y-6">
-                    {releases.map((rel) => {
-                      const isCurrent = !!(installedVersion && rel.version === installedVersion)
-                      const isRecommended = !!(
-                        recommendedVersion && rel.version === recommendedVersion
-                      )
-                      return (
-                        <div key={rel.version} className="relative group/timeline text-left">
-                          <div
-                            className={`absolute -left-[23px] top-1 w-2.5 h-2.5 rounded-full border-2 border-zinc-900 transition-all ${
-                              isCurrent
-                                ? 'bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]'
-                                : 'bg-zinc-700 group-hover/timeline:bg-zinc-500'
-                            }`}
-                          />
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="space-y-1 flex-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-xs text-white font-extrabold">
-                                  v{rel.version}
-                                </span>
-                                {rel.date && (
-                                  <span className="text-[9px] text-zinc-500">
-                                    {new Date(rel.date).toLocaleDateString()}
-                                  </span>
-                                )}
-                                {rel.download_size && (
-                                  <span className="text-[9px] text-zinc-600">
-                                    ↓ {formatSize(rel.download_size)} · ~{formatSize(rel.estimated_install_size)} instalado
-                                  </span>
-                                )}
-                                {isCurrent && (
-                                  <span className="px-1.5 py-0.5 rounded bg-violet-500/10 border border-violet-500/20 text-[8px] text-violet-400 font-extrabold uppercase tracking-wide">
-                                    Instalada
-                                  </span>
-                                )}
-                                {isRecommended && !isCurrent && (
-                                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[8px] text-emerald-400 font-extrabold uppercase tracking-wide">
-                                    Recomendada
-                                  </span>
-                                )}
-                              </div>
-                              {rel.changelog && (
-                                <p className="text-[10px] text-zinc-400 leading-normal">
-                                  {rel.changelog}
-                                </p>
-                              )}
-                            </div>
-                            <div className="shrink-0 pt-0.5">
-                              {rel.compatible ? (
-                                <button
-                                  onClick={() => onInstall(skill, rel.download_url)}
-                                  disabled={isCurrent}
-                                  className={`px-2.5 py-1 rounded text-[8px] font-black uppercase tracking-wider transition-all border ${
-                                    isCurrent
-                                      ? 'border-zinc-800 text-zinc-650 cursor-default bg-zinc-900/20'
-                                      : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white'
-                                  }`}
-                                >
-                                  {isCurrent ? 'Atual' : 'Instalar'}
-                                </button>
-                              ) : (
-                                <span className="text-[8px] font-bold text-red-400 uppercase tracking-wide bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
-                                  Incompatível
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </section>
+            <div className="lg:hidden">
+              <VersionHistorySection
+                loadingReleases={loadingReleases}
+                releasesError={releasesError}
+                releases={releases}
+                installedVersion={installedVersion}
+                recommendedVersion={recommendedVersion}
+                skill={skill}
+              />
+            </div>
           )}
         </div>
 
-        {/* Right Column: Sidebar (25% -> lg:col-span-3) */}
-        <div className="lg:col-span-3 space-y-6">
-          <section className="bg-zinc-955/20 border border-zinc-850 rounded-2xl p-6 backdrop-blur-md">
-            <h3 className="text-[10px] font-black text-zinc-455 mb-6 uppercase tracking-widest">
-              Informações
-            </h3>
-
-            <div className="space-y-5">
-              <div>
-                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-1.5">
-                  Desenvolvedor
-                </p>
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-violet-600/20 flex items-center justify-center text-[9px] text-violet-400 font-black border border-violet-500/30 uppercase">
-                    {(skill.author || 'M')[0]}
-                  </div>
-                  <p className="text-xs text-zinc-100 font-bold">{skill.author || 'MomAI Team'}</p>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-1.5">
-                  Categoria
-                </p>
-                <p className="text-xs text-zinc-100 font-bold capitalize">
-                  {skill.tags?.[0] || 'Utilitário'}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-[9px] text-zinc-500 uppercase font-black tracking-widest mb-1.5">
-                  Nível de Risco
-                </p>
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-2 h-2 rounded-full shadow-[0_0_8px] ${skill.riskLevel === 'high' ? 'bg-red-500 shadow-red-500/50' : 'bg-emerald-400 shadow-emerald-400/50'}`}
-                  />
-                  <p
-                    className={`text-xs font-black ${
-                      skill.riskLevel === 'high' ? 'text-red-400' : 'text-emerald-400'
-                    }`}
-                  >
-                    {skill.riskLevel === 'high' ? 'Acesso ao Sistema' : 'Sandbox Segura'}
+        {/* Right Column: Sidebar (25% -> lg:col-span-3) — single card */}
+        <div className="lg:col-span-3">
+          <section className="bg-card border border-zinc-800/60 rounded-2xl p-6 space-y-6">
+            {/* Informações */}
+            <div>
+              <h3 className="text-xs font-bold text-text-muted mb-4">
+                Informações
+              </h3>
+              <div className="space-y-5">
+                <div>
+                  <p className="text-[10px] text-text-muted font-medium mb-1">
+                    Desenvolvedor
                   </p>
+                  <div className="flex items-center gap-2">
+                    {skill.repo || skill.author ? (
+                      <img
+                        src={`https://avatars.githubusercontent.com/${encodeURIComponent((skill.repo?.split('/')[0] || skill.author || '').trim())}?s=32`}
+                        alt="Avatar"
+                        className="w-6 h-6 rounded-full border border-zinc-800 shrink-0"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          if (!target.src.includes('github.png')) {
+                            target.src = 'https://github.com/github.png?size=32'
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-violet-600/20 flex items-center justify-center text-[9px] text-violet-400 font-black border border-violet-500/30 uppercase shrink-0">
+                        M
+                      </div>
+                    )}
+                    <p className="text-xs text-zinc-100 font-bold">{skill.author || 'MomAI Team'}</p>
+                  </div>
                 </div>
+
+
+
               </div>
             </div>
-          </section>
 
-          <section className="bg-zinc-955/20 border border-zinc-850 rounded-2xl p-6">
-            <h3 className="text-[10px] font-black text-zinc-455 mb-5 uppercase tracking-widest">
-              Permissões
-            </h3>
-            <ul className="space-y-3">
-              {skill.permissionSummary && skill.permissionSummary.length > 0 ? (
-                skill.permissionSummary.map((perm, idx) => (
-                  <li
-                    key={idx}
-                    className="flex items-start gap-1 text-[10px] text-zinc-300 font-medium leading-snug"
-                  >
-                    <span className="text-zinc-500 mr-1.5 shrink-0">•</span>
-                    {perm}
+            <hr className="border-zinc-800" />
+
+            {/* Permissões */}
+            <div>
+              <h3 className="text-xs font-bold text-text-muted mb-3">
+                Permissões
+              </h3>
+              <ul className="space-y-3">
+                {skill.permissionSummary && skill.permissionSummary.length > 0 ? (
+                  (() => {
+                    const grouped = groupPermissions(skill.permissionSummary)
+                    return Array.from(grouped.entries()).map(([group, perms]) => (
+                      <li
+                        key={group}
+                        className="flex items-start gap-1.5 text-[10px] text-zinc-300 font-medium leading-snug"
+                      >
+                        <span className="text-zinc-500 mt-0.5 shrink-0">•</span>
+                        <span>{t(`extensions.permissions.group.${group}`)}</span>
+                      </li>
+                    ))
+                  })()
+                ) : (
+                  <li className="text-[10px] text-zinc-500 italic">
+                    {t('extensions.permissions.none')}
                   </li>
-                ))
-              ) : (
-                <li className="text-[10px] text-zinc-500 italic">Nenhuma permissão especial</li>
-              )}
-            </ul>
+                )}
+              </ul>
+            </div>
+
+            {skill.repo && (
+              <>
+                <hr className="border-zinc-800" />
+                <div className="hidden lg:block">
+                  <VersionHistorySection
+                    loadingReleases={loadingReleases}
+                    releasesError={releasesError}
+                    releases={releases}
+                    installedVersion={installedVersion}
+                    recommendedVersion={recommendedVersion}
+                    skill={skill}
+                    inCard
+                  />
+                </div>
+              </>
+            )}
           </section>
         </div>
       </div>
+
+      {/* Recomendações — carrossel horizontal com scroll */}
+      {recommendations.length > 0 && (
+        <section className="mt-10 max-w-6xl mx-auto">
+          <h2 className="text-sm font-bold text-text mb-4">
+            Extensões Relacionadas
+          </h2>
+          <div className="relative group min-w-0">
+            <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
+              {recommendations.slice(0, 12).map((rec) => {
+                const ext = rec.item
+                const gradient = getSkillGradient(ext.name, ext)
+                return (
+                  <div
+                    key={`${ext.id}-${ext.category || 'community'}`}
+                    onClick={() => onSelectSkill?.(ext as Extension)}
+                    className="shrink-0 w-72 h-40 rounded-xl overflow-hidden cursor-pointer group/card relative border border-zinc-700/50 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:border-violet-500/50"
+                  >
+                    <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-30`} />
+                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/40 to-transparent" />
+                    <div className="absolute inset-0 p-4 flex flex-col justify-between">
+                      <div className="flex items-start justify-between">
+                        <div className="p-2 rounded-lg bg-zinc-800/80 backdrop-blur-sm border border-zinc-700/50">
+                          <SkillIcon skill={ext as Extension} className="w-5 h-5 text-white" />
+                        </div>
+                        {ext.is_official && (
+                          <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/20 border border-emerald-500/30 rounded text-[9px] text-emerald-400 font-semibold uppercase tracking-wider">
+                            <CheckBadgeIcon className="w-3 h-3" />
+                            Oficial
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-white mb-0.5">{ext.name}</h3>
+                        <p className="text-[10px] text-zinc-400 line-clamp-2 leading-relaxed">
+                          {ext.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   )
-}
-
-const CAPABILITIES: Record<string, { risk: string; description: string }> = {
-  network: { risk: 'high', description: 'Acesso à rede' },
-  'filesystem:read': { risk: 'medium', description: 'Leitura de arquivos' },
-  'filesystem:write': { risk: 'high', description: 'Escrita de arquivos' },
-  'ui:sidebar': { risk: 'low', description: 'Adicionar painéis na barra lateral' },
-  'ui:commands': { risk: 'low', description: 'Registrar comandos' },
-  'chat:messages': { risk: 'medium', description: 'Ler mensagens do chat' },
-  'system:info': { risk: 'low', description: 'Ver informações do sistema' },
-  process: { risk: 'critical', description: 'Acesso a processos do sistema' },
-  shell: { risk: 'critical', description: 'Execução de comandos shell' }
-}
-
-function computeRiskLevel(permissions: string[]): 'low' | 'medium' | 'high' | 'critical' {
-  const riskOrder = ['low', 'medium', 'high', 'critical']
-  let maxRisk = 'low'
-  for (const id of permissions) {
-    const cap = CAPABILITIES[id]
-    const risk = cap?.risk || 'medium'
-    if (riskOrder.indexOf(risk) > riskOrder.indexOf(maxRisk)) {
-      maxRisk = risk
-    }
-  }
-  return maxRisk as 'low' | 'medium' | 'high' | 'critical'
-}
-
-function computePermissionSummary(permissions: string[]): string[] {
-  return permissions.map((id) => {
-    const cap = CAPABILITIES[id]
-    return cap ? cap.description : id
-  })
 }
 
 function enrichExtensionWithManifest(ext: Extension, manifest: Record<string, any>): Extension {
@@ -1144,10 +1279,9 @@ function enrichExtensionWithManifest(ext: Extension, manifest: Record<string, an
     icon_bg: manifest.icon_bg || ext.icon_bg,
     theme: manifest.theme || ext.theme,
     tags: manifest.tags?.length ? manifest.tags : ext.tags,
-    version: manifest.version || ext.version,
+    version: ext.version || manifest.version,
     author: manifest.author || ext.author,
-    permissionSummary: computePermissionSummary(perms),
-    riskLevel: computeRiskLevel(perms)
+    permissionSummary: perms
   }
 }
 
@@ -1171,6 +1305,7 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
   const [selectedManifest, setSelectedManifest] = useState<Record<string, any> | null>(null)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [activeTypeFilter, setActiveTypeFilter] = useState<string>('Todas')
+  const [browseCategory, setBrowseCategory] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [devMode, setDevMode] = useState<'symlink' | 'store_test'>('symlink')
   const [switchingMode, setSwitchingMode] = useState<'symlink' | 'store_test' | null>(null)
@@ -1214,6 +1349,8 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
       }
 
       const data = await fetchExtensions(locale)
+      console.log('[DIAG] allSkills loaded:', data.length, 'entries')
+      data.forEach(e => console.log(`[DIAG]   id=${e.id} cat=${e.category} installed=${e.installed} source=${e.source} compat=${e.compat_status}`))
       setAllSkills(data)
       window.dispatchEvent(new CustomEvent('momai_extensions_sync', { detail: data }))
       return data
@@ -1352,8 +1489,17 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
     if (isDev && devMode === 'symlink') {
       return allSkills.filter((s) => s.category === 'extension')
     }
+    if (isDev && devMode === 'store_test') {
+      return allSkills.filter((s) => s.category !== 'core')
+    }
     return allSkills.filter((s) => s.category !== 'core')
   }, [allSkills, devMode, isDev])
+
+  const categories = useMemo(() => computeCategories(storeSkills), [storeSkills])
+  const browseCatData = useMemo(
+    () => (browseCategory ? categories.find((c) => c.id === browseCategory) : null),
+    [browseCategory, categories]
+  )
 
   useEffect(() => {
     installedSkills
@@ -1406,10 +1552,26 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
   }, [viewMode, storeSkills, allSkills])
 
   return (
-    <div className="flex-1 h-full bg-[#121214] min-w-0 flex flex-col overflow-hidden">
+    <div className="flex-1 h-full bg-bg min-w-0 flex flex-col overflow-hidden relative">
+      {/* Gradient background when viewing skill detail */}
+      {selectedSkill && (() => {
+        const bgStyle = getIconBgStyle(selectedSkill)
+        const grad = getSkillGradient(selectedSkill.name, selectedSkill.manifest)
+        return (
+          <div className="absolute inset-x-0 top-0 h-[55vh] pointer-events-none overflow-hidden">
+            {bgStyle ? (
+              <div className="w-full h-full" style={{
+                background: `linear-gradient(180deg, ${bgStyle.background}0D 0%, ${bgStyle.background}05 50%, transparent 80%)`
+              }} />
+            ) : (
+              <div className={`w-full h-full bg-gradient-to-b ${grad} opacity-[0.04]`} />
+            )}
+          </div>
+        )
+      })()}
       {/* ─── Content ─── */}
       <div className="flex-1 min-w-0 overflow-y-auto">
-        <div className="w-full px-6 py-5">
+        <div className="max-w-6xl mx-auto px-6 py-5">
           {modeSwitchNotice && (
             <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-300 text-sm animate-fade-in">
               <ExclamationCircleIcon className="w-5 h-5 shrink-0" />
@@ -1463,7 +1625,7 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
                       )}
                     </button>
                     <button
-                      onClick={() => simulateInstall('whatsapp', 'WhatsApp')}
+                      onClick={() => simulateInstall('debug-ext', 'Debug Extension')}
                       className="px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider text-zinc-600 hover:text-zinc-400 border border-dashed border-zinc-700/50 hover:border-zinc-500 transition-all"
                       title="Simular instalação (debug)"
                     >
@@ -1539,6 +1701,9 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
               installingId={installState.id}
               onUninstall={handleUninstall}
               recommendedVersionByExtId={recommendedVersionByExtId}
+              allSkills={allSkills}
+              onSelectSkill={handleSelectSkill}
+              devMode={devMode}
             />
           ) : (
             /* ─── List View ─── */
@@ -1577,7 +1742,7 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
                           {[...builtinSkills, ...installedSkills].map((skill) => {
                             const isCore = skill.category === 'core'
                             return (
-                              <tr key={skill.id} className="hover:bg-zinc-850/10 transition-colors">
+                              <tr key={`${skill.id}-${skill.category}`} className="hover:bg-zinc-850/10 transition-colors">
                                 <td className="p-4 flex items-center gap-3">
                                   <div className="p-2 rounded-xl bg-zinc-800/60 border border-zinc-700/30 flex items-center justify-center shrink-0">
                                     <SkillIcon skill={skill} className="w-5 h-5 text-white" />
@@ -1629,7 +1794,7 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
                                         </button>
                                         <button
                                           onClick={() => handleUninstall(skill)}
-                                          className="p-1.5 rounded-lg border border-zinc-700 text-zinc-500 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10 transition-all"
+                                          className="p-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-red-400 hover:border-red-500/50 hover:bg-red-500/10 transition-all"
                                           title="Desinstalar"
                                         >
                                           <TrashIcon className="w-3.5 h-3.5" />
@@ -1655,115 +1820,182 @@ export default function ExtensionsView({ statusInfo }: ExtensionsViewProps = {})
                   )}
                 </div>
               ) : (
-                /* ─── Store Catalog View ─── */
                 <>
-                  {/* Featured Carousel */}
-                  {loading || switchingMode ? (
-                    <div className="mb-6">
-                      <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-                        Destaques
-                      </h2>
-                      <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
-                        {Array.from({ length: 3 }).map((_, i) => (
-                          <div
-                            key={i}
-                            className="shrink-0 w-72 h-40 rounded-xl bg-zinc-950/20 border border-zinc-800 animate-pulse"
-                          />
-                        ))}
+                  {/* Store Catalog View */}
+                  {browseCategory && browseCatData ? (
+                    /* ─── Category Browse View ─── */
+                    <div className="animate-fade-in">
+                      <button
+                        onClick={() => { setBrowseCategory(null); setSearchQuery('') }}
+                        className="flex items-center gap-2 text-zinc-400 hover:text-white text-sm font-medium transition-colors mb-5"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                        Voltar
+                      </button>
+
+                      <h2 className="text-xl font-bold text-text mb-6">{browseCatData.label}</h2>
+
+                      <div className="flex flex-col md:flex-row gap-6">
+                        {/* Category sidebar */}
+                        <div className="md:w-48 shrink-0 space-y-1">
+                          <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">Categorias</p>
+                          {categories.map((cat) => {
+                            const isActive = cat.id === browseCategory
+                            const clr = ({
+                              utilities: 'text-amber-400', communication: 'text-emerald-400',
+                              system: 'text-blue-400', productivity: 'text-orange-400', ai: 'text-purple-400'
+                            } as Record<string, string>)[cat.id] || 'text-zinc-400'
+                            return (
+                              <button
+                                key={cat.id}
+                                onClick={() => setBrowseCategory(cat.id)}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
+                                  isActive
+                                    ? 'bg-zinc-800/80 text-white font-bold'
+                                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800/40'
+                                }`}
+                              >
+                                <span className={isActive ? clr : ''}>{cat.label}</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+
+                        {/* Grid */}
+                        <div className="flex-1 min-w-0">
+                        {loading ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+                          </div>
+                        ) : (() => {
+                          const catList = storeSkills.filter((s) => inferExtensionCategory(s) === browseCategory)
+                          const filtered = searchQuery.trim()
+                            ? catList.filter((s) =>
+                                s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                s.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                            : catList
+                          return filtered.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {filtered.map((skill) => (
+                                <SkillCard key={`${skill.id}-${skill.category}`} skill={skill} onSelect={handleSelectSkill} devMode={devMode} />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
+                              <WrenchIcon className="w-12 h-12 mb-4 opacity-30" />
+                              <p className="text-sm font-medium">Nenhuma extensão encontrada</p>
+                            </div>
+                          )
+                        })()}
+                        </div>
                       </div>
                     </div>
-                  ) : featuredSkills.length > 0 && !searchQuery ? (
-                    <div className="mb-6">
-                      <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-                        Destaques
-                      </h2>
-                      <FeaturedCarousel skills={featuredSkills} onSelect={handleSelectSkill} />
-                    </div>
-                  ) : null}
-
-                  {/* Tag Filters */}
-                  {loading || switchingMode ? (
-                    <div className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-1">
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className="shrink-0 h-7 w-16 rounded-full bg-zinc-800/40 animate-pulse"
-                        />
-                      ))}
-                    </div>
-                  ) : allTags.length > 0 ? (
-                    <div
-                      ref={tagsDragScrollRef}
-                      onMouseDown={tagsDragScroll.mouseDown}
-                      onTouchStart={tagsDragScroll.touchStart}
-                      onTouchMove={tagsDragScroll.touchMove}
-                      className="flex gap-2 overflow-x-auto scrollbar-none mb-5 pb-1"
-                      style={{ cursor: tagsDragScroll.grabCursor }}
-                    >
-                      <button
-                        onClick={() => setSelectedTag(null)}
-                        className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ${
-                          !selectedTag
-                            ? 'bg-violet-650/20 border-violet-500 text-violet-400 font-black shadow-sm'
-                            : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:text-white hover:border-zinc-700'
-                        }`}
-                      >
-                        Todas
-                      </button>
-                      {allTags.map((tag) => (
-                        <button
-                          key={tag}
-                          onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
-                          className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ${
-                            selectedTag === tag
-                              ? 'bg-violet-650/20 border-violet-500 text-violet-400 font-black shadow-sm'
-                              : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:text-white hover:border-zinc-700'
-                          }`}
-                        >
-                          {tag}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {/* Type Filter Tabs */}
-                  <div className="flex gap-2 mb-4">
-                    {typeFilters.map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setActiveTypeFilter(t)}
-                        className={`px-3 py-1 rounded-lg text-sm ${
-                          activeTypeFilter === t
-                            ? 'bg-accent text-white'
-                            : 'bg-zinc-800 text-zinc-400'
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Skills Grid */}
-                  {loading || switchingMode ? (
-                    <div className="w-full min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                      {Array.from({ length: 8 }).map((_, i) => (
-                        <SkeletonCard key={i} />
-                      ))}
-                    </div>
-                  ) : filteredList.length > 0 ? (
-                    <div className="w-full min-w-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                      {filteredList.map((skill) => (
-                        <SkillCard key={skill.id} skill={skill} onSelect={handleSelectSkill} />
-                      ))}
-                    </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center py-20 text-zinc-600">
-                      <WrenchIcon className="w-12 h-12 mb-4 opacity-30" />
-                      <p className="text-sm font-medium">Nenhuma skill disponível</p>
-                      <p className="text-xs mt-1 text-zinc-700">
-                        Todas as skills já estão instaladas ou indisponíveis.
-                      </p>
+                  <>
+                  {/* Hero Carousel */}
+                  {!loading && !searchQuery && (
+                    <HeroCarousel onSelect={(id) => {
+                      const ext = allSkills.find((s) => s.id === id)
+                      if (ext) handleSelectSkill(ext)
+                    }} />
+                  )}
+
+                  {/* Category Filters — colored buttons, no border */}
+                  {!loading && categories.length > 0 && (
+                    <div className="mb-8">
+                    <h3 className="text-xl font-bold text-text mb-6">Principais Categorias</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      {categories.map((cat) => {
+                        const style = ({
+                          utilities: { bg: 'bg-amber-500/10', text: 'text-amber-400', active: 'bg-amber-500 text-white', icon: 'M21 10.5h.375c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125H21M4.5 10.5H18M4.5 10.5l2.25-2.25M4.5 10.5l2.25 2.25' },
+                          communication: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', active: 'bg-emerald-500 text-white', icon: 'M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z' },
+                          system: { bg: 'bg-blue-500/10', text: 'text-blue-400', active: 'bg-blue-500 text-white', icon: 'M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25' },
+                          productivity: { bg: 'bg-orange-500/10', text: 'text-orange-400', active: 'bg-orange-500 text-white', icon: 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' },
+                          ai: { bg: 'bg-purple-500/10', text: 'text-purple-400', active: 'bg-purple-500 text-white', icon: 'M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z' }
+                        } as Record<string, { bg: string; text: string; active: string; icon: string }>)[cat.id] || { bg: 'bg-zinc-800', text: 'text-zinc-400', active: 'bg-zinc-600 text-white', icon: '' }
+                        return (
+                          <button
+                            key={cat.id}
+                            onClick={() => setBrowseCategory(cat.id)}
+                            className={`flex items-center justify-between px-5 py-4 rounded-xl text-sm font-bold transition-all ${
+                              browseCategory === cat.id ? style.active : `${style.bg} ${style.text} hover:brightness-125`
+                            }`}
+                          >
+                            <span>{cat.label}</span>
+                            <svg className="w-5 h-5 shrink-0 ml-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d={style.icon} />
+                            </svg>
+                          </button>
+                        )
+                      })}
                     </div>
+                    </div>
+                  )}
+
+                  {/* Per-category sections — top 4 of each */}
+                  {!loading && !searchQuery && (() => {
+                    const catSections = categories.filter((cat) => {
+                      return storeSkills.filter((s) => inferExtensionCategory(s) === cat.id).length > 0
+                    })
+                    const renderCat = (cat: typeof categories[0], idx: number) => {
+                      const catExts = storeSkills.filter((s) => inferExtensionCategory(s) === cat.id).slice(0, 4)
+                      return (
+                        <div key={cat.id} className="mb-14">
+                          <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-2xl font-bold text-text">Principais categorias de {cat.label}</h3>
+                            <button
+                              onClick={() => setBrowseCategory(cat.id)}
+                              className="text-xs font-medium text-zinc-500 hover:text-white transition-colors"
+                            >
+                              Ver todas →
+                            </button>
+                          </div>
+                          <div className="flex gap-3 overflow-x-auto scrollbar-none pb-1">
+                            {catExts.map((ext) => (
+                              <div key={`${ext.id}-${ext.category || 'community'}`} className="shrink-0 w-72">
+                                <SkillCard skill={ext} onSelect={handleSelectSkill} devMode={devMode} />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    }
+                    return (
+                      <>
+                        {catSections[0] && renderCat(catSections[0], 0)}
+
+                        {/* Open platform section */}
+                        <div className="mb-14">
+                          <div className="relative rounded-2xl overflow-hidden h-40 md:h-48 bg-zinc-900/80">
+                            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.03),transparent_70%)]" />
+                            <svg className="absolute -right-6 -top-6 w-48 h-48 text-white/5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.5">
+                              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                            </svg>
+                            <div className="relative z-10 h-full flex flex-col justify-between p-6 md:p-8">
+                              <div>
+                                <p className="text-sm md:text-base text-zinc-400 max-w-xl leading-relaxed">
+                                  O sistema de extensões da MomAI é aberto. Crie suas próprias extensões e compartilhe com a comunidade.
+                                </p>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <a
+                                  href="https://github.com/WesleyQDev/MomAI-App"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-4 py-2 rounded-full text-xs font-bold bg-zinc-700 text-zinc-200 hover:bg-zinc-600 active:scale-[0.97] transition-all no-underline"
+                                >
+                                  Saiba mais →
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {catSections.slice(1).map((cat, i) => renderCat(cat, i + 1))}
+                      </>
+                    )
+                  })()}
+                  </>  
                   )}
                 </>
               )}

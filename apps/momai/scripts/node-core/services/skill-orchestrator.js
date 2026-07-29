@@ -138,7 +138,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
       const sourceEntry =
         (store.extensions || []).find((e) => e.id === (manifest.id || skill.id)) ||
         (store.extensions || []).find((e) => e.id === `${manifest.id || skill.id}_dev`)
-      const source = sourceEntry && sourceEntry.source ? sourceEntry.source : null
+      const source = sourceEntry && sourceEntry.source ? sourceEntry.source : skill.source || null
 
       return {
         id: manifest.id || skill.id,
@@ -149,6 +149,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         isSymlink,
         symlinkPath,
         source,
+        _registrySource: skill.source || null,
         intents: manifest.intents || [],
         tags: manifest.tags || [],
         icon:
@@ -232,9 +233,20 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
     )
   }
 
-  // Merge with community items that aren't installed yet
+  // Merge with community items that aren't installed yet.
+  // If an installed extension came from extensions-dev/ (SDK dev workflow),
+  // still include the community catalog entry so users can install from the
+  // store instead.
   const communityItems = community
-    .filter((item) => !installedIds.has(item.id))
+    .filter((item) => {
+      if (!installedIds.has(item.id)) return true
+      const ext = installed.find((e) => e.id === item.id)
+      // Um symlink em extensionsDir/ (isSymlink=true) é artifact de dev,
+      // mesmo que source diga 'store_test'. Não deve bloquear a comunidade.
+      const includeCommunity = ext?.source === 'dev' || ext?._registrySource === 'dev' || ext?.isSymlink === true
+      console.log(`[DIAG] community filter: id=${item.id} installedIds.has=true source=${ext?.source} _registrySource=${ext?._registrySource} isSymlink=${ext?.isSymlink} includeCommunity=${includeCommunity}`)
+      return includeCommunity
+    })
     .map((item) => {
       const raw = { ...item }
       const locales = raw.locales || {}
@@ -250,11 +262,16 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         if (matchedLocal.momai_compat) raw.momai_compat = matchedLocal.momai_compat
       }
 
+      const rawTagsList = raw.tags || []
+      const rawCat = raw.category || null
+      if (rawCat && rawTagsList.indexOf(rawCat) === -1) rawTagsList.push(rawCat)
+
       return {
         ...raw,
         name: localized.name || raw.name,
         description: localized.description || raw.description,
         category: 'community',
+        tags: rawTagsList,
         enabled: false,
         installed: false,
         is_official: raw.is_official || false,
@@ -307,6 +324,11 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
       if (repo) {
         try {
           const releases = await communityRegistry.fetchReleases(repo)
+
+          // Use per-release momai_compat (from release body frontmatter) only.
+          // Extension-wide momai_compat is NOT applied to releases — older releases
+          // predate the SDK compat requirement and should remain installable on
+          // older MomAI versions.
           const best = findBestCompatibleRelease(releases, appVersion)
           if (best) {
             latestCompatible = best.version

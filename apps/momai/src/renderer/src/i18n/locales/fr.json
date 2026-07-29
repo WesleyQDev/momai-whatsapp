@@ -467,5 +467,21 @@
   "reminders.tooltips.repeat": "Fait répéter le rappel à un intervalle défini",
   "reminders.tooltips.interval": "À quelle fréquence le rappel doit se répéter",
   "reminders.tooltips.limit": "Combien de fois le rappel doit se déclencher avant de s'arrêter (vide = infini)",
-  "reminders.tooltips.voice": "Quand activé, le rappel est lu à voix haute lorsqu'il se déclenche"
+  "reminders.tooltips.voice": "Quand activé, le rappel est lu à voix haute lorsqu'il se déclenche",
+
+  "extensions.permissions.group.network": "Access the network",
+  "extensions.permissions.group.storage": "Access local storage",
+  "extensions.permissions.group.system": "Access system information",
+  "extensions.permissions.group.ui": "Modify the interface",
+  "extensions.permissions.group.chat": "Access chat messages",
+  "extensions.permissions.group.notifications": "Send notifications",
+  "extensions.permissions.group.browser": "Control the browser",
+  "extensions.permissions.group.oauth": "Manage authentication",
+  "extensions.permissions.group.scheduler": "Schedule tasks",
+  "extensions.permissions.group.events": "Listen to system events",
+  "extensions.permissions.group.llm": "Access the language model",
+  "extensions.permissions.group.config": "Read extension settings",
+  "extensions.permissions.group.registry": "Register commands and shortcuts",
+  "extensions.permissions.group.other": "Other permissions",
+  "extensions.permissions.none": "No special permissions"
 }

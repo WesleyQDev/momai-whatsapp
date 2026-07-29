@@ -1,4 +1,4 @@
-import type { MomAISDK } from './runtime'
+import type { MomAISDK } from './types'
 
 interface SDKAdapter {
   version: number

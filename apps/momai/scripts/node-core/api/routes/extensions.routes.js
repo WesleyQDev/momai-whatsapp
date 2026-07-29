@@ -1044,13 +1044,9 @@ function createExtensionsRoutes(context) {
           findBestCompatibleRelease
         } = require('../../utils/semver-compat')
 
-        const community = await communityRegistry.fetchRegistry()
-        let item = community.find((e) => e.id === id)
-
-        if (!item && usesLocalInstallRegistry()) {
-          const localRegistry = await loadInstallRegistry()
-          item = (localRegistry.extensions || []).find((e) => e.id === id)
-        }
+        // Use merged registry for accurate extension metadata (includes dev-extensions.json overrides)
+        const mergedRegistry = await loadInstallRegistry()
+        const item = (mergedRegistry.extensions || []).find((e) => e.id === id)
 
         // Also check installed extensions for repo info
         const skillRegistry = shared.skillRegistry
@@ -1070,17 +1066,12 @@ function createExtensionsRoutes(context) {
 
         const rawReleases = await communityRegistry.fetchReleases(repo)
 
-        // Read momai_compat from installed manifest or from remote manifest
-        let momaiCompat = installed?.manifest?.momai_compat || null
-        if (!momaiCompat && item?.momai_compat) {
-          momaiCompat = item.momai_compat
-        }
-
-        // Assign momai_compat to each release (from the extension's declared range)
-        const releasesWithCompat = rawReleases.map((r) => ({
-          ...r,
-          momai_compat: momaiCompat
-        }))
+        // Use per-release momai_compat (from release body frontmatter) only.
+        // Extension-wide momai_compat is NOT applied to releases because older
+        // releases predate the SDK compat requirement and should remain installable
+        // on older MomAI versions. If a release has no frontmatter, it's compatible
+        // with all current MomAI versions.
+        const releasesWithCompat = rawReleases
 
         const pkg = require(path.resolve(__dirname, '..', '..', '..', '..', 'package.json'))
         const appVersion = pkg.version || '0.0.0'
@@ -1296,6 +1287,9 @@ function createExtensionsRoutes(context) {
         flattenExtractedDir(extDir)
         sendInstallStage('extracting', { percent: 100, globalPercent: 85 })
         sendInstallStage('linking_deps', { percent: 0, globalPercent: 85 })
+        await installExtensionDependencies(extDir).catch((e) =>
+          console.warn(`[extensions] Dependency install failed for ${id}:`, e.message)
+        )
         sendInstallStage('linking_deps', { percent: 100, globalPercent: 90 })
       } catch (err) {
         try {
