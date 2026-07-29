@@ -117,7 +117,7 @@ describe('TrayService', () => {
     svc.stop()
   })
 
-  it('on close with keepInTray=true: hides window and stops llama', () => {
+  it('on close with keepInTray=true: hides window, stops llama, and activates soneca', () => {
     const deps = makeDeps()
     const svc = new TrayService(deps)
     svc.start()
@@ -159,7 +159,7 @@ describe('TrayService', () => {
     svc.stop()
   })
 
-  it('on tray click when window is visible: hides menuWindow, hides window, and stops llama', () => {
+  it('on tray click when window is visible: hides menuWindow, window, stops llama, and activates soneca', () => {
     const deps = makeDeps({
       window: { ...makeDeps().window, isVisible: vi.fn(() => true) } as any
     })

@@ -183,6 +183,15 @@ export class EconomyService {
     }
   }
 
+  /** Ativa modo soneca imediatamente (idle). Usado ao esconder a janela. */
+  async immediateSoneca(): Promise<void> {
+    if (this.currentState.active) return
+    logger.info('[Economy] Immediate soneca — window hidden')
+    this.dismissed = false
+    this.dismissedFor = null
+    await this.activateEconomy('idle', [])
+  }
+
   reloadPreferences(): void {
     if (!this.preferencesPath) return
     try {

@@ -140,7 +140,10 @@ export class TrayService {
 
     if (this.deps.keepInTray.isEnabled()) {
       this.deps.window.hide()
+      // Ativa soneca imediatamente — para o LLM via Economy (libera VRAM/RAM)
+      // e registra o estado 'idle' para que ao reabrir o resume seja suave
       void this.deps.llama.stop()
+      this.activateSoneca()
       return
     }
 
@@ -154,6 +157,7 @@ export class TrayService {
     if (this.deps.window.isVisible()) {
       this.deps.window.hide()
       void this.deps.llama.stop()
+      this.activateSoneca()
     } else {
       this.showWindow()
     }
@@ -163,5 +167,28 @@ export class TrayService {
     this.deps.window.show()
     this.deps.window.focus()
     void this.deps.llama.start()
+    this.dismissSoneca()
+  }
+
+  /** Ativa modo soneca imediatamente via Economy, liberando GPU/RAM. */
+  private activateSoneca(): void {
+    const economy = this.deps.getEconomy?.()
+    if (!economy) return
+    const state = economy.getState()
+    if (state.active) return // já está em soneca
+    economy
+      .immediateSoneca()
+      .catch(() => {})
+  }
+
+  /** Acorda da soneca — o Economy reinicia o LLM na próxima poll. */
+  private dismissSoneca(): void {
+    const economy = this.deps.getEconomy?.()
+    if (!economy) return
+    const state = economy.getState()
+    if (!state.active) return // não está em soneca
+    economy
+      .dismiss()
+      .catch(() => {})
   }
 }
