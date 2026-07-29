@@ -87,6 +87,14 @@ export default function NotificationOverlay() {
     fetchExtensions()
       .then(setInstalled)
       .catch(() => setInstalled([]))
+
+    const handleExtensionsSync = () => {
+      fetchExtensions()
+        .then(setInstalled)
+        .catch(() => setInstalled([]))
+    }
+    window.addEventListener('momai_extensions_sync', handleExtensionsSync)
+    return () => window.removeEventListener('momai_extensions_sync', handleExtensionsSync)
   }, [])
 
   const findSkillForEvent = useCallback(

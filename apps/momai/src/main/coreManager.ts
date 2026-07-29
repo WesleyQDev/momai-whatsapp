@@ -1,5 +1,5 @@
 import { app, ipcMain, powerMonitor, safeStorage } from 'electron'
-import { existsSync, mkdirSync, readFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, watch } from 'fs'
 import { join, resolve } from 'path'
 import { spawn, execSync } from 'child_process'
 import { createConnection } from 'net'
@@ -28,6 +28,10 @@ const PYTHON_SIDECAR_HOST = API_HOST
 const PYTHON_SIDECAR_PORT = Number(process.env.MOMAI_PYTHON_SIDECAR_PORT || 8001)
 const CORE_BOOT_TIMEOUT_MS = 300000
 const REUSE_NODE_CORE = process.env.MOMAI_REUSE_NODE_CORE === '1'
+
+const NODE_CORE_SRC_DIR = join(app.getAppPath(), 'scripts', 'node-core')
+let nodeCoreWatcher: ReturnType<typeof watch> | null = null
+let nodeCoreWatchTimer: ReturnType<typeof setTimeout> | null = null
 
 function getCurrentTier(): string | null {
   const storePath = join(app.getPath('userData'), 'data', 'node-core-store.json')
@@ -768,6 +772,49 @@ function attachCoreIpcHandlers(child: ReturnType<typeof spawn>): void {
   }
 }
 
+function startNodeCoreWatcher(): void {
+  if (app.isPackaged) return
+  if (!existsSync(NODE_CORE_SRC_DIR)) return
+
+  // Close previous watcher if restarting
+  if (nodeCoreWatcher) {
+    nodeCoreWatcher.close()
+    nodeCoreWatcher = null
+  }
+
+  try {
+    nodeCoreWatcher = watch(NODE_CORE_SRC_DIR, { recursive: true }, (_event, filename) => {
+      if (!filename) return
+      if (!filename.endsWith('.js') && !filename.endsWith('.json')) return
+      if (filename.includes('node_modules')) return
+
+      // Debounce: restart at most once per 300ms
+      if (nodeCoreWatchTimer) clearTimeout(nodeCoreWatchTimer)
+      nodeCoreWatchTimer = setTimeout(() => {
+        logger.info(`[CoreManager] Node Core source changed: ${filename}. Restarting...`)
+        const child = state.nodeCoreProcess
+        if (child && child.exitCode === null && !child.killed) {
+          child.kill('SIGTERM')
+        }
+      }, 300)
+    })
+    logger.info('[CoreManager] Watching Node Core source for changes (dev hot-reload).')
+  } catch (err) {
+    logger.warn('[CoreManager] Failed to start Node Core watcher:', err)
+  }
+}
+
+function stopNodeCoreWatcher(): void {
+  if (nodeCoreWatchTimer) {
+    clearTimeout(nodeCoreWatchTimer)
+    nodeCoreWatchTimer = null
+  }
+  if (nodeCoreWatcher) {
+    nodeCoreWatcher.close()
+    nodeCoreWatcher = null
+  }
+}
+
 function spawnNodeCore(): ReturnType<typeof spawn> {
   const scriptPath = getNodeCoreScriptPath()
   if (!existsSync(scriptPath)) {
@@ -938,6 +985,9 @@ export async function startCoreBackend(): Promise<void> {
     setNodeCoreProcess(child)
     emitInitProgress('Initializing services...', 30)
 
+    // Dev mode: watch Node Core source for hot reload
+    startNodeCoreWatcher()
+
     // Start Python sidecar proactively at app startup (non-blocking),
     // so voice/TTS is warm before the first user message.
     // Pro with edge-tts doesn't need Python (edge-tts is npm-based).
@@ -1078,6 +1128,8 @@ export async function shutdownCoreBackend(): Promise<void> {
     }
     windowListeners = null
   }
+
+  stopNodeCoreWatcher()
 
   logger.info('[CoreManager] Iniciando shutdown...')
 

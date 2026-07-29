@@ -135,6 +135,8 @@ function App(): React.JSX.Element {
     return () => window.removeEventListener('keydown', handleEsc)
   }, [showSettings])
 
+
+
   // Event Listeners registration
   useAppEvents({ openSettings, handleGraphOption })
 
@@ -215,15 +217,23 @@ function App(): React.JSX.Element {
         }}
         style={{
           transition: 'opacity 0.6s ease-in',
-          opacity: showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked ? 0 : 1,
+          opacity: showWelcome || showOnboarding || !firstLaunchChecked ? 0 : 1,
           pointerEvents:
-            showWelcome || showOnboarding || !!bootstrapError || !firstLaunchChecked
+            showWelcome || showOnboarding || !firstLaunchChecked
               ? 'none'
               : 'auto'
         }}
       >
         <NotificationOverlay />
-        <TitleBar onClearHistory={triggerClearHistory} activeRoute={location.pathname} />
+        <div
+          className="flex-shrink-0"
+          style={{
+            position: 'relative',
+            zIndex: bootstrapError ? 10000 : 300
+          }}
+        >
+          <TitleBar onClearHistory={triggerClearHistory} activeRoute={location.pathname} />
+        </div>
 
         <div className="flex-1 flex w-full min-h-0 relative">
           <LateralBar
