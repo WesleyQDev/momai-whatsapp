@@ -51,7 +51,7 @@ const panelCache = new Map<string, any>()
 
 function ScopedExtensionContainer({ extId, children, styles }: { extId: string; children: React.ReactNode; styles?: string }) {
   return (
-    <div className={`ext-${extId}`}>
+    <div className={`ext-${extId} h-full`}>
       {styles && <style>{styles}</style>}
       {children}
     </div>

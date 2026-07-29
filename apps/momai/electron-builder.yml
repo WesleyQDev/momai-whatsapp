@@ -92,6 +92,9 @@ asarUnpack:
   - 'node_modules/mime-types/**'
   - 'node_modules/proxy-from-env/**'
   - 'node_modules/media-typer/**'
+  - 'node_modules/yauzl/**'
+  - 'node_modules/pend/**'
+  - 'scripts/node-core/utils/zip-extract-worker.js'
 nsis:
   artifactName: MomAI-Installer.${ext}
   shortcutName: MomAI

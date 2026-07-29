@@ -7,7 +7,8 @@ function authMiddleware(req, res, next) {
     return sendJson(res, 500, { ok: false, error: 'server misconfigured: no session token' })
   }
   const auth = req.headers['authorization']
-  if (auth !== `Bearer ${expected}`) {
+  const sessionToken = req.headers['x-session-token']
+  if (auth !== `Bearer ${expected}` && sessionToken !== expected) {
     return sendJson(res, 401, { ok: false, error: 'unauthorized' })
   }
   next()
