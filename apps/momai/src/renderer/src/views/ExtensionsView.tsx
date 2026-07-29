@@ -1070,15 +1070,6 @@ function SkillDetailView({
                 {installingId === skill.id ? 'Obtendo...' : 'Obter'}
               </button>
             )}
-            {isInstalled && skill.updateAvailable && (
-              <button
-                onClick={() => onInstall(skill)}
-                disabled={installingId === skill.id}
-                className={`px-10 py-3 text-white font-bold transition-all shadow-lg rounded-xl text-base ${installingId === skill.id ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-violet-600 hover:bg-violet-500 active:scale-[0.97]'}`}
-              >
-                {installingId === skill.id ? 'Obtendo...' : 'Atualizar'}
-              </button>
-            )}
           </div>
         </div>
       </div>

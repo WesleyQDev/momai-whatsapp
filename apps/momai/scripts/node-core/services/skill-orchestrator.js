@@ -345,6 +345,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
       if (targetVersion) {
         const cmp = compareVersions(targetVersion, ext.version || '0.0.0')
         if (cmp > 0) {
+          console.log(`[SkillOrchestrator] updateAvailable for ${ext.id}: installed=${ext.version || '0.0.0'} latest=${targetVersion} cmp=${cmp}`)
           const compat = latestCompatible ? true : satisfiesRange(appVersion, regItem.momai_compat)
           if (compat) {
             ext.updateAvailable = true

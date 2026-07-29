@@ -1183,6 +1183,10 @@ function createExtensionsRoutes(context) {
         return true
       }
 
+      // Stop old worker BEFORE modifying files — prevents worker crash
+      // from in-place file replacement during update.
+      await extensionHostManager.stopPersistent(id).catch(() => {})
+
       try {
         const stat = fs.lstatSync(extDir)
         if (stat.isSymbolicLink()) {
@@ -1251,6 +1255,11 @@ function createExtensionsRoutes(context) {
         }
         sendInstallStage('verifying', { percent: 100, globalPercent: 70 })
 
+        // Stop existing persistent worker before modifying files —
+        // the extraction below removes all files, which would crash a
+        // running worker that still has them open.
+        await extensionHostManager.stopPersistent(id).catch(() => {})
+
         // Save previous version for rollback
         const previousDir = path.join(skillRegistry.extensionsDir, id, '.previous')
         if (fs.existsSync(extDir)) {
@@ -1270,10 +1279,52 @@ function createExtensionsRoutes(context) {
 
         console.log(`[ExtensionsAPI] Extracting ${id}...`)
         sendInstallStage('extracting', { percent: 0, globalPercent: 75 })
+
+        // Preserve declared storage locations before wiping the directory —
+        // extensions like WhatsApp store Baileys auth sessions, contact data,
+        // and message history inside the extension directory. Wiping them
+        // would force the user to re-authenticate after every update.
+        const preservedPaths = []
+        const manifestPath = path.join(extDir, 'manifest.json')
+        if (fs.existsSync(manifestPath)) {
+          try {
+            const oldManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
+            const storageLocations = oldManifest.storage?.locations || []
+            for (const loc of storageLocations) {
+              const cleanLoc = String(loc).replace(/\s*\(.*?\)\s*$/, '').trim().replace(/\/+$/, '')
+              if (!cleanLoc) continue
+              if (cleanLoc.startsWith('*.')) {
+                const extGlob = cleanLoc.slice(1)
+                const items = fs.readdirSync(extDir).filter((f) =>
+                  f.endsWith(extGlob) &&
+                  f !== 'package.json' &&
+                  f !== 'package-lock.json' &&
+                  f !== 'manifest.json'
+                )
+                for (const item of items) {
+                  const src = path.join(extDir, item)
+                  const dst = path.join(extDir, `.preserve-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`)
+                  fs.renameSync(src, dst)
+                  preservedPaths.push({ src: dst, dst: path.join(extDir, item) })
+                }
+              } else {
+                const src = path.join(extDir, cleanLoc)
+                if (fs.existsSync(src)) {
+                  const dst = path.join(extDir, `.preserve-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`)
+                  fs.renameSync(src, dst)
+                  preservedPaths.push({ src: dst, dst: src })
+                }
+              }
+            }
+          } catch (preserveErr) {
+            console.warn(`[extensions] Failed to preserve storage for ${id}: ${preserveErr.message}`)
+          }
+        }
+
         try {
           const files = fs.readdirSync(extDir)
           for (const file of files) {
-            if (file !== 'archive.zip') {
+            if (file !== 'archive.zip' && !file.startsWith('.preserve-')) {
               fs.rmSync(path.join(extDir, file), { recursive: true, force: true })
             }
           }
@@ -1285,6 +1336,19 @@ function createExtensionsRoutes(context) {
           fs.unlinkSync(zipPath)
         } catch {}
         flattenExtractedDir(extDir)
+
+        // Restore preserved storage locations after extraction
+        for (const { src, dst: restoreDst } of preservedPaths) {
+          try {
+            if (fs.existsSync(restoreDst)) {
+              fs.rmSync(restoreDst, { recursive: true, force: true })
+            }
+            fs.renameSync(src, restoreDst)
+          } catch (restoreErr) {
+            console.warn(`[extensions] Failed to restore ${path.basename(restoreDst)} for ${id}: ${restoreErr.message}`)
+          }
+        }
+        console.log(`[extensions] Storage preservation for ${id}: preserved ${preservedPaths.length} item(s) from ${fs.existsSync(manifestPath) ? 'manifest' : 'no-manifest'}`)
         sendInstallStage('extracting', { percent: 100, globalPercent: 85 })
         sendInstallStage('linking_deps', { percent: 0, globalPercent: 85 })
         await installExtensionDependencies(extDir).catch((e) =>
@@ -1346,11 +1410,6 @@ function createExtensionsRoutes(context) {
 
       sendInstallStage('indexing', { percent: 0, globalPercent: 90 })
       await skillRegistry.loadExtensions()
-
-      // Stop any existing persistent worker before restarting — this
-      // handles updates where the old worker may still be running and
-      // holding ports/resources.
-      await extensionHostManager.stopPersistent(id).catch(() => {})
 
       // Start the persistent worker immediately if the extension runs in the background
       const skill = skillRegistry.getById(id)
