@@ -1,0 +1,30 @@
+name: Validate Release Tag
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check manifest version matches tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MANIFEST_VERSION=$(jq -r '.version' manifest.json)
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          echo "Tag version:   $TAG_VERSION"
+          echo "Manifest:      $MANIFEST_VERSION"
+          echo "Package.json:  $PACKAGE_VERSION"
+          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "❌ manifest.json version ($MANIFEST_VERSION) does not match tag ($TAG_VERSION)"
+            echo "   Update manifest.json's \"version\" field before creating the tag."
+            exit 1
+          fi
+          if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "❌ package.json version ($PACKAGE_VERSION) does not match tag ($TAG_VERSION)"
+            echo "   Update package.json's \"version\" field before creating the tag."
+            exit 1
+          fi
+          echo "✅ All version fields match tag $GITHUB_REF_NAME"
