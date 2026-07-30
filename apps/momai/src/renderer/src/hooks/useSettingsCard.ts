@@ -85,7 +85,7 @@ const DEFAULT_SETTINGS: Settings = {
   ai_tier: 'pro',
   auto_start_llm: true,
   context_window_mode: 'min',
-  context_window_tokens: 2048,
+  context_window_tokens: 0,
   skip_intro: false,
   keep_in_tray: true
 }

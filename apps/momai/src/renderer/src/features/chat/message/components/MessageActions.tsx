@@ -77,34 +77,26 @@ export const MessageActions: React.FC<MessageActionsProps> = ({
           </button>
         )}
 
-        {aiTier !== 'lite' && (
-          <>
-            <div className="w-[1px] h-3 bg-zinc-200 dark:bg-white/10 mx-0.5"></div>
-
-            <div className="flex items-center">
-              {isSpeaking || (isLoading && ttsEnabled) ? (
-                <button
-                  type="button"
-                  onClick={onStopVoice}
-                  className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-white/10 text-accent hover:text-accent/80 transition-colors animate-pulse"
-                  title={t('chat.voice.stop')}
-                  aria-label={t('chat.voice.stop')}
-                >
-                  <StopIcon className="w-[14px] h-[14px]" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onSpeak}
-                  className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-accent transition-colors opacity-50 hover:opacity-100"
-                  title={t('chat.voice.listen')}
-                  aria-label={t('chat.voice.listen')}
-                >
-                  <SpeakerWaveIcon className="w-[14px] h-[14px]" />
-                </button>
-              )}
-            </div>
-          </>
+        {(isSpeaking || (isLoading && ttsEnabled)) ? (
+          <button
+            type="button"
+            onClick={onStopVoice}
+            className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-white/10 text-accent hover:text-accent/80 transition-colors animate-pulse"
+            title={t('chat.voice.stop')}
+            aria-label={t('chat.voice.stop')}
+          >
+            <StopIcon className="w-[14px] h-[14px]" />
+          </button>
+        ) : aiTier !== 'lite' && (
+          <button
+            type="button"
+            onClick={onSpeak}
+            className="inline-flex items-center justify-center p-1.5 rounded-md hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-400 hover:text-accent transition-colors opacity-50 hover:opacity-100"
+            title={t('chat.voice.listen')}
+            aria-label={t('chat.voice.listen')}
+          >
+            <SpeakerWaveIcon className="w-[14px] h-[14px]" />
+          </button>
         )}
 
         <button

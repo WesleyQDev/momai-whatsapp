@@ -284,6 +284,7 @@ export function useChat() {
     setThreadId,
     scrollToBottom,
     animationFinished,
-    setAnimationFinished
+    setAnimationFinished,
+    isHistoryLoaded
   }
 }

@@ -43,11 +43,15 @@ export function useChatActions({
   setText
 }: UseChatActionsProps) {
   const abortControllerRef = useRef<AbortController | null>(null)
+  const tokenBufferRef = useRef<string[]>([])
+  const callTokenBufferRef = useRef<string[]>([])
+  const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort()
       abortControllerRef.current = null
+      if (flushIntervalRef.current) clearInterval(flushIntervalRef.current)
     }
   }, [])
 
@@ -198,6 +202,81 @@ export function useChatActions({
       const messageThreadId = currentThreadRef.current || threadId
       const isFirstMessage = messagesRef.current.length <= 1
 
+      const flushTokens = () => {
+        if (currentThreadRef.current !== messageThreadId) {
+          tokenBufferRef.current = []
+          callTokenBufferRef.current = []
+          return
+        }
+        const tokens = tokenBufferRef.current
+        tokenBufferRef.current = []
+        if (tokens.length > 0) {
+          const combined = tokens.join('')
+          dispatch({
+            type: 'UPDATE_LAST_MESSAGE',
+            updater: (last) => {
+              if (last.role !== 'assistant' || last.content.startsWith('Cérebro alterado')) {
+                return last
+              }
+              const newBase = last.content === '...' ? '' : last.content
+              if (isToolTraceMessage(last)) {
+                const parsed = splitToolTraceContent(last.content)
+                const textPart = parsed?.textPart || ''
+                let traceData: any = null
+                try {
+                  traceData = parsed?.jsonPart ? JSON.parse(parsed.jsonPart) : null
+                } catch { traceData = null }
+                return {
+                  ...last,
+                  content: buildToolTraceContent(traceData || {}, textPart + combined)
+                }
+              }
+              return { ...last, content: newBase + combined }
+            }
+          })
+        }
+        const callTokens = callTokenBufferRef.current
+        callTokenBufferRef.current = []
+        if (callTokens.length > 0 && isCallModeRef.current) {
+          const combinedCall = callTokens.join('')
+          dispatch({
+            type: 'SET_CALL_HISTORY',
+            updater: (prevHistory) => {
+              const last = prevHistory[prevHistory.length - 1]
+              if (last && last.role === 'assistant') {
+                const history = [...prevHistory]
+                const prevContent = history[history.length - 1].content
+                let nextToken = combinedCall
+                if (prevContent === '...' || prevContent === '') {
+                  nextToken = nextToken.replace(/^\s+/, '')
+                }
+                history[history.length - 1] = {
+                  ...last,
+                  content: (prevContent === '...' ? '' : prevContent) + nextToken
+                }
+                return history
+              }
+              const trimmed = combinedCall.replace(/^\s+/, '')
+              if (trimmed) {
+                return [...prevHistory, { id: `assistant-${Date.now()}`, role: 'assistant' as const, content: trimmed }].slice(-5)
+              }
+              return prevHistory
+            }
+          })
+        }
+      }
+
+      const clearFlush = () => {
+        flushTokens()
+        if (flushIntervalRef.current) {
+          clearInterval(flushIntervalRef.current)
+          flushIntervalRef.current = null
+        }
+      }
+
+      if (flushIntervalRef.current) clearInterval(flushIntervalRef.current)
+      flushIntervalRef.current = setInterval(flushTokens, 30)
+
       try {
         const memoryPayload = await memoryPromise
         await sendChatMessage(
@@ -205,68 +284,11 @@ export function useChatActions({
           messageThreadId,
           {
             onToken: (token) => {
-              if (currentThreadRef.current !== messageThreadId) return
-              dispatch({
-                type: 'UPDATE_LAST_MESSAGE',
-                updater: (last) => {
-                  if (last.role !== 'assistant' || last.content.startsWith('Cérebro alterado')) {
-                    return last
-                  }
-                  const currentContent = last.content
-                  const newBase = currentContent === '...' ? '' : currentContent
-
-                  if (isToolTraceMessage(last)) {
-                    const parsed = splitToolTraceContent(last.content)
-                    let traceData: any = null
-                    const textPart = parsed?.textPart || ''
-                    try {
-                      traceData = parsed?.jsonPart ? JSON.parse(parsed.jsonPart) : null
-                    } catch {
-                      traceData = null
-                    }
-                    return {
-                      ...last,
-                      content: buildToolTraceContent(traceData || {}, textPart + token)
-                    }
-                  }
-                  return { ...last, content: newBase + token }
-                }
-              })
-
+              tokenBufferRef.current.push(token)
               if (isCallModeRef.current) {
                 const cleanTokenForCall = token.split('__MOMAI_ACTIONS__')[0]
                 if (cleanTokenForCall !== undefined) {
-                  dispatch({
-                    type: 'SET_CALL_HISTORY',
-                    updater: (prevHistory) => {
-                      const last = prevHistory[prevHistory.length - 1]
-                      if (last && last.role === 'assistant') {
-                        const history = [...prevHistory]
-                        const prevContent = history[history.length - 1].content
-                        let nextToken = cleanTokenForCall
-                        if (prevContent === '...' || prevContent === '') {
-                          nextToken = nextToken.replace(/^\s+/, '')
-                        }
-                        history[history.length - 1] = {
-                          ...last,
-                          content: (prevContent === '...' ? '' : prevContent) + nextToken
-                        }
-                        return history
-                      }
-                      const trimmed = cleanTokenForCall.replace(/^\s+/, '')
-                      if (trimmed) {
-                        return [
-                          ...prevHistory,
-                          {
-                            id: `assistant-${Date.now()}`,
-                            role: 'assistant' as const,
-                            content: trimmed
-                          }
-                        ].slice(-5)
-                      }
-                      return prevHistory
-                    }
-                  })
+                  callTokenBufferRef.current.push(cleanTokenForCall)
                 }
               }
             },
@@ -338,6 +360,7 @@ export function useChatActions({
             },
             onInterrupted: () => {
               if (currentThreadRef.current !== messageThreadId) return
+              clearFlush()
               dispatch({
                 type: 'UPDATE_LAST_MESSAGE',
                 updater: (last) => {
@@ -351,6 +374,7 @@ export function useChatActions({
             },
             onDone: () => {
               if (currentThreadRef.current !== messageThreadId) return
+              clearFlush()
               dispatch({ type: 'SET_LOADING', isLoading: false })
               if (isFirstMessage) {
                 const lastMsgs = messagesRef.current
@@ -370,6 +394,7 @@ export function useChatActions({
             },
             onError: (err) => {
               if (currentThreadRef.current !== messageThreadId) return
+              clearFlush()
               dispatch({ type: 'SET_LOADING', isLoading: false })
               dispatch({
                 type: 'UPDATE_LAST_MESSAGE',
@@ -380,6 +405,7 @@ export function useChatActions({
           { ...memoryPayload, signal: abortController.signal }
         )
       } catch (err) {
+        clearFlush()
         if (abortController.signal.aborted) return
         dispatch({ type: 'SET_LOADING', isLoading: false })
         console.error('Erro ao enviar mensagem:', err)

@@ -1,4 +1,5 @@
 const fs = require('node:fs')
+const fsp = require('node:fs/promises')
 const path = require('node:path')
 const { info, error, warn } = require('./logger')
 const { THREAD_RETENTION_DAYS, REMINDER_RETENTION_DAYS } = require('../config/constants')
@@ -46,7 +47,7 @@ function defaultStore() {
       skip_intro: false,
       keep_in_tray: true,
       context_window_mode: 'min',
-      context_window_tokens: 2048,
+      context_window_tokens: 0,
       daily_briefing_enabled: false,
       greeting_auto_saudacao: true,
       greeting_resumo: true,
@@ -120,16 +121,15 @@ let _saveTimer = null
 
 function saveStore(store) {
   if (_saveTimer) clearTimeout(_saveTimer)
-  _saveTimer = setTimeout(() => {
+  _saveTimer = setTimeout(async () => {
     _saveTimer = null
     try {
       const storeFile = getStoreFile()
       const start = Date.now()
       const tmp = storeFile + '.tmp.' + Date.now()
       const data = JSON.stringify(store)
-      fs.writeFileSync(tmp, data, 'utf8')
-      fs.renameSync(tmp, storeFile)
-      // hot path: debounced save on every message append
+      await fsp.writeFile(tmp, data, 'utf8')
+      await fsp.rename(tmp, storeFile)
       if (Date.now() - start > 100) {
         warn(`[Store] saveStore took ${Date.now() - start}ms (${data.length} bytes)`)
       }

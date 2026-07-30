@@ -20,6 +20,7 @@ interface MainViewRendererProps {
   visualProgress?: number
   initMessage?: string
   isBooting?: boolean
+  wasEverBooted?: boolean
   setHistoryOpen?: (open: boolean) => void
   isFirstLaunch?: boolean
   isUpdating?: boolean
@@ -31,6 +32,7 @@ const ChatView = (props: any) => {
     <ContainerChat
       messages={props.chat.messages}
       isLoading={props.chat.isLoading}
+      isHistoryLoaded={props.chat.isHistoryLoaded}
       isModeChanging={props.isUpdating}
       isTierChanging={props.isTierChanging}
       text={props.chat.text}
@@ -53,6 +55,7 @@ const ChatView = (props: any) => {
       visualProgress={props.visualProgress}
       initMessage={props.initMessage}
       isBooting={props.isBooting}
+      wasEverBooted={props.wasEverBooted}
       threadId={props.chat.threadId}
       setThreadId={props.chat.setThreadId}
       setHistoryOpen={props.setHistoryOpen}
@@ -88,6 +91,7 @@ export default function MainViewRenderer({
   visualProgress,
   initMessage,
   isBooting,
+  wasEverBooted,
   setHistoryOpen,
   isFirstLaunch,
   isUpdating,
@@ -118,6 +122,7 @@ export default function MainViewRenderer({
           visualProgress={visualProgress}
           initMessage={initMessage}
           isBooting={isBooting}
+          wasEverBooted={wasEverBooted}
           isUpdating={isUpdating}
           isTierChanging={isTierChanging}
           setHistoryOpen={setHistoryOpen}

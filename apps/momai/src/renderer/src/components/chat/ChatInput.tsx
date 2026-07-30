@@ -424,7 +424,7 @@ export default function ChatInput({
   return (
     <footer className="p-4 bg-transparent relative">
       <div className="max-w-4xl mx-auto relative">
-        <div className="flex flex-col bg-white/[0.03] hover:bg-white/[0.05] backdrop-blur-xl rounded-2xl transition-all duration-300 focus-within:bg-white/[0.07] focus-within:ring-1 focus-within:ring-white/5">
+        <div className="flex flex-col bg-white/[0.02] hover:bg-white/[0.04] rounded-xl transition-all duration-200 focus-within:bg-white/[0.05] focus-within:ring-1 focus-within:ring-white/[0.06]">
           <div className="relative">
             {/* Ghost text overlay for autocomplete suggestion */}
             <div

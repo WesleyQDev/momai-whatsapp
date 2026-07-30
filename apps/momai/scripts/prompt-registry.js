@@ -14,9 +14,6 @@ function replaceAll(template, vars) {
   for (const [key, value] of Object.entries(vars)) {
     out = out.split(`{{${key}}}`).join(String(value ?? ''))
   }
-  for (const [key, value] of Object.entries(vars)) {
-    out = out.split(`{{${key}}}`).join(String(value ?? ''))
-  }
   return out
 }
 
@@ -113,16 +110,14 @@ function createPromptRegistry({ promptsDir }) {
   let _systemPromptCache = null
 
   function getMemoriesMtime(memoriesDir) {
-    if (!memoriesDir || !fs.existsSync(memoriesDir)) return 0
+    if (!memoriesDir) return 0
     let maxMtime = 0
     for (const name of ALLOWED_FILENAMES) {
       const fp = path.join(memoriesDir, `${name}.md`)
-      if (fs.existsSync(fp)) {
-        try {
-          const stat = fs.statSync(fp)
-          if (stat.mtimeMs > maxMtime) maxMtime = stat.mtimeMs
-        } catch {}
-      }
+      try {
+        const stat = fs.statSync(fp)
+        if (stat.mtimeMs > maxMtime) maxMtime = stat.mtimeMs
+      } catch {}
     }
     return maxMtime
   }
@@ -191,8 +186,8 @@ function createPromptRegistry({ promptsDir }) {
   }
 
   function buildSystemPrompt(input) {
-    const memoriesMtime = getMemoriesMtime(input.memoriesDir)
-    const sessionKey = `${input.threadId || 'default'}:${input.userName || ''}:${input.persona || ''}:${input.locale || ''}:${input.tier || 'pro'}:${memoriesMtime}`
+    // Phase 1: check non-memory cache fields (no I/O)
+    const cacheKey = `${input.threadId || 'default'}:${input.userName || ''}:${input.persona || ''}:${input.locale || ''}:${input.tier || 'pro'}`
 
     // Volatile is ALWAYS rebuilt every call (greeting policy, timestamp, model info)
     const volatileTier = buildVolatileTier({
@@ -204,10 +199,24 @@ function createPromptRegistry({ promptsDir }) {
     })
 
     let stable, context
-    if (_systemPromptCache && _systemPromptCache.sessionKey === sessionKey) {
-      stable = _systemPromptCache.stable
-      context = _systemPromptCache.context
+    if (_systemPromptCache && _systemPromptCache.cacheKey === cacheKey) {
+      const memoriesMtime = getMemoriesMtime(input.memoriesDir)
+      if (_systemPromptCache.memoriesMtime === memoriesMtime) {
+        stable = _systemPromptCache.stable
+        context = _systemPromptCache.context
+      } else {
+        stable = buildStableTier({
+          userName: input.userName,
+          persona: input.persona,
+          responseStyle: input.responseStyle,
+          tier: input.tier,
+          memoriesDir: input.memoriesDir
+        })
+        context = buildContextTier({ memoriesDir: input.memoriesDir })
+        _systemPromptCache = { cacheKey, memoriesMtime, stable, context }
+      }
     } else {
+      const memoriesMtime = getMemoriesMtime(input.memoriesDir)
       stable = buildStableTier({
         userName: input.userName,
         persona: input.persona,
@@ -215,10 +224,8 @@ function createPromptRegistry({ promptsDir }) {
         tier: input.tier,
         memoriesDir: input.memoriesDir
       })
-      context = buildContextTier({
-        memoriesDir: input.memoriesDir
-      })
-      _systemPromptCache = { sessionKey, stable, context }
+      context = buildContextTier({ memoriesDir: input.memoriesDir })
+      _systemPromptCache = { cacheKey, memoriesMtime, stable, context }
     }
 
     const base = [stable, context, volatileTier].filter(Boolean).join('\n\n')

@@ -71,11 +71,11 @@ let _saveStoreTimer = null
 
 function saveStore() {
   if (_saveStoreTimer) clearTimeout(_saveStoreTimer)
-  _saveStoreTimer = setTimeout(() => {
+  _saveStoreTimer = setTimeout(async () => {
     _saveStoreTimer = null
     try {
       const { STORE_FILE } = require('../config/constants')
-      fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2), 'utf8')
+      await fs.promises.writeFile(STORE_FILE, JSON.stringify(store, null, 2), 'utf8')
     } catch (error) {
       debug('[NodeCore] Failed to save store:', error)
     }
@@ -117,8 +117,9 @@ function setInitStatus(stage, message, progress, error = null) {
 let llamaStartGeneration = 0
 let _modelWarmedUp = false
 
-const WARMUP_SYSTEM_PROMPT =
-  'You are MomAI.\n\nPersona: MomAI\nResponse style: balanced\nTarget max sentences: 6'
+const WARMUP_SYSTEM_PROMPT = Array.from({ length: 15 }, (_, i) =>
+  `Rule ${i + 1}: MomAI is a local AI assistant.`
+).join('\n')
 
 async function warmUpModel() {
   if (_modelWarmedUp) return
@@ -129,7 +130,7 @@ async function warmUpModel() {
         { role: 'system', content: WARMUP_SYSTEM_PROMPT },
         { role: 'user', content: 'Hi' }
       ],
-      max_tokens: 2,
+      max_tokens: 4,
       stream: false,
       temperature: 0
     })
@@ -137,7 +138,7 @@ async function warmUpModel() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
-      signal: AbortSignal.timeout(10000)
+      signal: AbortSignal.timeout(30000)
     })
     if (resp.ok && typeof process.send === 'function') {
       process.send({
@@ -263,23 +264,19 @@ async function fetchLlamaRuntimeTelemetry(force = false) {
     let propsJson = null
 
     try {
-      const slotsResp = await fetch(`${base}/slots`, { method: 'GET' })
-      if (slotsResp.ok) {
+      const [slotsResp, metricsResp, propsResp] = await Promise.all([
+        fetch(`${base}/slots`, { method: 'GET' }).catch(() => null),
+        fetch(`${base}/metrics`, { method: 'GET' }).catch(() => null),
+        fetch(`${base}/props`, { method: 'GET' }).catch(() => null)
+      ])
+      if (slotsResp?.ok) {
         const slotsJson = await slotsResp.json()
         slotsParsed = parseSlotsTelemetry(slotsJson)
       }
-    } catch {}
-
-    try {
-      const metricsResp = await fetch(`${base}/metrics`, { method: 'GET' })
-      if (metricsResp.ok) {
+      if (metricsResp?.ok) {
         metricsParsed = parseMetricsTelemetry(await metricsResp.text())
       }
-    } catch {}
-
-    try {
-      const propsResp = await fetch(`${base}/props`, { method: 'GET' })
-      if (propsResp.ok) propsJson = await propsResp.json()
+      if (propsResp?.ok) propsJson = await propsResp.json()
     } catch {}
 
     const vramUsedCandidates = [
@@ -502,15 +499,26 @@ async function ensureLlamaReady(forceRestart = false, allowModelDownload = true)
               '-b',
               '2048',
               '-ub',
-              '512'
+              '2048',
+              '-ctk',
+              'q8_0',
+              '-ctv',
+              'q8_0'
             ]
 
             if (tierConfig.mtp) {
-              args.push('--spec-type', 'draft-mtp', '--spec-draft-n-max', '2')
+              args.push(
+                '--spec-type', 'draft-mtp', '--spec-draft-n-max', '2',
+                '--spec-draft-type-k', 'q8_0',
+                '--spec-draft-type-v', 'q8_0'
+              )
             }
 
-            if (backend === 'cpu') args.push('--no-mmap')
-            else args.push('--mmap')
+            if (backend === 'cpu') {
+              args.push('--no-mmap')
+            } else {
+              args.push('--mmap', '--no-host')
+            }
 
             if (mmprojPath) args.push('--mmproj', mmprojPath)
 

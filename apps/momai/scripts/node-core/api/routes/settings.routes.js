@@ -7,6 +7,8 @@ const { MEMORIES_DIR } = require('../../config/constants')
 const shared = require('../../services/shared-state')
 const { createMemoryFS } = require('../../infrastructure/memory-fs')
 
+let _pendingCtxRestart = false
+
 function createSettingsRoutes(context) {
   const {
     store,
@@ -18,6 +20,8 @@ function createSettingsRoutes(context) {
     saveStore,
     saveStoreNow,
     maybeRestartLlamaOnTierChange,
+    ensureLlamaReady,
+    llamaState,
     syncWakeWordState,
     ensurePython,
     syncPythonCallModeState
@@ -35,9 +39,9 @@ function createSettingsRoutes(context) {
       store.settings.context_window_mode = normalizeContextWindowMode(
         store.settings.context_window_mode || 'min'
       )
-      store.settings.context_window_tokens = clampContextTokens(
-        store.settings.context_window_tokens || 2048
-      )
+      store.settings.context_window_tokens = Number(store.settings.context_window_tokens) > 0
+        ? clampContextTokens(Number(store.settings.context_window_tokens))
+        : 0
       const response = filterToEditableSettings(store.settings)
       sendJson(res, 200, response)
       return true
@@ -60,6 +64,8 @@ function createSettingsRoutes(context) {
 
         const safePayload = filterToEditableSettings(payload)
 
+        const prevCtxMode = store.settings.context_window_mode
+        const prevCtxTokens = store.settings.context_window_tokens
         const newDevMode = getEffectiveDevMode(safePayload.dev_mode)
         const isDevModeSwitch = safePayload.dev_mode && newDevMode !== prevDevMode
 
@@ -110,9 +116,18 @@ function createSettingsRoutes(context) {
         store.settings.context_window_mode = normalizeContextWindowMode(
           store.settings.context_window_mode || 'min'
         )
-        store.settings.context_window_tokens = clampContextTokens(
-          store.settings.context_window_tokens || 2048
-        )
+        store.settings.context_window_tokens = Number(store.settings.context_window_tokens) > 0
+          ? clampContextTokens(Number(store.settings.context_window_tokens))
+          : 0
+
+        const ctxModeChanged = store.settings.context_window_mode !== prevCtxMode
+        const ctxTokensChanged = store.settings.context_window_tokens !== prevCtxTokens
+        if ((ctxModeChanged || ctxTokensChanged) && llamaState?.ready && !_pendingCtxRestart) {
+          _pendingCtxRestart = true
+          ensureLlamaReady(true)
+            .then(() => { _pendingCtxRestart = false })
+            .catch(() => { _pendingCtxRestart = false })
+        }
 
         if (payload.ai_tier) {
           if (store.settings.ai_tier === 'lite') {

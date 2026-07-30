@@ -365,80 +365,81 @@ app.on('web-contents-created', (_event, contents) => {
 })
 
 app.whenReady().then(async () => {
-  // Ensure Windows taskbar resolves correct name & icon in dev mode
-  if (is.dev && process.platform === 'win32') {
-    try {
-      const shortcutPath = join(
-        app.getPath('appData'),
-        'Microsoft',
-        'Windows',
-        'Start Menu',
-        'Programs',
-        `${CURRENT_VARIANT.appName}.lnk`
-      )
-      shell.writeShortcutLink(shortcutPath, 'replace', {
-        target: process.execPath,
-        args: process.argv.slice(1).join(' '),
-        appUserModelId: CURRENT_VARIANT.appId,
-        icon: ICON_PATH,
-        iconIndex: 0,
-        description: CURRENT_VARIANT.appName
-      })
-    } catch (err) {
-      logger.warn('[Electron] Failed to create dev Start Menu shortcut:', err)
-    }
-  }
-
-  // M3: Hide native menu bar in production to remove the "View > Toggle Developer Tools" entry
-  if (!is.dev) {
-    Menu.setApplicationMenu(null)
-  }
-
   // Generate a per-session token before any backend is spawned.
-  // The token is forwarded to Node Core via process.env (see coreManager.ts)
-  // and to the renderer via env inheritance (BrowserWindow subprocess inherits
-  // the main process environment). It also remains in process.env so the Python
-  // sidecar (spawned via buildEnv) can inherit it. A new token is generated on
-  // every app restart and lives only in memory.
   process.env.MOMAI_SESSION_TOKEN = getOrCreateSessionToken()
+
+  // Show the window immediately — everything else can happen after.
+  createWindow()
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  registerIpcHandlers()
-  setupTTSHandlers()
-  registerSecureStorageHandlers()
-  registerPrivacyHandlers()
-  setupUpdater()
+  // Deferred: register handlers, start backend, tray, etc.
+  setImmediate(async () => {
+    // Ensure Windows taskbar resolves correct name & icon in dev mode
+    if (is.dev && process.platform === 'win32') {
+      try {
+        const shortcutPath = join(
+          app.getPath('appData'),
+          'Microsoft',
+          'Windows',
+          'Start Menu',
+          'Programs',
+          `${CURRENT_VARIANT.appName}.lnk`
+        )
+        shell.writeShortcutLink(shortcutPath, 'replace', {
+          target: process.execPath,
+          args: process.argv.slice(1).join(' '),
+          appUserModelId: CURRENT_VARIANT.appId,
+          icon: ICON_PATH,
+          iconIndex: 0,
+          description: CURRENT_VARIANT.appName
+        })
+      } catch (err) {
+        logger.warn('[Electron] Failed to create dev Start Menu shortcut:', err)
+      }
+    }
 
-  if (!is.dev) {
-    await ensureRendererStaticServer(join(__dirname, '../renderer'))
-  }
+    if (!is.dev) {
+      Menu.setApplicationMenu(null)
+    }
 
-  session.defaultSession.webRequest.onBeforeSendHeaders(
-    { urls: getYouTubeWebRequestFilterUrls() },
-    createYouTubeBeforeSendHeadersHandler()
-  )
+    registerIpcHandlers()
+    setupTTSHandlers()
+    registerSecureStorageHandlers()
+    registerPrivacyHandlers()
 
-  createWindow()
-  const mainWindow = getMainWindow()
-  if (mainWindow) {
-    trayService = new TrayService({
-      window: mainWindow,
-      llama: new HttpLlamaControl(CURRENT_VARIANT.llamaPort),
-      keepInTray: new FileKeepInTrayReader(),
-      isQuitting: () => state.isQuitting,
-      variant: CURRENT_VARIANT,
-      getEconomy: getEconomyService
+    if (!is.dev) {
+      await ensureRendererStaticServer(join(__dirname, '../renderer'))
+    }
+
+    session.defaultSession.webRequest.onBeforeSendHeaders(
+      { urls: getYouTubeWebRequestFilterUrls() },
+      createYouTubeBeforeSendHeadersHandler()
+    )
+
+    const mainWindow = getMainWindow()
+    if (mainWindow) {
+      trayService = new TrayService({
+        window: mainWindow,
+        llama: new HttpLlamaControl(CURRENT_VARIANT.llamaPort),
+        keepInTray: new FileKeepInTrayReader(),
+        isQuitting: () => state.isQuitting,
+        variant: CURRENT_VARIANT,
+        getEconomy: getEconomyService
+      })
+      trayService.start()
+    }
+
+    // Setup updater and start backend AFTER window is visible
+    setupUpdater()
+    startCoreBackend().catch((error) => {
+      logger.error('[Electron] Failed to start core backend:', error)
     })
-    trayService.start()
-  }
-  startCoreBackend().catch((error) => {
-    logger.error('[Electron] Failed to start core backend:', error)
-  })
 
-  globalShortcut.register('Alt+Space', toggleWindow)
+    globalShortcut.register('Alt+Space', toggleWindow)
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

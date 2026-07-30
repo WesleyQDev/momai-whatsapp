@@ -114,6 +114,16 @@ export default defineConfig({
         '@codemirror/lang-markdown'
       ]
     },
-    plugins: [react(), skillBundlesPlugin()]
+    plugins: [react(), skillBundlesPlugin()],
+    optimizeDeps: {
+      include: [
+        'react',
+        'react-dom',
+        'react-markdown',
+        'react-router',
+        'remark-gfm',
+        '@tanstack/react-virtual'
+      ]
+    }
   }
 })

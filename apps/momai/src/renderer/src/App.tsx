@@ -51,6 +51,7 @@ function App(): React.JSX.Element {
     initProgress,
     visualProgress,
     isBooting,
+    wasEverBooted,
     isOnline,
     isReady,
     isUpdating,
@@ -296,10 +297,7 @@ function App(): React.JSX.Element {
                       }`
                 }`}
               >
-                <div
-                  className="flex-1 flex min-h-0 min-w-0"
-                  style={{ display: extensionPageId ? 'none' : 'flex' }}
-                >
+                <div className="flex-1 flex min-h-0 min-w-0">
                   <MainViewRenderer
                     viewName={uiView}
                     isCompact={isCompact}
@@ -311,6 +309,7 @@ function App(): React.JSX.Element {
                     visualProgress={visualProgress}
                     initMessage={initMessage}
                     isBooting={isBooting}
+                    wasEverBooted={wasEverBooted}
                     isUpdating={isUpdating}
                     isTierChanging={isTierChanging}
                     setHistoryOpen={setHistoryOpen}

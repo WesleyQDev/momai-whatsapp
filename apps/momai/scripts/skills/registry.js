@@ -288,13 +288,16 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
 
     try {
       const items = fs.readdirSync(builtinSkillsDir)
-      for (const name of items) {
-        const dir = path.join(builtinSkillsDir, name)
-        const stat = fs.statSync(dir, { throwIfNoEntry: false })
-        if (!stat || !stat.isDirectory()) continue
-        const skill = await loadSkillFromDir({ dir, kind: 'builtin', expectedId: name })
-        if (!skill) continue
-        state.builtins.set(skill.id, skill)
+      const dirs = items
+        .filter((name) => {
+          const dir = path.join(builtinSkillsDir, name)
+          const stat = fs.statSync(dir, { throwIfNoEntry: false })
+          return stat && stat.isDirectory()
+        })
+        .map((name) => ({ dir: path.join(builtinSkillsDir, name), kind: 'builtin', expectedId: name }))
+      const skills = await Promise.all(dirs.map((d) => loadSkillFromDir(d)))
+      for (const skill of skills) {
+        if (skill) state.builtins.set(skill.id, skill)
       }
 
       const newCount = state.builtins.size
@@ -374,24 +377,21 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
     const seenIds = new Set()
     for (const { root, source } of scanRoots) {
       if (!fs.existsSync(root)) continue
-      for (const name of fs.readdirSync(root)) {
-        // Skip the .dev folder when scanning extensionsDir (avoid recursion).
-        if (root === extensionsDir && name === '.dev') continue
+      const entries = fs.readdirSync(root)
+        .filter((name) => !(root === extensionsDir && name === '.dev'))
+        .map((name) => ({ dir: path.join(root, name), name }))
+        .filter(({ dir }) => {
+          const stat = fs.statSync(dir, { throwIfNoEntry: false })
+          return stat && stat.isDirectory()
+        })
 
-        const dir = path.join(root, name)
-        const stat = fs.statSync(dir, { throwIfNoEntry: false })
-        if (!stat || !stat.isDirectory()) continue
-
-        const skill = await loadExtensionFromDir({ dir, expectedId: name, permSchema })
-        if (!skill) continue
-        if (seenIds.has(skill.id)) continue
+      const skills = await Promise.all(
+        entries.map(({ dir, name }) => loadExtensionFromDir({ dir, expectedId: name, permSchema }))
+      )
+      for (const skill of skills) {
+        if (!skill || seenIds.has(skill.id)) continue
         seenIds.add(skill.id)
-
-        // Tag with source
-        if (source === 'dev') {
-          skill.source = 'dev'
-        }
-
+        if (source === 'dev') skill.source = 'dev'
         state.extensions.set(skill.id, skill)
       }
     }
@@ -689,9 +689,11 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
 
   let _toolsCache = null
   let _toolsCacheGeneration = 0
+  let _toolsCacheKey = ''
 
   function toOpenAITools(skillIds) {
-    if (_toolsCache && _toolsCacheGeneration === _skillsGeneration && skillIds === undefined) {
+    const cacheKey = skillIds ? [...skillIds].sort().join(',') : '__all__'
+    if (_toolsCache && _toolsCacheGeneration === _skillsGeneration && cacheKey === _toolsCacheKey) {
       return _toolsCache
     }
 
@@ -745,9 +747,10 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       }
     }
 
-    _toolsCache = functions
+    _toolsCache = { tools: functions, toolToSkillMap }
     _toolsCacheGeneration = _skillsGeneration
-    return { tools: functions, toolToSkillMap }
+    _toolsCacheKey = cacheKey
+    return _toolsCache
   }
 
   function buildUseSkillTool(skills) {

@@ -277,10 +277,9 @@ export function useStatus() {
   useEffect(() => {
     let statusInterval: NodeJS.Timeout
     let initInterval: NodeJS.Timeout
+    let visibilityCleanup: (() => void) | null = null
 
     const startPolling = () => {
-      // Tentativa proativa imediata mesmo se backendOnline for falso
-      // Isso resolve o caso onde o sinal foi enviado antes do hook montar
       checkStatus()
       checkInitProgress()
 
@@ -289,14 +288,30 @@ export function useStatus() {
       statusInterval = setInterval(checkStatus, pollInterval)
     }
 
+    const stopPolling = () => {
+      if (statusInterval) clearInterval(statusInterval)
+      if (initInterval) clearInterval(initInterval)
+    }
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling()
+      } else if (!document.hidden) {
+        startPolling()
+      }
+    }
+
     if (isBooting && initProgress < 100) {
       initInterval = setInterval(checkInitProgress, 1500)
     }
 
     startPolling()
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    visibilityCleanup = () => document.removeEventListener('visibilitychange', onVisibilityChange)
+
     return () => {
-      clearInterval(statusInterval)
-      if (initInterval) clearInterval(initInterval)
+      stopPolling()
+      if (visibilityCleanup) visibilityCleanup()
     }
   }, [checkStatus, checkInitProgress, isBooting, backendOnline, isReady, initProgress])
 
@@ -341,6 +356,7 @@ export function useStatus() {
     visualProgress,
     isReady,
     isBooting,
+    wasEverBooted,
     isStalled,
     isRetrying,
     refreshStatus: checkStatus,

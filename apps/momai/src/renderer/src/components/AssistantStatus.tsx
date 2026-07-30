@@ -63,12 +63,9 @@ export const AssistantStatus = ({ currentTier, isThinking }: AssistantStatusProp
               }
               if (currentTier === 'ultra') {
                 return (
-                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.6)]" />
-                    <span className="text-yellow-400 font-black text-[11px] uppercase tracking-[0.15em] drop-shadow-[0_0_8px_rgba(250,204,21,0.4)]">
-                      {t('assistantStatus.sayLuna')}
-                    </span>
-                  </div>
+                  <span className="text-yellow-400/70 font-medium text-[11px] tracking-wide">
+                    {t('assistantStatus.sayLuna')}
+                  </span>
                 )
               }
               if (currentTier === 'lite') {

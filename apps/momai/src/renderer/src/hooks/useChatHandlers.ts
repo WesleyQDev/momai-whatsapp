@@ -444,7 +444,7 @@ export function useChatHandlers({
         if (data.status) {
           const statusText =
             data.status === 'thinking'
-              ? 'Pensando...'
+              ? 'Analisando...'
               : data.status === 'responding'
                 ? null
                 : data.status

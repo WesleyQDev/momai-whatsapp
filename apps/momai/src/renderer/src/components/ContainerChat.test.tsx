@@ -156,7 +156,7 @@ describe('ContainerChat', () => {
     localStorage.setItem('momai_show_context_ring', 'true')
     render(<ContainerChat {...defaultProps} />)
     await act(() => Promise.resolve())
-    expect(screen.getByText('CTX')).toBeInTheDocument()
+    expect(screen.getByText('0%')).toBeInTheDocument()
   })
 
   it('renders ChatHistoryPopover trigger', async () => {

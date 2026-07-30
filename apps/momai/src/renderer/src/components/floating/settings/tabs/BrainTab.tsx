@@ -20,7 +20,9 @@ export const BrainTab = React.memo(({ t, settings, tiersConfig, updateField }: B
 
   const currentMode =
     settings.context_window_mode === 'max' ? 'medium' : settings.context_window_mode || 'min'
-  const currentTokens = Number(settings.context_window_tokens || 4096)
+  const rawTokens = Number(settings.context_window_tokens)
+  const isAuto = !rawTokens || rawTokens <= 0
+  const displayTokens = isAuto ? 4096 : rawTokens
   const modeTokens = useMemo(
     () => ({
       min: Math.floor(Number(tiersConfig?.[settings.ai_tier]?.ctx_size || 8192) / 2),
@@ -33,7 +35,7 @@ export const BrainTab = React.memo(({ t, settings, tiersConfig, updateField }: B
     const f = tiersConfig?.[settings.ai_tier]?.file || ''
     return f.includes('0.8B') ? 0.7 : f.includes('2B') ? 1.5 : 2.8
   }, [tiersConfig, settings.ai_tier])
-  const estimatedCtxGb = (currentTokens / 8192) * 0.5
+  const estimatedCtxGb = isAuto ? 0 : (displayTokens / 8192) * 0.5
 
   const loadMemoryFile = async (name: string) => {
     try {
@@ -180,8 +182,11 @@ export const BrainTab = React.memo(({ t, settings, tiersConfig, updateField }: B
                 onChange={async (e) => {
                   const mode = e.target.value as 'min' | 'medium' | 'custom'
                   await updateField('context_window_mode', mode, true)
-                  if (mode !== 'custom')
-                    await updateField('context_window_tokens', modeTokens[mode], true)
+                  if (mode === 'custom') {
+                    await updateField('context_window_tokens', modeTokens['medium'], true)
+                  } else {
+                    await updateField('context_window_tokens', 0, true)
+                  }
                 }}
                 className="bg-zinc-800 border border-border/30 rounded-lg pl-3 pr-7 py-1.5 text-xs text-text outline-none focus:border-accent/40 cursor-pointer min-w-[90px]"
               >
@@ -199,19 +204,25 @@ export const BrainTab = React.memo(({ t, settings, tiersConfig, updateField }: B
                 <path d="M6 9l6 6 6-6" />
               </svg>
             </div>
-            <input
-              type="number"
-              min={1024}
-              max={16384}
-              step={256}
-              value={currentTokens}
-              onChange={(e) => {
-                const n = clampTokens(Number(e.target.value))
-                updateField('context_window_mode', 'custom', true)
-                updateField('context_window_tokens', n, true)
-              }}
-              className="w-20 bg-zinc-800 border border-border/30 rounded-lg px-2.5 py-1.5 text-xs text-text outline-none focus:border-accent/40 text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            />
+            {isAuto ? (
+              <span className="w-20 inline-flex items-center justify-end px-2.5 py-1.5 text-xs text-text-muted">
+                Auto
+              </span>
+            ) : (
+              <input
+                type="number"
+                min={1024}
+                max={16384}
+                step={256}
+                value={displayTokens}
+                onChange={(e) => {
+                  const n = clampTokens(Number(e.target.value))
+                  updateField('context_window_mode', 'custom', true)
+                  updateField('context_window_tokens', n, true)
+                }}
+                className="w-20 bg-zinc-800 border border-border/30 rounded-lg px-2.5 py-1.5 text-xs text-text outline-none focus:border-accent/40 text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              />
+            )}
           </div>
         </div>
       </div>

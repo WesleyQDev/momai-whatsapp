@@ -296,12 +296,20 @@ class TTSManager:
             if ONNX_PROVIDER == "CPUExecutionProvider":
                 providers.append("CPUExecutionProvider")
 
-            self.kokoro = Kokoro(model_path, voices_path)
+            # Configure ONNX session for optimal TTS performance
+            so = ort.SessionOptions()
+            so.intra_op_num_threads = 2
+            so.inter_op_num_threads = 1
+            so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            so.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+
+            sess = ort.InferenceSession(str(model_path), sess_options=so, providers=providers)
+            self.kokoro = Kokoro.from_session(sess, str(voices_path))
 
             self.has_tts = True
             self.ready_event.set()
-            logger.info("[TTS] Model ready: %s (voices=%s, provider=%s)",
-                         os.path.basename(model_path), os.path.basename(voices_path), ONNX_PROVIDER)
+            logger.info("[TTS] Model ready: %s (voices=%s, provider=%s, threads=%d)",
+                         os.path.basename(model_path), os.path.basename(voices_path), ONNX_PROVIDER, so.intra_op_num_threads)
 
             # If any text arrived while initialization was running,
             # start the worker immediately so first utterance is not delayed.
@@ -314,10 +322,11 @@ class TTSManager:
             logger.error("[TTS] Error loading Kokoro-ONNX: %s", e)
 
     def _speech_worker(self):
-        """Simple TTS worker: generates audio then plays with sd.play().
+        """TTS worker with background playback thread for non-blocking streaming.
 
-        Uses sd.play() instead of OutputStream for maximum compatibility.
-        Processes one phrase at a time from the text queue.
+        Generation runs in the event loop and feeds audio chunks to a queue.
+        A separate daemon thread consumes the queue with sd.play()/sd.wait(),
+        allowing the next chunk to be generated while the current one plays.
         """
         self.ready_event.wait()
 
@@ -346,6 +355,35 @@ class TTSManager:
             f"[TTS] Worker started (sr={device_sr}, sounddevice={HAS_SOUNDDEVICE})"
         )
 
+        # Background playback thread — decouples blocking sd.wait() from generator
+        playback_queue: queue.Queue = queue.Queue()
+        utterance_done = threading.Event()
+
+        def _run_playback():
+            _ensure_tts_imports()
+            while not self.stop_event.is_set():
+                try:
+                    item = playback_queue.get(timeout=0.3)
+                except queue.Empty:
+                    continue
+                if item is None:
+                    utterance_done.set()
+                    playback_queue.task_done()
+                    continue
+                play_data, sr = item
+                try:
+                    sd.play(play_data, samplerate=sr)
+                    sd.wait()
+                except Exception as e:
+                    logger.debug(f"[TTS] Playback thread error: {e}")
+                finally:
+                    playback_queue.task_done()
+
+        playback_thread = None
+        if HAS_SOUNDDEVICE:
+            playback_thread = threading.Thread(target=_run_playback, daemon=True)
+            playback_thread.start()
+
         try:
             while not self.stop_event.is_set():
                 try:
@@ -366,70 +404,65 @@ class TTSManager:
                     self.on_speech_start()
 
                 lang = LANG_CODE_MAP.get(self.lang_code, "en-us")
-                all_chunks: list = []
                 audio_sr = 24000
+                utterance_done.clear()
 
                 try:
-                    async def _generate_and_play():
+                    async def _generate():
                         nonlocal audio_sr
-                        # Optimized speed for a more natural/gentle pace
-                        # 0.95 is often perceived as more 'delicate' than 1.0
-                        generation_speed = 0.95 
-                        
+                        generation_speed = 0.95
+
                         stream = self.kokoro.create_stream(
                             text, voice=self.voice, speed=generation_speed, lang=lang
                         )
-                        
+
                         playback_started = False
                         async for samples, sr in stream:
                             with self.state_lock:
-                                # Check if we should still be playing this session
                                 is_stale = self.session_id != sid or self.stop_event.is_set()
-                                    
+
                             if is_stale:
-                                # We continue the loop to 'drain' the generator and avoid pending tasks
-                                # but we don't process or play the audio.
                                 continue
-                                
+
                             if samples is None or len(samples) == 0:
                                 continue
-                                
+
                             audio_sr = sr
                             audio_data = np.asarray(samples, dtype=np.float32)
-                            
-                            # Resample if needed
+
                             play_sr = device_sr if device_sr else int(audio_sr)
                             play_data = _resample(audio_data, int(audio_sr), play_sr)
 
-                            # Apply a very subtle fade-out to avoid "immediate" endings
-                            fade_len = int(play_sr * 0.15) # 150ms fade
+                            # Subtle fade-out to avoid click artifacts
+                            fade_len = int(play_sr * 0.05)  # 50ms
                             if len(play_data) > fade_len:
                                 fade_curve = np.linspace(1.0, 0.0, fade_len)
                                 play_data[-fade_len:] *= fade_curve
-                            
-                            # Add 100ms of pure silence at the very end
-                            silence_len = int(play_sr * 0.1)
+
+                            # Brief silence padding between chunks
+                            silence_len = int(play_sr * 0.03)  # 30ms
                             play_data = np.concatenate([play_data, np.zeros(silence_len, dtype=np.float32)])
 
-                            # Play this chunk immediately
-                            if HAS_SOUNDDEVICE:
-                                if not playback_started:
-                                    logger.debug(f"[TTS Stream] Starting playback for first chunk")
-                                    playback_started = True
-                                
-                                if app_state.main_loop:
-                                    chunk_duration = float(len(play_data)) / float(play_sr)
-                                    asyncio.run_coroutine_threadsafe(
-                                        app_state.broadcast_to_sockets({
-                                            "type": "tts_chunk_start",
-                                            "duration": chunk_duration,
-                                            "text": text
-                                        }),
-                                        app_state.main_loop
-                                    )
+                            # Push to background playback thread (non-blocking)
+                            if HAS_SOUNDDEVICE and playback_queue is not None:
+                                playback_queue.put((play_data, play_sr))
 
-                                sd.play(play_data, samplerate=play_sr)
-                                
+                                if not playback_started:
+                                    logger.debug("[TTS Stream] First chunk queued for playback")
+                                    playback_started = True
+
+                                    if app_state.main_loop:
+                                        chunk_duration = float(len(play_data)) / float(play_sr)
+                                        asyncio.run_coroutine_threadsafe(
+                                            app_state.broadcast_to_sockets({
+                                                "type": "tts_chunk_start",
+                                                "duration": chunk_duration,
+                                                "text": text
+                                            }),
+                                            app_state.main_loop
+                                        )
+
+                                # FFT bands for visualizer
                                 if app_state.active_websockets:
                                     try:
                                         sub_chunks = np.array_split(play_data, 4)
@@ -438,7 +471,7 @@ class TTSManager:
                                             fft_res = np.abs(np.fft.rfft(sc))
                                             bands = np.array_split(fft_res, 16)
                                             all_bands.append([float(np.mean(b)) * 20 for b in bands])
-                                        
+
                                         if app_state.main_loop:
                                             asyncio.run_coroutine_threadsafe(
                                                 app_state.broadcast_to_sockets({"type": "voice_bands", "bands": all_bands}),
@@ -446,10 +479,16 @@ class TTSManager:
                                             )
                                     except Exception:
                                         logger.debug("[TTS] FFT bands error", exc_info=True)
-                                    
-                                sd.wait() 
-                            
-                    loop.run_until_complete(_generate_and_play())
+
+                    loop.run_until_complete(_generate())
+
+                    # Signal end of this utterance and wait for playback to drain
+                    if HAS_SOUNDDEVICE and playback_queue is not None:
+                        playback_queue.put(None)
+                        while not self.stop_event.is_set():
+                            if utterance_done.wait(timeout=0.1):
+                                break
+
                 except Exception as e:
                     logger.error(f"[TTS Stream Error] {e}")
 
@@ -466,6 +505,12 @@ class TTSManager:
             if not self.stop_event.is_set():
                 logger.error(f"[TTS Worker] Error: {e}")
         finally:
+            if playback_thread is not None:
+                try:
+                    playback_queue.put(None)
+                    playback_thread.join(timeout=1)
+                except Exception:
+                    logger.debug("[TTS] Playback thread cleanup error", exc_info=True)
             try:
                 loop.close()
             except Exception:

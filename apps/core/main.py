@@ -120,21 +120,41 @@ if __name__ == "__main__":
     should_reload = os.getenv("MOMAI_DEBUG", "false").lower() == "true"
     host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", 8000))
+    workers = int(os.getenv("MOMAI_CORE_WORKERS", "1"))
+
+    if workers < 1:
+        workers = 1
 
     logger.info(
-        "[Main] Starting MomAI Core on %s:%s (debug=%s)", host, port, should_reload
+        "[Main] Starting MomAI Core on %s:%s (debug=%s, workers=%d)",
+        host, port, should_reload, workers
     )
-    
-    app = create_app()
-    
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
-        reload=should_reload,
-        loop="asyncio",
-        http="httptools",
-        factory=False,
-        use_colors=not should_reload,
-        log_config=None,
-    )
+
+    if workers > 1 and not should_reload:
+        # factory=True lets uvicorn spawn workers that each call create_app(),
+        # giving each worker its own model instances (Whisper, Kokoro).
+        # Workers are incompatible with reload — fall back to single process.
+        uvicorn.run(
+            "main:create_app",
+            host=host,
+            port=port,
+            workers=workers,
+            loop="asyncio",
+            http="httptools",
+            factory=True,
+            use_colors=False,
+            log_config=None,
+        )
+    else:
+        app = create_app()
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            reload=should_reload,
+            loop="asyncio",
+            http="httptools",
+            factory=False,
+            use_colors=not should_reload,
+            log_config=None,
+        )

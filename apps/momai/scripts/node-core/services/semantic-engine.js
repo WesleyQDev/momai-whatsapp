@@ -380,9 +380,6 @@ async function runSemanticMemoryRetrieval(query, limit = 6) {
     return { hits: [], memoryContext: null, memorySources: [] }
   }
 
-  syncSkillAndToolIndexes(false).catch((err) => debug('[background]', err?.message || err))
-  syncNoteIndex(false).catch((err) => debug('[background]', err?.message || err))
-
   const [vectorHits, lexicalHits] = await Promise.all([
     runVectorNoteSearch(query, limit),
     Promise.resolve(runLexicalNoteSearch(query, limit))

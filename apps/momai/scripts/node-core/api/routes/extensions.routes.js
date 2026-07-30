@@ -868,19 +868,41 @@ function createExtensionsRoutes(context) {
     }
   }
 
+  let _extensionsRefreshing = false
+
   async function getExtensionsPayload(lang) {
     const now = Date.now()
     const currentDevMode = getEffectiveDevMode(store?.settings?.dev_mode)
-    if (now - _lastExtensionsRefresh < 10000 && currentDevMode === _lastDevMode) {
-      const cached = _cachedExtensionsPayload
-      if (cached) return cached
+    const cached = _cachedExtensionsPayload
+
+    // Serve stale cache immediately while refreshing in background
+    if (cached && currentDevMode === _lastDevMode) {
+      if (now - _lastExtensionsRefresh < 60000) {
+        return cached
+      }
+      if (!_extensionsRefreshing) {
+        _extensionsRefreshing = true
+        _refreshExtensionsPayload(lang, currentDevMode).finally(() => {
+          _extensionsRefreshing = false
+        })
+      }
+      return cached
     }
+
+    await _refreshExtensionsPayload(lang, currentDevMode)
+    return _cachedExtensionsPayload
+  }
+
+  async function _refreshExtensionsPayload(lang, currentDevMode) {
     _lastDevMode = currentDevMode
     await skillRegistry.refresh()
-    const payload = await buildExtensionsPayload(lang)
-    _cachedExtensionsPayload = payload
-    _lastExtensionsRefresh = now
-    return payload
+    try {
+      const payload = await buildExtensionsPayload(lang)
+      _cachedExtensionsPayload = payload
+      _lastExtensionsRefresh = Date.now()
+    } catch (err) {
+      console.error('[Extensions] Failed to refresh payload:', err)
+    }
   }
 
   const mountedSkillRoutes = []

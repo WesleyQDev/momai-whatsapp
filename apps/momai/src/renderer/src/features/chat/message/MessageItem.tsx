@@ -377,22 +377,21 @@ const MessageItem = memo(
                       {showLoadingStatus &&
                         !hasSegmentData &&
                         (() => {
-                          const searchActivity = state.displayActivities.find((a) =>
-                            a.toLowerCase().includes('buscando')
-                          )
+                          const firstActivity =
+                            state.displayActivities.length > 0
+                              ? state.displayActivities[0]
+                              : null
                           const toolActivity = state.displayActivities.find((a) =>
                             a.toLowerCase().includes('chamando')
                           )
-                          const label = searchActivity
-                            ? 'Buscando...'
-                            : toolActivity
-                              ? toolActivity.replace(/manager: chamando ferramenta/i, '').trim() +
-                                '...'
-                              : state.displayActivities.length > 0
-                                ? 'Executando...'
-                                : llmStarting
-                                  ? 'Iniciando LLM...'
-                                  : 'Pensando...'
+                          const label = toolActivity
+                            ? toolActivity.replace(/manager: chamando ferramenta/i, '').trim() +
+                              '...'
+                            : firstActivity
+                              ? firstActivity
+                              : llmStarting
+                                ? 'Iniciando LLM...'
+                                : 'Analisando...'
                           return (
                             <div className="flex items-center gap-1.5 mt-1 min-h-[16px]">
                               <span className="text-[13px] text-zinc-400 animate-pulse">

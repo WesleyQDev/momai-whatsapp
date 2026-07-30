@@ -201,10 +201,10 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
   return (
     <div className="flex flex-col h-full bg-card overflow-hidden">
       <div className="p-3 border-b border-white/5 flex items-center justify-between">
-        <h2 className="text-[10px] font-black text-text-muted/50 uppercase tracking-[0.2em]">
+        <h2 className="text-[10px] font-black text-accent/60 uppercase tracking-[0.2em]">
           {t('reminders.sections.upcoming')}
         </h2>
-        <span className="flex items-center justify-center w-4 h-4 bg-text/5 rounded-full text-[10px] font-black text-text-muted/30">
+        <span className="flex items-center justify-center w-4 h-4 bg-accent/10 rounded-full text-[10px] font-black text-accent/50">
           {displayItems.length}
         </span>
       </div>
@@ -224,15 +224,26 @@ export default function RemindersSidebar({ onNavigate, isBooting }: RemindersSid
                 </div>
               </div>
             ) : !isBooting ? (
-              <button
-                onClick={() => setShowQuickAdd(true)}
-                className="px-6 py-3 bg-accent/5 hover:bg-accent/10 border border-accent/10 rounded-xl text-accent transition-all active:scale-95 group flex items-center gap-3"
-              >
-                <PlusIcon className="w-4 h-4" />
-                <span className="text-[11px] font-black uppercase tracking-[0.2em]">
-                  {t('reminders.newReminder')}
-                </span>
-              </button>
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
+                  <CalendarIcon className="w-4 h-4 text-accent/60" />
+                </div>
+                <div className="text-center">
+                  <p className="text-[12px] text-text-muted/70 font-medium">
+                    Nenhum lembrete próximo
+                  </p>
+                  <p className="text-[10px] text-text-muted/40 mt-0.5">
+                    Crie um para começar
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowQuickAdd(true)}
+                  className="px-4 py-2 bg-accent/10 hover:bg-accent/20 border border-accent/20 rounded-lg text-accent/80 hover:text-accent transition-all text-[11px] font-semibold flex items-center gap-2"
+                >
+                  <PlusIcon className="w-3.5 h-3.5" />
+                  <span>{t('reminders.newReminder')}</span>
+                </button>
+              </div>
             ) : null}
           </div>
         ) : (

@@ -335,12 +335,10 @@ async function streamFallbackResponse(
   stopGenerationRequested = false
   sendSseHeaders(res)
   {
-    const _sse = writeSse(res, { status: 'thinking' })
-    if (_sse instanceof Promise) await _sse
+    await writeSse(res, { status: 'thinking' })
   }
   {
-    const _sse = writeSse(res, { status: 'responding' })
-    if (_sse instanceof Promise) await _sse
+    await writeSse(res, { status: 'responding' })
   }
 
   let assembled = ''
@@ -353,17 +351,14 @@ async function streamFallbackResponse(
     if (closed || stopGenerationRequested || res.destroyed) break
     assembled += token
     {
-      const _sse = writeSse(res, { token })
-      if (_sse instanceof Promise) await _sse
-      else if (_sse === false) break
+      if (!await writeSse(res, { token })) break
     }
     await new Promise((r) => setTimeout(r, 15))
   }
 
   appendMessage(threadId, 'assistant', assembled.trim() || 'Interrupted.')
   {
-    const _sse = writeSse(res, { done: true })
-    if (_sse instanceof Promise) await _sse
+    await writeSse(res, { done: true })
   }
   endSse(res)
 }
@@ -543,9 +538,6 @@ async function streamLlamaChat(req, res, payload) {
   let semanticPromise = null
   const isExplicitMemorySearch = /\b(pesquisar|buscar|pesquise|procure|minhas?\s+notas|lembrete|mem[óo]ria)\b/i.test(content)
   if (isUltra && (!isCallMode || isExplicitMemorySearch)) {
-    const { syncSkillAndToolIndexes, syncNoteIndex } = require('./semantic-engine')
-    syncSkillAndToolIndexes(false).catch((err) => debug('[background]', err?.message || err))
-    syncNoteIndex(false).catch((err) => debug('[background]', err?.message || err))
     semanticPromise = runSemanticMemoryRetrieval(content, 6)
   }
 
@@ -556,18 +548,10 @@ async function streamLlamaChat(req, res, payload) {
 
   sendSseHeaders(res)
   {
-    const _sse = writeSse(res, { status: 'thinking' })
-    if (_sse instanceof Promise) await _sse
+    await writeSse(res, { status: 'Analisando...' })
   }
   if (memorySources.length) {
-    {
-      const _sse = writeSse(res, { sources: memorySources })
-      if (_sse instanceof Promise) await _sse
-    }
-    {
-      const _sse = writeSse(res, { memory_sources: memorySources })
-      if (_sse instanceof Promise) await _sse
-    }
+    await writeSse(res, { sources: memorySources })
   }
 
   const isExplicitSkillRequest = /\b(abrir|abram|executar|rodar|pesquisar\s+no|youtube|skill|ferramenta|criar|agendar)\b/i.test(content)
@@ -793,14 +777,12 @@ async function streamLlamaChat(req, res, payload) {
         if (hookResult.shortCircuit) {
           if (activeSkill) {
             {
-              const _sse = writeSse(res, { active_skill: activeSkill })
-              if (_sse instanceof Promise) await _sse
+              await writeSse(res, { active_skill: activeSkill })
             }
           }
           if (toolSteps.length > 0) {
             {
-              const _sse = writeSse(res, { tool_steps: toolSteps })
-              if (_sse instanceof Promise) await _sse
+              await writeSse(res, { tool_steps: toolSteps })
             }
           }
           const shortText = String(hookResult.replaceText || '').trim()
@@ -808,9 +790,7 @@ async function streamLlamaChat(req, res, payload) {
             assembled = shortText
             for (const token of splitTokens(shortText)) {
               {
-                const _sse = writeSse(res, { token })
-                if (_sse instanceof Promise) await _sse
-                else if (_sse === false) break
+                if (!await writeSse(res, { token })) break
               }
             }
           }
@@ -836,13 +816,11 @@ async function streamLlamaChat(req, res, payload) {
           })
           if (bufferedStructuredResponses.length > 0) {
             {
-              const _sse = writeSse(res, { structured_responses: bufferedStructuredResponses })
-              if (_sse instanceof Promise) await _sse
+              await writeSse(res, { structured_responses: bufferedStructuredResponses })
             }
           }
           {
-            const _sse = writeSse(res, { done: true })
-            if (_sse instanceof Promise) await _sse
+            await writeSse(res, { done: true })
           }
           endSse(res)
           return
@@ -861,13 +839,11 @@ async function streamLlamaChat(req, res, payload) {
 
     const topN = await (async () => {
       if (isUltra) {
-        const semanticResults = await getTop5SkillsSemantic(discoveryContent)
+        const [semanticResults, lexicalResults] = await Promise.all([
+          getTop5SkillsSemantic(discoveryContent),
+          skillRegistry?.discoverTopN?.(discoveryContent, discoveryLimit) || Promise.resolve([])
+        ])
         const topSemanticScore = semanticResults[0]?.score || 0
-
-        let lexicalResults = []
-        if (skillRegistry && typeof skillRegistry.discoverTopN === 'function') {
-          lexicalResults = skillRegistry.discoverTopN(discoveryContent, discoveryLimit)
-        }
 
         // If semantic confidence is weak, rely on lexical ranking
         if (semanticResults.length > 0 && topSemanticScore >= 0.35) {
@@ -961,10 +937,8 @@ async function streamLlamaChat(req, res, payload) {
       toolsPayload = result.tools || []
       toolToSkillMap = result.toolToSkillMap || new Map()
 
-      /* Orçamento dinâmico: piso mínimo de 900 tokens para garantir envio das ferramentas em contextos curtos (2048 tokens) */
       const contextTotal = Number(llamaState.contextTotalTokens || 8192)
-      const BUDGET_RATIO = 0.30
-      const budgetTokens = Math.max(900, Math.floor(contextTotal * BUDGET_RATIO))
+      const budgetTokens = Math.max(450, Math.floor(contextTotal * 0.20))
       const estimatedTokens = toolsPayload.reduce((s, t) => s + estimateToolTokens(t), 0)
       if (estimatedTokens > budgetTokens && skillIdsForTools.length > 1) {
         const sorted = [...skillIdsForTools].sort((a, b) => {
@@ -1091,10 +1065,14 @@ async function streamLlamaChat(req, res, payload) {
       )
       lastToolsPayload = toolsPayload
 
-      /* Show "Buscando..." during LLM thinking instead of just "Pensando..." */
-      if (selectedSkills.length > 0 && round === 1) {
-        const _sse = writeSse(res, { status: 'Buscando...' })
-        if (_sse instanceof Promise) await _sse
+      if (round === 1 && selectedSkills.length > 0) {
+        const name = routedSkillId
+          ? skillRegistry?.getById?.(routedSkillId)?.manifest?.name || routedSkillId
+          : null
+        const status = name ? `Usando ${name}...` : 'Analisando...'
+        await writeSse(res, { status })
+      } else if (round === 1) {
+        await writeSse(res, { status: 'Analisando...' })
       }
 
       tokenizePromise
@@ -1143,8 +1121,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
 }
 
       {
-        const _sse = writeSse(res, { status: 'responding' })
-        if (_sse instanceof Promise) await _sse
+        await writeSse(res, { status: 'responding' })
       }
       const tPreFetch = Date.now()
       lastTPreFetch = tPreFetch
@@ -1302,9 +1279,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
           if (parsed.type === 'done') break
           if (parsed.type === 'error') {
             {
-              const _sse = writeSse(res, { error: parsed.error })
-              if (_sse instanceof Promise) await _sse
-              else if (_sse === false) break
+              if (!await writeSse(res, { error: parsed.error })) break
             }
             continue
           }
@@ -1342,9 +1317,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
             )
             assembled += parsed.token
             {
-              const _sse = writeSse(res, { token: parsed.token })
-              if (_sse instanceof Promise) await _sse
-              else if (_sse === false) break
+              if (!await writeSse(res, { token: parsed.token })) break
             }
             const now = Date.now()
             if (now - lastTtsFlushTime >= TTS_FLUSH_INTERVAL) {
@@ -1391,7 +1364,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
               args: args?.query || args?.skill_name || (args?.action ? `${args.action} ${args.target || ''}`.trim() : null)
             }
             toolSteps.push(metaStep)
-            { const _sse = writeSse(res, { tool_steps: toolSteps }); if (_sse instanceof Promise) await _sse }
+            { await writeSse(res, { tool_steps: toolSteps }) }
 
             let result
             if (toolName === 'memory') {
@@ -1473,7 +1446,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
             metaStep.duration_ms = Date.now() - metaStartedAt
             metaStep.finished_at = isoNow()
             if (result) metaStep.result_preview = String(result).slice(0, 220)
-            { const _sse = writeSse(res, { tool_steps: toolSteps }); if (_sse instanceof Promise) await _sse }
+            { await writeSse(res, { tool_steps: toolSteps }) }
 
             messages.push({
               role: 'assistant',
@@ -1654,12 +1627,10 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
               toolSteps.push(runningStep)
               activeSkill = skillId
               {
-                const _sse = writeSse(res, { active_skill: activeSkill })
-                if (_sse instanceof Promise) await _sse
+                await writeSse(res, { active_skill: activeSkill })
               }
               {
-                const _sse = writeSse(res, { tool_steps: toolSteps })
-                if (_sse instanceof Promise) await _sse
+                await writeSse(res, { tool_steps: toolSteps })
               }
 
               const result = await skillRegistry.execute(
@@ -1675,14 +1646,12 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
                 : result?.instruction || JSON.stringify(result || {})
               if (result?.structuredResponse) {
                 bufferedStructuredResponses.push(result.structuredResponse)
-                { const _sse = writeSse(res, { structured_responses: bufferedStructuredResponses }); if (_sse instanceof Promise) await _sse }
+                { await writeSse(res, { structured_responses: bufferedStructuredResponses }) }
               } else if (result?.directResponse) {
                 assembled += `\n${result.directResponse}`
                 for (const token of splitTokens(result.directResponse)) {
                   {
-                    const _sse = writeSse(res, { token })
-                    if (_sse instanceof Promise) await _sse
-                    else if (_sse === false) break
+                    if (!await writeSse(res, { token })) break
                   }
                 }
               }
@@ -1693,19 +1662,16 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
               const preview = buildToolResultPreview(result)
               if (preview) runningStep.result_preview = preview
               {
-                const _sse = writeSse(res, { tool_steps: toolSteps })
-                if (_sse instanceof Promise) await _sse
+                await writeSse(res, { tool_steps: toolSteps })
               }
 
               if (Array.isArray(result?.webSources) && result.webSources.length) {
                 memorySources = [...memorySources, ...result.webSources].slice(0, 12)
                 {
-                  const _sse = writeSse(res, { sources: memorySources })
-                  if (_sse instanceof Promise) await _sse
+                  await writeSse(res, { sources: memorySources })
                 }
                 {
-                  const _sse = writeSse(res, { webSources: result.webSources })
-                  if (_sse instanceof Promise) await _sse
+                  await writeSse(res, { webSources: result.webSources })
                 }
               }
 
@@ -1737,8 +1703,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
                   last.status = 'error'
                   last.finished_at = isoNow()
                   {
-                    const _sse = writeSse(res, { tool_steps: toolSteps })
-                    if (_sse instanceof Promise) await _sse
+                    await writeSse(res, { tool_steps: toolSteps })
                   }
                 }
               }
@@ -1835,9 +1800,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
             if (parsed.type === 'token') {
               assembled += parsed.token
               {
-                const _sse = writeSse(res, { token: parsed.token })
-                if (_sse instanceof Promise) await _sse
-                else if (_sse === false) break
+                if (!await writeSse(res, { token: parsed.token })) break
               }
               const now = Date.now()
               if (now - lastTtsFlushTime >= TTS_FLUSH_INTERVAL) {
@@ -1859,9 +1822,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
       for (const token of splitTokens(skillText)) {
         if (closed || stopGenerationRequested || res.destroyed) break
         {
-          const _sse = writeSse(res, { token })
-          if (_sse instanceof Promise) await _sse
-          else if (_sse === false) break
+          if (!await writeSse(res, { token })) break
         }
       }
       flushTtsChunks(true)
@@ -1879,9 +1840,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
         if (closed || stopGenerationRequested || res.destroyed) break
         assembled += token
         {
-          const _sse = writeSse(res, { token })
-          if (_sse instanceof Promise) await _sse
-          else if (_sse === false) break
+          if (!await writeSse(res, { token })) break
         }
         const now = Date.now()
         if (now - lastTtsFlushTime >= TTS_FLUSH_INTERVAL) {
@@ -1952,6 +1911,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
     try {
       const duration = Date.now() - t0
       const genTokens = estimateTokenCount(assembled || '')
+      const genDuration = lastTFirstToken > 0 ? duration - (lastTFirstToken - t0) : duration
       const trace = {
         id: `${threadId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         timestamp: Date.now(),
@@ -1959,7 +1919,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
         total_duration: duration,
         pre_llm_duration: lastTPreFetch > 0 ? lastTPreFetch - t0 : 0,
         first_token_duration: lastTFirstToken > 0 ? lastTFirstToken - t0 : 0,
-        generation_duration: lastTFirstToken > 0 ? duration - (lastTFirstToken - t0) : duration,
+        generation_duration: genDuration,
         system_prompt: lastSystemMessage?.content?.slice(0, 3000),
         messages: (lastCurrentMessages || [])
           .filter((m) => m.role !== 'system')
@@ -1970,7 +1930,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
           })),
         response: (assembled || '').slice(0, 10000),
         tokens_per_second:
-          duration > 0 && genTokens > 0 ? Math.round((genTokens / duration) * 1000 * 10) / 10 : 0,
+          genDuration > 0 && genTokens > 0 ? Math.round((genTokens / genDuration) * 1000 * 10) / 10 : 0,
         total_tokens: estimatedPromptTokens + genTokens,
         estimated_prompt_tokens: estimatedPromptTokens,
         generated_tokens: genTokens,
@@ -1990,8 +1950,8 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
         status: 'success'
       }
       shared.observabilityBuffer = shared.observabilityBuffer || []
-      shared.observabilityBuffer.unshift(trace)
-      if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.length = 50
+      shared.observabilityBuffer.push(trace)
+      if (shared.observabilityBuffer.length > 50) shared.observabilityBuffer.splice(0, shared.observabilityBuffer.length - 50)
       broadcast({ type: 'observability_trace', data: trace })
       info(
         '[OBS] Trace recorded id=' +
@@ -2009,15 +1969,23 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
     flushTtsChunks(true)
     if (bufferedStructuredResponses.length > 0) {
       {
-        const _sse = writeSse(res, { structured_responses: bufferedStructuredResponses })
-        if (_sse instanceof Promise) await _sse
+        await writeSse(res, { structured_responses: bufferedStructuredResponses })
       }
     }
     {
-      const _sse = writeSse(res, { done: true })
-      if (_sse instanceof Promise) await _sse
+      await writeSse(res, { done: true })
     }
     endSse(res)
+
+    if (isUltra) {
+      setTimeout(() => {
+        try {
+          const { syncSkillAndToolIndexes, syncNoteIndex } = require('./semantic-engine')
+          syncSkillAndToolIndexes(false).catch(() => {})
+          syncNoteIndex(false).catch(() => {})
+        } catch {}
+      }, 5000)
+    }
   } catch (error) {
     const isAbortedByUser =
       stopGenerationRequested ||
@@ -2039,8 +2007,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
       stopVoiceRequested = false
       flushTtsChunks(true)
       {
-        const _sse = writeSse(res, { done: true, is_interrupted: true })
-        if (_sse instanceof Promise) await _sse
+        await writeSse(res, { done: true, is_interrupted: true })
       }
       endSse(res)
       return
@@ -2059,9 +2026,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
       for (const token of splitTokens(tail)) {
         assembled += token
         {
-          const _sse = writeSse(res, { token })
-          if (_sse instanceof Promise) await _sse
-          else if (_sse === false) break
+          if (!await writeSse(res, { token })) break
         }
       }
     }
@@ -2077,8 +2042,7 @@ async function fetchLlamaWithRetry(url, options, maxAttempts = 3) {
     stopVoiceRequested = false
     flushTtsChunks(true)
     {
-      const _sse = writeSse(res, { done: true })
-      if (_sse instanceof Promise) await _sse
+      await writeSse(res, { done: true })
     }
     endSse(res)
   } finally {

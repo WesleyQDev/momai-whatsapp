@@ -132,6 +132,8 @@ function createRouter(context, routeHandlers) {
     const now = Date.now()
     let touched = false
 
+    if (!store.reminders.some((r) => r.is_active)) return
+
     for (const reminder of store.reminders) {
       if (!reminder.is_active) continue
       if (parseTime(reminder.scheduled_time) > now) continue

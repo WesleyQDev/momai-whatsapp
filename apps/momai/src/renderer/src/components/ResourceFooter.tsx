@@ -179,26 +179,20 @@ export default function ResourceFooter(): React.JSX.Element {
   return (
     <footer className="h-7 bg-black/30 backdrop-blur-sm border-t border-white/[0.04] flex items-center justify-between px-4 select-none relative z-[300]">
       {/* Left: status */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         <div
           className={`w-1.5 h-1.5 rounded-full transition-colors duration-500 ${
-            connected ? 'bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.5)]' : 'bg-red-400/60'
+            connected ? 'bg-emerald-400/70' : 'bg-red-400/50'
           }`}
         />
-        <span className="text-[9px] font-semibold text-text-muted/35 tracking-wide">
+        <span className="text-[9px] font-medium text-text-muted/30">
           {connected ? 'Core' : 'Offline'}
         </span>
       </div>
 
       {/* Right: metrics */}
-      <div className="flex items-center gap-5">
-        {/* RAM — total consumption by MomAI processes */}
+      <div className="flex items-center gap-4">
         <Metric label="RAM" value={formatSize(stats.ram_mb)} color="#8b5cf6" />
-
-        {/* Separator */}
-        <div className="w-px h-3 bg-white/[0.06]" />
-
-        {/* VRAM — llama.cpp internal GPU memory */}
         <Metric
           label="VRAM"
           value={stats.vram_total_mb > 0 ? `${formatSize(stats.vram_used_mb)}` : '—'}
@@ -206,11 +200,6 @@ export default function ResourceFooter(): React.JSX.Element {
           percent={stats.vram_total_mb > 0 ? derived.vramPercent : undefined}
           color={derived.getColor(derived.vramPercent)}
         />
-
-        {/* Separator */}
-        <div className="w-px h-3 bg-white/[0.06]" />
-
-        {/* Context — tokens used / total */}
         <Metric
           label="CTX"
           value={

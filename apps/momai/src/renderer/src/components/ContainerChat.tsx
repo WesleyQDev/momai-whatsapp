@@ -39,6 +39,8 @@ interface ContainerChatProps {
   visualProgress?: number
   initMessage?: string
   isBooting?: boolean
+  wasEverBooted?: boolean
+  isHistoryLoaded?: boolean
   threadId: string
   setThreadId: (id: string) => void
   setHistoryOpen?: (open: boolean) => void
@@ -60,9 +62,6 @@ function ContextUsageRing() {
 
     const connect = () => {
       try {
-        // Create the WebSocket in the renderer's context (Chromium's
-        // WebSocket). The contextBridge cannot safely proxy WebSocket
-        // objects (methods like .close() are stripped).
         const token = window.api.getSessionToken()
         const wsUrl = token
           ? `${WS_URL}${WS_URL.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
@@ -81,20 +80,27 @@ function ContextUsageRing() {
             if (Number.isFinite(nextUsed)) setUsed(Math.max(0, nextUsed))
             if (Number.isFinite(nextTotal)) setTotal(Math.max(0, nextTotal))
           }
-        } catch {
-          // ignore malformed messages
-        }
+        } catch {}
       }
 
-      ws.onerror = () => {
-        // Connection error — will be cleaned up on unmount
+      ws.onerror = () => {}
+    }
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        ws?.close()
+        ws = null
+      } else if (!ws) {
+        connect()
       }
     }
 
     connect()
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       closed = true
       ws?.close()
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [])
 
@@ -111,23 +117,22 @@ function ContextUsageRing() {
 
   return (
     <div
-      className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-full border h-[34px] backdrop-blur-sm transition-colors ${toneClass}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border h-[34px] transition-colors ${toneClass}`}
       title={`Contexto em uso: ${used}/${total || 0} tokens (${percent}%)`}
     >
-      <div className="relative w-5 h-5 shrink-0">
+      <div className="relative w-4 h-4 shrink-0">
         <div
           className="absolute inset-0 rounded-full"
           style={{
             background: `conic-gradient(${statusColor} ${angle}deg, rgba(255,255,255,0.10) ${angle}deg 360deg)`
           }}
         />
-        <div className="absolute inset-[3px] rounded-full bg-card border border-white/15" />
+        <div className="absolute inset-[3px] rounded-full bg-card border border-white/10" />
       </div>
-      <span className="text-[10px] font-black tracking-[0.14em] uppercase">CTX</span>
-      <span className="text-[10px] font-semibold tabular-nums leading-none">
+      <span className="text-[10px] font-semibold tabular-nums leading-none opacity-70">
         {used}/{total || 0}
       </span>
-      <span className="text-[10px] font-bold tabular-nums leading-none opacity-90">{percent}%</span>
+      <span className="text-[10px] font-bold tabular-nums leading-none">{percent}%</span>
     </div>
   )
 }
@@ -178,6 +183,8 @@ export default function ContainerChat({
   visualProgress = 0,
   initMessage,
   isBooting = false,
+  wasEverBooted = false,
+  isHistoryLoaded = true,
   threadId,
   setThreadId,
   setHistoryOpen,
@@ -399,10 +406,10 @@ export default function ContainerChat({
     localStorage.getItem('momai_ai_tier') || statusInfo?.ai_tier || settings?.ai_tier || 'lite'
   const showLoading =
     isTierChanging ||
-    isBooting ||
     isModeChanging ||
-    !animationFinished ||
-    (isBrainLoading && !isBrainReady)
+    (!wasEverBooted && (isBooting || !animationFinished)) ||
+    (!wasEverBooted && isBrainLoading && !isBrainReady) ||
+    (!isHistoryLoaded && messages.length === 0)
 
   const econActive =
     economyState?.active && economyState.detectedGames.length > 0 && !localDismissed
@@ -500,7 +507,7 @@ export default function ContainerChat({
           <div className="flex items-center justify-between gap-4 px-4 pt-4 pb-2 z-20">
             <span className="flex-1 text-[11px] font-bold text-text/40 uppercase tracking-wider truncate">
               {(() => {
-                if (threadId === 'default') return t('home.session.initial')
+                if (threadId === 'default') return ''
                 if (localSessionTitle) return localSessionTitle
                 const firstUserMsg = messages.find((m) => m.role === 'user')
                 if (!firstUserMsg) return t('home.session.new')
@@ -518,7 +525,7 @@ export default function ContainerChat({
                   resetChatContextUsage().catch(() => {})
                   setThreadId(`sessao_${Date.now()}`)
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/20 hover:border-accent/40 rounded-full transition-all uppercase tracking-wider h-[34px]"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-accent/80 hover:text-accent bg-accent/5 hover:bg-accent/10 rounded-full transition-all uppercase tracking-wider h-[34px]"
               >
                 <svg
                   width="10"
@@ -531,19 +538,19 @@ export default function ContainerChat({
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
-                {t('home.newSession')}
+                Nova
               </button>
               <button
                 type="button"
                 data-history-trigger="true"
                 onClick={() => setHistoryOpen?.(true)}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border bg-accent/10 text-accent border-accent/30 hover:bg-accent/20 hover:border-accent/50 hover:shadow-accent-glow transition-all duration-300 font-semibold text-[11px] tracking-wide h-[34px]"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold text-accent/80 hover:text-accent bg-accent/5 hover:bg-accent/10 rounded-full transition-all tracking-wide h-[34px]"
                 title={t('home.history.previousConversations')}
               >
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                 </svg>
-                <span>{t('home.history.previousConversations')}</span>
+                <span className="truncate max-w-[110px]">{t('home.history.previousConversations')}</span>
               </button>
             </div>
           </div>
@@ -623,14 +630,14 @@ export default function ContainerChat({
       )}
 
       {!isCallMode && statusInfo?.llama_runtime?.loaded_model_name && (
-        <div className="absolute bottom-1.5 right-4 z-50 pointer-events-none select-none flex items-center gap-1.5">
-          <span className="text-[9px] font-bold text-white/40 bg-black/20 px-2 py-0.5 rounded-full backdrop-blur-md border border-white/5 transition-colors uppercase tracking-[0.1em]">
+        <div className="absolute bottom-1.5 right-4 z-50 pointer-events-none select-none flex items-center gap-1">
+          <span className="text-[9px] font-medium text-text-muted/30">
             {statusInfo.llama_runtime.loaded_model_name}
           </span>
           {statusInfo?.semantic_runtime?.embedding_ready &&
             statusInfo?.semantic_runtime?.embedding_model && (
-              <span className="text-[8px] font-medium text-emerald-400/60 bg-black/10 px-1.5 py-0.5 rounded-full backdrop-blur-sm border border-emerald-400/10 transition-opacity uppercase tracking-[0.08em]">
-                EMB {statusInfo.semantic_runtime.embedding_model}
+              <span className="text-[9px] font-medium text-text-muted/15">
+                · {statusInfo.semantic_runtime.embedding_model}
               </span>
             )}
         </div>

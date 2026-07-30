@@ -8,7 +8,7 @@ interface MarkdownRendererProps {
   components?: any
 }
 
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
+export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
   children,
   components = {}
 }) => {
@@ -82,4 +82,4 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       </ReactMarkdown>
     </div>
   )
-}
+})

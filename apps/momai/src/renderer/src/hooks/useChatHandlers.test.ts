@@ -360,7 +360,7 @@ describe('useChatHandlers', () => {
       act(() => {
         hook.handleWsMessage({ type: 'assistant', data: { status: 'thinking' } })
       })
-      expect(hook.getMessages()[1].activities).toContain('Pensando...')
+      expect(hook.getMessages()[1].activities).toContain('Analisando...')
     })
 
     it('deduplicates status activities', () => {
