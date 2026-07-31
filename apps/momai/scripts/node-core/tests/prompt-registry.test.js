@@ -145,6 +145,20 @@ describe('prompt-registry (refactored)', () => {
       expect(r2).toContain('Assistente de culinária e receitas.')
       expect(r2).not.toContain('Assistente especialista em código e humor.')
     })
+
+    it('includes toolInstruction in buildSystemPrompt output', () => {
+      const reg = createPromptRegistry({ promptsDir })
+      const input = {
+        tier: 'pro',
+        userName: 'User',
+        toolInstruction: 'Skills ativas:\n- SmartHome: Controle de dispositivos',
+        hasHistory: true
+      }
+      const prompt = reg.buildSystemPrompt(input)
+      expect(prompt).toContain('Skills ativas:')
+      expect(prompt).toContain('SmartHome: Controle de dispositivos')
+      expect(prompt).toContain('MANDATORY ACTION RULE')
+    })
   })
 })
 

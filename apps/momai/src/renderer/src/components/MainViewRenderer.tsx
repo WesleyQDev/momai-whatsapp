@@ -7,6 +7,7 @@ import AboutView from '../views/AboutView'
 import ObservabilityView from '../views/ObservabilityView'
 import LogsView from '../views/LogsView'
 import DynamicDashboard from './DynamicDashboard'
+import ExtensionPageRoute from '../views/ExtensionPageRoute'
 import { StatusData } from '../services/api'
 
 interface MainViewRendererProps {
@@ -77,7 +78,8 @@ const VIEW_MAP: Record<string, React.ComponentType<any>> = {
   AboutDashboard: AboutView,
   ObservabilityDashboard: ObservabilityView,
   LogsDashboard: LogsView,
-  DynamicDashboard: DynamicDashboard
+  DynamicDashboard: DynamicDashboard,
+  ExtensionPage: ExtensionPageRoute
 }
 
 export default function MainViewRenderer({
@@ -137,6 +139,7 @@ export default function MainViewRenderer({
             title={extensionData?.name}
             description={extensionData?.description}
             extensionId={extensionData?.id}
+            fallback={DynamicDashboard}
             chat={chat}
             statusInfo={statusInfo}
             initProgress={initProgress}

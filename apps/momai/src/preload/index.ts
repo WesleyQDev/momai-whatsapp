@@ -402,6 +402,10 @@ const momaiAPI = {
   }
 }
 
+ipcRenderer.on('google-oauth-success', (_event, data) => {
+  window.postMessage({ type: 'google-oauth-success', ...data }, '*')
+})
+
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('momaiAPI', momaiAPI)

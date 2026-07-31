@@ -348,6 +348,10 @@ function createSkillRegistry({ dataDir, builtinSkillsDir }) {
       _permSummary: permSchema.getPermissionSummary(mergedPerms),
       _riskLevel: riskLevel
     }
+    if (manifestExtra?.id) {
+      skill.id = manifestExtra.id
+      skill.manifest.id = manifestExtra.id
+    }
     return skill
   }
 

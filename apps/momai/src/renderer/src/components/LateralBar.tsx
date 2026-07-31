@@ -13,7 +13,8 @@ import {
   QuestionMarkCircleIcon,
   Square3Stack3DIcon,
   ChartBarIcon,
-  PuzzlePieceIcon
+  PuzzlePieceIcon,
+  HomeIcon
 } from '@heroicons/react/24/outline'
 import { useI18n } from '../i18n'
 
@@ -50,6 +51,12 @@ interface ExtensionItem {
   }
 }
 
+function resolveSkillIconName(ext: any): string {
+  if (ext?.icon) return ext.icon
+  if (ext?.manifest?.icon) return ext.manifest.icon
+  return ''
+}
+
 const LauncherIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     viewBox="0 0 24 24"
@@ -80,7 +87,9 @@ const iconMap: Record<string, any> = {
   Clock: CalendarIcon,
   BookOpen: DocumentTextIcon,
   RocketLaunch: CpuChipIcon,
-  Launcher: LauncherIcon
+  Launcher: LauncherIcon,
+  Home: HomeIcon,
+  home: HomeIcon
 }
 
 function InlineSvgIcon({ svg, className }: { svg: string; className?: string }) {

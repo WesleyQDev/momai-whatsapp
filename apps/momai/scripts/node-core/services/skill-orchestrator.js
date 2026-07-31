@@ -146,6 +146,7 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         description: description,
         category: skill.kind === 'builtin' ? 'core' : 'extension',
         enabled: skill.enabled && isSkillEnabledByStore(skill),
+        installed: true,
         isSymlink,
         symlinkPath,
         source,
@@ -180,8 +181,8 @@ async function buildExtensionsPayload(lang = 'pt-BR') {
         instructions: docContent.trim(),
         readme: docContent.trim(),
         features: {
-          sidebar: manifest.sidebar === true,
-          sidebarPanel: manifest.sidebarPanel || null,
+          sidebar: manifest.sidebar === true || Boolean(manifest.ui?.page),
+          sidebarPanel: manifest.sidebarPanel || Boolean(manifest.ui?.panel),
           agent_name: manifest.id
         },
         keywords: store.skillKeywords?.[manifest.id || skill.id] || [],

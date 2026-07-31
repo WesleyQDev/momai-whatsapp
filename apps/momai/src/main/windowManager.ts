@@ -340,6 +340,24 @@ export function createOverlayWindow(data?: any): void {
     loadRendererContents(overlayWindow, 'overlay')
 
     overlayWindow.webContents.setWindowOpenHandler((details) => {
+      const url = details.url || ''
+      if (url.includes('accounts.google.com/o/oauth2') || url.includes('oauth2/v2/auth')) {
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            width: 540,
+            height: 680,
+            autoHideMenuBar: true,
+            title: 'Google OAuth - MomAI',
+            center: true,
+            webPreferences: {
+              nodeIntegration: false,
+              contextIsolation: true
+            }
+          }
+        }
+      }
+
       if (isSafeExternalUrl(details.url)) {
         shell.openExternal(details.url)
       } else {
@@ -394,6 +412,7 @@ function createMainWindow(): BrowserWindow {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
+      webviewTag: true,
       additionalArguments: [
         `--momai-api-url=${API_BASE_URL}`,
         `--momai-ws-url=${WS_BASE_URL}`,
@@ -473,6 +492,26 @@ function createMainWindow(): BrowserWindow {
   setupContextMenu()
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
+    const url = details.url || ''
+    if (url.includes('accounts.google.com/o/oauth2') || url.includes('oauth2/v2/auth')) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 540,
+          height: 680,
+          autoHideMenuBar: true,
+          title: 'Google OAuth - MomAI',
+          center: true,
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            userAgent:
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+          }
+        }
+      }
+    }
+
     if (isSafeExternalUrl(details.url)) {
       shell.openExternal(details.url)
     } else {
@@ -481,6 +520,185 @@ function createMainWindow(): BrowserWindow {
       )
     }
     return { action: 'deny' }
+  })
+
+  // Intercepta o callback de OAuth da janela popup e notifica a janela principal
+  mainWindow.webContents.on('did-create-window', (childWindow) => {
+    const handleNavigation = async (event: any, url: string) => {
+      const isCallbackUrl =
+        url.startsWith('http://127.0.0.1:3333/callback') ||
+        url.startsWith('http://localhost:3333/callback') ||
+        url.startsWith('http://127.0.0.1:3333/') ||
+        url.startsWith('http://localhost:3333/')
+
+      if (isCallbackUrl) {
+        logger.info(`[WindowManager] Intercepted OAuth completion callback URL: ${url}`)
+        event.preventDefault()
+        try {
+          if (!childWindow.isDestroyed()) {
+            childWindow.close()
+          }
+        } catch {}
+
+        let realEmail: string | null = null
+        let accessToken: string | null = null
+        let idToken: string | null = null
+
+        try {
+          const parsedUrl = new URL(url)
+
+          // 1. Extração via hash fragment (#access_token=...&id_token=...)
+          if (parsedUrl.hash) {
+            const hashParams = new URLSearchParams(parsedUrl.hash.replace(/^#/, ''))
+            if (hashParams.has('access_token')) {
+              accessToken = hashParams.get('access_token')
+            }
+            if (hashParams.has('id_token')) {
+              idToken = hashParams.get('id_token')
+            }
+          }
+
+          // 2. Extração via querystring (?access_token=... ou ?id_token=...)
+          if (!accessToken && parsedUrl.searchParams.has('access_token')) {
+            accessToken = parsedUrl.searchParams.get('access_token')
+          }
+          if (!idToken && parsedUrl.searchParams.has('id_token')) {
+            idToken = parsedUrl.searchParams.get('id_token')
+          }
+
+          // 3. Se id_token foi obtido da URL
+          if (idToken) {
+            try {
+              const base64Url = idToken.split('.')[1]
+              const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+              const jsonPayload = Buffer.from(base64, 'base64').toString('utf8')
+              const parsedJwt = JSON.parse(jsonPayload)
+              if (parsedJwt?.email) {
+                realEmail = parsedJwt.email
+                logger.info(`[WindowManager] Extracted Google email from hash/query id_token: ${realEmail}`)
+              }
+            } catch (jwtErr) {
+              logger.warn(`[WindowManager] Could not parse id_token from URL: ${jwtErr}`)
+            }
+          }
+
+          // 4. Se access_token foi obtido da URL, consulta API UserInfo
+          if (!realEmail && accessToken) {
+            try {
+              const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                headers: { Authorization: `Bearer ${accessToken}` }
+              })
+              const userData = (await userRes.json()) as { email?: string }
+              if (userData.email) {
+                realEmail = userData.email
+                logger.info(`[WindowManager] Extracted Google email from userinfo API using URL access_token: ${realEmail}`)
+              }
+            } catch (uErr) {
+              logger.warn(`[WindowManager] Error fetching userinfo from URL access_token: ${uErr}`)
+            }
+          }
+
+          // 5. Se code foi obtido da URL, realiza a troca por tokens com suporte a PKCE e client_secret
+          const code = parsedUrl.searchParams.get('code')
+          if (!realEmail && code) {
+            let codeVerifier: string | null = null
+            let customClientId: string | null = null
+            let customClientSecret: string | null = null
+            try {
+              codeVerifier = await mainWindow.webContents.executeJavaScript(
+                "localStorage.getItem('momaismarthome_code_verifier') || window.momaismarthome_code_verifier || ''"
+              )
+              customClientId = await mainWindow.webContents.executeJavaScript(
+                "localStorage.getItem('momaismarthome_client_id') || window.momaismarthome_client_id || ''"
+              )
+              customClientSecret = await mainWindow.webContents.executeJavaScript(
+                "localStorage.getItem('momaismarthome_client_secret') || window.momaismarthome_client_secret || ''"
+              )
+            } catch (cvErr) {
+              logger.warn(`[WindowManager] Could not read OAuth credentials from renderer: ${cvErr}`)
+            }
+
+            const activeClientId = (customClientId && customClientId.trim()) || '204049970754-gtadrgcj0eragg8u2skl3o9501s1rhc9.apps.googleusercontent.com'
+            const activeClientSecret = (customClientSecret && customClientSecret.trim()) || process.env.GOOGLE_CLIENT_SECRET || ''
+
+            const bodyParams: Record<string, string> = {
+              code,
+              client_id: activeClientId,
+              grant_type: 'authorization_code',
+              redirect_uri: 'http://127.0.0.1:3333/callback'
+            }
+            if (codeVerifier) {
+              bodyParams.code_verifier = codeVerifier
+              logger.info(`[WindowManager] Including PKCE code_verifier in token request`)
+            }
+            if (activeClientSecret) {
+              bodyParams.client_secret = activeClientSecret
+              logger.info(`[WindowManager] Including client_secret in token request`)
+            }
+
+            logger.info(`[WindowManager] Exchanging Google OAuth code for tokens...`)
+            const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams(bodyParams)
+            })
+            const tokenData = (await tokenRes.json()) as { access_token?: string; id_token?: string; error?: string; error_description?: string }
+            logger.info(`[WindowManager] Google token response (status ${tokenRes.status}): ${JSON.stringify(tokenData)}`)
+
+            if (tokenData.id_token) {
+              try {
+                const base64Url = tokenData.id_token.split('.')[1]
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+                const jsonPayload = Buffer.from(base64, 'base64').toString('utf8')
+                const parsedJwt = JSON.parse(jsonPayload)
+                if (parsedJwt?.email) {
+                  realEmail = parsedJwt.email
+                  logger.info(`[WindowManager] Extracted Google email from code id_token: ${realEmail}`)
+                }
+              } catch (jwtErr) {
+                logger.warn(`[WindowManager] Could not parse id_token: ${jwtErr}`)
+              }
+            }
+
+            if (!realEmail && tokenData.access_token) {
+              const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                headers: { Authorization: `Bearer ${tokenData.access_token}` }
+              })
+              const userData = (await userRes.json()) as { email?: string }
+              if (userData.email) {
+                realEmail = userData.email
+                logger.info(`[WindowManager] Extracted Google email from userinfo API: ${realEmail}`)
+              }
+            }
+
+            if (tokenData.access_token) {
+              accessToken = tokenData.access_token
+            }
+            if (tokenData.id_token) {
+              idToken = tokenData.id_token
+            }
+          }
+        } catch (err) {
+          logger.warn(`[WindowManager] Error getting Google user email: ${err}`)
+        }
+
+        if (realEmail && realEmail !== 'usuario@gmail.com') {
+          logger.info(`[WindowManager] Google OAuth completed successfully for email: ${realEmail}`)
+          mainWindow.webContents.send('google-oauth-success', {
+            email: realEmail,
+            access_token: accessToken,
+            id_token: idToken,
+            url
+          })
+        } else {
+          logger.error(`[WindowManager] Google OAuth completion failed: real email could not be resolved.`)
+          mainWindow.webContents.send('google-oauth-error', { error: 'Não foi possível autenticar o e-mail real do usuário.' })
+        }
+      }
+    }
+
+    childWindow.webContents.on('will-navigate', handleNavigation)
+    childWindow.webContents.on('will-redirect', handleNavigation)
   })
 
   // Block main window navigation to untrusted origins (Electron security boundary)
@@ -498,12 +716,22 @@ function createMainWindow(): BrowserWindow {
     }
     if (parsed.protocol === 'file:') return
     if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') return
+    if (parsed.hostname === 'accounts.google.com') return
     logger.warn(`[WindowManager] Blocked will-navigate to untrusted origin: ${url}`)
     event.preventDefault()
   })
 
   // Tratamento de CTRL+R: em dev reinicia frontend+backend, em prod bloqueia
   mainWindow.webContents.on('before-input-event', async (event, input) => {
+    // Toggle DevTools on F12 in dev mode
+    if (input.key === 'F12') {
+      if (is.dev) {
+        event.preventDefault()
+        mainWindow.webContents.toggleDevTools()
+        return
+      }
+    }
+
     // M3: Block DevTools shortcuts in production
     if (
       shouldBlockDevToolsShortcut({

@@ -357,11 +357,19 @@ ipcMain.handle('notes:search', async (_, query: string, limit?: number) =>
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
 app.on('web-contents-created', (_event, contents) => {
-  if (shouldBlockWebviewAttachment()) {
-    contents.on('will-attach-webview', (event) => {
+  contents.on('will-attach-webview', (event, webPreferences, params) => {
+    const src = params?.src || ''
+    if (src.includes('accounts.google.com') || src.includes('127.0.0.1') || src.includes('oauth')) {
+      webPreferences.nodeIntegration = false
+      webPreferences.contextIsolation = true
+      ;(webPreferences as any).userAgent =
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+      return
+    }
+    if (shouldBlockWebviewAttachment()) {
       event.preventDefault()
-    })
-  }
+    }
+  })
 })
 
 app.whenReady().then(async () => {

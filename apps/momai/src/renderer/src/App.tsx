@@ -26,7 +26,6 @@ import BootstrapError from './components/BootstrapError'
 import InfoPanel from './components/InfoPanel'
 import ExtensionPanel from './components/ExtensionPanel'
 import NotificationOverlay from './components/NotificationOverlay'
-import ExtensionPageRoute from './views/ExtensionPageRoute'
 import { InstallProgressProvider } from './stores/InstallProgressContext'
 import GlobalInstallBar from './components/extensions/GlobalInstallBar'
 import { useAudioFallback } from './hooks/useAudioFallback'
@@ -316,18 +315,6 @@ function App(): React.JSX.Element {
                     isFirstLaunch={isFirstLaunch}
                   />
                 </div>
-                {extensionPageId && (
-                  <div className="flex-1 min-w-0 min-h-0 h-full">
-                    <ExtensionPageRoute
-                      extensionId={extensionPageId}
-                      fallback={({ extensionId }) => (
-                        <div className="p-8 text-text-muted">
-                          Extensão "{extensionId}" não tem UI full-page
-                        </div>
-                      )}
-                    />
-                  </div>
-                )}
 
                 {graphState.view === 'side' && !isCompact && (
                   <div className="flex-1 min-w-[280px] xl:min-w-[380px] max-w-[650px] rounded-xl bg-card border border-border/10 shadow-2xl overflow-hidden relative animate-in slide-in-from-right duration-500 shrink">

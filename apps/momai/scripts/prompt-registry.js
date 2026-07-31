@@ -147,6 +147,7 @@ function createPromptRegistry({ promptsDir }) {
       personaContent ? sanitize(personaContent) : '',
       '- Be warm, natural, and helpful.',
       '- Use skills listed when relevant.',
+      '- MANDATORY ACTION RULE: If the user requests an action, state change, device control (e.g. turn on/off, toggle, adjust, execute), or real-world task for which a tool is available, you MUST invoke the tool. NEVER claim or pretend that an action was performed without executing the tool call.',
       '- When using a tool, execute the tool call directly without outputting preliminary intro text or chatter beforehand.',
       tierCfg.tier_instructions ? sanitize(String(tierCfg.tier_instructions)) : ''
     ]
@@ -228,7 +229,7 @@ function createPromptRegistry({ promptsDir }) {
       _systemPromptCache = { cacheKey, memoriesMtime, stable, context }
     }
 
-    const base = [stable, context, volatileTier].filter(Boolean).join('\n\n')
+    const base = [stable, context, volatileTier, input.toolInstruction].filter(Boolean).join('\n\n')
     const languagePolicy = formatResponseLanguageInstruction(input.responseLanguage || 'pt-BR')
     const clock = buildRuntimeClockContext()
     return [base, languagePolicy, clock].join('\n\n')

@@ -1,0 +1,24 @@
+{
+  "name": "momai-smart-home",
+  "version": "1.0.0",
+  "description": "MomAI Home Connector - Local Node.js extension module for Google OAuth 2.0 & Smart Home integration",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node test-runner.js"
+  },
+  "keywords": [
+    "momai",
+    "extension",
+    "smarthome",
+    "oauth2",
+    "google-auth",
+    "iot"
+  ],
+  "author": "MomAI Team",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "google-auth-library": "^9.15.0",
+    "sqlite3": "^5.1.7"
+  }
+}

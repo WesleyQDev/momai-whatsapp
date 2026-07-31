@@ -47,6 +47,26 @@
           "description": "Abre programas, aplicativos, pastas, arquivos e URLs no computador através de comandos de voz e texto."
         }
       }
+    },
+    {
+      "id": "momaismarthome",
+      "name": "MomAI Smart Home",
+      "description": "Módulo de integração e automação com dispositivos Smart Home e Google OAuth 2.0.",
+      "category": "utility",
+      "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 9.5L12 2l9 7.5V20a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9.5z\"/><path d=\"M6.5 12a7.8 7.8 0 0 1 11 0\"/><path d=\"M9 15a3.6 3.6 0 0 1 6 0\"/><path d=\"M12 18h.01\"/></svg>",
+      "icon_bg": "#0EA5E9",
+      "author": "MomAI Team",
+      "version": "1.0.0",
+      "sdkVersion": 1,
+      "momai_compat": ">=1.7.0",
+      "download_url": "https://localhost/MomAISmartHome.zip",
+      "is_official": true,
+      "locales": {
+        "pt-BR": {
+          "name": "MomAI Smart Home",
+          "description": "Módulo de integração e automação com dispositivos Smart Home e Google OAuth 2.0."
+        }
+      }
     }
   ]
 }

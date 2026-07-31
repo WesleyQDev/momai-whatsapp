@@ -7,10 +7,11 @@ import { ArrowPathIcon } from '@heroicons/react/24/outline'
 
 interface Props {
   extensionId?: string
-  fallback?: React.ComponentType<{ extensionId: string }>
+  fallback?: React.ComponentType<any>
+  [key: string]: any
 }
 
-export default function ExtensionPageRoute({ extensionId: propId, fallback: Fallback }: Props) {
+export default function ExtensionPageRoute({ extensionId: propId, fallback: Fallback, ...rest }: Props) {
   const params = useParams<{ id: string }>()
   const id = propId ?? params.id
   const skill = useInstalledSkill(id)
@@ -51,7 +52,13 @@ export default function ExtensionPageRoute({ extensionId: propId, fallback: Fall
 
   if (!skill.ui?.page) {
     return Fallback ? (
-      <Fallback extensionId={skill.id} />
+      <Fallback
+        extensionId={skill.id}
+        title={skill.name}
+        description={skill.description}
+        schema={(skill as any).schema || (skill as any).manifest?.schema}
+        {...rest}
+      />
     ) : (
       <div className="p-8 text-text-muted">Esta extensão não tem UI full-page</div>
     )

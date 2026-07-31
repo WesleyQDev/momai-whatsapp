@@ -971,7 +971,7 @@ async function streamLlamaChat(req, res, payload) {
       const toolPriorityBody = buildToolPriority(selectedSkills)
       const toolPriorityBlock = toolPriorityBody ? `Prioridade:\n${toolPriorityBody}` : ''
       const toolAvailabilityNote = shouldSendTools
-        ? 'Tool schemas for these skills are available in this turn.'
+        ? 'Tool schemas for these skills are available in this turn. MANDATORY ACTION RULE: If the user asks to perform an action or change state (such as turning on/off, toggling, executing, setting, or controlling devices), you MUST call the matching tool function directly. NEVER state or claim an action was done without executing the tool.'
         : 'Only skill summaries are available in this turn. Request a specific skill by name if you need its tools.'
       const activeSkillsLine = activeSkillIds.size > 0
         ? `Active skills this turn: ${[...activeSkillIds].join(', ')}.`
