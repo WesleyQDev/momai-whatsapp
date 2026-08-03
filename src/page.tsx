@@ -821,7 +821,7 @@ export default function WhatsAppView() {
 
   return (
     <div className="flex-1 h-full flex flex-col min-h-0">
-      <div className="shrink-0 px-6 pt-6 pb-4">
+      <div className="shrink-0 px-6 pt-6 pb-4 w-full">
         <div className="flex items-center gap-3">
           <WhatsAppIcon className="w-8 h-8 shrink-0" />
           <h1 className="text-xl font-semibold">WhatsApp</h1>
@@ -1005,33 +1005,47 @@ export default function WhatsAppView() {
       </div>
 
       {!connected && (
-        <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8 text-center space-y-5 min-h-0">
+        <div className="flex-1 w-full flex flex-col items-center justify-center px-6 pb-8 text-center space-y-5 min-h-0">
           {qrUrl ? (
-            <>
+            <div className="space-y-4 flex flex-col items-center">
               <p className="text-sm text-text-muted max-w-sm">
                 Escaneie o QR code com o WhatsApp do celular
               </p>
               <img
                 src={qrUrl}
                 alt="QR Code"
-                className="block mx-auto rounded-xl"
-                width={256}
-                height={256}
+                className="block mx-auto rounded-xl p-2 bg-white border border-white/10 shadow-2xl"
+                width={240}
+                height={240}
               />
-            </>
+              <button
+                type="button"
+                onClick={reconnect}
+                className="mt-2 py-2 px-5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-all duration-200 border border-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Gerar Novo QR Code</span>
+              </button>
+            </div>
           ) : (
             <div className="space-y-4 flex flex-col items-center">
               <div className="animate-pulse flex justify-center">
-                <div className="w-48 h-48 rounded-xl bg-white/5 flex items-center justify-center">
+                <div className="w-48 h-48 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
                   <WhatsAppIcon className="w-16 h-16 opacity-30" />
                 </div>
               </div>
               <p className="text-sm text-text-muted">Aguardando QR code...</p>
               <button
+                type="button"
                 onClick={reconnect}
-                className="px-4 py-2 text-sm rounded-lg bg-accent/10 text-accent hover:bg-accent/20 border border-accent/20 transition-colors"
+                className="py-2 px-5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-all duration-200 border border-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer flex items-center gap-2"
               >
-                Gerar QR
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Gerar Novo QR Code</span>
               </button>
             </div>
           )}

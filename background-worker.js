@@ -8,7 +8,6 @@ const CHAT_HISTORY_KEY = 'chat_history'
 let makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   Browsers,
   pino
@@ -17,8 +16,6 @@ try {
   makeWASocket = baileys.makeWASocket || baileys.default?.makeWASocket
   useMultiFileAuthState = baileys.useMultiFileAuthState || baileys.default?.useMultiFileAuthState
   DisconnectReason = baileys.DisconnectReason
-  fetchLatestBaileysVersion =
-    baileys.fetchLatestBaileysVersion || baileys.default?.fetchLatestBaileysVersion
   makeCacheableSignalKeyStore =
     baileys.makeCacheableSignalKeyStore || baileys.default?.makeCacheableSignalKeyStore
   Browsers = baileys.Browsers || baileys.default?.Browsers
@@ -108,6 +105,10 @@ const CONTACT_NAMES_KEY = 'contact_names'
 const WA_CONTACTS_KEY = 'wa_contacts'
 const SETTINGS_KEY = 'settings'
 const CHECK_INTERVAL = 5000
+const MAX_RECONNECT_DELAY = 120000
+
+let reconnectAttempt = 0
+let loggedOutAttempt = 0
 
 // Self-contained momai bridge (not loaded via extension-host-worker)
 const _skillId = process.env.MOMAI_EXTENSION_ID || 'whatsapp'
@@ -357,13 +358,35 @@ async function getBaileysVersion() {
     return cachedBaileysVersion
   }
   try {
-    const { version } = await fetchLatestBaileysVersion()
-    cachedBaileysVersion = version
-    cachedBaileysVersionAt = Date.now()
-    return version
+    // Fetch the latest WhatsApp version from Baileys master branch
+    const https = require('https')
+    const url = 'https://raw.githubusercontent.com/WhiskeysSockets/Baileys/master/src/Defaults/baileys-version.json'
+    const data = await new Promise((resolve, reject) => {
+      https.get(url, { timeout: 5000 }, (res) => {
+        let body = ''
+        res.on('data', (chunk) => body += chunk)
+        res.on('end', () => resolve(body))
+      }).on('error', reject).on('timeout', function() { this.destroy(); reject(new Error('timeout')) })
+    })
+    const parsed = JSON.parse(data)
+    if (Array.isArray(parsed.version) && parsed.version.length === 3) {
+      cachedBaileysVersion = parsed.version
+      cachedBaileysVersionAt = Date.now()
+      return parsed.version
+    }
+    throw new Error('invalid version format')
   } catch (err) {
-    momai.log(`[whatsapp] Failed to fetch latest Baileys version online: ${err.message}. Using default fallback.`)
-    return [2, 3000, 1015977087]
+    momai.log(`[whatsapp] Failed to fetch latest Baileys version: ${err.message}. Using bundled fallback.`)
+    // Fallback: use bundled version from baileys-version.json
+    try {
+      const { version: bundledVersion } = require('@whiskeysockets/baileys/lib/Defaults/baileys-version.json')
+      cachedBaileysVersion = bundledVersion
+      cachedBaileysVersionAt = Date.now()
+      return bundledVersion
+    } catch {
+      // Final fallback
+      return [2, 3000, 1035194821]
+    }
   }
 }
 
@@ -1228,10 +1251,10 @@ async function connect() {
       logger,
       printQRInTerminal: false,
       emitOwnEvents: false,
-      syncFullHistory: true,
+      syncFullHistory: false,
       generateHighQualityLinkPreview: false,
       msgRetryCounterCache,
-      browser: Browsers?.ubuntu('Chrome') || ['Ubuntu', 'Chrome', '20.0.04'],
+      browser: Browsers?.windows('Chrome') || ['Windows', 'Chrome', '20.0.04'],
       connectTimeoutMs: 60000,
       keepAliveIntervalMs: 30000,
       defaultQueryTimeoutMs: 60000,
@@ -1271,6 +1294,8 @@ async function connect() {
 
       if (connection === 'open') {
         _clearReconnectTimer()
+        reconnectAttempt = 0
+        loggedOutAttempt = 0
         isConnecting = false
         lastQr = null
         lastQrAt = 0
@@ -1375,22 +1400,35 @@ async function connect() {
         )
         if (preventAutoReconnect) {
           preventAutoReconnect = false
+          loggedOutAttempt = 0
           momai.sendEvent('authenticated', { status: 'logged_out' })
           momai.sendEvent('connection_status', { status: 'disconnected' })
           return
         }
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut
-        if (shouldReconnect) {
+
+        const isLoggedOut = statusCode === DisconnectReason.loggedOut
+        if (isLoggedOut && loggedOutAttempt < 1) {
+          loggedOutAttempt++
+          momai.log(`[ext:whatsapp:close] First 401 (loggedOut) received — attempting 1 automatic retry before wiping auth dir.`)
           momai.sendEvent('connection_status', { status: 'reconnecting' })
           _clearReconnectTimer()
-          reconnectTimer = setTimeout(connect, CHECK_INTERVAL)
+          reconnectTimer = setTimeout(connect, 2000)
+          return
+        }
+
+        const shouldReconnect = !isLoggedOut
+        if (shouldReconnect) {
+          loggedOutAttempt = 0
+          momai.sendEvent('connection_status', { status: 'reconnecting' })
+          _clearReconnectTimer()
+          reconnectAttempt++
+          const delay = Math.min(CHECK_INTERVAL * Math.pow(2, reconnectAttempt - 1), MAX_RECONNECT_DELAY)
+          momai.log(`reconnect attempt ${reconnectAttempt} in ${delay}ms (status: ${statusCode})`)
+          reconnectTimer = setTimeout(connect, delay)
         } else {
-          // LOGGED OUT: Baileys confirmed the stored creds are invalid.
-          // Wipe the auth dir immediately and trigger a fresh connection
-          // so the user sees a QR without having to navigate to the page
-          // (the UI's beginPairing() flow used to do this, but it raced
-          // with the page load and wiped prematurely on every open).
-          momai.log('WhatsApp logged out — wiping stale auth dir for fresh re-pair')
+          // Real logout confirmed (second consecutive 401)
+          loggedOutAttempt = 0
+          momai.log('WhatsApp logged out (confirmed 401) — wiping stale auth dir for fresh re-pair')
           try {
             const fsSync = require('fs')
             if (fsSync.existsSync(authDir)) {

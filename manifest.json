@@ -16,7 +16,7 @@
                     ],
     "sdkVersion":  1,
     "momai_compat":  ">=1.7.0",
-    "version":  "0.4.2",
+    "version":  "0.4.3",
     "ui":  {
                "page":  "dist/page.js",
                "pageType":  "whatsapp-page",
