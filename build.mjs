@@ -19,38 +19,28 @@ if (entries.length === 0) {
 
 mkdirSync(path.join(__dirname, 'dist'), { recursive: true })
 
-const makeReactGlobalPlugin = {
-  name: 'make-react-global',
+// Fornece react/react-dom/jsx-runtime/momai:sdk via window globals setados pelo host
+// (window.React, window.ReactDOM, window.JSXRuntime, window.MomAISDK). Nada fica
+// "external" — o bundle não emite `import ... from "react"` nem `from "momai:sdk"`,
+// então o static server não reescreve para /vendor/* (que quebraria no appx).
+const makeHostGlobalsPlugin = {
+  name: 'make-host-globals',
   setup(build) {
-    build.onResolve({ filter: /^react$/ }, (args) => {
-      return { path: args.path, namespace: 'react-global' }
-    })
-    build.onLoad({ filter: /^react$/, namespace: 'react-global' }, () => {
-      return {
-        contents: `module.exports = window.React;`,
-        loader: 'js'
-      }
-    })
-
-    build.onResolve({ filter: /^react-dom$/ }, (args) => {
-      return { path: args.path, namespace: 'react-dom-global' }
-    })
-    build.onLoad({ filter: /^react-dom$/, namespace: 'react-dom-global' }, () => {
-      return {
-        contents: `module.exports = window.ReactDOM;`,
-        loader: 'js'
-      }
-    })
-
-    build.onResolve({ filter: /^react\/jsx-runtime$/ }, (args) => {
-      return { path: args.path, namespace: 'react-jsx-runtime-global' }
-    })
-    build.onLoad({ filter: /^react\/jsx-runtime$/, namespace: 'react-jsx-runtime-global' }, () => {
-      return {
-        contents: `module.exports = window.JSXRuntime;`,
-        loader: 'js'
-      }
-    })
+    const mapGlobal = (filter, globalName, namespace) => {
+      build.onResolve({ filter }, (args) => {
+        return { path: args.path, namespace }
+      })
+      build.onLoad({ filter, namespace }, () => {
+        return {
+          contents: `module.exports = ${globalName};`,
+          loader: 'js'
+        }
+      })
+    }
+    mapGlobal(/^react$/, 'window.React', 'react-global')
+    mapGlobal(/^react-dom$/, 'window.ReactDOM', 'react-dom-global')
+    mapGlobal(/^react\/jsx-runtime$/, 'window.JSXRuntime', 'react-jsx-runtime-global')
+    mapGlobal(/^momai:sdk$/, 'window.MomAISDK', 'sdk-global')
   }
 }
 
@@ -78,9 +68,7 @@ const options = {
   sourcemap: true,
   outdir: 'dist',
   logLevel: 'info',
-  external: ['react', 'react-dom', 'react/jsx-runtime', 'momai:sdk'],
-  external: ['momai:sdk'],
-  plugins: [makeReactGlobalPlugin],
+  plugins: [makeHostGlobalsPlugin],
   alias: {
     'momai:registry': path.resolve(momaiSrcDir, 'components/chat/SkillResponseRegistry.ts'),
     'momai:events': path.resolve(momaiSrcDir, 'hooks/useExtensionEvents.ts'),

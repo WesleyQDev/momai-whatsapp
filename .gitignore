@@ -6,4 +6,12 @@ data/
 .DS_Store
 Thumbs.db
 
+# Runtime user data - never commit (WhatsApp session credentials, chats, contacts)
+baileys-auth/
+chat_history-*.json
+wa_contacts-*.json
+message_cache_*.json
+worker.lock
+*.zip
+
 pnpm-lock.yaml

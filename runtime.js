@@ -111,6 +111,15 @@ module.exports = {
           perPage: { type: 'number', description: 'Itens por pagina (opcional)' }
         }
       }
+    },
+    {
+      name: 'sync_contacts',
+      description:
+        'Forca uma re-sincronizacao dos contatos do WhatsApp com o telefone. Use quando os contatos estiverem ausentes, incompletos ou desatualizados. Retorna a quantidade de contatos apos a sincronizacao.',
+      parameters: {
+        type: 'object',
+        properties: {}
+      }
     }
   ],
 

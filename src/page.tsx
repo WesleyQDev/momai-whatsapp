@@ -608,7 +608,10 @@ export default function WhatsAppView() {
     try {
       beginPairing()
       setConnected(false)
-      await api.post('/extensions/whatsapp/restart')
+      // Force um QR realmente novo: o worker apaga a sessão Baileys e gera um
+      // pairing novo. Sem `force`, o worker re-exibe o MESMO QR por até 65s
+      // (QR_TTL_MS) porque _qrStillValid() devolve o QR em cache.
+      await api.post('/extensions/whatsapp/restart', { force: true })
     } catch {}
   }, [beginPairing])
 

@@ -83,6 +83,15 @@ function createMigration(bridge) {
           return true
         }
         console.warn('[whatsapp] failed to decrypt creds.json.enc, safeStorage unavailable?')
+        // SafeStorage unavailable (common in dev mode on Windows).
+        // Delete the encrypted creds so Baileys requests a fresh QR on next startup
+        // instead of looping on failed decrypt attempts.
+        try {
+          fs.unlinkSync(encCreds)
+          console.log('[whatsapp] deleted creds.json.enc (safeStorage unavailable, will request new QR)')
+        } catch (delErr) {
+          console.warn(`[whatsapp] failed to delete creds.json.enc: ${delErr.message}`)
+        }
       }
       return false
     },

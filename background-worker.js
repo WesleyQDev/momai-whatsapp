@@ -10,6 +10,7 @@ let makeWASocket,
   DisconnectReason,
   makeCacheableSignalKeyStore,
   Browsers,
+  fetchLatestWaWebVersion,
   pino
 try {
   const baileys = require('@whiskeysockets/baileys')
@@ -19,6 +20,7 @@ try {
   makeCacheableSignalKeyStore =
     baileys.makeCacheableSignalKeyStore || baileys.default?.makeCacheableSignalKeyStore
   Browsers = baileys.Browsers || baileys.default?.Browsers
+  fetchLatestWaWebVersion = baileys.fetchLatestWaWebVersion || baileys.default?.fetchLatestWaWebVersion
 
   try {
     pino = require('pino')
@@ -358,25 +360,19 @@ async function getBaileysVersion() {
     return cachedBaileysVersion
   }
   try {
-    // Fetch the latest WhatsApp version from Baileys master branch
-    const https = require('https')
-    const url = 'https://raw.githubusercontent.com/WhiskeysSockets/Baileys/master/src/Defaults/baileys-version.json'
-    const data = await new Promise((resolve, reject) => {
-      https.get(url, { timeout: 5000 }, (res) => {
-        let body = ''
-        res.on('data', (chunk) => body += chunk)
-        res.on('end', () => resolve(body))
-      }).on('error', reject).on('timeout', function() { this.destroy(); reject(new Error('timeout')) })
-    })
-    const parsed = JSON.parse(data)
-    if (Array.isArray(parsed.version) && parsed.version.length === 3) {
-      cachedBaileysVersion = parsed.version
-      cachedBaileysVersionAt = Date.now()
-      return parsed.version
+    // Use Baileys native fetchLatestWaWebVersion (queries web.whatsapp.com/check-update)
+    if (fetchLatestWaWebVersion) {
+      const { version } = await fetchLatestWaWebVersion({})
+      if (Array.isArray(version) && version.length === 3) {
+        cachedBaileysVersion = version
+        cachedBaileysVersionAt = Date.now()
+        momai.log(`[whatsapp] Fetched WA Web version via Baileys native: ${version.join('.')}`)
+        return version
+      }
     }
-    throw new Error('invalid version format')
+    throw new Error('fetchLatestWaWebVersion unavailable or returned invalid format')
   } catch (err) {
-    momai.log(`[whatsapp] Failed to fetch latest Baileys version: ${err.message}. Using bundled fallback.`)
+    momai.log(`[whatsapp] Failed to fetch latest WA Web version: ${err.message}. Using bundled fallback.`)
     // Fallback: use bundled version from baileys-version.json
     try {
       const { version: bundledVersion } = require('@whiskeysockets/baileys/lib/Defaults/baileys-version.json')
@@ -1026,16 +1022,49 @@ async function ensureAvatarForJid(jid) {
 }
 
 function _isContactDisabled(jid) {
-  const rawNumber = (jid || '').split('@')[0] || jid
+  if (!jid) return false
+  // Normalize: strip device suffixes like ":1" (e.g. "5541...":1@s.whatsapp.net)
+  const normalized = jid.replace(/:\d+@/, '@')
+  const rawNumber = normalized.split('@')[0]
   const digitsOnly = rawNumber.replace(/\D/g, '')
+
+  // Also check if this JID has a linked LID in waContacts
+  const contactEntry = waContacts[jid] || waContacts[normalized]
+  const linkedLid = contactEntry?.lid
+
   return disabledContacts.some((d) => {
-    const dDigits = String(d).replace(/\D/g, '')
+    const dNormalized = String(d).replace(/:\d+@/, '@')
+    const dRaw = dNormalized.split('@')[0]
+    const dDigits = dRaw.replace(/\D/g, '')
     return (
       d === jid ||
+      d === normalized ||
+      dNormalized === normalized ||
       d === rawNumber ||
-      (dDigits && digitsOnly && (dDigits.endsWith(digitsOnly) || digitsOnly.endsWith(dDigits)))
+      dNormalized === rawNumber ||
+      (linkedLid && (d === linkedLid || dNormalized === linkedLid)) ||
+      (dDigits && digitsOnly && dDigits.length >= 8 && digitsOnly.length >= 8 &&
+        (dDigits.endsWith(digitsOnly) || digitsOnly.endsWith(dDigits)))
     )
   })
+}
+
+/**
+ * Merge two disabled-contacts arrays into a deduplicated union.
+ * Entries are deduplicated by their normalized phone digits (last 8+).
+ */
+function _mergeDisabledContacts(listA, listB) {
+  const seen = new Map() // digits → original entry
+  const result = []
+  for (const entry of [...listA, ...listB]) {
+    const digits = String(entry).replace(/:\d+@/, '@').split('@')[0].replace(/\D/g, '')
+    const key = digits.length >= 8 ? digits.slice(-11) : String(entry)
+    if (!seen.has(key)) {
+      seen.set(key, true)
+      result.push(entry)
+    }
+  }
+  return result
 }
 
 function _cleanupStaleContacts() {
@@ -1073,8 +1102,20 @@ async function _loadPerPhoneData() {
       const phone = creds.me.id.split(':')[0].replace(/\D/g, '')
       if (!phone) return
       _currentPhone = phone
-      const dc = await momai.storage.get(_getDisabledContactsKey())
-      if (dc) disabledContacts = dc
+
+      // Load per-phone disabled contacts and merge with global baseline
+      const globalDc = (await momai.storage.get(DISABLED_CONTACTS_KEY)) || []
+      const phoneDc = await momai.storage.get(_getDisabledContactsKey())
+      if (phoneDc) {
+        // Merge: union of global + per-phone, deduplicated by digits
+        disabledContacts = _mergeDisabledContacts(globalDc, phoneDc)
+      } else {
+        // First time on this phone — inherit global baseline
+        disabledContacts = [...globalDc]
+      }
+      // Persist merged result to per-phone key
+      await momai.storage.set(_getDisabledContactsKey(), disabledContacts)
+
       const pn = await momai.storage.get(_getContactNamesKey())
       if (pn) contactNames = pn
       const wc = await momai.storage.get(_getWaContactsKey())
@@ -1094,6 +1135,7 @@ async function _loadPerPhoneData() {
       }
 
       await loadChatHistory()
+      momai.log(`_loadPerPhoneData: phone=${phone}, disabledContacts=${disabledContacts.length} (merged global=${globalDc.length})`)
     }
   } catch {
     momai.log('_loadPerPhoneData: no creds.json (fresh start)')
@@ -1254,7 +1296,7 @@ async function connect() {
       syncFullHistory: false,
       generateHighQualityLinkPreview: false,
       msgRetryCounterCache,
-      browser: Browsers?.windows('Chrome') || ['Windows', 'Chrome', '20.0.04'],
+      browser: Browsers?.ubuntu('Chrome') || ['Ubuntu', 'Chrome', '20.0.04'],
       connectTimeoutMs: 60000,
       keepAliveIntervalMs: 30000,
       defaultQueryTimeoutMs: 60000,
@@ -1317,9 +1359,17 @@ async function connect() {
             .replace(/\D/g, '')
           if (phone && phone !== _currentPhone) {
             _currentPhone = phone
-            const dc = await momai.storage.get(_getDisabledContactsKey())
-            if (dc) disabledContacts = dc
-            else disabledContacts = []
+
+            // Merge global baseline with per-phone disabled contacts
+            const globalDc = (await momai.storage.get(DISABLED_CONTACTS_KEY)) || []
+            const phoneDc = await momai.storage.get(_getDisabledContactsKey())
+            if (phoneDc) {
+              disabledContacts = _mergeDisabledContacts(globalDc, phoneDc)
+            } else {
+              disabledContacts = [...globalDc]
+            }
+            await momai.storage.set(_getDisabledContactsKey(), disabledContacts)
+
             const pn = await momai.storage.get(_getContactNamesKey())
             if (pn) contactNames = pn
             else contactNames = {}
@@ -1332,6 +1382,7 @@ async function connect() {
               await momai.storage.set(_getContactNamesKey(), contactNames)
               momai.log('Automatically cleaned up stale @lid contacts on active phone detection')
             }
+            momai.log(`Phone switch: ${phone}, disabledContacts=${disabledContacts.length} (merged global=${globalDc.length})`)
           }
           if (phone && !chatHistory.length) {
             await loadChatHistory()
@@ -1413,6 +1464,31 @@ async function connect() {
           momai.sendEvent('connection_status', { status: 'reconnecting' })
           _clearReconnectTimer()
           reconnectTimer = setTimeout(connect, 2000)
+          return
+        }
+
+        // Auto-repair: repeated session/version errors (500=badSession, 515=restartRequired, 428=versionMismatch)
+        // 3+ consecutive failures without ever connecting → wipe auth for fresh re-pair
+        const isSessionError = statusCode === 500 || statusCode === 515 || statusCode === 428
+        if (isSessionError && reconnectAttempt >= 3) {
+          momai.log(`[ext:whatsapp:close] Repeated connection/session errors (status: ${statusCode}) — wiping auth for fresh re-pair`)
+          try {
+            const fsSync = require('fs')
+            if (fsSync.existsSync(authDir)) {
+              fsSync.rmSync(authDir, { recursive: true, force: true })
+            }
+          } catch (err) {
+            momai.log(`session-wipe failed: ${err.message}`)
+          }
+          lastQr = null
+          lastQrAt = 0
+          reconnectAttempt = 0
+          momai.sendEvent('authenticated', { status: 'logged_out' })
+          momai.sendEvent('connection_status', { status: 'disconnected' })
+          _clearReconnectTimer()
+          setTimeout(() => {
+            connect().catch((err) => momai.log(`post-wipe connect failed: ${err.message}`))
+          }, 500)
           return
         }
 
@@ -2208,6 +2284,8 @@ process.on('message', async (msg) => {
             disabledContacts.push(contactId)
           }
           await momai.storage.set(_getDisabledContactsKey(), disabledContacts)
+          // Also persist to global baseline for cross-device sync
+          await momai.storage.set(DISABLED_CONTACTS_KEY, disabledContacts)
           result = { ok: true, contact: contactId, monitoring: isDisabled }
           break
         }
