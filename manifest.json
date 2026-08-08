@@ -13,7 +13,7 @@
   "permissions": ["network:persistent", "storage:persistent"],
   "sdkVersion": 1,
   "momai_compat": ">=1.7.0",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "ui": {
     "page": "dist/page.js",
     "pageType": "whatsapp-page",
@@ -25,9 +25,11 @@
     "authenticated",
     "connection_status",
     "contacts_synced",
+    "contacts_updated",
     "history_loaded",
     "whatsapp_message",
-    "whatsapp_notification"
+    "whatsapp_notification",
+    "message_sent"
   ],
   "routes": [
     { "method": "POST", "path": "/disconnect", "tool": "disconnect" },

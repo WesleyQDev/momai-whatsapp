@@ -8,19 +8,18 @@ const CHAT_HISTORY_KEY = 'chat_history'
 let makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
+  fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
-  Browsers,
-  fetchLatestWaWebVersion,
   pino
 try {
   const baileys = require('@whiskeysockets/baileys')
   makeWASocket = baileys.makeWASocket || baileys.default?.makeWASocket
   useMultiFileAuthState = baileys.useMultiFileAuthState || baileys.default?.useMultiFileAuthState
   DisconnectReason = baileys.DisconnectReason
+  fetchLatestBaileysVersion =
+    baileys.fetchLatestBaileysVersion || baileys.default?.fetchLatestBaileysVersion
   makeCacheableSignalKeyStore =
     baileys.makeCacheableSignalKeyStore || baileys.default?.makeCacheableSignalKeyStore
-  Browsers = baileys.Browsers || baileys.default?.Browsers
-  fetchLatestWaWebVersion = baileys.fetchLatestWaWebVersion || baileys.default?.fetchLatestWaWebVersion
 
   try {
     pino = require('pino')
@@ -79,12 +78,7 @@ async function reEncryptCredsAfterBaileys(baseAuth) {
   if (!safeStorageAvailable) return false
   const result = await _reEncryptCredsAfterBaileys(baseAuth)
   if (!result) {
-    const fsSync = require('fs')
-    const path = require('node:path')
-    const plainCreds = path.join(baseAuth, 'creds.json')
-    if (fsSync.existsSync(plainCreds)) {
-      safeStorageAvailable = false
-    }
+    safeStorageAvailable = false
   }
   return result
 }
@@ -107,10 +101,6 @@ const CONTACT_NAMES_KEY = 'contact_names'
 const WA_CONTACTS_KEY = 'wa_contacts'
 const SETTINGS_KEY = 'settings'
 const CHECK_INTERVAL = 5000
-const MAX_RECONNECT_DELAY = 120000
-
-let reconnectAttempt = 0
-let loggedOutAttempt = 0
 
 // Self-contained momai bridge (not loaded via extension-host-worker)
 const _skillId = process.env.MOMAI_EXTENSION_ID || 'whatsapp'
@@ -300,22 +290,12 @@ function handleLogEvent(obj, msgStr) {
   const detail = obj?.err?.message || obj?.error || ''
   const messageText = msgStr || obj?.msg || ''
 
-  // Detect decryption failures from explicit error messages
-  const isKnownDecryptError =
+  if (
     messageText.includes('failed to decrypt') ||
-    (typeof detail === 'string' &&
-      (detail.includes('Bad MAC') || detail.includes('No matching sessions')))
-
-  // Detect 'error in handling message' with encrypted content (pkmsg/skmsg)
-  // — Baileys logs these when Signal protocol pre-key messages can't be
-  // decrypted, typically right after a fresh QR pairing.
-  const isHandleError =
-    messageText === 'error in handling message' &&
-    obj?.node?.attrs?.from
-
-  if (isKnownDecryptError || isHandleError) {
-    // Extract JID: 'key.remoteJid' for decrypt errors, 'node.attrs.from' for handle errors
-    const jid = obj?.key?.remoteJid || obj?.node?.attrs?.from
+    detail.includes('Bad MAC') ||
+    detail.includes('No matching sessions')
+  ) {
+    const jid = obj?.key?.remoteJid
     if (jid) {
       momai.log(`[whatsapp] Detected decryption failure for ${jid}. Triggering session repair.`)
       repairSession(jid).catch((e) => {
@@ -359,31 +339,10 @@ async function getBaileysVersion() {
   if (cachedBaileysVersion && Date.now() - cachedBaileysVersionAt < 86400000) {
     return cachedBaileysVersion
   }
-  try {
-    // Use Baileys native fetchLatestWaWebVersion (queries web.whatsapp.com/check-update)
-    if (fetchLatestWaWebVersion) {
-      const { version } = await fetchLatestWaWebVersion({})
-      if (Array.isArray(version) && version.length === 3) {
-        cachedBaileysVersion = version
-        cachedBaileysVersionAt = Date.now()
-        momai.log(`[whatsapp] Fetched WA Web version via Baileys native: ${version.join('.')}`)
-        return version
-      }
-    }
-    throw new Error('fetchLatestWaWebVersion unavailable or returned invalid format')
-  } catch (err) {
-    momai.log(`[whatsapp] Failed to fetch latest WA Web version: ${err.message}. Using bundled fallback.`)
-    // Fallback: use bundled version from baileys-version.json
-    try {
-      const { version: bundledVersion } = require('@whiskeysockets/baileys/lib/Defaults/baileys-version.json')
-      cachedBaileysVersion = bundledVersion
-      cachedBaileysVersionAt = Date.now()
-      return bundledVersion
-    } catch {
-      // Final fallback
-      return [2, 3000, 1035194821]
-    }
-  }
+  const { version } = await fetchLatestBaileysVersion()
+  cachedBaileysVersion = version
+  cachedBaileysVersionAt = Date.now()
+  return version
 }
 
 function _qrStillValid() {
@@ -602,6 +561,87 @@ function _sanitizeStoredContactNames() {
     }
   }
   return changed
+}
+
+async function fetchAndStoreGroups() {
+  if (!sock || !connected) return
+  try {
+    momai.log('Fetching participating WhatsApp groups...')
+    const groups = await sock.groupFetchAllParticipating()
+    if (groups && typeof groups === 'object') {
+      let added = 0
+      let updated = 0
+      for (const [jid, meta] of Object.entries(groups)) {
+        if (!jid.endsWith('@g.us')) continue
+        groupMetaCache.set(jid, { data: meta, fetchedAt: Date.now() })
+
+        const subjectName = meta.subject ? String(meta.subject).trim() : null
+        const formattedName = _isUsableDisplayName(subjectName) ? subjectName : 'Grupo'
+
+        if (!waContacts[jid]) {
+          waContacts[jid] = {
+            id: jid,
+            name: formattedName,
+            notify: null,
+            verifiedName: null,
+            phone: null,
+            lid: null
+          }
+          added++
+        } else {
+          if (_isUsableDisplayName(subjectName)) {
+            waContacts[jid].name = subjectName
+          }
+          updated++
+        }
+      }
+      if (added > 0 || updated > 0) {
+        await momai.storage.set(_getWaContactsKey(), waContacts)
+        momai.log(
+          `Groups updated: ${added} new groups, ${updated} updated, ${Object.keys(waContacts).length} total waContacts`
+        )
+        momai.sendEvent('contacts_updated', {})
+      }
+    }
+  } catch (err) {
+    momai.log(`Failed to fetch groups: ${err.message}`)
+  }
+}
+
+function populateContactsFromChatHistory() {
+  let added = 0
+  for (const m of chatHistory) {
+    if (!m.jid) continue
+    if (m.jid.endsWith('@g.us')) continue
+
+    const jid = m.jid
+    const phone = jid.split('@')[0].replace(/\D/g, '')
+    if (!phone) continue
+
+    const label = _pickContactLabel(
+      contactNames[jid],
+      contactNames[phone],
+      m.contactName,
+      m.pushName,
+      m.senderName
+    )
+
+    if (!waContacts[jid]) {
+      waContacts[jid] = {
+        id: jid,
+        name: null,
+        notify: label,
+        verifiedName: null,
+        phone,
+        lid: null
+      }
+      added++
+    } else if (label && !waContacts[jid].name && !waContacts[jid].notify) {
+      waContacts[jid].notify = label
+      added++
+    }
+  }
+  return added
 }
 let chatHistory = []
 let totalMessages = 0
@@ -1022,49 +1062,16 @@ async function ensureAvatarForJid(jid) {
 }
 
 function _isContactDisabled(jid) {
-  if (!jid) return false
-  // Normalize: strip device suffixes like ":1" (e.g. "5541...":1@s.whatsapp.net)
-  const normalized = jid.replace(/:\d+@/, '@')
-  const rawNumber = normalized.split('@')[0]
+  const rawNumber = (jid || '').split('@')[0] || jid
   const digitsOnly = rawNumber.replace(/\D/g, '')
-
-  // Also check if this JID has a linked LID in waContacts
-  const contactEntry = waContacts[jid] || waContacts[normalized]
-  const linkedLid = contactEntry?.lid
-
   return disabledContacts.some((d) => {
-    const dNormalized = String(d).replace(/:\d+@/, '@')
-    const dRaw = dNormalized.split('@')[0]
-    const dDigits = dRaw.replace(/\D/g, '')
+    const dDigits = String(d).replace(/\D/g, '')
     return (
       d === jid ||
-      d === normalized ||
-      dNormalized === normalized ||
       d === rawNumber ||
-      dNormalized === rawNumber ||
-      (linkedLid && (d === linkedLid || dNormalized === linkedLid)) ||
-      (dDigits && digitsOnly && dDigits.length >= 8 && digitsOnly.length >= 8 &&
-        (dDigits.endsWith(digitsOnly) || digitsOnly.endsWith(dDigits)))
+      (dDigits && digitsOnly && (dDigits.endsWith(digitsOnly) || digitsOnly.endsWith(dDigits)))
     )
   })
-}
-
-/**
- * Merge two disabled-contacts arrays into a deduplicated union.
- * Entries are deduplicated by their normalized phone digits (last 8+).
- */
-function _mergeDisabledContacts(listA, listB) {
-  const seen = new Map() // digits → original entry
-  const result = []
-  for (const entry of [...listA, ...listB]) {
-    const digits = String(entry).replace(/:\d+@/, '@').split('@')[0].replace(/\D/g, '')
-    const key = digits.length >= 8 ? digits.slice(-11) : String(entry)
-    if (!seen.has(key)) {
-      seen.set(key, true)
-      result.push(entry)
-    }
-  }
-  return result
 }
 
 function _cleanupStaleContacts() {
@@ -1102,20 +1109,8 @@ async function _loadPerPhoneData() {
       const phone = creds.me.id.split(':')[0].replace(/\D/g, '')
       if (!phone) return
       _currentPhone = phone
-
-      // Load per-phone disabled contacts and merge with global baseline
-      const globalDc = (await momai.storage.get(DISABLED_CONTACTS_KEY)) || []
-      const phoneDc = await momai.storage.get(_getDisabledContactsKey())
-      if (phoneDc) {
-        // Merge: union of global + per-phone, deduplicated by digits
-        disabledContacts = _mergeDisabledContacts(globalDc, phoneDc)
-      } else {
-        // First time on this phone — inherit global baseline
-        disabledContacts = [...globalDc]
-      }
-      // Persist merged result to per-phone key
-      await momai.storage.set(_getDisabledContactsKey(), disabledContacts)
-
+      const dc = await momai.storage.get(_getDisabledContactsKey())
+      if (dc) disabledContacts = dc
       const pn = await momai.storage.get(_getContactNamesKey())
       if (pn) contactNames = pn
       const wc = await momai.storage.get(_getWaContactsKey())
@@ -1135,7 +1130,6 @@ async function _loadPerPhoneData() {
       }
 
       await loadChatHistory()
-      momai.log(`_loadPerPhoneData: phone=${phone}, disabledContacts=${disabledContacts.length} (merged global=${globalDc.length})`)
     }
   } catch {
     momai.log('_loadPerPhoneData: no creds.json (fresh start)')
@@ -1281,11 +1275,8 @@ async function connect() {
       logger = makeMockLogger()
     }
 
-    // Use the cacheable signal key store to prevent blocking disk I/O timeouts, especially on Windows
-    const authConfig = {
-      creds: state.creds,
-      keys: makeCacheableSignalKeyStore ? makeCacheableSignalKeyStore(state.keys, logger) : state.keys
-    }
+    // Use the raw keys directly from disk (disabling cache to prevent Bad MAC and No Sessions out-of-sync desyncs)
+    const authConfig = state
 
     sock = makeWASocket({
       version,
@@ -1293,10 +1284,9 @@ async function connect() {
       logger,
       printQRInTerminal: false,
       emitOwnEvents: false,
-      syncFullHistory: false,
       generateHighQualityLinkPreview: false,
       msgRetryCounterCache,
-      browser: Browsers?.ubuntu('Chrome') || ['Ubuntu', 'Chrome', '20.0.04'],
+      browser: ['Windows', 'Chrome', '122.0.0'],
       connectTimeoutMs: 60000,
       keepAliveIntervalMs: 30000,
       defaultQueryTimeoutMs: 60000,
@@ -1336,8 +1326,6 @@ async function connect() {
 
       if (connection === 'open') {
         _clearReconnectTimer()
-        reconnectAttempt = 0
-        loggedOutAttempt = 0
         isConnecting = false
         lastQr = null
         lastQrAt = 0
@@ -1360,33 +1348,51 @@ async function connect() {
           if (phone && phone !== _currentPhone) {
             _currentPhone = phone
 
-            // Merge global baseline with per-phone disabled contacts
-            const globalDc = (await momai.storage.get(DISABLED_CONTACTS_KEY)) || []
-            const phoneDc = await momai.storage.get(_getDisabledContactsKey())
-            if (phoneDc) {
-              disabledContacts = _mergeDisabledContacts(globalDc, phoneDc)
+            const dc = await momai.storage.get(_getDisabledContactsKey())
+            if (dc) {
+              disabledContacts = dc
+            } else if (disabledContacts && disabledContacts.length > 0) {
+              await momai.storage.set(_getDisabledContactsKey(), disabledContacts)
             } else {
-              disabledContacts = [...globalDc]
+              disabledContacts = []
             }
-            await momai.storage.set(_getDisabledContactsKey(), disabledContacts)
 
             const pn = await momai.storage.get(_getContactNamesKey())
-            if (pn) contactNames = pn
-            else contactNames = {}
+            if (pn) {
+              contactNames = pn
+            } else if (contactNames && Object.keys(contactNames).length > 0) {
+              await momai.storage.set(_getContactNamesKey(), contactNames)
+            } else {
+              contactNames = {}
+            }
+
             const wc = await momai.storage.get(_getWaContactsKey())
-            if (wc) waContacts = wc
-            else waContacts = {}
+            if (wc && Object.keys(wc).length > 0) {
+              waContacts = wc
+            } else if (waContacts && Object.keys(waContacts).length > 0) {
+              await momai.storage.set(_getWaContactsKey(), waContacts)
+            } else {
+              const genericWc = await momai.storage.get(WA_CONTACTS_KEY)
+              if (genericWc && Object.keys(genericWc).length > 0) {
+                waContacts = genericWc
+                await momai.storage.set(_getWaContactsKey(), waContacts)
+              } else {
+                waContacts = {}
+              }
+            }
 
             if (_cleanupStaleContacts()) {
               await momai.storage.set(_getWaContactsKey(), waContacts)
               await momai.storage.set(_getContactNamesKey(), contactNames)
               momai.log('Automatically cleaned up stale @lid contacts on active phone detection')
             }
-            momai.log(`Phone switch: ${phone}, disabledContacts=${disabledContacts.length} (merged global=${globalDc.length})`)
           }
           if (phone && !chatHistory.length) {
             await loadChatHistory()
           }
+          populateContactsFromChatHistory()
+          fetchAndStoreGroups().catch(() => {})
+          momai.sendEvent('contacts_updated', {})
         } catch {}
         momai.sendEvent('authenticated', { status: 'connected' })
         momai.sendEvent('connection_status', { status: 'connected' })
@@ -1437,74 +1443,33 @@ async function connect() {
           } catch (err) {
             momai.log(`Error finalizing contact sync: ${err.message}`)
           }
-        }, 30000)
+        }, 10000)
       } else if (connection === 'close') {
         connected = false
         isConnecting = false
-        const errStack = lastDisconnect?.error?.stack || lastDisconnect?.error?.message || JSON.stringify(lastDisconnect?.error || {})
-        const statusCode = lastDisconnect?.error?.output?.statusCode
-        momai.log(`[ext:whatsapp:close] Connection closed. Status: ${statusCode}. Error: ${errStack}`)
-        
         // Move creds back to encrypted-at-rest before the next reconnect.
         reEncryptCredsAfterBaileys(authDir).catch((err) =>
           momai.log(`post-close re-encrypt failed: ${err.message}`)
         )
         if (preventAutoReconnect) {
           preventAutoReconnect = false
-          loggedOutAttempt = 0
           momai.sendEvent('authenticated', { status: 'logged_out' })
           momai.sendEvent('connection_status', { status: 'disconnected' })
           return
         }
-
-        const isLoggedOut = statusCode === DisconnectReason.loggedOut
-        if (isLoggedOut && loggedOutAttempt < 1) {
-          loggedOutAttempt++
-          momai.log(`[ext:whatsapp:close] First 401 (loggedOut) received — attempting 1 automatic retry before wiping auth dir.`)
-          momai.sendEvent('connection_status', { status: 'reconnecting' })
-          _clearReconnectTimer()
-          reconnectTimer = setTimeout(connect, 2000)
-          return
-        }
-
-        // Auto-repair: repeated session/version errors (500=badSession, 515=restartRequired, 428=versionMismatch)
-        // 3+ consecutive failures without ever connecting → wipe auth for fresh re-pair
-        const isSessionError = statusCode === 500 || statusCode === 515 || statusCode === 428
-        if (isSessionError && reconnectAttempt >= 3) {
-          momai.log(`[ext:whatsapp:close] Repeated connection/session errors (status: ${statusCode}) — wiping auth for fresh re-pair`)
-          try {
-            const fsSync = require('fs')
-            if (fsSync.existsSync(authDir)) {
-              fsSync.rmSync(authDir, { recursive: true, force: true })
-            }
-          } catch (err) {
-            momai.log(`session-wipe failed: ${err.message}`)
-          }
-          lastQr = null
-          lastQrAt = 0
-          reconnectAttempt = 0
-          momai.sendEvent('authenticated', { status: 'logged_out' })
-          momai.sendEvent('connection_status', { status: 'disconnected' })
-          _clearReconnectTimer()
-          setTimeout(() => {
-            connect().catch((err) => momai.log(`post-wipe connect failed: ${err.message}`))
-          }, 500)
-          return
-        }
-
-        const shouldReconnect = !isLoggedOut
+        const statusCode = lastDisconnect?.error?.output?.statusCode
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut
         if (shouldReconnect) {
-          loggedOutAttempt = 0
           momai.sendEvent('connection_status', { status: 'reconnecting' })
           _clearReconnectTimer()
-          reconnectAttempt++
-          const delay = Math.min(CHECK_INTERVAL * Math.pow(2, reconnectAttempt - 1), MAX_RECONNECT_DELAY)
-          momai.log(`reconnect attempt ${reconnectAttempt} in ${delay}ms (status: ${statusCode})`)
-          reconnectTimer = setTimeout(connect, delay)
+          reconnectTimer = setTimeout(connect, CHECK_INTERVAL)
         } else {
-          // Real logout confirmed (second consecutive 401)
-          loggedOutAttempt = 0
-          momai.log('WhatsApp logged out (confirmed 401) — wiping stale auth dir for fresh re-pair')
+          // LOGGED OUT: Baileys confirmed the stored creds are invalid.
+          // Wipe the auth dir immediately and trigger a fresh connection
+          // so the user sees a QR without having to navigate to the page
+          // (the UI's beginPairing() flow used to do this, but it raced
+          // with the page load and wiped prematurely on every open).
+          momai.log('WhatsApp logged out — wiping stale auth dir for fresh re-pair')
           try {
             const fsSync = require('fs')
             if (fsSync.existsSync(authDir)) {
@@ -1525,15 +1490,16 @@ async function connect() {
       }
     })
 
-    sock.ev.on('messaging-history.set', ({ contacts: syncedContacts }) => {
+    sock.ev.on('messaging-history.set', ({ contacts: syncedContacts, chats: syncedChats, messages: syncedMessages }) => {
       const before = Object.keys(waContacts).length
+      let added = 0
+      let updated = 0
+
       if (syncedContacts?.length) {
         momai.log(`History sync: received ${syncedContacts.length} contacts`)
         for (const c of syncedContacts) {
           if (c.id) receivedJids.add(c.id)
         }
-        let added = 0
-        let updated = 0
         for (const c of syncedContacts) {
           if (!c.id) continue
 
@@ -1542,8 +1508,6 @@ async function connect() {
             momai.log(
               `LID contact: id=${c.id} name=${c.name || '-'} notify=${c.notify || '-'} verifiedName=${c.verifiedName || '-'}`
             )
-            // If this LID has a verifiedName, it's likely a Business account
-            // Try to associate it with an existing standard JID
             const existingMatch = Object.values(waContacts).find(
               (existing) =>
                 !existing.id.endsWith('@lid') &&
@@ -1554,10 +1518,9 @@ async function connect() {
               existingMatch.lid = c.id
               if (c.verifiedName) existingMatch.verifiedName = c.verifiedName
               if (c.name) existingMatch.name = c.name
-              continue // Link established, skip storing LID separately
+              continue
             }
 
-            // If we don't have a name/verifiedName/notify, it's anonymous, skip it
             if (!c.name && !c.verifiedName && !c.notify) {
               continue
             }
@@ -1579,7 +1542,6 @@ async function connect() {
             }
             added++
           } else {
-            // Update existing contact with fresh data
             if (_isUsableDisplayName(c.name)) waContacts[c.id].name = String(c.name).trim()
             if (_isUsableDisplayName(c.notify)) waContacts[c.id].notify = String(c.notify).trim()
             if (_isUsableDisplayName(c.verifiedName)) {
@@ -1589,17 +1551,71 @@ async function connect() {
             updated++
           }
         }
-        if (added > 0 || updated > 0) {
-          momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
-          momai.log(
-            `Contacts stored: ${added} new, ${updated} updated, ${Object.keys(waContacts).length} total`
-          )
+      }
+
+      if (syncedChats?.length) {
+        momai.log(`History sync: received ${syncedChats.length} chats`)
+        for (const c of syncedChats) {
+          if (!c.id) continue
+          receivedJids.add(c.id)
+          if (c.id.endsWith('@g.us')) continue
+          const phone = c.id.split('@')[0].replace(/\D/g, '')
+          if (!phone) continue
+          const name = _isUsableDisplayName(c.name) ? String(c.name).trim() : null
+          if (!waContacts[c.id]) {
+            waContacts[c.id] = {
+              id: c.id,
+              name,
+              notify: null,
+              verifiedName: null,
+              phone,
+              lid: null
+            }
+            added++
+          } else if (name && !waContacts[c.id].name) {
+            waContacts[c.id].name = name
+            updated++
+          }
         }
       }
-      // Always emit contacts_synced so the UI knows the current count
+
+      if (syncedMessages?.length) {
+        momai.log(`History sync: received ${syncedMessages.length} messages`)
+        for (const m of syncedMessages) {
+          const jid = m.key?.remoteJid
+          if (!jid || jid.endsWith('@g.us')) continue
+          receivedJids.add(jid)
+          const phone = jid.split('@')[0].replace(/\D/g, '')
+          if (!phone) continue
+          const pushName = _isUsableDisplayName(m.pushName) ? String(m.pushName).trim() : null
+          if (!waContacts[jid]) {
+            waContacts[jid] = {
+              id: jid,
+              name: null,
+              notify: pushName,
+              verifiedName: null,
+              phone,
+              lid: null
+            }
+            added++
+          } else if (pushName && !waContacts[jid].notify && !waContacts[jid].name) {
+            waContacts[jid].notify = pushName
+            updated++
+          }
+        }
+      }
+
+      const historyAdded = populateContactsFromChatHistory()
+      if (added > 0 || updated > 0 || historyAdded > 0) {
+        momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+        momai.log(
+          `Contacts stored: ${added} new, ${updated} updated, ${historyAdded} from history, ${Object.keys(waContacts).length} total`
+        )
+      }
       const total = Object.keys(waContacts).length
       if (total > 0) {
         momai.sendEvent('contacts_synced', { count: total, isFinal: false })
+        momai.sendEvent('contacts_updated', {})
       }
     })
 
@@ -1650,6 +1666,7 @@ async function connect() {
       }
       if (updated > 0) {
         momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+        momai.sendEvent('contacts_updated', {})
       }
     })
 
@@ -1682,6 +1699,63 @@ async function connect() {
       }
       if (changed > 0) {
         momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+        momai.sendEvent('contacts_updated', {})
+      }
+    })
+
+    sock.ev.on('groups.upsert', (groupMetas) => {
+      if (!groupMetas?.length) return
+      let changed = false
+      for (const meta of groupMetas) {
+        if (!meta.id || !meta.id.endsWith('@g.us')) continue
+        groupMetaCache.set(meta.id, { data: meta, fetchedAt: Date.now() })
+        const subjectName = meta.subject ? String(meta.subject).trim() : null
+        const formattedName = _isUsableDisplayName(subjectName) ? subjectName : 'Grupo'
+        if (!waContacts[meta.id]) {
+          waContacts[meta.id] = {
+            id: meta.id,
+            name: formattedName,
+            notify: null,
+            verifiedName: null,
+            phone: null,
+            lid: null
+          }
+          changed = true
+        } else if (_isUsableDisplayName(subjectName) && waContacts[meta.id].name !== subjectName) {
+          waContacts[meta.id].name = subjectName
+          changed = true
+        }
+      }
+      if (changed) {
+        momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+        momai.sendEvent('contacts_updated', {})
+      }
+    })
+
+    sock.ev.on('groups.update', (updates) => {
+      if (!updates?.length) return
+      let changed = false
+      for (const u of updates) {
+        if (!u.id || !u.id.endsWith('@g.us')) continue
+        if (u.subject && _isUsableDisplayName(u.subject)) {
+          if (!waContacts[u.id]) {
+            waContacts[u.id] = {
+              id: u.id,
+              name: String(u.subject).trim(),
+              notify: null,
+              verifiedName: null,
+              phone: null,
+              lid: null
+            }
+          } else {
+            waContacts[u.id].name = String(u.subject).trim()
+          }
+          changed = true
+        }
+      }
+      if (changed) {
+        momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+        momai.sendEvent('contacts_updated', {})
       }
     })
 
@@ -2284,8 +2358,6 @@ process.on('message', async (msg) => {
             disabledContacts.push(contactId)
           }
           await momai.storage.set(_getDisabledContactsKey(), disabledContacts)
-          // Also persist to global baseline for cross-device sync
-          await momai.storage.set(DISABLED_CONTACTS_KEY, disabledContacts)
           result = { ok: true, contact: contactId, monitoring: isDisabled }
           break
         }
@@ -2348,23 +2420,18 @@ process.on('message', async (msg) => {
             }
             lastQr = null
             lastQrAt = 0
-            if (sock) {
-              try {
-                sock.end(undefined)
-              } catch {}
-              sock = null
-            }
-            preventAutoReconnect = false
-            isConnecting = false
-            connect().catch((err) => momai.log(`request_qr connect failed: ${err.message}`))
           } else {
-            if (sock || isConnecting) {
-              momai.log('request_qr: already connecting or socket exists, keeping current connection attempt')
-            } else {
-              momai.log('request_qr: triggering connect (no wipe; loggedOut handler manages cleanup)')
-              connect().catch((err) => momai.log(`request_qr connect failed: ${err.message}`))
-            }
+            momai.log('request_qr: triggering connect (no wipe; loggedOut handler manages cleanup)')
           }
+          if (sock) {
+            try {
+              sock.end(undefined)
+            } catch {}
+            sock = null
+          }
+          preventAutoReconnect = false
+          isConnecting = false
+          connect().catch((err) => momai.log(`request_qr connect failed: ${err.message}`))
           result = { ok: true, pending: true, hasCredentials: false }
           break
         }
@@ -2376,68 +2443,16 @@ process.on('message', async (msg) => {
             await momai.storage.set(_getContactNamesKey(), contactNames)
           }
 
+          populateContactsFromChatHistory()
+
           if (sock && connected) {
-            const contactCount = Object.values(waContacts).filter(
-              (c) => c.phone && !c.id.endsWith('@g.us')
-            ).length
-            const groupCount = Object.values(waContacts).filter(
-              (c) => c.id.endsWith('@g.us')
-            ).length
+            await fetchAndStoreGroups()
 
-            // If contacts are empty, force a reconnect to trigger fresh history sync
-            if (contactCount === 0 && groupCount === 0) {
-              momai.log('[sync] No contacts or groups found. Forcing reconnect to trigger history sync...')
-              try {
-                sock.end(undefined)
-              } catch (_) {}
-              connected = false
-              isConnecting = false
-              _clearReconnectTimer()
-              // Short delay before reconnecting so the server registers the disconnect
-              await new Promise((r) => setTimeout(r, 2000))
-              momai.log('[sync] Reconnecting...')
-              connect()
-              result = { ok: true, syncedContacts: 0, reconnecting: true }
-              break
-            }
-
-            // Fetch all groups the user participates in (directly from WhatsApp API)
-            try {
-              momai.log('[sync] Fetching groups via groupFetchAllParticipating...')
-              const groups = await Promise.race([
-                sock.groupFetchAllParticipating(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('groups fetch timeout')), 15000))
-              ])
-              if (groups && typeof groups === 'object') {
-                let groupsAdded = 0
-                for (const [jid, meta] of Object.entries(groups)) {
-                  if (!waContacts[jid]) {
-                    waContacts[jid] = {
-                      id: jid,
-                      name: meta.subject || null,
-                      notify: null,
-                      verifiedName: null,
-                      phone: null
-                    }
-                    groupsAdded++
-                  } else if (meta.subject && !waContacts[jid].name) {
-                    waContacts[jid].name = meta.subject
-                  }
-                }
-                if (groupsAdded > 0) {
-                  momai.log(`[sync] Added ${groupsAdded} groups from WhatsApp API`)
-                  await momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
-                }
-              }
-            } catch (err) {
-              momai.log(`[sync] Group fetch failed: ${err.message}`)
-            }
-
-            // Fetch profile pictures for top contacts
             const now = Date.now()
             const validContacts = Object.values(waContacts).filter(
               (c) => c.phone && !c.id.endsWith('@g.us')
             )
+
             const promises = validContacts.slice(0, 15).map(async (c) => {
               try {
                 const url = await Promise.race([
@@ -2453,13 +2468,15 @@ process.on('message', async (msg) => {
               }
             })
             await Promise.all(promises)
-            await momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
           }
+
+          await momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
 
           const total = Object.values(waContacts).filter(
             (c) => c.phone && !c.id.endsWith('@g.us')
           ).length
           momai.sendEvent('contacts_synced', { count: total, isFinal: true })
+          momai.sendEvent('contacts_updated', {})
 
           result = { ok: true, syncedContacts: total }
           break
