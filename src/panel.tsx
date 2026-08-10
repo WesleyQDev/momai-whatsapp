@@ -3,6 +3,7 @@ import { XMarkIcon, MicrophoneIcon, PaperAirplaneIcon } from '@heroicons/react/2
 import QRCode from 'qrcode'
 import ImageViewer from 'momai:image-viewer'
 import sdk from 'momai:sdk'
+import { useExtensionEvents } from './hooks/useExtensionEvents'
 
 type HistoryLine = {
   direction: 'incoming' | 'outgoing'
@@ -488,6 +489,21 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
       onClose()
     }
   }, [status, onClose])
+
+  // O host não reenvia dados novos ao overlay após abrir, então o card escuta
+  // os eventos da própria extensão e fecha sozinho quando a conexão volta.
+  useExtensionEvents({
+    onEvent: useCallback(
+      (event) => {
+        const status =
+          event.eventType === 'connection_status' || event.eventType === 'authenticated'
+            ? event.data?.status
+            : null
+        if (status === 'connected') onClose()
+      },
+      [onClose]
+    )
+  })
 
   useEffect(() => {
     if (qr) {

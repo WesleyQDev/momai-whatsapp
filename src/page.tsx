@@ -243,6 +243,496 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
   )
 }
 
+interface WaContact {
+  id: string
+  name?: string | null
+  notify?: string | null
+  phone?: string
+  monitoring?: boolean
+  profilePicUrl?: string | null
+}
+
+const TOOL_LABELS: Record<string, string> = {
+  send_message: 'Enviar mensagem',
+  list_contacts: 'Listar contatos',
+  add_contact: 'Adicionar contato',
+  remove_contact: 'Remover contato',
+  get_stats: 'Estatísticas',
+  get_history: 'Histórico',
+  get_wa_contacts: 'Buscar contatos',
+  get_wa_groups: 'Buscar grupos',
+  control_device: 'Controlar dispositivo',
+  set_light_color: 'Cor da luz',
+  control_tv_remote: 'Controle da TV',
+  control_climate: 'Controlar clima',
+  call_ha_service: 'Serviço da casa',
+  list_devices: 'Listar dispositivos',
+  query_device: 'Consultar dispositivo',
+  capture_snapshot: 'Capturar print',
+  start_monitoring: 'Iniciar monitoramento'
+}
+
+const PARAM_LABELS: Record<string, string> = {
+  contact: 'Contato ou número',
+  message: 'Mensagem',
+  image: 'Imagem',
+  media: 'Imagem',
+  device_name: 'Dispositivo',
+  action: 'Ação',
+  brightness: 'Brilho',
+  color: 'Cor',
+  temperature: 'Temperatura',
+  domain: 'Domínio',
+  service: 'Serviço',
+  data: 'Dados',
+  room: 'Cômodo',
+  cameraId: 'Câmera',
+  monitorId: 'Monitor',
+  label: 'Rótulo'
+}
+
+const PLACEHOLDERS = [
+  { token: '{contact}', label: 'Contato' },
+  { token: '{message}', label: 'Texto' },
+  { token: '{timestamp}', label: 'Horário' },
+  { token: '{isGroup}', label: 'É grupo' },
+  { token: '{event.imageDataUri}', label: 'Imagem' }
+]
+
+const ENTITY_PARAMS = new Set(['contact', 'device_name', 'cameraId', 'monitorId'])
+
+interface AutomationAction {
+  id?: string
+  target: string
+  tool: string
+  args?: Record<string, unknown>
+}
+interface CatalogParam {
+  type?: string
+  description?: string
+  default?: unknown
+  enum?: string[]
+}
+interface CatalogTool {
+  name: string
+  description?: string
+  parameters?: { properties?: Record<string, CatalogParam> } | null
+}
+interface CatalogExt {
+  id: string
+  name?: string
+  installed?: boolean
+  enabled?: boolean
+  tools?: CatalogTool[]
+}
+
+function humanizeKey(key: string): string {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function formatActionArgs(args?: Record<string, unknown>): string {
+  if (!args) return ''
+  return Object.entries(args)
+    .filter(([, v]) => !(typeof v === 'string' && !v.trim()))
+    .map(([k, v]) => {
+      const val = v && typeof v === 'object' ? JSON.stringify(v) : String(v)
+      return `${PARAM_LABELS[k] || humanizeKey(k)}: ${val}`
+    })
+    .join(' · ')
+}
+
+/**
+ * Modal de automações (MOM-115): lê o catálogo de extensões do host e deixa o
+ * usuário montar actions (evento → ação) de forma genérica, salvas via
+ * set_actions/get_actions.
+ */
+function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [catalog, setCatalog] = useState<CatalogExt[]>([])
+  const [actions, setActions] = useState<AutomationAction[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [showDraft, setShowDraft] = useState(false)
+  const [target, setTarget] = useState('')
+  const [tool, setTool] = useState('')
+  const [draftArgs, setDraftArgs] = useState<Record<string, unknown>>({})
+
+  const load = () => {
+    setLoading(true)
+    Promise.all([
+      api.get('/extensions'),
+      api.post('/extensions/whatsapp/command', { toolName: 'get_actions' })
+    ])
+      .then(([cat, act]) => {
+        const installed = (cat.data || []).filter(
+          (e) =>
+            e.installed !== false &&
+            e.enabled !== false &&
+            Array.isArray(e.tools) &&
+            e.tools.length > 0
+        )
+        setCatalog(installed)
+        setActions(act.data?.actions || [])
+        if (installed.length > 0) setTarget((prev) => prev || installed[0].id)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    if (open) {
+      setShowDraft(false)
+      load()
+    }
+  }, [open])
+
+  const targetExt = catalog.find((e) => e.id === target)
+  const toolDef = targetExt?.tools?.find((t) => t.name === tool)
+  const props = toolDef?.parameters?.properties || {}
+
+  function selectTarget(next: string) {
+    setTarget(next)
+    const ext = catalog.find((e) => e.id === next)
+    const first = ext?.tools?.find((t) => t.name !== 'get_actions' && t.name !== 'set_actions') || ext?.tools?.[0]
+    setTool(first?.name || '')
+    setDraftArgs(first ? defaultArgsFor(first) : {})
+  }
+
+  function selectTool(next: string) {
+    setTool(next)
+    const def = targetExt?.tools?.find((t) => t.name === next)
+    setDraftArgs(defaultArgsFor(def))
+  }
+
+  function defaultArgsFor(def?: CatalogTool): Record<string, unknown> {
+    const out: Record<string, unknown> = {}
+    for (const [key, param] of Object.entries(def?.parameters?.properties || {})) {
+      out[key] = param && param.default !== undefined ? param.default : ''
+    }
+    return out
+  }
+
+  function addAction() {
+    if (!target || !tool) return
+    const clean: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(draftArgs)) {
+      if (typeof value === 'string' && !value.trim()) continue
+      clean[key] = value
+    }
+    setActions((prev) => [
+      ...prev,
+      { id: `act-${Date.now()}`, target, tool, args: Object.keys(clean).length ? clean : undefined }
+    ])
+    setShowDraft(false)
+  }
+
+  async function save() {
+    setSaving(true)
+    try {
+      await api.post('/extensions/whatsapp/command', {
+        toolName: 'set_actions',
+        args: { actions }
+      })
+      onClose()
+    } catch {
+      /* falha ao salvar */
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="w-full max-w-lg bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-zinc-950/60 shrink-0">
+          <h2 className="text-base font-bold text-white">Automações</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-white rounded-lg p-1.5 hover:bg-white/10 transition-colors"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+          <p className="text-xs text-gray-400">
+            Ações executadas automaticamente quando chegar uma mensagem (ex.: ligar uma luz
+            na casa inteligente).
+          </p>
+
+          {loading ? (
+            <p className="text-xs text-gray-500">Carregando…</p>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-300">Ações</span>
+                <button
+                  type="button"
+                  onClick={() => setShowDraft((v) => !v)}
+                  className="text-[11px] font-medium text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-400 px-2.5 py-1 rounded-lg transition-colors"
+                >
+                  {showDraft ? 'Cancelar' : '+ Adicionar ação'}
+                </button>
+              </div>
+
+              {actions.length === 0 && !showDraft ? (
+                <p className="text-[11px] text-gray-500">
+                  Nenhuma automação. Campos disponíveis:{' '}
+                  {PLACEHOLDERS.map((p) => p.token).join(', ')}
+                </p>
+              ) : null}
+
+              {actions.map((a, i) => (
+                <div
+                  key={a.id || i}
+                  className="flex items-start justify-between gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-gray-100">
+                      {catalog.find((e) => e.id === a.target)?.name || a.target}
+                      <span className="text-gray-400"> / </span>
+                      {TOOL_LABELS[a.tool] || humanizeKey(a.tool)}
+                    </div>
+                    {a.args && Object.keys(a.args).length > 0 ? (
+                      <div className="text-[11px] text-gray-500 truncate">{formatActionArgs(a.args)}</div>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActions(actions.filter((_, j) => j !== i))}
+                    className="text-gray-500 hover:text-red-400 text-sm shrink-0"
+                    aria-label="Remover"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+
+              {showDraft ? (
+                <div className="space-y-3 bg-white/5 border border-white/10 rounded-xl p-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                      Extensão alvo
+                    </label>
+                    <select
+                      value={target}
+                      onChange={(e) => selectTarget(e.target.value)}
+                      className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-emerald-500"
+                    >
+                      {catalog.length === 0 ? (
+                        <option value="">Nenhuma extensão com ações instalada</option>
+                      ) : null}
+                      {catalog.map((ext) => (
+                        <option key={ext.id} value={ext.id}>
+                          {ext.name || ext.id}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {toolDef ? (
+                    <>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">Ação</label>
+                        <select
+                          value={tool}
+                          onChange={(e) => selectTool(e.target.value)}
+                          className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-emerald-500"
+                        >
+                          {targetExt?.tools
+                            ?.filter((t) => t.name !== 'get_actions' && t.name !== 'set_actions')
+                            .map((t) => (
+                              <option key={t.name} value={t.name}>
+                                {TOOL_LABELS[t.name] || humanizeKey(t.name)}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        {Object.entries(props).map(([key, param]) => (
+                          <div key={key}>
+                            <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                              {PARAM_LABELS[key] || humanizeKey(key)}
+                              {param?.default !== undefined ? ' (pré-preenchido)' : ''}
+                            </label>
+                            {param?.enum ? (
+                              <select
+                                value={String(draftArgs[key] ?? '')}
+                                onChange={(e) => setDraftArgs((d) => ({ ...d, [key]: e.target.value }))}
+                                className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-emerald-500"
+                              >
+                                {param.enum.map((opt) => (
+                                  <option key={opt} value={opt}>
+                                    {opt}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : ENTITY_PARAMS.has(key) ? (
+                              <SearchableInput
+                                target={target}
+                                paramKey={key}
+                                value={String(draftArgs[key] ?? '')}
+                                onChange={(v) => setDraftArgs((d) => ({ ...d, [key]: v }))}
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                value={String(draftArgs[key] ?? '')}
+                                onChange={(e) => setDraftArgs((d) => ({ ...d, [key]: e.target.value }))}
+                                placeholder={param?.description || ''}
+                                className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {PLACEHOLDERS.map((p) => (
+                          <button
+                            key={p.token}
+                            type="button"
+                            onClick={() =>
+                              setDraftArgs((d) => {
+                                const firstEmpty = Object.keys(props).find(
+                                  (k) => !String(d[k] ?? '').trim()
+                                )
+                                if (!firstEmpty) return d
+                                return { ...d, [firstEmpty]: p.token }
+                              })
+                            }
+                            className="text-[10px] text-gray-400 border border-white/10 hover:border-emerald-500/50 hover:text-emerald-300 rounded-lg px-2 py-0.5 transition-colors"
+                          >
+                            {p.label} {p.token}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={addAction}
+                        className="text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        Usar esta ação
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-white/10 shrink-0 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-medium text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl transition-colors disabled:opacity-60"
+          >
+            {saving ? 'Salvando…' : 'Salvar automações'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SearchableInput({
+  paramKey,
+  target,
+  value,
+  onChange
+}: {
+  paramKey: string
+  target: string
+  value: string
+  onChange: (v: string) => void
+}) {
+  const [options, setOptions] = useState<string[]>([])
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    const listTool =
+      paramKey === 'contact'
+        ? 'get_wa_contacts'
+        : paramKey === 'device_name'
+          ? 'list_devices'
+          : null
+    if (!listTool) return
+    api
+      .post(`/extensions/${target}/command`, { toolName: listTool, args: {} })
+      .then((res) => {
+        if (cancelled || !res.ok) return
+        const items = paramKey === 'contact' ? res.data?.contacts : res.data?.devices
+        const names = (items || [])
+          .map((c: any) => {
+            if (paramKey === 'contact') return c.name || c.notify || c.phone || ''
+            return String(c.name || '')
+          })
+          .filter(Boolean) as string[]
+        setOptions(Array.from(new Set(names)))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [paramKey, target])
+
+  const filtered = value.trim()
+    ? options.filter((o) => o.toLowerCase().includes(value.toLowerCase()))
+    : options
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value)
+          setOpen(true)
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={options.length > 0 ? 'Digite para buscar…' : 'Digite nome ou número'}
+        className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+      />
+      {open && filtered.length > 0 ? (
+        <div className="absolute z-20 mt-1 w-full max-h-40 overflow-y-auto bg-zinc-800 border border-white/10 rounded-xl shadow-xl custom-scrollbar">
+          {filtered.slice(0, 30).map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                onChange(opt)
+                setOpen(false)
+              }}
+              className="block w-full text-left px-3 py-1.5 text-xs text-gray-200 hover:bg-emerald-500/10 hover:text-emerald-300 transition-colors"
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export default function WhatsAppView() {
   const [connected, setConnected] = useState(false)
   const [totalMessages, setTotalMessages] = useState(0)
@@ -286,6 +776,7 @@ export default function WhatsAppView() {
   const [notificationsDisabled, setNotificationsDisabled] = useState(false)
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false)
   const notificationDropdownRef = useRef<HTMLDivElement>(null)
+  const [showAutomations, setShowAutomations] = useState(false)
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -947,6 +1438,26 @@ export default function WhatsAppView() {
                 )}
               </div>
             )}
+            <button
+              onClick={() => setShowAutomations(true)}
+              className="p-1.5 rounded-lg border bg-white/5 border-white/10 hover:bg-white/10 text-text-muted hover:text-white transition-colors flex items-center justify-center"
+              title="Automações"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
             {connected && (
               <button
                 onClick={handleSync}
@@ -1699,6 +2210,7 @@ export default function WhatsAppView() {
           )}
         </div>
       )}
+      <AutomationsModal open={showAutomations} onClose={() => setShowAutomations(false)} />
     </div>
   )
 }

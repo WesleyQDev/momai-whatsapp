@@ -101,6 +101,8 @@ const CONTACT_NAMES_KEY = 'contact_names'
 const WA_CONTACTS_KEY = 'wa_contacts'
 const SETTINGS_KEY = 'settings'
 const CHECK_INTERVAL = 5000
+const ACTIONS_KEY = 'actions'
+const DEFAULT_CONTACT_KEY = 'default_contact'
 
 // Self-contained momai bridge (not loaded via extension-host-worker)
 const _skillId = process.env.MOMAI_EXTENSION_ID || 'whatsapp'
@@ -131,6 +133,31 @@ const momai = {
       if (serialized.length > 5 * 1024 * 1024) throw new Error('Storage quota exceeded')
       await secureWriteFile(path.join(_storageBase, `${key}.json`), serialized)
     }
+  }
+}
+
+// Actions config ("quando chegar mensagem → executar X") + default contact for
+// pre-filling the "para quem" field. Persisted in the extension storage and
+// attached to the whatsapp_message event for the host to execute (MOM-115).
+async function getActionsConfig() {
+  try {
+    const stored = await momai.storage.get(ACTIONS_KEY)
+    return Array.isArray(stored) ? stored : []
+  } catch {
+    return []
+  }
+}
+
+async function saveActionsConfig(actions) {
+  await momai.storage.set(ACTIONS_KEY, Array.isArray(actions) ? actions : [])
+}
+
+async function getDefaultContact() {
+  try {
+    const stored = await momai.storage.get(DEFAULT_CONTACT_KEY)
+    return typeof stored === 'string' && stored.trim() ? stored.trim() : null
+  } catch {
+    return null
   }
 }
 
@@ -2058,6 +2085,25 @@ async function handleMessagesUpsert({ messages }) {
         groupName: isGroup ? resGroupName : undefined,
         isAdminsOnly: !!groupAnnounce && !isMeAdmin
       })
+
+      if (!isNoteToSelf) {
+        const [actionsConfig, defaultContact] = await Promise.all([
+          getActionsConfig(),
+          getDefaultContact()
+        ])
+        momai.sendEvent('whatsapp_message', {
+          contact: finalDisplayName,
+          senderName: isGroup ? displayName : undefined,
+          contactJid: replyJid,
+          senderJid,
+          message: text,
+          timestamp: msg.messageTimestamp,
+          isGroup: !!isGroup,
+          groupName: isGroup ? resGroupName : undefined,
+          actions: actionsConfig.length ? actionsConfig : undefined,
+          defaultContact: defaultContact || undefined
+        })
+      }
     }
   }
 }
@@ -2207,7 +2253,30 @@ function resolveJidForSending(contact) {
   return jid
 }
 
-async function sendMessage(contact, message) {
+// Builds the Baileys message content. With an image, sends the image and uses
+// the text as the caption (MOM-117). Accepts a data URI, raw base64 or Buffer.
+function buildMessageContent(message, image) {
+  if (!image) return { text: message }
+  let buffer
+  if (typeof image === 'string' && /^data:image\/[^;]+;base64,/.test(image)) {
+    buffer = Buffer.from(image.slice(image.indexOf(',') + 1), 'base64')
+  } else if (
+    typeof image === 'string' &&
+    image.length % 4 === 0 &&
+    /^[A-Za-z0-9+/=]+$/.test(image)
+  ) {
+    buffer = Buffer.from(image, 'base64')
+  } else if (Buffer.isBuffer(image)) {
+    buffer = image
+  } else {
+    throw new Error('image inválida: use data URI, base64 ou Buffer')
+  }
+  const content = { image: buffer }
+  if (message) content.caption = message
+  return content
+}
+
+async function sendMessage(contact, message, image) {
   if (!sock || !connected) throw new Error('WhatsApp not connected')
 
   const jid = resolveJidForSending(contact)
@@ -2217,18 +2286,20 @@ async function sendMessage(contact, message) {
 
   const isGroup = jid.endsWith('@g.us')
   momai.log(
-    `sendMessage: contact="${contact}" resolved_jid="${jid}" group=${isGroup} msg="${(message || '').substring(0, 40)}"`
+    `sendMessage: contact="${contact}" resolved_jid="${jid}" group=${isGroup} msg="${(message || '').substring(0, 40)}" image=${image ? 'yes' : 'no'}`
   )
 
   if (isGroup) {
     await prepareGroupForSend(jid)
   }
 
+  const content = buildMessageContent(message, image)
+
   const MAX_RETRIES = isGroup ? 4 : 3
   let lastError
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const sent = await sock.sendMessage(jid, { text: message })
+      const sent = await sock.sendMessage(jid, content)
       if (sent?.key?.id && sent?.message) {
         cacheMessage(sent.key, sent.message)
       }
@@ -2312,11 +2383,12 @@ process.on('message', async (msg) => {
     try {
       let result
       switch (msg.payload?.toolName) {
-        case 'send_message':
+        case 'send_message': {
+          const args = msg.payload.args || {}
           try {
-            result = await sendMessage(msg.payload.args?.contact, msg.payload.args?.message)
+            result = await sendMessage(args.contact, args.message, args.image || args.media)
             momai.log(
-              `send_message OK: to=${msg.payload.args?.contact} msg="${(msg.payload.args?.message || '').substring(0, 50)}"`
+              `send_message OK: to=${args.contact} msg="${(args.message || '').substring(0, 50)}"`
             )
             result.directResponse = `Mensagem enviada`
           } catch (err) {
@@ -2327,6 +2399,23 @@ process.on('message', async (msg) => {
               directResponse: `Erro ao enviar: ${err.message}`
             }
           }
+          break
+        }
+        case 'set_actions':
+          await saveActionsConfig(msg.payload.args?.actions)
+          result = { ok: true, actions: await getActionsConfig() }
+          break
+        case 'get_actions':
+          result = { ok: true, actions: await getActionsConfig() }
+          break
+        case 'set_default_contact': {
+          const contact = String(msg.payload.args?.contact || '').trim()
+          await momai.storage.set(DEFAULT_CONTACT_KEY, contact)
+          result = { ok: true, contact }
+          break
+        }
+        case 'get_default_contact':
+          result = { ok: true, contact: await getDefaultContact() }
           break
         case 'list_contacts': {
           const allContacts = Object.values(waContacts)

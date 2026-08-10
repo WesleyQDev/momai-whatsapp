@@ -6,14 +6,64 @@ module.exports = {
   tools: [
     {
       name: 'send_message',
-      description: 'Envia uma mensagem para um contato ou grupo do WhatsApp',
+      description: 'Envia uma mensagem para um contato ou grupo do WhatsApp. Pode incluir uma imagem (data URI, base64) que será enviada com o texto como legenda.',
       parameters: {
         type: 'object',
         required: ['contact', 'message'],
         properties: {
           contact: { type: 'string', description: 'Nome ou número do contato' },
-          message: { type: 'string', description: 'Texto da mensagem' }
+          message: {
+            type: 'string',
+            description: 'Texto da mensagem',
+            default: '{description}'
+          },
+          image: {
+            type: 'string',
+            description: 'Imagem a enviar (data URI como data:image/jpeg;base64,... ou base64 puro). O texto vira a legenda.',
+            default: '{event.imageDataUri}'
+          }
         }
+      }
+    },
+    {
+      name: 'set_actions',
+      description: 'Configura as actions que o host executa automaticamente quando chega uma mensagem (evento whatsapp_message). Cada action: { id, target, tool, args }. Args podem usar {contact}, {message}, {contactJid}, {isGroup} ou {from: "event.<campo>"}.',
+      parameters: {
+        type: 'object',
+        required: ['actions'],
+        properties: {
+          actions: {
+            type: 'array',
+            description: 'Lista de actions a anexar ao evento whatsapp_message'
+          }
+        }
+      }
+    },
+    {
+      name: 'get_actions',
+      description: 'Retorna as actions configuradas para o evento whatsapp_message.',
+      parameters: {
+        type: 'object',
+        properties: {}
+      }
+    },
+    {
+      name: 'set_default_contact',
+      description: 'Define o contato padrão usado para preencher automaticamente o campo "para quem" das actions do WhatsApp.',
+      parameters: {
+        type: 'object',
+        required: ['contact'],
+        properties: {
+          contact: { type: 'string', description: 'Nome ou número do contato padrão' }
+        }
+      }
+    },
+    {
+      name: 'get_default_contact',
+      description: 'Retorna o contato padrão configurado.',
+      parameters: {
+        type: 'object',
+        properties: {}
       }
     },
     {
