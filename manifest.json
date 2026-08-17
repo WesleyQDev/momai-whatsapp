@@ -9,7 +9,7 @@
   "repo": "WesleyQDev/momai-whatsapp-extension",
   "sidebar": true,
   "background": true,
-  "backgroundScript": "background-worker.js",
+  "backgroundScript": "background-worker.ts",
   "permissions": ["network:persistent", "storage:persistent"],
   "sdkVersion": 1,
   "momai_compat": ">=1.7.0",
@@ -21,13 +21,14 @@
     "panelType": "whatsapp-panel"
   },
   "eventTypes": {
-    "qr_code": {},
-    "authenticated": {},
-    "connection_status": {},
-    "contacts_synced": {},
-    "contacts_updated": {},
-    "history_loaded": {},
+    "qr_code": { "label": "Novo QR Code Gerado" },
+    "authenticated": { "label": "WhatsApp Autenticado" },
+    "connection_status": { "label": "Status da Conexão Alterado" },
+    "contacts_synced": { "label": "Contatos Sincronizados" },
+    "contacts_updated": { "label": "Contatos Atualizados" },
+    "history_loaded": { "label": "Histórico Carregado" },
     "whatsapp_message": {
+      "label": "Mensagem Recebida no WhatsApp",
       "fields": {
         "contact": { "label": "Contato", "type": "string" },
         "contactJid": { "label": "JID do contato", "type": "string" },
@@ -38,42 +39,31 @@
         "defaultContact": { "label": "Contato padrão", "type": "string" }
       }
     },
-    "whatsapp_notification": {},
-    "message_sent": {}
+    "whatsapp_notification": { "label": "Notificação do WhatsApp" },
+    "message_sent": { "label": "Mensagem Enviada" }
   },
   "tools": [
     {
       "name": "send_message",
+      "label": "Enviar Mensagem no WhatsApp",
       "description": "Envia uma mensagem para um contato ou grupo do WhatsApp. Pode incluir uma imagem (data URI ou base64) com o texto como legenda.",
       "parameters": {
         "type": "object",
         "required": ["contact", "message"],
         "properties": {
-          "contact": { "type": "string", "description": "Nome ou número do contato" },
-          "message": { "type": "string", "description": "Texto da mensagem", "default": "{description}" },
+          "contact": {
+            "type": "string",
+            "description": "Nome ou número do contato ou grupo",
+            "x-options-source": { "tool": "list_contacts" }
+          },
+          "message": { "type": "string", "description": "Texto da mensagem", "default": "🚨 Alerta: {{trigger.payload.description}}" },
           "image": {
             "type": "string",
             "description": "Imagem a enviar (data URI como data:image/jpeg;base64,... ou base64 puro). O texto vira a legenda.",
-            "default": "{event.imageDataUri}"
+            "default": "{{trigger.payload.imageDataUri}}"
           }
         }
       }
-    },
-    {
-      "name": "set_actions",
-      "description": "Configura as actions que o host executa quando chega uma mensagem (evento whatsapp_message).",
-      "parameters": {
-        "type": "object",
-        "required": ["actions"],
-        "properties": {
-          "actions": { "type": "array", "description": "Lista de actions { id, target, tool, args }" }
-        }
-      }
-    },
-    {
-      "name": "get_actions",
-      "description": "Retorna as actions configuradas para o evento whatsapp_message.",
-      "parameters": { "type": "object", "properties": {} }
     },
     {
       "name": "set_default_contact",
@@ -119,6 +109,38 @@
       }
     },
     {
+      "name": "set_contact_name",
+      "description": "Define um nome personalizado para um contato (melhora o contexto do LLM)",
+      "parameters": {
+        "type": "object",
+        "required": ["contact", "name"],
+        "properties": {
+          "contact": { "type": "string", "description": "Número do contato" },
+          "name": { "type": "string", "description": "Nome personalizado" }
+        }
+      }
+    },
+    {
+      "name": "sync_contacts",
+      "description": "Força uma re-sincronização dos contatos do WhatsApp com o telefone. Use quando os contatos estiverem ausentes, incompletos ou desatualizados. Retorna a quantidade de contatos após a sincronização.",
+      "parameters": { "type": "object", "properties": {} }
+    },
+    {
+      "name": "get_avatars",
+      "description": "Busca fotos de perfil para uma lista de JIDs (contatos ou grupos)",
+      "parameters": {
+        "type": "object",
+        "required": ["jids"],
+        "properties": {
+          "jids": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Lista de JIDs WhatsApp (@s.whatsapp.net ou @g.us)"
+          }
+        }
+      }
+    },
+    {
       "name": "get_stats",
       "description": "Obtém estatísticas do WhatsApp",
       "parameters": { "type": "object", "properties": {} }
@@ -149,12 +171,34 @@
           "perPage": { "type": "number", "description": "Itens por página (opcional)" }
         }
       }
+    },
+    {
+      "name": "get_group_participants",
+      "description": "Lista os participantes de um grupo do WhatsApp com nomes e fotos.",
+      "parameters": {
+        "type": "object",
+        "required": ["groupJid"],
+        "properties": {
+          "groupJid": { "type": "string", "description": "JID do grupo (@g.us)" }
+        }
+      }
+    },
+    {
+      "name": "delete_message",
+      "description": "Deleta todas as mensagens de um contato ou grupo do histórico.",
+      "parameters": {
+        "type": "object",
+        "required": ["jid"],
+        "properties": {
+          "jid": { "type": "string", "description": "JID do contato ou grupo (@s.whatsapp.net ou @g.us)" }
+        }
+      }
     }
   ],
   "routes": [
     { "method": "POST", "path": "/disconnect", "tool": "disconnect" },
     { "method": "POST", "path": "/restart", "tool": "restart" },
-    { "method": "POST", "path": "/sync", "tool": "sync" },
+    { "method": "POST", "path": "/sync", "tool": "sync_contacts" },
     { "method": "POST", "path": "/flush-history", "tool": "flush_history" },
     { "method": "POST", "path": "/process-notification", "tool": "process_notification" }
   ],

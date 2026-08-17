@@ -9,8 +9,8 @@
 
 const fs = require('fs')
 const path = require('node:path')
-const { encryptForStorage, decryptFromStorage } = require('./secure-storage-bridge')
-const { secureWriteFileSync } = require('./fs-permissions')
+const { encryptForStorage, decryptFromStorage } = require('./secure-storage-bridge.ts')
+const { secureWriteFileSync } = require('./fs-permissions.ts')
 
 function _plainCredsPath(baseAuth) {
   return path.join(baseAuth, 'creds.json')
@@ -27,10 +27,16 @@ function _encCredsPath(baseAuth) {
 function createMigration(bridge) {
   return {
     /**
-     * One-time migration: encrypt any legacy `creds.json` to `creds.json.enc` and remove the plain file.
-     * Also re-encrypts when `creds.json.enc` exists but is older than `creds.json` — that means
-     * Baileys updated the plain file after the last re-encrypt (e.g. user closed the app while
-     * connected, before the post-close re-encrypt completed) and the .enc on disk is stale.
+     * One-time migration: encrypt any legacy `creds.json` to `creds.json.enc` as a
+     * backup. Also refreshes the backup when `creds.json.enc` exists but is older
+     * than `creds.json` (Baileys updated the plain file after the last backup).
+     *
+     * The PLAIN file is NEVER deleted: it is Baileys' working copy, and deleting it
+     * after encrypting made the session hostage to safeStorage availability plus
+     * ciphertext integrity. A raced/partial encrypt then destroyed the only usable
+     * copy and forced a fresh QR scan on every restart (device-churn → ban risk).
+     * `creds.json.enc` is now a best-effort encrypted backup only.
+     *
      * Returns true when a (re-)encryption was performed, false otherwise.
      */
     async migratePlainCredsToEncrypted(baseAuth) {
@@ -56,8 +62,7 @@ function createMigration(bridge) {
           const encrypted = await bridge.encryptForStorage(plain)
           if (encrypted) {
             secureWriteFileSync(encCreds, Buffer.from(encrypted, 'base64'))
-            fs.unlinkSync(plainCreds)
-            console.log('[whatsapp] (re-)encrypted creds.json → creds.json.enc')
+            console.log('[whatsapp] (re-)encrypted creds.json → creds.json.enc (backup kept)')
             return true
           }
           console.warn('[whatsapp] migration skipped: safeStorage unavailable')
@@ -70,6 +75,10 @@ function createMigration(bridge) {
      * On worker startup, decrypt `creds.json.enc` to `creds.json` so Baileys can use it.
      * Only writes if the plain file is missing (i.e., we just started and Baileys isn't running).
      * Returns true when a decryption+write happened, false otherwise.
+     *
+     * On failure (e.g. safeStorage unavailable in dev) the encrypted file is KEPT.
+     * It is the only copy of the session; deleting it forces a fresh QR scan on
+     * every startup, which looks like device-churn abuse and risks a WhatsApp ban.
      */
     async decryptCredsForBaileys(baseAuth) {
       const encCreds = _encCredsPath(baseAuth)
@@ -82,23 +91,18 @@ function createMigration(bridge) {
           console.log('[whatsapp] decrypted creds.json.enc → creds.json for runtime')
           return true
         }
-        console.warn('[whatsapp] failed to decrypt creds.json.enc, safeStorage unavailable?')
-        // SafeStorage unavailable (common in dev mode on Windows).
-        // Delete the encrypted creds so Baileys requests a fresh QR on next startup
-        // instead of looping on failed decrypt attempts.
-        try {
-          fs.unlinkSync(encCreds)
-          console.log('[whatsapp] deleted creds.json.enc (safeStorage unavailable, will request new QR)')
-        } catch (delErr) {
-          console.warn(`[whatsapp] failed to delete creds.json.enc: ${delErr.message}`)
-        }
+        console.warn(
+          '[whatsapp] failed to decrypt creds.json.enc, safeStorage unavailable? ' +
+            'Keeping the encrypted session; Baileys will request a new QR if it cannot use it.'
+        )
       }
       return false
     },
 
     /**
-     * Re-encrypt `creds.json` back to `creds.json.enc` and remove the plain file.
-     * Call this on connection.open (or on shutdown) so at-rest storage stays encrypted.
+     * Re-encrypt `creds.json` to `creds.json.enc` as a best-effort backup. The
+     * plain file is kept: it is Baileys' working copy and the session must never
+     * depend on safeStorage being available later.
      * Returns true when a re-encryption happened, false otherwise.
      */
     async reEncryptCredsAfterBaileys(baseAuth) {
@@ -109,8 +113,7 @@ function createMigration(bridge) {
         const encrypted = await bridge.encryptForStorage(plain)
         if (encrypted) {
           secureWriteFileSync(encCreds, Buffer.from(encrypted, 'base64'))
-          fs.unlinkSync(plainCreds)
-          console.log('[whatsapp] re-encrypted creds.json → creds.json.enc')
+          console.log('[whatsapp] re-encrypted creds.json → creds.json.enc (backup kept)')
           return true
         }
         console.warn('[whatsapp] re-encryption skipped: safeStorage unavailable')

@@ -37,6 +37,7 @@ interface ConversationSummary {
   turns: ConversationTurn[]
   latestIncoming: Message
   latestReplies: Message[]
+  lastMessage: Message
   incomingCount: number
   contactLabel: string
   isGroup: boolean
@@ -64,8 +65,21 @@ function buildTurns(sorted: Message[]): ConversationTurn[] {
     if (msg.direction === 'incoming') {
       if (current) turns.push(current)
       current = { incoming: msg, replies: [] }
-    } else if (msg.direction === 'outgoing' && current) {
-      current.replies.push(msg)
+    } else if (msg.direction === 'outgoing') {
+      if (current) {
+        current.replies.push(msg)
+      } else {
+        current = {
+          incoming: {
+            from: msg.from || 'Contato',
+            jid: msg.jid,
+            text: msg.text,
+            timestamp: msg.timestamp,
+            direction: 'incoming'
+          },
+          replies: [msg]
+        }
+      }
     }
   }
   if (current) turns.push(current)
@@ -76,13 +90,15 @@ function buildTurns(sorted: Message[]): ConversationTurn[] {
 function turnsToHistoryLines(turns: ConversationTurn[]): ConversationHistoryLine[] {
   const lines: ConversationHistoryLine[] = []
   for (const turn of turns) {
-    lines.push({
-      direction: 'incoming',
-      text: turn.incoming.text,
-      timestamp: turn.incoming.timestamp,
-      from: turn.incoming.from,
-      audio: turn.incoming.audio
-    })
+    if (turn.incoming.text || turn.incoming.audio) {
+      lines.push({
+        direction: 'incoming',
+        text: turn.incoming.text,
+        timestamp: turn.incoming.timestamp,
+        from: turn.incoming.from,
+        audio: turn.incoming.audio
+      })
+    }
     for (const reply of turn.replies) {
       lines.push({
         direction: 'outgoing',
@@ -95,7 +111,7 @@ function turnsToHistoryLines(turns: ConversationTurn[]): ConversationHistoryLine
   return lines
 }
 
-/** Um card por conversa (jid): preview = última recebida; histórico completo no overlay. */
+/** Um card por conversa (jid): preview = última mensagem (recebida ou enviada); histórico completo no overlay. */
 function buildConversationSummaries(history: Message[]): ConversationSummary[] {
   const byJid = new Map<string, Message[]>()
   for (const msg of history) {
@@ -114,26 +130,42 @@ function buildConversationSummaries(history: Message[]): ConversationSummary[] {
     if (turns.length === 0) continue
 
     const latestTurn = turns[turns.length - 1]
+    const latestIncoming =
+      [...sorted].reverse().find((m) => m.direction === 'incoming') || latestTurn.incoming
+    const lastMessage = sorted[sorted.length - 1]
     const profilePicUrl = [...sorted].reverse().find((m) => m.profilePicUrl)?.profilePicUrl || null
+    const contactLabel =
+      [...sorted].reverse().find((m) => m.from && m.from !== 'Você')?.from ||
+      latestTurn.incoming.from ||
+      'Contato'
 
     summaries.push({
       jid,
       turns,
       latestIncoming: latestTurn.incoming,
       latestReplies: latestTurn.replies,
+      lastMessage,
       incomingCount: turns.length,
-      contactLabel: latestTurn.incoming.from,
+      contactLabel,
       isGroup: jid.endsWith('@g.us'),
-      groupName: jid.endsWith('@g.us') ? (latestTurn.incoming.groupName ?? null) : null,
+      groupName: jid.endsWith('@g.us') ? (latestIncoming.groupName ?? null) : null,
       profilePicUrl
     })
   }
 
-  summaries.sort(
-    (a, b) =>
-      normalizeTimestamp(b.latestIncoming.timestamp) -
-      normalizeTimestamp(a.latestIncoming.timestamp)
-  )
+  summaries.sort((a, b) => {
+    const aLatest = a.turns[a.turns.length - 1]
+    const bLatest = b.turns[b.turns.length - 1]
+    const aMax = Math.max(
+      normalizeTimestamp(aLatest.incoming.timestamp),
+      ...aLatest.replies.map((r) => normalizeTimestamp(r.timestamp))
+    )
+    const bMax = Math.max(
+      normalizeTimestamp(bLatest.incoming.timestamp),
+      ...bLatest.replies.map((r) => normalizeTimestamp(r.timestamp))
+    )
+    return bMax - aMax
+  })
 
   return summaries
 }
@@ -232,8 +264,6 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
     )
   }
 
-  sdk.registry.registerRenderer('whatsapp-page', WhatsAppView)
-
   const isPhone = /^[+\d\s().-]*$/.test(name)
   const isGroup = id.endsWith('@g.us')
   return (
@@ -241,15 +271,6 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
       {isGroup ? '👥' : isPhone ? '📱' : '👤'}
     </div>
   )
-}
-
-interface WaContact {
-  id: string
-  name?: string | null
-  notify?: string | null
-  phone?: string
-  monitoring?: boolean
-  profilePicUrl?: string | null
 }
 
 const TOOL_LABELS: Record<string, string> = {
@@ -260,35 +281,14 @@ const TOOL_LABELS: Record<string, string> = {
   get_stats: 'Estatísticas',
   get_history: 'Histórico',
   get_wa_contacts: 'Buscar contatos',
-  get_wa_groups: 'Buscar grupos',
-  control_device: 'Controlar dispositivo',
-  set_light_color: 'Cor da luz',
-  control_tv_remote: 'Controle da TV',
-  control_climate: 'Controlar clima',
-  call_ha_service: 'Serviço da casa',
-  list_devices: 'Listar dispositivos',
-  query_device: 'Consultar dispositivo',
-  capture_snapshot: 'Capturar print',
-  start_monitoring: 'Iniciar monitoramento'
+  get_wa_groups: 'Buscar grupos'
 }
 
 const PARAM_LABELS: Record<string, string> = {
   contact: 'Contato ou número',
   message: 'Mensagem',
   image: 'Imagem',
-  media: 'Imagem',
-  device_name: 'Dispositivo',
-  action: 'Ação',
-  brightness: 'Brilho',
-  color: 'Cor',
-  temperature: 'Temperatura',
-  domain: 'Domínio',
-  service: 'Serviço',
-  data: 'Dados',
-  room: 'Cômodo',
-  cameraId: 'Câmera',
-  monitorId: 'Monitor',
-  label: 'Rótulo'
+  media: 'Imagem'
 }
 
 const PLACEHOLDERS = [
@@ -299,13 +299,23 @@ const PLACEHOLDERS = [
   { token: '{event.imageDataUri}', label: 'Imagem' }
 ]
 
-const ENTITY_PARAMS = new Set(['contact', 'device_name', 'cameraId', 'monitorId'])
+const ENTITY_PARAMS = new Set(['contact'])
+
+interface AutomationWhen {
+  contact?: string
+  groupName?: string
+  isGroup?: string
+  startsWith?: string
+  endsWith?: string
+  contains?: string
+}
 
 interface AutomationAction {
   id?: string
   target: string
   tool: string
   args?: Record<string, unknown>
+  when?: AutomationWhen
 }
 interface CatalogParam {
   type?: string
@@ -341,6 +351,31 @@ function formatActionArgs(args?: Record<string, unknown>): string {
     .join(' · ')
 }
 
+function formatWhen(when?: AutomationWhen): string {
+  if (!when) return ''
+  const parts: string[] = []
+  if (when.contact?.trim()) parts.push(`contato ${when.contact.trim()}`)
+  if (when.groupName?.trim()) parts.push(`grupo ${when.groupName.trim()}`)
+  if (when.isGroup === 'true') parts.push('mensagens de grupo')
+  if (when.isGroup === 'false') parts.push('mensagens diretas')
+  if (when.startsWith?.trim()) parts.push(`começa com "${when.startsWith.trim()}"`)
+  if (when.endsWith?.trim()) parts.push(`termina com "${when.endsWith.trim()}"`)
+  if (when.contains?.trim()) parts.push(`contém "${when.contains.trim()}"`)
+  return parts.join(', ')
+}
+
+// Ao editar uma ação, remove valores que são apenas um placeholder solto de
+// outro contexto (ex.: "{event.imageDataUri}") salvos por versões antigas.
+const SOLO_PLACEHOLDER = /^\{[a-zA-Z0-9_.]+\}$/
+function cleanSavedArgs(args?: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(args || {})) {
+    if (typeof v === 'string' && SOLO_PLACEHOLDER.test(v.trim())) continue
+    out[k] = v
+  }
+  return out
+}
+
 /**
  * Modal de automações (MOM-115): lê o catálogo de extensões do host e deixa o
  * usuário montar actions (evento → ação) de forma genérica, salvas via
@@ -350,11 +385,13 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [catalog, setCatalog] = useState<CatalogExt[]>([])
   const [actions, setActions] = useState<AutomationAction[]>([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [showDraft, setShowDraft] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [target, setTarget] = useState('')
   const [tool, setTool] = useState('')
   const [draftArgs, setDraftArgs] = useState<Record<string, unknown>>({})
+  const [draftWhen, setDraftWhen] = useState<AutomationWhen>({})
 
   const load = () => {
     setLoading(true)
@@ -381,6 +418,9 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
   useEffect(() => {
     if (open) {
       setShowDraft(false)
+      setEditingId(null)
+      setDraftWhen({})
+      setSaveState('idle')
       load()
     }
   }, [open])
@@ -406,38 +446,61 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
   function defaultArgsFor(def?: CatalogTool): Record<string, unknown> {
     const out: Record<string, unknown> = {}
     for (const [key, param] of Object.entries(def?.parameters?.properties || {})) {
-      out[key] = param && param.default !== undefined ? param.default : ''
+      const d = param && param.default
+      // Não pré-preenche placeholders {token} vindos do schema de outra
+      // extensão (ex.: {event.imageDataUri} do Vision).
+      out[key] = typeof d === 'string' && d.includes('{') ? '' : (d ?? '')
     }
     return out
   }
 
-  function addAction() {
+  function persist(next: AutomationAction[]) {
+    setActions(next)
+    setSaveState('saving')
+    api
+      .post('/extensions/whatsapp/command', { toolName: 'set_actions', args: { actions: next } })
+      .then(() => setSaveState('saved'))
+      .catch(() => setSaveState('error'))
+  }
+
+  function startEdit(a: AutomationAction) {
+    setEditingId(a.id || null)
+    setTarget(a.target)
+    setTool(a.tool)
+    setDraftArgs(cleanSavedArgs(a.args))
+    setDraftWhen(a.when ? { ...a.when } : {})
+    setShowDraft(true)
+  }
+
+  function cancelDraft() {
+    setShowDraft(false)
+    setEditingId(null)
+  }
+
+  function saveDraft() {
     if (!target || !tool) return
     const clean: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(draftArgs)) {
       if (typeof value === 'string' && !value.trim()) continue
       clean[key] = value
     }
-    setActions((prev) => [
-      ...prev,
-      { id: `act-${Date.now()}`, target, tool, args: Object.keys(clean).length ? clean : undefined }
-    ])
-    setShowDraft(false)
-  }
-
-  async function save() {
-    setSaving(true)
-    try {
-      await api.post('/extensions/whatsapp/command', {
-        toolName: 'set_actions',
-        args: { actions }
-      })
-      onClose()
-    } catch {
-      /* falha ao salvar */
-    } finally {
-      setSaving(false)
+    const cleanWhen: AutomationWhen = {}
+    for (const key of ['contact', 'groupName', 'isGroup', 'startsWith', 'endsWith', 'contains'] as const) {
+      const value = draftWhen[key]
+      if (typeof value === 'string' && value.trim()) cleanWhen[key] = value.trim()
     }
+    const entry: AutomationAction = {
+      id: editingId || `act-${Date.now()}`,
+      target,
+      tool,
+      args: Object.keys(clean).length ? clean : undefined,
+      when: Object.keys(cleanWhen).length ? cleanWhen : undefined
+    }
+    const next = editingId
+      ? actions.map((a) => (a.id === editingId ? entry : a))
+      : [...actions, entry]
+    persist(next)
+    cancelDraft()
   }
 
   if (!open) return null
@@ -461,8 +524,8 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
 
         <div className="p-5 space-y-4 overflow-y-auto custom-scrollbar flex-1">
           <p className="text-xs text-gray-400">
-            Ações executadas automaticamente quando chegar uma mensagem (ex.: ligar uma luz
-            na casa inteligente).
+            Ações executadas automaticamente quando chegar uma mensagem. Defina o gatilho de cada
+            ação (ex.: mensagem de grupo → acender a luz da sala).
           </p>
 
           {loading ? (
@@ -473,7 +536,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                 <span className="text-xs font-semibold text-gray-300">Ações</span>
                 <button
                   type="button"
-                  onClick={() => setShowDraft((v) => !v)}
+                  onClick={showDraft ? cancelDraft : () => setShowDraft(true)}
                   className="text-[11px] font-medium text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-400 px-2.5 py-1 rounded-lg transition-colors"
                 >
                   {showDraft ? 'Cancelar' : '+ Adicionar ação'}
@@ -498,23 +561,128 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                       <span className="text-gray-400"> / </span>
                       {TOOL_LABELS[a.tool] || humanizeKey(a.tool)}
                     </div>
+                    {a.when && Object.keys(a.when).length > 0 ? (
+                      <div className="text-[11px] text-emerald-400 truncate">
+                        Quando: {formatWhen(a.when)}
+                      </div>
+                    ) : null}
                     {a.args && Object.keys(a.args).length > 0 ? (
                       <div className="text-[11px] text-gray-500 truncate">{formatActionArgs(a.args)}</div>
                     ) : null}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setActions(actions.filter((_, j) => j !== i))}
-                    className="text-gray-500 hover:text-red-400 text-sm shrink-0"
-                    aria-label="Remover"
-                  >
-                    ×
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(a)}
+                      title="Editar"
+                      aria-label="Editar"
+                      className="text-gray-500 hover:text-emerald-300 text-sm p-0.5"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => persist(actions.filter((_, j) => j !== i))}
+                      className="text-gray-500 hover:text-red-400 text-sm"
+                      aria-label="Remover"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
               ))}
 
               {showDraft ? (
                 <div className="space-y-3 bg-white/5 border border-white/10 rounded-xl p-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                      Gatilho (quando chegar mensagem)
+                    </label>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                          Contato
+                        </label>
+                        <SearchableInput
+                          target="whatsapp"
+                          paramKey="contact"
+                          value={draftWhen.contact ?? ''}
+                          onChange={(v) => setDraftWhen((d) => ({ ...d, contact: v }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                          Grupo
+                        </label>
+                        <input
+                          type="text"
+                          value={draftWhen.groupName ?? ''}
+                          onChange={(e) => setDraftWhen((d) => ({ ...d, groupName: e.target.value }))}
+                          placeholder="Qualquer"
+                          className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                          Tipo de conversa
+                        </label>
+                        <select
+                          value={draftWhen.isGroup ?? ''}
+                          onChange={(e) => setDraftWhen((d) => ({ ...d, isGroup: e.target.value }))}
+                          className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="">Qualquer</option>
+                          <option value="true">Grupos</option>
+                          <option value="false">Direto (1 a 1)</option>
+                        </select>
+                      </div>
+
+                      <div className="pt-1 border-t border-white/5">
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                          Mensagem começa com
+                        </label>
+                        <input
+                          type="text"
+                          value={draftWhen.startsWith ?? ''}
+                          onChange={(e) => setDraftWhen((d) => ({ ...d, startsWith: e.target.value }))}
+                          placeholder='Ex.: "desliga"'
+                          className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                          Mensagem termina com
+                        </label>
+                        <input
+                          type="text"
+                          value={draftWhen.endsWith ?? ''}
+                          onChange={(e) => setDraftWhen((d) => ({ ...d, endsWith: e.target.value }))}
+                          placeholder='Ex.: "a luz"'
+                          className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                          Mensagem contém
+                        </label>
+                        <input
+                          type="text"
+                          value={draftWhen.contains ?? ''}
+                          onChange={(e) => setDraftWhen((d) => ({ ...d, contains: e.target.value }))}
+                          placeholder='Ex.: "liga"'
+                          className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <p className="text-[10px] text-gray-500">
+                        Deixe vazio para rodar com qualquer mensagem. Todos os filtros preenchidos
+                        devem bater (e o contato/grupo/tipo, se preenchidos).
+                      </p>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-400 mb-1">
                       Extensão alvo
@@ -616,10 +784,10 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
 
                       <button
                         type="button"
-                        onClick={addAction}
+                        onClick={saveDraft}
                         className="text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg transition-colors"
                       >
-                        Usar esta ação
+                        {editingId ? 'Salvar alterações' : 'Usar esta ação'}
                       </button>
                     </>
                   ) : null}
@@ -629,21 +797,24 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-white/10 shrink-0 flex items-center justify-end gap-2">
+        <div className="px-5 py-3 border-t border-white/10 shrink-0 flex items-center justify-between gap-2">
+          <span
+            className={`text-[11px] ${saveState === 'error' ? 'text-red-400' : saveState === 'saved' ? 'text-emerald-400' : 'text-gray-500'}`}
+          >
+            {saveState === 'saving'
+              ? 'Salvando…'
+              : saveState === 'saved'
+                ? 'Salvo automaticamente'
+                : saveState === 'error'
+                  ? 'Erro ao salvar. Tente novamente.'
+                  : 'As ações são salvas automaticamente.'}
+          </span>
           <button
             type="button"
             onClick={onClose}
-            className="text-xs font-medium text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl transition-colors"
+            className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl transition-colors"
           >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving}
-            className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl transition-colors disabled:opacity-60"
-          >
-            {saving ? 'Salvando…' : 'Salvar automações'}
+            Fechar
           </button>
         </div>
       </div>
@@ -667,23 +838,15 @@ function SearchableInput({
 
   useEffect(() => {
     let cancelled = false
-    const listTool =
-      paramKey === 'contact'
-        ? 'get_wa_contacts'
-        : paramKey === 'device_name'
-          ? 'list_devices'
-          : null
+    const listTool = paramKey === 'contact' ? 'get_wa_contacts' : null
     if (!listTool) return
     api
       .post(`/extensions/${target}/command`, { toolName: listTool, args: {} })
       .then((res) => {
         if (cancelled || !res.ok) return
-        const items = paramKey === 'contact' ? res.data?.contacts : res.data?.devices
+        const items = res.data?.contacts
         const names = (items || [])
-          .map((c: any) => {
-            if (paramKey === 'contact') return c.name || c.notify || c.phone || ''
-            return String(c.name || '')
-          })
+          .map((c: any) => c.name || c.notify || c.phone || '')
           .filter(Boolean) as string[]
         setOptions(Array.from(new Set(names)))
       })
@@ -733,22 +896,139 @@ function SearchableInput({
   )
 }
 
+const LOCAL_STORAGE_SESSION_KEY = 'momai_whatsapp_has_session'
+const LOCAL_STORAGE_STATS_KEY = 'momai_whatsapp_cached_stats'
+const LOCAL_STORAGE_HISTORY_KEY = 'momai_whatsapp_cached_history'
+const LOCAL_STORAGE_CONTACTS_KEY = 'momai_whatsapp_cached_contacts'
+const LOCAL_STORAGE_GROUPS_KEY = 'momai_whatsapp_cached_groups'
+
+function getInitialHasSession(): boolean {
+  try {
+    return localStorage.getItem(LOCAL_STORAGE_SESSION_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function getInitialCachedStats() {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_STATS_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return { totalMessages: 0, monitoredCount: 0, syncedContacts: 0 }
+}
+
+function getInitialCachedHistory(): Message[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_HISTORY_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return []
+}
+
+function getInitialCachedContacts(): WaContact[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_CONTACTS_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return []
+}
+
+function getInitialCachedGroups(): WaContact[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_GROUPS_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return []
+}
+
+const _initialStats = getInitialCachedStats()
+
+// Module-level cache: survives component re-mounts (tab switches) so the UI
+// never flashes the QR screen or empty lists when the user returns to an already-connected
+// session. Cleared only on explicit disconnect / logged_out.
+const _stateCache = {
+  connected: false,
+  hasCredentials: getInitialHasSession(),
+  totalMessages: _initialStats.totalMessages,
+  syncedContacts: _initialStats.syncedContacts,
+  monitoredCount: _initialStats.monitoredCount,
+  history: getInitialCachedHistory(),
+  paginatedContacts: getInitialCachedContacts(),
+  paginatedGroups: getInitialCachedGroups(),
+  statsLoaded: false
+}
+
 export default function WhatsAppView() {
-  const [connected, setConnected] = useState(false)
-  const [totalMessages, setTotalMessages] = useState(0)
-  const [syncedContacts, setSyncedContacts] = useState(0)
-  const [monitoredCount, setMonitoredCount] = useState(0)
-  const [history, setHistory] = useState<Message[]>([])
+  const [connected, _setConnected] = useState(_stateCache.connected)
+  const [totalMessages, setTotalMessages] = useState(_stateCache.totalMessages)
+  const [syncedContacts, setSyncedContacts] = useState(_stateCache.syncedContacts)
+  const [monitoredCount, setMonitoredCount] = useState(_stateCache.monitoredCount)
+  const [history, _setHistory] = useState<Message[]>(_stateCache.history)
   const [qrUrl, setQrUrl] = useState<string | null>(null)
-  const [statsLoaded, setStatsLoaded] = useState(false)
-  const [hasCredentials, setHasCredentials] = useState(false)
+  const [statsLoaded, setStatsLoaded] = useState(_stateCache.statsLoaded)
+  const [hasCredentials, _setHasCredentials] = useState(_stateCache.hasCredentials)
   const [pairingActive, setPairingActive] = useState(false)
+
+  // Wrappers that also update the module-level cache and localStorage
+  const setConnected = useCallback((v: boolean) => {
+    _stateCache.connected = v
+    _setConnected(v)
+  }, [])
+
+  const setHasCredentials = useCallback((v: boolean) => {
+    _stateCache.hasCredentials = v
+    _setHasCredentials(v)
+    try {
+      if (v) {
+        localStorage.setItem(LOCAL_STORAGE_SESSION_KEY, 'true')
+      } else {
+        localStorage.removeItem(LOCAL_STORAGE_SESSION_KEY)
+      }
+    } catch {}
+  }, [])
+
+  const setHistory = useCallback((action: Message[] | ((prev: Message[]) => Message[])) => {
+    _setHistory((prev) => {
+      const next = typeof action === 'function' ? action(prev) : action
+      _stateCache.history = next
+      try {
+        localStorage.setItem(LOCAL_STORAGE_HISTORY_KEY, JSON.stringify(next.slice(0, 100)))
+      } catch {}
+      return next
+    })
+  }, [])
+
   const qrRequestInFlight = useRef(false)
+  const editingNameRef = useRef<string | null>(null)
   const [editingName, setEditingName] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [openMonitoringDropdown, setOpenMonitoringDropdown] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const syncingRef = useRef(false)
+
+  const handleStartEdit = useCallback((id: string, initialValue: string) => {
+    editingNameRef.current = id
+    setEditingName(id)
+    setEditValue(initialValue)
+  }, [])
+
+  const handleCancelEdit = useCallback(() => {
+    editingNameRef.current = null
+    setEditingName(null)
+  }, [])
+
+  const handleDeleteConversation = useCallback(async (jid: string) => {
+    try {
+      await api.post('/extensions/whatsapp/command', {
+        toolName: 'delete_message',
+        args: { jid }
+      })
+      setHistory((prev) => prev.filter((m) => m.jid !== jid))
+    } catch (err) {
+      console.error('[whatsapp] delete conversation failed:', err)
+    }
+  }, [setHistory])
 
   useEffect(() => {
     syncingRef.current = syncing
@@ -758,7 +1038,7 @@ export default function WhatsAppView() {
   const [contactsPage, setContactsPage] = useState(1)
   const [contactsPerPage] = useState(10)
   const [contactSearch, setContactSearch] = useState('')
-  const [paginatedContacts, setPaginatedContacts] = useState<WaContact[]>([])
+  const [paginatedContacts, _setPaginatedContacts] = useState<WaContact[]>(_stateCache.paginatedContacts)
   const [totalFilteredContacts, setTotalFilteredContacts] = useState(0)
   const [contactsTotalPages, setContactsTotalPages] = useState(1)
   const [contactsLoading, setContactsLoading] = useState(false)
@@ -766,10 +1046,11 @@ export default function WhatsAppView() {
   const [groupsPage, setGroupsPage] = useState(1)
   const [groupsPerPage] = useState(10)
   const [groupSearch, setGroupSearch] = useState('')
-  const [paginatedGroups, setPaginatedGroups] = useState<WaContact[]>([])
+  const [paginatedGroups, _setPaginatedGroups] = useState<WaContact[]>(_stateCache.paginatedGroups)
   const [totalFilteredGroups, setTotalFilteredGroups] = useState(0)
   const [groupsTotalPages, setGroupsTotalPages] = useState(1)
   const [groupsLoading, setGroupsLoading] = useState(false)
+  const [avatarsRefreshing, setAvatarsRefreshing] = useState(false)
   const [avatarByJid, setAvatarByJid] = useState<Record<string, string | null>>({})
   const [conversationsPage, setConversationsPage] = useState(1)
   const [conversationsPerPage] = useState(10)
@@ -777,6 +1058,34 @@ export default function WhatsAppView() {
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false)
   const notificationDropdownRef = useRef<HTMLDivElement>(null)
   const [showAutomations, setShowAutomations] = useState(false)
+
+  const setPaginatedContacts = useCallback(
+    (action: WaContact[] | ((prev: WaContact[]) => WaContact[])) => {
+      _setPaginatedContacts((prev) => {
+        const next = typeof action === 'function' ? action(prev) : action
+        _stateCache.paginatedContacts = next
+        try {
+          localStorage.setItem(LOCAL_STORAGE_CONTACTS_KEY, JSON.stringify(next.slice(0, 50)))
+        } catch {}
+        return next
+      })
+    },
+    []
+  )
+
+  const setPaginatedGroups = useCallback(
+    (action: WaContact[] | ((prev: WaContact[]) => WaContact[])) => {
+      _setPaginatedGroups((prev) => {
+        const next = typeof action === 'function' ? action(prev) : action
+        _stateCache.paginatedGroups = next
+        try {
+          localStorage.setItem(LOCAL_STORAGE_GROUPS_KEY, JSON.stringify(next.slice(0, 50)))
+        } catch {}
+        return next
+      })
+    },
+    []
+  )
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -880,19 +1189,35 @@ export default function WhatsAppView() {
   const beginPairing = useCallback(() => {
     setPairingActive(true)
     setHasCredentials(false)
+    _stateCache.connected = false
+    _stateCache.hasCredentials = false
+    _stateCache.totalMessages = 0
+    _stateCache.monitoredCount = 0
+    _stateCache.syncedContacts = 0
+    _stateCache.history = []
+    _stateCache.paginatedContacts = []
+    _stateCache.paginatedGroups = []
+    _stateCache.statsLoaded = false
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_SESSION_KEY)
+      localStorage.removeItem(LOCAL_STORAGE_STATS_KEY)
+      localStorage.removeItem(LOCAL_STORAGE_HISTORY_KEY)
+      localStorage.removeItem(LOCAL_STORAGE_CONTACTS_KEY)
+      localStorage.removeItem(LOCAL_STORAGE_GROUPS_KEY)
+    } catch {}
     setQrUrl(null)
     qrRequestInFlight.current = false
     // No `force: true` — see comment in requestQr above.
     requestQr().catch(() => {})
-  }, [requestQr])
+  }, [requestQr, setHasCredentials])
 
-  const loadAvatars = useCallback(async (jids: string[]) => {
+  const loadAvatars = useCallback(async (jids: string[], opts?: { force?: boolean }) => {
     const unique = [...new Set(jids.filter((j) => typeof j === 'string' && j.includes('@')))]
     if (unique.length === 0) return
     try {
       const { data } = await api.post('/extensions/whatsapp/command', {
         toolName: 'get_avatars',
-        args: { jids: unique }
+        args: { jids: unique, force: opts?.force === true }
       })
       if (data?.avatars) {
         setAvatarByJid((prev) => ({ ...prev, ...data.avatars }))
@@ -909,11 +1234,26 @@ export default function WhatsAppView() {
       if (!data) return
       if (data.ok === false) return
       const isConnected = Boolean(data.connected)
+      const hasCreds = Boolean(data.hasCredentials)
       setConnected(isConnected)
-      setHasCredentials(Boolean(data.hasCredentials))
-      setTotalMessages(data.totalMessages || 0)
-      setSyncedContacts(data.syncedContacts || 0)
-      setMonitoredCount(data.monitoredCount || 0)
+      setHasCredentials(hasCreds)
+      const msgs = data.totalMessages || 0
+      const synced = data.syncedContacts || 0
+      const monitored = data.monitoredCount || 0
+      setTotalMessages(msgs)
+      setSyncedContacts(synced)
+      setMonitoredCount(monitored)
+      // Update module-level cache and localStorage so tab switches & app restarts are instant
+      _stateCache.totalMessages = msgs
+      _stateCache.syncedContacts = synced
+      _stateCache.monitoredCount = monitored
+      _stateCache.statsLoaded = true
+      try {
+        localStorage.setItem(
+          LOCAL_STORAGE_STATS_KEY,
+          JSON.stringify({ totalMessages: msgs, monitoredCount: monitored, syncedContacts: synced })
+        )
+      } catch {}
       if (isConnected) {
         setQrUrl(null)
       } else if (data.qr) {
@@ -923,7 +1263,7 @@ export default function WhatsAppView() {
     } finally {
       setStatsLoaded(true)
     }
-  }, [applyQrString])
+  }, [applyQrString, setConnected, setHasCredentials])
 
   const loadHistory = useCallback(async () => {
     try {
@@ -933,6 +1273,7 @@ export default function WhatsAppView() {
       })
       if (data?.history) {
         setHistory(data.history)
+        _stateCache.history = data.history
         const jids = [
           ...new Set(data.history.map((m: Message) => m.jid).filter(Boolean))
         ] as string[]
@@ -940,6 +1281,22 @@ export default function WhatsAppView() {
       }
     } catch {}
   }, [loadAvatars])
+
+  useExtensionEvents({
+    onEvent: useCallback(
+      (event) => {
+        if (
+          event.eventType === 'message_sent' ||
+          event.eventType === 'message_received' ||
+          event.eventType === 'history_loaded'
+        ) {
+          loadHistory()
+          loadStats()
+        }
+      },
+      [loadHistory, loadStats]
+    )
+  })
 
   const loadPaginatedContacts = useCallback(
     async (page: number, search: string) => {
@@ -994,6 +1351,46 @@ export default function WhatsAppView() {
     },
     [groupsPerPage]
   )
+
+  // Força o refetch de TODAS as fotos de perfil (grupos + contatos + conversas)
+  // e atualiza a UI ao final. Único caminho para sincronizar avatares após a
+  // primeira sincronização.
+  const refreshAvatars = useCallback(async () => {
+    if (avatarsRefreshing) return
+    setAvatarsRefreshing(true)
+    try {
+      const jids = [
+        ...new Set(
+          [
+            ...paginatedGroups.map((g) => g.id),
+            ...paginatedContacts.map((c) => c.id),
+            ...allConversations.map((c) => c.jid)
+          ].filter((j): j is string => typeof j === 'string' && j.includes('@'))
+        )
+      ]
+      await loadAvatars(jids, { force: true })
+      // Recarrega as listas para refletir as novas fotos
+      await Promise.all([
+        loadPaginatedGroups(groupsPage, groupSearch),
+        loadPaginatedContacts(contactsPage, contactSearch)
+      ])
+    } catch {
+    } finally {
+      setAvatarsRefreshing(false)
+    }
+  }, [
+    avatarsRefreshing,
+    paginatedGroups,
+    paginatedContacts,
+    allConversations,
+    loadAvatars,
+    loadPaginatedGroups,
+    loadPaginatedContacts,
+    groupsPage,
+    groupSearch,
+    contactsPage,
+    contactSearch
+  ])
 
   const tryFinishContactSync = useCallback(
     async (reportedCount?: number, isFinal?: boolean) => {
@@ -1052,12 +1449,17 @@ export default function WhatsAppView() {
       if (data?.syncedContacts !== undefined) {
         setSyncedContacts(data.syncedContacts)
       }
-      // Manual sync is considered "final" for the UI response
-      await tryFinishContactSync(data?.syncedContacts, true)
+      // Reload all UI data after sync completes
+      await Promise.all([
+        loadStats(),
+        loadPaginatedContacts(contactsPage, contactSearch),
+        loadPaginatedGroups(groupsPage, groupSearch)
+      ])
     } catch {
+    } finally {
       setSyncing(false)
     }
-  }, [syncing, tryFinishContactSync])
+  }, [syncing, loadStats, loadPaginatedContacts, loadPaginatedGroups, contactsPage, contactSearch, groupsPage, groupSearch])
 
   const toggleMonitoring = async (contactId: string) => {
     try {
@@ -1075,25 +1477,80 @@ export default function WhatsAppView() {
     } catch {}
   }
 
-  const saveContactName = async (contactId: string) => {
-    if (!editValue.trim()) return
+  const saveContactName = async (targetJidOrPhone: string) => {
+    if (editingNameRef.current !== targetJidOrPhone) return
+    editingNameRef.current = null
+    setEditingName(null)
+
+    const trimmed = editValue.trim()
+    if (!trimmed) return
+
+    const cleanKey = targetJidOrPhone.split('@')[0].replace(/\D/g, '')
+    const jid = targetJidOrPhone.includes('@') ? targetJidOrPhone : `${cleanKey}@s.whatsapp.net`
+
+    // Optimistic UI update
+    setHistory((prev) =>
+      prev.map((m) => {
+        const match =
+          m.jid === targetJidOrPhone ||
+          m.jid === jid ||
+          m.senderJid === targetJidOrPhone ||
+          m.senderJid === jid ||
+          (cleanKey && (m.jid?.split('@')[0] === cleanKey || m.senderJid?.split('@')[0] === cleanKey))
+        if (match) {
+          return {
+            ...m,
+            from: trimmed,
+            contactName: trimmed,
+            groupName: m.isGroup ? trimmed : m.groupName
+          }
+        }
+        return m
+      })
+    )
+    setPaginatedContacts((prev) =>
+      prev.map((c) =>
+        c.id === targetJidOrPhone || c.id === jid || (cleanKey && (c.phone === cleanKey || c.id?.split('@')[0] === cleanKey))
+          ? { ...c, displayName: trimmed, hasName: true }
+          : c
+      )
+    )
+    setPaginatedGroups((prev) =>
+      prev.map((c) =>
+        c.id === targetJidOrPhone || c.id === jid || (cleanKey && c.id?.split('@')[0] === cleanKey)
+          ? { ...c, displayName: trimmed, hasName: true }
+          : c
+      )
+    )
+
     try {
       await api.post('/extensions/whatsapp/command', {
         toolName: 'set_contact_name',
-        args: { contact: contactId, name: editValue.trim() }
+        args: { contact: targetJidOrPhone, name: trimmed }
       })
-      setEditingName(null)
-      refresh()
+      await refresh()
     } catch {}
   }
 
   const disconnect = useCallback(async () => {
-    beginPairing()
+    setPairingActive(true)
+    setHasCredentials(false)
     setConnected(false)
+    setHistory([])
+    setPaginatedContacts([])
+    setPaginatedGroups([])
+    setTotalMessages(0)
+    setMonitoredCount(0)
+    setSyncedContacts(0)
+    beginPairing()
     try {
       await api.post('/extensions/whatsapp/disconnect')
+      await api.post('/extensions/whatsapp/command', {
+        toolName: 'request_qr',
+        args: { force: true }
+      })
     } catch {}
-  }, [beginPairing])
+  }, [beginPairing, setHistory])
 
   const reconnect = useCallback(async () => {
     try {
@@ -1106,7 +1563,7 @@ export default function WhatsAppView() {
     } catch {}
   }, [beginPairing])
 
-  const openConversationOverlay = useCallback(async (convo: ConversationSummary) => {
+  const openConversationOverlay = useCallback((convo: ConversationSummary) => {
     const { jid, latestIncoming: contextMsg, turns } = convo
     if (!jid) return
 
@@ -1122,41 +1579,18 @@ export default function WhatsAppView() {
     })
     const conversationHistory = turnsToHistoryLines(turns)
 
-    const recentIncoming = turns
-      .map((t) => t.incoming.text)
-      .slice(-5)
-      .join(' | ')
+    const contactAvatar =
+      convo.profilePicUrl ||
+      avatarByJid[jid] ||
+      avatarByJid[replyJid] ||
+      avatarByJid[contactJid] ||
+      null
 
-    let quickReplies: string[] = []
-    try {
-      const { data: llmData } = await api.post('/extensions/whatsapp/process-notification', {
-        contact: contextMsg.from,
-        message: recentIncoming || contextMsg.text,
-        contactJid,
-        isGroup,
-        groupName
-      })
-      quickReplies = llmData?.quickReplies || []
-    } catch {}
-
-    let contactAvatar = convo.profilePicUrl
-    const avatarJids = [...new Set([jid, replyJid, contactJid].filter((j) => j?.includes('@')))]
-    if (!contactAvatar && avatarJids.length > 0) {
-      try {
-        const { data: avData } = await api.post('/extensions/whatsapp/command', {
-          toolName: 'get_avatars',
-          args: { jids: avatarJids }
-        })
-        contactAvatar =
-          avData?.avatars?.[jid] ||
-          avData?.avatars?.[replyJid] ||
-          avData?.avatars?.[contactJid] ||
-          null
-        if (contactAvatar) {
-          setAvatarByJid((prev) => ({ ...prev, [jid]: contactAvatar }))
-        }
-      } catch {}
-    }
+    const contactName = convo.contactLabel || (isGroup ? groupName : 'Contato')
+    const defaultQuickReplies = [
+      `Obrigado pela mensagem, ${contactName}!`,
+      'Vou verificar e respondo em breve.'
+    ]
 
     const overlayData = {
       skillId: 'whatsapp',
@@ -1171,7 +1605,7 @@ export default function WhatsAppView() {
           isGroup,
           groupName,
           contactAvatar,
-          quickReplies,
+          quickReplies: defaultQuickReplies,
           conversationHistory
         }
       }
@@ -1182,7 +1616,54 @@ export default function WhatsAppView() {
     if (openOverlay) {
       openOverlay(overlayData)
     }
-  }, [])
+  }, [avatarByJid])
+
+  const openContactOrGroupOverlay = useCallback(
+    (item: WaContact) => {
+      const existingConvo = allConversations.find((c) => c.jid === item.id)
+      if (existingConvo) {
+        return openConversationOverlay(existingConvo)
+      }
+
+      const isGroup = item.id.endsWith('@g.us')
+      const contactJid = item.id
+      const contactLabel =
+        item.displayName || item.name || item.notify || (isGroup ? 'Grupo' : item.phone ? `+${item.phone}` : item.id)
+      const groupName = isGroup ? item.displayName || item.name || 'Grupo' : undefined
+
+      const contactAvatar = avatarByJid[item.id] ?? item.profilePicUrl ?? null
+      const defaultQuickReplies = [
+        `Olá, ${contactLabel}!`,
+        'Como posso te ajudar?'
+      ]
+
+      const overlayData = {
+        skillId: 'whatsapp',
+        panel: 'dist/panel.js',
+        panelType: 'whatsapp-panel',
+        structuredResponse: {
+          type: 'whatsapp-panel',
+          data: {
+            contact: contactLabel,
+            contactJid,
+            message: '',
+            isGroup,
+            groupName,
+            contactAvatar,
+            quickReplies: defaultQuickReplies,
+            conversationHistory: []
+          }
+        }
+      }
+
+      const openOverlay = (window as Window & { api?: { openOverlay?: (data: unknown) => void } }).api
+        ?.openOverlay
+      if (openOverlay) {
+        openOverlay(overlayData)
+      }
+    },
+    [allConversations, avatarByJid, openConversationOverlay]
+  )
 
   useEffect(() => {
     refresh()
@@ -1191,7 +1672,7 @@ export default function WhatsAppView() {
   // First visit without session: enter pairing mode
   useEffect(() => {
     if (!statsLoaded || connected || qrUrl || pairingActive) return
-    if (hasCredentials && connected) return
+    if (hasCredentials) return
     beginPairing()
   }, [statsLoaded, connected, qrUrl, hasCredentials, pairingActive, beginPairing])
 
@@ -1260,14 +1741,17 @@ export default function WhatsAppView() {
         if (event.eventType === 'qr_code' && event.data?.qr) {
           applyQrString(event.data.qr)
           setPairingActive(false)
+          return
         } else if (event.eventType === 'connection_status') {
           const status = event.data?.status
           if (status === 'connected') setConnected(true)
           else if (status === 'disconnected') setConnected(false)
+          return
         } else if (event.eventType === 'contacts_synced') {
           setSyncedContacts(event.data?.count || 0)
           void loadStats()
           void tryFinishContactSync(event.data?.count, event.data?.isFinal)
+          return
         } else if (event.eventType === 'contacts_updated') {
           void loadStats()
           if (syncingRef.current) void tryFinishContactSync()
@@ -1313,6 +1797,11 @@ export default function WhatsAppView() {
     )
   })
 
+  // Show dashboard when connected, has valid credentials, or has history.
+  // If qrUrl is set, always show the QR area (even if hasCredentials is true
+  // from a stale session that was marked as invalid by the worker).
+  const showDashboard = connected || (hasCredentials && !qrUrl) || history.length > 0
+
   return (
     <div className="flex-1 h-full flex flex-col min-h-0">
       <div className="shrink-0 px-6 pt-6 pb-4 w-full">
@@ -1320,7 +1809,7 @@ export default function WhatsAppView() {
           <WhatsAppIcon className="w-8 h-8 shrink-0" />
           <h1 className="text-xl font-semibold">WhatsApp</h1>
           <div className="ml-auto flex items-center gap-2">
-            {connected && (
+            {showDashboard && (
               <div className="relative" ref={notificationDropdownRef}>
                 <button
                   onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
@@ -1438,27 +1927,7 @@ export default function WhatsAppView() {
                 )}
               </div>
             )}
-            <button
-              onClick={() => setShowAutomations(true)}
-              className="p-1.5 rounded-lg border bg-white/5 border-white/10 hover:bg-white/10 text-text-muted hover:text-white transition-colors flex items-center justify-center"
-              title="Automações"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            </button>
-            {connected && (
+            {showDashboard && (
               <button
                 onClick={handleSync}
                 disabled={syncing}
@@ -1490,10 +1959,10 @@ export default function WhatsAppView() {
                 </svg>
               </button>
             )}
-            {connected && (
+            {showDashboard && (
               <button
                 onClick={disconnect}
-                className="px-3 py-1.5 rounded-lg border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 text-red-400 transition-colors flex items-center gap-2 group"
+                className="px-3 py-1.5 rounded-lg border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 text-red-400 transition-colors flex items-center gap-2 group cursor-pointer"
                 title="Desconectar sessão"
               >
                 <svg
@@ -1518,7 +1987,7 @@ export default function WhatsAppView() {
         </div>
       </div>
 
-      {!connected && (
+      {!showDashboard && (
         <div className="flex-1 w-full flex flex-col items-center justify-center px-6 pb-8 text-center space-y-5 min-h-0">
           {qrUrl ? (
             <div className="space-y-4 flex flex-col items-center">
@@ -1566,7 +2035,7 @@ export default function WhatsAppView() {
         </div>
       )}
 
-      {connected && (
+      {showDashboard && (
         <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6 min-h-0">
           <div className="grid grid-cols-3 gap-4">
             <div className="rounded-xl border border-white/5 bg-card p-4">
@@ -1605,15 +2074,20 @@ export default function WhatsAppView() {
                 </div>
               )}
               {conversations.map((convo) => {
-                const msg = convo.latestIncoming
+                const lastMsg = convo.lastMessage || convo.latestIncoming
                 const avatarName = convo.isGroup ? convo.groupName || 'Grupo' : convo.contactLabel
+                const isOutgoing = lastMsg.direction === 'outgoing'
+
                 return (
                   <div
                     key={convo.jid}
                     role="button"
                     tabIndex={0}
-                    onClick={() => openConversationOverlay(convo)}
+                    onClick={() => {
+                      if (editingName !== convo.jid) openConversationOverlay(convo)
+                    }}
                     onKeyDown={(e) => {
+                      if (editingName === convo.jid) return
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
                         openConversationOverlay(convo)
@@ -1628,79 +2102,89 @@ export default function WhatsAppView() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
-                          {convo.isGroup && convo.groupName ? (
-                            <>
-                              <span className="font-medium text-sm truncate">
-                                {convo.groupName}
-                              </span>
-                              <span className="text-xs text-text-muted truncate shrink-0">
-                                · {convo.contactLabel}
-                              </span>
-                            </>
+                          {editingName === convo.jid ? (
+                            <div className="flex-1 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  e.stopPropagation()
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    saveContactName(convo.jid)
+                                  }
+                                  if (e.key === 'Escape') {
+                                    e.preventDefault()
+                                    handleCancelEdit()
+                                  }
+                                }}
+                                onBlur={() => saveContactName(convo.jid)}
+                                autoFocus
+                                className="w-full max-w-xs bg-white/10 rounded px-2 py-0.5 text-sm border border-emerald-500/50 outline-none text-text"
+                              />
+                            </div>
                           ) : (
-                            <span className="font-medium text-sm truncate">
-                              {convo.contactLabel}
+                            <>
+                              {convo.isGroup && convo.groupName ? (
+                                <>
+                                  <span className="font-medium text-sm truncate">
+                                    {convo.groupName}
+                                  </span>
+                                  <span className="text-xs text-text-muted truncate shrink-0">
+                                    · {convo.contactLabel}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="font-medium text-sm truncate">
+                                  {convo.contactLabel}
+                                </span>
+                              )}
+                            </>
+                          )}
+                          <div className="ml-auto flex items-center gap-2 shrink-0">
+                            {editingName !== convo.jid && !convo.isGroup && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleStartEdit(convo.jid, convo.contactLabel)
+                                }}
+                                className="text-text-muted hover:text-emerald-400 p-1 rounded-lg hover:bg-white/10 transition-colors"
+                                title="Renomear contato"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                                  <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
+                                </svg>
+                              </button>
+                            )}
+                            {editingName !== convo.jid && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteConversation(convo.jid)
+                                }}
+                                className="text-text-muted hover:text-red-400 p-1 rounded-lg hover:bg-white/10 transition-colors"
+                                title="Excluir conversa"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                                  <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675a.75.75 0 1 0-1.492.15l.66 6.6A1.75 1.75 0 0 0 5.405 15h5.19a1.75 1.75 0 0 0 1.741-1.575l.66-6.6a.75.75 0 0 0-1.492-.15l-.66 6.6a.25.25 0 0 1-.249.225h-5.19a.25.25 0 0 1-.249-.225l-.66-6.6Z" />
+                                </svg>
+                              </button>
+                            )}
+                            <span className="text-xs text-text-muted">
+                              {formatTime(lastMsg.timestamp)}
                             </span>
-                          )}
-                          {convo.incomingCount > 1 && (
-                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-white/10 text-text-muted shrink-0">
-                              {convo.incomingCount} msgs
-                            </span>
-                          )}
-                          {/^\d+$/.test(convo.contactLabel) && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                const newName = prompt('Digite o nome para este contato:', '')
-                                if (newName?.trim()) {
-                                  api
-                                    .post('/extensions/whatsapp/command', {
-                                      toolName: 'set_contact_name',
-                                      args: {
-                                        contact: convo.jid.split('@')[0],
-                                        name: newName.trim()
-                                      }
-                                    })
-                                    .then(() => refresh())
-                                }
-                              }}
-                              className="text-xs text-accent hover:text-accent/80 px-1.5 py-0.5 rounded bg-accent/10 hover:bg-accent/20 shrink-0"
-                              title="Definir nome para este contato"
-                            >
-                              ✏️ Nomear
-                            </button>
-                          )}
-                          <span className="ml-auto text-xs text-text-muted shrink-0">
-                            {formatTime(msg.timestamp)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-text-muted mt-0.5 line-clamp-2">{msg.text}</p>
-                        {convo.latestReplies.map((reply, ri) => (
-                          <div
-                            key={`${reply.timestamp}-${ri}`}
-                            className="mt-2 flex items-center gap-2.5 group/reply"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="flex flex-col items-center w-3 shrink-0">
-                              <div className="h-1.5 w-px bg-white/10" />
-                              <div className="w-2 h-2 rounded-full border border-white/20 bg-white/5 flex items-center justify-center">
-                                <div className="w-1 h-1 rounded-full bg-white/20" />
-                              </div>
-                            </div>
-                            <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                              <span className="text-xs text-text-muted font-bold shrink-0">
-                                Você:
-                              </span>
-                              <span className="text-xs text-text-muted/70 truncate flex-1">
-                                {reply.text}
-                              </span>
-                              <span className="text-[10px] font-medium text-text-muted/30 shrink-0">
-                                {formatTime(reply.timestamp)}
-                              </span>
-                            </div>
                           </div>
-                        ))}
+                        </div>
+                        <p className="text-sm text-text-muted mt-0.5 truncate flex items-center gap-1.5">
+                          {isOutgoing && (
+                            <span className="font-semibold text-text-muted/90 shrink-0">
+                              Você:
+                            </span>
+                          )}
+                          <span className="truncate">{lastMsg.text || (lastMsg.audio ? '🎵 Áudio' : '')}</span>
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1742,23 +2226,58 @@ export default function WhatsAppView() {
             </div>
           )}
 
-          {connected && (
+          {showDashboard && (
             <>
               <div className="rounded-xl border border-white/5 bg-card">
                 <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between flex-wrap gap-2">
                   <span>Grupos do WhatsApp</span>
-                  <div className="relative w-64">
-                    <input
-                      value={groupSearch}
-                      onChange={(e) => setGroupSearch(e.target.value)}
-                      placeholder="Buscar grupo..."
-                      className="w-full bg-white/5 rounded-lg pl-3 pr-8 py-1.5 text-xs border border-white/10 outline-none focus:border-accent/50"
-                    />
-                    {groupsLoading && (
-                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
-                        <div className="w-3.5 h-3.5 border-2 border-accent/40 border-t-accent rounded-full animate-spin" />
-                      </div>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-64">
+                      <input
+                        value={groupSearch}
+                        onChange={(e) => setGroupSearch(e.target.value)}
+                        placeholder="Buscar grupo..."
+                        className="w-full bg-white/5 rounded-lg pl-3 pr-8 py-1.5 text-xs border border-white/10 outline-none focus:border-accent/50"
+                      />
+                      {groupsLoading && (
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                          <div className="w-3.5 h-3.5 border-2 border-accent/40 border-t-accent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={refreshAvatars}
+                      disabled={avatarsRefreshing}
+                      className={`p-1.5 rounded-lg border transition-colors flex items-center justify-center ${
+                        avatarsRefreshing
+                          ? 'bg-accent/10 border-accent/30 text-accent cursor-wait'
+                          : 'bg-white/5 border-white/10 hover:bg-white/10 text-text-muted hover:text-text disabled:opacity-50'
+                      }`}
+                      title={
+                        avatarsRefreshing ? 'Atualizando fotos de perfil...' : 'Atualizar fotos de perfil'
+                      }
+                      aria-busy={avatarsRefreshing}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className={avatarsRefreshing ? 'animate-spin' : ''}
+                        aria-hidden
+                      >
+                        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                        <path d="M3 3v5h5" />
+                        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                        <path d="M16 16h5v5" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
 
@@ -1771,21 +2290,42 @@ export default function WhatsAppView() {
                     {paginatedGroups.map((c) => (
                       <div
                         key={c.id}
-                        className="px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (editingName !== c.id) openContactOrGroupOverlay(c)
+                        }}
+                        onKeyDown={(e) => {
+                          if (editingName === c.id) return
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            openContactOrGroupOverlay(c)
+                          }
+                        }}
+                        className="px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors cursor-pointer focus:outline-none focus:bg-white/10"
+                        title="Enviar mensagem"
                       >
-                        <ContactAvatar src={c.profilePicUrl} name={c.displayName} id={c.id} />
-                        <div className="flex-1 min-w-0">
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <ContactAvatar src={c.profilePicUrl} name={c.displayName} id={c.id} />
+                        </div>
+                        <div
+                          className="flex-1 min-w-0"
+                          onClick={(e) => {
+                            if (editingName === c.id) e.stopPropagation()
+                          }}
+                        >
                           {editingName === c.id ? (
                             <input
                               value={editValue}
                               onChange={(e) => setEditValue(e.target.value)}
                               onKeyDown={(e) => {
+                                e.stopPropagation()
                                 if (e.key === 'Enter') saveContactName(c.id)
-                                if (e.key === 'Escape') setEditingName(null)
+                                if (e.key === 'Escape') handleCancelEdit()
                               }}
                               onBlur={() => saveContactName(c.id)}
                               autoFocus
-                              className="w-full max-w-xs bg-white/10 rounded px-2 py-0.5 text-sm border border-accent/50 outline-none"
+                              className="w-full max-w-xs bg-white/10 rounded px-2 py-0.5 text-sm border border-accent/50 outline-none text-text"
                             />
                           ) : (
                             <>
@@ -1806,9 +2346,9 @@ export default function WhatsAppView() {
 
                         {editingName !== c.id && (
                           <button
-                            onClick={() => {
-                              setEditingName(c.id)
-                              setEditValue(c.displayName)
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleStartEdit(c.id, c.displayName)
                             }}
                             className="text-text-muted hover:text-text p-1.5 rounded-lg hover:bg-white/10 transition-colors"
                             title="Renomear"
@@ -1818,8 +2358,22 @@ export default function WhatsAppView() {
                             </svg>
                           </button>
                         )}
+                        {editingName !== c.id && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteConversation(c.id)
+                            }}
+                            className="text-text-muted hover:text-red-400 p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                            title="Excluir conversa"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                              <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675a.75.75 0 1 0-1.492.15l.66 6.6A1.75 1.75 0 0 0 5.405 15h5.19a1.75 1.75 0 0 0 1.741-1.575l.66-6.6a.75.75 0 0 0-1.492-.15l-.66 6.6a.25.25 0 0 1-.249.225h-5.19a.25.25 0 0 1-.249-.225l-.66-6.6Z" />
+                            </svg>
+                          </button>
+                        )}
 
-                        <div className="relative">
+                        <div className="relative" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() =>
                               setOpenMonitoringDropdown(
@@ -2003,21 +2557,42 @@ export default function WhatsAppView() {
                     {paginatedContacts.map((c) => (
                       <div
                         key={c.id}
-                        className="px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (editingName !== c.id) openContactOrGroupOverlay(c)
+                        }}
+                        onKeyDown={(e) => {
+                          if (editingName === c.id) return
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            openContactOrGroupOverlay(c)
+                          }
+                        }}
+                        className="px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors cursor-pointer focus:outline-none focus:bg-white/10"
+                        title="Enviar mensagem"
                       >
-                        <ContactAvatar src={c.profilePicUrl} name={c.displayName} id={c.id} />
-                        <div className="flex-1 min-w-0">
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <ContactAvatar src={c.profilePicUrl} name={c.displayName} id={c.id} />
+                        </div>
+                        <div
+                          className="flex-1 min-w-0"
+                          onClick={(e) => {
+                            if (editingName === c.id) e.stopPropagation()
+                          }}
+                        >
                           {editingName === c.id ? (
                             <input
                               value={editValue}
                               onChange={(e) => setEditValue(e.target.value)}
                               onKeyDown={(e) => {
+                                e.stopPropagation()
                                 if (e.key === 'Enter') saveContactName(c.id)
-                                if (e.key === 'Escape') setEditingName(null)
+                                if (e.key === 'Escape') handleCancelEdit()
                               }}
                               onBlur={() => saveContactName(c.id)}
                               autoFocus
-                              className="w-full max-w-xs bg-white/10 rounded px-2 py-0.5 text-sm border border-accent/50 outline-none"
+                              className="w-full max-w-xs bg-white/10 rounded px-2 py-0.5 text-sm border border-accent/50 outline-none text-text"
                             />
                           ) : (
                             <>
@@ -2036,9 +2611,9 @@ export default function WhatsAppView() {
 
                         {editingName !== c.id && (
                           <button
-                            onClick={() => {
-                              setEditingName(c.id)
-                              setEditValue(c.displayName)
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleStartEdit(c.id, c.displayName)
                             }}
                             className="text-text-muted hover:text-text p-1.5 rounded-lg hover:bg-white/10 transition-colors"
                             title="Renomear"
@@ -2048,8 +2623,22 @@ export default function WhatsAppView() {
                             </svg>
                           </button>
                         )}
+                        {editingName !== c.id && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteConversation(c.id)
+                            }}
+                            className="text-text-muted hover:text-red-400 p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                            title="Excluir conversa"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                              <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675a.75.75 0 1 0-1.492.15l.66 6.6A1.75 1.75 0 0 0 5.405 15h5.19a1.75 1.75 0 0 0 1.741-1.575l.66-6.6a.75.75 0 0 0-1.492-.15l-.66 6.6a.25.25 0 0 1-.249.225h-5.19a.25.25 0 0 1-.249-.225l-.66-6.6Z" />
+                            </svg>
+                          </button>
+                        )}
 
-                        <div className="relative">
+                        <div className="relative" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() =>
                               setOpenMonitoringDropdown(
@@ -2210,7 +2799,8 @@ export default function WhatsAppView() {
           )}
         </div>
       )}
-      <AutomationsModal open={showAutomations} onClose={() => setShowAutomations(false)} />
     </div>
   )
 }
+
+sdk.registry.registerRenderer('whatsapp-page', WhatsAppView)

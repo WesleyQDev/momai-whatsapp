@@ -26,28 +26,6 @@ module.exports = {
       }
     },
     {
-      name: 'set_actions',
-      description: 'Configura as actions que o host executa automaticamente quando chega uma mensagem (evento whatsapp_message). Cada action: { id, target, tool, args }. Args podem usar {contact}, {message}, {contactJid}, {isGroup} ou {from: "event.<campo>"}.',
-      parameters: {
-        type: 'object',
-        required: ['actions'],
-        properties: {
-          actions: {
-            type: 'array',
-            description: 'Lista de actions a anexar ao evento whatsapp_message'
-          }
-        }
-      }
-    },
-    {
-      name: 'get_actions',
-      description: 'Retorna as actions configuradas para o evento whatsapp_message.',
-      parameters: {
-        type: 'object',
-        properties: {}
-      }
-    },
-    {
       name: 'set_default_contact',
       description: 'Define o contato padrão usado para preencher automaticamente o campo "para quem" das actions do WhatsApp.',
       parameters: {
@@ -169,6 +147,28 @@ module.exports = {
       parameters: {
         type: 'object',
         properties: {}
+      }
+    },
+    {
+      name: 'get_group_participants',
+      description: 'Lista os participantes de um grupo do WhatsApp com nomes e fotos.',
+      parameters: {
+        type: 'object',
+        required: ['groupJid'],
+        properties: {
+          groupJid: { type: 'string', description: 'JID do grupo (@g.us)' }
+        }
+      }
+    },
+    {
+      name: 'delete_message',
+      description: 'Deleta todas as mensagens de um contato ou grupo do histórico.',
+      parameters: {
+        type: 'object',
+        required: ['jid'],
+        properties: {
+          jid: { type: 'string', description: 'JID do contato ou grupo (@s.whatsapp.net ou @g.us)' }
+        }
       }
     }
   ],

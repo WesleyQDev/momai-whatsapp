@@ -1,0 +1,2 @@
+patchedDependencies:
+  '@whiskeysockets/baileys': patches/@whiskeysockets__baileys.patch

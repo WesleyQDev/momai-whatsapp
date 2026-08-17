@@ -1,0 +1,97 @@
+diff --git a/lib/Socket/messages-send.js b/lib/Socket/messages-send.js
+index b1e25574c290b747175db0fcc36977098cdfd4af..2f58e80d4f0a0b042e4cfc0bf4ebee04c757a07a 100644
+--- a/lib/Socket/messages-send.js
++++ b/lib/Socket/messages-send.js
+@@ -324,14 +324,14 @@ const makeMessagesSocket = (config) => {
+-                const patched = await patchMessageBeforeSending(message, devices.map(d => (0, WABinary_1.jidEncode)(d.user, isLid ? 'lid' : 's.whatsapp.net', d.device)));
++                const patched = await patchMessageBeforeSending(message, devices.map(d => (0, WABinary_1.jidEncode)(d.user, d.server || (isLid ? 'lid' : 's.whatsapp.net'), d.device)));
+                 const bytes = (0, Utils_1.encodeWAMessage)(patched);
+                 const { ciphertext, senderKeyDistributionMessage } = await signalRepository.encryptGroupMessage({
+                     group: destinationJid,
+                     data: bytes,
+                     meId,
+                 });
+                 const senderKeyJids = [];
+                 // ensure a connection is established with every device
+-                for (const { user, device } of devices) {
+-                    const jid = (0, WABinary_1.jidEncode)(user, isLid ? 'lid' : 's.whatsapp.net', device);
++                for (const { user, device, server: devServer } of devices) {
++                    const jid = (0, WABinary_1.jidEncode)(user, devServer || (isLid ? 'lid' : 's.whatsapp.net'), device);
+                     if (!senderKeyMap[jid] || !!participant) {
+                         senderKeyJids.push(jid);
+                         // store that this person has had the sender keys sent to them
+@@ -348,10 +348,51 @@ const makeMessagesSocket = (config) => {
+                             groupId: destinationJid
+                         }
+                     };
+-                    await assertSessions(senderKeyJids, false);
+-                    const result = await createParticipantNodes(senderKeyJids, senderKeyMsg, extraAttrs);
+-                    shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity;
+-                    participants.push(...result.nodes);
++                    // Fix (Baileys issue #2521): o batch assertSessions falha com
++                    // "not-acceptable"/"Timed Out"/"No sessions" quando UM device do
++                    // grupo está desregistrado/stale-prekey no servidor, abortando o
++                    // envio para TODOS os participantes. Retry por JID e pula os
++                    // devices inacessíveis, mantendo o envio para os alcançáveis.
++                    let reachableRecipients = [...senderKeyJids];
++                    try {
++                        await assertSessions(senderKeyJids, false);
++                    } catch (sessionErr) {
++                        const isRecoverable = ['not-acceptable', 'Timed Out', 'No sessions'].includes(sessionErr && sessionErr.message);
++                        if (isRecoverable && senderKeyJids.length > 1) {
++                            logger.warn({ count: senderKeyJids.length, err: sessionErr && sessionErr.message }, 'batch assertSessions failed - retrying per-JID to skip unreachable devices');
++                            reachableRecipients = [];
++                            for (const candidateJid of senderKeyJids) {
++                                try {
++                                    await assertSessions([candidateJid], false);
++                                    reachableRecipients.push(candidateJid);
++                                } catch (e) {
++                                    logger.warn({ jid: candidateJid, err: e && e.message }, 'skipping unreachable participant device');
++                                }
++                            }
++                        } else {
++                            throw sessionErr;
++                        }
++                    }
++                    if (reachableRecipients.length) {
++                        // Criptografa e monta os nodes da SKDM por destinatário,
++                        // pulando os que falham na criptografia ("No sessions" em
++                        // device órfão/desconectado da conta — sessões apagadas ou
++                        // devices antigos que o servidor não fornece mais prekeys).
++                        let sentToAnyone = false;
++                        for (const recipient of reachableRecipients) {
++                            try {
++                                const result = await createParticipantNodes([recipient], senderKeyMsg, extraAttrs);
++                                shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity;
++                                participants.push(...result.nodes);
++                                sentToAnyone = true;
++                            } catch (e) {
++                                logger.warn({ jid: recipient, err: e && e.message }, 'skipping participant device that cannot be encrypted');
++                            }
++                        }
++                        if (!sentToAnyone) {
++                            logger.warn({ group: destinationJid }, 'no SKDM recipient could be encrypted - group send will not deliver');
++                        }
++                    }
+                 }
+                 binaryNodeContent.push({
+                     tag: 'enc',
+diff --git a/lib/Utils/signal.js b/lib/Utils/signal.js
+--- a/lib/Utils/signal.js
++++ b/lib/Utils/signal.js
+@@ -101,13 +101,13 @@ const extractDeviceJids = (result, myJid, excludeZeroDevices) => {
+         const { devices, id } = userResult;
+-        const { user } = (0, WABinary_1.jidDecode)(id);
++        const { user, server } = (0, WABinary_1.jidDecode)(id);
+         const deviceList = devices === null || devices === void 0 ? void 0 : devices.deviceList;
+         if (Array.isArray(deviceList)) {
+             for (const { id: device, keyIndex } of deviceList) {
+                 if ((!excludeZeroDevices || device !== 0) && // if zero devices are not-excluded, or device is non zero
+                     (myUser !== user || myDevice !== device) && // either different user or if me user, not this device
+                     (device === 0 || !!keyIndex) // ensure that "key-index" is specified for "non-zero" devices, produces a bad req otherwise
+                 ) {
+-                    extracted.push({ user, device });
++                    extracted.push({ user, device, server });
+                 }
+             }
+         }

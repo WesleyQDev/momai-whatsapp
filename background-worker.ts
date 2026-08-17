@@ -38,8 +38,20 @@ const {
   migratePlainCredsToEncrypted: _migratePlainCredsToEncrypted,
   decryptCredsForBaileys: _decryptCredsForBaileys,
   reEncryptCredsAfterBaileys: _reEncryptCredsAfterBaileys
-} = require('./baileys-cred-migration')
-const { secureWriteFile } = require('./fs-permissions')
+} = require('./baileys-cred-migration.ts')
+const { secureWriteFile } = require('./fs-permissions.ts')
+const {
+  withTimeout,
+  friendlySendError,
+  buildMessageContent,
+  sanitizeMediaFilename,
+  resolveJidForSending: _resolveJidForSendingPure,
+  shouldCheckWhatsAppExistence: _shouldCheckWhatsAppExistence,
+  forEachYield: _forEachYield,
+  MAX_AUDIO_BYTES
+} = require('./worker-utils.ts')
+
+let safeStorageAvailable = true
 
 // Wrappers that track whether safeStorage is available. If encryption ever fails,
 // we skip it entirely to avoid losing the session on every startup.
@@ -100,7 +112,6 @@ const workerStartTime = Math.floor(Date.now() / 1000)
 const CONTACT_NAMES_KEY = 'contact_names'
 const WA_CONTACTS_KEY = 'wa_contacts'
 const SETTINGS_KEY = 'settings'
-const CHECK_INTERVAL = 5000
 const ACTIONS_KEY = 'actions'
 const DEFAULT_CONTACT_KEY = 'default_contact'
 
@@ -152,6 +163,74 @@ async function saveActionsConfig(actions) {
   await momai.storage.set(ACTIONS_KEY, Array.isArray(actions) ? actions : [])
 }
 
+function _normalize(str) {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+const WHEN_KEYS = ['contact', 'groupName', 'isGroup', 'startsWith', 'endsWith', 'contains']
+
+function _toBool(v) {
+  if (v === true || v === false) return v
+  if (v === 'true') return true
+  if (v === 'false') return false
+  return undefined
+}
+
+function _hasWhen(action) {
+  const when = action && action.when
+  if (!when || typeof when !== 'object') return false
+  return WHEN_KEYS.some((k) => {
+    if (k === 'isGroup') return _toBool(when[k]) !== undefined
+    const v = when[k]
+    return typeof v === 'string' && v.trim().length > 0
+  })
+}
+
+/**
+ * Filtro de gatilho das actions do whatsapp_message: each action can carry an
+ * optional `when` with:
+ *   contact?, groupName?, isGroup?   -> remetente/conversa
+ *   startsWith?, endsWith?, contains? -> conteúdo da mensagem
+ * Empty/absent fields mean "any". The action only runs when the incoming
+ * message matches every filled trigger (AND).
+ */
+function actionMatchesEvent(action, data) {
+  if (!action || typeof action !== 'object') return false
+  if (!_hasWhen(action)) return true
+  const when = action.when
+  const evt = data || {}
+
+  if (typeof when.contact === 'string' && when.contact.trim()) {
+    const q = _normalize(when.contact)
+    if (
+      !_normalize(evt.contact).includes(q) &&
+      !_normalize(evt.contactJid).includes(q) &&
+      !_normalize(evt.senderJid).includes(q)
+    ) return false
+  }
+  if (typeof when.groupName === 'string' && when.groupName.trim()) {
+    if (!_normalize(evt.groupName).includes(_normalize(when.groupName))) return false
+  }
+  const wantGroup = _toBool(when.isGroup)
+  if (wantGroup !== undefined && !!evt.isGroup !== wantGroup) return false
+
+  const msg = _normalize(evt.message)
+  if (typeof when.startsWith === 'string' && when.startsWith.trim()) {
+    if (!msg.startsWith(_normalize(when.startsWith))) return false
+  }
+  if (typeof when.endsWith === 'string' && when.endsWith.trim()) {
+    if (!msg.endsWith(_normalize(when.endsWith))) return false
+  }
+  if (typeof when.contains === 'string' && when.contains.trim()) {
+    if (!msg.includes(_normalize(when.contains))) return false
+  }
+  return true
+}
+
 async function getDefaultContact() {
   try {
     const stored = await momai.storage.get(DEFAULT_CONTACT_KEY)
@@ -162,6 +241,7 @@ async function getDefaultContact() {
 }
 
 class MessageRetryCache {
+  store: Map<any, any> = new Map()
   constructor() {
     this.store = new Map()
   }
@@ -175,7 +255,7 @@ class MessageRetryCache {
     this.store.delete(key)
   }
   delete(key) {
-    this.store.delete(key)
+    this.del(key)
   }
   has(key) {
     return this.store.has(key)
@@ -195,25 +275,41 @@ function isPidRunning(pid) {
   }
 }
 
-function acquireLock() {
+async function acquireLock() {
   const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
   const lockFile = path.join(authDir, 'worker.lock')
   if (!fsSync.existsSync(authDir)) {
     fsSync.mkdirSync(authDir, { recursive: true })
   }
-  if (fsSync.existsSync(lockFile)) {
-    try {
-      const content = fsSync.readFileSync(lockFile, 'utf-8').trim()
-      const existingPid = parseInt(content, 10)
-      if (!isNaN(existingPid) && isPidRunning(existingPid)) {
-        momai.log(
-          `[whatsapp] Another instance is already running (PID: ${existingPid}). Exiting to prevent key corruption.`
-        )
-        process.exit(0)
+  // A worker restart (host hot-reload / health restart) can briefly overlap with
+  // the previous worker still releasing the lock. Retry a few times before giving
+  // up so we don't kill ourselves mid-shutdown and trigger another restart storm.
+  const MAX_ATTEMPTS = 4
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let busy = false
+    if (fsSync.existsSync(lockFile)) {
+      try {
+        const content = fsSync.readFileSync(lockFile, 'utf-8').trim()
+        const existingPid = parseInt(content, 10)
+        if (!isNaN(existingPid) && existingPid !== process.pid && isPidRunning(existingPid)) {
+          busy = true
+          if (attempt < MAX_ATTEMPTS) {
+            momai.log(
+              `[whatsapp] Another instance is running (PID: ${existingPid}); retrying lock (${attempt}/${MAX_ATTEMPTS - 1})...`
+            )
+            await new Promise((r) => setTimeout(r, 1000))
+            continue
+          }
+          momai.log(
+            `[whatsapp] Lock held by PID ${existingPid} timed out after ${MAX_ATTEMPTS} attempts; overriding stale lock.`
+          )
+          busy = false
+        }
+      } catch (err) {
+        momai.log(`[whatsapp] Error reading lockfile: ${err.message}. Overwriting.`)
       }
-    } catch (err) {
-      momai.log(`[whatsapp] Error reading lockfile: ${err.message}. Overwriting.`)
     }
+    if (!busy) break
   }
   try {
     fsSync.writeFileSync(lockFile, String(process.pid), 'utf-8')
@@ -263,19 +359,36 @@ async function loadMessageCaches() {
 }
 
 let saveCacheTimer = null
+const CACHE_TRIM_TARGET = 1000
+const CACHE_TRIM_TARGET_ON_QUOTA = 300
+let cacheQuotaWarnedAt = 0
 function queueSaveMessageCaches() {
   if (saveCacheTimer) return
   saveCacheTimer = setTimeout(async () => {
     saveCacheTimer = null
     try {
-      const sentObj = Object.fromEntries(sentMessagesCache.entries())
-      const storeObj = Object.fromEntries(messageStore.entries())
-      await momai.storage.set('message_cache_sent', sentObj)
-      await momai.storage.set('message_cache_store', storeObj)
+      await _persistMessageCaches()
     } catch (err) {
-      momai.log(`[whatsapp] Failed to save message caches: ${err.message}`)
+      // Quota (5MB): encolhe os caches e tenta uma vez antes de reclamar.
+      _trimMessageCaches(CACHE_TRIM_TARGET_ON_QUOTA)
+      try {
+        await _persistMessageCaches()
+      } catch (err2) {
+        const now = Date.now()
+        if (now - cacheQuotaWarnedAt > 60000) {
+          cacheQuotaWarnedAt = now
+          momai.log(`[whatsapp] message caches ainda excedem a quota após trim: ${err2.message}`)
+        }
+      }
     }
   }, 10000)
+}
+
+async function _persistMessageCaches() {
+  const sentObj = Object.fromEntries(sentMessagesCache.entries())
+  const storeObj = Object.fromEntries(messageStore.entries())
+  await momai.storage.set('message_cache_sent', sentObj)
+  await momai.storage.set('message_cache_store', storeObj)
 }
 
 async function repairSession(jid) {
@@ -294,26 +407,145 @@ async function repairSession(jid) {
     return
   }
 
-  const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
-  const sessionFile = path.join(authDir, `session-${jid}.json`)
-  if (fsSync.existsSync(sessionFile)) {
-    try {
-      fsSync.unlinkSync(sessionFile)
-      momai.log(`[whatsapp] Auto-healed session: deleted stale session file for ${jid}`)
-    } catch (err) {
-      momai.log(`[whatsapp] Failed to delete session file for ${jid}: ${err.message}`)
-    }
+  await forceClearSession(jid)
+}
+
+function getAltJid(jid) {
+  if (!jid || typeof jid !== 'string' || !jid.endsWith('@s.whatsapp.net')) return null
+  const digits = jid.replace(/[^0-9]/g, '')
+  if (digits.startsWith('55') && digits.length === 13 && digits[4] === '9') {
+    const altDigits = digits.slice(0, 4) + digits.slice(5)
+    return `${altDigits}@s.whatsapp.net`
+  } else if (digits.startsWith('55') && digits.length === 12) {
+    const altDigits = digits.slice(0, 4) + '9' + digits.slice(4)
+    return `${altDigits}@s.whatsapp.net`
   }
+  return null
+}
+
+function getSessionFiles(authDir, jid) {
+  if (!jid || !fsSync.existsSync(authDir)) return []
+  const digits = jid.replace(/[^0-9]/g, '')
+  if (!digits) return []
+
+  const targetDigitsList = [digits]
+  const alt = getAltJid(jid)
+  if (alt) {
+    const altDigits = alt.replace(/[^0-9]/g, '')
+    if (altDigits) targetDigitsList.push(altDigits)
+  }
+
+  try {
+    const allFiles = fsSync.readdirSync(authDir)
+    const matchingFiles = []
+    for (const f of allFiles) {
+      if (!f.startsWith('session-') || !f.endsWith('.json')) continue
+      const rest = f.slice('session-'.length, -'.json'.length)
+      const userDigits = rest.split('.')[0]
+      if (targetDigitsList.includes(userDigits)) {
+        matchingFiles.push(path.join(authDir, f))
+      }
+    }
+    return matchingFiles
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Apaga a sessão Signal de um contato (memória + arquivo, via keys.set do
+ * Baileys). Uma sessão criada mas nunca confirmada (baseKeyType 1) faz o
+ * WhatsApp aceitar o envio e deixar a mensagem para sempre no relógio
+ * "Aguardando mensagem". Limpar a sessão força o Baileys a refazer o handshake
+ * de prekeys na próxima tentativa.
+ *
+ * NÃO usa fsSync.unlinkSync direto nos arquivos `session-*.json`: o Baileys com
+ * useMultiFileAuthState lê/escreve esses arquivos a cada operação, e remover do
+ * disco por fora do file-lock interno causa corrida (arquivo some no meio de uma
+ * leitura → decriptação falha → handleLogEvent → repairSession → loop de
+ * ressincronização). `keys.set({ session: { jid: null } })` remove os arquivos
+ * com o lock do próprio Baileys (removeData).
+ */
+async function forceClearSession(jid) {
+  if (!jid) return
+
   if (sock?.authState?.keys?.set) {
     try {
-      await sock.authState.keys.set({ session: { [jid]: null } })
+      const digits = jid.replace(/[^0-9]/g, '')
+      const alt = getAltJid(jid)
+      const altDigits = alt ? alt.replace(/[^0-9]/g, '') : null
+      const keysToNull = {}
+      for (const d of [digits, altDigits].filter(Boolean)) {
+        keysToNull[`${d}@s.whatsapp.net`] = null
+        keysToNull[`${d}:0@s.whatsapp.net`] = null
+        keysToNull[d] = null
+      }
+      await sock.authState.keys.set({ session: keysToNull })
+      momai.log(`[whatsapp] Cleared session for ${jid} (Signal re-handshake on next send)`)
     } catch (err) {
-      momai.log(`[whatsapp] Failed to clear memory session for ${jid}: ${err.message}`)
+      momai.log(`[whatsapp] Failed to clear session for ${jid}: ${err.message}`)
+    }
+  } else {
+    // Fallback somente quando não há socket ativo (ex.: startup): sem Baileys
+    // rodando não há corrida de leitura, então o unlink direto é seguro aqui.
+    const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
+    const sessionFiles = getSessionFiles(authDir, jid)
+    for (const file of sessionFiles) {
+      try {
+        fsSync.unlinkSync(file)
+        momai.log(`[whatsapp] Cleared stale session file: ${path.basename(file)}`)
+      } catch (err) {
+        momai.log(`[whatsapp] Failed to delete session file ${path.basename(file)}: ${err.message}`)
+      }
     }
   }
 }
 
-function handleLogEvent(obj, msgStr) {
+const SESSION_HEALTH_TTL_MS = 8000
+/** @type {Map<string, { unhealthy: boolean, at: number }>} */
+const sessionHealthCache = new Map()
+
+/**
+ * Detecta sessão corrompida (criada mas não confirmada, baseKeyType 1) que causa
+ * o envio ficar preso em "Aguardando mensagem". Limpa a sessão para que o Baileys
+ * a recrie com prekeys novas. Cache com TTL curto: readdir+read de arquivos a
+ * cada envio era caro (várias mensagens seguidas = N leituras síncronas).
+ */
+function isSessionUnhealthy(jid) {
+  if (!jid || jid.endsWith('@g.us')) return false
+  const cached = sessionHealthCache.get(jid)
+  if (cached && Date.now() - cached.at < SESSION_HEALTH_TTL_MS) return cached.unhealthy
+
+  const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
+  const sessionFiles = getSessionFiles(authDir, jid)
+  let unhealthy = false
+  if (sessionFiles.length > 0) {
+    for (const file of sessionFiles) {
+      try {
+        const raw = fsSync.readFileSync(file, 'utf8')
+        const parsed = JSON.parse(raw)
+        const sessions = parsed?._sessions || {}
+        let unconfirmed = 0
+        let total = 0
+        for (const entry of Object.values<any>(sessions)) {
+          if (!entry) continue
+          total++
+          if (entry.indexInfo && entry.indexInfo.baseKeyType === 1) unconfirmed++
+        }
+        if (total > 0 && unconfirmed === total) {
+          unhealthy = true
+          break
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+  sessionHealthCache.set(jid, { unhealthy, at: Date.now() })
+  return unhealthy
+}
+
+function handleLogEvent(obj, msgStr = '') {
   const detail = obj?.err?.message || obj?.error || ''
   const messageText = msgStr || obj?.msg || ''
 
@@ -337,11 +569,28 @@ const messageStore = new Map()
 /** @type {Map<string, { data: object, fetchedAt: number }>} */
 const groupMetaCache = new Map()
 
-let sock = null
+/** Cooldown do fetch sob demanda de grupos no envio (evita refetch por mensagem). */
+let lastGroupFetchTs = 0
+const GROUP_FETCH_COOLDOWN_MS = 60000
+
+let sock: any = null
 let preventAutoReconnect = false
 let reconnectTimer = null
 let isConnecting = false
-let safeStorageAvailable = true
+
+// Reconnect backoff: rapid reconnect loops look abusive to WhatsApp and can get
+// the account temporarily restricted. Delay grows 5s → 60s and resets on open.
+let reconnectAttempts = 0
+const RECONNECT_BASE_MS = 5000
+const RECONNECT_MAX_MS = 60000
+function nextReconnectDelay() {
+  const delay = Math.min(RECONNECT_BASE_MS * Math.pow(2, reconnectAttempts), RECONNECT_MAX_MS)
+  reconnectAttempts++
+  return delay
+}
+function resetReconnectBackoff() {
+  reconnectAttempts = 0
+}
 
 function _clearReconnectTimer() {
   if (reconnectTimer) {
@@ -350,26 +599,81 @@ function _clearReconnectTimer() {
   }
 }
 
-let disabledContacts = []
-let contactNames = {}
-let waContacts = {}
+let disabledContacts: any[] = []
+let contactNames: any = {}
+let waContacts: any = {}
 let notificationsDisabled = false
 let connected = false
-let lastQr = null
+let lastQr: any = null
+
+// True enquanto o histórico/contatos do WhatsApp estão sendo sincronizados após
+// uma conexão (messaging-history.set popula waContacts aos poucos). Durante esse
+// janela, consultas de existência (onWhatsApp) podem devolver vazio para números
+// válidos — o envio não deve concluir "Número não registrado" nesse caso.
+let syncingContacts = false
+let syncingContactsTimer = null
+function _markSyncingContacts() {
+  syncingContacts = true
+  if (syncingContactsTimer) clearTimeout(syncingContactsTimer)
+  syncingContactsTimer = setTimeout(() => {
+    syncingContacts = false
+  }, 10000)
+}
+
 let lastQrAt = 0
 const QR_TTL_MS = 65000
 
-let cachedBaileysVersion = null
+let cachedBaileysVersion: any = null
 let cachedBaileysVersionAt = 0
+let installedBaileysVersion: any = null
+
+// Versão do Baileys instalado (package.json). Fallback para a versão com a qual
+// a extensão foi publicada caso o package.json não seja resolvível no sandbox.
+function getInstalledBaileysVersion() {
+  if (installedBaileysVersion) return installedBaileysVersion
+  try {
+    const pkg = require('@whiskeysockets/baileys/package.json')
+    const parts = String(pkg.version || '')
+      .split('.')
+      .map((n) => parseInt(n, 10))
+    if (parts.length >= 2 && parts.every((n) => Number.isFinite(n))) {
+      installedBaileysVersion = [parts[0], parts[1], parts[2] ?? 0]
+      return installedBaileysVersion
+    }
+  } catch (e) {
+    // package.json não resolvível (ex.: sandbox) — cai na constante abaixo
+  }
+  installedBaileysVersion = [6, 17, 16] // mesma versão da dependência no package.json
+  return installedBaileysVersion
+}
 
 async function getBaileysVersion() {
   if (cachedBaileysVersion && Date.now() - cachedBaileysVersionAt < 86400000) {
     return cachedBaileysVersion
   }
-  const { version } = await fetchLatestBaileysVersion()
-  cachedBaileysVersion = version
-  cachedBaileysVersionAt = Date.now()
-  return version
+  try {
+    const { version } = await withTimeout(
+      fetchLatestBaileysVersion(),
+      10000,
+      'fetchLatestBaileysVersion timeout'
+    )
+    cachedBaileysVersion = version
+    cachedBaileysVersionAt = Date.now()
+    return version
+  } catch (err) {
+    // fetchLatestBaileysVersion consulta a API do GitHub (api.github.com) para
+    // pegar a última versão. Em redes com rate-limit/GitHub bloqueado isso
+    // estoura o timeout de 10s e derrubava o connect() inteiro (QR nunca
+    // aparecia). Fallback para a versão instalada: o WhatsApp funciona
+    // normalmente, só não usa a versão "latest" do protocolo.
+    const fallback = getInstalledBaileysVersion()
+    momai.log(
+      `[whatsapp] Baileys version fetch failed (${err.message}); using installed ${fallback.join('.')}`
+    )
+    cachedBaileysVersion = fallback
+    cachedBaileysVersionAt = Date.now()
+    return fallback
+  }
 }
 
 function _qrStillValid() {
@@ -394,7 +698,11 @@ function _scheduleReEncrypt() {
 }
 
 /* creds.json exists after useMultiFileAuthState even without a real session.
-   Only treat it as "valid" if Baileys saved a real registrationId. */
+   Only treat it as "valid" if Baileys saved a real registrationId AND the
+   session was registered (user scanned QR at least once). Without the
+   `registered` check, _hasSavedSession returns true on a fresh install
+   because Baileys generates a registrationId before pairing, which makes
+   hasCredentials=true and the QR never shows in the UI. */
 function _hasSavedSession() {
   try {
     const cp = path.join(momai.storage.storageDir, 'baileys-auth', 'creds.json')
@@ -403,10 +711,14 @@ function _hasSavedSession() {
     if (fs.existsSync(cp)) {
       const raw = fs.readFileSync(cp, 'utf8')
       const creds = JSON.parse(raw)
-      return Number.isFinite(creds.registrationId) && creds.registrationId > 0
+      // creds.registered is only true after the user scans the QR code.
+      // Before pairing, Baileys writes registrationId but registered=false.
+      return creds.registered === true && Number.isFinite(creds.registrationId) && creds.registrationId > 0
     }
     if (fs.existsSync(ecp)) {
-      return true
+      // .enc may exist even for un-paired sessions (written on close);
+      // conservatively return false — the user will see a fresh QR.
+      return false
     }
     return false
   } catch {
@@ -415,9 +727,13 @@ function _hasSavedSession() {
 }
 
 function _emitQrCode(qr) {
+  const isSameQr = Boolean(lastQr && qr === lastQr)
   lastQr = qr
-  lastQrAt = Date.now()
-  const expiresIn = Math.max(1, Math.ceil((QR_TTL_MS - (Date.now() - lastQrAt)) / 1000))
+  // QR novo reseta o relógio; re-emissão do MESMO QR (ex.: request_qr com QR em
+  // cache) deve refletir o TTL restante, não o TTL cheio de novo.
+  if (!isSameQr) lastQrAt = Date.now()
+  const elapsed = Date.now() - lastQrAt
+  const expiresIn = Math.max(1, Math.ceil((QR_TTL_MS - elapsed) / 1000))
   momai.sendEvent('qr_code', { qr, expiresIn })
 }
 
@@ -446,7 +762,7 @@ async function _fetchPaginatedWaEntries({ groupsOnly, search, page, perPage }) {
   const pageNum = parseInt(page) || 1
   const perPageNum = parseInt(perPage) || 20
 
-  let entries = Object.values(waContacts).filter((c) =>
+  let entries = Object.values<any>(waContacts).filter((c) =>
     groupsOnly ? c.id.endsWith('@g.us') : c.phone && !c.id.endsWith('@g.us')
   )
 
@@ -467,19 +783,12 @@ async function _fetchPaginatedWaEntries({ groupsOnly, search, page, perPage }) {
   const sorted = entries
     .map((c) => {
       const resolvedLabel = _resolveWaContactDisplayName(c, c.id)
-      const hasName = Boolean(
-        _pickContactLabel(
-          contactNames[c.id],
-          contactNames[c.phone],
-          c.name,
-          c.notify,
-          c.verifiedName
-        )
-      )
+      const customName = _pickContactLabel(contactNames[c.id], contactNames[c.phone])
+      const hasRealName = Boolean(customName || _isUsableDisplayName(c.name))
       return {
         id: c.id,
         displayName: resolvedLabel,
-        hasName,
+        hasName: hasRealName,
         name: _isUsableDisplayName(c.name) ? c.name : null,
         notify: _isUsableDisplayName(c.notify) ? c.notify : null,
         phone: c.phone || c.id.split('@')[0],
@@ -495,40 +804,9 @@ async function _fetchPaginatedWaEntries({ groupsOnly, search, page, perPage }) {
   const start = (pageNum - 1) * perPageNum
   const paginated = sorted.slice(start, start + perPageNum)
 
-  if (sock && connected) {
-    const now = Date.now()
-    const ONE_DAY = 24 * 60 * 60 * 1000
-    const RETRY_DELAY = 10 * 60 * 1000
-
-    ;(async () => {
-      for (const c of paginated) {
-        const lastChecked = waContacts[c.id]?.profilePicCheckedAt || 0
-        const isFailedRecently = !waContacts[c.id]?.profilePicUrl && now - lastChecked < RETRY_DELAY
-        const isSuccessRecently = waContacts[c.id]?.profilePicUrl && now - lastChecked < ONE_DAY
-
-        if (!isFailedRecently && !isSuccessRecently) {
-          await new Promise((resolve) => setTimeout(resolve, 300))
-          try {
-            const url = await Promise.race([
-              sock.profilePictureUrl(c.id, 'image'),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
-            ])
-            if (waContacts[c.id]) {
-              waContacts[c.id].profilePicUrl = url
-              waContacts[c.id].profilePicCheckedAt = now
-              await momai.storage.set(_getWaContactsKey(), waContacts)
-              momai.sendEvent('contacts_updated', {})
-            }
-          } catch {
-            if (waContacts[c.id]) {
-              waContacts[c.id].profilePicCheckedAt = now - ONE_DAY + RETRY_DELAY
-              await momai.storage.set(_getWaContactsKey(), waContacts)
-            }
-          }
-        }
-      }
-    })().catch(() => {})
-  }
+  // Nota: nenhuma busca automática de fotos de perfil aqui. A listagem apenas
+  // devolve o que já está no cache (waContacts.profilePicUrl). O único caminho
+  // para refetch é o botão "Atualizar fotos de perfil" da UI (get_avatars force).
 
   return {
     contacts: paginated,
@@ -573,7 +851,7 @@ function _resolveWaContactDisplayName(contact, jid) {
 
 function _sanitizeStoredContactNames() {
   let changed = false
-  for (const contact of Object.values(waContacts)) {
+  for (const contact of Object.values<any>(waContacts)) {
     if (contact.name && !_isUsableDisplayName(contact.name)) {
       contact.name = null
       changed = true
@@ -598,8 +876,10 @@ async function fetchAndStoreGroups() {
     if (groups && typeof groups === 'object') {
       let added = 0
       let updated = 0
-      for (const [jid, meta] of Object.entries(groups)) {
-        if (!jid.endsWith('@g.us')) continue
+      const groupEntries = Object.entries<any>(groups)
+      await _forEachYield(groupEntries, (entry) => {
+        const [jid, meta] = entry
+        if (!jid.endsWith('@g.us')) return
         groupMetaCache.set(jid, { data: meta, fetchedAt: Date.now() })
 
         const subjectName = meta.subject ? String(meta.subject).trim() : null
@@ -621,13 +901,34 @@ async function fetchAndStoreGroups() {
           }
           updated++
         }
-      }
+      })
       if (added > 0 || updated > 0) {
         await momai.storage.set(_getWaContactsKey(), waContacts)
         momai.log(
           `Groups updated: ${added} new groups, ${updated} updated, ${Object.keys(waContacts).length} total waContacts`
         )
-        momai.sendEvent('contacts_updated', {})
+        _notifyContactsUpdated()
+      }
+
+      // Remove do cache grupos em que o número não participa mais (JID velho
+      // de grupo excluído/removido). Sem isso, o nome do grupo continua
+      // resolvendo para o JID fantasma e o envio é recusado pelo WhatsApp
+      // com "not-acceptable" (não-membro). Só poda quando o fetch retornou a
+      // lista real de grupos participados (evita apagar tudo em fetch parcial).
+      const participating = new Set(Object.keys(groups))
+      if (participating.size > 0) {
+        let pruned = 0
+        await _forEachYield(Object.keys(waContacts), (jid) => {
+          if (jid.endsWith('@g.us') && !participating.has(jid)) {
+            delete waContacts[jid]
+            groupMetaCache.delete(jid)
+            pruned++
+          }
+        })
+        if (pruned > 0) {
+          await momai.storage.set(_getWaContactsKey(), waContacts)
+          momai.log(`Groups pruned: removed ${pruned} stale group(s) not in participating list`)
+        }
       }
     }
   } catch (err) {
@@ -670,9 +971,9 @@ function populateContactsFromChatHistory() {
   }
   return added
 }
-let chatHistory = []
+let chatHistory: any[] = []
 let totalMessages = 0
-let _currentPhone = null
+let _currentPhone: string | null = null
 let receivedJids = new Set()
 
 function _messageCacheKey(key) {
@@ -680,12 +981,12 @@ function _messageCacheKey(key) {
   return `${key.remoteJid || ''}:${key.id}`
 }
 
-function _trimMessageCaches() {
-  if (sentMessagesCache.size > 5000) {
+function _trimMessageCaches(max = CACHE_TRIM_TARGET) {
+  while (sentMessagesCache.size > max) {
     const firstKey = sentMessagesCache.keys().next().value
     sentMessagesCache.delete(firstKey)
   }
-  if (messageStore.size > 5000) {
+  while (messageStore.size > max) {
     const firstKey = messageStore.keys().next().value
     messageStore.delete(firstKey)
   }
@@ -702,26 +1003,23 @@ function cacheMessage(key, message) {
 
 /**
  * Stale sender-key-memory makes Baileys skip SKDM distribution → "Aguardando mensagem" in groups.
+ *
+ * Só a MEMÓRIA de sender-key é resetada (via keys.set com null, o mesmo mecanismo
+ * que o próprio Baileys usa em sendMessagesAgain). Os arquivos `sender-key-*.json`
+ * (as chaves criptográficas do grupo) NÃO são apagados do disco em runtime: o
+ * Baileys com useMultiFileAuthState lê do disco a cada operação, e apagar as
+ * chaves enquanto conectado corrompe o estado → mensagens do grupo falham na
+ * decriptação → handleLogEvent → repairSession → loop de ressincronização.
  */
 async function resetGroupSenderKeyMemory(groupJid) {
   if (!groupJid?.endsWith('@g.us')) return
 
-  const fsSync = require('fs')
-  const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
-  const memFile = path.join(authDir, `sender-key-memory-${groupJid}.json`)
-
-  try {
-    if (fsSync.existsSync(memFile)) {
-      fsSync.unlinkSync(memFile)
-      momai.log(`Cleared sender-key-memory for ${groupJid}`)
-    }
-  } catch (e) {
-    momai.log(`Failed to clear sender-key-memory file: ${e.message}`)
-  }
-
   if (sock?.authState?.keys?.set) {
     try {
-      await sock.authState.keys.set({ 'sender-key-memory': { [groupJid]: {} } })
+      // null → removeData (com o file-lock do Baileys), forçando re-distribuição
+      // de SKDM na próxima mensagem do grupo. É o comportamento canônico.
+      await sock.authState.keys.set({ 'sender-key-memory': { [groupJid]: null } })
+      momai.log(`Cleared sender-key-memory for ${groupJid}`)
     } catch (e) {
       momai.log(`Failed to reset in-memory sender-key-memory: ${e.message}`)
     }
@@ -753,7 +1051,13 @@ function isSenderKeyMemoryStale(groupJid, participantIds) {
     for (const base of participantBases) {
       if (marked.some((m) => m.split('@')[0].split(':')[0] === base)) covered++
     }
-    return covered < Math.ceil(participantBases.size * 0.4)
+    // Se faltar algum participante em grupos pequenos (ou mais de 10% em grupos grandes),
+    // a memória está desatualizada e deve ser refeita para evitar 'Aguardando mensagem'.
+    const requiredCoverage =
+      participantBases.size <= 5
+        ? participantBases.size
+        : Math.ceil(participantBases.size * 0.9)
+    return covered < requiredCoverage
   } catch {
     return true
   }
@@ -764,10 +1068,10 @@ async function prepareGroupForSend(groupJid) {
 
   let meta
   try {
-    meta = await Promise.race([
-      sock.groupMetadata(groupJid),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000))
-    ])
+    // Best-effort: se o metadata não chegar em 5s, segue com o envio mesmo
+    // assim (o check de sender-key-memory é apenas um heal). Antes eram 15s,
+    // o que sozinho já estourava o timeout do painel em grupos grandes.
+    meta = await withTimeout(sock.groupMetadata(groupJid), 5000)
     groupMetaCache.set(groupJid, { data: meta, fetchedAt: Date.now() })
   } catch (e) {
     momai.log(`prepareGroupForSend metadata: ${e.message}`)
@@ -775,11 +1079,63 @@ async function prepareGroupForSend(groupJid) {
   }
 
   const participantIds = meta?.participants?.map((p) => p.id) || []
+  momai.log(`prepareGroupForSend: ${groupJid} participants=${JSON.stringify(participantIds)}`)
+
   if (isSenderKeyMemoryStale(groupJid, participantIds)) {
     momai.log(
       `prepareGroupForSend: stale sender-key-memory for ${groupJid} (${participantIds.length} participants)`
     )
     await resetGroupSenderKeyMemory(groupJid)
+  }
+}
+
+async function getGroupParticipants(groupJid) {
+  if (!sock || !connected || !groupJid) {
+    return { ok: false, error: 'WhatsApp desconectado ou JID de grupo inválido', participants: [] }
+  }
+
+  let meta
+  try {
+    meta = await withTimeout(sock.groupMetadata(groupJid), 10000)
+    groupMetaCache.set(groupJid, { data: meta, fetchedAt: Date.now() })
+  } catch (err) {
+    const cached = groupMetaCache.get(groupJid)
+    if (cached?.data) {
+      meta = cached.data
+    } else {
+      momai.log(`getGroupParticipants failed: ${err.message}`)
+      return { ok: false, error: err.message, participants: [] }
+    }
+  }
+
+  const rawParticipants = meta?.participants || []
+  const participants = rawParticipants.map((p) => {
+    const jid = p.id
+    const rawNumber = (jid || '').split('@')[0] || ''
+    const name = resolveContactName(jid)
+    const avatar = getStoredAvatarUrl(jid)
+    const isAdmin = p.admin === 'admin' || p.admin === 'superadmin'
+    return {
+      id: jid,
+      phone: rawNumber,
+      name: name || _formatPhoneLabel(rawNumber),
+      admin: isAdmin ? (p.admin === 'superadmin' ? 'Superadmin' : 'Admin') : undefined,
+      avatar: avatar || null
+    }
+  })
+
+  // Ordenar: admins primeiro, depois alfabética
+  participants.sort((a, b) => {
+    if (a.admin && !b.admin) return -1
+    if (!a.admin && b.admin) return 1
+    return (a.name || '').localeCompare(b.name || '', 'pt-BR')
+  })
+
+  return {
+    ok: true,
+    groupJid,
+    groupName: meta?.subject || 'Grupo',
+    participants
   }
 }
 
@@ -801,6 +1157,43 @@ function _getSettingsKey() {
 
 function _getChatHistoryKey() {
   return _currentPhone ? `${CHAT_HISTORY_KEY}-${_currentPhone}` : CHAT_HISTORY_KEY
+}
+
+let _contactsUpdatedTimer = null
+function _notifyContactsUpdated() {
+  if (_contactsUpdatedTimer) return
+  _contactsUpdatedTimer = setTimeout(() => {
+    _contactsUpdatedTimer = null
+    momai.sendEvent('contacts_updated', {})
+  }, 1000)
+}
+
+/**
+ * Persistência agrupada do waContacts para updates de avatar (foto por foto).
+ * Antes, cada perfil resolvido fazia `storage.set(_getWaContactsKey(), waContacts)`
+ * — fetch paginado com N contatos = N writes síncronos + N eventos. Aqui a escrita
+ * é serializada 1× por janela (1500ms), após todas as mutações do lote.
+ */
+let waContactsPersistTimer = null
+let waContactsDirty = false
+function _scheduleWaContactsPersist({ emitEvent = true } = {}) {
+  waContactsDirty = true
+  if (waContactsPersistTimer) return
+  waContactsPersistTimer = setTimeout(async () => {
+    waContactsPersistTimer = null
+    if (!waContactsDirty) return
+    waContactsDirty = false
+    try {
+      await momai.storage.set(_getWaContactsKey(), waContacts)
+      // Por padrão emite contacts_updated para manter a UI sincronizada.
+      // Passar { emitEvent: false } para evitar loops (ex: retry de avatar).
+      if (emitEvent) {
+        _notifyContactsUpdated()
+      }
+    } catch (err) {
+      momai.log(`[whatsapp] Failed to persist waContacts (avatars): ${err.message}`)
+    }
+  }, 1500)
 }
 
 function buildPersistedHistorySnapshot(limit = MAX_PERSISTED_CONVERSATIONS) {
@@ -888,13 +1281,13 @@ function resolveStandardJid(jid) {
   const rawNumber = standard.split('@')[0]
 
   // Try to find by LID mapping
-  const matchByLid = Object.values(waContacts).find(
+  const matchByLid = Object.values<any>(waContacts).find(
     (c) => c.lid === standard || c.lid === rawNumber
   )
   if (matchByLid) return matchByLid.id
 
   // Try to find by phone (for LID-like JIDs that are actually mapped)
-  const matchByPhone = Object.values(waContacts).find((c) => c.phone === rawNumber)
+  const matchByPhone = Object.values<any>(waContacts).find((c) => c.phone === rawNumber)
   if (matchByPhone) return matchByPhone.id
 
   return standard
@@ -936,14 +1329,9 @@ function enrichHistoryEntry(h) {
     h.groupName
   )
 
-  let from = h.from
-  const fromInvalid =
-    h.forceUpdateNames || !from || !_isUsableDisplayName(from) || (!isGroupChat && from === 'Grupo')
-  if (fromInvalid) {
-    from = isGroupChat
-      ? groupLabel || resolveContactName(remoteJid) || 'Grupo'
-      : resolveContactName(senderJid) || resolveContactName(remoteJid)
-  }
+  let from = isGroupChat
+    ? groupLabel || resolveContactName(remoteJid) || h.from || 'Grupo'
+    : resolveContactName(senderJid) || resolveContactName(remoteJid) || h.from
 
   return {
     ...h,
@@ -967,7 +1355,7 @@ function resolveContactName(jid) {
     if (waContacts[jid]) {
       return _resolveWaContactDisplayName(waContacts[jid], jid)
     }
-    const matched = Object.values(waContacts).find((c) => c.lid === jid)
+    const matched = Object.values<any>(waContacts).find((c) => c.lid === jid)
     if (matched) {
       return resolveContactName(matched.id)
     }
@@ -998,11 +1386,10 @@ function resolveContactName(jid) {
   }
 
   const wc =
-    waContacts[jid] || Object.values(waContacts).find((c) => c.id.split('@')[0] === rawNumber)
-  if (wc) return _resolveWaContactDisplayName(wc, jid)
+    waContacts[jid] || Object.values<any>(waContacts).find((c) => c.id.split('@')[0] === rawNumber)
   if (wc) return _resolveWaContactDisplayName(wc, jid)
 
-  for (const [key, contact] of Object.entries(waContacts)) {
+  for (const [key, contact] of Object.entries<any>(waContacts)) {
     const keyDigits = key.split('@')[0].replace(/\D/g, '')
     if (keyDigits && (digitsOnly.endsWith(keyDigits) || keyDigits.endsWith(digitsOnly))) {
       return _resolveWaContactDisplayName(contact, key)
@@ -1036,7 +1423,7 @@ function resolveChatAvatarUrl(jid, isGroup, senderJid) {
   return null
 }
 
-async function ensureAvatarForJid(jid) {
+async function ensureAvatarForJid(jid, opts: any = {}) {
   if (!jid) return null
 
   const cached = getStoredAvatarUrl(jid)
@@ -1061,29 +1448,33 @@ async function ensureAvatarForJid(jid) {
   }
 
   const entry = waContacts[jid]
+  const force = opts?.force === true
+
+  // Já existe foto válida no banco: nunca refetch automático. Somente com
+  // force=true (botão "Atualizar fotos de perfil") a API é consultada de novo.
+  if (!force && entry.profilePicUrl) return entry.profilePicUrl
+
   const now = Date.now()
   const ONE_DAY = 24 * 60 * 60 * 1000
   const RETRY_DELAY = 10 * 60 * 1000
   const lastChecked = entry.profilePicCheckedAt || 0
-  const isFailedRecently = !entry.profilePicUrl && now - lastChecked < RETRY_DELAY
-  const isSuccessRecently = entry.profilePicUrl && now - lastChecked < ONE_DAY
+  const isFailedRecently = !force && !entry.profilePicUrl && now - lastChecked < RETRY_DELAY
 
-  if (cached && (isSuccessRecently || isFailedRecently)) {
+  if (isFailedRecently) {
     return entry.profilePicUrl || null
   }
 
   try {
-    const url = await Promise.race([
-      sock.profilePictureUrl(jid, 'image'),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
-    ])
+    const url = await withTimeout(sock.profilePictureUrl(jid, 'image'), 5000)
     entry.profilePicUrl = url
     entry.profilePicCheckedAt = now
-    await momai.storage.set(_getWaContactsKey(), waContacts)
+    _scheduleWaContactsPersist({ emitEvent: false })
     return url
   } catch {
-    entry.profilePicCheckedAt = now - ONE_DAY + RETRY_DELAY
-    await momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+    // Cooldown real: isFailedRecently usa (now - lastChecked < RETRY_DELAY),
+    // então now é suficiente para impedir retry por 10 min.
+    entry.profilePicCheckedAt = now
+    _scheduleWaContactsPersist({ emitEvent: false })
     return entry.profilePicUrl || null
   }
 }
@@ -1101,10 +1492,19 @@ function _isContactDisabled(jid) {
   })
 }
 
+/** Normaliza um contato (nome/número/JID) para um JID canônico para o
+ * disabledContacts. Se não resolve, vira `dígitos@s.whatsapp.net`. */
+function _normalizeContactId(raw) {
+  const resolved = resolveJidForSending(raw)
+  if (resolved && resolved.includes('@')) return resolved
+  const digits = String(raw).replace(/\D/g, '')
+  return digits ? `${digits}@s.whatsapp.net` : String(raw).trim()
+}
+
 function _cleanupStaleContacts() {
   let changed = false
   const standardLids = new Set(
-    Object.values(waContacts)
+    Object.values<any>(waContacts)
       .filter((c) => c.id && !c.id.endsWith('@lid') && c.lid)
       .map((c) => c.lid)
   )
@@ -1165,7 +1565,7 @@ async function _loadPerPhoneData() {
 
 async function main() {
   // Acquire single instance lock
-  acquireLock()
+  await acquireLock()
 
   // Load message caches from storage
   await loadMessageCaches()
@@ -1240,17 +1640,16 @@ async function connect() {
     // next re-encrypt and silently log the user out. Surface the error
     // and exit so the host can prompt the user to re-pair.
     const encCredsPath = path.join(authDir, 'creds.json.enc')
+    const plainCredsPath = path.join(authDir, 'creds.json')
     const encCredsExists = await fs.access(encCredsPath).then(
       () => true,
       () => false
     )
-    if (encCredsExists && !decrypted) {
-      // creds.json.enc exists but cannot be decrypted (e.g. OS keychain
-      // locked, safeStorage unavailable in dev mode). Keep the encrypted
-      // file and let Baileys try to use it. If Baileys can't use it, it
-      // will generate a QR code anyway. We don't wipe the creds here
-      // because that would force a re-scan on every startup when
-      // safeStorage is unavailable, which is annoying for the user.
+    const plainCredsExists = await fs.access(plainCredsPath).then(
+      () => true,
+      () => false
+    )
+    if (encCredsExists && !plainCredsExists && !decrypted) {
       momai.log(
         '[whatsapp] WARN: creds.json.enc could not be decrypted ' +
           '(safeStorage unavailable?). Keeping encrypted creds; Baileys will ' +
@@ -1311,6 +1710,7 @@ async function connect() {
       logger,
       printQRInTerminal: false,
       emitOwnEvents: false,
+      fireInitQueries: false,
       generateHighQualityLinkPreview: false,
       msgRetryCounterCache,
       browser: ['Windows', 'Chrome', '122.0.0'],
@@ -1332,7 +1732,21 @@ async function connect() {
         }
         const cached = sentMessagesCache.get(key.id)
         if (cached) return cached
-        // Empty proto lets Baileys complete retries instead of hanging on "Aguardando mensagem"
+        // Se a chave contiver um JID com dígito extra (ou sem), tentar fallback por dígitos no messageStore
+        if (key.id && key.remoteJid) {
+          const targetDigits = key.remoteJid.replace(/[^0-9]/g, '')
+          for (const [k, msg] of messageStore.entries()) {
+            const [storeJid, storeId] = k.split(':')
+            if (storeId === key.id && storeJid) {
+              const storeDigits = storeJid.replace(/[^0-9]/g, '')
+              if (storeDigits && targetDigits && (storeDigits === targetDigits || storeDigits.endsWith(targetDigits) || targetDigits.endsWith(storeDigits))) {
+                return msg
+              }
+            }
+          }
+        }
+        // Proto vazio: deixa o Baileys completar retries de mensagens enviadas
+        // (sendMessagesAgain) em vez de travar no relógio "Aguardando mensagem".
         return { conversation: '' }
       }
     })
@@ -1357,12 +1771,26 @@ async function connect() {
         lastQr = null
         lastQrAt = 0
         connected = true
+        resetReconnectBackoff()
         groupMetaCache.clear()
+        _markSyncingContacts()
 
-        // Baileys has loaded creds.json and is now running. Move the Signal
-        // protocol keys back to encrypted-at-rest storage. While Baileys is
-        // connected, creds.json stays plain on disk (Baileys needs it there).
-        // On the next worker restart (or on close/disconnect) we'll re-encrypt.
+        // Diagnóstico (só log, não muda fluxo): sessão com registro incompleto no
+        // servidor (creds.registered=false) aceita envios mas NÃO entrega mensagens
+        // de grupo (ficam presas no relógio "Aguardando mensagem"). A correção é
+        // reconectar o WhatsApp (QR novo) e confirmar no celular.
+        const registered = !!sock?.authState?.creds?.registered
+        if (!registered) {
+          momai.log(
+            '[whatsapp] WARN: creds.registered=false — sessão não registrada no servidor. ' +
+              'Envio de grupo pode não entregar. Reconecte o WhatsApp (Desconectar → Reconectar) e confirme no celular.'
+          )
+        }
+
+        // Baileys has loaded creds.json and is running. Write a best-effort
+        // encrypted backup (creds.json.enc). The plain creds.json is KEPT: it is
+        // Baileys' working copy, and the session must survive restarts even when
+        // safeStorage is unavailable or the ciphertext turns out corrupt.
         reEncryptCredsAfterBaileys(authDir).catch((err) =>
           momai.log(`post-connect re-encrypt failed: ${err.message}`)
         )
@@ -1385,26 +1813,23 @@ async function connect() {
             }
 
             const pn = await momai.storage.get(_getContactNamesKey())
-            if (pn) {
-              contactNames = pn
+            if (pn && Object.keys(pn).length > 0) {
+              contactNames = { ...pn, ...contactNames }
+              await momai.storage.set(_getContactNamesKey(), contactNames)
             } else if (contactNames && Object.keys(contactNames).length > 0) {
               await momai.storage.set(_getContactNamesKey(), contactNames)
-            } else {
-              contactNames = {}
             }
 
             const wc = await momai.storage.get(_getWaContactsKey())
             if (wc && Object.keys(wc).length > 0) {
-              waContacts = wc
+              waContacts = { ...wc, ...waContacts }
             } else if (waContacts && Object.keys(waContacts).length > 0) {
               await momai.storage.set(_getWaContactsKey(), waContacts)
             } else {
               const genericWc = await momai.storage.get(WA_CONTACTS_KEY)
               if (genericWc && Object.keys(genericWc).length > 0) {
-                waContacts = genericWc
+                waContacts = { ...genericWc, ...waContacts }
                 await momai.storage.set(_getWaContactsKey(), waContacts)
-              } else {
-                waContacts = {}
               }
             }
 
@@ -1419,58 +1844,33 @@ async function connect() {
           }
           populateContactsFromChatHistory()
           fetchAndStoreGroups().catch(() => {})
-          momai.sendEvent('contacts_updated', {})
+          // Retry único: se o fetch de grupos inicial falhou ou veio vazio,
+          // tenta de novo em seguida — o envio por NOME de grupo depende do
+          // cache populado (a resolução sob demanda do send é o segundo plano).
+          setTimeout(() => {
+            const hasGroups = Object.values<any>(waContacts).some(
+              (c) => c && c.id && c.id.endsWith('@g.us')
+            )
+            if (!hasGroups) fetchAndStoreGroups().catch(() => {})
+          }, 10000)
+          _notifyContactsUpdated()
         } catch {}
         momai.sendEvent('authenticated', { status: 'connected' })
         momai.sendEvent('connection_status', { status: 'connected' })
         momai.sendEvent('history_loaded', { count: chatHistory.length })
         momai.log('WhatsApp connected')
 
-        // Start pruning timer to remove deleted contacts from WhatsApp
+        // Notify contacts sync complete without destructively deleting existing contacts
         setTimeout(async () => {
           try {
-            const existingWhatsAppKeys = Object.keys(waContacts).filter((k) => !k.endsWith('@g.us'))
-            const minRequired = Math.max(3, Math.floor(existingWhatsAppKeys.length * 0.3))
-
-            if (receivedJids.size < minRequired) {
-              momai.log(
-                `Skipping pruning: only ${receivedJids.size} JIDs received vs ${existingWhatsAppKeys.length} stored (need ${minRequired})`
-              )
-              const total = Object.values(waContacts).filter(
-                (c) => c.phone && !c.id.endsWith('@g.us')
-              ).length
-              momai.sendEvent('contacts_synced', { count: total, isFinal: true })
-              return
-            }
-
-            const before = Object.keys(waContacts).length
-            let changed = false
-            for (const key of existingWhatsAppKeys) {
-              if (!receivedJids.has(key)) {
-                delete waContacts[key]
-                delete contactNames[key]
-                const phone = key.split('@')[0]
-                if (phone) {
-                  delete contactNames[phone]
-                }
-                changed = true
-              }
-            }
-            if (changed) {
-              await momai.storage.set(_getWaContactsKey(), waContacts)
-              await momai.storage.set(_getContactNamesKey(), contactNames)
-              momai.log(
-                `Sync session finished: pruned ${before - Object.keys(waContacts).length} deleted contacts`
-              )
-            }
-            const total = Object.values(waContacts).filter(
+            const total = Object.values<any>(waContacts).filter(
               (c) => c.phone && !c.id.endsWith('@g.us')
             ).length
             momai.sendEvent('contacts_synced', { count: total, isFinal: true })
           } catch (err) {
-            momai.log(`Error finalizing contact sync: ${err.message}`)
+            momai.log(`Error finalizing contact sync event: ${err.message}`)
           }
-        }, 10000)
+        }, 3000)
       } else if (connection === 'close') {
         connected = false
         isConnecting = false
@@ -1487,9 +1887,13 @@ async function connect() {
         const statusCode = lastDisconnect?.error?.output?.statusCode
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut
         if (shouldReconnect) {
+          momai.log(
+            `[whatsapp] Connection closed (statusCode=${statusCode}, reason=${lastDisconnect?.error?.message || 'unknown'}). Reconnecting.`
+          )
           momai.sendEvent('connection_status', { status: 'reconnecting' })
           _clearReconnectTimer()
-          reconnectTimer = setTimeout(connect, CHECK_INTERVAL)
+          const delay = nextReconnectDelay()
+          reconnectTimer = setTimeout(connect, delay)
         } else {
           // LOGGED OUT: Baileys confirmed the stored creds are invalid.
           // Wipe the auth dir immediately and trigger a fresh connection
@@ -1517,44 +1921,58 @@ async function connect() {
       }
     })
 
-    sock.ev.on('messaging-history.set', ({ contacts: syncedContacts, chats: syncedChats, messages: syncedMessages }) => {
+    sock.ev.on('messaging-history.set', async ({ contacts: syncedContacts, chats: syncedChats, messages: syncedMessages }) => {
+      _markSyncingContacts()
       const before = Object.keys(waContacts).length
       let added = 0
       let updated = 0
+      let lidCount = 0
 
       if (syncedContacts?.length) {
         momai.log(`History sync: received ${syncedContacts.length} contacts`)
-        for (const c of syncedContacts) {
+        await _forEachYield(syncedContacts, (c) => {
           if (c.id) receivedJids.add(c.id)
-        }
-        for (const c of syncedContacts) {
-          if (!c.id) continue
+        })
+
+        // Pré-computa o índice verifiedName→jid UMA vez por lote. Antes, cada
+        // contato @lid fazia Object.values(waContacts).find() — O(n²) com
+        // ~950 LIDs × ~1448 contatos (~1,4M de comparações por lote), e ainda
+        // logava cada LID (centenas de writes síncronos que bloqueiam o event
+        // loop). O worker ficava dezenas de segundos sem processar comandos
+        // (send_message pendurava e o overlay travava).
+        const byVerifiedName = new Map()
+        await _forEachYield(Object.values<any>(waContacts), (existing) => {
+          if (existing.verifiedName) {
+            if (!byVerifiedName.has(existing.verifiedName)) {
+              byVerifiedName.set(existing.verifiedName, existing)
+            }
+          }
+        })
+
+        // Processa o lote em chunks com yield do event loop: sem isso o worker
+        // fica "dezenas de segundos" sem processar comandos IPC (send_message
+        // pendura e estoura o timeout de 30s do host). (ver _forEachYield)
+        await _forEachYield(syncedContacts, (c) => {
+          if (!c.id) return
 
           // For @lid contacts, try to resolve to a standard JID or store with verifiedName (Business)
           if (c.id.endsWith('@lid')) {
-            momai.log(
-              `LID contact: id=${c.id} name=${c.name || '-'} notify=${c.notify || '-'} verifiedName=${c.verifiedName || '-'}`
-            )
-            const existingMatch = Object.values(waContacts).find(
-              (existing) =>
-                !existing.id.endsWith('@lid') &&
-                existing.verifiedName &&
-                existing.verifiedName === c.verifiedName
-            )
+            lidCount++
+            const existingMatch = byVerifiedName.get(c.verifiedName)
             if (existingMatch) {
               existingMatch.lid = c.id
               if (c.verifiedName) existingMatch.verifiedName = c.verifiedName
               if (c.name) existingMatch.name = c.name
-              continue
+              return
             }
 
             if (!c.name && !c.verifiedName && !c.notify) {
-              continue
+              return
             }
           }
 
           const phone = c.id.split('@')[0].replace(/\D/g, '')
-          if (!phone) continue
+          if (!phone) return
 
           if (!waContacts[c.id]) {
             waContacts[c.id] = {
@@ -1577,17 +1995,17 @@ async function connect() {
             if (c.lid) waContacts[c.id].lid = c.lid
             updated++
           }
-        }
+        })
       }
 
       if (syncedChats?.length) {
         momai.log(`History sync: received ${syncedChats.length} chats`)
-        for (const c of syncedChats) {
-          if (!c.id) continue
+        await _forEachYield(syncedChats, (c) => {
+          if (!c.id) return
           receivedJids.add(c.id)
-          if (c.id.endsWith('@g.us')) continue
+          if (c.id.endsWith('@g.us')) return
           const phone = c.id.split('@')[0].replace(/\D/g, '')
-          if (!phone) continue
+          if (!phone) return
           const name = _isUsableDisplayName(c.name) ? String(c.name).trim() : null
           if (!waContacts[c.id]) {
             waContacts[c.id] = {
@@ -1603,17 +2021,17 @@ async function connect() {
             waContacts[c.id].name = name
             updated++
           }
-        }
+        })
       }
 
       if (syncedMessages?.length) {
         momai.log(`History sync: received ${syncedMessages.length} messages`)
-        for (const m of syncedMessages) {
+        await _forEachYield(syncedMessages, (m) => {
           const jid = m.key?.remoteJid
-          if (!jid || jid.endsWith('@g.us')) continue
+          if (!jid || jid.endsWith('@g.us')) return
           receivedJids.add(jid)
           const phone = jid.split('@')[0].replace(/\D/g, '')
-          if (!phone) continue
+          if (!phone) return
           const pushName = _isUsableDisplayName(m.pushName) ? String(m.pushName).trim() : null
           if (!waContacts[jid]) {
             waContacts[jid] = {
@@ -1629,52 +2047,59 @@ async function connect() {
             waContacts[jid].notify = pushName
             updated++
           }
-        }
+        })
       }
 
       const historyAdded = populateContactsFromChatHistory()
       if (added > 0 || updated > 0 || historyAdded > 0) {
         momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
         momai.log(
-          `Contacts stored: ${added} new, ${updated} updated, ${historyAdded} from history, ${Object.keys(waContacts).length} total`
+          `Contacts stored: ${added} new, ${updated} updated, ${historyAdded} from history, ${Object.keys(waContacts).length} total` +
+            (lidCount > 0 ? ` (${lidCount} lid)` : '')
         )
       }
       const total = Object.keys(waContacts).length
       if (total > 0) {
         momai.sendEvent('contacts_synced', { count: total, isFinal: false })
-        momai.sendEvent('contacts_updated', {})
+        _notifyContactsUpdated()
       }
     })
 
-    sock.ev.on('contacts.upsert', (contacts) => {
+    sock.ev.on('contacts.upsert', async (contacts) => {
       let updated = 0
-      for (const c of contacts) {
+      // Índice verifiedName→contato padrão (UMA vez por lote). Antes, cada
+      // contato @lid fazia Object.values(waContacts).find() — O(n²) e bloqueava
+      // o event loop com lote grande de LIDs durante o sync.
+      const byVerifiedName = new Map()
+      for (const existing of Object.values<any>(waContacts)) {
+        if (existing.id && !existing.id.endsWith('@lid') && existing.verifiedName) {
+          if (!byVerifiedName.has(existing.verifiedName)) {
+            byVerifiedName.set(existing.verifiedName, existing)
+          }
+        }
+      }
+      await _forEachYield(contacts, (c) => {
         if (c.id) receivedJids.add(c.id)
-        if (!c.id) continue
+        if (!c.id) return
 
         if (c.id.endsWith('@lid')) {
           // If this LID has a verifiedName, it's likely a Business account
           // Try to associate it with an existing standard JID
-          const existingMatch = Object.values(waContacts).find(
-            (existing) =>
-              !existing.id.endsWith('@lid') &&
-              existing.verifiedName &&
-              existing.verifiedName === c.verifiedName
-          )
+          const existingMatch = byVerifiedName.get(c.verifiedName)
           if (existingMatch) {
             existingMatch.lid = c.id
             if (c.verifiedName) existingMatch.verifiedName = c.verifiedName
             if (_isUsableDisplayName(c.name)) existingMatch.name = String(c.name).trim()
-            continue
+            return
           }
           // If no name details, skip
           if (!_pickContactLabel(c.name, c.verifiedName, c.notify)) {
-            continue
+            return
           }
         }
 
         const phone = c.id.split('@')[0].replace(/\D/g, '')
-        if (!phone) continue
+        if (!phone) return
         const nextName = _isUsableDisplayName(c.name) ? String(c.name).trim() : null
         const nextNotify = _isUsableDisplayName(c.notify) ? String(c.notify).trim() : null
         const nextVerified = _isUsableDisplayName(c.verifiedName)
@@ -1690,26 +2115,32 @@ async function connect() {
           lid: c.lid || waContacts[c.id]?.lid || null
         }
         updated++
-      }
+      })
       if (updated > 0) {
         momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
-        momai.sendEvent('contacts_updated', {})
+        _notifyContactsUpdated()
       }
     })
 
-    sock.ev.on('contacts.update', (updates) => {
+    sock.ev.on('contacts.update', async (updates) => {
       let changed = 0
-      for (const u of updates) {
+      // Índice lid→contato padrão (UMA vez por lote) — evita o O(n²) de
+      // Object.values(waContacts).find() por update @lid.
+      const byLid = new Map()
+      for (const existing of Object.values<any>(waContacts)) {
+        if (existing.lid) byLid.set(existing.lid, existing)
+      }
+      await _forEachYield(updates, (u) => {
         if (u.id) receivedJids.add(u.id)
-        if (!u.id) continue
+        if (!u.id) return
 
         let target = waContacts[u.id]
         if (!target && u.id.endsWith('@lid')) {
           // Find standard contact linked to this LID
-          target = Object.values(waContacts).find((c) => c.lid === u.id)
+          target = byLid.get(u.id)
         }
 
-        if (!target) continue
+        if (!target) return
 
         if (_isUsableDisplayName(u.notify)) {
           target.notify = String(u.notify).trim()
@@ -1723,18 +2154,18 @@ async function connect() {
           target.verifiedName = u.verifiedName
           changed++
         }
-      }
+      })
       if (changed > 0) {
         momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
-        momai.sendEvent('contacts_updated', {})
+        _notifyContactsUpdated()
       }
     })
 
-    sock.ev.on('groups.upsert', (groupMetas) => {
+    sock.ev.on('groups.upsert', async (groupMetas) => {
       if (!groupMetas?.length) return
       let changed = false
-      for (const meta of groupMetas) {
-        if (!meta.id || !meta.id.endsWith('@g.us')) continue
+      await _forEachYield(groupMetas, (meta) => {
+        if (!meta.id || !meta.id.endsWith('@g.us')) return
         groupMetaCache.set(meta.id, { data: meta, fetchedAt: Date.now() })
         const subjectName = meta.subject ? String(meta.subject).trim() : null
         const formattedName = _isUsableDisplayName(subjectName) ? subjectName : 'Grupo'
@@ -1752,18 +2183,18 @@ async function connect() {
           waContacts[meta.id].name = subjectName
           changed = true
         }
-      }
+      })
       if (changed) {
         momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
-        momai.sendEvent('contacts_updated', {})
+        _notifyContactsUpdated()
       }
     })
 
-    sock.ev.on('groups.update', (updates) => {
+    sock.ev.on('groups.update', async (updates) => {
       if (!updates?.length) return
       let changed = false
-      for (const u of updates) {
-        if (!u.id || !u.id.endsWith('@g.us')) continue
+      await _forEachYield(updates, (u) => {
+        if (!u.id || !u.id.endsWith('@g.us')) return
         if (u.subject && _isUsableDisplayName(u.subject)) {
           if (!waContacts[u.id]) {
             waContacts[u.id] = {
@@ -1779,10 +2210,10 @@ async function connect() {
           }
           changed = true
         }
-      }
+      })
       if (changed) {
         momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
-        momai.sendEvent('contacts_updated', {})
+        _notifyContactsUpdated()
       }
     })
 
@@ -1792,7 +2223,8 @@ async function connect() {
     isConnecting = false
     momai.log(`Connection error: ${err.message}`)
     _clearReconnectTimer()
-    reconnectTimer = setTimeout(connect, 5000)
+    const delay = nextReconnectDelay()
+    reconnectTimer = setTimeout(connect, delay)
   }
 }
 
@@ -1838,9 +2270,9 @@ async function handleMessagesUpsert({ messages }) {
         ? senderJid
         : null
     if (lidJid) {
-      const hasLidMapping = Object.values(waContacts).some((c) => c.lid === lidJid)
+      const hasLidMapping = Object.values<any>(waContacts).some((c) => c.lid === lidJid)
       if (!hasLidMapping && msg.pushName) {
-        const match = Object.values(waContacts).find(
+        const match = Object.values<any>(waContacts).find(
           (c) => !c.id.endsWith('@lid') && (c.notify === msg.pushName || c.name === msg.pushName)
         )
         if (match) {
@@ -1899,13 +2331,12 @@ async function handleMessagesUpsert({ messages }) {
       (!waContacts[msg.key.remoteJid]?.name || waContacts[msg.key.remoteJid]?.name === 'Grupo')
     ) {
       try {
-        const meta = await Promise.race([
-          sock.groupMetadata(msg.key.remoteJid),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
-        ])
+        const meta: any = await withTimeout(sock.groupMetadata(msg.key.remoteJid), 3000)
         if (meta?.subject) {
           waContacts[msg.key.remoteJid].name = meta.subject
-          await momai.storage.set(_getWaContactsKey(), waContacts)
+          await momai.storage.set(_getWaContactsKey(), waContacts).catch((e) =>
+            momai.log(`Failed to persist group subject for ${msg.key.remoteJid}: ${e.message}`)
+          )
         }
         groupMetaCache.set(msg.key.remoteJid, { data: meta, fetchedAt: Date.now() })
       } catch (err) {
@@ -1914,6 +2345,10 @@ async function handleMessagesUpsert({ messages }) {
     }
 
     // Fetch avatar picture (group avatar if group, sender avatar if private)
+    // NOTA: Após a primeira sincronização, avatares NÃO são buscados automaticamente.
+    // O único caminho para refetch é o botão "Atualizar fotos de perfil" (force).
+    // Mantemos apenas a busca na primeira vez (sem URL armazenada) para contatos
+    // novos que chegam via mensagem.
     const avatarTarget = isGroup
       ? remoteJid
       : remoteJid.endsWith('@lid')
@@ -1923,15 +2358,11 @@ async function handleMessagesUpsert({ messages }) {
       const lastChecked = waContacts[avatarTarget].profilePicCheckedAt || 0
       const isFailedRecently =
         !waContacts[avatarTarget].profilePicUrl && now - lastChecked < RETRY_DELAY
-      const isSuccessRecently =
-        waContacts[avatarTarget].profilePicUrl && now - lastChecked < ONE_DAY
 
-      if (!isFailedRecently && !isSuccessRecently) {
+      // Só busca se NÃO tem URL e NÃO falhou recentemente
+      if (!waContacts[avatarTarget].profilePicUrl && !isFailedRecently) {
         try {
-          const url = await Promise.race([
-            sock.profilePictureUrl(avatarTarget, 'image'),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
-          ])
+          const url = await withTimeout(sock.profilePictureUrl(avatarTarget, 'image'), 3000)
           if (waContacts[avatarTarget]) {
             waContacts[avatarTarget].profilePicUrl = url
             waContacts[avatarTarget].profilePicCheckedAt = now
@@ -1939,7 +2370,8 @@ async function handleMessagesUpsert({ messages }) {
           }
         } catch {
           if (waContacts[avatarTarget]) {
-            waContacts[avatarTarget].profilePicCheckedAt = now - ONE_DAY + RETRY_DELAY
+            // Cooldown real: now permite retry após RETRY_DELAY (10 min)
+            waContacts[avatarTarget].profilePicCheckedAt = now
             await momai.storage.set(_getWaContactsKey(), waContacts)
           }
         }
@@ -1956,10 +2388,7 @@ async function handleMessagesUpsert({ messages }) {
 
       if (isMissingMetadata || isStale) {
         try {
-          const meta = await Promise.race([
-            sock.groupMetadata(msg.key.remoteJid),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
-          ])
+          const meta: any = await withTimeout(sock.groupMetadata(msg.key.remoteJid), 5000)
           if (meta) {
             groupAnnounce = !!meta.announce
             groupMetaCache.set(msg.key.remoteJid, { data: meta, fetchedAt: Date.now() })
@@ -2087,10 +2516,7 @@ async function handleMessagesUpsert({ messages }) {
       })
 
       if (!isNoteToSelf) {
-        const [actionsConfig, defaultContact] = await Promise.all([
-          getActionsConfig(),
-          getDefaultContact()
-        ])
+        const defaultContact = await getDefaultContact()
         momai.sendEvent('whatsapp_message', {
           contact: finalDisplayName,
           senderName: isGroup ? displayName : undefined,
@@ -2100,7 +2526,6 @@ async function handleMessagesUpsert({ messages }) {
           timestamp: msg.messageTimestamp,
           isGroup: !!isGroup,
           groupName: isGroup ? resGroupName : undefined,
-          actions: actionsConfig.length ? actionsConfig : undefined,
           defaultContact: defaultContact || undefined
         })
       }
@@ -2151,22 +2576,32 @@ async function saveIncomingAudio(msg) {
       return null
     }
 
-    const buffer = await downloadMediaMessage(
-      msg,
-      'buffer',
-      {},
-      {
-        rekey: false
-      }
+    const buffer = await withTimeout(
+      downloadMediaMessage(
+        msg,
+        'buffer',
+        {},
+        {
+          rekey: false
+        }
+      ),
+      30000,
+      'audio download timeout'
     )
 
     if (buffer) {
       const fsSync = require('fs')
+      if (buffer.length > MAX_AUDIO_BYTES) {
+        momai.log(
+          `[whatsapp-audio] Áudio grande demais (${buffer.length} bytes > ${MAX_AUDIO_BYTES}); ignorado`
+        )
+        return null
+      }
       const audioDir = path.join(momai.storage.storageDir, 'audio')
       if (!fsSync.existsSync(audioDir)) {
         fsSync.mkdirSync(audioDir, { recursive: true })
       }
-      const filename = `${msg.key.id || Date.now()}.ogg`
+      const filename = `${sanitizeMediaFilename(msg.key.id, String(Date.now()))}.ogg`
       const filePath = path.join(audioDir, filename)
       fsSync.writeFileSync(filePath, buffer)
       momai.log(`[whatsapp-audio] Saved audio message: ${filename}`)
@@ -2179,127 +2614,266 @@ async function saveIncomingAudio(msg) {
 }
 
 function resolveJidForSending(contact) {
-  momai.log(`[resolveJidForSending] Input contact="${contact}"`)
-  if (!contact || typeof contact !== 'string' || contact.trim() === '') {
-    return null
-  }
-
-  let jid = contact.trim()
-
-  // 1. If it's already a valid group JID, return it directly
-  if (jid.endsWith('@g.us')) {
-    return jid
-  }
-
-  // 2. If it ends with @lid, resolve to s.whatsapp.net JID from waContacts
-  if (jid.endsWith('@lid')) {
-    const matched = Object.values(waContacts).find((c) => c.lid === jid || c.id === jid)
-    if (matched && matched.id && !matched.id.endsWith('@lid')) {
-      return matched.id
-    }
-    return jid // fallback
-  }
-
-  // 3. If it contains letters (i.e. it is a display name like "Pai Tenebroso")
-  const isJid = jid.includes('@')
-  const hasLetters = /[a-zA-Z\s]/.test(jid.split('@')[0])
-
-  if (!isJid || hasLetters) {
-    const cleanContact = jid.split('@')[0].trim().toLowerCase()
-
-    // First try: Find match in contactNames
-    for (const [key, name] of Object.entries(contactNames)) {
-      if (name && name.toLowerCase() === cleanContact) {
-        let resolved = key
-        if (!resolved.includes('@')) {
-          resolved = `${resolved}@s.whatsapp.net`
-        }
-        if (resolved.endsWith('@s.whatsapp.net')) {
-          return resolved
-        }
-      }
-    }
-
-    // Second try: Find in waContacts displayName / name / notify / phone
-    for (const [cId, c] of Object.entries(waContacts)) {
-      if (cId.endsWith('@lid')) continue
-
-      const displayName = (
-        contactNames[c.phone] ||
-        c.name ||
-        c.notify ||
-        c.verifiedName ||
-        ''
-      ).toLowerCase()
-      if (
-        displayName === cleanContact ||
-        (c.name && c.name.toLowerCase() === cleanContact) ||
-        (c.notify && c.notify.toLowerCase() === cleanContact) ||
-        (c.phone && c.phone === cleanContact)
-      ) {
-        return cId
-      }
-    }
-  }
-
-  // 4. If it's just a raw number (digits only), format as @s.whatsapp.net
-  if (!jid.includes('@')) {
-    const digitsOnly = jid.replace(/\D/g, '')
-    if (digitsOnly) {
-      return `${digitsOnly}@s.whatsapp.net`
-    }
-  }
-
-  return jid
+  const resolved = _resolveJidForSendingPure(contact, {
+    waContacts,
+    contactNames,
+    resolveDisplayName: _resolveWaContactDisplayName
+  })
+  if (contact) momai.log(`[resolveJidForSending] Input contact="${contact}" -> "${resolved}"`)
+  return resolved
 }
 
-// Builds the Baileys message content. With an image, sends the image and uses
-// the text as the caption (MOM-117). Accepts a data URI, raw base64 or Buffer.
-function buildMessageContent(message, image) {
-  if (!image) return { text: message }
-  let buffer
-  if (typeof image === 'string' && /^data:image\/[^;]+;base64,/.test(image)) {
-    buffer = Buffer.from(image.slice(image.indexOf(',') + 1), 'base64')
-  } else if (
-    typeof image === 'string' &&
-    image.length % 4 === 0 &&
-    /^[A-Za-z0-9+/=]+$/.test(image)
-  ) {
-    buffer = Buffer.from(image, 'base64')
-  } else if (Buffer.isBuffer(image)) {
-    buffer = image
-  } else {
-    throw new Error('image inválida: use data URI, base64 ou Buffer')
+/**
+ * Resolve o JID @g.us de um grupo pelo NOME exibido — o valor que o usuário
+ * digita/seleciona na ação (o JID fica resolvido por trás). Primeiro procura
+ * no cache waContacts; se o grupo não estiver lá (fetch inicial falhou, grupo
+ * criado depois), busca os grupos do WhatsApp sob demanda
+ * (groupFetchAllParticipating) com cooldown e tenta de novo.
+ */
+async function findGroupJidByDisplayName(name) {
+  const clean = String(name || '').trim().toLowerCase()
+  if (!clean) return null
+
+  const matchInCache = () =>
+    Object.values<any>(waContacts).find(
+      (c) => c && c.id && c.id.endsWith('@g.us') && _groupNameMatches(c, clean)
+    )
+
+  const cached = matchInCache()
+  if (cached) return cached.id
+
+  if (sock && connected && Date.now() - lastGroupFetchTs > GROUP_FETCH_COOLDOWN_MS) {
+    lastGroupFetchTs = Date.now()
+    await fetchAndStoreGroups()
+    const fresh = matchInCache()
+    if (fresh) return fresh.id
   }
-  const content = { image: buffer }
-  if (message) content.caption = message
-  return content
+
+  return null
 }
 
-async function sendMessage(contact, message, image) {
+function _groupNameMatches(contact, clean) {
+  const candidates = [contact.name, contact.notify, contact.verifiedName]
+    .filter((s) => s && typeof s === 'string')
+    .map((s) => String(s).trim().toLowerCase())
+    .filter((s) => s && s !== 'grupo')
+  if (candidates.includes(clean)) return true
+  return candidates.some((s) => s.includes(clean) || clean.includes(s))
+}
+
+// Builds the Baileys message content (with image → caption). Implementação em
+// worker-utils.ts (validada por testes) e importada no topo deste arquivo.
+
+async function sendMessage(contact, message, image = null) {
+  const t0 = Date.now()
+  const stage = (label, extra = '') =>
+    momai.log(`[send] ${label}${extra ? ' ' + extra : ''} (t+${Date.now() - t0}ms)`)
   if (!sock || !connected) throw new Error('WhatsApp not connected')
+  stage(
+    'enter',
+    `to="${contact}" msg="${(message || '').substring(0, 40)}" image=${image ? 'yes' : 'no'} connected=${connected}`
+  )
 
-  const jid = resolveJidForSending(contact)
+  // Valida/decodifica a imagem ANTES de qualquer retry de rede (evita mandar
+  // base64 gigante; erro claro imediato).
+  const content = buildMessageContent(message, image)
+
+  // Resolve o JID do destino com retry curto. Logo após uma reconexão o sync de
+  // contatos/grupos (messaging-history.set) ainda está populando waContacts; um
+  // NOME que não resolve na 1ª tentativa pode resolver segundos depois. Antes,
+  // o throw "Não encontrei X" acontecia nesse janela → envio intermitente.
+  const MAX_RESOLVE_RETRIES = 3
+  let jid = null
+  for (let attempt = 1; attempt <= MAX_RESOLVE_RETRIES; attempt++) {
+    jid = resolveJidForSending(contact)
+    if (jid && jid.includes('@')) break
+
+    // Nome cru (sem '@'): pode ser nome de GRUPO ainda não sincronizado. Busca
+    // os grupos sob demanda (fetch com cooldown próprio de grupos) e resolve
+    // pelo nome exibido — o valor salvo na ação é o nome, o JID fica por trás.
+    if (jid && !jid.includes('@')) {
+      const groupJid = await findGroupJidByDisplayName(contact)
+      if (groupJid) {
+        jid = groupJid
+        momai.log(`sendMessage: resolved group by name "${contact}" -> ${jid}`)
+        break
+      }
+    }
+
+    if (attempt < MAX_RESOLVE_RETRIES) {
+      momai.log(
+        `sendMessage: destino "${contact}" ainda não resolvido (tentativa ${attempt}/${MAX_RESOLVE_RETRIES}); ` +
+          `aguardando sync de contatos...`
+      )
+      await new Promise((r) => setTimeout(r, attempt * 1500))
+    }
+  }
+
   if (!jid) {
     throw new Error(`Invalid contact: "${contact}"`)
   }
+  if (!jid.includes('@') && /[a-zA-Z\u00C0-\u024F]/.test(String(contact))) {
+    // Nome com letras não resolveu para contato nem grupo mesmo após o retry:
+    // melhor dar erro claro do que deixar o onWhatsApp tratar como "número".
+    throw new Error(
+      `Não encontrei "${contact}" no WhatsApp (nem como contato, nem como grupo). ` +
+      `Verifique se o número da sessão participa do grupo e se o nome está correto.`
+    )
+  }
 
   const isGroup = jid.endsWith('@g.us')
+  stage('jid', `contact="${contact}" -> "${jid}" group=${isGroup}`)
   momai.log(
     `sendMessage: contact="${contact}" resolved_jid="${jid}" group=${isGroup} msg="${(message || '').substring(0, 40)}" image=${image ? 'yes' : 'no'}`
   )
+
+  // Captura o socket ativo. `sock` pode ser nulo/substituído por uma reconexão
+  // no meio do fluxo (race com `sock = null` no connect()); re-checar evita
+  // TypeError cru em `sock.ws`/`sock.onWhatsApp`.
+  let current = sock
+  if (!current) throw new Error('WhatsApp reconectando; tente novamente')
+
+  // O flag `connected` é atualizado nos eventos de conexão e pode ficar defasado
+  // durante uma reconexão: o Baileys aceita o envio localmente, resolve, mas a
+  // mensagem fica presa no relógio "Aguardando mensagem" porque o WebSocket real
+  // está morto. Verificar o estado real antes de enviar evita isso.
+  const wsOpen =
+    current.ws && typeof current.ws.isOpen === 'boolean' ? current.ws.isOpen : 'n/a'
+  if (current.ws && typeof current.ws.isOpen === 'boolean' && !current.ws.isOpen) {
+    const waitMs = 15000
+    const wsWaitStart = Date.now()
+    momai.log(`[whatsapp] WebSocket closed; waiting for reconnect before sending to ${jid}`)
+    stage('ws_wait', `start wsOpen=${wsOpen}`)
+    while (Date.now() - wsWaitStart < waitMs) {
+      await new Promise((r) => setTimeout(r, 500))
+      if (!sock) {
+        throw new Error(`WhatsApp reconectando; tente novamente em instantes (destino: "${contact}")`)
+      }
+      if (sock.ws && sock.ws.isOpen) break
+    }
+    if (!sock || !sock.ws || !sock.ws.isOpen) {
+      throw new Error(`WhatsApp reconectando; tente novamente em instantes (destino: "${contact}")`)
+    }
+    stage('ws_wait_done', `waited=${Date.now() - wsWaitStart}ms wsOpen=true`)
+    momai.log(`[whatsapp] WebSocket reconnected; proceeding with send to ${jid}`)
+  } else {
+    stage('ws_check', `wsOpen=${wsOpen} (no wait needed)`)
+  }
+
+  // Re-captura após a espera: se o socket foi trocado, usa o novo.
+  current = sock
+  if (!current) throw new Error('WhatsApp reconectando; tente novamente')
+
+  // Destinatário individual precisa ser um WhatsApp ativo. Sem essa checagem,
+  // o Baileys aceita o envio localmente e a mensagem fica presa no relógio
+  // "Aguardando mensagem" para sempre quando o número não existe (ex.: número
+  // trocado/desativado ou contato sem WhatsApp). A validação é best-effort:
+  // se a query falhar por rede, segue tentando enviar (mesmo comportamento de
+  // antes) em vez de bloquear o fluxo.
+  // A checagem SÓ roda para números crus/desconhecidos: contatos que o app já
+  // conhece (waContacts, últimas mensagens, notificação) ou JIDs @lid/@g.us
+  // pulam o onWhatsApp — quem mandou mensagem ou está na agenda existe no
+  // WhatsApp, e o USync query só adiciona latência (estourava o timeout do
+  // painel durante a sync pós-conexão). @lid não é número de telefone: a query
+  // por telefone sempre falha ("Número não registrado") mesmo com contato
+  // válido; Baileys aceita enviar direto pro @lid. (MOM-XXX)
+  const isLidJid = jid.endsWith('@lid')
+  const shouldCheck = _shouldCheckWhatsAppExistence(contact, jid, waContacts)
+  if (
+    !isGroup &&
+    !isLidJid &&
+    current &&
+    typeof current.onWhatsApp === 'function' &&
+    shouldCheck
+  ) {
+    const owaStart = Date.now()
+    try {
+      const result = await withTimeout(current.onWhatsApp(jid), 4000, 'onWhatsApp timeout')
+      const jidDigits = jid.replace(/[^0-9]/g, '')
+      const entries = Array.isArray(result) ? result : null
+      if (entries) {
+        // Em sessões LID (Privacy ID), o Baileys pode devolver o JID do contato
+        // como @lid — os dígitos do LID NÃO são o telefone, então a comparação
+        // por dígitos falhava e mensagens legítimas eram bloqueadas com
+        // "Número não registrado". Resolve o LID de volta para o telefone
+        // conhecido (waContacts) antes de comparar.
+        const entry = entries.find((r) => {
+          if (!r) return false
+          const rJid = String(r.jid || '').replace(/[^0-9]/g, '')
+          const rLid = String(r.lid || '').replace(/[^0-9]/g, '')
+          const rRaw = String(r.jid || '')
+          const rFromLid = rRaw.endsWith('@lid') ? resolveStandardJid(rRaw) : null
+          const rResolved =
+            rFromLid && rFromLid !== rRaw ? String(rFromLid).replace(/[^0-9]/g, '') : ''
+          return Boolean(
+            (rJid && jidDigits && (rJid === jidDigits || rJid.endsWith(jidDigits))) ||
+              (rResolved && jidDigits && rResolved === jidDigits) ||
+              (rLid && jidDigits && (rLid === jidDigits || jidDigits.endsWith(rLid)))
+          )
+        })
+        const anyLidEntry =
+          entries.length > 0 && entries.some((r) => r && String(r.jid || '').endsWith('@lid'))
+        // O Baileys omite números não registrados da resposta, então consulta
+        // concluída sem entrada = número inválido — EXCETO durante a janela de
+        // sync de contatos (resposta `[]` transiente para números válidos) e
+        // quando o servidor devolve apenas o @lid sem mapeamento local: nesses
+        // casos não bloqueia o envio (procede como timeout de rede).
+        if (!entry && !anyLidEntry) {
+          if (syncingContacts) {
+            momai.log(
+              `sendMessage: onWhatsApp vazio para ${jid} durante sync de contatos — ` +
+                `procedendo (contato pode ainda não estar carregado)`
+            )
+          } else {
+            throw new Error(`Número não registrado no WhatsApp: "${contact}"`)
+          }
+        }
+        if (entry?.jid && entry.jid !== jid) {
+          momai.log(`sendMessage: updating target JID from "${jid}" to canonical "${entry.jid}"`)
+          jid = entry.jid
+        } else if (!entry && anyLidEntry) {
+          momai.log(
+            `sendMessage: onWhatsApp returned only LID(s) for ${jid} without local mapping — proceeding`
+          )
+        }
+      }
+    } catch (err) {
+      if (err && err.message && err.message.includes('não registrado no WhatsApp')) {
+        throw err
+      }
+      momai.log(`sendMessage: onWhatsApp check failed for ${jid}: ${err.message} — proceeding`)
+    }
+    stage('onWhatsApp', `done (took ${Date.now() - owaStart}ms)`)
+  } else {
+    stage(
+      'onWhatsApp',
+      `skipped (isGroup=${isGroup} isLid=${isLidJid} hasFn=${current && typeof current.onWhatsApp === 'function'} shouldCheck=${shouldCheck})`
+    )
+  }
 
   if (isGroup) {
     await prepareGroupForSend(jid)
   }
 
-  const content = buildMessageContent(message, image)
+  // Sessão Signal corrompida (criada mas nunca confirmada, baseKeyType 1) faz o
+  // envio resolver mas a mensagem ficar presa no relógio "Aguardando mensagem".
+  // Limpar a sessão antes de enviar força o Baileys a refazer o handshake.
+  if (!isGroup && isSessionUnhealthy(jid)) {
+    momai.log(`[whatsapp] Unhealthy session detected for ${jid}; clearing before send`)
+    await forceClearSession(jid)
+  }
+
+  if (content.image && Buffer.isBuffer(content.image)) {
+    momai.log(`sendMessage: media size = ${content.image.length} bytes (${jid})`)
+  }
 
   const MAX_RETRIES = isGroup ? 4 : 3
   let lastError
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const attemptStart = Date.now()
     try {
-      const sent = await sock.sendMessage(jid, content)
+      const sent = await current.sendMessage(jid, content)
+      stage(`send_ok`, `attempt=${attempt} sock.sendMessage took ${Date.now() - attemptStart}ms`)
       if (sent?.key?.id && sent?.message) {
         cacheMessage(sent.key, sent.message)
       }
@@ -2307,7 +2881,19 @@ async function sendMessage(contact, message, image) {
       break
     } catch (err) {
       lastError = err
+      stage(
+        `send_fail`,
+        `attempt=${attempt} took ${Date.now() - attemptStart}ms err="${err.message}"`
+      )
       momai.log(`sendMessage attempt ${attempt}/${MAX_RETRIES} failed: ${err.message}`)
+      if (err && err.data !== undefined) {
+        momai.log(`sendMessage error code/data: ${JSON.stringify(err.data)}`)
+      }
+      if (err && err.stack) {
+        momai.log(
+          `sendMessage error stack: ${String(err.stack).split('\n').slice(0, 8).join(' → ')}`
+        )
+      }
 
       if (attempt < MAX_RETRIES) {
         const delayMs = (isGroup ? 2500 : 1500) * attempt
@@ -2334,11 +2920,12 @@ async function sendMessage(contact, message, image) {
 
   momai.sendEvent('message_sent', { contact: displayName, jid })
 
+  stage('total', `sent to "${jid}" ok in ${Date.now() - t0}ms`)
   return { ok: true }
 }
 
 async function getPanelData() {
-  const validContacts = Object.values(waContacts).filter((c) => c.phone && !c.id.endsWith('@g.us'))
+  const validContacts = Object.values<any>(waContacts).filter((c) => c.phone && !c.id.endsWith('@g.us'))
   return {
     connected,
     syncedContacts: validContacts.length,
@@ -2367,6 +2954,41 @@ process.on('SIGTERM', () => {
     })
 })
 
+// When node-core restarts (dev hot-reload, crash), this worker would otherwise
+// keep running as an orphan: it holds worker.lock and the WhatsApp socket, so
+// fresh workers spawned by the new node-core retry the lock for seconds and
+// messages fail with "No persistent host". Exit and release the lock as soon as
+// the IPC channel to the parent closes.
+let parentGoneHandled = false
+function onParentGone() {
+  if (parentGoneHandled) return
+  parentGoneHandled = true
+  try {
+    momai.log('[whatsapp] Parent process (node-core) is gone; releasing lock and exiting.')
+  } catch {}
+  reEncryptCredsAfterBaileys(path.join(momai.storage.storageDir, 'baileys-auth'))
+    .catch(() => {})
+    .finally(() => {
+      releaseLock()
+      flushPersistedChatHistory()
+        .catch(() => {})
+        .finally(() => process.exit(0))
+    })
+}
+if (typeof process.send === 'function') {
+  process.on('disconnect', onParentGone)
+  const parentWatch = setInterval(() => {
+    // process.channel is null/undefined once the IPC channel is closed
+    // (including when the parent was killed on Windows, where 'disconnect'
+    // may not fire reliably).
+    if (process.channel == null) {
+      clearInterval(parentWatch)
+      onParentGone()
+    }
+  }, 2000)
+  parentWatch.unref()
+}
+
 // IPC listener for tool execution from LLM
 process.on('message', async (msg) => {
   if (msg.type === 'shutdown') {
@@ -2385,29 +3007,26 @@ process.on('message', async (msg) => {
       switch (msg.payload?.toolName) {
         case 'send_message': {
           const args = msg.payload.args || {}
+          const cmdStart = Date.now()
           try {
             result = await sendMessage(args.contact, args.message, args.image || args.media)
             momai.log(
-              `send_message OK: to=${args.contact} msg="${(args.message || '').substring(0, 50)}"`
+              `send_message OK: to=${args.contact} msg="${(args.message || '').substring(0, 50)}" (t+${Date.now() - cmdStart}ms)`
             )
             result.directResponse = `Mensagem enviada`
           } catch (err) {
-            momai.log(`send_message FAILED: ${err.message}`)
+            momai.log(
+              `send_message FAILED: ${err.message} (t+${Date.now() - cmdStart}ms)`
+            )
+            const friendly = friendlySendError(err.message, args.contact)
             result = {
               ok: false,
-              error: err.message,
-              directResponse: `Erro ao enviar: ${err.message}`
+              error: friendly,
+              directResponse: `Erro ao enviar: ${friendly}`
             }
           }
           break
         }
-        case 'set_actions':
-          await saveActionsConfig(msg.payload.args?.actions)
-          result = { ok: true, actions: await getActionsConfig() }
-          break
-        case 'get_actions':
-          result = { ok: true, actions: await getActionsConfig() }
-          break
         case 'set_default_contact': {
           const contact = String(msg.payload.args?.contact || '').trim()
           await momai.storage.set(DEFAULT_CONTACT_KEY, contact)
@@ -2418,16 +3037,27 @@ process.on('message', async (msg) => {
           result = { ok: true, contact: await getDefaultContact() }
           break
         case 'list_contacts': {
-          const allContacts = Object.values(waContacts)
+          const allContacts = Object.values<any>(waContacts)
             .filter((c) => c.phone && !c.id.endsWith('@g.us'))
             .map((c) => ({
               id: c.id,
               name: _resolveWaContactDisplayName(c, c.id),
               phone: c.phone,
               monitoring: !_isContactDisabled(c.id),
-              profilePicUrl: c.profilePicUrl || null
+              profilePicUrl: c.profilePicUrl || null,
+              isGroup: false
             }))
-          result = { contacts: allContacts }
+          const allGroups = Object.values<any>(waContacts)
+            .filter((c) => c.id && c.id.endsWith('@g.us'))
+            .map((c) => ({
+              id: c.id,
+              name: _resolveWaContactDisplayName(c, c.id),
+              phone: null,
+              monitoring: !_isContactDisabled(c.id),
+              profilePicUrl: c.profilePicUrl || null,
+              isGroup: true
+            }))
+          result = { contacts: allContacts, groups: allGroups }
           break
         }
         case 'toggle_monitoring': {
@@ -2450,19 +3080,152 @@ process.on('message', async (msg) => {
           result = { ok: true, contact: contactId, monitoring: isDisabled }
           break
         }
+        case 'add_contact':
+        case 'remove_contact': {
+          // Monitoramento = lista de contatos DESABILITADOS (disabledContacts).
+          // add_contact tira da lista (volta a notificar); remove_contact coloca.
+          const raw = String(msg.payload.args?.contact || '').trim()
+          if (!raw) {
+            result = { ok: false, error: 'contato vazio' }
+            break
+          }
+          const jid = _normalizeContactId(raw)
+          const digits = jid.split('@')[0].replace(/\D/g, '')
+          const matches = (d) => {
+            const dd = String(d).replace(/\D/g, '')
+            return d === raw || d === jid || (digits && dd && (dd.endsWith(digits) || digits.endsWith(dd)))
+          }
+
+          if (msg.payload.toolName === 'add_contact') {
+            const before = disabledContacts.length
+            disabledContacts = disabledContacts.filter((d) => !matches(d))
+            const removedCount = before - disabledContacts.length
+            await momai.storage.set(_getDisabledContactsKey(), disabledContacts)
+            result = {
+              ok: true,
+              contact: raw,
+              jid,
+              monitoring: true,
+              removedFromDisabled: removedCount
+            }
+          } else {
+            if (!disabledContacts.some(matches)) disabledContacts.push(jid)
+            await momai.storage.set(_getDisabledContactsKey(), disabledContacts)
+            result = { ok: true, contact: raw, jid, monitoring: false }
+          }
+          break
+        }
+        case 'get_actions':
+          result = { ok: true, actions: await getActionsConfig() }
+          break
+        case 'set_actions': {
+          const incoming = msg.payload.args?.actions
+          if (incoming !== undefined && !Array.isArray(incoming)) {
+            result = {
+              ok: false,
+              error: 'payload inválido: "actions" deve ser um array de ações'
+            }
+            break
+          }
+          const actions = Array.isArray(incoming)
+            ? incoming.filter(
+                (a) =>
+                  a &&
+                  typeof a === 'object' &&
+                  typeof a.target === 'string' &&
+                  typeof a.tool === 'string'
+              )
+            : []
+          await saveActionsConfig(actions)
+          result = { ok: true, actions: await getActionsConfig() }
+          break
+        }
         case 'set_contact_name':
           if (msg.payload.args?.contact && msg.payload.args?.name) {
-            contactNames[msg.payload.args.contact] = msg.payload.args.name
+            const rawContact = String(msg.payload.args.contact).trim()
+            const name = String(msg.payload.args.name).trim()
+            const digits = rawContact.replace(/\D/g, '')
+
+            let canonicalJid = rawContact.includes('@') ? rawContact : `${digits}@s.whatsapp.net`
+            let matchedContact = waContacts[rawContact] || waContacts[canonicalJid]
+            if (!matchedContact && digits) {
+              matchedContact = Object.values<any>(waContacts).find(
+                (c) => c.phone === digits || c.id?.split('@')[0] === digits || c.lid?.split('@')[0] === digits
+              )
+            }
+
+            if (matchedContact) {
+              if (matchedContact.id) canonicalJid = matchedContact.id
+            } else {
+              const resolved = resolveJidForSending(rawContact)
+              if (resolved) canonicalJid = resolved
+            }
+
+            const phone = matchedContact?.phone || (canonicalJid.endsWith('@g.us') ? null : digits)
+            const lid = matchedContact?.lid || (canonicalJid.endsWith('@lid') ? canonicalJid : null)
+            const rawNumber = canonicalJid.split('@')[0]
+
+            // 1. Store in contactNames under all possible keys
+            contactNames[rawContact] = name
+            contactNames[canonicalJid] = name
+            if (rawNumber) contactNames[rawNumber] = name
+            if (phone) contactNames[phone] = name
+            if (lid) contactNames[lid] = name
+            if (digits) contactNames[digits] = name
+
             await momai.storage.set(_getContactNamesKey(), contactNames)
+
+            // 2. Update waContacts in-memory and on disk
+            if (matchedContact) {
+              matchedContact.name = name
+            }
+            if (waContacts[canonicalJid]) {
+              waContacts[canonicalJid].name = name
+            }
+            if (lid && waContacts[lid]) {
+              waContacts[lid].name = name
+            }
+            if (waContacts[rawContact]) {
+              waContacts[rawContact].name = name
+            }
+            await momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+
+            // 3. Update chatHistory in-memory and persist snapshot
+            let historyUpdated = false
+            for (const h of chatHistory) {
+              const isMatch =
+                h.jid === rawContact ||
+                h.jid === canonicalJid ||
+                h.senderJid === rawContact ||
+                h.senderJid === canonicalJid ||
+                (lid && (h.jid === lid || h.senderJid === lid)) ||
+                (digits && (h.jid?.split('@')[0] === digits || h.senderJid?.split('@')[0] === digits))
+
+              if (isMatch) {
+                h.from = name
+                h.contactName = name
+                if (h.isGroup && (h.jid === canonicalJid || h.jid === rawContact)) {
+                  h.groupName = name
+                }
+                historyUpdated = true
+              }
+            }
+
+            if (historyUpdated) {
+              schedulePersistChatHistory()
+            }
+
+            _notifyContactsUpdated()
             result = { ok: true }
           }
           break
         case 'get_stats': {
-          const validContacts = Object.values(waContacts).filter(
+          const allEntries = Object.values<any>(waContacts)
+          const validContacts = allEntries.filter(
             (c) => c.phone && !c.id.endsWith('@g.us')
           )
           const syncedContactsCount = validContacts.length
-          const monitoredContactsCount = validContacts.filter(
+          const monitoredContactsCount = allEntries.filter(
             (c) => !_isContactDisabled(c.id)
           ).length
 
@@ -2496,6 +3259,14 @@ process.on('message', async (msg) => {
             result = { ok: true, qr: lastQr }
             break
           }
+          // The page polls request_qr (~1s) while waiting for a QR. If a connect
+          // is already in flight, tearing the socket down here would restart the
+          // connection on every poll, so the QR never appears and the account
+          // churns between connecting/disconnected. Let the in-flight attempt run.
+          if (isConnecting && !forcePairing) {
+            result = { ok: true, pending: true, hasCredentials: false }
+            break
+          }
           const fsSync = require('fs')
           const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
           if (forcePairing) {
@@ -2512,6 +3283,7 @@ process.on('message', async (msg) => {
           } else {
             momai.log('request_qr: triggering connect (no wipe; loggedOut handler manages cleanup)')
           }
+          _clearReconnectTimer()
           if (sock) {
             try {
               sock.end(undefined)
@@ -2520,6 +3292,7 @@ process.on('message', async (msg) => {
           }
           preventAutoReconnect = false
           isConnecting = false
+          resetReconnectBackoff()
           connect().catch((err) => momai.log(`request_qr connect failed: ${err.message}`))
           result = { ok: true, pending: true, hasCredentials: false }
           break
@@ -2538,16 +3311,13 @@ process.on('message', async (msg) => {
             await fetchAndStoreGroups()
 
             const now = Date.now()
-            const validContacts = Object.values(waContacts).filter(
+            const validContacts = Object.values<any>(waContacts).filter(
               (c) => c.phone && !c.id.endsWith('@g.us')
             )
 
             const promises = validContacts.slice(0, 15).map(async (c) => {
               try {
-                const url = await Promise.race([
-                  sock.profilePictureUrl(c.id, 'image'),
-                  new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
-                ])
+                const url = await withTimeout(sock.profilePictureUrl(c.id, 'image'), 2000)
                 if (url && waContacts[c.id]) {
                   waContacts[c.id].profilePicUrl = url
                   waContacts[c.id].profilePicCheckedAt = now
@@ -2561,11 +3331,11 @@ process.on('message', async (msg) => {
 
           await momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
 
-          const total = Object.values(waContacts).filter(
+          const total = Object.values<any>(waContacts).filter(
             (c) => c.phone && !c.id.endsWith('@g.us')
           ).length
           momai.sendEvent('contacts_synced', { count: total, isFinal: true })
-          momai.sendEvent('contacts_updated', {})
+          _notifyContactsUpdated()
 
           result = { ok: true, syncedContacts: total }
           break
@@ -2588,6 +3358,11 @@ process.on('message', async (msg) => {
           })
           break
         }
+        case 'get_group_participants': {
+          const groupJid = msg.payload?.args?.groupJid || msg.payload?.args?.jid
+          result = await getGroupParticipants(groupJid)
+          break
+        }
         case 'get_history':
           if (chatHistory.length === 0) {
             await loadChatHistory()
@@ -2596,6 +3371,22 @@ process.on('message', async (msg) => {
             history: chatHistory.slice(0, 50).map(enrichHistoryEntry)
           }
           break
+        case 'delete_message': {
+          const jid = msg.payload?.args?.jid
+          if (!jid) {
+            result = { ok: false, error: 'jid is required' }
+            break
+          }
+          const before = chatHistory.length
+          chatHistory = chatHistory.filter((m) => m.jid !== jid)
+          const deleted = before - chatHistory.length
+          if (deleted > 0) {
+            schedulePersistChatHistory()
+            momai.sendEvent('history_updated', { count: chatHistory.length })
+          }
+          result = { ok: true, deleted, remaining: chatHistory.length }
+          break
+        }
         case 'flush_history':
           await flushPersistedChatHistory()
           result = { ok: true, count: chatHistory.length }
@@ -2613,14 +3404,14 @@ process.on('message', async (msg) => {
           break
         case 'get_avatars': {
           const jids = Array.isArray(msg.payload.args?.jids) ? msg.payload.args.jids : []
-          const unique = [...new Set(jids.filter((j) => typeof j === 'string' && j.includes('@')))]
+          const force = msg.payload.args?.force === true
+          const unique: any[] = [...new Set(jids.filter((j) => typeof j === 'string' && j.includes('@')))]
           const avatars = {}
           for (let i = 0; i < unique.length; i++) {
             if (i > 0) await new Promise((r) => setTimeout(r, 300))
-            avatars[unique[i]] = await ensureAvatarForJid(unique[i])
+            avatars[unique[i]] = await ensureAvatarForJid(unique[i], { force })
           }
           result = { avatars }
-          momai.sendEvent('contacts_updated', {})
           break
         }
         case 'disconnect':
@@ -2643,8 +3434,28 @@ process.on('message', async (msg) => {
             }
             sock = null
           }
+          // Clear session files from disk so Baileys generates a clean QR
+          try {
+            const fsSync = require('fs')
+            const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
+            if (fsSync.existsSync(authDir)) {
+              fsSync.rmSync(authDir, { recursive: true, force: true })
+            }
+          } catch (err) {
+            momai.log(`disconnect session wipe failed: ${err.message}`)
+          }
+          // Reset internal memory state
+          waContacts = {}
+          chatHistory = []
+          totalMessages = 0
+          _currentPhone = null
           momai.sendEvent('authenticated', { status: 'logged_out' })
           momai.sendEvent('connection_status', { status: 'disconnected' })
+          // Trigger new QR connection process
+          setTimeout(() => {
+            preventAutoReconnect = false
+            connect().catch(() => {})
+          }, 500)
           result = { ok: true }
           break
         }

@@ -43,6 +43,11 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Debug tree structure
         shell: pwsh
         run: |
@@ -51,11 +56,14 @@ jobs:
           Test-Path momai/apps/momai/src/renderer/src/services/api.ts
           Test-Path momai/apps/momai/src/renderer/src/components/ImageViewer.tsx
 
+      # pnpm com --frozen-lockfile aplica o patch do Baileys (assertSessions
+      # per-JID em mensagens de grupo) via patchedDependencies; `npm install`
+      # não aplicava o patch e regredia o envio para grupos.
       - name: Install dependencies
         shell: pwsh
         run: |
           cd momai/apps/momai/scripts/skills/packaged/whatsapp
-          npm install
+          pnpm install --frozen-lockfile
 
       - name: Build UI
         shell: pwsh
@@ -70,15 +78,19 @@ jobs:
           $pkg = Get-Content package.json -Raw | ConvertFrom-Json
           $version = $pkg.version
           $zipName = "momai-whatsapp-extension-v$version.zip"
+          # Os runtimes são .ts (Node do Electron roda .ts por type stripping);
+          # o background-worker carrega baileys-cred-migration + fs-permissions, e
+          # baileys-cred-migration carrega secure-storage-bridge.
           $items = @(
             'manifest.json',
             'SKILL.md',
             'package.json',
-            'runtime.js',
-            'background-worker.js',
-            'baileys-cred-migration.js',
-            'fs-permissions.js',
-            'secure-storage-bridge.js',
+            'runtime.ts',
+            'background-worker.ts',
+            'worker-utils.ts',
+            'baileys-cred-migration.ts',
+            'fs-permissions.ts',
+            'secure-storage-bridge.ts',
             'icon.svg',
             'dist',
             'locales',

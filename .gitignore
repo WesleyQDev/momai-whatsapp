@@ -13,5 +13,3 @@ wa_contacts-*.json
 message_cache_*.json
 worker.lock
 *.zip
-
-pnpm-lock.yaml

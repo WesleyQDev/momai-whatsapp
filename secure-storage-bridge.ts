@@ -39,8 +39,7 @@ if (typeof process !== 'undefined' && typeof process.on === 'function') {
 }
 
 function _request(requestType, payload) {
-  return new Promise((resolve) => {
-    if (typeof process === 'undefined' || typeof process.send !== 'function') {
+  return new Promise<any>((resolve) => {    if (typeof process === 'undefined' || typeof process.send !== 'function') {
       resolve(null)
       return
     }
