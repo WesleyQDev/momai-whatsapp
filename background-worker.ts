@@ -2673,6 +2673,7 @@ async function sendMessage(contact, message, image = null) {
     'enter',
     `to="${contact}" msg="${(message || '').substring(0, 40)}" image=${image ? 'yes' : 'no'} connected=${connected}`
   )
+  console.log(`[PERF] sendMessage START contact=${contact}`)
 
   // Valida/decodifica a imagem ANTES de qualquer retry de rede (evita mandar
   // base64 gigante; erro claro imediato).
@@ -2684,8 +2685,11 @@ async function sendMessage(contact, message, image = null) {
   // o throw "Não encontrei X" acontecia nesse janela → envio intermitente.
   const MAX_RESOLVE_RETRIES = 3
   let jid = null
+  const resolveStart = Date.now()
+  console.log(`[PERF] sendMessage RESOLVE_JID_START contact=${contact} time=${Date.now() - t0}ms`)
   for (let attempt = 1; attempt <= MAX_RESOLVE_RETRIES; attempt++) {
     jid = resolveJidForSending(contact)
+    console.log(`[PERF] sendMessage RESOLVE_JID attempt=${attempt} contact="${contact}" -> "${jid}" time=${Date.now() - t0}ms`)
     if (jid && jid.includes('@')) break
 
     // Nome cru (sem '@'): pode ser nome de GRUPO ainda não sincronizado. Busca
@@ -2708,6 +2712,7 @@ async function sendMessage(contact, message, image = null) {
       await new Promise((r) => setTimeout(r, attempt * 1500))
     }
   }
+  console.log(`[PERF] sendMessage RESOLVE_JID_DONE contact="${contact}" -> "${jid}" total=${Date.now() - resolveStart}ms time=${Date.now() - t0}ms`)
 
   if (!jid) {
     throw new Error(`Invalid contact: "${contact}"`)
@@ -2726,6 +2731,7 @@ async function sendMessage(contact, message, image = null) {
   momai.log(
     `sendMessage: contact="${contact}" resolved_jid="${jid}" group=${isGroup} msg="${(message || '').substring(0, 40)}" image=${image ? 'yes' : 'no'}`
   )
+  console.log(`[PERF] sendMessage RESOLVED_JID jid=${jid} time=${Date.now() - t0}ms`)
 
   // Captura o socket ativo. `sock` pode ser nulo/substituído por uma reconexão
   // no meio do fluxo (race com `sock = null` no connect()); re-checar evita
@@ -2742,23 +2748,28 @@ async function sendMessage(contact, message, image = null) {
   if (current.ws && typeof current.ws.isOpen === 'boolean' && !current.ws.isOpen) {
     const waitMs = 15000
     const wsWaitStart = Date.now()
+    console.log(`[PERF] sendMessage WS_WAIT_START jid=${jid} wsOpen=${wsOpen} time=${Date.now() - t0}ms`)
     momai.log(`[whatsapp] WebSocket closed; waiting for reconnect before sending to ${jid}`)
     stage('ws_wait', `start wsOpen=${wsOpen}`)
     while (Date.now() - wsWaitStart < waitMs) {
       await new Promise((r) => setTimeout(r, 500))
       if (!sock) {
+        console.log(`[PERF] sendMessage WS_WAIT_ABORT jid=${jid} sock=null time=${Date.now() - t0}ms`)
         throw new Error(`WhatsApp reconectando; tente novamente em instantes (destino: "${contact}")`)
       }
       if (sock.ws && sock.ws.isOpen) break
     }
     if (!sock || !sock.ws || !sock.ws.isOpen) {
+      console.log(`[PERF] sendMessage WS_WAIT_TIMEOUT jid=${jid} time=${Date.now() - t0}ms`)
       throw new Error(`WhatsApp reconectando; tente novamente em instantes (destino: "${contact}")`)
     }
+    console.log(`[PERF] sendMessage WS_WAIT_DONE jid=${jid} waited=${Date.now() - wsWaitStart}ms time=${Date.now() - t0}ms`)
     stage('ws_wait_done', `waited=${Date.now() - wsWaitStart}ms wsOpen=true`)
     momai.log(`[whatsapp] WebSocket reconnected; proceeding with send to ${jid}`)
   } else {
     stage('ws_check', `wsOpen=${wsOpen} (no wait needed)`)
   }
+  console.log(`[PERF] sendMessage WS_CHECK wsOpen=${wsOpen} time=${Date.now() - t0}ms`)
 
   // Re-captura após a espera: se o socket foi trocado, usa o novo.
   current = sock
@@ -2787,8 +2798,10 @@ async function sendMessage(contact, message, image = null) {
     shouldCheck
   ) {
     const owaStart = Date.now()
+    console.log(`[PERF] sendMessage ON_WHATSAPP_START jid=${jid} time=${Date.now() - t0}ms`)
     try {
       const result = await withTimeout(current.onWhatsApp(jid), 4000, 'onWhatsApp timeout')
+      console.log(`[PERF] sendMessage ON_WHATSAPP_RESULT jid=${jid} entries=${Array.isArray(result) ? result.length : 'null'} time=${Date.now() - t0}ms`)
       const jidDigits = jid.replace(/[^0-9]/g, '')
       const entries = Array.isArray(result) ? result : null
       if (entries) {
@@ -2843,6 +2856,7 @@ async function sendMessage(contact, message, image = null) {
       }
       momai.log(`sendMessage: onWhatsApp check failed for ${jid}: ${err.message} — proceeding`)
     }
+    console.log(`[PERF] sendMessage ON_WHATSAPP_DONE jid=${jid} time=${Date.now() - t0}ms`)
     stage('onWhatsApp', `done (took ${Date.now() - owaStart}ms)`)
   } else {
     stage(
@@ -2850,6 +2864,7 @@ async function sendMessage(contact, message, image = null) {
       `skipped (isGroup=${isGroup} isLid=${isLidJid} hasFn=${current && typeof current.onWhatsApp === 'function'} shouldCheck=${shouldCheck})`
     )
   }
+  console.log(`[PERF] sendMessage BEFORE_SEND time=${Date.now() - t0}ms`)
 
   if (isGroup) {
     await prepareGroupForSend(jid)
@@ -2859,8 +2874,10 @@ async function sendMessage(contact, message, image = null) {
   // envio resolver mas a mensagem ficar presa no relógio "Aguardando mensagem".
   // Limpar a sessão antes de enviar força o Baileys a refazer o handshake.
   if (!isGroup && isSessionUnhealthy(jid)) {
+    console.log(`[PERF] sendMessage UNHEALTHY_SESSION jid=${jid} time=${Date.now() - t0}ms`)
     momai.log(`[whatsapp] Unhealthy session detected for ${jid}; clearing before send`)
     await forceClearSession(jid)
+    console.log(`[PERF] sendMessage SESSION_CLEARED jid=${jid} time=${Date.now() - t0}ms`)
   }
 
   if (content.image && Buffer.isBuffer(content.image)) {
@@ -2872,7 +2889,9 @@ async function sendMessage(contact, message, image = null) {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     const attemptStart = Date.now()
     try {
-      const sent = await current.sendMessage(jid, content)
+      console.log(`[PERF] sendMessage Baileys START attempt=${attempt} jid=${jid}`)
+      const sent = await withTimeout(current.sendMessage(jid, content), 15000, 'send timeout')
+      console.log(`[PERF] sendMessage Baileys END attempt=${attempt} took=${Date.now() - attemptStart}ms sent=${sent ? 'ok' : 'null'} keys=${sent && sent.key ? sent.key.id : 'n/a'}`)
       stage(`send_ok`, `attempt=${attempt} sock.sendMessage took ${Date.now() - attemptStart}ms`)
       if (sent?.key?.id && sent?.message) {
         cacheMessage(sent.key, sent.message)
@@ -2896,7 +2915,7 @@ async function sendMessage(contact, message, image = null) {
       }
 
       if (attempt < MAX_RETRIES) {
-        const delayMs = (isGroup ? 2500 : 1500) * attempt
+        const delayMs = 1500
         if (isGroup) {
           await resetGroupSenderKeyMemory(jid)
         }
@@ -2921,6 +2940,7 @@ async function sendMessage(contact, message, image = null) {
   momai.sendEvent('message_sent', { contact: displayName, jid })
 
   stage('total', `sent to "${jid}" ok in ${Date.now() - t0}ms`)
+  console.log(`[PERF] sendMessage END OK time=${Date.now() - t0}ms`)
   return { ok: true }
 }
 
@@ -3002,22 +3022,26 @@ process.on('message', async (msg) => {
     return
   }
   if (msg.type === 'execute') {
+    console.log(`[PERF] WORKER RECEIVE msg.type=${msg.type} toolName=${msg.payload?.toolName} requestId=${msg.requestId}`)
     try {
       let result
       switch (msg.payload?.toolName) {
         case 'send_message': {
           const args = msg.payload.args || {}
           const cmdStart = Date.now()
+          console.log(`[PERF] send_message START contact=${args.contact}`)
           try {
             result = await sendMessage(args.contact, args.message, args.image || args.media)
             momai.log(
               `send_message OK: to=${args.contact} msg="${(args.message || '').substring(0, 50)}" (t+${Date.now() - cmdStart}ms)`
             )
+            console.log(`[PERF] send_message END OK time=${Date.now() - cmdStart}ms`)
             result.directResponse = `Mensagem enviada`
           } catch (err) {
             momai.log(
               `send_message FAILED: ${err.message} (t+${Date.now() - cmdStart}ms)`
             )
+            console.log(`[PERF] send_message END FAILED err=${err.message} time=${Date.now() - cmdStart}ms`)
             const friendly = friendlySendError(err.message, args.contact)
             result = {
               ok: false,

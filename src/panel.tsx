@@ -406,8 +406,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           args: { contact: targetJid, message: body }
         }
         console.log('[WhatsAppNotificationCard] sendReply fetch →', url, 'jid=', targetJid)
+        const t0 = Date.now()
         const ctrl = new AbortController()
-        const timer = setTimeout(() => ctrl.abort(), 60000)
+        const timer = setTimeout(() => ctrl.abort(), 120000)
         let result: any = null
         let lastError = ''
         try {
@@ -420,6 +421,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             body: JSON.stringify(payload),
             signal: ctrl.signal
           })
+          console.log(`[PERF] sendReply fetch RESPONSE status=${res.status} time=${Date.now() - t0}ms`)
           const text = await res.text()
           console.log('[WhatsAppNotificationCard] sendReply fetch RES', res.status, text.slice(0, 200))
           let data: any = null
