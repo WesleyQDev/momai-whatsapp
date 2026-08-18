@@ -68,6 +68,11 @@ const options = {
   sourcemap: true,
   outdir: 'dist',
   logLevel: 'info',
+  // O build injeta fontes do renderer da MomAI via alias (momai:image-viewer, etc.).
+  // Esses arquivos podem importar pacotes de runtime do renderer (ex: @heroicons/react)
+  // que só existem no node_modules da própria extensão no CI. `nodePaths` faz o esbuild
+  // resolver esses bare imports também a partir do node_modules da extensão.
+  nodePaths: [path.join(__dirname, 'node_modules')],
   plugins: [makeHostGlobalsPlugin],
   alias: {
     'momai:registry': path.resolve(momaiSrcDir, 'components/chat/SkillResponseRegistry.ts'),
