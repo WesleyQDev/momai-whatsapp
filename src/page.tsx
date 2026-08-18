@@ -111,18 +111,46 @@ function turnsToHistoryLines(turns: ConversationTurn[]): ConversationHistoryLine
   return lines
 }
 
+/** Chave única para agrupar mensagens da mesma conversa (unifica @lid e @s.whatsapp.net de um mesmo contato 1:1) */
+function getConversationGroupKey(msg: Message): string {
+  const jid = msg.jid || ''
+  if (jid.endsWith('@g.us')) return jid
+
+  // Se a mensagem possui replyJid ou senderJid com número de telefone/@s.whatsapp.net, use como chave comum
+  const replyJid = (msg as any).replyJid
+  if (replyJid && typeof replyJid === 'string' && replyJid.includes('@')) {
+    const raw = replyJid.includes(':') ? replyJid.split('@')[0].split(':')[0] + '@' + replyJid.split('@')[1] : replyJid
+    return raw
+  }
+
+  const senderJid = msg.senderJid
+  if (senderJid && typeof senderJid === 'string' && senderJid.includes('@') && !senderJid.endsWith('@g.us')) {
+    const raw = senderJid.includes(':') ? senderJid.split('@')[0].split(':')[0] + '@' + senderJid.split('@')[1] : senderJid
+    return raw
+  }
+
+  // Strip device suffix (e.g. 5511...@s.whatsapp.net)
+  if (jid.includes(':') && jid.includes('@')) {
+    const [user, domain] = jid.split('@')
+    return user.split(':')[0] + '@' + domain
+  }
+
+  return jid
+}
+
 /** Um card por conversa (jid): preview = última mensagem (recebida ou enviada); histórico completo no overlay. */
 function buildConversationSummaries(history: Message[]): ConversationSummary[] {
-  const byJid = new Map<string, Message[]>()
+  const byKey = new Map<string, Message[]>()
   for (const msg of history) {
-    const list = byJid.get(msg.jid) || []
+    const key = getConversationGroupKey(msg)
+    const list = byKey.get(key) || []
     list.push(msg)
-    byJid.set(msg.jid, list)
+    byKey.set(key, list)
   }
 
   const summaries: ConversationSummary[] = []
 
-  for (const [jid, messages] of byJid) {
+  for (const [, messages] of byKey) {
     const sorted = [...messages].sort(
       (a, b) => normalizeTimestamp(a.timestamp) - normalizeTimestamp(b.timestamp)
     )
@@ -139,16 +167,25 @@ function buildConversationSummaries(history: Message[]): ConversationSummary[] {
       latestTurn.incoming.from ||
       'Contato'
 
+    // Escolhe o melhor JID de destino para abrir e responder (prefere @s.whatsapp.net ou @g.us antes de @lid)
+    const isGroup = messages.some((m) => m.isGroup || m.jid?.endsWith('@g.us'))
+    const preferredJid =
+      [...sorted]
+        .reverse()
+        .map((m) => (m as any).replyJid || m.jid)
+        .find((j) => typeof j === 'string' && (isGroup ? j.endsWith('@g.us') : j.endsWith('@s.whatsapp.net')) && !j.includes(':')) ||
+      lastMessage.jid
+
     summaries.push({
-      jid,
+      jid: preferredJid,
       turns,
       latestIncoming: latestTurn.incoming,
       latestReplies: latestTurn.replies,
       lastMessage,
       incomingCount: turns.length,
       contactLabel,
-      isGroup: jid.endsWith('@g.us'),
-      groupName: jid.endsWith('@g.us') ? (latestIncoming.groupName ?? null) : null,
+      isGroup,
+      groupName: isGroup ? (latestIncoming.groupName ?? null) : null,
       profilePicUrl
     })
   }
@@ -1018,13 +1055,26 @@ export default function WhatsAppView() {
     setEditingName(null)
   }, [])
 
-  const handleDeleteConversation = useCallback(async (jid: string) => {
+  const handleDeleteConversation = useCallback(async (convoJid: string) => {
     try {
       await api.post('/extensions/whatsapp/command', {
         toolName: 'delete_message',
-        args: { jid }
+        args: { jid: convoJid }
       })
-      setHistory((prev) => prev.filter((m) => m.jid !== jid))
+      setHistory((prev) => {
+        const targetConvos = buildConversationSummaries(prev)
+        const targetConvo = targetConvos.find((c) => c.jid === convoJid)
+        if (targetConvo) {
+          const matchingKeys = new Set(
+            targetConvo.turns.flatMap((t) => [
+              getConversationGroupKey(t.incoming),
+              ...t.replies.map(getConversationGroupKey)
+            ])
+          )
+          return prev.filter((m) => !matchingKeys.has(getConversationGroupKey(m)) && m.jid !== convoJid)
+        }
+        return prev.filter((m) => m.jid !== convoJid)
+      })
     } catch (err) {
       console.error('[whatsapp] delete conversation failed:', err)
     }
