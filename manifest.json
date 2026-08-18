@@ -12,7 +12,7 @@
   "backgroundScript": "background-worker.ts",
   "permissions": ["network:persistent", "storage:persistent"],
   "sdkVersion": 1,
-  "momai_compat": ">=1.7.0",
+  "momai_compat": ">=1.9.0",
   "version": "0.4.13",
   "ui": {
     "page": "dist/page.js",
