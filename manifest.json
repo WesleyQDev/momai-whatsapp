@@ -29,14 +29,21 @@
     "history_loaded": { "label": "Histórico Carregado" },
     "whatsapp_message": {
       "label": "Mensagem Recebida no WhatsApp",
+      "priority": 100,
       "fields": {
-        "contact": { "label": "Contato", "type": "string" },
-        "contactJid": { "label": "JID do contato", "type": "string" },
-        "message": { "label": "Texto", "type": "string" },
+        "contact": {
+          "label": "Remetente (Contato ou Grupo)",
+          "type": "string",
+          "description": "Filtra mensagens de um contato ou grupo específico",
+          "x-options-source": { "tool": "list_contacts" }
+        },
+        "message": {
+          "label": "Palavra-chave na Mensagem",
+          "type": "string",
+          "description": "Dispara quando a mensagem contiver este texto"
+        },
         "timestamp": { "label": "Horário", "type": "number" },
-        "isGroup": { "label": "É grupo", "type": "boolean" },
-        "groupName": { "label": "Grupo", "type": "string" },
-        "defaultContact": { "label": "Contato padrão", "type": "string" }
+        "imageDataUri": { "label": "Imagem / Mídia", "type": "image" }
       }
     },
     "whatsapp_notification": { "label": "Notificação do WhatsApp" },

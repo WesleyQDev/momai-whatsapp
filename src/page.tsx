@@ -993,6 +993,7 @@ const _stateCache = {
   history: getInitialCachedHistory(),
   paginatedContacts: getInitialCachedContacts(),
   paginatedGroups: getInitialCachedGroups(),
+  avatars: {} as Record<string, string | null>,
   statsLoaded: false
 }
 
@@ -1264,15 +1265,28 @@ export default function WhatsAppView() {
   const loadAvatars = useCallback(async (jids: string[], opts?: { force?: boolean }) => {
     const unique = [...new Set(jids.filter((j) => typeof j === 'string' && j.includes('@')))]
     if (unique.length === 0) return
-    try {
-      const { data } = await api.post('/extensions/whatsapp/command', {
-        toolName: 'get_avatars',
-        args: { jids: unique, force: opts?.force === true }
-      })
-      if (data?.avatars) {
-        setAvatarByJid((prev) => ({ ...prev, ...data.avatars }))
+    const toFetch = opts?.force
+      ? unique
+      : unique.filter((jid) => !_stateCache.avatars || !_stateCache.avatars[jid])
+    if (toFetch.length === 0) return
+
+    for (let i = 0; i < toFetch.length; i += 25) {
+      const batch = toFetch.slice(i, i + 25)
+      try {
+        const { data } = await api.post('/extensions/whatsapp/command', {
+          toolName: 'get_avatars',
+          args: { jids: batch, force: opts?.force === true }
+        })
+        if (data?.avatars) {
+          if (!_stateCache.avatars) _stateCache.avatars = {}
+          Object.assign(_stateCache.avatars, data.avatars)
+          setAvatarByJid((prev) => ({ ...prev, ...data.avatars }))
+        }
+      } catch {}
+      if (i + 25 < toFetch.length) {
+        await new Promise((r) => setTimeout(r, 40))
       }
-    } catch {}
+    }
   }, [])
 
   const loadStats = useCallback(async () => {
@@ -1331,22 +1345,6 @@ export default function WhatsAppView() {
       }
     } catch {}
   }, [loadAvatars])
-
-  useExtensionEvents({
-    onEvent: useCallback(
-      (event) => {
-        if (
-          event.eventType === 'message_sent' ||
-          event.eventType === 'message_received' ||
-          event.eventType === 'history_loaded'
-        ) {
-          loadHistory()
-          loadStats()
-        }
-      },
-      [loadHistory, loadStats]
-    )
-  })
 
   const loadPaginatedContacts = useCallback(
     async (page: number, search: string) => {
@@ -1715,9 +1713,11 @@ export default function WhatsAppView() {
     [allConversations, avatarByJid, openConversationOverlay]
   )
 
+  // Initial data load on mount
   useEffect(() => {
     refresh()
-  }, [refresh])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // First visit without session: enter pairing mode
   useEffect(() => {
@@ -1808,8 +1808,13 @@ export default function WhatsAppView() {
           void loadPaginatedContacts(contactsPage, contactSearch)
           void loadPaginatedGroups(groupsPage, groupSearch)
           return
-        } else if (event.eventType === 'history_loaded') {
+        } else if (
+          event.eventType === 'message_sent' ||
+          event.eventType === 'message_received' ||
+          event.eventType === 'history_loaded'
+        ) {
           loadHistory()
+          void loadStats()
           return
         } else if (event.eventType === 'authenticated') {
           const status = event.data?.status
@@ -1828,10 +1833,8 @@ export default function WhatsAppView() {
           }
           return
         }
-        refresh()
       },
       [
-        refresh,
         loadHistory,
         applyQrString,
         tryFinishContactSync,
