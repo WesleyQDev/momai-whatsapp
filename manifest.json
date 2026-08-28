@@ -63,7 +63,7 @@
             "description": "Nome ou número do contato ou grupo",
             "x-options-source": { "tool": "list_contacts" }
           },
-          "message": { "type": "string", "description": "Texto da mensagem", "default": "🚨 Alerta: {{trigger.payload.description}}" },
+          "message": { "type": "string", "description": "Texto da mensagem", "default": "🚨 Alerta de movimento na câmera {{trigger.payload.cameraName}}!" },
           "image": {
             "type": "string",
             "description": "Imagem a enviar (data URI como data:image/jpeg;base64,... ou base64 puro). O texto vira a legenda.",
