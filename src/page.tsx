@@ -249,7 +249,7 @@ function WhatsAppIcon({ className = 'w-7 h-7' }: { className?: string }) {
     <svg viewBox="0 0 24 24" className={className} aria-hidden>
       <path
         d="M12 2.5C6.753 2.5 2.5 6.753 2.5 12c0 1.7.446 3.296 1.226 4.684L2.5 21.5l4.916-1.29A9.45 9.45 0 0 0 12 21.5c5.247 0 9.5-4.253 9.5-9.5S17.247 2.5 12 2.5z"
-        fill="#000000"
+        fill="none"
         stroke="#25D366"
         strokeWidth="1.2"
         strokeLinejoin="round"
