@@ -71,13 +71,22 @@ jobs:
           cd momai/apps/momai/scripts/skills/packaged/whatsapp
           node build.mjs
 
+      - name: Prune dev dependencies (economiza ~40MB: typescript, esbuild, vitest não vão no ZIP)
+        shell: pwsh
+        run: |
+          cd momai/apps/momai/scripts/skills/packaged/whatsapp
+          pnpm prune --prod
+          "Pruned dev deps, node_modules size:"
+          (Get-ChildItem node_modules -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum /1MB | ForEach-Object { [math]::Round($_,1) }
+
       - name: Create release zip
         shell: pwsh
         run: |
           cd momai/apps/momai/scripts/skills/packaged/whatsapp
           $pkg = Get-Content package.json -Raw | ConvertFrom-Json
           $version = $pkg.version
-          $zipName = "momai-whatsapp-extension-v$version.zip"
+          $zipName = "momai-whatsapp-v$version.zip"
+          $zipOldName = "momai-whatsapp-extension-v$version.zip"
           # Os runtimes são .ts (Node do Electron roda .ts por type stripping);
           # o background-worker carrega baileys-cred-migration + fs-permissions, e
           # baileys-cred-migration carrega secure-storage-bridge.
@@ -97,7 +106,10 @@ jobs:
             'node_modules'
           )
           Compress-Archive -Path $items -DestinationPath $zipName -Force
+          Copy-Item $zipName $zipOldName -Force
           "ZIP_NAME=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "ZIP_OLD_NAME=$zipOldName" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "ZIP size MB: $([math]::Round((Get-Item $zipName).Length/1MB,1)) (antes 53MB, agora ~35MB com prune)"
 
       - name: Upload workflow artifact
         if: github.event_name == 'workflow_dispatch'
@@ -110,5 +122,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: momai/apps/momai/scripts/skills/packaged/whatsapp/${{ env.ZIP_NAME }}
+          files: |
+            momai/apps/momai/scripts/skills/packaged/whatsapp/${{ env.ZIP_NAME }}
+            momai/apps/momai/scripts/skills/packaged/whatsapp/${{ env.ZIP_OLD_NAME }}
           generate_release_notes: true
