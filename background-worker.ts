@@ -11,7 +11,10 @@ let makeWASocket,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   pino
-try {
+let baileysLoaded = false
+function loadBaileys() {
+  if (baileysLoaded) return
+  const start = Date.now()
   const baileys = require('@whiskeysockets/baileys')
   makeWASocket = baileys.makeWASocket || baileys.default?.makeWASocket
   useMultiFileAuthState = baileys.useMultiFileAuthState || baileys.default?.useMultiFileAuthState
@@ -20,14 +23,11 @@ try {
     baileys.fetchLatestBaileysVersion || baileys.default?.fetchLatestBaileysVersion
   makeCacheableSignalKeyStore =
     baileys.makeCacheableSignalKeyStore || baileys.default?.makeCacheableSignalKeyStore
-
   try {
     pino = require('pino')
-  } catch (e) {
-    // pino not found
-  }
-
-  process.send({ type: 'log', message: 'Baileys loaded successfully' })
+  } catch (e) {}
+  baileysLoaded = true
+  process.send({ type: 'log', message: `Baileys loaded successfully in ${Date.now() - start}ms (lazy)` })
 } catch (err) {
   process.send({ type: 'log', message: `Baileys load error: ${err.message}` })
   process.exit(1)
@@ -1596,8 +1596,19 @@ async function main() {
     persistChatHistorySnapshot().catch(() => {})
   }, 30000)
 
-  // Start connection sem bloquear o ready (fire-and-forget, loga erro)
-  connect().catch((err) => momai.log(`[fix] connect async failed (não bloqueia ready): ${err.message}`))
+  // Só auto-conecta se já tem creds (já escaneou QR antes). Sem QR, fica dormindo sem carregar Baileys (1.7s) até o usuário clicar em Conectar
+  try {
+    const fsSync = require('node:fs')
+    const hasCreds = fsSync.existsSync(require('node:path').join(authDir, 'creds.json'))
+    if (hasCreds) {
+      loadBaileys()
+      connect().catch((err) => momai.log(`[fix] connect async failed (não bloqueia ready): ${err.message}`))
+    } else {
+      momai.log('[whatsapp] Sem creds, aguardando QR (não carrega Baileys, não segura thread)')
+    }
+  } catch {
+    // Se falhar checagem, não auto-conecta
+  }
   if (chatHistory.length > 0) {
     momai.sendEvent('history_loaded', { count: chatHistory.length })
   }
@@ -1612,6 +1623,7 @@ async function connect() {
   if (isConnecting) return
   isConnecting = true
   _clearReconnectTimer()
+  loadBaileys()
 
   try {
     if (sock) {
