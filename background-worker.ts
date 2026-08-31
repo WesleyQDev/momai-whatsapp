@@ -3614,7 +3614,27 @@ process.on('message', async (msg) => {
   }
 })
 
+function gracefulShutdown(reason) {
+  momai.log(`[whatsapp:worker] Shutting down (${reason})...`)
+  _clearReconnectTimer()
+  preventAutoReconnect = true
+  if (sock) {
+    try {
+      sock.end(undefined)
+    } catch {}
+    try {
+      sock.ws?.close()
+    } catch {}
+    sock = null
+  }
+  process.exit(0)
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))
+
 main().catch((err) => {
   momai.log(`Fatal error: ${err.message}`)
   process.exit(1)
 })
+

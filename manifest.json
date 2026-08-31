@@ -13,7 +13,7 @@
   "permissions": ["network:persistent", "storage:persistent"],
   "sdkVersion": 1,
   "momai_compat": ">=1.10.0",
-  "version": "0.4.14",
+  "version": "0.4.15",
   "ui": {
     "page": "dist/page.js",
     "pageType": "whatsapp-page",

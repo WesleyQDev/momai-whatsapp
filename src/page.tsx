@@ -438,7 +438,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
     ])
       .then(([cat, act]) => {
         const installed = (cat.data || []).filter(
-          (e) =>
+          (e: any) =>
             e.installed !== false &&
             e.enabled !== false &&
             Array.isArray(e.tools) &&
@@ -879,7 +879,7 @@ function SearchableInput({
     if (!listTool) return
     api
       .post(`/extensions/${target}/command`, { toolName: listTool, args: {} })
-      .then((res) => {
+      .then((res: any) => {
         if (cancelled || !res.ok) return
         const items = res.data?.contacts
         const names = (items || [])
@@ -1156,7 +1156,7 @@ export default function WhatsAppView() {
   useEffect(() => {
     api
       .post('/extensions/whatsapp/command', { toolName: 'get_settings' })
-      .then((res) => {
+      .then((res: any) => {
         const data = res.data
         if (data?.settings?.notificationsDisabled !== undefined) {
           setNotificationsDisabled(data.settings.notificationsDisabled)
@@ -1787,7 +1787,7 @@ export default function WhatsAppView() {
 
   useExtensionEvents({
     onEvent: useCallback(
-      (event) => {
+      (event: any) => {
         if (event.eventType === 'qr_code' && event.data?.qr) {
           applyQrString(event.data.qr)
           setPairingActive(false)

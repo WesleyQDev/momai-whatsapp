@@ -1012,7 +1012,7 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
   // os eventos da própria extensão e fecha sozinho quando a conexão volta, ou atualiza o QR.
   useExtensionEvents({
     onEvent: useCallback(
-      (event) => {
+      (event: any) => {
         const status =
           event.eventType === 'connection_status' || event.eventType === 'authenticated'
             ? event.data?.status
