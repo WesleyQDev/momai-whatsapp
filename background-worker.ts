@@ -14,23 +14,27 @@ let makeWASocket,
 let baileysLoaded = false
 function loadBaileys() {
   if (baileysLoaded) return
-  const start = Date.now()
-  const baileys = require('@whiskeysockets/baileys')
-  makeWASocket = baileys.makeWASocket || baileys.default?.makeWASocket
-  useMultiFileAuthState = baileys.useMultiFileAuthState || baileys.default?.useMultiFileAuthState
-  DisconnectReason = baileys.DisconnectReason
-  fetchLatestBaileysVersion =
-    baileys.fetchLatestBaileysVersion || baileys.default?.fetchLatestBaileysVersion
-  makeCacheableSignalKeyStore =
-    baileys.makeCacheableSignalKeyStore || baileys.default?.makeCacheableSignalKeyStore
   try {
-    pino = require('pino')
-  } catch (e) {}
-  baileysLoaded = true
-  process.send({ type: 'log', message: `Baileys loaded successfully in ${Date.now() - start}ms (lazy)` })
-} catch (err) {
-  process.send({ type: 'log', message: `Baileys load error: ${err.message}` })
-  process.exit(1)
+    const start = Date.now()
+    const baileys = require('@whiskeysockets/baileys')
+    makeWASocket = baileys.makeWASocket || baileys.default?.makeWASocket
+    useMultiFileAuthState = baileys.useMultiFileAuthState || baileys.default?.useMultiFileAuthState
+    DisconnectReason = baileys.DisconnectReason
+    fetchLatestBaileysVersion =
+      baileys.fetchLatestBaileysVersion || baileys.default?.fetchLatestBaileysVersion
+    makeCacheableSignalKeyStore =
+      baileys.makeCacheableSignalKeyStore || baileys.default?.makeCacheableSignalKeyStore
+    try {
+      pino = require('pino')
+    } catch (e) {}
+    baileysLoaded = true
+    process.send({ type: 'log', message: `Baileys loaded successfully in ${Date.now() - start}ms (lazy)` })
+  } catch (err) {
+    try {
+      process.send({ type: 'log', message: `Baileys load error: ${err.message}` })
+    } catch {}
+    process.exit(1)
+  }
 }
 const path = require('path')
 const fs = require('node:fs/promises')
