@@ -59,11 +59,14 @@ jobs:
       # pnpm com --frozen-lockfile aplica o patch do Baileys (assertSessions
       # per-JID em mensagens de grupo) via patchedDependencies; `npm install`
       # não aplicava o patch e regredia o envio para grupos.
-      - name: Install dependencies
+      - name: Install dependencies (com node-linker=hoisted para ZIP flat sem symlinks)
         shell: pwsh
         run: |
           cd momai/apps/momai/scripts/skills/packaged/whatsapp
+          "node-linker=hoisted" | Set-Content -Path .npmrc -Encoding UTF8
           pnpm install --frozen-lockfile
+          "node_modules size (full):"
+          (Get-ChildItem node_modules -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum /1MB | ForEach-Object { [math]::Round($_,1) }
 
       - name: Build UI
         shell: pwsh
@@ -71,12 +74,12 @@ jobs:
           cd momai/apps/momai/scripts/skills/packaged/whatsapp
           node build.mjs
 
-      - name: Prune dev dependencies (economiza ~40MB: typescript, esbuild, vitest não vão no ZIP)
+      - name: Prune dev dependencies (economiza ~40MB: typescript, esbuild, vitest não vão no ZIP + evita npm install no cliente)
         shell: pwsh
         run: |
           cd momai/apps/momai/scripts/skills/packaged/whatsapp
           pnpm prune --prod
-          "Pruned dev deps, node_modules size:"
+          "Pruned dev deps, node_modules size (prod flat):"
           (Get-ChildItem node_modules -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum /1MB | ForEach-Object { [math]::Round($_,1) }
 
       - name: Create release zip
