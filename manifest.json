@@ -1,19 +1,19 @@
-{
-  "id": "whatsapp",
-  "name": "WhatsApp",
+﻿{
+  "id": "momai-whatsapp",
+  "name": "MomAI WhatsApp",
   "kind": "packaged",
   "description": "Monitora e responde mensagens do WhatsApp",
   "icon_bg": "#ffffff",
   "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"#25D366\"><path d=\"M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z\"/></svg>",
   "author": "WesleyQDev",
-  "repo": "WesleyQDev/momai-whatsapp-extension",
+  "repo": "WesleyQDev/momai-whatsapp",
   "sidebar": true,
   "background": true,
   "backgroundScript": "background-worker.ts",
   "permissions": ["network:persistent", "storage:persistent"],
   "sdkVersion": 1,
   "momai_compat": ">=1.10.0",
-  "version": "0.4.15",
+  "version": "0.4.16",
   "ui": {
     "page": "dist/page.js",
     "pageType": "whatsapp-page",
@@ -23,10 +23,10 @@
   "eventTypes": {
     "qr_code": { "label": "Novo QR Code Gerado" },
     "authenticated": { "label": "WhatsApp Autenticado" },
-    "connection_status": { "label": "Status da Conexão Alterado" },
+    "connection_status": { "label": "Status da ConexÃ£o Alterado" },
     "contacts_synced": { "label": "Contatos Sincronizados" },
     "contacts_updated": { "label": "Contatos Atualizados" },
-    "history_loaded": { "label": "Histórico Carregado" },
+    "history_loaded": { "label": "HistÃ³rico Carregado" },
     "whatsapp_message": {
       "label": "Mensagem Recebida no WhatsApp",
       "priority": 100,
@@ -34,7 +34,7 @@
         "contact": {
           "label": "Remetente (Contato ou Grupo)",
           "type": "string",
-          "description": "Filtra mensagens de um contato ou grupo específico",
+          "description": "Filtra mensagens de um contato ou grupo especÃ­fico",
           "x-options-source": { "tool": "list_contacts" }
         },
         "message": {
@@ -42,11 +42,11 @@
           "type": "string",
           "description": "Dispara quando a mensagem contiver este texto"
         },
-        "timestamp": { "label": "Horário", "type": "number" },
-        "imageDataUri": { "label": "Imagem / Mídia", "type": "image" }
+        "timestamp": { "label": "HorÃ¡rio", "type": "number" },
+        "imageDataUri": { "label": "Imagem / MÃ­dia", "type": "image" }
       }
     },
-    "whatsapp_notification": { "label": "Notificação do WhatsApp" },
+    "whatsapp_notification": { "label": "NotificaÃ§Ã£o do WhatsApp" },
     "message_sent": { "label": "Mensagem Enviada" }
   },
   "tools": [
@@ -60,10 +60,10 @@
         "properties": {
           "contact": {
             "type": "string",
-            "description": "Nome ou número do contato ou grupo",
+            "description": "Nome ou nÃºmero do contato ou grupo",
             "x-options-source": { "tool": "list_contacts" }
           },
-          "message": { "type": "string", "description": "Texto da mensagem", "default": "🚨 Alerta de movimento na câmera {{trigger.payload.cameraName}}!" },
+          "message": { "type": "string", "description": "Texto da mensagem", "default": "ðŸš¨ Alerta de movimento na cÃ¢mera {{trigger.payload.cameraName}}!" },
           "image": {
             "type": "string",
             "description": "Imagem a enviar (data URI como data:image/jpeg;base64,... ou base64 puro). O texto vira a legenda.",
@@ -74,18 +74,18 @@
     },
     {
       "name": "set_default_contact",
-      "description": "Define o contato padrão para preencher o campo 'para quem' das actions.",
+      "description": "Define o contato padrÃ£o para preencher o campo 'para quem' das actions.",
       "parameters": {
         "type": "object",
         "required": ["contact"],
         "properties": {
-          "contact": { "type": "string", "description": "Nome ou número do contato padrão" }
+          "contact": { "type": "string", "description": "Nome ou nÃºmero do contato padrÃ£o" }
         }
       }
     },
     {
       "name": "get_default_contact",
-      "description": "Retorna o contato padrão configurado.",
+      "description": "Retorna o contato padrÃ£o configurado.",
       "parameters": { "type": "object", "properties": {} }
     },
     {
@@ -100,7 +100,7 @@
         "type": "object",
         "required": ["contact"],
         "properties": {
-          "contact": { "type": "string", "description": "Número do contato ou ID do grupo" }
+          "contact": { "type": "string", "description": "NÃºmero do contato ou ID do grupo" }
         }
       }
     },
@@ -111,7 +111,7 @@
         "type": "object",
         "required": ["contact"],
         "properties": {
-          "contact": { "type": "string", "description": "Número ou ID do contato" }
+          "contact": { "type": "string", "description": "NÃºmero ou ID do contato" }
         }
       }
     },
@@ -122,14 +122,14 @@
         "type": "object",
         "required": ["contact", "name"],
         "properties": {
-          "contact": { "type": "string", "description": "Número do contato" },
+          "contact": { "type": "string", "description": "NÃºmero do contato" },
           "name": { "type": "string", "description": "Nome personalizado" }
         }
       }
     },
     {
       "name": "sync_contacts",
-      "description": "Força uma re-sincronização dos contatos do WhatsApp com o telefone. Use quando os contatos estiverem ausentes, incompletos ou desatualizados. Retorna a quantidade de contatos após a sincronização.",
+      "description": "ForÃ§a uma re-sincronizaÃ§Ã£o dos contatos do WhatsApp com o telefone. Use quando os contatos estiverem ausentes, incompletos ou desatualizados. Retorna a quantidade de contatos apÃ³s a sincronizaÃ§Ã£o.",
       "parameters": { "type": "object", "properties": {} }
     },
     {
@@ -149,12 +149,12 @@
     },
     {
       "name": "get_stats",
-      "description": "Obtém estatísticas do WhatsApp",
+      "description": "ObtÃ©m estatÃ­sticas do WhatsApp",
       "parameters": { "type": "object", "properties": {} }
     },
     {
       "name": "get_history",
-      "description": "Obtém histórico de mensagens recentes",
+      "description": "ObtÃ©m histÃ³rico de mensagens recentes",
       "parameters": { "type": "object", "properties": {} }
     },
     {
@@ -163,7 +163,7 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "search": { "type": "string", "description": "Busca por nome ou número (opcional)" }
+          "search": { "type": "string", "description": "Busca por nome ou nÃºmero (opcional)" }
         }
       }
     },
@@ -174,8 +174,8 @@
         "type": "object",
         "properties": {
           "search": { "type": "string", "description": "Busca por nome do grupo (opcional)" },
-          "page": { "type": "number", "description": "Página (opcional)" },
-          "perPage": { "type": "number", "description": "Itens por página (opcional)" }
+          "page": { "type": "number", "description": "PÃ¡gina (opcional)" },
+          "perPage": { "type": "number", "description": "Itens por pÃ¡gina (opcional)" }
         }
       }
     },
@@ -192,7 +192,7 @@
     },
     {
       "name": "delete_message",
-      "description": "Deleta todas as mensagens de um contato ou grupo do histórico.",
+      "description": "Deleta todas as mensagens de um contato ou grupo do histÃ³rico.",
       "parameters": {
         "type": "object",
         "required": ["jid"],
@@ -210,8 +210,8 @@
     { "method": "POST", "path": "/process-notification", "tool": "process_notification" }
   ],
   "storage": {
-    "description": "Sessão WhatsApp criptografada (credenciais Baileys), contatos, histórico de mensagens, preferências de monitoramento.",
-    "locations": ["baileys-auth/", "*.json (contatos, histórico, settings)"]
+    "description": "SessÃ£o WhatsApp criptografada (credenciais Baileys), contatos, histÃ³rico de mensagens, preferÃªncias de monitoramento.",
+    "locations": ["baileys-auth/", "*.json (contatos, histÃ³rico, settings)"]
   },
   "voiceHooks": {
     "reply": {
@@ -229,3 +229,4 @@
     "rule": "monitor, reply, or send WhatsApp messages via the whatsapp tools."
   }
 }
+

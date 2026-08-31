@@ -1587,14 +1587,17 @@ async function main() {
     momai.log('Cleaned up stale or placeholder WhatsApp contacts from fallback storage')
   }
 
-  // Start connection
-  await connect()
+  // Signal ready BEFORE connect() — evita travar o Node no pós-install.
+  // Antes, o host esperava 10s por 'ready' enquanto connect() fazia Baileys + decrypt.
+  // Se connect() falhasse ou demorasse, GET /automations e /llm/providers ficavam presos.
+  process.send({ type: 'ready' })
 
   setInterval(() => {
     persistChatHistorySnapshot().catch(() => {})
   }, 30000)
 
-  process.send({ type: 'ready' })
+  // Start connection sem bloquear o ready (fire-and-forget, loga erro)
+  connect().catch((err) => momai.log(`[fix] connect async failed (não bloqueia ready): ${err.message}`))
   if (chatHistory.length > 0) {
     momai.sendEvent('history_loaded', { count: chatHistory.length })
   }
