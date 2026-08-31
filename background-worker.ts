@@ -1917,9 +1917,10 @@ async function connect() {
           momai.sendEvent('authenticated', { status: 'logged_out' })
           momai.sendEvent('connection_status', { status: 'disconnected' })
           _clearReconnectTimer()
+          // Sem QR, espera 5s em vez de 500ms para não segurar thread pool do Node
           setTimeout(() => {
             connect().catch((err) => momai.log(`post-loggedout connect failed: ${err.message}`))
-          }, 500)
+          }, 5000)
         }
       }
     })

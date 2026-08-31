@@ -1,6 +1,6 @@
 ﻿{
   "name": "momai-whatsapp",
-  "version": "0.4.19",
+  "version": "0.4.20",
   "private": true,
   "description": "ExtensÃ£o WhatsApp para MomAI",
   "author": "WesleyQDev",
@@ -30,6 +30,7 @@
     "react-dom": "^19.0.0"
   }
 }
+
 
 
 
