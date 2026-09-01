@@ -556,64 +556,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     }
   }, [activeRecipient.jid, sendReply])
 
-  if (!data) return null
-
-  if (data?.qr || data?.status === 'disconnected') {
-    const [stayConfirmed, setStayConfirmed] = useState(false)
-
-    const handleDismissPermanently = () => {
-      try {
-        localStorage.setItem('momai-whatsapp_disconnected_card_dismissed', 'true')
-      } catch {}
-      if (data?.onClose) data.onClose()
-    }
-
-    const handleStay = () => {
-      setStayConfirmed(true)
-      setTimeout(() => setStayConfirmed(false), 2000)
-    }
-
-    return (
-      <div
-        className="w-[340px] max-w-[calc(100vw-32px)] mx-4 my-4 rounded-xl card border border-border/60 overflow-hidden shadow-2xl bg-bg/95 backdrop-blur-xl p-4 select-none cursor-move"
-        style={{ WebkitAppRegion: 'drag' } as any}
-      >
-        <div className="flex items-start gap-3 mb-3">
-          <div className="w-9 h-9 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-            <span className="text-amber-400 font-bold text-sm">!</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-text">WhatsApp desconectado</p>
-            <p className="text-[11px] text-text-muted mt-0.5 leading-snug">
-              Abra a página da extensão do WhatsApp para reconectar. As mensagens recebidas
-              continuam chegando quando a conexão voltar.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-center gap-3 pt-3 border-t border-white/5" style={{ WebkitAppRegion: 'no-drag' } as any}>
-          <button
-            type="button"
-            onClick={handleStay}
-            className={`py-1.5 px-4 rounded-lg font-medium text-xs border transition-all duration-150 cursor-pointer shadow-md active:scale-95 active:translate-y-0.5 ${
-              stayConfirmed
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
-                : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500/40 hover:shadow-[0_0_12px_rgba(16,185,129,0.25)]'
-            }`}
-          >
-            {stayConfirmed ? 'Fixado ✓' : 'Permanecer'}
-          </button>
-          <button
-            type="button"
-            onClick={handleDismissPermanently}
-            className="py-1.5 px-4 rounded-lg font-medium text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 hover:shadow-[0_0_10px_rgba(239,68,68,0.15)] transition-all duration-150 cursor-pointer shadow-md active:scale-95 active:translate-y-0.5"
-          >
-            Fechar
-          </button>
-        </div>
-      </div>
-    )
-  }
+  if (!data || data?.status === 'disconnected' || data?.qr) return null
 
   const voiceLabel = VOICE_LABELS[voiceStatus]
 

@@ -1770,9 +1770,9 @@ export default function WhatsAppView() {
     onEvent: useCallback(
       (event: any) => {
         if (event.eventType === 'qr_code' && event.data?.qr) {
-          // Só exibe a tela de QR code se a pareagem tiver sido ativada manualmente pelo usuário
-          // ou se a sessão realmente não estiver conectada.
-          if (pairingActive || !connected) {
+          // Só exibe a tela de QR code se o usuário clicou explicitamente em Gerar QR / Reconectar,
+          // ou se não possui nenhuma credencial salva. Evita que o QR pisque durante reconexões transitórias.
+          if (pairingActive || (!hasCredentials && !connected)) {
             applyQrString(event.data.qr)
             setPairingActive(false)
           }
@@ -1783,6 +1783,10 @@ export default function WhatsAppView() {
             setConnected(true)
             setPairingActive(false)
             setQrUrl(null)
+            void loadStats()
+            void loadHistory()
+            void loadPaginatedContacts(contactsPage, contactSearch)
+            void loadPaginatedGroups(groupsPage, groupSearch)
           } else if (status === 'disconnected') {
             setConnected(false)
           }
@@ -1790,6 +1794,8 @@ export default function WhatsAppView() {
         } else if (event.eventType === 'contacts_synced') {
           setSyncedContacts(event.data?.count || 0)
           void loadStats()
+          void loadPaginatedContacts(contactsPage, contactSearch)
+          void loadPaginatedGroups(groupsPage, groupSearch)
           void tryFinishContactSync(event.data?.count, event.data?.isFinal)
           return
         } else if (event.eventType === 'contacts_updated') {
@@ -1817,7 +1823,10 @@ export default function WhatsAppView() {
             setPairingActive(false)
             setQrUrl(null)
             setSyncing(true)
+            void loadStats()
             loadHistory()
+            void loadPaginatedContacts(contactsPage, contactSearch)
+            void loadPaginatedGroups(groupsPage, groupSearch)
           } else {
             setConnected(false)
           }

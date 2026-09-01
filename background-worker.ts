@@ -1724,8 +1724,13 @@ async function connect() {
       logger = makeMockLogger()
     }
 
-    // Use the raw keys directly from disk (disabling cache to prevent Bad MAC and No Sessions out-of-sync desyncs)
-    const authConfig = state
+    // Cache signal keys in memory to prevent Bad MAC and session desyncs under load
+    const authConfig = {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore
+        ? makeCacheableSignalKeyStore(state.keys, logger)
+        : state.keys
+    }
 
     sock = makeWASocket({
       version,
@@ -1733,12 +1738,14 @@ async function connect() {
       logger,
       printQRInTerminal: false,
       emitOwnEvents: false,
-      fireInitQueries: false,
+      fireInitQueries: true,
       generateHighQualityLinkPreview: false,
+      syncFullHistory: false,
+      markOnlineOnConnect: true,
       msgRetryCounterCache,
       browser: ['Windows', 'Chrome', '122.0.0'],
       connectTimeoutMs: 60000,
-      keepAliveIntervalMs: 30000,
+      keepAliveIntervalMs: 15000,
       defaultQueryTimeoutMs: 60000,
       cachedGroupMetadata: async (jid) => {
         const entry = groupMetaCache.get(jid)
