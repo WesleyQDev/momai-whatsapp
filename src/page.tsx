@@ -985,7 +985,7 @@ const _initialStats = getInitialCachedStats()
 // never flashes the QR screen or empty lists when the user returns to an already-connected
 // session. Cleared only on explicit disconnect / logged_out.
 const _stateCache = {
-  connected: false,
+  connected: getInitialHasSession(),
   hasCredentials: getInitialHasSession(),
   totalMessages: _initialStats.totalMessages,
   syncedContacts: _initialStats.syncedContacts,
@@ -1320,14 +1320,12 @@ export default function WhatsAppView() {
       } catch {}
       if (isConnected) {
         setQrUrl(null)
-      } else if (data.qr) {
-        applyQrString(data.qr)
       }
     } catch {
     } finally {
       setStatsLoaded(true)
     }
-  }, [applyQrString, setConnected, setHasCredentials])
+  }, [setConnected, setHasCredentials])
 
   const loadHistory = useCallback(async () => {
     try {
@@ -1590,26 +1588,34 @@ export default function WhatsAppView() {
     setTotalMessages(0)
     setMonitoredCount(0)
     setSyncedContacts(0)
+    setQrUrl(null)
     beginPairing()
     try {
-      await api.post('/extensions/whatsapp/disconnect')
       await api.post('/extensions/whatsapp/command', {
-        toolName: 'request_qr',
-        args: { force: true }
+        toolName: 'disconnect',
+        args: {}
       })
     } catch {}
   }, [beginPairing, setHistory])
 
+  const [generatingQr, setGeneratingQr] = useState(false)
+
   const reconnect = useCallback(async () => {
+    setGeneratingQr(true)
     try {
       beginPairing()
       setConnected(false)
-      // Force um QR realmente novo: o worker apaga a sessão Baileys e gera um
-      // pairing novo. Sem `force`, o worker re-exibe o MESMO QR por até 65s
-      // (QR_TTL_MS) porque _qrStillValid() devolve o QR em cache.
-      await api.post('/extensions/whatsapp/restart', { force: true })
-    } catch {}
-  }, [beginPairing])
+      const res = await api.post('/extensions/whatsapp/command', {
+        toolName: 'request_qr',
+        args: { force: true }
+      }).catch(() => null)
+      if (res?.data?.qr) {
+        applyQrString(res.data.qr)
+      }
+    } catch {} finally {
+      setGeneratingQr(false)
+    }
+  }, [beginPairing, applyQrString])
 
   const openConversationOverlay = useCallback((convo: ConversationSummary) => {
     const { jid, latestIncoming: contextMsg, turns } = convo
@@ -1641,7 +1647,7 @@ export default function WhatsAppView() {
     ]
 
     const overlayData = {
-      skillId: 'whatsapp',
+      skillId: 'momai-whatsapp',
       panel: 'dist/panel.js',
       panelType: 'whatsapp-panel',
       structuredResponse: {
@@ -1686,7 +1692,7 @@ export default function WhatsAppView() {
       ]
 
       const overlayData = {
-        skillId: 'whatsapp',
+        skillId: 'momai-whatsapp',
         panel: 'dist/panel.js',
         panelType: 'whatsapp-panel',
         structuredResponse: {
@@ -1719,32 +1725,7 @@ export default function WhatsAppView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // First visit without session: enter pairing mode
-  useEffect(() => {
-    if (!statsLoaded || connected || qrUrl || pairingActive) return
-    if (hasCredentials) return
-    beginPairing()
-  }, [statsLoaded, connected, qrUrl, hasCredentials, pairingActive, beginPairing])
-
-  // After disconnect / logout: poll until QR appears (worker may still be starting)
-  useEffect(() => {
-    if (!pairingActive || connected || qrUrl || syncingRef.current) return
-
-    let cancelled = false
-    const poll = async () => {
-      for (let attempt = 0; attempt < 30 && !cancelled; attempt++) {
-        await loadStats()
-        // No `force: true` here either — see comment in requestQr.
-        const gotQr = await requestQr()
-        if (cancelled || gotQr || qrUrl) return
-        await new Promise((r) => setTimeout(r, Math.min(400 + attempt * 80, 1200)))
-      }
-    }
-    void poll()
-    return () => {
-      cancelled = true
-    }
-  }, [pairingActive, connected, qrUrl, loadStats, requestQr])
+  // Removemos o auto-começo de pairing automático para que o QR code seja gerado apenas manualmente via clique no botão.
 
   // Debounced search / pagination trigger
   useEffect(() => {
@@ -1789,13 +1770,22 @@ export default function WhatsAppView() {
     onEvent: useCallback(
       (event: any) => {
         if (event.eventType === 'qr_code' && event.data?.qr) {
-          applyQrString(event.data.qr)
-          setPairingActive(false)
+          // Só exibe a tela de QR code se a pareagem tiver sido ativada manualmente pelo usuário
+          // ou se a sessão realmente não estiver conectada.
+          if (pairingActive || !connected) {
+            applyQrString(event.data.qr)
+            setPairingActive(false)
+          }
           return
         } else if (event.eventType === 'connection_status') {
           const status = event.data?.status
-          if (status === 'connected') setConnected(true)
-          else if (status === 'disconnected') setConnected(false)
+          if (status === 'connected') {
+            setConnected(true)
+            setPairingActive(false)
+            setQrUrl(null)
+          } else if (status === 'disconnected') {
+            setConnected(false)
+          }
           return
         } else if (event.eventType === 'contacts_synced') {
           setSyncedContacts(event.data?.count || 0)
@@ -1850,10 +1840,9 @@ export default function WhatsAppView() {
     )
   })
 
-  // Show dashboard when connected, has valid credentials, or has history.
-  // If qrUrl is set, always show the QR area (even if hasCredentials is true
-  // from a stale session that was marked as invalid by the worker).
-  const showDashboard = connected || (hasCredentials && !qrUrl) || history.length > 0
+  // Show dashboard when connected or has valid stored credentials (without a pending QR code).
+  // When disconnected or after clicking disconnect, showDashboard becomes false to show the QR button onboarding view.
+  const showDashboard = (connected || hasCredentials) && !qrUrl && !pairingActive
 
   return (
     <div className="flex-1 h-full flex flex-col min-h-0">
@@ -2042,49 +2031,40 @@ export default function WhatsAppView() {
 
       {!showDashboard && (
         <div className="flex-1 w-full flex flex-col items-center justify-center px-6 pb-8 text-center space-y-5 min-h-0">
-          {qrUrl ? (
-            <div className="space-y-4 flex flex-col items-center">
-              <p className="text-sm text-text-muted max-w-sm">
-                Escaneie o QR code com o WhatsApp do celular
-              </p>
-              <img
-                src={qrUrl}
-                alt="QR Code"
-                className="block mx-auto rounded-xl p-2 bg-white border border-white/10 shadow-2xl"
-                width={240}
-                height={240}
-              />
-              <button
-                type="button"
-                onClick={reconnect}
-                className="mt-2 py-2 px-5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-all duration-200 border border-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>Gerar Novo QR Code</span>
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4 flex flex-col items-center">
-              <div className="animate-pulse flex justify-center">
+          <div className="space-y-4 flex flex-col items-center">
+            {qrUrl ? (
+              <>
+                <p className="text-sm text-text-muted max-w-sm">
+                  Escaneie o QR code com o WhatsApp do seu celular
+                </p>
+                <img
+                  src={qrUrl}
+                  alt="QR Code"
+                  className="block mx-auto rounded-xl p-2 bg-white border border-white/10 shadow-2xl"
+                  width={240}
+                  height={240}
+                />
+              </>
+            ) : (
+              <div className="flex justify-center">
                 <div className="w-48 h-48 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
                   <WhatsAppIcon className="w-16 h-16 opacity-30" />
                 </div>
               </div>
-              <p className="text-sm text-text-muted">Aguardando QR code...</p>
-              <button
-                type="button"
-                onClick={reconnect}
-                className="py-2 px-5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-all duration-200 border border-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>Gerar Novo QR Code</span>
-              </button>
-            </div>
-          )}
+            )}
+
+            <button
+              type="button"
+              onClick={reconnect}
+              disabled={generatingQr}
+              className="mt-2 py-2.5 px-6 text-sm font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-all duration-200 border border-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer flex items-center gap-2 disabled:opacity-50"
+            >
+              <svg className={`w-4 h-4 ${generatingQr ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>{generatingQr ? 'Gerando...' : qrUrl ? 'Gerar Novo QR Code' : 'Gerar QR Code'}</span>
+            </button>
+          </div>
         </div>
       )}
 

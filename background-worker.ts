@@ -1603,15 +1603,19 @@ async function main() {
   // Só auto-conecta se já tem creds (já escaneou QR antes). Sem QR, fica dormindo sem carregar Baileys (1.7s) até o usuário clicar em Conectar
   try {
     const fsSync = require('node:fs')
-    const hasCreds = fsSync.existsSync(require('node:path').join(authDir, 'creds.json'))
+    const pathSync = require('node:path')
+    const authDir = pathSync.join(momai.storage.storageDir, 'baileys-auth')
+    const credsFile = pathSync.join(authDir, 'creds.json')
+    const encCredsFile = pathSync.join(authDir, 'creds.json.enc')
+    const hasCreds = fsSync.existsSync(credsFile) || fsSync.existsSync(encCredsFile)
     if (hasCreds) {
       loadBaileys()
       connect().catch((err) => momai.log(`[fix] connect async failed (não bloqueia ready): ${err.message}`))
     } else {
       momai.log('[whatsapp] Sem creds, aguardando QR (não carrega Baileys, não segura thread)')
     }
-  } catch {
-    // Se falhar checagem, não auto-conecta
+  } catch (err: any) {
+    momai.log(`[whatsapp] Erro na checagem inicial de creds: ${err.message}`)
   }
   if (chatHistory.length > 0) {
     momai.sendEvent('history_loaded', { count: chatHistory.length })
@@ -3495,11 +3499,6 @@ process.on('message', async (msg) => {
           _currentPhone = null
           momai.sendEvent('authenticated', { status: 'logged_out' })
           momai.sendEvent('connection_status', { status: 'disconnected' })
-          // Trigger new QR connection process
-          setTimeout(() => {
-            preventAutoReconnect = false
-            connect().catch(() => {})
-          }, 500)
           result = { ok: true }
           break
         }
