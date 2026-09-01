@@ -9,6 +9,7 @@
   "scripts": {
     "build": "node build.mjs",
     "watch": "node build.mjs --watch",
+    "package": "node scripts/package-extension.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.runtime.json",
     "test": "vitest run"
   },
