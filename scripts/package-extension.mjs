@@ -54,3 +54,7 @@ console.log(`\n✅ Pacote gerado com sucesso!`)
 console.log(`📦 Arquivo:  ${zipName}`)
 console.log(`📊 Tamanho:  ${sizeMB} MB`)
 console.log(`🔒 SHA256:   ${hash}\n`)
+
+// 5. Restore full dev dependencies for ongoing local work
+console.log('[package] Restaurando dependências de desenvolvimento (pnpm install)...')
+execSync('pnpm install', { cwd: rootDir, stdio: 'inherit' })

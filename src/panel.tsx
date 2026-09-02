@@ -6,20 +6,26 @@ import {
   ArrowLeftIcon,
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline'
+import { PlayIcon, PauseIcon } from '@heroicons/react/24/solid'
 import QRCode from 'qrcode'
 import ImageViewer from 'momai:image-viewer'
 import sdk from 'momai:sdk'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 
 const getApiBaseUrl = (): string => {
-  const fromHost = (window as any)?.api?.getApiBaseUrl?.()
+  const fromHost =
+    (window as any)?.momaiAPI?.getApiBaseUrl?.() ||
+    (window as any)?.api?.getApiBaseUrl?.()
   if (fromHost) return String(fromHost).replace(/\/+$/, '')
   const fromSdk = (sdk as any)?.API_URL
   if (fromSdk) return String(fromSdk).replace(/\/+$/, '')
-  return ''
+  return 'http://127.0.0.1:8050'
 }
 
-const API_URL = getApiBaseUrl()
+const getAudioUrl = (filename: string): string => {
+  const base = getApiBaseUrl()
+  return `${base}/extensions/momai-whatsapp/storage/audio/${encodeURIComponent(filename)}`
+}
 
 type HistoryLine = {
   direction: 'incoming' | 'outgoing'
@@ -40,6 +46,127 @@ type Participant = {
 const formatHistoryTime = (ts: number) => {
   const ms = ts > 1e12 ? ts : ts * 1000
   return new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+const formatSeconds = (sec: number) => {
+  if (isNaN(sec) || !isFinite(sec) || sec < 0) return '0:00'
+  const m = Math.floor(sec / 60)
+  const s = Math.floor(sec % 60)
+  return `${m}:${s < 10 ? '0' : ''}${s}`
+}
+
+function CustomAudioPlayer({ src }: { src: string }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [playbackRate, setPlaybackRate] = useState(1)
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime)
+    const handleLoadedMetadata = () => setDuration(audio.duration || 0)
+    const handleEnded = () => {
+      setIsPlaying(false)
+      setCurrentTime(0)
+    }
+    const handlePause = () => setIsPlaying(false)
+    const handlePlay = () => setIsPlaying(true)
+
+    audio.addEventListener('timeupdate', handleTimeUpdate)
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata)
+    audio.addEventListener('durationchange', handleLoadedMetadata)
+    audio.addEventListener('ended', handleEnded)
+    audio.addEventListener('pause', handlePause)
+    audio.addEventListener('play', handlePlay)
+
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate)
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+      audio.removeEventListener('durationchange', handleLoadedMetadata)
+      audio.removeEventListener('ended', handleEnded)
+      audio.removeEventListener('pause', handlePause)
+      audio.removeEventListener('play', handlePlay)
+    }
+  }, [src])
+
+  const togglePlay = () => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (isPlaying) {
+      audio.pause()
+    } else {
+      audio.play().catch((err) => console.warn('[CustomAudioPlayer] play error:', err))
+    }
+  }
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const audio = audioRef.current
+    if (!audio) return
+    const newTime = Number(e.target.value)
+    audio.currentTime = newTime
+    setCurrentTime(newTime)
+  }
+
+  const toggleSpeed = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const nextRate = playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1
+    setPlaybackRate(nextRate)
+    if (audioRef.current) {
+      audioRef.current.playbackRate = nextRate
+    }
+  }
+
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0
+
+  return (
+    <div className="w-full mt-1 flex flex-col gap-1.5 p-2 rounded-lg bg-input border border-border/50 select-none">
+      <audio ref={audioRef} src={src} preload="metadata" />
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={togglePlay}
+          className="p-1 rounded-md text-text hover:text-accent active:scale-95 transition-colors shrink-0 cursor-pointer focus:outline-none"
+          title={isPlaying ? 'Pausar áudio' : 'Tocar áudio'}
+          aria-label={isPlaying ? 'Pausar áudio' : 'Tocar áudio'}
+        >
+          {isPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5 ml-0.5" />}
+        </button>
+
+        <div className="flex-1 flex flex-col justify-center gap-1.5 min-w-0">
+          <div className="relative w-full flex items-center h-3">
+            <input
+              type="range"
+              min={0}
+              max={duration || 1}
+              step={0.1}
+              value={currentTime}
+              onChange={handleSeek}
+              className="w-full h-1 rounded-full appearance-none bg-text/15 cursor-pointer accent-text focus:outline-none"
+              style={{
+                background: `linear-gradient(to right, rgb(var(--text-primary)) ${progress}%, rgb(var(--text-primary) / 0.15) ${progress}%)`
+              }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-text-muted font-medium px-0.5 leading-none">
+            <span>{formatSeconds(currentTime)}</span>
+            <span>{formatSeconds(duration)}</span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={toggleSpeed}
+          className="text-[10px] px-1.5 py-0.5 rounded font-bold text-text-muted hover:text-text bg-text/5 hover:bg-text/10 transition-colors shrink-0 cursor-pointer"
+          title="Velocidade de reprodução"
+        >
+          {playbackRate}x
+        </button>
+      </div>
+    </div>
+  )
 }
 
 const VOICE_LABELS: Record<string, string> = {
@@ -73,23 +200,15 @@ const getInitials = (name: string): string => {
 
 function ContactAvatar({ src, name, id }: { src?: string | null; name: string; id: string }) {
   const [showViewer, setShowViewer] = useState(false)
-  // Guarda o último src que a imagem já mostrou e o segura mesmo que o host
-  // re-renderize o overlay com src alternando entre valor e undefined — assim o
-  // avatar não fica piscando entre foto e letra. Só troca de foto quando o valor
-  // do src muda, e só volta para o fallback quando muda o contato (id).
   const [stableSrc, setStableSrc] = useState<string | null>(src || null)
   const prevIdRef = useRef<string>(id)
 
   useEffect(() => {
-    // Muda o contato: volta ao fallback de letra até a foto do novo contato chegar
-    // (recomeça do zero).
     if (id !== prevIdRef.current) {
       prevIdRef.current = id
       setStableSrc(src || null)
       return
     }
-    // Mesmo contato: só sobe para a foto quando um src real chegar; não volta para
-    // a letra quando o host passa src indefinido momentaneamente (evita o piscar).
     if (src) setStableSrc(src)
   }, [src, id])
 
@@ -127,7 +246,7 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
 
   const isPhone = /^[+\d\s().-]*$/.test(name)
   return (
-    <div className="w-10 h-10 rounded-full bg-white/[0.03] border border-border/40 flex items-center justify-center text-lg shrink-0">
+    <div className="w-10 h-10 rounded-full bg-input/40 border border-border/40 flex items-center justify-center text-lg shrink-0">
       {isPhone ? '📱' : '👤'}
     </div>
   )
@@ -145,28 +264,32 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const isAdminsOnly = data?.isAdminsOnly || false
   const onClose = data?.onClose || (() => {})
 
+  console.log('[WhatsAppPanel] data received:', {
+    audio: data?.audio,
+    message,
+    contactJid,
+    isGroup,
+    conversationHistoryLen: conversationHistory.length,
+    conversationHistoryAudios: conversationHistory.map((l: any) => l.audio),
+    activeRecipientJid: contactJid,
+    dataKeys: data ? Object.keys(data) : []
+  })
+
   const [voiceStatus, setVoiceStatus] = useState<
     'idle' | 'listening' | 'detected' | 'complete' | 'error' | 'timeout'
   >('idle')
   const [customText, setCustomText] = useState('')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
-  // Esconde o card na hora do envio sem destruir a janela (a geração via LLM e o
-  // envio rodam em background, já que destruir a janela agora cancelaria o fetch).
   const [minimized, setMinimized] = useState(false)
-  // Avatar autônomo: quando o host não mandou contactAvatar (a foto ainda não
-  // estava pronta na abertura), o painel busca por conta própria via get_avatars
-  // em vez de ficar mostrando a letra até chegar um novo render.
   const [resolvedAvatar, setResolvedAvatar] = useState<string | null>(null)
   const avatarFetchedRef = useRef<string>('')
   const abortRef = useRef<AbortController | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const cardRef = useRef<HTMLDivElement | null>(null)
   const historyScrollRef = useRef<HTMLDivElement | null>(null)
-  /** Bumped on manual/quick-reply send so in-flight voice sends are ignored */
   const interactionGenRef = useRef(0)
 
-  // Destinatário ativo (pode ser o grupo original ou um contato selecionado da lista de membros)
   const [activeRecipient, setActiveRecipient] = useState<{
     jid: string
     name: string
@@ -183,7 +306,6 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     fromGroupName: isGroup ? groupName || contact : undefined
   })
 
-  // Sincroniza activeRecipient quando data muda
   useEffect(() => {
     setActiveRecipient({
       jid: contactJid,
@@ -197,7 +319,6 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     setParticipantSearch('')
   }, [contactJid, contact, isGroup, groupName, data?.contactAvatar, resolvedAvatar])
 
-  // Gerenciamento de participantes do grupo
   const [showParticipants, setShowParticipants] = useState(false)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [loadingParticipants, setLoadingParticipants] = useState(false)
@@ -219,7 +340,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     setLoadingParticipants(true)
     setParticipantsError(null)
     try {
-      const { data: res } = await sdk.api.post('/extensions/whatsapp/command', {
+      const { data: res } = await sdk.api.post('/extensions/momai-whatsapp/command', {
         toolName: 'get_group_participants',
         args: { groupJid: groupJidToFetch }
       })
@@ -271,7 +392,6 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     interactionGenRef.current += 1
   }, [contactJid, message, conversationHistory.length])
 
-  // Se o host não entregou a foto do contato, busca o avatar por conta própria.
   const avatarSrc = data?.contactAvatar || resolvedAvatar
   useEffect(() => {
     if (!contactJid || data?.contactAvatar || avatarFetchedRef.current === contactJid) return
@@ -279,7 +399,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     let cancelled = false
     ;(async () => {
       try {
-        const { data: avData } = await sdk.api.post('/extensions/whatsapp/command', {
+        const { data: avData } = await sdk.api.post('/extensions/momai-whatsapp/command', {
           toolName: 'get_avatars',
           args: { jids: [contactJid] }
         })
@@ -301,20 +421,15 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     el.scrollTop = el.scrollHeight
   }, [contactJid, conversationHistory.length])
 
-  // Autosize: define o tamanho da janela overlay.
-  // A largura é fixa (CARD_WIDTH) e a altura é limitada a MAX_HEIGHT.
-  // O card usa min-h/max-h para ser responsivo, mas a janela sempre
-  // respeita o MAX_HEIGHT para não crescer infinitamente.
   useEffect(() => {
     const el = cardRef.current
     const setSize = (window as any).api?.setOverlaySize
     if (!el || typeof setSize !== 'function') return
 
     const CARD_WIDTH = 320
-    const MAX_HEIGHT = 400 // altura máxima do card (px)
-    const MARGIN = 16 // m-4 no card; janela precisa incluir as duas margens
+    const MAX_HEIGHT = 400
+    const MARGIN = 16
 
-    // Define o tamanho uma vez quando o card é montado
     setSize({
       width: CARD_WIDTH + MARGIN * 2,
       height: MAX_HEIGHT + MARGIN * 2
@@ -385,14 +500,6 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       setCustomText('')
       setSendError('')
       try {
-        // O worker pode demorar em casos legítimos (sync de contatos pós-conexão,
-        // reconexão do WebSocket, retries do Baileys, envio de mídia grande). O
-        // timeout único de 60s cobre toda a janela de sync (~30-60s) sem retry:
-        // retry aqui DUPLICARIA o envio, pois o worker segue processando o comando
-        // original mesmo quando o fetch é abortado. Antes eram 15s/3 tentativas, e
-        // qualquer envio que passasse de 15s estourava com "Tempo esgotado" mesmo
-        // com o worker ainda enviando. A base URL vem do host
-        // (window.api.getApiBaseUrl), nunca hardcoded.
         const base = getApiBaseUrl()
         if (!base) {
           setSendError('Não foi possível determinar o servidor da extensão. Tente novamente.')
@@ -400,12 +507,11 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           setMinimized(false)
           return
         }
-        const url = `${base}/extensions/whatsapp/command`
+        const url = `${base}/extensions/momai-whatsapp/command`
         const payload = {
           toolName: 'send_message',
           args: { contact: targetJid, message: body }
         }
-        console.log('[WhatsAppNotificationCard] sendReply fetch →', url, 'jid=', targetJid)
         const t0 = Date.now()
         const ctrl = new AbortController()
         const timer = setTimeout(() => ctrl.abort(), 120000)
@@ -421,44 +527,27 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             body: JSON.stringify(payload),
             signal: ctrl.signal
           })
-          console.log(`[PERF] sendReply fetch RESPONSE status=${res.status} time=${Date.now() - t0}ms`)
-          const text = await res.text()
-          console.log('[WhatsAppNotificationCard] sendReply fetch RES', res.status, text.slice(0, 200))
-          let data: any = null
+          const resText = await res.text()
+          let resData: any = null
           try {
-            data = text ? JSON.parse(text) : null
+            resData = resText ? JSON.parse(resText) : null
           } catch {}
-          if (res.ok && data?.ok !== false) {
-            result = { ok: true, status: res.status, data }
+          if (res.ok && resData?.ok !== false) {
+            result = { ok: true, status: res.status, data: resData }
           } else {
-            lastError = (data?.error || data?.directResponse || `HTTP ${res.status}`).toString()
+            lastError = (resData?.error || resData?.directResponse || `HTTP ${res.status}`).toString()
           }
         } catch (err: any) {
           lastError = err?.name === 'AbortError' ? 'Tempo esgotado' : err?.message || 'Erro'
         } finally {
           clearTimeout(timer)
         }
-        console.log('[WhatsAppNotificationCard] sendReply result', JSON.stringify(result))
         if (gen !== interactionGenRef.current) return
         if (!result) {
-          // Só é "envio em andamento" quando o comando pode ainda estar rodando
-          // no worker: (a) o fetch do painel foi abortado aos 60s (AbortError) e
-          // o worker pode ter continuado o envio; (b) o host abortou a chamada
-          // IPC aos 30s ("Extension execution timeout") e o worker segue
-          // processando. Nesses casos não mostramos "Tempo esgotado. Tente
-          // novamente" para um envio que pode concluir.
-          // Um erro RÁPIDO do worker ({ok:false, error}) é falha real — mesmo
-          // que a mensagem contenha "timeout" (ex.: "demorou demais (timeout de
-          // rede)") — e mostra o erro de verdade, não a mensagem de "em
-          // andamento".
           const inFlight =
             lastError === 'Tempo esgotado' ||
             /extension execution timeout/i.test(lastError)
           if (inFlight) {
-            console.warn(
-              '[WhatsAppNotificationCard] sendReply in-flight (timeout); keeping overlay open:',
-              lastError
-            )
             setSendError(
               'O envio continua em andamento em segundo plano. Aguarde um instante ou tente de novo.'
             )
@@ -466,7 +555,6 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             setMinimized(false)
             return
           }
-          console.error('[WhatsAppNotificationCard] sendReply failed:', lastError)
           setSendError(`Não foi possível enviar: ${lastError}. Tente novamente.`)
           setSending(false)
           setMinimized(false)
@@ -475,7 +563,6 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         onClose()
       } catch (err: any) {
         if (gen !== interactionGenRef.current) return
-        console.error('[WhatsAppNotificationCard] sendReply error:', err?.name, err?.message)
         setSendError(
           err?.name === 'AbortError'
             ? 'O envio continua em andamento em segundo plano.'
@@ -493,9 +580,6 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       if (sending) return
       const gen = beginUserSend()
       setSending(true)
-      // Esconde o card imediatamente no clique (sem destruir a janela): a
-      // expansão via LLM e o envio seguem em background, e o sendReply fecha de
-      // verdade ao terminar. Destruir a janela agora cancelaria o fetch pendente.
       setCustomText('')
       setMinimized(true)
       try {
@@ -524,7 +608,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     setVoiceStatus('listening')
     ;(async () => {
       try {
-        const result = await sdk.api.post('/voice/whatsapp/reply/wait', {
+        const result = await sdk.api.post('/voice/momai-whatsapp/reply/wait', {
           contact_jid: activeRecipient.jid
         })
 
@@ -559,6 +643,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   if (!data || data?.status === 'disconnected' || data?.qr) return null
 
   const voiceLabel = VOICE_LABELS[voiceStatus]
+  const isSelectedMember = Boolean(!activeRecipient.isGroup && activeRecipient.fromGroupJid)
 
   const contactName = activeRecipient.name || senderName || contact || 'Contato'
   const fallbackQuickReplies = [
@@ -611,7 +696,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
               <p className="text-xs font-semibold text-text truncate group-hover/btn:text-accent transition-colors">
                 {activeRecipient.name}
               </p>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-text font-bold shrink-0 flex items-center gap-1 shadow-sm hover:bg-white/20 transition-all">
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-input/60 border border-border/60 text-text font-semibold shrink-0 flex items-center gap-1 shadow-sm hover:bg-input transition-all">
                 👥 Membros
               </span>
             </button>
@@ -666,7 +751,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             stop()
             onClose()
           }}
-          className="p-1 rounded-md hover:bg-text/10 text-text-muted hover:text-text transition-colors shrink-0"
+          className="p-1 rounded-md hover:bg-text/10 text-text-muted hover:text-text transition-colors shrink-0 cursor-pointer"
           style={{ WebkitAppRegion: 'no-drag' } as any}
           aria-label="Fechar"
         >
@@ -684,7 +769,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
               <button
                 type="button"
                 onClick={() => setShowParticipants(false)}
-                className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text transition-colors p-1 rounded-md hover:bg-white/5 cursor-pointer"
+                className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text transition-colors p-1 rounded-md hover:bg-input/50 cursor-pointer"
               >
                 <ArrowLeftIcon className="w-3.5 h-3.5" />
                 <span>Voltar à conversa</span>
@@ -741,7 +826,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                     key={p.id}
                     type="button"
                     onClick={() => handleSelectParticipant(p)}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-white/5 border border-transparent hover:border-border/40 transition-all text-left group/item cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-input/60 border border-transparent hover:border-border/40 transition-all text-left group/item cursor-pointer"
                   >
                     <ContactAvatar src={p.avatar} name={p.name} id={p.id} />
                     <div className="flex-1 min-w-0">
@@ -768,10 +853,10 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           </div>
         ) : (
           <div className="flex flex-col flex-1 min-h-0">
-            {activeRecipient.jid === contactJid && conversationHistory.length > 0 ? (
+            {!isSelectedMember && conversationHistory.length > 0 ? (
               <div
                 ref={historyScrollRef}
-                className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar rounded-lg bg-black/20 scroll-pt-3 scroll-pb-3"
+                className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar rounded-lg bg-input/40 border border-border/30 scroll-pt-3 scroll-pb-3"
               >
                 <div className="px-3 py-2 space-y-3 select-text">
                   {conversationHistory.map((line, i) => (
@@ -793,24 +878,20 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                           {formatHistoryTime(line.timestamp)}
                         </span>
                       </div>
-                      <p className="text-sm text-text/80 mt-0.5 whitespace-pre-wrap break-words select-text">
-                        {line.text}
-                      </p>
-                      {line.audio && (
-                        <div className="mt-1.5 mb-1 max-w-[280px]">
-                          <audio
-                            src={`${API_URL}/extensions/whatsapp/storage/audio/${line.audio}`}
-                            controls
-                            className="w-full h-8 accent-accent"
-                          />
-                        </div>
+                      {line.text && line.text !== '🎙️ Áudio' && (
+                        <p className="text-sm text-text/90 mt-0.5 whitespace-pre-wrap break-words select-text">
+                          {line.text}
+                        </p>
+                      )}
+                      {(line.audio || (line.text === '🎙️ Áudio' && data?.audio)) && (
+                        <CustomAudioPlayer src={getAudioUrl(line.audio || data?.audio)} />
                       )}
                     </div>
                   ))}
                 </div>
               </div>
-            ) : activeRecipient.jid === contactJid && message ? (
-              <div className="min-h-[5.5rem] rounded-lg bg-black/20 p-3 select-text flex flex-col justify-center">
+            ) : !isSelectedMember && message ? (
+              <div className="min-h-[5.5rem] rounded-lg bg-input/40 border border-border/30 p-3 select-text flex flex-col justify-center">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-text-muted select-text">
                     {senderName || contact}
@@ -821,13 +902,18 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-text/80 mt-1 whitespace-pre-wrap break-words select-text">
-                  {message}
-                </p>
+                {message && message !== '🎙️ Áudio' && (
+                  <p className="text-sm text-text/90 mt-1 whitespace-pre-wrap break-words select-text">
+                    {message}
+                  </p>
+                )}
+                {data?.audio && (
+                  <CustomAudioPlayer src={getAudioUrl(data.audio)} />
+                )}
               </div>
             ) : (
-              <div className="min-h-[5.5rem] rounded-lg bg-black/20 p-3 flex items-center justify-center select-none border border-white/[0.02]">
-                <p className="text-xs text-text-muted/40 font-normal">
+              <div className="min-h-[5.5rem] rounded-lg bg-input/40 border border-border/30 p-3 flex items-center justify-center select-none">
+                <p className="text-xs text-text-muted/60 font-normal">
                   {activeRecipient.fromGroupJid && !activeRecipient.isGroup
                     ? `Inicie uma conversa direta com ${activeRecipient.name}`
                     : 'Nenhuma mensagem recente'}
@@ -835,25 +921,15 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
               </div>
             )}
 
-            {data?.audio && activeRecipient.jid === contactJid && (
-              <div className="mt-1.5 mb-2 max-w-[280px] shrink-0">
-                <audio
-                  src={`${API_URL}/extensions/whatsapp/storage/audio/${data.audio}`}
-                  controls
-                  className="w-full h-8 accent-accent"
-                />
-              </div>
-            )}
-
             {sendError && (
-              <div className="shrink-0 flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30">
-                <span className="text-[11px] text-red-400 leading-snug flex-1 select-text">
+              <div className="shrink-0 flex items-start gap-2 px-3 py-2 rounded-lg bg-input border border-border/80 text-text">
+                <span className="text-[11px] text-text-muted leading-snug flex-1 select-text">
                   {sendError}
                 </span>
                 <button
                   type="button"
                   onClick={() => setSendError('')}
-                  className="text-red-400/70 hover:text-red-300 text-xs shrink-0 cursor-pointer"
+                  className="text-text-muted hover:text-text text-xs shrink-0 cursor-pointer"
                   aria-label="Fechar erro"
                 >
                   ✕
@@ -862,7 +938,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             )}
 
             {isAdminsOnly && activeRecipient.isGroup ? (
-              <div className="flex items-center justify-center py-2 px-3 rounded-lg bg-black/10 border border-white/5">
+              <div className="flex items-center justify-center py-2 px-3 rounded-lg bg-input/40 border border-border/30">
                 <p className="text-[11px] text-text-muted">
                   Somente <span className="text-accent font-bold">admins</span> podem enviar
                   mensagens
@@ -944,7 +1020,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                     type="button"
                     onClick={() => handleQuickReply(reply)}
                     disabled={sending}
-                    className={`w-full text-left px-3 py-2 text-xs font-medium rounded-lg border border-border bg-white/[0.03] text-text hover:text-text hover:bg-white/5 transition-all disabled:opacity-40 truncate ${
+                    className={`w-full text-left px-3 py-2 text-xs font-medium rounded-lg border border-border bg-input/40 text-text hover:text-text hover:bg-input/80 transition-all disabled:opacity-40 truncate ${
                       sending ? 'cursor-default' : 'cursor-pointer'
                     }`}
                   >
@@ -976,8 +1052,6 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
 
   const [qrCodeString, setQrCodeString] = useState<string | null>(qr || null)
 
-  // O host não reenvia dados novos ao overlay após abrir, então o card escuta
-  // os eventos da própria extensão e fecha sozinho quando a conexão volta, ou atualiza o QR.
   useExtensionEvents({
     onEvent: useCallback(
       (event: any) => {
@@ -1010,7 +1084,7 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
     setLoading(true)
     setError(null)
     try {
-      const result = await sdk.api.post('/extensions/whatsapp/restart', { force: true })
+      const result = await sdk.api.post('/extensions/momai-whatsapp/restart', { force: true })
       if (!result.ok) {
         throw new Error(result.error || `HTTP error`)
       }
@@ -1029,18 +1103,18 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
     >
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-2">
-          <div className="bg-emerald-500/10 border border-emerald-500/20 p-1.5 rounded-lg shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+          <div className="bg-accent/10 border border-accent/20 p-1.5 rounded-lg">
             <svg
               viewBox="0 0 24 24"
-              className="w-4 h-4"
+              className="w-4 h-4 text-accent"
               fill="none"
-              stroke="#10B981"
+              stroke="currentColor"
               strokeWidth="2"
             >
               <path d="M12 2.5C6.753 2.5 2.5 6.753 2.5 12c0 1.7.446 3.296 1.226 4.684L2.5 21.5l4.916-1.29A9.45 9.45 0 0 0 12 21.5c5.247 0 9.5-4.253 9.5-9.5S17.247 2.5 12 2.5z" />
               <path
                 d="M16.3 14.66c-.2.56-1.18 1.08-1.64 1.12-.42.04-.96.2-2.78-.52-2.32-.92-3.78-3.28-3.9-3.44-.12-.16-.94-1.24-.94-2.36 0-1.12.58-1.68.8-1.9.2-.22.44-.28.6-.28h.46c.14 0 .34.04.52.48l.92 2.24c.08.2.12.4.02.64-.08.16-.18.36-.3.48-.12.12-.24.26-.1.48.52.88 1.16 1.56 2.06 2.08.22.14.38.08.54-.08.14-.16.66-.76.84-1 .18-.24.36-.2.64-.1.26.1 1.68.8 1.96.94.28.14.48.2.54.32.08.12.08.68-.14 1.28z"
-                fill="#10B981"
+                fill="currentColor"
                 stroke="none"
               />
             </svg>
@@ -1050,7 +1124,7 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
         <button
           type="button"
           onClick={onClose}
-          className="p-1 rounded-md hover:bg-text/10 text-text-muted hover:text-text transition-colors shrink-0"
+          className="p-1 rounded-md hover:bg-text/10 text-text-muted hover:text-text transition-colors shrink-0 cursor-pointer"
           style={{ WebkitAppRegion: 'no-drag' } as any}
           aria-label="Fechar"
         >
@@ -1064,21 +1138,21 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
         </p>
 
         <div
-          className="relative w-44 h-44 flex items-center justify-center bg-white rounded-xl p-2.5 border border-border/10 shadow-inner"
+          className="relative w-44 h-44 flex items-center justify-center bg-white rounded-xl p-2.5 border border-border/20 shadow-inner"
           style={{ WebkitAppRegion: 'no-drag' } as any}
         >
           {qrUrl ? (
             <img src={qrUrl} alt="WhatsApp QR Code" className="w-full h-full object-contain" />
           ) : (
             <div className="flex flex-col items-center justify-center gap-2">
-              <div className="w-7 h-7 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
-              <span className="text-[10px] text-zinc-500 font-medium">Aguardando código...</span>
+              <div className="w-7 h-7 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+              <span className="text-[10px] text-text-muted font-medium">Aguardando código...</span>
             </div>
           )}
         </div>
 
         {error && (
-          <p className="text-[10px] text-red-400 mt-2 bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-lg max-w-[260px]">
+          <p className="text-[10px] text-text-muted mt-2 bg-input border border-border/80 px-3 py-1.5 rounded-lg max-w-[260px]">
             {error}
           </p>
         )}
@@ -1088,7 +1162,7 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
           onClick={handleReconnect}
           disabled={loading}
           style={{ WebkitAppRegion: 'no-drag' } as any}
-          className="mt-3 w-full max-w-[200px] py-2 px-4 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-all duration-200 border border-emerald-500/30 hover:shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          className="mt-3 w-full max-w-[200px] py-2 px-4 text-xs font-semibold rounded-lg bg-accent text-card hover:opacity-90 transition-all duration-200 border border-accent/40 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
         >
           {loading ? 'Solicitando...' : 'Gerar Novo QR Code'}
         </button>

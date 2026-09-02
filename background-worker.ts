@@ -2531,6 +2531,7 @@ async function handleMessagesUpsert({ messages }) {
       )
       // For self-messages, use the user's own JID (not the corrupted LID-resolved one)
       const notifContactJid = isNoteToSelf ? myJidStandardized || replyJid : replyJid
+      momai.log(`[audio-debug] whatsapp_notification audioFilename=${audioFilename} isGroup=${isGroup} contact=${finalDisplayName}`)
       momai.sendEvent('whatsapp_notification', {
         contact: finalDisplayName,
         senderName: isGroup ? displayName : undefined,
@@ -2554,6 +2555,8 @@ async function handleMessagesUpsert({ messages }) {
           contactJid: replyJid,
           senderJid,
           message: text,
+          audio: audioFilename,
+          contactAvatar: resolveChatAvatarUrl(remoteJid, isGroup, senderJid),
           timestamp: msg.messageTimestamp,
           isGroup: !!isGroup,
           groupName: isGroup ? resGroupName : undefined,
