@@ -1,27 +1,33 @@
-# WhatsApp (Extensão)
+# MomAI WhatsApp
 
-Conecte seu WhatsApp à MomAI e controle suas mensagens por voz ou texto. Esta extensão monitora conversas de contatos selecionados e permite enviar respostas diretamente pela assistente — tudo sem precisar pegar o celular.
+Conecte seu WhatsApp à MomAI para acompanhar conversas importantes e enviar respostas rápidas por voz ou texto, tudo sem precisar tirar o celular do bolso.
 
-### O que ela faz por você:
+## Suas conversas ao seu alcance enquanto usa o computador
 
-- **Monitora Mensagens**: Receba notificações de novas mensagens dos contatos que você escolher na whitelist.
-- **Envia Respostas**: Responda mensagens direto pela MomAI, por texto ou por voz.
-- **Gerencia Contatos**: Adicione ou remova contatos da whitelist e defina apelidos personalizados para facilitar a comunicação.
-- **Notificações Inteligentes**: A MomAI resume as mensagens recebidas e sugere respostas rápidas.
+A extensão MomAI WhatsApp foi criada para que você nunca perca recados urgentes da família ou de clientes enquanto trabalha. Você escolhe exatamente quem deseja acompanhar e responde no mesmo instante conversando com a sua assistente.
 
-### Exemplos do que você pode pedir:
+### Principais Recursos
 
-- "Manda um zap pro João dizendo que estou a caminho."
-- "Tem mensagens novas no WhatsApp?"
-- "Adiciona minha mãe na whitelist do WhatsApp."
-- "Responda que já estou chegando."
+- **Acompanhamento de Contatos Selecionados**: Escolha apenas as pessoas ou grupos prioritários que você quer que a MomAI avise quando mandarem mensagem, evitando distrações desnecessárias.
+- **Envio e Respostas por Voz ou Texto**: Dite sua mensagem ou peça para a assistente responder com rapidez enquanto suas mãos continuam ocupadas no teclado.
+- **Apelidos Personalizados**: Defina apelidos fáceis para os seus contatos (como Mãe, Amor ou Chefe) para que a assistente reconheça os nomes de forma natural.
+- **Resumos Inteligentes**: Recebeu um áudio ou texto comprido? A MomAI resume o assunto principal para você entender a mensagem em poucos segundos.
+- **Conexão Direta e Privada**: O WhatsApp se comunica diretamente do seu computador com a rede oficial, sem passar por nenhum servidor intermediário.
 
-### Como conectar:
+## O que você pode pedir à MomAI
 
-1. Ative a extensão na loja de extensões.
-2. Escaneie o QR Code que aparecerá no painel lateral com o WhatsApp do seu celular.
-3. Pronto! A MomAI já está conectada e monitorando seus contatos da whitelist.
+- "MomAI, mande um WhatsApp para a Mãe dizendo que já terminei o trabalho e estou indo."
+- "Tem alguma mensagem nova no WhatsApp?"
+- "Responda dizendo que confirmo o horário do almoço."
+- "Adicione o João na minha lista de contatos prioritários."
 
-### Segurança e Privacidade:
+## Como Conectar
 
-A conexão é feita localmente no seu computador via Baileys. Nenhuma mensagem passa por servidores externos — tudo fica entre o seu PC e o WhatsApp. Apenas os contatos adicionados à whitelist são monitorados.
+1. Abra o MomAI e clique no ícone do WhatsApp na barra lateral.
+2. No seu celular, abra o WhatsApp, vá em Aparelhos Conectados e toque em Conectar um aparelho.
+3. Aponte a câmera do celular para o código que aparecer na tela do seu computador.
+4. Selecione os contatos que deseja monitorar e aproveite a facilidade de conversar pelo computador.
+
+## Privacidade Garantida
+
+Suas conversas e listas de contatos permanecem protegidas no seu computador. Apenas as mensagens dos contatos que você autorizar expressamente na lista de prioridades serão lidas pela assistente para responder aos seus pedidos.

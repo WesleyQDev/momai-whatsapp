@@ -1,6 +1,6 @@
 {
   "name": "momai-whatsapp",
-  "version": "0.4.25",
+  "version": "0.4.26",
   "private": true,
   "description": "ExtensÃ£o WhatsApp para MomAI",
   "author": "WesleyQDev",
@@ -9,7 +9,7 @@
   "scripts": {
     "build": "node build.mjs",
     "watch": "node build.mjs --watch",
-    "package": "node scripts/package-extension.mjs",
+    "package": "node ../package-extension.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.runtime.json",
     "test": "vitest run"
   },
