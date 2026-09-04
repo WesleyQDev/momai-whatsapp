@@ -4,6 +4,7 @@ declare module 'momai:sdk' {
 }
 
 declare module 'momai:events' {
+  export type ExtensionEvent = any
   export function useExtensionEvents(options: {
     eventType?: string
     onEvent?: (event: any) => void
@@ -15,20 +16,15 @@ declare module 'momai:events' {
 }
 
 declare module 'momai:image-viewer' {
-  import React from 'react'
   export interface ImageViewerProps {
     src: string
     alt?: string
     onClose: () => void
   }
-  const ImageViewer: React.FC<ImageViewerProps>
+  const ImageViewer: (props: ImageViewerProps) => any
   export default ImageViewer
 }
 
-declare global {
-  interface Window {
-    api?: any
-  }
+interface Window {
+  api?: any
 }
-
-export {}

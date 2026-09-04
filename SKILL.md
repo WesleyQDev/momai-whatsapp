@@ -1,79 +1,31 @@
 ---
-id: whatsapp
 name: WhatsApp
-description: Monitora e responde mensagens do WhatsApp
-icon: 💚
-author: WesleyQDev
-repo: WesleyQDev/momai-whatsapp-extension
-version: 0.2.0
-intents:
-  - enviar mensagem no whatsapp
-  - mandar zap
-  - whatsapp
-  - enviar mensagem
-  - mandar mensagem
-  - mensagem no whatsapp
-  - falar com contato
-  - responder no whatsapp
-  - enviar para contato
-  - enviar para grupo
-  - whitelist do whatsapp
-  - responda
-  - responder
-tags:
-  - whatsapp
-  - mensagens
-  - comunicacao
-tools:
-  - send_message
-  - list_contacts
-  - toggle_monitoring
-  - set_contact_name
-  - get_wa_contacts
-triggers:
-  - mensagem
-  - zap
-  - whatsapp
-  - responda
-  - responde
+description: Monitora, lê, responde e envia mensagens do WhatsApp, gerencia contatos e grupos. Use quando o usuario falar de whatsapp, zap, mensagem, contato, grupo, responder ou enviar mensagem.
 ---
 
 ## Instruções para o LLM
 
 Você pode interagir com o WhatsApp do usuário através das tools abaixo.
 
-### Tools Disponíveis
+### Tools Disponíveis (15 tools atuais — ver manifest.json como fonte)
 
-1. **send_message** — Envia uma mensagem para um contato ou grupo.
-   - Parâmetros: `contact` (nome/ID), `message` (texto)
-   - Sempre confirme com o usuário antes de enviar mensagens que possam ser ambíguas.
-   - Use nomes personalizados se disponíveis.
-
-2. **list_contacts** — Lista todos os contatos do WhatsApp com o status de monitoramento.
-   - Sem parâmetros.
-
-3. **toggle_monitoring** — Ativa ou desativa o monitoramento (opt-out) para um contato específico.
-   - Parâmetros: `contact` (número ou ID do contato)
-   - Retorna o novo estado de monitoramento.
-
-4. **set_contact_name** — Define um nome personalizado para um contato (sobrescreve o nome da agenda).
-   - Parâmetros: `contact` (número), `name` (nome personalizado)
-
-5. **get_wa_contacts** — Lista e busca contatos sincronizados de forma paginada.
-   - Parâmetros: `search` (opcional), `page` (opcional), `perPage` (opcional)
-   - Use para encontrar o número/status de um contato pelo nome.
+1. **send_message(contact, message, image?)** — Envia mensagem para contato ou grupo.
+2. **list_contacts** — Lista contatos monitorados.
+3. **add_contact(contact)** / **remove_contact(contact)** — Gerencia monitoramento.
+4. **set_contact_name(contact, name)** — Nome personalizado (melhora contexto do LLM).
+5. **set_default_contact(contact)** / **get_default_contact** — Contato padrão das actions.
+6. **sync_contacts** — Re-sincroniza contatos do telefone.
+7. **get_wa_contacts(search?)** / **get_wa_groups(search?, page?, perPage?)** — Busca telefone/grupos.
+8. **get_group_participants(groupJid)** — Participantes do grupo.
+9. **get_history** — Histórico recente. **get_stats** — Estatísticas.
+10. **get_avatars(jids)** — Fotos de perfil. **delete_message(jid)** — Limpa histórico local.
 
 ### Regras
 
 - Todos os contatos do WhatsApp são monitorados por padrão (modelo opt-out).
-- Use `toggle_monitoring` caso o usuário queira desativar ou ativar o monitoramento de um contato específico.
+- Use `add_contact`/`remove_contact` para gerenciar monitoramento.
 - Se o usuário pedir para enviar mensagem a alguém pelo nome, use `get_wa_contacts` para encontrar o número do contato.
 
-## Comportamento do Pairing (v0.2.0+)
+## Como conectar
 
-A skill agora **auto-detecta credenciais obsoletas** e força um novo pareamento sem exigir que o usuário clique "Gerar QR":
-
-- Se existem credenciais salvas mas a sessão WhatsApp não está realmente conectada (caso comum após longo tempo offline ou troca de dispositivo), o worker limpa a pasta de auth automaticamente e abre um QR novo. O usuário só precisa escanear.
-- O QR permanece válido por **65 segundos** (acima da rotação natural do Baileys, ~60s), eliminando a "zona morta" em que o QR era descartado cedo demais.
-- O worker faz **cache da versão do protocolo Baileys por 24h** em processo, então conexões subsequentes não pagam a latência do HTTP ao servidor do WhatsApp.
-- O Node Core mantém um **buffer de replay de eventos SSE** (último evento por tipo) e um **keepalive de 15s**, então abrir a view do WhatsApp depois do QR estar pronto entrega o QR imediatamente em vez de esperar o próximo polling.
+Se o WhatsApp não estiver conectado, oriente o usuário a abrir a página da extensão e escanear o código com o celular (WhatsApp > Aparelhos conectados > Conectar um aparelho). O código expira em cerca de 1 minuto; se expirar, um novo aparece sozinho.

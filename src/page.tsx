@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import QRCode from 'qrcode'
 import sdk from 'momai:sdk'
+import ContextMenu from './components/ContextMenu'
 import { api } from './services/api'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { resolveWhatsAppChannel } from './utils/whatsappChannel'
@@ -1007,6 +1008,14 @@ export default function WhatsAppView() {
   const [statsLoaded, setStatsLoaded] = useState(_stateCache.statsLoaded)
   const [hasCredentials, _setHasCredentials] = useState(_stateCache.hasCredentials)
   const [pairingActive, setPairingActive] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'reconnecting' | 'disconnected'>(
+    _stateCache.connected ? 'connected' : 'disconnected'
+  )
+  const [showQrFallback, setShowQrFallback] = useState(
+    !_stateCache.hasCredentials && !_stateCache.connected
+  )
+  const disconnectGraceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingQrRef = useRef<string | null>(null)
 
   // Wrappers that also update the module-level cache and localStorage
   const setConnected = useCallback((v: boolean) => {
@@ -1035,6 +1044,13 @@ export default function WhatsAppView() {
       } catch {}
       return next
     })
+  }, [])
+
+  const clearDisconnectGraceTimer = useCallback(() => {
+    if (disconnectGraceTimerRef.current) {
+      clearTimeout(disconnectGraceTimerRef.current)
+      disconnectGraceTimerRef.current = null
+    }
   }, [])
 
   const qrRequestInFlight = useRef(false)
@@ -1109,6 +1125,14 @@ export default function WhatsAppView() {
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false)
   const notificationDropdownRef = useRef<HTMLDivElement>(null)
   const [showAutomations, setShowAutomations] = useState(false)
+  const [listMenu, setListMenu] = useState<{
+    x: number
+    y: number
+    kind: 'conversation' | 'group' | 'contact'
+    id: string
+    label: string
+    preview?: string
+  } | null>(null)
 
   const setPaginatedContacts = useCallback(
     (action: WaContact[] | ((prev: WaContact[]) => WaContact[])) => {
@@ -1237,7 +1261,24 @@ export default function WhatsAppView() {
     [applyQrString]
   )
 
+  const startDisconnectGraceTimer = useCallback(() => {
+    if (disconnectGraceTimerRef.current) return
+    disconnectGraceTimerRef.current = setTimeout(() => {
+      disconnectGraceTimerRef.current = null
+      setShowQrFallback(true)
+      setConnectionStatus('disconnected')
+      if (pendingQrRef.current) {
+        applyQrString(pendingQrRef.current)
+      } else {
+        requestQr().catch(() => {})
+      }
+    }, 60_000)
+  }, [applyQrString, requestQr])
+
   const beginPairing = useCallback(() => {
+    clearDisconnectGraceTimer()
+    pendingQrRef.current = null
+    setShowQrFallback(true)
     setPairingActive(true)
     setHasCredentials(false)
     _stateCache.connected = false
@@ -1260,7 +1301,7 @@ export default function WhatsAppView() {
     qrRequestInFlight.current = false
     // No `force: true` — see comment in requestQr above.
     requestQr().catch(() => {})
-  }, [requestQr, setHasCredentials])
+  }, [clearDisconnectGraceTimer, requestQr, setHasCredentials])
 
   const loadAvatars = useCallback(async (jids: string[], opts?: { force?: boolean }) => {
     const unique = [...new Set(jids.filter((j) => typeof j === 'string' && j.includes('@')))]
@@ -1300,7 +1341,22 @@ export default function WhatsAppView() {
       const isConnected = Boolean(data.connected)
       const hasCreds = Boolean(data.hasCredentials)
       setConnected(isConnected)
-      setHasCredentials(hasCreds)
+      if (isConnected) {
+        clearDisconnectGraceTimer()
+        setConnectionStatus('connected')
+        setShowQrFallback(false)
+        setQrUrl(null)
+        pendingQrRef.current = null
+        setHasCredentials(true)
+      } else if (hasCreds || hasCredentials) {
+        setHasCredentials(true)
+        setConnectionStatus((prev) => (prev === 'connected' ? 'reconnecting' : prev))
+        startDisconnectGraceTimer()
+      } else if (!hasCreds && !hasCredentials) {
+        setHasCredentials(false)
+        setShowQrFallback(true)
+        setConnectionStatus('disconnected')
+      }
       const msgs = data.totalMessages || 0
       const synced = data.syncedContacts || 0
       const monitored = data.monitoredCount || 0
@@ -1318,14 +1374,26 @@ export default function WhatsAppView() {
           JSON.stringify({ totalMessages: msgs, monitoredCount: monitored, syncedContacts: synced })
         )
       } catch {}
-      if (isConnected) {
-        setQrUrl(null)
+      if (data.qr) {
+        pendingQrRef.current = data.qr
+        if (showQrFallback || pairingActive) {
+          applyQrString(data.qr)
+        }
       }
     } catch {
     } finally {
       setStatsLoaded(true)
     }
-  }, [setConnected, setHasCredentials])
+  }, [
+    clearDisconnectGraceTimer,
+    startDisconnectGraceTimer,
+    showQrFallback,
+    pairingActive,
+    applyQrString,
+    hasCredentials,
+    setConnected,
+    setHasCredentials
+  ])
 
   const loadHistory = useCallback(async () => {
     try {
@@ -1579,6 +1647,10 @@ export default function WhatsAppView() {
   }
 
   const disconnect = useCallback(async () => {
+    clearDisconnectGraceTimer()
+    pendingQrRef.current = null
+    setShowQrFallback(true)
+    setConnectionStatus('disconnected')
     setPairingActive(true)
     setHasCredentials(false)
     setConnected(false)
@@ -1596,12 +1668,14 @@ export default function WhatsAppView() {
         args: {}
       })
     } catch {}
-  }, [beginPairing, setHistory])
+  }, [beginPairing, clearDisconnectGraceTimer, setHistory, setConnected, setHasCredentials])
 
   const [generatingQr, setGeneratingQr] = useState(false)
 
   const reconnect = useCallback(async () => {
     setGeneratingQr(true)
+    clearDisconnectGraceTimer()
+    setShowQrFallback(true)
     try {
       beginPairing()
       setConnected(false)
@@ -1610,12 +1684,13 @@ export default function WhatsAppView() {
         args: { force: true }
       }).catch(() => null)
       if (res?.data?.qr) {
+        pendingQrRef.current = res.data.qr
         applyQrString(res.data.qr)
       }
     } catch {} finally {
       setGeneratingQr(false)
     }
-  }, [beginPairing, applyQrString])
+  }, [beginPairing, applyQrString, clearDisconnectGraceTimer, setConnected])
 
   const openConversationOverlay = useCallback((convo: ConversationSummary) => {
     const { jid, latestIncoming: contextMsg, turns } = convo
@@ -1766,13 +1841,21 @@ export default function WhatsAppView() {
     return () => clearTimeout(timeout)
   }, [syncing])
 
+  // Cleanup do timer de carência ao desmontar
+  useEffect(() => {
+    return () => {
+      clearDisconnectGraceTimer()
+    }
+  }, [clearDisconnectGraceTimer])
+
   useExtensionEvents({
     onEvent: useCallback(
       (event: any) => {
         if (event.eventType === 'qr_code' && event.data?.qr) {
+          pendingQrRef.current = event.data.qr
           // Só exibe a tela de QR code se o usuário clicou explicitamente em Gerar QR / Reconectar,
-          // ou se não possui nenhuma credencial salva. Evita que o QR pisque durante reconexões transitórias.
-          if (pairingActive || (!hasCredentials && !connected)) {
+          // ou se a carência de 60s expirou / não possui credenciais salvas.
+          if (pairingActive || showQrFallback || (!hasCredentials && !connected && !disconnectGraceTimerRef.current)) {
             applyQrString(event.data.qr)
             setPairingActive(false)
           }
@@ -1780,15 +1863,34 @@ export default function WhatsAppView() {
         } else if (event.eventType === 'connection_status') {
           const status = event.data?.status
           if (status === 'connected') {
+            clearDisconnectGraceTimer()
             setConnected(true)
+            setConnectionStatus('connected')
+            setShowQrFallback(false)
             setPairingActive(false)
             setQrUrl(null)
+            pendingQrRef.current = null
             void loadStats()
             void loadHistory()
             void loadPaginatedContacts(contactsPage, contactSearch)
             void loadPaginatedGroups(groupsPage, groupSearch)
+          } else if (status === 'reconnecting') {
+            setConnected(false)
+            setConnectionStatus('reconnecting')
+            if (hasCredentials || _stateCache.hasCredentials) {
+              startDisconnectGraceTimer()
+            } else {
+              setShowQrFallback(true)
+            }
           } else if (status === 'disconnected') {
             setConnected(false)
+            if (hasCredentials || _stateCache.hasCredentials) {
+              setConnectionStatus('reconnecting')
+              startDisconnectGraceTimer()
+            } else {
+              setConnectionStatus('disconnected')
+              setShowQrFallback(true)
+            }
           }
           return
         } else if (event.eventType === 'contacts_synced') {
@@ -1815,13 +1917,24 @@ export default function WhatsAppView() {
         } else if (event.eventType === 'authenticated') {
           const status = event.data?.status
           if (status === 'logged_out') {
-            beginPairing()
-            setConnected(false)
-            setSyncing(false)
+            if (pairingActive || showQrFallback || !hasCredentials) {
+              beginPairing()
+              setConnected(false)
+              setConnectionStatus('disconnected')
+              setSyncing(false)
+            } else {
+              setConnected(false)
+              setConnectionStatus('reconnecting')
+              startDisconnectGraceTimer()
+            }
           } else if (status === 'connected') {
+            clearDisconnectGraceTimer()
             setConnected(true)
+            setConnectionStatus('connected')
+            setShowQrFallback(false)
             setPairingActive(false)
             setQrUrl(null)
+            pendingQrRef.current = null
             setSyncing(true)
             void loadStats()
             loadHistory()
@@ -1829,6 +1942,10 @@ export default function WhatsAppView() {
             void loadPaginatedGroups(groupsPage, groupSearch)
           } else {
             setConnected(false)
+            if (hasCredentials || _stateCache.hasCredentials) {
+              setConnectionStatus('reconnecting')
+              startDisconnectGraceTimer()
+            }
           }
           return
         }
@@ -1839,19 +1956,25 @@ export default function WhatsAppView() {
         tryFinishContactSync,
         loadStats,
         beginPairing,
+        clearDisconnectGraceTimer,
+        startDisconnectGraceTimer,
         loadPaginatedContacts,
         loadPaginatedGroups,
         contactsPage,
         contactSearch,
         groupsPage,
-        groupSearch
+        groupSearch,
+        pairingActive,
+        showQrFallback,
+        hasCredentials,
+        connected,
+        setConnected
       ]
     )
   })
 
-  // Show dashboard when connected or has valid stored credentials (without a pending QR code).
-  // When disconnected or after clicking disconnect, showDashboard becomes false to show the QR button onboarding view.
-  const showDashboard = (connected || hasCredentials) && !qrUrl && !pairingActive
+  // Exibe o dashboard quando conectado ou com sessão salva durante o período de carência (sem forçar tela de QR code).
+  const showDashboard = (connected || hasCredentials) && !pairingActive && (!showQrFallback || connected)
 
   return (
     <div className="flex-1 h-full flex flex-col min-h-0">
@@ -2089,13 +2212,25 @@ export default function WhatsAppView() {
               <p className="text-xs text-text-muted">Monitorados</p>
             </div>
             <div className="rounded-xl border border-white/5 bg-card p-4">
-              <p className="text-2xl font-bold">{connected ? 'Online' : 'Offline'}</p>
+              <p className="text-2xl font-bold">
+                {connected ? 'Online' : connectionStatus === 'reconnecting' ? 'Reconectando' : 'Offline'}
+              </p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div
-                  className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    connected
+                      ? 'bg-green-400 animate-pulse'
+                      : connectionStatus === 'reconnecting'
+                        ? 'bg-amber-400 animate-pulse'
+                        : 'bg-red-400'
+                  }`}
                 />
                 <p className="text-xs text-text-muted">
-                  {connected ? 'Conectado' : 'Desconectado'}
+                  {connected
+                    ? 'Conectado'
+                    : connectionStatus === 'reconnecting'
+                      ? 'Reconectando em 2º plano...'
+                      : 'Desconectado'}
                 </p>
               </div>
             </div>
@@ -2127,6 +2262,20 @@ export default function WhatsAppView() {
                     tabIndex={0}
                     onClick={() => {
                       if (editingName !== convo.jid) openConversationOverlay(convo)
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setListMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        kind: 'conversation',
+                        id: convo.jid,
+                        label: convo.isGroup
+                          ? convo.groupName || convo.contactLabel
+                          : convo.contactLabel,
+                        preview: lastMsg.text || ''
+                      })
                     }}
                     onKeyDown={(e) => {
                       if (editingName === convo.jid) return
@@ -2336,6 +2485,17 @@ export default function WhatsAppView() {
                         tabIndex={0}
                         onClick={() => {
                           if (editingName !== c.id) openContactOrGroupOverlay(c)
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setListMenu({
+                            x: e.clientX,
+                            y: e.clientY,
+                            kind: 'group',
+                            id: c.id,
+                            label: c.displayName
+                          })
                         }}
                         onKeyDown={(e) => {
                           if (editingName === c.id) return
@@ -2604,6 +2764,17 @@ export default function WhatsAppView() {
                         onClick={() => {
                           if (editingName !== c.id) openContactOrGroupOverlay(c)
                         }}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setListMenu({
+                            x: e.clientX,
+                            y: e.clientY,
+                            kind: 'contact',
+                            id: c.id,
+                            label: c.displayName
+                          })
+                        }}
                         onKeyDown={(e) => {
                           if (editingName === c.id) return
                           if (e.key === 'Enter' || e.key === ' ') {
@@ -2840,6 +3011,72 @@ export default function WhatsAppView() {
             </>
           )}
         </div>
+      )}
+      {listMenu && (
+        <ContextMenu
+          x={listMenu.x}
+          y={listMenu.y}
+          onClose={() => setListMenu(null)}
+          items={[
+            {
+              id: 'open',
+              label: listMenu.kind === 'conversation' ? 'Abrir conversa' : 'Enviar mensagem',
+              onClick: () => {
+                if (listMenu.kind === 'conversation') {
+                  const convo = allConversations.find((c) => c.jid === listMenu.id)
+                  if (convo) openConversationOverlay(convo)
+                } else {
+                  const target =
+                    paginatedGroups.find((c) => c.id === listMenu.id) ||
+                    paginatedContacts.find((c) => c.id === listMenu.id)
+                  if (target) openContactOrGroupOverlay(target)
+                }
+              }
+            },
+            {
+              id: 'rename',
+              label: 'Renomear',
+              onClick: () => handleStartEdit(listMenu.id, listMenu.label)
+            },
+            {
+              id: 'copy-name',
+              label: 'Copiar nome',
+              onClick: () => {
+                try {
+                  void navigator.clipboard?.writeText?.(listMenu.label)
+                } catch {}
+              }
+            },
+            {
+              id: 'copy-id',
+              label: 'Copiar JID/ID',
+              onClick: () => {
+                try {
+                  void navigator.clipboard?.writeText?.(listMenu.id)
+                } catch {}
+              }
+            },
+            ...(listMenu.kind === 'conversation' && listMenu.preview
+              ? [
+                  {
+                    id: 'copy-preview',
+                    label: 'Copiar última mensagem',
+                    onClick: () => {
+                      try {
+                        void navigator.clipboard?.writeText?.(listMenu.preview || '')
+                      } catch {}
+                    }
+                  }
+                ]
+              : []),
+            {
+              id: 'delete',
+              label: 'Excluir conversa',
+              danger: true,
+              onClick: () => handleDeleteConversation(listMenu.id)
+            }
+          ]}
+        />
       )}
     </div>
   )

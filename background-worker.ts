@@ -709,6 +709,13 @@ function _scheduleReEncrypt() {
    hasCredentials=true and the QR never shows in the UI. */
 function _hasSavedSession() {
   try {
+    if (
+      sock?.authState?.creds?.registered === true &&
+      Number.isFinite(sock?.authState?.creds?.registrationId) &&
+      sock?.authState?.creds?.registrationId > 0
+    ) {
+      return true
+    }
     const cp = path.join(momai.storage.storageDir, 'baileys-auth', 'creds.json')
     const ecp = path.join(momai.storage.storageDir, 'baileys-auth', 'creds.json.enc')
     const fs = require('fs')
@@ -3065,11 +3072,25 @@ process.on('message', async (msg) => {
           const cmdStart = Date.now()
           console.log(`[PERF] send_message START contact=${args.contact}`)
           try {
-            result = await sendMessage(args.contact, args.message, args.image || args.media)
+            const rawImages = Array.isArray(args.images)
+              ? args.images
+              : (args.image ? [args.image] : (args.media ? [args.media] : []))
+            const images = rawImages.filter(Boolean)
+
+            if (images.length > 0) {
+              for (let i = 0; i < images.length; i++) {
+                const isFirst = i === 0
+                const caption = isFirst ? (args.message || '') : ''
+                result = await sendMessage(args.contact, caption, images[i])
+              }
+            } else {
+              result = await sendMessage(args.contact, args.message, null)
+            }
             momai.log(
               `send_message OK: to=${args.contact} msg="${(args.message || '').substring(0, 50)}" (t+${Date.now() - cmdStart}ms)`
             )
             console.log(`[PERF] send_message END OK time=${Date.now() - cmdStart}ms`)
+            result = result || { ok: true }
             result.directResponse = `Mensagem enviada`
           } catch (err) {
             momai.log(

@@ -15,13 +15,12 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "momai:registry":   ["../../momai/apps/momai/src/renderer/src/components/chat/SkillResponseRegistry.ts", "../momai/apps/momai/src/renderer/src/components/chat/SkillResponseRegistry.ts"],
-      "momai:events":      ["../../momai/apps/momai/src/renderer/src/hooks/useExtensionEvents.ts", "../momai/apps/momai/src/renderer/src/hooks/useExtensionEvents.ts"],
-      "momai:api":         ["../../momai/apps/momai/src/renderer/src/services/api.ts", "../momai/apps/momai/src/renderer/src/services/api.ts"],
-      "momai:constants":   ["../../momai/apps/momai/src/renderer/src/constants.ts", "../momai/apps/momai/src/renderer/src/constants.ts"],
-      "momai:text":        ["../../momai/apps/momai/src/renderer/src/utils/text.ts", "../momai/apps/momai/src/renderer/src/utils/text.ts"],
-      "momai:tts-service": ["../../momai/apps/momai/src/renderer/src/services/ttsService.ts", "../momai/apps/momai/src/renderer/src/services/ttsService.ts"],
-      "momai:image-viewer": ["../../momai/apps/momai/src/renderer/src/components/ImageViewer.tsx", "../momai/apps/momai/src/renderer/src/components/ImageViewer.tsx"],
+      "momai:registry":   ["../../momai/apps/momai/src/renderer/src/components/chat/SkillResponseRegistry.ts"],
+      "momai:events":      ["../../momai/apps/momai/src/renderer/src/hooks/useExtensionEvents.ts"],
+      "momai:api":         ["../../momai/apps/momai/src/renderer/src/services/api.ts"],
+      "momai:constants":   ["../../momai/apps/momai/src/renderer/src/constants.ts"],
+      "momai:text":        ["../../momai/apps/momai/src/renderer/src/utils/text.ts"],
+      "momai:tts-service": ["../../momai/apps/momai/src/renderer/src/services/ttsService.ts"],
       "momai:sdk": ["src/types/momai-sdk.d.ts"]
     }
   },

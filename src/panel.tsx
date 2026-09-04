@@ -11,6 +11,7 @@ import QRCode from 'qrcode'
 import ImageViewer from 'momai:image-viewer'
 import sdk from 'momai:sdk'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
+import ContextMenu from './components/ContextMenu'
 
 const getApiBaseUrl = (): string => {
   const fromHost =
@@ -279,6 +280,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     'idle' | 'listening' | 'detected' | 'complete' | 'error' | 'timeout'
   >('idle')
   const [customText, setCustomText] = useState('')
+  const [pastedImages, setPastedImages] = useState<string[]>([])
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
   const [minimized, setMinimized] = useState(false)
@@ -289,6 +291,199 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const historyScrollRef = useRef<HTMLDivElement | null>(null)
   const interactionGenRef = useRef(0)
+
+  const handlePasteImage = useCallback((e: React.ClipboardEvent | ClipboardEvent) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) {
+          const reader = new FileReader()
+          reader.onload = (loadEv) => {
+            const dataUrl = loadEv.target?.result as string
+            if (dataUrl) {
+              setPastedImages((prev) => [...prev, dataUrl])
+              setSendError('')
+            }
+          }
+          reader.readAsDataURL(file)
+        }
+      }
+    }
+  }, [])
+
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
+
+  const handleDropImage = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingOver(false)
+
+    // 1. Check dataTransfer.files
+    const files = e.dataTransfer?.files
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        if (file.type.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name)) {
+          const reader = new FileReader()
+          reader.onload = (loadEv) => {
+            const dataUrl = loadEv.target?.result as string
+            if (dataUrl) {
+              setPastedImages((prev) => [...prev, dataUrl])
+              setSendError('')
+              inputRef.current?.focus()
+            }
+          }
+          reader.readAsDataURL(file)
+        }
+      }
+      return
+    }
+
+    // 2. Check dataTransfer.items
+    const items = e.dataTransfer?.items
+    if (items && items.length > 0) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (file) {
+            const reader = new FileReader()
+            reader.onload = (loadEv) => {
+              const dataUrl = loadEv.target?.result as string
+              if (dataUrl) {
+                setPastedImages((prev) => [...prev, dataUrl])
+                setSendError('')
+                inputRef.current?.focus()
+              }
+            }
+            reader.readAsDataURL(file)
+          }
+        }
+      }
+      return
+    }
+
+    // 3. Check dataTransfer text / url (e.g. dragged image URL or dataURL)
+    const url = e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text/plain')
+    if (url && (url.startsWith('data:image/') || url.startsWith('http://') || url.startsWith('https://'))) {
+      setPastedImages((prev) => [...prev, url])
+      setSendError('')
+      inputRef.current?.focus()
+    }
+  }, [])
+
+  const [inputContextMenu, setInputContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [participantContextMenu, setParticipantContextMenu] = useState<{
+    x: number
+    y: number
+    participant: Participant
+  } | null>(null)
+
+  const handleInputContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setInputContextMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  const handleExecutePaste = async () => {
+    setInputContextMenu(null)
+    inputRef.current?.focus()
+    try {
+      // 1. Try document.execCommand('paste') first (standard Electron command, fires native onPaste event)
+      try {
+        const success = document.execCommand('paste')
+        if (success) return
+      } catch {}
+
+      // 2. Try host Electron bridge (if main process registered clipboard:read)
+      const hostApi = (window as any)?.momaiAPI || (window as any)?.api
+      if (hostApi) {
+        let res: any = null
+        try {
+          if (typeof hostApi.readClipboard === 'function') {
+            res = await hostApi.readClipboard()
+          } else if (typeof hostApi.invoke === 'function') {
+            res = await hostApi.invoke('clipboard:read')
+          }
+        } catch {}
+
+        if (res?.ok) {
+          if (res.type === 'image' && res.dataUrl) {
+            setPastedImages((prev) => [...prev, res.dataUrl])
+            setSendError('')
+            inputRef.current?.focus()
+            return
+          } else if (res.type === 'text' && res.text) {
+            setCustomText((prev) => prev + res.text)
+            setSendError('')
+            inputRef.current?.focus()
+            return
+          }
+        }
+      }
+
+      // 3. Fallback to navigator.clipboard.read() for images
+      if (navigator.clipboard?.read) {
+        try {
+          const items = await navigator.clipboard.read()
+          for (const item of items) {
+            const imageType = item.types.find((t) => t.startsWith('image/'))
+            if (imageType) {
+              const blob = await item.getType(imageType)
+              const reader = new FileReader()
+              reader.onload = (ev) => {
+                const dataUrl = ev.target?.result as string
+                if (dataUrl) {
+                  setPastedImages((prev) => [...prev, dataUrl])
+                  setSendError('')
+                  inputRef.current?.focus()
+                }
+              }
+              reader.readAsDataURL(blob)
+              return
+            }
+          }
+        } catch {}
+      }
+
+      // 4. Fallback to navigator.clipboard.readText()
+      if (navigator.clipboard?.readText) {
+        try {
+          const text = await navigator.clipboard.readText()
+          if (text) {
+            setCustomText((prev) => prev + text)
+            setSendError('')
+            inputRef.current?.focus()
+          }
+        } catch {}
+      }
+    } catch (err) {
+      console.warn('[WhatsApp] Context menu paste error:', err)
+    }
+  }
+
+  useEffect(() => {
+    if (!inputContextMenu) return
+    const handleClickOutside = () => setInputContextMenu(null)
+    window.addEventListener('click', handleClickOutside)
+    window.addEventListener('contextmenu', handleClickOutside)
+    return () => {
+      window.removeEventListener('click', handleClickOutside)
+      window.removeEventListener('contextmenu', handleClickOutside)
+    }
+  }, [inputContextMenu])
+
+  useEffect(() => {
+    const onWindowPaste = (e: ClipboardEvent) => {
+      handlePasteImage(e)
+    }
+    window.addEventListener('paste', onWindowPaste)
+    return () => window.removeEventListener('paste', onWindowPaste)
+  }, [handlePasteImage])
 
   const [activeRecipient, setActiveRecipient] = useState<{
     jid: string
@@ -423,18 +618,20 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
   useEffect(() => {
     const el = cardRef.current
-    const setSize = (window as any).api?.setOverlaySize
+    const setSize =
+      (window as any).momaiAPI?.setOverlaySize ||
+      (window as any).api?.setOverlaySize
     if (!el || typeof setSize !== 'function') return
 
     const CARD_WIDTH = 320
-    const MAX_HEIGHT = 400
+    const targetHeight = pastedImages.length > 0 ? 520 : 400
     const MARGIN = 16
 
     setSize({
       width: CARD_WIDTH + MARGIN * 2,
-      height: MAX_HEIGHT + MARGIN * 2
+      height: targetHeight + MARGIN * 2
     })
-  }, [])
+  }, [pastedImages.length])
 
   const stop = useCallback(() => {
     if (abortRef.current) {
@@ -488,16 +685,17 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   }, [stop])
 
   const sendReply = useCallback(
-    async (text: string, gen: number) => {
+    async (text: string, gen: number, imagesToSend: string[] = []) => {
       const targetJid = activeRecipient.jid
-      const body = text?.trim()
-      if (!body || gen !== interactionGenRef.current) {
+      const body = text?.trim() || ''
+      if ((!body && imagesToSend.length === 0) || gen !== interactionGenRef.current) {
         if (gen === interactionGenRef.current) setSending(false)
         return
       }
 
       setSending(true)
       setCustomText('')
+      setPastedImages([])
       setSendError('')
       try {
         const base = getApiBaseUrl()
@@ -510,7 +708,13 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         const url = `${base}/extensions/momai-whatsapp/command`
         const payload = {
           toolName: 'send_message',
-          args: { contact: targetJid, message: body }
+          args: {
+            contact: targetJid,
+            message: body,
+            ...(imagesToSend.length > 0
+              ? { images: imagesToSend, image: imagesToSend[0] }
+              : {})
+          }
         }
         const t0 = Date.now()
         const ctrl = new AbortController()
@@ -668,10 +872,15 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   return (
     <div
       ref={cardRef}
+      onDragOver={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+      }}
+      onDrop={handleDropImage}
       className={`flex flex-col w-[320px] min-h-[200px] m-4 rounded-xl border border-border bg-card shadow-2xl overflow-hidden ${
         minimized ? 'hidden' : ''
       }`}
-      style={{ WebkitAppRegion: 'drag', maxHeight: '400px' } as any}
+      style={{ WebkitAppRegion: 'drag', maxHeight: pastedImages.length > 0 ? '520px' : '400px' } as any}
     >
       <div
         className="flex shrink-0 items-center gap-3 px-4 py-3 border-b border-border/40 bg-sidebar/30"
@@ -826,6 +1035,15 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                     key={p.id}
                     type="button"
                     onClick={() => handleSelectParticipant(p)}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setParticipantContextMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        participant: p
+                      })
+                    }}
                     className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-input/60 border border-transparent hover:border-border/40 transition-all text-left group/item cursor-pointer"
                   >
                     <ContactAvatar src={p.avatar} name={p.name} id={p.id} />
@@ -852,186 +1070,310 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             </div>
           </div>
         ) : (
-          <div className="flex flex-col flex-1 min-h-0">
-            {!isSelectedMember && conversationHistory.length > 0 ? (
-              <div
-                ref={historyScrollRef}
-                className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar rounded-lg bg-input/40 border border-border/30 scroll-pt-3 scroll-pb-3"
-              >
-                <div className="px-3 py-2 space-y-3 select-text">
-                  {conversationHistory.map((line, i) => (
-                    <div
-                      key={`${line.timestamp}-${i}`}
-                      className={
-                        line.direction === 'outgoing' ? 'pl-3 border-l-2 border-accent/40' : 'pl-0.5'
-                      }
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-xs font-medium select-text ${
-                            line.direction === 'outgoing' ? 'text-accent' : 'text-text-muted'
-                          }`}
-                        >
-                          {line.direction === 'outgoing' ? 'Você' : line.from || contact}
-                        </span>
-                        <span className="text-[10px] text-text-muted ml-auto shrink-0 select-none">
-                          {formatHistoryTime(line.timestamp)}
-                        </span>
+          <div className="flex flex-col flex-1 min-h-0 justify-between">
+            {/* Upper scrollable section: conversation history / message + image previews */}
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar overscroll-contain pr-0.5 space-y-2">
+              {!isSelectedMember && conversationHistory.length > 0 ? (
+                <div
+                  ref={historyScrollRef}
+                  className="min-h-0 max-h-36 overflow-y-auto overscroll-contain custom-scrollbar rounded-lg bg-input/40 border border-border/30 scroll-pt-3 scroll-pb-3"
+                >
+                  <div className="px-3 py-2 space-y-3 select-text">
+                    {conversationHistory.map((line, i) => (
+                      <div
+                        key={`${line.timestamp}-${i}`}
+                        className={
+                          line.direction === 'outgoing' ? 'pl-3 border-l-2 border-accent/40' : 'pl-0.5'
+                        }
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-xs font-medium select-text ${
+                              line.direction === 'outgoing' ? 'text-accent' : 'text-text-muted'
+                            }`}
+                          >
+                            {line.direction === 'outgoing' ? 'Você' : line.from || contact}
+                          </span>
+                          <span className="text-[10px] text-text-muted ml-auto shrink-0 select-none">
+                            {formatHistoryTime(line.timestamp)}
+                          </span>
+                        </div>
+                        {line.text && line.text !== '🎙️ Áudio' && (
+                          <p className="text-sm text-text/90 mt-0.5 whitespace-pre-wrap break-words select-text">
+                            {line.text}
+                          </p>
+                        )}
+                        {(line.audio || (line.text === '🎙️ Áudio' && data?.audio)) && (
+                          <CustomAudioPlayer src={getAudioUrl(line.audio || data?.audio)} />
+                        )}
                       </div>
-                      {line.text && line.text !== '🎙️ Áudio' && (
-                        <p className="text-sm text-text/90 mt-0.5 whitespace-pre-wrap break-words select-text">
-                          {line.text}
-                        </p>
-                      )}
-                      {(line.audio || (line.text === '🎙️ Áudio' && data?.audio)) && (
-                        <CustomAudioPlayer src={getAudioUrl(line.audio || data?.audio)} />
-                      )}
+                    ))}
+                  </div>
+                </div>
+              ) : !isSelectedMember && message ? (
+                <div className="min-h-[4.5rem] rounded-lg bg-input/40 border border-border/30 p-2.5 select-text flex flex-col justify-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-text-muted select-text">
+                      {senderName || contact}
+                    </span>
+                    {data?.timestamp && (
+                      <span className="text-[10px] text-text-muted ml-auto shrink-0 select-none">
+                        {formatHistoryTime(data.timestamp)}
+                      </span>
+                    )}
+                  </div>
+                  {message && message !== '🎙️ Áudio' && (
+                    <p className="text-sm text-text/90 mt-1 whitespace-pre-wrap break-words select-text">
+                      {message}
+                    </p>
+                  )}
+                  {data?.audio && (
+                    <CustomAudioPlayer src={getAudioUrl(data.audio)} />
+                  )}
+                </div>
+              ) : (
+                <div className="min-h-[4.5rem] rounded-lg bg-input/40 border border-border/30 p-3 flex items-center justify-center select-none">
+                  <p className="text-xs text-text-muted/60 font-normal">
+                    {activeRecipient.fromGroupJid && !activeRecipient.isGroup
+                      ? `Inicie uma conversa direta com ${activeRecipient.name}`
+                      : 'Nenhuma mensagem recente'}
+                  </p>
+                </div>
+              )}
+
+              {pastedImages.length > 0 && (
+                <div
+                  className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-0.5 shrink-0 select-none custom-scrollbar overscroll-contain"
+                  style={{
+                    WebkitAppRegion: 'no-drag',
+                    scrollbarWidth: 'thin'
+                  } as any}
+                  onWheel={(e) => e.stopPropagation()}
+                >
+                  {pastedImages.map((imgSrc, index) => (
+                    <div
+                      key={index}
+                      className="relative shrink-0 rounded-lg border border-accent/40 bg-input/80 p-1.5 flex items-center justify-between gap-2.5 animate-in fade-in duration-150"
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <img
+                          src={imgSrc}
+                          alt={`Imagem ${index + 1}`}
+                          className="w-10 h-10 object-cover rounded-md border border-border shadow-sm shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-text truncate">
+                            {pastedImages.length > 1
+                              ? `Imagem ${index + 1} de ${pastedImages.length}`
+                              : 'Imagem pronta para envio'}
+                          </p>
+                          <p className="text-[10px] text-text-muted truncate">
+                            Adicione legenda opcional ou envie
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPastedImages((prev) => prev.filter((_, i) => i !== index))}
+                        className="p-1 rounded-md text-text-muted hover:text-text hover:bg-card border border-transparent hover:border-border transition-all cursor-pointer shrink-0 self-start"
+                        title="Remover imagem"
+                        aria-label="Remover imagem"
+                      >
+                        <XMarkIcon className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ))}
                 </div>
-              </div>
-            ) : !isSelectedMember && message ? (
-              <div className="min-h-[5.5rem] rounded-lg bg-input/40 border border-border/30 p-3 select-text flex flex-col justify-center">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-text-muted select-text">
-                    {senderName || contact}
+              )}
+            </div>
+
+            {/* Bottom Anchored Bar: Always 100% visible */}
+            <div className="shrink-0 flex flex-col gap-2 pt-2 border-t border-border/30 mt-1">
+              {sendError && (
+                <div className="shrink-0 flex items-start gap-2 px-3 py-1.5 rounded-lg bg-input border border-border/80 text-text">
+                  <span className="text-[11px] text-text-muted leading-snug flex-1 select-text">
+                    {sendError}
                   </span>
-                  {data?.timestamp && (
-                    <span className="text-[10px] text-text-muted ml-auto shrink-0 select-none">
-                      {formatHistoryTime(data.timestamp)}
-                    </span>
-                  )}
-                </div>
-                {message && message !== '🎙️ Áudio' && (
-                  <p className="text-sm text-text/90 mt-1 whitespace-pre-wrap break-words select-text">
-                    {message}
-                  </p>
-                )}
-                {data?.audio && (
-                  <CustomAudioPlayer src={getAudioUrl(data.audio)} />
-                )}
-              </div>
-            ) : (
-              <div className="min-h-[5.5rem] rounded-lg bg-input/40 border border-border/30 p-3 flex items-center justify-center select-none">
-                <p className="text-xs text-text-muted/60 font-normal">
-                  {activeRecipient.fromGroupJid && !activeRecipient.isGroup
-                    ? `Inicie uma conversa direta com ${activeRecipient.name}`
-                    : 'Nenhuma mensagem recente'}
-                </p>
-              </div>
-            )}
-
-            {sendError && (
-              <div className="shrink-0 flex items-start gap-2 px-3 py-2 rounded-lg bg-input border border-border/80 text-text">
-                <span className="text-[11px] text-text-muted leading-snug flex-1 select-text">
-                  {sendError}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setSendError('')}
-                  className="text-text-muted hover:text-text text-xs shrink-0 cursor-pointer"
-                  aria-label="Fechar erro"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-
-            {isAdminsOnly && activeRecipient.isGroup ? (
-              <div className="flex items-center justify-center py-2 px-3 rounded-lg bg-input/40 border border-border/30">
-                <p className="text-[11px] text-text-muted">
-                  Somente <span className="text-accent font-bold">admins</span> podem enviar
-                  mensagens
-                </p>
-              </div>
-            ) : (
-              <div
-                className={`flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg bg-input border border-border focus-within:border-accent/40 transition-colors ${
-                  sending ? 'cursor-default' : 'cursor-text'
-                }`}
-                onMouseDown={(e) => {
-                  if (sending) return
-                  const target = e.target as HTMLElement
-                  if (target.closest('button') || target.tagName === 'INPUT') return
-                  e.preventDefault()
-                  inputRef.current?.focus()
-                }}
-              >
-                <MicrophoneIcon
-                  className={`w-4 h-4 shrink-0 pointer-events-none ${
-                    voiceStatus === 'listening'
-                      ? 'text-accent animate-pulse'
-                      : voiceStatus === 'detected' || voiceStatus === 'complete'
-                        ? 'text-accent'
-                        : 'text-text-muted'
-                  }`}
-                  title={voiceLabel}
-                />
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={customText}
-                  onChange={(e) => {
-                    setCustomText(e.target.value)
-                    if (sendError) setSendError('')
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && customText.trim() && !sending) {
-                      e.preventDefault()
-                      const gen = beginUserSend()
-                      sendReply(customText.trim(), gen)
-                    }
-                  }}
-                  readOnly={sending}
-                  placeholder={
-                    !activeRecipient.isGroup && activeRecipient.fromGroupJid
-                      ? `Mensagem para ${activeRecipient.name}...`
-                      : 'Digite uma mensagem...'
-                  }
-                  className={`flex-1 min-w-0 bg-transparent text-xs text-text placeholder:text-text-muted/50 focus:outline-none ${
-                    sending ? 'opacity-50 cursor-default' : 'cursor-text'
-                  }`}
-                />
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={() => {
-                    if (customText.trim() && !sending) {
-                      const gen = beginUserSend()
-                      sendReply(customText.trim(), gen)
-                    }
-                  }}
-                  disabled={!customText.trim() || sending}
-                  className={`p-1 rounded-md text-text-muted hover:text-text transition-colors disabled:opacity-40 shrink-0 ${
-                    !customText.trim() || sending ? 'cursor-default' : 'cursor-pointer'
-                  }`}
-                  aria-label="Enviar"
-                >
-                  <PaperAirplaneIcon className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            {resolvedQuickReplies.length > 0 && (!isAdminsOnly || !activeRecipient.isGroup) && (
-              <div className="flex shrink-0 flex-col gap-2 pt-0.5 pb-0.5">
-                {resolvedQuickReplies.slice(0, 2).map((reply: string, i: number) => (
                   <button
-                    key={i}
                     type="button"
-                    onClick={() => handleQuickReply(reply)}
-                    disabled={sending}
-                    className={`w-full text-left px-3 py-2 text-xs font-medium rounded-lg border border-border bg-input/40 text-text hover:text-text hover:bg-input/80 transition-all disabled:opacity-40 truncate ${
-                      sending ? 'cursor-default' : 'cursor-pointer'
-                    }`}
+                    onClick={() => setSendError('')}
+                    className="text-text-muted hover:text-text text-xs shrink-0 cursor-pointer"
+                    aria-label="Fechar erro"
                   >
-                    {reply}
+                    ✕
                   </button>
-                ))}
-              </div>
-            )}
+                </div>
+              )}
+
+              {isAdminsOnly && activeRecipient.isGroup ? (
+                <div className="flex items-center justify-center py-2 px-3 rounded-lg bg-input/40 border border-border/30">
+                  <p className="text-[11px] text-text-muted">
+                    Somente <span className="text-accent font-bold">admins</span> podem enviar
+                    mensagens
+                  </p>
+                </div>
+              ) : (
+                <div
+                  className={`flex shrink-0 items-center gap-2 px-3 py-2 rounded-lg bg-input border transition-all ${
+                    isDraggingOver
+                      ? 'border-accent ring-2 ring-accent/30 bg-accent/10'
+                      : 'border-border focus-within:border-accent/40'
+                  } ${sending ? 'cursor-default' : 'cursor-text'}`}
+                  onContextMenu={handleInputContextMenu}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setIsDraggingOver(true)
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setIsDraggingOver(true)
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setIsDraggingOver(false)
+                  }}
+                  onDrop={handleDropImage}
+                  onMouseDown={(e) => {
+                    if (sending) return
+                    const target = e.target as HTMLElement
+                    if (target.closest('button') || target.tagName === 'INPUT') return
+                    e.preventDefault()
+                    inputRef.current?.focus()
+                  }}
+                >
+                  <MicrophoneIcon
+                    className={`w-4 h-4 shrink-0 pointer-events-none ${
+                      voiceStatus === 'listening'
+                        ? 'text-accent animate-pulse'
+                        : voiceStatus === 'detected' || voiceStatus === 'complete'
+                          ? 'text-accent'
+                          : 'text-text-muted'
+                    }`}
+                    title={voiceLabel}
+                  />
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={customText}
+                    onPaste={handlePasteImage}
+                    onContextMenu={handleInputContextMenu}
+                    onChange={(e) => {
+                      setCustomText(e.target.value)
+                      if (sendError) setSendError('')
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (customText.trim() || pastedImages.length > 0) && !sending) {
+                        e.preventDefault()
+                        const gen = beginUserSend()
+                        sendReply(customText.trim(), gen, pastedImages)
+                      }
+                    }}
+                    readOnly={sending}
+                    placeholder={
+                      pastedImages.length > 0
+                        ? (pastedImages.length === 1
+                            ? 'Legenda opcional (pressione Enter)...'
+                            : `${pastedImages.length} imagens anexadas. Legenda...`)
+                        : !activeRecipient.isGroup && activeRecipient.fromGroupJid
+                          ? `Mensagem para ${activeRecipient.name}...`
+                          : 'Digite uma mensagem...'
+                    }
+                    className={`flex-1 min-w-0 bg-transparent text-xs text-text placeholder:text-text-muted/50 focus:outline-none ${
+                      sending ? 'opacity-50 cursor-default' : 'cursor-text'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      if ((customText.trim() || pastedImages.length > 0) && !sending) {
+                        const gen = beginUserSend()
+                        sendReply(customText.trim(), gen, pastedImages)
+                      }
+                    }}
+                    disabled={(!customText.trim() && pastedImages.length === 0) || sending}
+                    className={`p-1 rounded-md text-text-muted hover:text-text transition-colors disabled:opacity-40 shrink-0 ${
+                      (!customText.trim() && pastedImages.length === 0) || sending ? 'cursor-default' : 'cursor-pointer'
+                    }`}
+                    aria-label="Enviar"
+                  >
+                    <PaperAirplaneIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {resolvedQuickReplies.length > 0 && (!isAdminsOnly || !activeRecipient.isGroup) && (
+                <div className="flex shrink-0 flex-col gap-1.5">
+                  {resolvedQuickReplies.slice(0, 2).map((reply: string, i: number) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handleQuickReply(reply)}
+                      disabled={sending}
+                      className={`w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg border border-border bg-input/40 text-text hover:text-text hover:bg-input/80 transition-all disabled:opacity-40 truncate ${
+                        sending ? 'cursor-default' : 'cursor-pointer'
+                      }`}
+                    >
+                      {reply}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      {inputContextMenu && (
+        <ContextMenu
+          x={inputContextMenu.x}
+          y={inputContextMenu.y}
+          onClose={() => setInputContextMenu(null)}
+          items={[
+            {
+              id: 'paste',
+              label: 'Colar',
+              shortcut: 'Ctrl+V',
+              onClick: handleExecutePaste
+            }
+          ]}
+          minWidth={120}
+        />
+      )}
+
+      {participantContextMenu && (
+        <ContextMenu
+          x={participantContextMenu.x}
+          y={participantContextMenu.y}
+          onClose={() => setParticipantContextMenu(null)}
+          items={[
+            {
+              id: 'direct-msg',
+              label: 'Enviar mensagem direta',
+              onClick: () => handleSelectParticipant(participantContextMenu.participant)
+            },
+            {
+              id: 'copy-phone',
+              label: 'Copiar telefone',
+              shortcut: 'Ctrl+C',
+              onClick: () => {
+                void navigator.clipboard?.writeText?.('+' + participantContextMenu.participant.phone)
+              }
+            },
+            {
+              id: 'copy-name',
+              label: 'Copiar nome',
+              onClick: () => {
+                void navigator.clipboard?.writeText?.(participantContextMenu.participant.name)
+              }
+            }
+          ]}
+          minWidth={170}
+        />
+      )}
     </div>
   )
 }
