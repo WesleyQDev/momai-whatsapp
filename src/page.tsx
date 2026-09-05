@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import QRCode from 'qrcode'
 import sdk from 'momai:sdk'
 import ContextMenu from './components/ContextMenu'
@@ -1991,6 +1991,8 @@ export default function WhatsAppView() {
         } else if (
           event.eventType === 'message_sent' ||
           event.eventType === 'message_received' ||
+          event.eventType === 'whatsapp_message' ||
+          event.eventType === 'whatsapp_notification' ||
           event.eventType === 'history_loaded'
         ) {
           loadHistory()
