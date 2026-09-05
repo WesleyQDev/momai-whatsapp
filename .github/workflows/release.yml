@@ -74,7 +74,7 @@ jobs:
           cd momai/apps/momai/scripts/skills/packaged/whatsapp
           node build.mjs
 
-      - name: Prune dev dependencies (economiza ~40MB: typescript, esbuild, vitest não vão no ZIP + evita npm install no cliente)
+      - name: "Prune dev dependencies (economiza ~40MB: typescript, esbuild, vitest não vão no ZIP + evita npm install no cliente)"
         shell: pwsh
         run: |
           cd momai/apps/momai/scripts/skills/packaged/whatsapp
