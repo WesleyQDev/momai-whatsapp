@@ -568,7 +568,14 @@ function getRecentChatMedia(history, replyJid, limit = 10) {
  */
 function summarizeBaileysDetail(source) {
   if (!source || typeof source !== 'object') return ''
-  const fromErr = source.err?.message || source.error || ''
+  const fromErr =
+    source.err?.message ||
+    source.error?.message ||
+    source.err?.stack ||
+    source.error?.stack ||
+    (typeof source.error === 'string' ? source.error : '') ||
+    (typeof source.err === 'string' ? source.err : '') ||
+    ''
   if (fromErr) return String(fromErr).slice(0, 300)
   const node = source.node
   if (!node || typeof node !== 'object') return ''

@@ -1737,7 +1737,13 @@ async function connect() {
               const parsed = JSON.parse(msg)
               let levelStr = 'WARN'
               if (parsed.level >= 50) levelStr = 'ERROR'
-              const rawDetail = parsed.err?.message || parsed.error || ''
+              const rawDetail =
+                parsed.err?.message ||
+                parsed.error?.message ||
+                parsed.err?.stack ||
+                parsed.error?.stack ||
+                (typeof parsed.error === 'string' ? parsed.error : '') ||
+                ''
               const msgText = parsed.msg || ''
               // 'init queries (Timed Out)' is benign post-open noise (fetchProps /
               // blocklist / privacy timeout): the connection stays open and the
@@ -1768,7 +1774,13 @@ async function connect() {
           debug: () => {},
           warn: (obj, msg) => {
             const warnText = msg || obj?.msg || ''
-            const warnRaw = obj?.err?.message || obj?.error || ''
+            const warnRaw =
+              obj?.err?.message ||
+              obj?.error?.message ||
+              obj?.err?.stack ||
+              obj?.error?.stack ||
+              (typeof obj?.error === 'string' ? obj?.error : '') ||
+              ''
             if (typeof _isBenignBaileysLog === 'function' && _isBenignBaileysLog(warnText, warnRaw)) {
               return
             }
@@ -1782,7 +1794,13 @@ async function connect() {
           },
           error: (obj, msg) => {
             const msgText = msg || obj?.msg || ''
-            const rawDetail = obj?.err?.message || obj?.error || ''
+            const rawDetail =
+              obj?.err?.message ||
+              obj?.error?.message ||
+              obj?.err?.stack ||
+              obj?.error?.stack ||
+              (typeof obj?.error === 'string' ? obj?.error : '') ||
+              ''
             if (typeof _isBenignBaileysLog === 'function' && _isBenignBaileysLog(msgText, rawDetail)) {
               return
             }

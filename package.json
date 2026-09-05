@@ -17,6 +17,11 @@
     "@whiskeysockets/baileys": "^6.0.0",
     "pino": "^8.0.0"
   },
+  "pnpm": {
+    "patchedDependencies": {
+      "@whiskeysockets/baileys": "patches/@whiskeysockets__baileys.patch"
+    }
+  },
   "devDependencies": {
     "@heroicons/react": "^2.2.0",
     "@types/qrcode": "^1.5.6",

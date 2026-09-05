@@ -434,7 +434,11 @@
   },
   "readme": {
     "pt-BR": "README.md",
-    "en-US": "README.en-US.md"
+    "en-US": "README.en-US.md",
+    "es": "README.es.md",
+    "fr": "README.fr.md",
+    "de": "README.de.md",
+    "it": "README.it.md"
   },
   "author": "WesleyQDev",
   "icon_bg": "#25D366",
