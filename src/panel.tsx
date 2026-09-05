@@ -42,24 +42,46 @@ const getApiBaseUrl = (): string => {
   return 'http://127.0.0.1:8050'
 }
 
+const isDirectUrl = (url: string): boolean => {
+  if (!url) return false
+  return (
+    url.startsWith('data:') ||
+    url.startsWith('blob:') ||
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('file://')
+  )
+}
+
 const getAudioUrl = (filename: string): string => {
+  if (!filename) return ''
+  if (isDirectUrl(filename)) return filename
   const base = getApiBaseUrl()
   return `${base}/extensions/momai-whatsapp/storage/audio/${encodeURIComponent(filename)}`
 }
 
 const getStickerUrl = (filename: string): string => {
+  if (!filename) return ''
+  if (isDirectUrl(filename)) return filename
   const base = getApiBaseUrl()
   return `${base}/extensions/momai-whatsapp/storage/stickers/${encodeURIComponent(filename)}`
 }
 
 const getImageUrl = (filename: string): string => {
+  if (!filename) return ''
+  if (isDirectUrl(filename)) return filename
   const base = getApiBaseUrl()
   return `${base}/extensions/momai-whatsapp/storage/images/${encodeURIComponent(filename)}`
 }
 
-// Placeholder texts used for media messages without a caption.
+// Placeholder texts used for media messages without a caption (both locales).
 const isMediaPlaceholder = (text: string): boolean =>
-  text === '🎙️ Áudio' || text === '📷 Foto' || text === '📄 Documento'
+  text === '🎙️ Áudio' ||
+  text === '🎙️ Audio' ||
+  text === '📷 Foto' ||
+  text === '📷 Photo' ||
+  text === '📄 Documento' ||
+  text === '📄 Document'
 
 type MediaItem = {
   key: string
@@ -79,6 +101,7 @@ function MediaThumbnail({
   size?: 'md' | 'sm'
   onOpen: () => void
 }) {
+  const { t } = useI18n()
   const imgClass =
     size === 'sm'
       ? 'w-20 h-20 object-cover rounded-lg drop-shadow-sm select-none pointer-events-auto hover:scale-105 transition-transform cursor-pointer'
@@ -92,7 +115,7 @@ function MediaThumbnail({
         loading="lazy"
         onClick={onOpen}
         onDoubleClick={onOpen}
-        title="Clique para ampliar a foto"
+        title={t('panel.photo_click')}
       />
     </div>
   )
@@ -109,13 +132,14 @@ function DocumentCard({
   opening: boolean
   onOpen: () => void
 }) {
+  const { t } = useI18n()
   return (
     <button
       type="button"
       onClick={onOpen}
       disabled={opening}
       className="mt-1 flex items-center gap-2 max-w-full w-full rounded-lg bg-input/80 border border-border/40 px-3 py-2 hover:bg-white/10 transition-colors text-left cursor-pointer disabled:opacity-60 min-w-0 overflow-hidden"
-      title="Clique para abrir no computador"
+      title={t('panel.document_click')}
     >
       <span className="text-lg shrink-0" aria-hidden="true">
         📄
@@ -125,7 +149,7 @@ function DocumentCard({
           {name}
         </span>
         <span className="block text-[10px] text-text-muted">
-          {opening ? 'Abrindo…' : 'Clique para abrir'}
+          {opening ? t('panel.opening') : t('panel.document_click')}
         </span>
       </span>
     </button>
@@ -133,6 +157,7 @@ function DocumentCard({
 }
 
 function useOpenDocument() {
+  const { t } = useI18n()
   const [openingFile, setOpeningFile] = useState<string | null>(null)
   const [docError, setDocError] = useState<string | null>(null)
   const openDocument = useCallback(async (file: string, name?: string | null) => {
@@ -143,13 +168,13 @@ function useOpenDocument() {
         toolName: 'open_document',
         args: { filename: file, documentName: name || file }
       })
-      if (!res?.ok) setDocError(res?.error || 'Não foi possível abrir o documento.')
+      if (!res?.ok) setDocError(res?.error || t('panel.doc_open_failed'))
     } catch (err: any) {
-      setDocError(err?.message || 'Não foi possível abrir o documento.')
+      setDocError(err?.message || t('panel.doc_open_failed'))
     } finally {
       setOpeningFile(null)
     }
-  }, [])
+  }, [t])
   return { openDocument, openingFile, docError }
 }
 
@@ -173,12 +198,12 @@ type Participant = {
   avatar?: string | null
 }
 
-const formatHistoryTime = (ts: number) => {
+const formatHistoryTime = (ts: number, locale = 'pt-BR') => {
   const ms = ts > 1e12 ? ts : ts * 1000
-  return new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return new Date(ms).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
 }
 
-const formatDateSeparator = (ts: number): string => {
+const formatDateSeparator = (ts: number, locale = 'pt-BR'): string => {
   const ms = ts > 1e12 ? ts : ts * 1000
   if (!ms || isNaN(ms)) return ''
   const date = new Date(ms)
@@ -193,7 +218,7 @@ const formatDateSeparator = (ts: number): string => {
 
   if (isSameDay(date, today)) return 'Hoje'
   if (isSameDay(date, yesterday)) return 'Ontem'
-  return date.toLocaleDateString('pt-BR', {
+  return date.toLocaleDateString(locale, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric'
@@ -220,6 +245,7 @@ const formatSeconds = (sec: number) => {
 }
 
 function CustomAudioPlayer({ src }: { src: string }) {
+  const { t } = useI18n()
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -293,8 +319,8 @@ function CustomAudioPlayer({ src }: { src: string }) {
           type="button"
           onClick={togglePlay}
           className="p-1 rounded-md text-text hover:text-accent active:scale-95 transition-colors shrink-0 cursor-pointer focus:outline-none"
-          title={isPlaying ? 'Pausar áudio' : 'Tocar áudio'}
-          aria-label={isPlaying ? 'Pausar áudio' : 'Tocar áudio'}
+          title={isPlaying ? t('media.pause_audio') : t('media.play_audio')}
+          aria-label={isPlaying ? t('media.pause_audio') : t('media.play_audio')}
         >
           {isPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5 ml-0.5" />}
         </button>
@@ -324,7 +350,7 @@ function CustomAudioPlayer({ src }: { src: string }) {
           type="button"
           onClick={toggleSpeed}
           className="text-[10px] px-1.5 py-0.5 rounded font-bold text-text-muted hover:text-text bg-text/5 hover:bg-text/10 transition-colors shrink-0 cursor-pointer"
-          title="Velocidade de reprodução"
+          title={t('media.playback_speed')}
         >
           {playbackRate}x
         </button>
@@ -417,10 +443,10 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
 }
 
 export default function WhatsAppNotificationCard({ data }: { data: any }) {
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
   const isHistoryOverlay = Boolean(data?.isHistoryOverlay)
   const senderName = data?.senderName
-  const contact = data?.contact || data?.from || 'Desconhecido'
+  const contact = data?.contact || data?.from || t('panel.unknown_contact')
   const message = data?.message || data?.text || ''
   const [localHistory, setLocalHistory] = useState<HistoryLine[]>(() => data?.conversationHistory || [])
 
@@ -907,7 +933,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       try {
         const base = getApiBaseUrl()
         if (!base) {
-          setSendError('Não foi possível determinar o servidor da extensão.')
+          setSendError(t('panel.server_error'))
           setSending(false)
           return
         }
@@ -948,7 +974,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         if (gen !== interactionGenRef.current) return
 
         if (!resData?.ok) {
-          setSendError(`Erro ao enviar: ${resData?.error || 'falha no envio'}`)
+          setSendError(t('panel.send_error', { error: resData?.error || t('panel.server_error') }))
           setSending(false)
           setMinimized(false)
           return
@@ -977,7 +1003,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       } catch (err: any) {
         if (gen !== interactionGenRef.current) return
         setSendError(
-          `Erro ao enviar: ${err?.message || 'não foi possível conectar ao WhatsApp'}`
+          t('panel.send_error', { error: err?.message || t('panel.server_error') })
         )
         setSending(false)
         setMinimized(false)
@@ -1040,7 +1066,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       try {
         const base = getApiBaseUrl()
         if (!base) {
-          setSendError('Não foi possível determinar o servidor da extensão.')
+          setSendError(t('panel.server_error'))
           setSending(false)
           return
         }
@@ -1076,12 +1102,12 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             onClose()
           }
         } else {
-          setSendError(`Erro ao enviar figurinha: ${resData?.error || 'falha'}`)
+          setSendError(t('panel.send_sticker_error', { error: resData?.error || t('panel.server_error') }))
           setSending(false)
         }
       } catch (err: any) {
         if (gen !== interactionGenRef.current) return
-        setSendError(`Erro ao enviar figurinha: ${err?.message || 'falha'}`)
+        setSendError(t('panel.send_sticker_error', { error: err?.message || t('panel.server_error') }))
         setSending(false)
       }
     },
@@ -1098,7 +1124,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       try {
         const base = getApiBaseUrl()
         if (!base) {
-          setSendError('Não foi possível determinar o servidor da extensão.')
+          setSendError(t('panel.server_error'))
           setSending(false)
           return
         }
@@ -1133,12 +1159,12 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             onClose()
           }
         } else {
-          setSendError(`Erro ao enviar GIF: ${resData?.error || 'falha'}`)
+          setSendError(t('panel.send_gif_error', { error: resData?.error || t('panel.server_error') }))
           setSending(false)
         }
       } catch (err: any) {
         if (gen !== interactionGenRef.current) return
-        setSendError(`Erro ao enviar GIF: ${err?.message || 'falha'}`)
+        setSendError(t('panel.send_gif_error', { error: err?.message || t('panel.server_error') }))
         setSending(false)
       }
     },
@@ -1158,17 +1184,17 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   if (!data || data?.status === 'disconnected' || data?.qr) return null
 
   const isSelectedMember = Boolean(!activeRecipient.isGroup && activeRecipient.fromGroupJid)
-  const contactName = activeRecipient.name || senderName || contact || 'Contato'
+  const contactName = activeRecipient.name || senderName || contact || t('panel.unknown_contact')
   const defaultQuickReplies = [
     '👍 Ok',
-    'Já respondo',
-    `Olá, ${contactName}!`,
-    'Como posso te ajudar hoje?'
+    t('page.quick_reply_check'),
+    t('page.quick_reply_hello', { name: contactName }),
+    t('page.quick_reply_help')
   ]
   const resolvedQuickReplies = isHistoryOverlay
     ? []
     : !activeRecipient.isGroup && activeRecipient.fromGroupJid
-      ? [`Olá, ${activeRecipient.name}!`, 'Como posso te ajudar?']
+      ? [t('page.quick_reply_hello', { name: activeRecipient.name }), t('page.quick_reply_help')]
       : Array.isArray(quickReplies) && quickReplies.length > 0
         ? quickReplies
         : defaultQuickReplies
@@ -1300,7 +1326,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
               }}
               className="p-1 rounded-md hover:bg-text/10 text-text-muted hover:text-text transition-colors shrink-0 cursor-pointer"
               style={{ WebkitAppRegion: 'no-drag' } as any}
-              aria-label="Fechar"
+              aria-label={t('panel.close')}
             >
               <XMarkIcon className="w-4 h-4" />
             </button>
@@ -1320,10 +1346,10 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                     className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text transition-colors p-1 rounded-md hover:bg-input/50 cursor-pointer"
                   >
                     <ArrowLeftIcon className="w-3.5 h-3.5" />
-                    <span>Voltar à conversa</span>
+                    <span>{t('panel.back_to_chat')}</span>
                   </button>
                   <span className="text-[11px] font-medium text-text-muted">
-                    {participants.length > 0 ? `${participants.length} membros` : 'Membros'}
+                    {participants.length > 0 ? t('panel.members_count', { count: participants.length }) : t('panel.members')}
                   </span>
                 </div>
 
@@ -1333,7 +1359,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                     type="text"
                     value={participantSearch}
                     onChange={(e) => setParticipantSearch(e.target.value)}
-                    placeholder="Buscar participante..."
+                    placeholder={t('panel.search_participant')}
                     className="w-full bg-transparent text-xs text-text placeholder:text-text-muted/50 focus:outline-none"
                   />
                   {participantSearch && (
@@ -1354,11 +1380,11 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                   {loadingParticipants ? (
                     <div className="flex flex-col items-center justify-center py-8 gap-2">
                       <div className="w-5 h-5 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-                      <p className="text-xs text-text-muted">Carregando membros...</p>
+                      <p className="text-xs text-text-muted">{t('panel.loading_participants')}</p>
                     </div>
                   ) : filteredParticipants.length === 0 ? (
                     <div className="text-center py-6">
-                      <p className="text-xs text-text-muted">Nenhum participante encontrado.</p>
+                      <p className="text-xs text-text-muted">{t('panel.no_participants')}</p>
                     </div>
                   ) : (
                     filteredParticipants.map((p) => (
@@ -1383,7 +1409,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                           <p className="text-[10px] text-text-muted truncate">+{p.phone}</p>
                         </div>
                         <span className="text-[10px] text-text-muted/60 group-hover/item:text-accent font-medium shrink-0 flex items-center gap-1">
-                          Enviar
+                          {t('panel.send_message')}
                           <PaperAirplaneIcon className="w-3 h-3" />
                         </span>
                       </button>
@@ -1431,7 +1457,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                               {isNewDay && (
                                 <div className="flex justify-center my-2 select-none">
                                   <span className="px-3 py-1 text-[10px] font-medium rounded-lg bg-input/70 text-text-muted border border-border/40 shadow-xs uppercase tracking-wider">
-                                    {formatDateSeparator(line.timestamp)}
+                                    {formatDateSeparator(line.timestamp, locale)}
                                   </span>
                                 </div>
                               )}
@@ -1520,7 +1546,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                       }
                                     />
                                   ) : null}
-                                  {(line.audio || (line.text === '🎙️ Áudio' && data?.audio)) && (
+                                  {(line.audio || ((line.text === '🎙️ Áudio' || line.text === '🎙️ Audio') && data?.audio)) && (
                                     <CustomAudioPlayer src={getAudioUrl(line.audio || data?.audio)} />
                                   )}
                                   <div className="flex justify-end items-center mt-0.5 shrink-0">
@@ -1532,7 +1558,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                           : undefined
                                       }
                                     >
-                                      {formatHistoryTime(line.timestamp)}
+                                      {formatHistoryTime(line.timestamp, locale)}
                                     </span>
                                   </div>
                                 </div>
@@ -1560,7 +1586,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                           </span>
                           {data?.timestamp && (
                             <span className="text-[10px] text-text-muted ml-auto shrink-0 select-none">
-                              {formatHistoryTime(data.timestamp)}
+                              {formatHistoryTime(data.timestamp, locale)}
                             </span>
                           )}
                         </div>
@@ -1864,7 +1890,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                       className={`p-1 rounded-md text-text-muted hover:text-text transition-colors disabled:opacity-40 shrink-0 ${
                         (!customText.trim() && pastedImages.length === 0 && attachedDocuments.length === 0) || sending ? 'cursor-default' : 'cursor-pointer'
                       }`}
-                      aria-label="Enviar"
+                      aria-label={t('panel.send_message')}
                     >
                       <PaperAirplaneIcon className="w-4 h-4" />
                     </button>
@@ -1912,12 +1938,12 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           items={[
             {
               id: 'paste',
-              label: 'Colar',
+              label: t('panel.context_paste'),
               onClick: handlePasteFromContextMenu
             },
             {
               id: 'select-all',
-              label: 'Selecionar tudo',
+              label: t('panel.context_select_all'),
               onClick: handleSelectAll
             }
           ]}
@@ -1978,7 +2004,7 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
         .then((url) => setQrUrl(url))
         .catch((err) => {
           console.error('Failed to generate QR code data URL:', err)
-          setError(t('notification.qr_failed') || 'Falha ao processar o código QR.')
+          setError(t('notification.qr_failed'))
         })
     }
   }, [qrCodeString, qr, t])
@@ -1992,11 +2018,11 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
         args: {}
       })
       if (!res?.ok) {
-        setError(res?.error || t('notification.reconnect_failed') || 'Falha ao solicitar novo código.')
+        setError(res?.error || t('notification.reconnect_failed'))
       }
     } catch (err: any) {
       console.error('Failed to reconnect/restart WhatsApp:', err)
-      setError(t('notification.reconnect_failed') || 'Falha ao solicitar novo código. Tente novamente.')
+      setError(t('notification.reconnect_failed'))
     } finally {
       setLoading(false)
     }
@@ -2018,14 +2044,14 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
               />
             </svg>
           </div>
-          <span className="text-xs font-bold text-text">{t('notification.wa_disconnected') || 'WhatsApp Desconectado'}</span>
+          <span className="text-xs font-bold text-text">{t('notification.wa_disconnected')}</span>
         </div>
         <button
           type="button"
           onClick={onClose}
           className="p-1 rounded-md hover:bg-text/10 text-text-muted hover:text-text transition-colors shrink-0 cursor-pointer"
           style={{ WebkitAppRegion: 'no-drag' } as any}
-          aria-label="Fechar"
+          aria-label={t('panel.close')}
         >
           <XMarkIcon className="w-4 h-4" />
         </button>
@@ -2033,7 +2059,7 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
 
       <div className="flex flex-col items-center text-center">
         <p className="text-[11px] text-text-muted mb-3 max-w-[280px]">
-          {t('notification.scan_qr') || 'Escaneie o código QR abaixo com o WhatsApp no seu celular para reconectar.'}
+          {t('notification.scan_qr')}
         </p>
 
         <div
@@ -2045,7 +2071,7 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
           ) : (
             <div className="flex flex-col items-center justify-center gap-2">
               <div className="w-7 h-7 rounded-full border-2 border-accent border-t-transparent animate-spin" />
-              <span className="text-[10px] text-text-muted font-medium">{t('notification.waiting_code') || 'Aguardando código...'}</span>
+              <span className="text-[10px] text-text-muted font-medium">{t('notification.waiting_code')}</span>
             </div>
           )}
         </div>
@@ -2063,7 +2089,7 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
           style={{ WebkitAppRegion: 'no-drag' } as any}
           className="mt-3 w-full max-w-[200px] py-2 px-4 text-xs font-semibold rounded-lg bg-accent text-card hover:opacity-90 transition-all duration-200 border border-accent/40 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
         >
-          {loading ? (t('notification.requesting') || 'Solicitando...') : (t('notification.generating') || 'Gerar Novo QR Code')}
+          {loading ? t('notification.requesting') : t('notification.generating')}
         </button>
       </div>
     </div>

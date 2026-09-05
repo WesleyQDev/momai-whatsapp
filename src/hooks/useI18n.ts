@@ -10,10 +10,18 @@ import sdk from 'momai:sdk'
 
 import ptBR from '../../locales/pt-BR.json'
 import enUS from '../../locales/en-US.json'
+import es from '../../locales/es.json'
+import fr from '../../locales/fr.json'
+import de from '../../locales/de.json'
+import it from '../../locales/it.json'
 
 const dictionaries: Record<string, Record<string, unknown>> = {
   'pt-BR': ptBR,
-  'en-US': enUS
+  'en-US': enUS,
+  es,
+  fr,
+  de,
+  it
 }
 
 const DEFAULT_LOCALE = 'pt-BR'
@@ -21,9 +29,15 @@ const DEFAULT_LOCALE = 'pt-BR'
 function normalizeLocale(value?: string | null): string {
   if (!value || typeof value !== 'string') return DEFAULT_LOCALE
   if (value in dictionaries) return value
-  const short = value.toLowerCase().split('-')[0]
-  if (short === 'pt') return 'pt-BR'
-  if (short === 'en') return 'en-US'
+  if (value === 'en') return 'en-US'
+  if (value === 'pt') return 'pt-BR'
+  const lower = value.toLowerCase()
+  if (lower.startsWith('pt')) return 'pt-BR'
+  if (lower.startsWith('en')) return 'en-US'
+  if (lower.startsWith('es')) return 'es'
+  if (lower.startsWith('fr')) return 'fr'
+  if (lower.startsWith('de')) return 'de'
+  if (lower.startsWith('it')) return 'it'
   return DEFAULT_LOCALE
 }
 
@@ -79,7 +93,7 @@ export function useI18n() {
     (key: string, vars?: Record<string, string | number>): string => {
       if (!key || typeof key !== 'string') return ''
       const dict = dictionaries[locale] || dictionaries[DEFAULT_LOCALE]
-      let text = getNestedValue(dict, key) ?? key
+      let text = getNestedValue(dict, key) ?? getNestedValue(dictionaries[DEFAULT_LOCALE], key) ?? key
       if (vars && typeof text === 'string') {
         for (const [varKey, varValue] of Object.entries(vars)) {
           text = text.replaceAll(`{{${varKey}}}`, String(varValue))

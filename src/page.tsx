@@ -2,6 +2,7 @@
 import QRCode from 'qrcode'
 import sdk from 'momai:sdk'
 import ContextMenu from './components/ContextMenu'
+import MonitoringDropdown from './components/MonitoringDropdown'
 import { api } from './services/api'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { useI18n } from './hooks/useI18n'
@@ -74,12 +75,12 @@ function normalizeTimestamp(ts: number): number {
   return ts > 1e12 ? ts : ts * 1000
 }
 
-function formatTime(ts: number): string {
+function formatTime(ts: number, locale = 'pt-BR'): string {
   const ms = normalizeTimestamp(ts)
   if (!ms || isNaN(ms)) return '--:--'
-  return new Date(ms).toLocaleDateString('pt-BR') === new Date().toLocaleDateString('pt-BR')
-    ? new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-    : new Date(ms).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  return new Date(ms).toLocaleDateString(locale) === new Date().toLocaleDateString(locale)
+    ? new Date(ms).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+    : new Date(ms).toLocaleDateString(locale, { day: '2-digit', month: '2-digit' })
 }
 
 function buildTurns(sorted: Message[]): ConversationTurn[] {
@@ -351,6 +352,7 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
   )
 }
 
+// Fallback labels for tools/params not yet covered by locales; toolLabel/paramLabel prefer t().
 const TOOL_LABELS: Record<string, string> = {
   send_message: 'Enviar mensagem',
   list_contacts: 'Listar contatos',
@@ -418,27 +420,42 @@ function humanizeKey(key: string): string {
   return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-function formatActionArgs(args?: Record<string, unknown>): string {
+type TranslateFn = (key: string, vars?: Record<string, string | number>) => string
+
+function resolveWithFallback(t: TranslateFn, key: string, fallback: string): string {
+  const resolved = t(key)
+  return resolved === key ? fallback : resolved
+}
+
+function toolLabel(t: TranslateFn, name: string): string {
+  return resolveWithFallback(t, `tools.${name}`, TOOL_LABELS[name] || humanizeKey(name))
+}
+
+function paramLabel(t: TranslateFn, name: string): string {
+  return resolveWithFallback(t, `params.${name}`, PARAM_LABELS[name] || humanizeKey(name))
+}
+
+function formatActionArgsI18n(t: TranslateFn, args?: Record<string, unknown>): string {
   if (!args) return ''
   return Object.entries(args)
     .filter(([, v]) => !(typeof v === 'string' && !v.trim()))
     .map(([k, v]) => {
       const val = v && typeof v === 'object' ? JSON.stringify(v) : String(v)
-      return `${PARAM_LABELS[k] || humanizeKey(k)}: ${val}`
+      return `${paramLabel(t, k)}: ${val}`
     })
     .join(' · ')
 }
 
-function formatWhen(when?: AutomationWhen): string {
+function formatWhenI18n(t: TranslateFn, when?: AutomationWhen): string {
   if (!when) return ''
   const parts: string[] = []
-  if (when.contact?.trim()) parts.push(`contato ${when.contact.trim()}`)
-  if (when.groupName?.trim()) parts.push(`grupo ${when.groupName.trim()}`)
-  if (when.isGroup === 'true') parts.push('mensagens de grupo')
-  if (when.isGroup === 'false') parts.push('mensagens diretas')
-  if (when.startsWith?.trim()) parts.push(`começa com "${when.startsWith.trim()}"`)
-  if (when.endsWith?.trim()) parts.push(`termina com "${when.endsWith.trim()}"`)
-  if (when.contains?.trim()) parts.push(`contém "${when.contains.trim()}"`)
+  if (when.contact?.trim()) parts.push(t('automations.contact', { contact: when.contact.trim() }))
+  if (when.groupName?.trim()) parts.push(t('automations.group', { group: when.groupName.trim() }))
+  if (when.isGroup === 'true') parts.push(t('automations.group_messages'))
+  if (when.isGroup === 'false') parts.push(t('automations.direct_messages'))
+  if (when.startsWith?.trim()) parts.push(t('automations.starts_with', { text: when.startsWith.trim() }))
+  if (when.endsWith?.trim()) parts.push(t('automations.ends_with', { text: when.endsWith.trim() }))
+  if (when.contains?.trim()) parts.push(t('automations.contains', { text: when.contains.trim() }))
   return parts.join(', ')
 }
 
@@ -637,15 +654,15 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                     <div className="text-xs font-medium text-gray-100">
                       {catalog.find((e) => e.id === a.target)?.name || a.target}
                       <span className="text-gray-400"> / </span>
-                      {TOOL_LABELS[a.tool] || humanizeKey(a.tool)}
+                      {toolLabel(t, a.tool)}
                     </div>
                     {a.when && Object.keys(a.when).length > 0 ? (
                       <div className="text-[11px] text-emerald-400 truncate">
-                        {t('page.when', { condition: formatWhen(a.when) })}
+                        {t('page.when', { condition: formatWhenI18n(t, a.when) })}
                       </div>
                     ) : null}
                     {a.args && Object.keys(a.args).length > 0 ? (
-                      <div className="text-[11px] text-gray-500 truncate">{formatActionArgs(a.args)}</div>
+                      <div className="text-[11px] text-gray-500 truncate">{formatActionArgsI18n(t, a.args)}</div>
                     ) : null}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -721,7 +738,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                           type="text"
                           value={draftWhen.startsWith ?? ''}
                           onChange={(e) => setDraftWhen((d) => ({ ...d, startsWith: e.target.value }))}
-                          placeholder='Ex.: "desliga"'
+                          placeholder={t('page.trigger_placeholder_starts')}
                           className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
@@ -733,7 +750,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                           type="text"
                           value={draftWhen.endsWith ?? ''}
                           onChange={(e) => setDraftWhen((d) => ({ ...d, endsWith: e.target.value }))}
-                          placeholder='Ex.: "a luz"'
+                          placeholder={t('page.trigger_placeholder_ends')}
                           className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
@@ -745,14 +762,13 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                           type="text"
                           value={draftWhen.contains ?? ''}
                           onChange={(e) => setDraftWhen((d) => ({ ...d, contains: e.target.value }))}
-                          placeholder='Ex.: "liga"'
+                          placeholder={t('page.trigger_placeholder_contains')}
                           className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
 
                       <p className="text-[10px] text-gray-500">
                         {t('page.trigger_hint')}
-                        devem bater (e o contato/grupo/tipo, se preenchidos).
                       </p>
                     </div>
                   </div>
@@ -787,10 +803,10 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                           className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-emerald-500"
                         >
                           {targetExt?.tools
-                            ?.filter((t) => t.name !== 'get_actions' && t.name !== 'set_actions')
-                            .map((t) => (
-                              <option key={t.name} value={t.name}>
-                                {TOOL_LABELS[t.name] || humanizeKey(t.name)}
+                            ?.filter((toolItem) => toolItem.name !== 'get_actions' && toolItem.name !== 'set_actions')
+                            .map((toolItem) => (
+                              <option key={toolItem.name} value={toolItem.name}>
+                                {toolLabel(t, toolItem.name)}
                               </option>
                             ))}
                         </select>
@@ -800,7 +816,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                         {Object.entries(props).map(([key, param]) => (
                           <div key={key}>
                             <label className="block text-[11px] font-semibold text-gray-400 mb-1">
-                              {PARAM_LABELS[key] || humanizeKey(key)}
+                              {paramLabel(t, key)}
                               {param?.default !== undefined ? t('page.action_prefilled') : ''}
                             </label>
                             {param?.enum ? (
@@ -888,7 +904,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
             onClick={onClose}
             className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl transition-colors"
           >
-            Fechar
+            {t('panel.close')}
           </button>
         </div>
       </div>
@@ -1036,7 +1052,7 @@ const _stateCache = {
 }
 
 export default function WhatsAppView() {
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
   const [connected, _setConnected] = useState(_stateCache.connected)
   const [totalMessages, setTotalMessages] = useState(_stateCache.totalMessages)
   const [syncedContacts, setSyncedContacts] = useState(_stateCache.syncedContacts)
@@ -1095,7 +1111,7 @@ export default function WhatsAppView() {
   const editingNameRef = useRef<string | null>(null)
   const [editingName, setEditingName] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
-  const [openMonitoringDropdown, setOpenMonitoringDropdown] = useState<string | null>(null)
+  const [monitoringOverrides, setMonitoringOverrides] = useState<Record<string, boolean>>({})
   const [syncing, setSyncing] = useState(false)
   const syncingRef = useRef(false)
 
@@ -1624,9 +1640,28 @@ export default function WhatsAppView() {
           prev.map((c) => (c.id === contactId ? { ...c, monitoring: data.monitoring } : c))
         setPaginatedContacts(updater)
         setPaginatedGroups(updater)
+        setMonitoringOverrides((prev) => ({ ...prev, [contactId]: data.monitoring }))
         loadStats()
       }
     } catch {}
+  }
+
+  const resolveMonitoring = (jid: string): boolean => {
+    if (!jid) return true
+    const override = monitoringOverrides[jid]
+    if (override !== undefined) return override
+    const pool = jid.endsWith('@g.us') ? paginatedGroups : paginatedContacts
+    const direct = pool.find((c) => c.id === jid)?.monitoring
+    if (direct !== undefined) return direct
+    const digits = jid.split('@')[0].replace(/\D/g, '')
+    if (digits) {
+      const hit = pool.find((c) => {
+        const candidate = c.id.split('@')[0].replace(/\D/g, '')
+        return candidate.length > 0 && (candidate.endsWith(digits) || digits.endsWith(candidate))
+      })
+      if (hit?.monitoring !== undefined) return hit.monitoring
+    }
+    return true
   }
 
   const saveContactName = async (targetJidOrPhone: string) => {
@@ -2034,8 +2069,8 @@ export default function WhatsAppView() {
               <div className="relative" ref={notificationDropdownRef}>
                 <button
                   onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
-                  className={`py-2 px-3 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all flex items-center gap-2 group ${
-                    showNotificationDropdown ? 'bg-white/10' : ''
+                  className={`py-2 px-3 rounded-full border border-border bg-card hover:bg-input text-text transition-all flex items-center gap-2 group ${
+                    showNotificationDropdown ? 'bg-input' : ''
                   }`}
                   title={notificationsDisabled ? t('page.notifications_disabled') : t('page.notifications_active')}
                 >
@@ -2088,7 +2123,7 @@ export default function WhatsAppView() {
                 </button>
 
                 {showNotificationDropdown && (
-                  <div className="absolute top-full mt-2 right-0 w-48 rounded-xl border border-white/10 bg-zinc-900 shadow-2xl z-[100] py-2 overflow-hidden animate-in fade-in zoom-in duration-200">
+                  <div className="absolute top-full mt-2 right-0 w-48 rounded-xl border border-border bg-card shadow-2xl z-[100] py-2 overflow-hidden animate-in fade-in zoom-in duration-200">
                     <button
                       onClick={() => {
                         if (notificationsDisabled) toggleNotifications()
@@ -2096,8 +2131,8 @@ export default function WhatsAppView() {
                       }}
                       className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
                         !notificationsDisabled
-                          ? 'bg-white/10 text-white'
-                          : 'text-text-muted hover:bg-white/5'
+                          ? 'bg-input text-text'
+                          : 'text-text-muted hover:bg-input hover:text-text'
                       }`}
                     >
                       <svg
@@ -2122,8 +2157,8 @@ export default function WhatsAppView() {
                       }}
                       className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
                         notificationsDisabled
-                          ? 'bg-white/10 text-white'
-                          : 'text-text-muted hover:bg-white/5'
+                          ? 'bg-input text-text'
+                          : 'text-text-muted hover:bg-input hover:text-text'
                       }`}
                     >
                       <svg
@@ -2252,15 +2287,15 @@ export default function WhatsAppView() {
           <div className="grid grid-cols-3 gap-4">
             <div className="rounded-xl border border-white/5 bg-card p-4">
               <p className="text-2xl font-bold">{totalMessages}</p>
-              <p className="text-xs text-text-muted">Mensagens</p>
+              <p className="text-xs text-text-muted">{t('page.stats_messages')}</p>
             </div>
             <div className="rounded-xl border border-white/5 bg-card p-4">
               <p className="text-2xl font-bold">{monitoredCount}</p>
-              <p className="text-xs text-text-muted">Monitorados</p>
+              <p className="text-xs text-text-muted">{t('page.stats_monitored')}</p>
             </div>
             <div className="rounded-xl border border-white/5 bg-card p-4">
               <p className="text-2xl font-bold">
-                {connected ? 'Online' : connectionStatus === 'reconnecting' ? 'Reconectando' : 'Offline'}
+                {connected ? t('panel.connected') : connectionStatus === 'reconnecting' ? t('panel.reconnecting') : t('panel.disconnected')}
               </p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div
@@ -2274,10 +2309,10 @@ export default function WhatsAppView() {
                 />
                 <p className="text-xs text-text-muted">
                   {connected
-                    ? 'Conectado'
+                    ? t('panel.connected')
                     : connectionStatus === 'reconnecting'
-                      ? 'Reconectando em 2º plano...'
-                      : 'Desconectado'}
+                      ? t('panel.reconnecting_bg')
+                      : t('panel.disconnected')}
                 </p>
               </div>
             </div>
@@ -2286,15 +2321,15 @@ export default function WhatsAppView() {
           {(connected || allConversations.length > 0) && (
             <div className="rounded-xl border border-white/5 bg-card">
               <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between">
-                <span>Últimas Mensagens</span>
+                <span>{t('page.recent_title')}</span>
                 <span className="text-xs text-text-muted">
-                  {allConversations.length} conversa{allConversations.length !== 1 ? 's' : ''} ·
-                  clique para responder
+                  {t(allConversations.length === 1 ? 'page.recent_count_one' : 'page.recent_count_other', { count: allConversations.length })} ·{' '}
+                  {t('page.recent_hint')}
                 </span>
               </div>
               {allConversations.length === 0 && (
                 <div className="p-6 text-center text-sm text-text-muted">
-                  Nenhuma mensagem recebida ainda
+                  {t('page.no_messages')}
                 </div>
               )}
               {conversations.map((convo) => {
@@ -2332,7 +2367,7 @@ export default function WhatsAppView() {
                       }
                     }}
                     className="px-4 py-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors cursor-pointer focus:outline-none focus:bg-white/10"
-                    title="Ver conversa e responder"
+                    title={t('page.view_conversation')}
                   >
                     <div className="flex gap-3">
                       <div onClick={(e) => e.stopPropagation()}>
@@ -2388,7 +2423,7 @@ export default function WhatsAppView() {
                                   handleStartEdit(convo.jid, convo.contactLabel)
                                 }}
                                 className="text-text-muted hover:text-emerald-400 p-1 rounded-lg hover:bg-white/10 transition-colors"
-                                title="Renomear contato"
+                                title={t('page.rename')}
                               >
                                 <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                                   <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
@@ -2403,22 +2438,29 @@ export default function WhatsAppView() {
                                   handleDeleteConversation(convo.jid)
                                 }}
                                 className="text-text-muted hover:text-red-400 p-1 rounded-lg hover:bg-white/10 transition-colors"
-                                title="Excluir conversa"
+                                title={t('page.delete_conversation')}
                               >
                                 <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                                   <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675a.75.75 0 1 0-1.492.15l.66 6.6A1.75 1.75 0 0 0 5.405 15h5.19a1.75 1.75 0 0 0 1.741-1.575l.66-6.6a.75.75 0 0 0-1.492-.15l-.66 6.6a.25.25 0 0 1-.249.225h-5.19a.25.25 0 0 1-.249-.225l-.66-6.6Z" />
                                 </svg>
                               </button>
                             )}
+                            {editingName !== convo.jid && (
+                              <MonitoringDropdown
+                                id={convo.jid}
+                                monitoring={resolveMonitoring(convo.jid)}
+                                onToggle={toggleMonitoring}
+                              />
+                            )}
                             <span className="text-xs text-text-muted">
-                              {formatTime(lastMsg.timestamp)}
+                              {formatTime(lastMsg.timestamp, locale)}
                             </span>
                           </div>
                         </div>
                         <div className="text-sm text-text-muted mt-0.5 flex items-center gap-1.5 min-h-[1.75rem]">
                           {isOutgoing && (
                             <span className="font-semibold text-text-muted/90 shrink-0">
-                              Você:
+                              {t('page.you_label')}
                             </span>
                           )}
                           {lastMsg.sticker ? (
@@ -2434,11 +2476,11 @@ export default function WhatsAppView() {
                             <span className="truncate">
                               {lastMsg.text ||
                                 (lastMsg.audio
-                                  ? '🎵 Áudio'
+                                  ? t('page.audio_fallback')
                                   : lastMsg.image
-                                    ? '📷 Foto'
+                                    ? t('media.photo')
                                     : lastMsg.document
-                                      ? `📄 ${lastMsg.documentName || 'Documento'}`
+                                      ? `📄 ${lastMsg.documentName || t('page.document_default')}`
                                       : '')}
                             </span>
                           )}
@@ -2452,9 +2494,12 @@ export default function WhatsAppView() {
               {conversationsTotalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
                   <span className="text-xs text-text-muted">
-                    Mostrando {(conversationsPage - 1) * conversationsPerPage + 1} a{' '}
-                    {Math.min(conversationsPage * conversationsPerPage, allConversations.length)} de{' '}
-                    {allConversations.length} conversas
+                    {t('page.pagination_showing', {
+                      from: (conversationsPage - 1) * conversationsPerPage + 1,
+                      to: Math.min(conversationsPage * conversationsPerPage, allConversations.length),
+                      total: allConversations.length
+                    })}{' '}
+                    {t('page.pagination_unit_conversations')}
                   </span>
                   <div className="flex gap-2">
                     <button
@@ -2463,7 +2508,7 @@ export default function WhatsAppView() {
                       disabled={conversationsPage === 1}
                       className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
-                      Anterior
+                      {t('page.pagination_previous')}
                     </button>
                     <span className="text-xs self-center px-2 text-text-muted">
                       {conversationsPage} / {conversationsTotalPages}
@@ -2476,7 +2521,7 @@ export default function WhatsAppView() {
                       disabled={conversationsPage === conversationsTotalPages}
                       className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
-                      Próximo
+                      {t('page.pagination_next')}
                     </button>
                   </div>
                 </div>
@@ -2513,7 +2558,7 @@ export default function WhatsAppView() {
                           : 'bg-white/5 border-white/10 hover:bg-white/10 text-text-muted hover:text-text disabled:opacity-50'
                       }`}
                       title={
-                        avatarsRefreshing ? 'Atualizando fotos de perfil...' : 'Atualizar fotos de perfil'
+                        avatarsRefreshing ? t('page.refreshing_avatars') : t('page.refresh_avatars')
                       }
                       aria-busy={avatarsRefreshing}
                     >
@@ -2541,7 +2586,7 @@ export default function WhatsAppView() {
 
                 {paginatedGroups.length === 0 ? (
                   <div className="p-6 text-center text-sm text-text-muted">
-                    {groupsLoading ? 'Carregando grupos...' : 'Nenhum grupo encontrado'}
+                    {groupsLoading ? t('page.loading_groups') : t('page.no_groups')}
                   </div>
                 ) : (
                   <div className="divide-y divide-white/5">
@@ -2620,7 +2665,7 @@ export default function WhatsAppView() {
                               handleStartEdit(c.id, c.displayName)
                             }}
                             className="text-text-muted hover:text-text p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                            title="Renomear"
+                            title={t('page.rename')}
                           >
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                               <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
@@ -2634,7 +2679,7 @@ export default function WhatsAppView() {
                               handleDeleteConversation(c.id)
                             }}
                             className="text-text-muted hover:text-red-400 p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                            title="Excluir conversa"
+                            title={t('page.delete_conversation')}
                           >
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                               <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675a.75.75 0 1 0-1.492.15l.66 6.6A1.75 1.75 0 0 0 5.405 15h5.19a1.75 1.75 0 0 0 1.741-1.575l.66-6.6a.75.75 0 0 0-1.492-.15l-.66 6.6a.25.25 0 0 1-.249.225h-5.19a.25.25 0 0 1-.249-.225l-.66-6.6Z" />
@@ -2642,126 +2687,11 @@ export default function WhatsAppView() {
                           </button>
                         )}
 
-                        <div className="relative" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() =>
-                              setOpenMonitoringDropdown(
-                                openMonitoringDropdown === c.id ? null : c.id
-                              )
-                            }
-                            className={`py-1.5 px-3 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all flex items-center gap-2 group ${
-                              openMonitoringDropdown === c.id ? 'bg-white/10' : ''
-                            }`}
-                            title={c.monitoring ? 'Monitorado' : 'Ignorado'}
-                          >
-                            {c.monitoring ? (
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-                              </svg>
-                            ) : (
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="text-text-muted"
-                              >
-                                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                                <path d="M18.63 13A17.89 17.89 0 0 1 18 8" />
-                                <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
-                                <path d="M18 8a6 6 0 0 0-9.33-5" />
-                                <line x1="2" y1="2" x2="22" y2="22" />
-                              </svg>
-                            )}
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              className={`transition-transform duration-200 ${openMonitoringDropdown === c.id ? 'rotate-180' : ''}`}
-                            >
-                              <path d="m6 9 6 6 6-6" />
-                            </svg>
-                          </button>
-
-                          {openMonitoringDropdown === c.id && (
-                            <div className="absolute top-full mt-2 right-0 w-40 rounded-xl border border-white/10 bg-zinc-900 shadow-2xl z-[100] py-1.5 overflow-hidden animate-in fade-in zoom-in duration-200">
-                              <button
-                                onClick={() => {
-                                  if (!c.monitoring) toggleMonitoring(c.id)
-                                  setOpenMonitoringDropdown(null)
-                                }}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
-                                  c.monitoring
-                                    ? 'bg-white/10 text-white'
-                                    : 'text-text-muted hover:bg-white/5'
-                                }`}
-                              >
-                                <svg
-                                  width="16"
-                                  height="16"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                                  <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-                                </svg>
-                                Monitorado
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (c.monitoring) toggleMonitoring(c.id)
-                                  setOpenMonitoringDropdown(null)
-                                }}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
-                                  !c.monitoring
-                                    ? 'bg-white/10 text-white'
-                                    : 'text-text-muted hover:bg-white/5'
-                                }`}
-                              >
-                                <svg
-                                  width="16"
-                                  height="16"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                                  <path d="M18.63 13A17.89 17.89 0 0 1 18 8" />
-                                  <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
-                                  <path d="M18 8a6 6 0 0 0-9.33-5" />
-                                  <line x1="2" y1="2" x2="22" y2="22" />
-                                </svg>
-                                Ignorado
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        <MonitoringDropdown
+                          id={c.id}
+                          monitoring={c.monitoring}
+                          onToggle={toggleMonitoring}
+                        />
                       </div>
                     ))}
                   </div>
@@ -2770,9 +2700,12 @@ export default function WhatsAppView() {
                 {groupsTotalPages > 1 && (
                   <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
                     <span className="text-xs text-text-muted">
-                      Mostrando {(groupsPage - 1) * groupsPerPage + 1} a{' '}
-                      {Math.min(groupsPage * groupsPerPage, totalFilteredGroups)} de{' '}
-                      {totalFilteredGroups} grupos
+                      {t('page.pagination_showing', {
+                        from: (groupsPage - 1) * groupsPerPage + 1,
+                        to: Math.min(groupsPage * groupsPerPage, totalFilteredGroups),
+                        total: totalFilteredGroups
+                      })}{' '}
+                      {t('page.pagination_unit_groups')}
                     </span>
                     <div className="flex gap-2">
                       <button
@@ -2781,7 +2714,7 @@ export default function WhatsAppView() {
                         disabled={groupsPage === 1}
                         className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
-                        Anterior
+                        {t('page.pagination_previous')}
                       </button>
                       <span className="text-xs self-center px-2 text-text-muted">
                         {groupsPage} / {groupsTotalPages}
@@ -2792,7 +2725,7 @@ export default function WhatsAppView() {
                         disabled={groupsPage === groupsTotalPages}
                         className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
-                        Próximo
+                        {t('page.pagination_next')}
                       </button>
                     </div>
                   </div>
@@ -2819,7 +2752,7 @@ export default function WhatsAppView() {
 
                 {paginatedContacts.length === 0 ? (
                   <div className="p-6 text-center text-sm text-text-muted">
-                    {contactsLoading ? 'Carregando contatos...' : 'Nenhum contato encontrado'}
+                    {contactsLoading ? t('page.loading_contacts') : t('page.no_contacts')}
                   </div>
                 ) : (
                   <div className="divide-y divide-white/5">
@@ -2896,7 +2829,7 @@ export default function WhatsAppView() {
                               handleStartEdit(c.id, c.displayName)
                             }}
                             className="text-text-muted hover:text-text p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                            title="Renomear"
+                            title={t('page.rename')}
                           >
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                               <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
@@ -2910,7 +2843,7 @@ export default function WhatsAppView() {
                               handleDeleteConversation(c.id)
                             }}
                             className="text-text-muted hover:text-red-400 p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                            title="Excluir conversa"
+                            title={t('page.delete_conversation')}
                           >
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                               <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675a.75.75 0 1 0-1.492.15l.66 6.6A1.75 1.75 0 0 0 5.405 15h5.19a1.75 1.75 0 0 0 1.741-1.575l.66-6.6a.75.75 0 0 0-1.492-.15l-.66 6.6a.25.25 0 0 1-.249.225h-5.19a.25.25 0 0 1-.249-.225l-.66-6.6Z" />
@@ -2918,126 +2851,11 @@ export default function WhatsAppView() {
                           </button>
                         )}
 
-                        <div className="relative" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() =>
-                              setOpenMonitoringDropdown(
-                                openMonitoringDropdown === c.id ? null : c.id
-                              )
-                            }
-                            className={`py-1.5 px-3 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all flex items-center gap-2 group ${
-                              openMonitoringDropdown === c.id ? 'bg-white/10' : ''
-                            }`}
-                            title={c.monitoring ? 'Monitorado' : 'Ignorado'}
-                          >
-                            {c.monitoring ? (
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-                              </svg>
-                            ) : (
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="text-text-muted"
-                              >
-                                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                                <path d="M18.63 13A17.89 17.89 0 0 1 18 8" />
-                                <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
-                                <path d="M18 8a6 6 0 0 0-9.33-5" />
-                                <line x1="2" y1="2" x2="22" y2="22" />
-                              </svg>
-                            )}
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              className={`transition-transform duration-200 ${openMonitoringDropdown === c.id ? 'rotate-180' : ''}`}
-                            >
-                              <path d="m6 9 6 6 6-6" />
-                            </svg>
-                          </button>
-
-                          {openMonitoringDropdown === c.id && (
-                            <div className="absolute top-full mt-2 right-0 w-40 rounded-xl border border-white/10 bg-zinc-900 shadow-2xl z-[100] py-1.5 overflow-hidden animate-in fade-in zoom-in duration-200">
-                              <button
-                                onClick={() => {
-                                  if (!c.monitoring) toggleMonitoring(c.id)
-                                  setOpenMonitoringDropdown(null)
-                                }}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
-                                  c.monitoring
-                                    ? 'bg-white/10 text-white'
-                                    : 'text-text-muted hover:bg-white/5'
-                                }`}
-                              >
-                                <svg
-                                  width="16"
-                                  height="16"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                                  <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-                                </svg>
-                                Monitorado
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (c.monitoring) toggleMonitoring(c.id)
-                                  setOpenMonitoringDropdown(null)
-                                }}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs transition-colors ${
-                                  !c.monitoring
-                                    ? 'bg-white/10 text-white'
-                                    : 'text-text-muted hover:bg-white/5'
-                                }`}
-                              >
-                                <svg
-                                  width="16"
-                                  height="16"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                                  <path d="M18.63 13A17.89 17.89 0 0 1 18 8" />
-                                  <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
-                                  <path d="M18 8a6 6 0 0 0-9.33-5" />
-                                  <line x1="2" y1="2" x2="22" y2="22" />
-                                </svg>
-                                Ignorado
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        <MonitoringDropdown
+                          id={c.id}
+                          monitoring={c.monitoring}
+                          onToggle={toggleMonitoring}
+                        />
                       </div>
                     ))}
                   </div>
@@ -3047,9 +2865,12 @@ export default function WhatsAppView() {
                 {contactsTotalPages > 1 && (
                   <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
                     <span className="text-xs text-text-muted">
-                      Mostrando {(contactsPage - 1) * contactsPerPage + 1} a{' '}
-                      {Math.min(contactsPage * contactsPerPage, totalFilteredContacts)} de{' '}
-                      {totalFilteredContacts} contatos
+                      {t('page.pagination_showing', {
+                        from: (contactsPage - 1) * contactsPerPage + 1,
+                        to: Math.min(contactsPage * contactsPerPage, totalFilteredContacts),
+                        total: totalFilteredContacts
+                      })}{' '}
+                      {t('page.pagination_unit_contacts')}
                     </span>
                     <div className="flex gap-2">
                       <button
@@ -3058,7 +2879,7 @@ export default function WhatsAppView() {
                         disabled={contactsPage === 1}
                         className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
-                        Anterior
+                        {t('page.pagination_previous')}
                       </button>
                       <span className="text-xs self-center px-2 text-text-muted">
                         {contactsPage} / {contactsTotalPages}
@@ -3069,7 +2890,7 @@ export default function WhatsAppView() {
                         disabled={contactsPage === contactsTotalPages}
                         className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
-                        Próximo
+                        {t('page.pagination_next')}
                       </button>
                     </div>
                   </div>
@@ -3102,12 +2923,12 @@ export default function WhatsAppView() {
             },
             {
               id: 'rename',
-              label: 'Renomear',
+              label: t('page.rename'),
               onClick: () => handleStartEdit(listMenu.id, listMenu.label)
             },
             {
               id: 'copy-name',
-              label: 'Copiar nome',
+              label: t('panel.copy_name'),
               onClick: () => {
                 try {
                   void navigator.clipboard?.writeText?.(listMenu.label)
@@ -3116,7 +2937,7 @@ export default function WhatsAppView() {
             },
             {
               id: 'copy-id',
-              label: 'Copiar JID/ID',
+              label: t('page.copy_id'),
               onClick: () => {
                 try {
                   void navigator.clipboard?.writeText?.(listMenu.id)
@@ -3137,8 +2958,13 @@ export default function WhatsAppView() {
                 ]
               : []),
             {
+              id: resolveMonitoring(listMenu.id) ? 'ignore' : 'monitor',
+              label: resolveMonitoring(listMenu.id) ? t('page.ignore') : t('page.monitor'),
+              onClick: () => toggleMonitoring(listMenu.id)
+            },
+            {
               id: 'delete',
-              label: 'Excluir conversa',
+              label: t('page.delete_conversation'),
               danger: true,
               onClick: () => handleDeleteConversation(listMenu.id)
             }

@@ -6,7 +6,13 @@
   "is_official": true,
   "description": "Acompanhe e responda suas conversas do WhatsApp por voz ou texto, sem pegar o celular.",
   "category": "communication",
-  "tags": ["communication", "messaging", "whatsapp", "contacts", "voice"],
+  "tags": [
+    "communication",
+    "messaging",
+    "whatsapp",
+    "contacts",
+    "voice"
+  ],
   "locales": {
     "pt-BR": {
       "name": "WhatsApp",
@@ -30,6 +36,399 @@
         "whatsapp": "WhatsApp",
         "contacts": "Contacts",
         "voice": "Voice"
+      },
+      "eventTypes": {
+        "qr_code": {
+          "label": "New QR Code Generated"
+        },
+        "authenticated": {
+          "label": "WhatsApp Authenticated"
+        },
+        "connection_status": {
+          "label": "Connection Status Changed"
+        },
+        "contacts_synced": {
+          "label": "Contacts Synced"
+        },
+        "contacts_updated": {
+          "label": "Contacts Updated"
+        },
+        "history_loaded": {
+          "label": "History Loaded"
+        },
+        "whatsapp_message": {
+          "label": "WhatsApp Message Received",
+          "fields": {
+            "contact": {
+              "label": "Sender (Contact or Group)"
+            },
+            "message": {
+              "label": "Keyword in Message"
+            },
+            "timestamp": {
+              "label": "Time"
+            },
+            "imageDataUri": {
+              "label": "Image / Media"
+            }
+          }
+        },
+        "whatsapp_notification": {
+          "label": "WhatsApp Notification"
+        },
+        "message_sent": {
+          "label": "Message Sent"
+        }
+      },
+      "tools": {
+        "send_message": {
+          "label": "Send WhatsApp Message",
+          "description": "Sends a message to a WhatsApp contact or group. May include an image with text as caption."
+        },
+        "list_contacts": {
+          "label": "List Contacts",
+          "description": "Lists monitored WhatsApp contacts"
+        },
+        "add_contact": {
+          "label": "Add Contact",
+          "description": "Adds a contact or group to monitoring"
+        },
+        "remove_contact": {
+          "label": "Remove Contact",
+          "description": "Removes a contact or group from monitoring"
+        },
+        "get_history": {
+          "label": "Get History",
+          "description": "Gets recent message history"
+        },
+        "get_stats": {
+          "label": "Get Stats",
+          "description": "Gets WhatsApp stats"
+        }
+      }
+    },
+    "es": {
+      "name": "WhatsApp",
+      "description": "Supervisa y responde mensajes de WhatsApp",
+      "category": "communication",
+      "tags": {
+        "communication": "Comunicación",
+        "messaging": "Mensajes",
+        "whatsapp": "WhatsApp",
+        "contacts": "Contactos",
+        "voice": "Voz"
+      },
+      "eventTypes": {
+        "qr_code": {
+          "label": "Nuevo código QR generado"
+        },
+        "authenticated": {
+          "label": "WhatsApp autenticado"
+        },
+        "connection_status": {
+          "label": "Estado de conexión cambiado"
+        },
+        "contacts_synced": {
+          "label": "Contactos sincronizados"
+        },
+        "contacts_updated": {
+          "label": "Contactos actualizados"
+        },
+        "history_loaded": {
+          "label": "Historial cargado"
+        },
+        "whatsapp_message": {
+          "label": "Mensaje de WhatsApp recibido",
+          "fields": {
+            "contact": {
+              "label": "Remitente (contacto o grupo)"
+            },
+            "message": {
+              "label": "Palabra clave en el mensaje"
+            },
+            "timestamp": {
+              "label": "Hora"
+            },
+            "imageDataUri": {
+              "label": "Imagen / Multimedia"
+            }
+          }
+        },
+        "whatsapp_notification": {
+          "label": "Notificación de WhatsApp"
+        },
+        "message_sent": {
+          "label": "Mensaje enviado"
+        }
+      },
+      "tools": {
+        "send_message": {
+          "label": "Enviar mensaje de WhatsApp",
+          "description": "Envía un mensaje a un contacto o grupo de WhatsApp."
+        },
+        "list_contacts": {
+          "label": "Listar contactos",
+          "description": "Lista los contactos de WhatsApp supervisados"
+        },
+        "add_contact": {
+          "label": "Añadir contacto",
+          "description": "Añade un contacto o grupo a la supervisión"
+        },
+        "remove_contact": {
+          "label": "Eliminar contacto",
+          "description": "Elimina un contacto o grupo de la supervisión"
+        },
+        "get_history": {
+          "label": "Obtener historial",
+          "description": "Obtiene el historial de mensajes recientes"
+        },
+        "get_stats": {
+          "label": "Obtener estadísticas",
+          "description": "Obtiene estadísticas de WhatsApp"
+        }
+      }
+    },
+    "fr": {
+      "name": "WhatsApp",
+      "description": "Surveillez et répondez aux messages WhatsApp",
+      "category": "communication",
+      "tags": {
+        "communication": "Communication",
+        "messaging": "Messagerie",
+        "whatsapp": "WhatsApp",
+        "contacts": "Contacts",
+        "voice": "Voix"
+      },
+      "eventTypes": {
+        "qr_code": {
+          "label": "Nouveau QR Code généré"
+        },
+        "authenticated": {
+          "label": "WhatsApp authentifié"
+        },
+        "connection_status": {
+          "label": "Statut de connexion modifié"
+        },
+        "contacts_synced": {
+          "label": "Contacts synchronisés"
+        },
+        "contacts_updated": {
+          "label": "Contacts mis à jour"
+        },
+        "history_loaded": {
+          "label": "Historique chargé"
+        },
+        "whatsapp_message": {
+          "label": "Message WhatsApp reçu",
+          "fields": {
+            "contact": {
+              "label": "Expéditeur (contact ou groupe)"
+            },
+            "message": {
+              "label": "Mot-clé dans le message"
+            },
+            "timestamp": {
+              "label": "Heure"
+            },
+            "imageDataUri": {
+              "label": "Image / Média"
+            }
+          }
+        },
+        "whatsapp_notification": {
+          "label": "Notification WhatsApp"
+        },
+        "message_sent": {
+          "label": "Message envoyé"
+        }
+      },
+      "tools": {
+        "send_message": {
+          "label": "Envoyer un message WhatsApp",
+          "description": "Envoie un message à un contact ou groupe WhatsApp."
+        },
+        "list_contacts": {
+          "label": "Lister les contacts",
+          "description": "Liste les contacts WhatsApp surveillés"
+        },
+        "add_contact": {
+          "label": "Ajouter un contact",
+          "description": "Ajoute un contact ou groupe à la surveillance"
+        },
+        "remove_contact": {
+          "label": "Supprimer un contact",
+          "description": "Retire un contact ou groupe de la surveillance"
+        },
+        "get_history": {
+          "label": "Obtenir historique",
+          "description": "Obtient historique des messages récents"
+        },
+        "get_stats": {
+          "label": "Obtenir statistiques",
+          "description": "Obtient statistiques WhatsApp"
+        }
+      }
+    },
+    "de": {
+      "name": "WhatsApp",
+      "description": "WhatsApp-Nachrichten überwachen und beantworten",
+      "category": "communication",
+      "tags": {
+        "communication": "Kommunikation",
+        "messaging": "Nachrichten",
+        "whatsapp": "WhatsApp",
+        "contacts": "Kontakte",
+        "voice": "Sprache"
+      },
+      "eventTypes": {
+        "qr_code": {
+          "label": "Neuer QR-Code erstellt"
+        },
+        "authenticated": {
+          "label": "WhatsApp authentifiziert"
+        },
+        "connection_status": {
+          "label": "Verbindungsstatus geändert"
+        },
+        "contacts_synced": {
+          "label": "Kontakte synchronisiert"
+        },
+        "contacts_updated": {
+          "label": "Kontakte aktualisiert"
+        },
+        "history_loaded": {
+          "label": "Verlauf geladen"
+        },
+        "whatsapp_message": {
+          "label": "WhatsApp-Nachricht empfangen",
+          "fields": {
+            "contact": {
+              "label": "Absender (Kontakt oder Gruppe)"
+            },
+            "message": {
+              "label": "Stichwort in der Nachricht"
+            },
+            "timestamp": {
+              "label": "Uhrzeit"
+            },
+            "imageDataUri": {
+              "label": "Bild / Medien"
+            }
+          }
+        },
+        "whatsapp_notification": {
+          "label": "WhatsApp-Benachrichtigung"
+        },
+        "message_sent": {
+          "label": "Nachricht gesendet"
+        }
+      },
+      "tools": {
+        "send_message": {
+          "label": "WhatsApp-Nachricht senden",
+          "description": "Sendet eine Nachricht an einen WhatsApp-Kontakt oder eine Gruppe."
+        },
+        "list_contacts": {
+          "label": "Kontakte auflisten",
+          "description": "Listet überwachte WhatsApp-Kontakte auf"
+        },
+        "add_contact": {
+          "label": "Kontakt hinzufügen",
+          "description": "Fügt einen Kontakt oder eine Gruppe zur Überwachung hinzu"
+        },
+        "remove_contact": {
+          "label": "Kontakt entfernen",
+          "description": "Entfernt einen Kontakt oder eine Gruppe aus der Überwachung"
+        },
+        "get_history": {
+          "label": "Verlauf abrufen",
+          "description": "Ruft den aktuellen Nachrichtenverlauf ab"
+        },
+        "get_stats": {
+          "label": "Statistiken abrufen",
+          "description": "Ruft WhatsApp-Statistiken ab"
+        }
+      }
+    },
+    "it": {
+      "name": "WhatsApp",
+      "description": "Monitora e rispondi ai messaggi WhatsApp",
+      "category": "communication",
+      "tags": {
+        "communication": "Comunicazione",
+        "messaging": "Messaggi",
+        "whatsapp": "WhatsApp",
+        "contacts": "Contatti",
+        "voice": "Voce"
+      },
+      "eventTypes": {
+        "qr_code": {
+          "label": "Nuovo codice QR generato"
+        },
+        "authenticated": {
+          "label": "WhatsApp autenticato"
+        },
+        "connection_status": {
+          "label": "Stato connessione modificato"
+        },
+        "contacts_synced": {
+          "label": "Contatti sincronizzati"
+        },
+        "contacts_updated": {
+          "label": "Contatti aggiornati"
+        },
+        "history_loaded": {
+          "label": "Cronologia caricata"
+        },
+        "whatsapp_message": {
+          "label": "Messaggio WhatsApp ricevuto",
+          "fields": {
+            "contact": {
+              "label": "Mittente (contatto o gruppo)"
+            },
+            "message": {
+              "label": "Parola chiave nel messaggio"
+            },
+            "timestamp": {
+              "label": "Ora"
+            },
+            "imageDataUri": {
+              "label": "Immagine / Media"
+            }
+          }
+        },
+        "whatsapp_notification": {
+          "label": "Notifica WhatsApp"
+        },
+        "message_sent": {
+          "label": "Messaggio inviato"
+        }
+      },
+      "tools": {
+        "send_message": {
+          "label": "Invia messaggio WhatsApp",
+          "description": "Invia un messaggio a un contatto o gruppo WhatsApp."
+        },
+        "list_contacts": {
+          "label": "Elenca contatti",
+          "description": "Elenca i contatti WhatsApp monitorati"
+        },
+        "add_contact": {
+          "label": "Aggiungi contatto",
+          "description": "Aggiunge un contatto o gruppo al monitoraggio"
+        },
+        "remove_contact": {
+          "label": "Rimuovi contatto",
+          "description": "Rimuove un contatto o gruppo dal monitoraggio"
+        },
+        "get_history": {
+          "label": "Ottieni cronologia",
+          "description": "Ottiene la cronologia dei messaggi recenti"
+        },
+        "get_stats": {
+          "label": "Ottieni statistiche",
+          "description": "Ottiene le statistiche di WhatsApp"
+        }
       }
     }
   },
@@ -45,7 +444,10 @@
   "sidebar": true,
   "background": true,
   "backgroundScript": "background-worker.ts",
-  "permissions": ["network:persistent", "storage:persistent"],
+  "permissions": [
+    "network:persistent",
+    "storage:persistent"
+  ],
   "sdkVersion": 1,
   "momai_compat": ">=1.11.0",
   "ui": {
@@ -55,12 +457,24 @@
     "panelType": "whatsapp-panel"
   },
   "eventTypes": {
-    "qr_code": { "label": "Novo QR Code Gerado" },
-    "authenticated": { "label": "WhatsApp Autenticado" },
-    "connection_status": { "label": "Status da Conexão Alterado" },
-    "contacts_synced": { "label": "Contatos Sincronizados" },
-    "contacts_updated": { "label": "Contatos Atualizados" },
-    "history_loaded": { "label": "Histórico Carregado" },
+    "qr_code": {
+      "label": "Novo QR Code Gerado"
+    },
+    "authenticated": {
+      "label": "WhatsApp Autenticado"
+    },
+    "connection_status": {
+      "label": "Status da Conexão Alterado"
+    },
+    "contacts_synced": {
+      "label": "Contatos Sincronizados"
+    },
+    "contacts_updated": {
+      "label": "Contatos Atualizados"
+    },
+    "history_loaded": {
+      "label": "Histórico Carregado"
+    },
     "whatsapp_message": {
       "label": "Mensagem Recebida no WhatsApp",
       "priority": 100,
@@ -69,19 +483,31 @@
           "label": "Remetente (Contato ou Grupo)",
           "type": "string",
           "description": "Filtra mensagens de um contato ou grupo específico",
-          "x-options-source": { "tool": "list_contacts" }
+          "x-options-source": {
+            "tool": "list_contacts"
+          }
         },
         "message": {
           "label": "Palavra-chave na Mensagem",
           "type": "string",
           "description": "Dispara quando a mensagem contiver este texto"
         },
-        "timestamp": { "label": "Horário", "type": "number" },
-        "imageDataUri": { "label": "Imagem / Mídia", "type": "image" }
+        "timestamp": {
+          "label": "Horário",
+          "type": "number"
+        },
+        "imageDataUri": {
+          "label": "Imagem / Mídia",
+          "type": "image"
+        }
       }
     },
-    "whatsapp_notification": { "label": "Notificação do WhatsApp" },
-    "message_sent": { "label": "Mensagem Enviada" }
+    "whatsapp_notification": {
+      "label": "Notificação do WhatsApp"
+    },
+    "message_sent": {
+      "label": "Mensagem Enviada"
+    }
   },
   "tools": [
     {
@@ -90,14 +516,22 @@
       "description": "Envia uma mensagem para um contato ou grupo do WhatsApp. Pode incluir uma imagem (data URI ou base64) com o texto como legenda.",
       "parameters": {
         "type": "object",
-        "required": ["contact", "message"],
+        "required": [
+          "contact",
+          "message"
+        ],
         "properties": {
           "contact": {
             "type": "string",
             "description": "Nome ou número do contato ou grupo",
-            "x-options-source": { "tool": "list_contacts" }
+            "x-options-source": {
+              "tool": "list_contacts"
+            }
           },
-          "message": { "type": "string", "description": "Texto da mensagem" },
+          "message": {
+            "type": "string",
+            "description": "Texto da mensagem"
+          },
           "image": {
             "type": "string",
             "description": "Imagem a enviar (data URI como data:image/jpeg;base64,... ou base64 puro). O texto vira a legenda.",
@@ -115,30 +549,46 @@
       "description": "Define o contato padrão para preencher o campo 'para quem' das actions.",
       "parameters": {
         "type": "object",
-        "required": ["contact"],
+        "required": [
+          "contact"
+        ],
         "properties": {
-          "contact": { "type": "string", "description": "Nome ou número do contato padrão" }
+          "contact": {
+            "type": "string",
+            "description": "Nome ou número do contato padrão"
+          }
         }
       }
     },
     {
       "name": "get_default_contact",
       "description": "Retorna o contato padrão configurado.",
-      "parameters": { "type": "object", "properties": {} }
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "name": "list_contacts",
       "description": "Lista os contatos monitorados no WhatsApp",
-      "parameters": { "type": "object", "properties": {} }
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "name": "add_contact",
       "description": "Adiciona um contato ou grupo para monitoramento",
       "parameters": {
         "type": "object",
-        "required": ["contact"],
+        "required": [
+          "contact"
+        ],
         "properties": {
-          "contact": { "type": "string", "description": "Número do contato ou ID do grupo" }
+          "contact": {
+            "type": "string",
+            "description": "Número do contato ou ID do grupo"
+          }
         }
       }
     },
@@ -147,9 +597,14 @@
       "description": "Remove um contato ou grupo do monitoramento",
       "parameters": {
         "type": "object",
-        "required": ["contact"],
+        "required": [
+          "contact"
+        ],
         "properties": {
-          "contact": { "type": "string", "description": "Número ou ID do contato" }
+          "contact": {
+            "type": "string",
+            "description": "Número ou ID do contato"
+          }
         }
       }
     },
@@ -158,28 +613,44 @@
       "description": "Define um nome personalizado para um contato (melhora o contexto do LLM)",
       "parameters": {
         "type": "object",
-        "required": ["contact", "name"],
+        "required": [
+          "contact",
+          "name"
+        ],
         "properties": {
-          "contact": { "type": "string", "description": "Número do contato" },
-          "name": { "type": "string", "description": "Nome personalizado" }
+          "contact": {
+            "type": "string",
+            "description": "Número do contato"
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome personalizado"
+          }
         }
       }
     },
     {
       "name": "sync_contacts",
       "description": "Força uma re-sincronização dos contatos do WhatsApp com o telefone. Use quando os contatos estiverem ausentes, incompletos ou desatualizados. Retorna a quantidade de contatos após a sincronização.",
-      "parameters": { "type": "object", "properties": {} }
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "name": "get_avatars",
       "description": "Busca fotos de perfil para uma lista de JIDs (contatos ou grupos)",
       "parameters": {
         "type": "object",
-        "required": ["jids"],
+        "required": [
+          "jids"
+        ],
         "properties": {
           "jids": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "Lista de JIDs WhatsApp (@s.whatsapp.net ou @g.us)"
           }
         }
@@ -190,7 +661,9 @@
       "description": "Abre um documento recebido no aplicativo padrão do computador (Word para .docx, Acrobat/navegador para .pdf)",
       "parameters": {
         "type": "object",
-        "required": ["filename"],
+        "required": [
+          "filename"
+        ],
         "properties": {
           "filename": {
             "type": "string",
@@ -206,12 +679,18 @@
     {
       "name": "get_stats",
       "description": "Obtém estatísticas do WhatsApp",
-      "parameters": { "type": "object", "properties": {} }
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "name": "get_history",
       "description": "Obtém histórico de mensagens recentes",
-      "parameters": { "type": "object", "properties": {} }
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "name": "get_wa_contacts",
@@ -219,7 +698,10 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "search": { "type": "string", "description": "Busca por nome ou número (opcional)" }
+          "search": {
+            "type": "string",
+            "description": "Busca por nome ou número (opcional)"
+          }
         }
       }
     },
@@ -229,9 +711,18 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "search": { "type": "string", "description": "Busca por nome do grupo (opcional)" },
-          "page": { "type": "number", "description": "Página (opcional)" },
-          "perPage": { "type": "number", "description": "Itens por página (opcional)" }
+          "search": {
+            "type": "string",
+            "description": "Busca por nome do grupo (opcional)"
+          },
+          "page": {
+            "type": "number",
+            "description": "Página (opcional)"
+          },
+          "perPage": {
+            "type": "number",
+            "description": "Itens por página (opcional)"
+          }
         }
       }
     },
@@ -240,9 +731,14 @@
       "description": "Lista os participantes de um grupo do WhatsApp com nomes e fotos.",
       "parameters": {
         "type": "object",
-        "required": ["groupJid"],
+        "required": [
+          "groupJid"
+        ],
         "properties": {
-          "groupJid": { "type": "string", "description": "JID do grupo (@g.us)" }
+          "groupJid": {
+            "type": "string",
+            "description": "JID do grupo (@g.us)"
+          }
         }
       }
     },
@@ -251,23 +747,51 @@
       "description": "Deleta todas as mensagens de um contato ou grupo do histórico.",
       "parameters": {
         "type": "object",
-        "required": ["jid"],
+        "required": [
+          "jid"
+        ],
         "properties": {
-          "jid": { "type": "string", "description": "JID do contato ou grupo (@s.whatsapp.net ou @g.us)" }
+          "jid": {
+            "type": "string",
+            "description": "JID do contato ou grupo (@s.whatsapp.net ou @g.us)"
+          }
         }
       }
     }
   ],
   "routes": [
-    { "method": "POST", "path": "/disconnect", "tool": "disconnect" },
-    { "method": "POST", "path": "/restart", "tool": "restart" },
-    { "method": "POST", "path": "/sync", "tool": "sync_contacts" },
-    { "method": "POST", "path": "/flush-history", "tool": "flush_history" },
-    { "method": "POST", "path": "/process-notification", "tool": "process_notification" }
+    {
+      "method": "POST",
+      "path": "/disconnect",
+      "tool": "disconnect"
+    },
+    {
+      "method": "POST",
+      "path": "/restart",
+      "tool": "restart"
+    },
+    {
+      "method": "POST",
+      "path": "/sync",
+      "tool": "sync_contacts"
+    },
+    {
+      "method": "POST",
+      "path": "/flush-history",
+      "tool": "flush_history"
+    },
+    {
+      "method": "POST",
+      "path": "/process-notification",
+      "tool": "process_notification"
+    }
   ],
   "storage": {
     "description": "Guarda sua conexão do WhatsApp, os contatos escolhidos e as mensagens recentes neste computador.",
-    "locations": ["baileys-auth/", "*.json (contatos, histórico, settings)"]
+    "locations": [
+      "baileys-auth/",
+      "*.json (contatos, histórico, settings)"
+    ]
   },
   "voiceHooks": {
     "reply": {
@@ -286,12 +810,13 @@
   },
   "i18n": {
     "fallback": "pt-BR",
-    "supported": ["pt-BR", "en-US"]
+    "supported": [
+      "pt-BR",
+      "en-US",
+      "es",
+      "fr",
+      "de",
+      "it"
+    ]
   }
 }
-
-
-
-
-
-
