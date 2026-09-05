@@ -52,7 +52,18 @@ const {
   resolveJidForSending: _resolveJidForSendingPure,
   shouldCheckWhatsAppExistence: _shouldCheckWhatsAppExistence,
   forEachYield: _forEachYield,
-  MAX_AUDIO_BYTES
+  isBenignBaileysLog: _isBenignBaileysLog,
+  summarizeBaileysDetail: _summarizeBaileysDetail,
+  isImageMessage: _isImageMessage,
+  getImageNotificationText: _getImageNotificationText,
+  isDocumentMessage: _isDocumentMessage,
+  getDocumentNotificationText: _getDocumentNotificationText,
+  getRecentChatMedia: _getRecentChatMedia,
+  resolveDocumentPath: _resolveDocumentPath,
+  MAX_AUDIO_BYTES,
+  MAX_DOCUMENT_BYTES,
+  MAX_IMAGE_BYTES,
+  MAX_STICKER_BYTES
 } = require('./worker-utils.ts')
 
 let safeStorageAvailable = true
@@ -594,6 +605,19 @@ function nextReconnectDelay() {
 }
 function resetReconnectBackoff() {
   reconnectAttempts = 0
+}
+
+// Repeated `CB:stream:error` fires on every reconnect attempt (~6s loop),
+// so identical stream errors are throttled to one log line per minute. The
+// `Connection closed (statusCode=...)` line below still logs every attempt.
+let lastStreamErrorAt = 0
+const STREAM_ERROR_THROTTLE_MS = 60000
+function _shouldLogStreamError(msgText) {
+  if (!/stream errored out/i.test(String(msgText || ''))) return true
+  const now = Date.now()
+  if (now - lastStreamErrorAt < STREAM_ERROR_THROTTLE_MS) return false
+  lastStreamErrorAt = now
+  return true
 }
 
 function _clearReconnectTimer() {
@@ -1340,9 +1364,23 @@ function enrichHistoryEntry(h) {
     h.groupName
   )
 
-  let from = isGroupChat
-    ? groupLabel || resolveContactName(remoteJid) || h.from || 'Grupo'
-    : resolveContactName(senderJid) || resolveContactName(remoteJid) || h.from
+  const resolvedGroupName = isGroupChat ? groupLabel || resolveContactName(remoteJid) || 'Grupo' : null
+
+  let from = h.from
+  if (isGroupChat) {
+    if (h.direction === 'outgoing' || h.from === 'Você') {
+      from = 'Você'
+    } else {
+      const senderDisplayName =
+        resolveContactName(senderJid) ||
+        h.senderName ||
+        (h.from && h.from !== groupLabel && h.from !== 'Grupo' ? h.from : null) ||
+        (senderJid && !senderJid.endsWith('@g.us') ? senderJid.split('@')[0] : 'Participante')
+      from = senderDisplayName
+    }
+  } else {
+    from = resolveContactName(senderJid) || resolveContactName(remoteJid) || h.from || 'Contato'
+  }
 
   return {
     ...h,
@@ -1352,7 +1390,7 @@ function enrichHistoryEntry(h) {
     timestamp,
     from,
     isGroup: isGroupChat,
-    groupName: isGroupChat ? groupLabel || resolveContactName(remoteJid) || from : null,
+    groupName: resolvedGroupName,
     profilePicUrl: resolveChatAvatarUrl(remoteJid, isGroupChat, senderJid)
   }
 }
@@ -1699,7 +1737,20 @@ async function connect() {
               const parsed = JSON.parse(msg)
               let levelStr = 'WARN'
               if (parsed.level >= 50) levelStr = 'ERROR'
-              const detail = parsed.err?.message || parsed.error || ''
+              const rawDetail = parsed.err?.message || parsed.error || ''
+              const msgText = parsed.msg || ''
+              // 'init queries (Timed Out)' is benign post-open noise (fetchProps /
+              // blocklist / privacy timeout): the connection stays open and the
+              // worker refreshes on demand, so drop it to avoid INFO wrapping WARN.
+              if (typeof _isBenignBaileysLog === 'function' && _isBenignBaileysLog(msgText, rawDetail)) {
+                return
+              }
+              const enrichedDetail =
+                typeof _summarizeBaileysDetail === 'function' ? _summarizeBaileysDetail(parsed) : rawDetail
+              const detail = enrichedDetail || rawDetail
+              if (!_shouldLogStreamError(msgText)) {
+                return
+              }
               momai.log(`[Baileys:${levelStr}] ${parsed.msg} ${detail ? '(' + detail + ')' : ''}`)
               if (parsed.level >= 40) {
                 handleLogEvent(parsed)
@@ -1716,11 +1767,31 @@ async function connect() {
           info: () => {},
           debug: () => {},
           warn: (obj, msg) => {
-            momai.log(`[Baileys:WARN] ${msg || JSON.stringify(obj)}`)
+            const warnText = msg || obj?.msg || ''
+            const warnRaw = obj?.err?.message || obj?.error || ''
+            if (typeof _isBenignBaileysLog === 'function' && _isBenignBaileysLog(warnText, warnRaw)) {
+              return
+            }
+            const warnDetail =
+              typeof _summarizeBaileysDetail === 'function' ? _summarizeBaileysDetail(obj) || warnRaw : warnRaw
+            if (!_shouldLogStreamError(warnText)) {
+              return
+            }
+            momai.log(`[Baileys:WARN] ${msg || JSON.stringify(obj)}${warnDetail ? ' (' + warnDetail + ')' : ''}`)
             handleLogEvent(obj, msg)
           },
           error: (obj, msg) => {
-            momai.log(`[Baileys:ERROR] ${msg || JSON.stringify(obj)}`)
+            const msgText = msg || obj?.msg || ''
+            const rawDetail = obj?.err?.message || obj?.error || ''
+            if (typeof _isBenignBaileysLog === 'function' && _isBenignBaileysLog(msgText, rawDetail)) {
+              return
+            }
+            const detail =
+              typeof _summarizeBaileysDetail === 'function' ? _summarizeBaileysDetail(obj) || rawDetail : rawDetail
+            if (!_shouldLogStreamError(msgText)) {
+              return
+            }
+            momai.log(`[Baileys:ERROR] ${msg || JSON.stringify(obj)}${detail ? ' (' + detail + ')' : ''}`)
             handleLogEvent(obj, msg)
           },
           trace: () => {},
@@ -2271,20 +2342,51 @@ async function handleMessagesUpsert({ messages }) {
     if (msg.message && msg.key?.id) {
       cacheMessage(msg.key, msg.message)
     }
-    const isSticker = !!msg.message?.stickerMessage
-    const isGif = !!msg.message?.videoMessage?.gifPlayback
-    const isConversation = !!msg.message?.conversation || !!msg.message?.extendedTextMessage
-    const isAudio = !!msg.message?.audioMessage
+    const rawMsg = msg.message
+    const innerMsg =
+      rawMsg?.ephemeralMessage?.message ||
+      rawMsg?.viewOnceMessage?.message ||
+      rawMsg?.viewOnceMessageV2?.message ||
+      rawMsg?.documentWithCaptionMessage?.message ||
+      rawMsg
 
-    if (!isConversation && !isSticker && !isGif && !isAudio) continue
+    const isSticker = !!innerMsg?.stickerMessage
+    const isGif = !!innerMsg?.videoMessage?.gifPlayback
+    const isConversation = !!innerMsg?.conversation || !!innerMsg?.extendedTextMessage
+    const isAudio = !!innerMsg?.audioMessage
+    const isImage =
+      typeof _isImageMessage === 'function' ? _isImageMessage(innerMsg) : !!innerMsg?.imageMessage
+    const isDocument =
+      typeof _isDocumentMessage === 'function' ? _isDocumentMessage(innerMsg) : !!innerMsg?.documentMessage
+
+    if (!isConversation && !isSticker && !isGif && !isAudio && !isImage && !isDocument) continue
 
     const isFromMe = msg.key.fromMe
     let text = ''
     let audioFilename = null
+    let stickerFilename = null
+    let imageFilename = null
+    let documentFilename = null
+    let documentName = null
     if (isConversation) {
-      text = msg.message.conversation || msg.message.extendedTextMessage?.text || ''
+      text = innerMsg.conversation || innerMsg.extendedTextMessage?.text || ''
+    } else if (isImage) {
+      text =
+        typeof _getImageNotificationText === 'function'
+          ? _getImageNotificationText(innerMsg)
+          : innerMsg.imageMessage?.caption || '📷 Foto'
+      imageFilename = await saveIncomingImage(msg)
+    } else if (isDocument) {
+      text =
+        typeof _getDocumentNotificationText === 'function'
+          ? _getDocumentNotificationText(innerMsg)
+          : innerMsg.documentMessage?.caption || innerMsg.documentMessage?.fileName || '📄 Documento'
+      const saved = await saveIncomingDocument(msg)
+      documentFilename = saved?.filename || null
+      documentName = saved?.displayName || null
     } else if (isSticker) {
       text = '[Sticker]'
+      stickerFilename = await saveIncomingSticker(msg)
     } else if (isGif) {
       text = '[GIF]'
     } else if (isAudio) {
@@ -2452,9 +2554,25 @@ async function handleMessagesUpsert({ messages }) {
         _pickContactLabel(waContacts[remoteJid]?.name, waContacts[remoteJid]?.verifiedName) ||
         'Grupo'
       : null
+    const pushDisplayName = _isUsableDisplayName(msg.pushName) ? String(msg.pushName).trim() : null
     const displayName = isFromMe
       ? resolvedSenderJid.split('@')[0] || resolvedSenderJid
-      : resolveContactName(resolvedSenderJid)
+      : resolveContactName(resolvedSenderJid) ||
+        pushDisplayName ||
+        (resolvedSenderJid ? resolvedSenderJid.split('@')[0] : 'Participante')
+
+    if (isGroup && !isFromMe && resolvedSenderJid && pushDisplayName && !waContacts[resolvedSenderJid]) {
+      const phone = resolvedSenderJid.split('@')[0].replace(/\D/g, '')
+      if (phone) {
+        waContacts[resolvedSenderJid] = {
+          id: resolvedSenderJid,
+          name: null,
+          notify: pushDisplayName,
+          verifiedName: null,
+          phone
+        }
+      }
+    }
 
     const replyJid = isGroup ? remoteJid : resolveStandardJid(remoteJid) || remoteJid
 
@@ -2466,6 +2584,10 @@ async function handleMessagesUpsert({ messages }) {
         replyJid,
         text,
         audio: audioFilename,
+        sticker: stickerFilename,
+        image: imageFilename,
+        document: documentFilename,
+        documentName,
         timestamp: msg.messageTimestamp
           ? Number(msg.messageTimestamp)
           : Math.floor(Date.now() / 1000),
@@ -2514,6 +2636,13 @@ async function handleMessagesUpsert({ messages }) {
     if (shouldNotify) {
       const finalDisplayName = isGroup ? resGroupName : displayName
 
+      // Every recent photo/document of this chat, so the overlay (which
+      // remounts per notification) can show them all with scroll instead of
+      // only the latest one. chatHistory is newest first and already holds
+      // the current message at this point.
+      const recentMedia =
+        typeof _getRecentChatMedia === 'function' ? _getRecentChatMedia(chatHistory, replyJid, 10) : []
+
       // Check if I am admin in this group
       let isMeAdmin = false
       if (isGroup && groupAnnounce) {
@@ -2546,6 +2675,11 @@ async function handleMessagesUpsert({ messages }) {
         senderJid,
         message: text,
         audio: audioFilename,
+        sticker: stickerFilename,
+        image: imageFilename,
+        document: documentFilename,
+        documentName,
+        recentMedia,
         timestamp: msg.messageTimestamp,
         contactAvatar: resolveChatAvatarUrl(remoteJid, isGroup, senderJid),
         isGroup: !!isGroup,
@@ -2563,6 +2697,11 @@ async function handleMessagesUpsert({ messages }) {
           senderJid,
           message: text,
           audio: audioFilename,
+          sticker: stickerFilename,
+          image: imageFilename,
+          document: documentFilename,
+          documentName,
+          recentMedia,
           contactAvatar: resolveChatAvatarUrl(remoteJid, isGroup, senderJid),
           timestamp: msg.messageTimestamp,
           isGroup: !!isGroup,
@@ -2654,6 +2793,248 @@ async function saveIncomingAudio(msg) {
   return null
 }
 
+async function saveIncomingSticker(msg) {
+  try {
+    const rawMsg = msg.message
+    const innerMsg =
+      rawMsg?.ephemeralMessage?.message ||
+      rawMsg?.viewOnceMessage?.message ||
+      rawMsg?.viewOnceMessageV2?.message ||
+      rawMsg?.documentWithCaptionMessage?.message ||
+      rawMsg
+
+    const stickerMessage = innerMsg?.stickerMessage
+    if (!stickerMessage) return null
+
+    const fsSync = require('fs')
+    const stickerDir = path.join(momai.storage.storageDir, 'stickers')
+    if (!fsSync.existsSync(stickerDir)) {
+      fsSync.mkdirSync(stickerDir, { recursive: true })
+    }
+
+    const baseName = sanitizeMediaFilename(msg.key?.id, '')
+    if (baseName) {
+      const existingFilename = `${baseName}.webp`
+      const existingPath = path.join(stickerDir, existingFilename)
+      if (fsSync.existsSync(existingPath)) {
+        return existingFilename
+      }
+    }
+
+    const baileys = require('@whiskeysockets/baileys')
+    const downloadMediaMessage = baileys.downloadMediaMessage || baileys.default?.downloadMediaMessage
+    if (!downloadMediaMessage) {
+      momai.log(`[whatsapp-sticker] downloadMediaMessage helper not found in Baileys`)
+      return null
+    }
+
+    const msgToDownload = innerMsg !== rawMsg ? { ...msg, message: innerMsg } : msg
+    const buffer = await withTimeout(
+      downloadMediaMessage(
+        msgToDownload,
+        'buffer',
+        {},
+        {
+          rekey: false
+        }
+      ),
+      30000,
+      'sticker download timeout'
+    )
+
+    if (buffer) {
+      if (buffer.length > MAX_STICKER_BYTES) {
+        momai.log(
+          `[whatsapp-sticker] Sticker grande demais (${buffer.length} bytes > ${MAX_STICKER_BYTES}); ignorado`
+        )
+        return null
+      }
+      const filename = `${sanitizeMediaFilename(msg.key?.id, String(Date.now()))}.webp`
+      const filePath = path.join(stickerDir, filename)
+      fsSync.writeFileSync(filePath, buffer)
+      momai.log(`[whatsapp-sticker] Saved sticker message: ${filename} (${buffer.length} bytes)`)
+      return filename
+    }
+  } catch (err) {
+    momai.log(`[whatsapp-sticker] Failed to download sticker: ${err.message}`)
+  }
+  return null
+}
+
+async function saveIncomingImage(msg) {
+  try {
+    const rawMsg = msg.message
+    const innerMsg =
+      rawMsg?.ephemeralMessage?.message ||
+      rawMsg?.viewOnceMessage?.message ||
+      rawMsg?.viewOnceMessageV2?.message ||
+      rawMsg?.documentWithCaptionMessage?.message ||
+      rawMsg
+
+    const imageMessage = innerMsg?.imageMessage
+    if (!imageMessage) return null
+
+    const fsSync = require('fs')
+    const imageDir = path.join(momai.storage.storageDir, 'images')
+    if (!fsSync.existsSync(imageDir)) {
+      fsSync.mkdirSync(imageDir, { recursive: true })
+    }
+
+    const baseName = sanitizeMediaFilename(msg.key?.id, '')
+    if (baseName) {
+      for (const ext of ['.jpg', '.png', '.webp']) {
+        if (fsSync.existsSync(path.join(imageDir, `${baseName}${ext}`))) {
+          return `${baseName}${ext}`
+        }
+      }
+    }
+
+    const baileys = require('@whiskeysockets/baileys')
+    const downloadMediaMessage = baileys.downloadMediaMessage || baileys.default?.downloadMediaMessage
+    if (!downloadMediaMessage) {
+      momai.log(`[whatsapp-image] downloadMediaMessage helper not found in Baileys`)
+      return null
+    }
+
+    const msgToDownload = innerMsg !== rawMsg ? { ...msg, message: innerMsg } : msg
+    const buffer = await withTimeout(
+      downloadMediaMessage(
+        msgToDownload,
+        'buffer',
+        {},
+        {
+          rekey: false
+        }
+      ),
+      30000,
+      'image download timeout'
+    )
+
+    if (buffer) {
+      if (buffer.length > MAX_IMAGE_BYTES) {
+        momai.log(
+          `[whatsapp-image] Image too large (${buffer.length} bytes > ${MAX_IMAGE_BYTES}); skipped`
+        )
+        return null
+      }
+      const mimetype = String(imageMessage.mimetype || '')
+      const ext = mimetype.includes('png') ? '.png' : mimetype.includes('webp') ? '.webp' : '.jpg'
+      const filename = `${sanitizeMediaFilename(msg.key?.id, String(Date.now()))}${ext}`
+      const filePath = path.join(imageDir, filename)
+      fsSync.writeFileSync(filePath, buffer)
+      momai.log(`[whatsapp-image] Saved image message: ${filename} (${buffer.length} bytes)`)
+      return filename
+    }
+  } catch (err) {
+    momai.log(`[whatsapp-image] Failed to download image: ${err.message}`)
+  }
+  return null
+}
+
+async function saveIncomingDocument(msg) {
+  try {
+    const rawMsg = msg.message
+    const innerMsg =
+      rawMsg?.ephemeralMessage?.message ||
+      rawMsg?.viewOnceMessage?.message ||
+      rawMsg?.viewOnceMessageV2?.message ||
+      rawMsg?.documentWithCaptionMessage?.message ||
+      rawMsg
+
+    const documentMessage = innerMsg?.documentMessage
+    if (!documentMessage) return null
+
+    const fsSync = require('fs')
+    const documentDir = path.join(momai.storage.storageDir, 'documents')
+    if (!fsSync.existsSync(documentDir)) {
+      fsSync.mkdirSync(documentDir, { recursive: true })
+    }
+
+    const rawName = String(documentMessage.fileName || '').trim()
+    const safeBase = sanitizeMediaFilename(rawName.replace(/\.[A-Za-z0-9]{1,5}$/, ''), '')
+    const originalExt = (rawName.match(/\.[A-Za-z0-9]{1,5}$/) || ['.bin'])[0].toLowerCase()
+    if (safeBase) {
+      const existingPath = path.join(documentDir, `${safeBase}${originalExt}`)
+      if (fsSync.existsSync(existingPath)) {
+        return { filename: `${safeBase}${originalExt}`, displayName: rawName || `${safeBase}${originalExt}` }
+      }
+    }
+
+    const baileys = require('@whiskeysockets/baileys')
+    const downloadMediaMessage = baileys.downloadMediaMessage || baileys.default?.downloadMediaMessage
+    if (!downloadMediaMessage) {
+      momai.log(`[whatsapp-document] downloadMediaMessage helper not found in Baileys`)
+      return null
+    }
+
+    const msgToDownload = innerMsg !== rawMsg ? { ...msg, message: innerMsg } : msg
+    const buffer = await withTimeout(
+      downloadMediaMessage(
+        msgToDownload,
+        'buffer',
+        {},
+        {
+          rekey: false
+        }
+      ),
+      60000,
+      'document download timeout'
+    )
+
+    if (buffer) {
+      if (buffer.length > MAX_DOCUMENT_BYTES) {
+        momai.log(
+          `[whatsapp-document] Document too large (${buffer.length} bytes > ${MAX_DOCUMENT_BYTES}); skipped`
+        )
+        return null
+      }
+      const stem = safeBase || sanitizeMediaFilename(msg.key?.id, String(Date.now()))
+      const filename = `${stem}-${sanitizeMediaFilename(String(Date.now()), 'doc')}${originalExt}`
+      const filePath = path.join(documentDir, filename)
+      fsSync.writeFileSync(filePath, buffer)
+      momai.log(`[whatsapp-document] Saved document message: ${filename} (${buffer.length} bytes)`)
+      return { filename, displayName: rawName || filename }
+    }
+  } catch (err) {
+    momai.log(`[whatsapp-document] Failed to download document: ${err.message}`)
+  }
+  return null
+}
+
+/**
+ * Opens a received document with the OS default app (Word for .docx,
+ * Acrobat/browser for .pdf), mirroring `open_attachment` in momai-emails.
+ * The filename is confined to the extension `documents/` dir.
+ */
+function openDocumentWithDefaultApp(filename) {
+  return new Promise<{ ok: boolean; path?: string; error?: string }>((resolve) => {
+    const resolved =
+      typeof _resolveDocumentPath === 'function'
+        ? _resolveDocumentPath(momai.storage.storageDir, filename)
+        : null
+    if (!resolved) {
+      return resolve({ ok: false, error: 'Nome de documento inválido.' })
+    }
+    const fsSync = require('fs')
+    if (!fsSync.existsSync(resolved)) {
+      return resolve({ ok: false, error: 'Documento não encontrado. Ele pode ter expirado.' })
+    }
+    const cmd =
+      process.platform === 'win32'
+        ? `start "" "${resolved}"`
+        : process.platform === 'darwin'
+          ? `open "${resolved}"`
+          : `xdg-open "${resolved}"`
+    require('child_process').exec(cmd, (err) => {
+      if (err) {
+        momai.log(`[whatsapp-document] Failed to open document: ${err.message}`)
+        return resolve({ ok: false, error: err.message || String(err) })
+      }
+      return resolve({ ok: true, path: resolved })
+    })
+  })
+}
+
 function resolveJidForSending(contact) {
   const resolved = _resolveJidForSendingPure(contact, {
     waContacts,
@@ -2705,20 +3086,34 @@ function _groupNameMatches(contact, clean) {
 // Builds the Baileys message content (with image → caption). Implementação em
 // worker-utils.ts (validada por testes) e importada no topo deste arquivo.
 
-async function sendMessage(contact, message, image = null) {
+async function sendMessage(contact, message, image = null, sticker = null, gif = null, document = null) {
   const t0 = Date.now()
   const stage = (label, extra = '') =>
     momai.log(`[send] ${label}${extra ? ' ' + extra : ''} (t+${Date.now() - t0}ms)`)
   if (!sock || !connected) throw new Error('WhatsApp not connected')
   stage(
     'enter',
-    `to="${contact}" msg="${(message || '').substring(0, 40)}" image=${image ? 'yes' : 'no'} connected=${connected}`
+    `to="${contact}" msg="${(message || '').substring(0, 40)}" image=${image ? 'yes' : 'no'} sticker=${sticker ? 'yes' : 'no'} gif=${gif ? 'yes' : 'no'} document=${document ? 'yes' : 'no'} connected=${connected}`
   )
   console.log(`[PERF] sendMessage START contact=${contact}`)
 
-  // Valida/decodifica a imagem ANTES de qualquer retry de rede (evita mandar
-  // base64 gigante; erro claro imediato).
-  const content = buildMessageContent(message, image)
+  if (
+    sticker &&
+    typeof sticker === 'string' &&
+    !sticker.includes('/') &&
+    !sticker.includes('\\') &&
+    !sticker.startsWith('http') &&
+    !sticker.startsWith('data:')
+  ) {
+    const fsSync = require('fs')
+    const stickerPath = path.join(momai.storage.storageDir, 'stickers', sticker)
+    if (fsSync.existsSync(stickerPath)) {
+      sticker = stickerPath
+    }
+  }
+
+  // Valida/decodifica conteúdo antes de qualquer retry
+  const content = buildMessageContent(message, image, sticker, gif, document)
 
   // Resolve o JID do destino com retry curto. Logo após uma reconexão o sync de
   // contatos/grupos (messaging-history.set) ainda está populando waContacts; um
@@ -2924,6 +3319,9 @@ async function sendMessage(contact, message, image = null) {
   if (content.image && Buffer.isBuffer(content.image)) {
     momai.log(`sendMessage: media size = ${content.image.length} bytes (${jid})`)
   }
+  if (content.document && Buffer.isBuffer(content.document)) {
+    momai.log(`sendMessage: document size = ${content.document.length} bytes (${content.fileName || 'unnamed'}, ${jid})`)
+  }
 
   const MAX_RETRIES = isGroup ? 4 : 3
   let lastError
@@ -2967,10 +3365,12 @@ async function sendMessage(contact, message, image = null) {
   if (lastError) throw lastError
 
   const displayName = resolveContactName(jid)
+  const stickerFilename = sticker && typeof sticker === 'string' ? path.basename(sticker) : null
   chatHistory.unshift({
     from: displayName,
     jid: jid,
-    text: message,
+    text: sticker ? '[Sticker]' : gif ? '[GIF]' : message,
+    sticker: stickerFilename,
     timestamp: Math.floor(Date.now() / 1000),
     direction: 'outgoing'
   })
@@ -3076,11 +3476,25 @@ process.on('message', async (msg) => {
               ? args.images
               : (args.image ? [args.image] : (args.media ? [args.media] : []))
             const images = rawImages.filter(Boolean)
+            const rawDocuments = Array.isArray(args.documents)
+              ? args.documents
+              : (args.document ? [args.document] : [])
+            const documents = rawDocuments.filter(Boolean)
 
-            if (images.length > 0) {
+            if (args.sticker) {
+              result = await sendMessage(args.contact, '', null, args.sticker, null)
+            } else if (args.gif) {
+              result = await sendMessage(args.contact, args.message || '', null, null, args.gif)
+            } else if (documents.length > 0 || images.length > 0) {
+              let captionAssigned = false
+              for (let i = 0; i < documents.length; i++) {
+                const caption = !captionAssigned ? (args.message || '') : ''
+                if (caption) captionAssigned = true
+                result = await sendMessage(args.contact, caption, null, null, null, documents[i])
+              }
               for (let i = 0; i < images.length; i++) {
-                const isFirst = i === 0
-                const caption = isFirst ? (args.message || '') : ''
+                const caption = !captionAssigned ? (args.message || '') : ''
+                if (caption) captionAssigned = true
                 result = await sendMessage(args.contact, caption, images[i])
               }
             } else {
@@ -3450,6 +3864,114 @@ process.on('message', async (msg) => {
             history: chatHistory.slice(0, 50).map(enrichHistoryEntry)
           }
           break
+        case 'get_stickers': {
+          const fsSync = require('fs')
+          const stickerDir = path.join(momai.storage.storageDir, 'stickers')
+          let stickersList = []
+          if (fsSync.existsSync(stickerDir)) {
+            stickersList = fsSync
+              .readdirSync(stickerDir)
+              .filter((f) => f.endsWith('.webp'))
+              .map((f) => {
+                const stat = fsSync.statSync(path.join(stickerDir, f))
+                return { name: f, mtime: stat.mtimeMs }
+              })
+              .sort((a, b) => b.mtime - a.mtime)
+              .map((item) => item.name)
+          }
+          result = { ok: true, stickers: stickersList }
+          break
+        }
+        case 'fetch_gifs': {
+          const query = (msg.payload?.args?.query || '').trim().toLowerCase()
+          const limit = Math.min(Number(msg.payload?.args?.limit) || 20, 20)
+          const categoryMap = {
+            abraco: 'hug',
+            abraço: 'hug',
+            hug: 'hug',
+            beijo: 'kiss',
+            kiss: 'kiss',
+            feliz: 'happy',
+            happy: 'happy',
+            smile: 'smile',
+            sorriso: 'smile',
+            rir: 'laugh',
+            laugh: 'laugh',
+            danca: 'dance',
+            dança: 'dance',
+            dance: 'dance',
+            tchau: 'wave',
+            wave: 'wave',
+            ola: 'wave',
+            olá: 'wave',
+            choro: 'cry',
+            triste: 'cry',
+            cry: 'cry',
+            carinho: 'cuddle',
+            pat: 'pat',
+            cafune: 'pat',
+            cafuné: 'pat',
+            palmas: 'clap',
+            clap: 'clap',
+            dormir: 'sleep',
+            sono: 'sleep',
+            sleep: 'sleep',
+            joinha: 'thumbsup',
+            ok: 'thumbsup',
+            thumbsup: 'thumbsup',
+            piscar: 'wink',
+            piscada: 'wink',
+            wink: 'wink',
+            bravo: 'angry',
+            raiva: 'angry',
+            angry: 'angry',
+            comendo: 'nom',
+            nom: 'nom',
+            bocejo: 'yawn',
+            yawn: 'yawn',
+            soco: 'punch',
+            punch: 'punch',
+            tapa: 'slap',
+            slap: 'slap',
+            shrug: 'shrug',
+            pensando: 'think',
+            think: 'think'
+          }
+
+          const matchedCategory = categoryMap[query]
+          const USER_AGENT = 'MomAI (https://github.com/WesleyQDev/MomAI)'
+          let fetchUrl = ''
+          if (matchedCategory) {
+            fetchUrl = `https://nekos.best/api/v2/${matchedCategory}?amount=${limit}`
+          } else if (query) {
+            fetchUrl = `https://nekos.best/api/v2/search?query=${encodeURIComponent(query)}&type=2&amount=${limit}`
+          } else {
+            const popular = ['happy', 'dance', 'hug', 'laugh', 'smile', 'wave', 'wink']
+            const randomCat = popular[Math.floor(Math.random() * popular.length)]
+            fetchUrl = `https://nekos.best/api/v2/${randomCat}?amount=${limit}`
+          }
+
+          try {
+            const resp = await fetch(fetchUrl, {
+              headers: { 'User-Agent': USER_AGENT }
+            })
+            if (resp.ok) {
+              const data = (await resp.json()) as any
+              const gifs = (data?.results || []).map((item: any) => ({
+                id: item.url,
+                title: item.anime_name || 'Anime GIF',
+                previewUrl: item.url,
+                url: item.url
+              }))
+              result = { ok: true, gifs }
+            } else {
+              result = { ok: false, error: `HTTP ${resp.status}`, gifs: [] }
+            }
+          } catch (err: any) {
+            result = { ok: false, error: err?.message || 'Fetch error', gifs: [] }
+          }
+          break
+        }
         case 'delete_message': {
           const jid = msg.payload?.args?.jid
           if (!jid) {
@@ -3491,6 +4013,22 @@ process.on('message', async (msg) => {
             avatars[unique[i]] = await ensureAvatarForJid(unique[i], { force })
           }
           result = { avatars }
+          break
+        }
+        case 'open_document': {
+          const filename = msg.payload.args?.filename || msg.payload.args?.document
+          const opened = await openDocumentWithDefaultApp(filename)
+          if (!opened.ok) {
+            result = { ok: false, error: opened.error || 'Não foi possível abrir o documento.' }
+          } else {
+            const displayName = String(msg.payload.args?.documentName || filename)
+            result = {
+              ok: true,
+              filename,
+              instruction: `Documento "${displayName}" aberto no aplicativo padrão do computador.`,
+              directResponse: `O documento "${displayName}" foi aberto com o aplicativo padrão do seu computador.`
+            }
+          }
           break
         }
         case 'disconnect':
@@ -3553,6 +4091,10 @@ process.on('message', async (msg) => {
           const notifContact = msg.payload?.args?.contact || 'Desconhecido'
           const notifMessage = msg.payload?.args?.message || ''
           const notifAudio = msg.payload?.args?.audio || null
+          const notifSticker = msg.payload?.args?.sticker || null
+          const notifImage = msg.payload?.args?.image || null
+          const notifDocument = msg.payload?.args?.document || null
+          const notifDocumentName = msg.payload?.args?.documentName || null
           const isNoteToSelf = !!msg.payload?.args?.isNoteToSelf
           const isGroupNotif = !!msg.payload?.args?.isGroup
           const isPhoneNumber = /^\d+$/.test(String(notifContact).replace(/\D/g, ''))
@@ -3562,6 +4104,11 @@ process.on('message', async (msg) => {
           const isSticker = notifMessage === '[Sticker]'
           const isCall = notifMessage === '📞Chamada em curso...' || notifMessage.includes('Chamada em curso')
           const isAudio = notifMessage === '🎙️ Áudio'
+          const isImage = notifMessage === '📷 Foto' || notifMessage.startsWith('📷')
+          const isDocument =
+            notifMessage === '📄 Documento' ||
+            notifMessage.startsWith('📄') ||
+            !!notifDocument
 
           let ttsText
           if (isCall) {
@@ -3590,6 +4137,23 @@ process.on('message', async (msg) => {
             } else {
               ttsText = `${notifContact} enviou um sticker`
             }
+          } else if (isImage) {
+            if (isNoteToSelf) {
+              ttsText = 'Você enviou uma foto para si mesmo'
+            } else if (isPhoneNumber) {
+              ttsText = 'Um número desconhecido enviou uma foto'
+            } else {
+              ttsText = `${notifContact} enviou uma foto`
+            }
+          } else if (isDocument) {
+            const docLabel = notifDocumentName || 'um documento'
+            if (isNoteToSelf) {
+              ttsText = `Você enviou um documento para si mesmo (${docLabel})`
+            } else if (isPhoneNumber) {
+              ttsText = `Um número desconhecido enviou um documento (${docLabel})`
+            } else {
+              ttsText = `${notifContact} enviou um documento (${docLabel})`
+            }
           } else if (hasEmoji) {
             if (isNoteToSelf) {
               ttsText = 'Você enviou um emoji para si mesmo'
@@ -3609,14 +4173,18 @@ process.on('message', async (msg) => {
           }
 
           const quickReplies = []
-          if (notifMessage && !isGif && !isSticker && !isCall && !isAudio) {
+          if (notifMessage && !isGif && !isSticker && !isCall && !isAudio && !isImage && !isDocument) {
             quickReplies.push(`Obrigado pela mensagem, ${notifContact}!`)
             quickReplies.push(`Vou verificar e respondo em breve.`)
           }
           result = {
             quickReplies,
             tts: ttsText,
-            audio: notifAudio
+            audio: notifAudio,
+            sticker: notifSticker,
+            image: notifImage,
+            document: notifDocument,
+            documentName: notifDocumentName
           }
           break
         }

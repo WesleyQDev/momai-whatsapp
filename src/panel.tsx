@@ -11,6 +11,7 @@ import QRCode from 'qrcode'
 import ImageViewer from 'momai:image-viewer'
 import sdk from 'momai:sdk'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
+import { useI18n } from './hooks/useI18n'
 import ContextMenu from './components/ContextMenu'
 
 const getApiBaseUrl = (): string => {
@@ -170,12 +171,12 @@ function CustomAudioPlayer({ src }: { src: string }) {
   )
 }
 
-const VOICE_LABELS: Record<string, string> = {
-  listening: 'Aguardando "responda"...',
-  detected: 'Ouvindo resposta...',
-  complete: 'Enviando...',
-  error: 'Erro ao ouvir',
-  timeout: 'Fale "responda" + mensagem'
+const VOICE_LABEL_KEYS: Record<string, string> = {
+  listening: 'voice.listening',
+  detected: 'voice.detected',
+  complete: 'voice.complete',
+  error: 'voice.error',
+  timeout: 'voice.timeout'
 }
 
 const getAvatarColor = (id: string) => {
@@ -189,7 +190,7 @@ const getAvatarColor = (id: string) => {
 }
 
 const getInitials = (name: string): string => {
-  if (!name) return ''
+  if (!name || typeof name !== 'string') return ''
   const clean = name.replace(/[^\p{L}\p{N}\s]/gu, '').trim()
   if (!clean || /^\d+$/.test(clean)) return ''
   const parts = clean.split(/\s+/)
@@ -254,6 +255,7 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
 }
 
 export default function WhatsAppNotificationCard({ data }: { data: any }) {
+  const { t } = useI18n()
   const senderName = data?.senderName
   const contact = data?.contact || data?.from || 'Desconhecido'
   const message = data?.message || data?.text || ''
@@ -846,7 +848,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
   if (!data || data?.status === 'disconnected' || data?.qr) return null
 
-  const voiceLabel = VOICE_LABELS[voiceStatus]
+  const voiceLabel = VOICE_LABEL_KEYS[voiceStatus] ? t(VOICE_LABEL_KEYS[voiceStatus]) : ''
   const isSelectedMember = Boolean(!activeRecipient.isGroup && activeRecipient.fromGroupJid)
 
   const contactName = activeRecipient.name || senderName || contact || 'Contato'
@@ -962,7 +964,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           }}
           className="p-1 rounded-md hover:bg-text/10 text-text-muted hover:text-text transition-colors shrink-0 cursor-pointer"
           style={{ WebkitAppRegion: 'no-drag' } as any}
-          aria-label="Fechar"
+          aria-label={t('panel.close')}
         >
           <XMarkIcon className="w-4 h-4" />
         </button>
@@ -984,7 +986,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                 <span>Voltar à conversa</span>
               </button>
               <span className="text-[11px] font-medium text-text-muted">
-                {participants.length > 0 ? `${participants.length} membros` : 'Membros'}
+                {participants.length > 0 ? t('panel.members_count', { count: participants.length }) : t('panel.members')}
               </span>
             </div>
 
@@ -994,7 +996,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                 type="text"
                 value={participantSearch}
                 onChange={(e) => setParticipantSearch(e.target.value)}
-                placeholder="Buscar membro do grupo..."
+                placeholder={t('panel.search_group')}
                 className="flex-1 min-w-0 bg-transparent text-xs text-text placeholder:text-text-muted/50 focus:outline-none"
               />
               {participantSearch && (
@@ -1135,8 +1137,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                 <div className="min-h-[4.5rem] rounded-lg bg-input/40 border border-border/30 p-3 flex items-center justify-center select-none">
                   <p className="text-xs text-text-muted/60 font-normal">
                     {activeRecipient.fromGroupJid && !activeRecipient.isGroup
-                      ? `Inicie uma conversa direta com ${activeRecipient.name}`
-                      : 'Nenhuma mensagem recente'}
+                      ? t('panel.start_direct', { name: activeRecipient.name })
+                      : t('panel.no_recent')}
                   </p>
                 </div>
               )}
@@ -1176,8 +1178,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                         type="button"
                         onClick={() => setPastedImages((prev) => prev.filter((_, i) => i !== index))}
                         className="p-1 rounded-md text-text-muted hover:text-text hover:bg-card border border-transparent hover:border-border transition-all cursor-pointer shrink-0 self-start"
-                        title="Remover imagem"
-                        aria-label="Remover imagem"
+                        title={t('panel.remove_image')}
+                        aria-label={t('panel.remove_image')}
                       >
                         <XMarkIcon className="w-3.5 h-3.5" />
                       </button>
@@ -1198,7 +1200,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                     type="button"
                     onClick={() => setSendError('')}
                     className="text-text-muted hover:text-text text-xs shrink-0 cursor-pointer"
-                    aria-label="Fechar erro"
+                    aria-label={t('panel.close_error')}
                   >
                     ✕
                   </button>
@@ -1298,7 +1300,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                     className={`p-1 rounded-md text-text-muted hover:text-text transition-colors disabled:opacity-40 shrink-0 ${
                       (!customText.trim() && pastedImages.length === 0) || sending ? 'cursor-default' : 'cursor-pointer'
                     }`}
-                    aria-label="Enviar"
+                    aria-label={t('panel.send_message')}
                   >
                     <PaperAirplaneIcon className="w-4 h-4" />
                   </button>
@@ -1379,6 +1381,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 }
 
 export function WhatsAppReconnectCard({ data }: { data: any }) {
+  const { t } = useI18n()
   const onClose = data?.onClose || (() => {})
   const qr = data?.qr
   const status = data?.status || 'disconnected'
@@ -1461,14 +1464,14 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
               />
             </svg>
           </div>
-          <span className="text-xs font-bold text-text">WhatsApp Desconectado</span>
+          <span className="text-xs font-bold text-text">{t('notification.wa_disconnected')}</span>
         </div>
         <button
           type="button"
           onClick={onClose}
           className="p-1 rounded-md hover:bg-text/10 text-text-muted hover:text-text transition-colors shrink-0 cursor-pointer"
           style={{ WebkitAppRegion: 'no-drag' } as any}
-          aria-label="Fechar"
+          aria-label={t('panel.close')}
         >
           <XMarkIcon className="w-4 h-4" />
         </button>
@@ -1506,7 +1509,7 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
           style={{ WebkitAppRegion: 'no-drag' } as any}
           className="mt-3 w-full max-w-[200px] py-2 px-4 text-xs font-semibold rounded-lg bg-accent text-card hover:opacity-90 transition-all duration-200 border border-accent/40 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
         >
-          {loading ? 'Solicitando...' : 'Gerar Novo QR Code'}
+          {loading ? t('notification.requesting') : t('notification.generating')}
         </button>
       </div>
     </div>

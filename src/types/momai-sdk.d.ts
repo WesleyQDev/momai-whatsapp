@@ -25,6 +25,12 @@ declare module 'momai:image-viewer' {
   export default ImageViewer
 }
 
+declare module 'react-dom' {
+  const reactDom: any
+  export default reactDom
+  export const createPortal: any
+}
+
 interface Window {
   api?: any
 }

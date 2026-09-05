@@ -118,6 +118,25 @@ module.exports = {
       }
     },
     {
+      name: 'open_document',
+      description:
+        'Abre um documento recebido no aplicativo padrão do computador (Word para .docx, Acrobat/navegador para .pdf)',
+      parameters: {
+        type: 'object',
+        properties: {
+          filename: {
+            type: 'string',
+            description: 'Nome do arquivo salvo (campo document do evento)'
+          },
+          documentName: {
+            type: 'string',
+            description: 'Nome original para exibição (campo documentName do evento)'
+          }
+        },
+        required: ['filename']
+      }
+    },
+    {
       name: 'get_wa_contacts',
       description:
         'Lista os contatos do WhatsApp importados automaticamente do telefone. Retorna nome e numero.',

@@ -8,7 +8,15 @@ const {
   sanitizeMediaFilename,
   resolveJidForSending,
   shouldCheckWhatsAppExistence,
-  forEachYield
+  forEachYield,
+  isBenignBaileysLog,
+  summarizeBaileysDetail,
+  isImageMessage,
+  getImageNotificationText,
+  isDocumentMessage,
+  getDocumentNotificationText,
+  getRecentChatMedia,
+  resolveDocumentPath
 } = utils as any
 
 describe('withTimeout', () => {
@@ -157,6 +165,63 @@ describe('buildMessageContent (limite de imagem M5)', () => {
     const big = Buffer.alloc(10 * 1024 * 1024)
     const content = buildMessageContent('m', big)
     expect(content.image.length).toBe(10 * 1024 * 1024)
+  })
+
+  it('builds sticker content with Buffer', () => {
+    const buf = Buffer.from('sticker-data')
+    const content = buildMessageContent('', undefined, buf)
+    expect(content.sticker).toBe(buf)
+  })
+
+  it('builds sticker content with base64 data URL', () => {
+    const dataUrl = 'data:image/webp;base64,' + Buffer.from('sticker-data').toString('base64')
+    const content = buildMessageContent('', undefined, dataUrl)
+    expect(Buffer.isBuffer(content.sticker)).toBe(true)
+    expect(content.sticker.toString()).toBe('sticker-data')
+  })
+
+  it('builds gif content with url and gifPlayback: true', () => {
+    const gifUrl = 'https://media.tenor.com/test.gif'
+    const content = buildMessageContent('nice gif', undefined, undefined, gifUrl)
+    expect(content.video).toEqual({ url: gifUrl })
+    expect(content.gifPlayback).toBe(true)
+    expect(content.caption).toBe('nice gif')
+  })
+
+  it('builds document content with Buffer', () => {
+    const buf = Buffer.from('pdf-content')
+    const content = buildMessageContent('segue pdf', undefined, undefined, undefined, {
+      buffer: buf,
+      fileName: 'relatorio.pdf',
+      mimetype: 'application/pdf'
+    })
+    expect(content.document).toBe(buf)
+    expect(content.fileName).toBe('relatorio.pdf')
+    expect(content.mimetype).toBe('application/pdf')
+    expect(content.caption).toBe('segue pdf')
+  })
+
+  it('builds document content with base64 data URI', () => {
+    const b64 = Buffer.from('my-doc').toString('base64')
+    const dataUri = `data:application/pdf;base64,${b64}`
+    const content = buildMessageContent('', undefined, undefined, undefined, {
+      dataUrl: dataUri,
+      fileName: 'doc.pdf'
+    })
+    expect(Buffer.isBuffer(content.document)).toBe(true)
+    expect(content.document.toString()).toBe('my-doc')
+    expect(content.fileName).toBe('doc.pdf')
+    expect(content.mimetype).toBe('application/pdf')
+  })
+
+  it('rejects an oversized document (>25MB)', () => {
+    const big = Buffer.alloc(25 * 1024 * 1024 + 1)
+    expect(() =>
+      buildMessageContent('', undefined, undefined, undefined, {
+        buffer: big,
+        fileName: 'big.pdf'
+      })
+    ).toThrow(/documento muito grande/)
   })
 })
 
@@ -404,5 +469,143 @@ describe('forEachYield (chunking com yield do event loop)', () => {
     expect(seenMidIteration).toBe(false)
     await new Promise((r) => setImmediate(r))
     expect(queuedRan).toBe(true)
+  })
+
+  it('exports valid MAX_STICKER_BYTES limit', () => {
+    expect(utils.MAX_STICKER_BYTES).toBe(5 * 1024 * 1024)
+    expect(utils.MAX_AUDIO_BYTES).toBeGreaterThan(0)
+    expect(utils.MAX_IMAGE_BYTES).toBeGreaterThan(0)
+  })
+})
+
+describe('isBenignBaileysLog (init queries timeout não é Error real)', () => {
+  it('marca init queries + Timed Out como benigno', () => {
+    expect(isBenignBaileysLog("unexpected error in 'init queries'", 'Timed Out')).toBe(true)
+  })
+
+  it('marca presence update timeout como benigno', () => {
+    expect(isBenignBaileysLog("unexpected error in 'presence update requests'", 'timeout')).toBe(true)
+  })
+
+  it('não marca erro real como benigno', () => {
+    expect(isBenignBaileysLog("unexpected error in 'init queries'", 'Connection Closed')).toBe(false)
+    expect(isBenignBaileysLog('connection lost', 'Timed Out')).toBe(false)
+    expect(isBenignBaileysLog('some other error', 'boom')).toBe(false)
+  })
+})
+
+describe('summarizeBaileysDetail (stream errored out traz code/reason)', () => {
+  it('extracts code and reason from stream error node', () => {
+    const detail = summarizeBaileysDetail({
+      msg: 'stream errored out',
+      node: { tag: 'stream:error', attrs: { code: '440' }, content: [{ tag: 'conflict' }] }
+    })
+    expect(detail).toContain('code=440')
+    expect(detail).toContain('reason=conflict')
+  })
+
+  it('prefers err.message when present', () => {
+    expect(summarizeBaileysDetail({ err: { message: 'Timed Out' } })).toBe('Timed Out')
+  })
+
+  it('returns empty string for unrecognized payloads without throwing', () => {
+    expect(summarizeBaileysDetail({})).toBe('')
+    expect(summarizeBaileysDetail(null)).toBe('')
+    expect(summarizeBaileysDetail({ node: { attrs: {}, content: [] } })).toBe('')
+  })
+})
+
+describe('incoming photo helpers (image notification reaches overlay)', () => {
+  it('detects imageMessage on the unwrapped payload', () => {
+    expect(isImageMessage({ imageMessage: {} })).toBe(true)
+    expect(
+      isImageMessage({ viewOnceMessage: { message: { imageMessage: {} } } })
+    ).toBe(false)
+    expect(isImageMessage({ conversation: 'hi' })).toBe(false)
+    expect(isImageMessage(null)).toBe(false)
+  })
+
+  it('keeps the sender caption, falling back to a non-empty placeholder', () => {
+    expect(getImageNotificationText({ imageMessage: { caption: 'olha isso' } })).toBe('olha isso')
+    expect(getImageNotificationText({ imageMessage: {} })).toBe('📷 Foto')
+    expect(getImageNotificationText({ imageMessage: { caption: '  ' } })).toBe('📷 Foto')
+    expect(getImageNotificationText(null)).toBe('📷 Foto')
+  })
+})
+
+describe('incoming document helpers (document notification reaches overlay)', () => {
+  it('detects documentMessage on the unwrapped payload', () => {
+    expect(isDocumentMessage({ documentMessage: {} })).toBe(true)
+    expect(isDocumentMessage({ conversation: 'hi' })).toBe(false)
+    expect(isDocumentMessage(null)).toBe(false)
+  })
+
+  it('prefers caption, then filename, then placeholder', () => {
+    expect(
+      getDocumentNotificationText({ documentMessage: { caption: 'segue', fileName: 'a.pdf' } })
+    ).toBe('segue')
+    expect(getDocumentNotificationText({ documentMessage: { fileName: 'nota.pdf' } })).toBe(
+      'nota.pdf'
+    )
+    expect(getDocumentNotificationText({ documentMessage: {} })).toBe('📄 Documento')
+    expect(getDocumentNotificationText(null)).toBe('📄 Documento')
+  })
+
+  it('exports a document size cap', () => {
+    expect(utils.MAX_DOCUMENT_BYTES).toBe(25 * 1024 * 1024)
+  })
+})
+
+describe('resolveDocumentPath (open_document stays inside documents/)', () => {
+  const path = require('path')
+  const dir = path.join('C:', 'data', 'momai-whatsapp')
+
+  it('resolves plain filenames inside documents/', () => {
+    expect(resolveDocumentPath(dir, 'nota.pdf')).toBe(
+      path.resolve(dir, 'documents', 'nota.pdf')
+    )
+  })
+
+  it('rejects traversal, separators and bad input', () => {
+    expect(resolveDocumentPath(dir, '../secret.txt')).toBeNull()
+    expect(resolveDocumentPath(dir, 'sub/file.pdf')).toBeNull()
+    expect(resolveDocumentPath(dir, 'C:\\data\\x.pdf')).toBeNull()
+    expect(resolveDocumentPath(dir, '')).toBeNull()
+    expect(resolveDocumentPath(dir, null)).toBeNull()
+    expect(resolveDocumentPath('', 'nota.pdf')).toBeNull()
+  })
+})
+
+describe('getRecentChatMedia (gallery of one chat, oldest first)', () => {
+  const history = [
+    { replyJid: 'a@g.us', text: 'hello', timestamp: 3 },
+    { replyJid: 'a@g.us', image: 'c.jpg', text: '📷 Foto', timestamp: 2 },
+    { replyJid: 'b@s.whatsapp.net', image: 'other.jpg', text: '📷 Foto', timestamp: 4 },
+    {
+      replyJid: 'a@g.us',
+      document: 'doc.pdf',
+      documentName: 'nota.pdf',
+      text: 'nota.pdf',
+      timestamp: 1
+    }
+  ]
+
+  it('returns only media of the requested chat, oldest first', () => {
+    const media = getRecentChatMedia(history, 'a@g.us')
+    expect(media).toHaveLength(2)
+    expect(media[0].document).toBe('doc.pdf')
+    expect(media[1].image).toBe('c.jpg')
+  })
+
+  it('caps the number of items', () => {
+    const media = getRecentChatMedia(history, 'a@g.us', 1)
+    expect(media).toHaveLength(1)
+    expect(media[0].image).toBe('c.jpg')
+  })
+
+  it('returns empty for unknown chats or bad input', () => {
+    expect(getRecentChatMedia(history, 'nobody')).toEqual([])
+    expect(getRecentChatMedia(null, 'a@g.us')).toEqual([])
+    expect(getRecentChatMedia(history, '')).toEqual([])
   })
 })

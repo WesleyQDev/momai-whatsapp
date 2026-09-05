@@ -5,6 +5,38 @@
   "kind": "packaged",
   "is_official": true,
   "description": "Acompanhe e responda suas conversas do WhatsApp por voz ou texto, sem pegar o celular.",
+  "category": "communication",
+  "tags": ["communication", "messaging", "whatsapp", "contacts", "voice"],
+  "locales": {
+    "pt-BR": {
+      "name": "WhatsApp",
+      "description": "Monitore e responda mensagens do WhatsApp",
+      "category": "communication",
+      "tags": {
+        "communication": "Comunicação",
+        "messaging": "Mensagens",
+        "whatsapp": "WhatsApp",
+        "contacts": "Contatos",
+        "voice": "Voz"
+      }
+    },
+    "en-US": {
+      "name": "WhatsApp",
+      "description": "Monitor and reply to WhatsApp messages",
+      "category": "communication",
+      "tags": {
+        "communication": "Communication",
+        "messaging": "Messaging",
+        "whatsapp": "WhatsApp",
+        "contacts": "Contacts",
+        "voice": "Voice"
+      }
+    }
+  },
+  "readme": {
+    "pt-BR": "README.md",
+    "en-US": "README.en-US.md"
+  },
   "author": "WesleyQDev",
   "icon_bg": "#25D366",
   "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"#ffffff\"><path d=\"M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z\"/></svg>",
@@ -25,10 +57,10 @@
   "eventTypes": {
     "qr_code": { "label": "Novo QR Code Gerado" },
     "authenticated": { "label": "WhatsApp Autenticado" },
-    "connection_status": { "label": "Status da ConexÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o Alterado" },
+    "connection_status": { "label": "Status da Conexão Alterado" },
     "contacts_synced": { "label": "Contatos Sincronizados" },
     "contacts_updated": { "label": "Contatos Atualizados" },
-    "history_loaded": { "label": "HistÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³rico Carregado" },
+    "history_loaded": { "label": "Histórico Carregado" },
     "whatsapp_message": {
       "label": "Mensagem Recebida no WhatsApp",
       "priority": 100,
@@ -36,7 +68,7 @@
         "contact": {
           "label": "Remetente (Contato ou Grupo)",
           "type": "string",
-          "description": "Filtra mensagens de um contato ou grupo especÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­fico",
+          "description": "Filtra mensagens de um contato ou grupo específico",
           "x-options-source": { "tool": "list_contacts" }
         },
         "message": {
@@ -44,11 +76,11 @@
           "type": "string",
           "description": "Dispara quando a mensagem contiver este texto"
         },
-        "timestamp": { "label": "HorÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡rio", "type": "number" },
-        "imageDataUri": { "label": "Imagem / MÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­dia", "type": "image" }
+        "timestamp": { "label": "Horário", "type": "number" },
+        "imageDataUri": { "label": "Imagem / Mídia", "type": "image" }
       }
     },
-    "whatsapp_notification": { "label": "NotificaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o do WhatsApp" },
+    "whatsapp_notification": { "label": "Notificação do WhatsApp" },
     "message_sent": { "label": "Mensagem Enviada" }
   },
   "tools": [
@@ -62,32 +94,36 @@
         "properties": {
           "contact": {
             "type": "string",
-            "description": "Nome ou nÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºmero do contato ou grupo",
+            "description": "Nome ou número do contato ou grupo",
             "x-options-source": { "tool": "list_contacts" }
           },
-          "message": { "type": "string", "description": "Texto da mensagem", "default": "ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¨ Alerta de movimento na cÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢mera {{trigger.payload.cameraName}}!" },
+          "message": { "type": "string", "description": "Texto da mensagem" },
           "image": {
             "type": "string",
             "description": "Imagem a enviar (data URI como data:image/jpeg;base64,... ou base64 puro). O texto vira a legenda.",
-            "default": "{{trigger.payload.imageDataUri}}"
+            "default": "{event.imageDataUri}"
+          },
+          "documents": {
+            "type": "array",
+            "description": "Documentos a enviar (PDF, Word, Excel, etc.). Cada item pode ser objeto { dataUrl, fileName, mimetype } ou data URI."
           }
         }
       }
     },
     {
       "name": "set_default_contact",
-      "description": "Define o contato padrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o para preencher o campo 'para quem' das actions.",
+      "description": "Define o contato padrão para preencher o campo 'para quem' das actions.",
       "parameters": {
         "type": "object",
         "required": ["contact"],
         "properties": {
-          "contact": { "type": "string", "description": "Nome ou nÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºmero do contato padrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o" }
+          "contact": { "type": "string", "description": "Nome ou número do contato padrão" }
         }
       }
     },
     {
       "name": "get_default_contact",
-      "description": "Retorna o contato padrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o configurado.",
+      "description": "Retorna o contato padrão configurado.",
       "parameters": { "type": "object", "properties": {} }
     },
     {
@@ -102,7 +138,7 @@
         "type": "object",
         "required": ["contact"],
         "properties": {
-          "contact": { "type": "string", "description": "NÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºmero do contato ou ID do grupo" }
+          "contact": { "type": "string", "description": "Número do contato ou ID do grupo" }
         }
       }
     },
@@ -113,7 +149,7 @@
         "type": "object",
         "required": ["contact"],
         "properties": {
-          "contact": { "type": "string", "description": "NÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºmero ou ID do contato" }
+          "contact": { "type": "string", "description": "Número ou ID do contato" }
         }
       }
     },
@@ -124,14 +160,14 @@
         "type": "object",
         "required": ["contact", "name"],
         "properties": {
-          "contact": { "type": "string", "description": "NÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºmero do contato" },
+          "contact": { "type": "string", "description": "Número do contato" },
           "name": { "type": "string", "description": "Nome personalizado" }
         }
       }
     },
     {
       "name": "sync_contacts",
-      "description": "ForÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§a uma re-sincronizaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o dos contatos do WhatsApp com o telefone. Use quando os contatos estiverem ausentes, incompletos ou desatualizados. Retorna a quantidade de contatos apÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³s a sincronizaÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o.",
+      "description": "Força uma re-sincronização dos contatos do WhatsApp com o telefone. Use quando os contatos estiverem ausentes, incompletos ou desatualizados. Retorna a quantidade de contatos após a sincronização.",
       "parameters": { "type": "object", "properties": {} }
     },
     {
@@ -150,13 +186,31 @@
       }
     },
     {
+      "name": "open_document",
+      "description": "Abre um documento recebido no aplicativo padrão do computador (Word para .docx, Acrobat/navegador para .pdf)",
+      "parameters": {
+        "type": "object",
+        "required": ["filename"],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Nome do arquivo salvo (campo document do evento)"
+          },
+          "documentName": {
+            "type": "string",
+            "description": "Nome original para exibição (campo documentName do evento)"
+          }
+        }
+      }
+    },
+    {
       "name": "get_stats",
-      "description": "ObtÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©m estatÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­sticas do WhatsApp",
+      "description": "Obtém estatísticas do WhatsApp",
       "parameters": { "type": "object", "properties": {} }
     },
     {
       "name": "get_history",
-      "description": "ObtÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©m histÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³rico de mensagens recentes",
+      "description": "Obtém histórico de mensagens recentes",
       "parameters": { "type": "object", "properties": {} }
     },
     {
@@ -165,7 +219,7 @@
       "parameters": {
         "type": "object",
         "properties": {
-          "search": { "type": "string", "description": "Busca por nome ou nÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Âºmero (opcional)" }
+          "search": { "type": "string", "description": "Busca por nome ou número (opcional)" }
         }
       }
     },
@@ -176,8 +230,8 @@
         "type": "object",
         "properties": {
           "search": { "type": "string", "description": "Busca por nome do grupo (opcional)" },
-          "page": { "type": "number", "description": "PÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡gina (opcional)" },
-          "perPage": { "type": "number", "description": "Itens por pÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡gina (opcional)" }
+          "page": { "type": "number", "description": "Página (opcional)" },
+          "perPage": { "type": "number", "description": "Itens por página (opcional)" }
         }
       }
     },
@@ -194,7 +248,7 @@
     },
     {
       "name": "delete_message",
-      "description": "Deleta todas as mensagens de um contato ou grupo do histÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³rico.",
+      "description": "Deleta todas as mensagens de um contato ou grupo do histórico.",
       "parameters": {
         "type": "object",
         "required": ["jid"],
@@ -229,6 +283,10 @@
   "toolPriority": {
     "label": "WHATSAPP",
     "rule": "monitor, reply, or send WhatsApp messages via the whatsapp tools."
+  },
+  "i18n": {
+    "fallback": "pt-BR",
+    "supported": ["pt-BR", "en-US"]
   }
 }
 

@@ -5,6 +5,8 @@
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024 // 10MB
 const MAX_AUDIO_BYTES = 16 * 1024 * 1024 // 16MB (voice notes do WhatsApp)
+const MAX_STICKER_BYTES = 5 * 1024 * 1024 // 5MB (stickers WebP do WhatsApp)
+const MAX_DOCUMENT_BYTES = 25 * 1024 * 1024 // 25MB (incoming documents)
 
 /**
  * Races a promise against a timeout. Sempre limpa o timer depois que o race
@@ -81,7 +83,120 @@ function _decodeB64(b64, label) {
  * the text as the caption (MOM-117). Accepts a data URI, raw base64 or Buffer.
  * Rejects imagens acima de ~10MB com erro claro (evita mandar base64 gigante).
  */
-function buildMessageContent(message, image) {
+function buildMessageContent(message, image, sticker = null, gif = null, document = null) {
+  if (sticker) {
+    let buffer
+    if (Buffer.isBuffer(sticker)) {
+      buffer = sticker
+    } else if (typeof sticker === 'string' && /^data:image\/[^;]+;base64,/.test(sticker)) {
+      buffer = _decodeB64(sticker.slice(sticker.indexOf(',') + 1), 'sticker')
+    } else if (
+      typeof sticker === 'string' &&
+      sticker.length % 4 === 0 &&
+      /^[A-Za-z0-9+/=]+$/.test(sticker)
+    ) {
+      buffer = _decodeB64(sticker, 'sticker')
+    } else if (typeof sticker === 'string') {
+      const fsSync = require('fs')
+      if (fsSync.existsSync(sticker)) {
+        buffer = fsSync.readFileSync(sticker)
+      } else {
+        return { sticker: { url: sticker } }
+      }
+    }
+    if (buffer) {
+      if (buffer.length > MAX_STICKER_BYTES) {
+        throw new Error(
+          `sticker muito grande: ${buffer.length} bytes (máx. ${MAX_STICKER_BYTES}).`
+        )
+      }
+      return { sticker: buffer }
+    }
+  }
+
+  if (gif) {
+    if (typeof gif === 'string' && (gif.startsWith('http://') || gif.startsWith('https://'))) {
+      return { video: { url: gif }, gifPlayback: true, caption: message || undefined }
+    }
+    let buffer
+    if (Buffer.isBuffer(gif)) {
+      buffer = gif
+    } else if (typeof gif === 'string' && /^data:video\/[^;]+;base64,/.test(gif)) {
+      buffer = _decodeB64(gif.slice(gif.indexOf(',') + 1), 'gif')
+    }
+    if (buffer) {
+      return { video: buffer, gifPlayback: true, caption: message || undefined }
+    }
+  }
+
+  if (document) {
+    let buffer
+    let fileName = 'documento'
+    let mimetype = 'application/octet-stream'
+
+    if (typeof document === 'object' && document !== null && !Buffer.isBuffer(document)) {
+      if (document.fileName || document.name) {
+        fileName = String(document.fileName || document.name)
+      }
+      if (document.mimetype || document.type) {
+        mimetype = String(document.mimetype || document.type)
+      }
+      const rawData = document.dataUrl || document.data || document.buffer
+      if (Buffer.isBuffer(rawData)) {
+        buffer = rawData
+      } else if (typeof rawData === 'string' && /^data:([^;]+);base64,/.test(rawData)) {
+        const match = rawData.match(/^data:([^;]+);base64,/)
+        if (match && !document.mimetype && !document.type) mimetype = match[1]
+        buffer = _decodeB64(rawData.slice(rawData.indexOf(',') + 1), 'documento')
+      } else if (
+        typeof rawData === 'string' &&
+        rawData.length % 4 === 0 &&
+        /^[A-Za-z0-9+/=]+$/.test(rawData)
+      ) {
+        buffer = _decodeB64(rawData, 'documento')
+      } else if (typeof rawData === 'string') {
+        const fsSync = require('fs')
+        if (fsSync.existsSync(rawData)) {
+          buffer = fsSync.readFileSync(rawData)
+        }
+      }
+    } else if (Buffer.isBuffer(document)) {
+      buffer = document
+    } else if (typeof document === 'string' && /^data:([^;]+);base64,/.test(document)) {
+      const match = document.match(/^data:([^;]+);base64,/)
+      if (match) mimetype = match[1]
+      buffer = _decodeB64(document.slice(document.indexOf(',') + 1), 'documento')
+    } else if (
+      typeof document === 'string' &&
+      document.length % 4 === 0 &&
+      /^[A-Za-z0-9+/=]+$/.test(document)
+    ) {
+      buffer = _decodeB64(document, 'documento')
+    } else if (typeof document === 'string') {
+      const fsSync = require('fs')
+      if (fsSync.existsSync(document)) {
+        buffer = fsSync.readFileSync(document)
+        fileName = require('path').basename(document)
+      }
+    }
+
+    if (buffer) {
+      if (buffer.length > MAX_DOCUMENT_BYTES) {
+        throw new Error(
+          `documento muito grande: ${buffer.length} bytes (máx. ${MAX_DOCUMENT_BYTES}). Envie um documento menor.`
+        )
+      }
+      const content: any = {
+        document: buffer,
+        mimetype,
+        fileName
+      }
+      if (message) content.caption = message
+      return content
+    }
+    throw new Error('documento inválido: use data URI, base64, Buffer ou path existente')
+  }
+
   if (!image) return { text: message }
   let buffer
   if (typeof image === 'string' && /^data:image\/[^;]+;base64,/.test(image)) {
@@ -338,6 +453,141 @@ function resolveJidForSending(contact, ctx: any = {}) {
   return jid
 }
 
+/**
+ * Diz se um log de erro do Baileys é ruído benigno que não deve alarmar como
+ * Error na UI de Logs.
+ *
+ * Caso coberto: `unexpected error in 'init queries' (Timed Out)` — emitido pelo
+ * Baileys (socket.js `onUnexpectedError`) quando `executeInitQueries()`
+ * (fetchProps + fetchBlocklist + fetchPrivacySettings, disparadas após
+ * `connection open`) estoura `defaultQueryTimeoutMs`. A conexão continua open;
+ * são queries de paridade com o WA Web que o worker refaz sob demanda. O mesmo
+ * vale para `presence update requests` com timeout logo após o open.
+ */
+function isBenignBaileysLog(msgText, detail) {
+  const msg = String(msgText || '')
+  const det = String(detail || '')
+  const isPostOpenQuery = /init queries|presence update requests/i.test(msg)
+  if (!isPostOpenQuery) return false
+  return /timed?\s*out|timeout/i.test(msg + ' ' + det)
+}
+
+/**
+ * True when the unwrapped message carries a photo. Checked in
+ * `handleMessagesUpsert` alongside conversation/sticker/gif/audio so photos
+ * are not dropped before history and `whatsapp_notification` events.
+ */
+function isImageMessage(innerMsg) {
+  return !!innerMsg?.imageMessage
+}
+
+/**
+ * Notification text for an incoming photo: keeps the sender caption when
+ * present, otherwise falls back to a non-empty placeholder so the overlay
+ * gate (`message`/`text` required) opens. Matches the existing `[Sticker]` /
+ * `[GIF]` / audio placeholders.
+ */
+function getImageNotificationText(innerMsg) {
+  const caption = innerMsg?.imageMessage?.caption
+  if (typeof caption === 'string' && caption.trim().length > 0) return caption
+  return '📷 Foto'
+}
+
+/**
+ * True when the unwrapped message carries a document. Checked in
+ * `handleMessagesUpsert` alongside the other media kinds so documents reach
+ * history and `whatsapp_notification` events instead of being dropped.
+ */
+function isDocumentMessage(innerMsg) {
+  return !!innerMsg?.documentMessage
+}
+
+/**
+ * Notification text for an incoming document: keeps the sender caption when
+ * present, otherwise the original filename, otherwise a non-empty placeholder
+ * so the overlay gate (`message`/`text` required) opens.
+ */
+function getDocumentNotificationText(innerMsg) {
+  const caption = innerMsg?.documentMessage?.caption
+  if (typeof caption === 'string' && caption.trim().length > 0) return caption
+  const fileName = innerMsg?.documentMessage?.fileName
+  if (typeof fileName === 'string' && fileName.trim().length > 0) return fileName
+  return '📄 Documento'
+}
+
+/**
+ * Resolves an incoming-document filename to an absolute path confined to the
+ * extension `documents/` storage dir. Returns null for anything that escapes
+ * the dir (absolute paths, `..` segments, separators) so `open_document`
+ * can never be pointed at arbitrary files.
+ */
+function resolveDocumentPath(storageDir, filename) {
+  if (typeof storageDir !== 'string' || storageDir.length === 0) return null
+  if (typeof filename !== 'string' || filename.length === 0) return null
+  if (filename.includes('/') || filename.includes('\\')) return null
+  if (filename.includes('..')) return null
+  if (!/^[\w\-. ]+$/u.test(filename)) return null
+  const path = require('path')
+  const base = path.resolve(storageDir, 'documents')
+  const resolved = path.resolve(base, filename)
+  if (resolved !== base && !resolved.startsWith(base + path.sep)) return null
+  return resolved
+}
+/**
+ * Latest media attachments of one chat, oldest first, capped. Derived from the
+ * in-memory `chatHistory` (newest first) so each `whatsapp_notification` event
+ * carries every recent photo/document of that chat — the overlay remounts per
+ * notification, so the panel cannot accumulate them in local state.
+ */
+function getRecentChatMedia(history, replyJid, limit = 10) {
+  if (!Array.isArray(history) || !replyJid) return []
+  const items = []
+  for (const entry of history) {
+    if (!entry || entry.replyJid !== replyJid) continue
+    if (!entry.image && !entry.document) continue
+    items.push({
+      image: entry.image || null,
+      document: entry.document || null,
+      documentName: entry.documentName || null,
+      text: typeof entry.text === 'string' ? entry.text : '',
+      timestamp: Number(entry.timestamp) || 0
+    })
+    if (items.length >= limit) break
+  }
+  return items.reverse()
+}
+
+/**
+ * Builds a short actionable detail for a Baileys log payload.
+ *
+ * Baileys `socket.js` logs `logger.error({ node }, 'stream errored out')` on
+ * `CB:stream:error`, so pino carries the cause in `node` (not `err`). The
+ * previous extractor only read `err.message/error` and produced an empty
+ * `stream errored out` line. This helper prefers `err/error` and falls back
+ * to `node.attrs.code + child tag` (e.g. `code=440 reason=conflict`).
+ */
+function summarizeBaileysDetail(source) {
+  if (!source || typeof source !== 'object') return ''
+  const fromErr = source.err?.message || source.error || ''
+  if (fromErr) return String(fromErr).slice(0, 300)
+  const node = source.node
+  if (!node || typeof node !== 'object') return ''
+  const attrs = node.attrs && typeof node.attrs === 'object' ? node.attrs : {}
+  const parts: string[] = []
+  if (attrs.code !== undefined && attrs.code !== null && String(attrs.code).length > 0) {
+    parts.push(`code=${String(attrs.code)}`)
+  }
+  const content = Array.isArray(node.content) ? node.content : []
+  const tags = content
+    .map((child) => child && child.tag)
+    .filter((tag) => typeof tag === 'string' && tag.length > 0)
+  if (tags.length > 0) parts.push(`reason=${tags.join(',')}`)
+  if (typeof attrs.text === 'string' && attrs.text.length > 0) {
+    parts.push(`text=${attrs.text.slice(0, 120)}`)
+  }
+  return parts.join(' ')
+}
+
 module.exports = {
   withTimeout,
   friendlySendError,
@@ -346,6 +596,16 @@ module.exports = {
   resolveJidForSending,
   shouldCheckWhatsAppExistence,
   forEachYield,
+  isBenignBaileysLog,
+  summarizeBaileysDetail,
+  isImageMessage,
+  getImageNotificationText,
+  isDocumentMessage,
+  getDocumentNotificationText,
+  getRecentChatMedia,
+  resolveDocumentPath,
   MAX_IMAGE_BYTES,
-  MAX_AUDIO_BYTES
+  MAX_AUDIO_BYTES,
+  MAX_STICKER_BYTES,
+  MAX_DOCUMENT_BYTES
 }

@@ -1,11 +1,27 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+﻿import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import QRCode from 'qrcode'
 import sdk from 'momai:sdk'
 import ContextMenu from './components/ContextMenu'
 import { api } from './services/api'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
+import { useI18n } from './hooks/useI18n'
 import { resolveWhatsAppChannel } from './utils/whatsappChannel'
 import ImageViewer from 'momai:image-viewer'
+
+const getApiBaseUrl = (): string => {
+  const fromHost =
+    (window as any)?.momaiAPI?.getApiBaseUrl?.() ||
+    (window as any)?.api?.getApiBaseUrl?.()
+  if (fromHost) return String(fromHost).replace(/\/+$/, '')
+  const fromSdk = (sdk as any)?.API_URL
+  if (fromSdk) return String(fromSdk).replace(/\/+$/, '')
+  return 'http://127.0.0.1:8050'
+}
+
+const getStickerUrl = (filename: string): string => {
+  const base = getApiBaseUrl()
+  return `${base}/extensions/momai-whatsapp/storage/stickers/${encodeURIComponent(filename)}`
+}
 
 interface Message {
   from: string
@@ -18,6 +34,10 @@ interface Message {
   senderJid?: string
   profilePicUrl?: string | null
   audio?: string
+  sticker?: string
+  image?: string
+  document?: string
+  documentName?: string
 }
 
 interface ConversationTurn {
@@ -31,6 +51,10 @@ interface ConversationHistoryLine {
   timestamp: number
   from?: string
   audio?: string
+  sticker?: string
+  image?: string
+  document?: string
+  documentName?: string
 }
 
 interface ConversationSummary {
@@ -76,7 +100,12 @@ function buildTurns(sorted: Message[]): ConversationTurn[] {
             jid: msg.jid,
             text: msg.text,
             timestamp: msg.timestamp,
-            direction: 'incoming'
+            direction: 'incoming',
+            audio: msg.audio,
+            sticker: msg.sticker,
+            image: msg.image,
+            document: msg.document,
+            documentName: msg.documentName
           },
           replies: [msg]
         }
@@ -91,13 +120,17 @@ function buildTurns(sorted: Message[]): ConversationTurn[] {
 function turnsToHistoryLines(turns: ConversationTurn[]): ConversationHistoryLine[] {
   const lines: ConversationHistoryLine[] = []
   for (const turn of turns) {
-    if (turn.incoming.text || turn.incoming.audio) {
+    if (turn.incoming.text || turn.incoming.audio || turn.incoming.sticker || turn.incoming.image || turn.incoming.document) {
       lines.push({
         direction: 'incoming',
         text: turn.incoming.text,
         timestamp: turn.incoming.timestamp,
         from: turn.incoming.from,
-        audio: turn.incoming.audio
+        audio: turn.incoming.audio,
+        sticker: turn.incoming.sticker,
+        image: turn.incoming.image,
+        document: turn.incoming.document,
+        documentName: turn.incoming.documentName
       })
     }
     for (const reply of turn.replies) {
@@ -105,7 +138,11 @@ function turnsToHistoryLines(turns: ConversationTurn[]): ConversationHistoryLine
         direction: 'outgoing',
         text: reply.text,
         timestamp: reply.timestamp,
-        audio: reply.audio
+        audio: reply.audio,
+        sticker: reply.sticker,
+        image: reply.image,
+        document: reply.document,
+        documentName: reply.documentName
       })
     }
   }
@@ -163,13 +200,16 @@ function buildConversationSummaries(history: Message[]): ConversationSummary[] {
       [...sorted].reverse().find((m) => m.direction === 'incoming') || latestTurn.incoming
     const lastMessage = sorted[sorted.length - 1]
     const profilePicUrl = [...sorted].reverse().find((m) => m.profilePicUrl)?.profilePicUrl || null
-    const contactLabel =
-      [...sorted].reverse().find((m) => m.from && m.from !== 'Você')?.from ||
-      latestTurn.incoming.from ||
-      'Contato'
-
     // Escolhe o melhor JID de destino para abrir e responder (prefere @s.whatsapp.net ou @g.us antes de @lid)
     const isGroup = messages.some((m) => m.isGroup || m.jid?.endsWith('@g.us'))
+    const groupName = isGroup
+      ? ([...sorted].reverse().find((m) => m.groupName)?.groupName ?? latestIncoming.groupName ?? 'Grupo')
+      : null
+    const contactLabel = isGroup
+      ? (groupName || 'Grupo')
+      : ([...sorted].reverse().find((m) => m.from && m.from !== 'Você')?.from ||
+         latestTurn.incoming.from ||
+         'Contato')
     const preferredJid =
       [...sorted]
         .reverse()
@@ -186,7 +226,7 @@ function buildConversationSummaries(history: Message[]): ConversationSummary[] {
       incomingCount: turns.length,
       contactLabel,
       isGroup,
-      groupName: isGroup ? (latestIncoming.groupName ?? null) : null,
+      groupName,
       profilePicUrl
     })
   }
@@ -420,6 +460,7 @@ function cleanSavedArgs(args?: Record<string, unknown>): Record<string, unknown>
  * set_actions/get_actions.
  */
 function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useI18n()
   const [catalog, setCatalog] = useState<CatalogExt[]>([])
   const [actions, setActions] = useState<AutomationAction[]>([])
   const [loading, setLoading] = useState(true)
@@ -547,7 +588,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="w-full max-w-lg bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-zinc-950/60 shrink-0">
-          <h2 className="text-base font-bold text-white">Automações</h2>
+          <h2 className="text-base font-bold text-white">{t('page.automations')}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -562,28 +603,27 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
 
         <div className="p-5 space-y-4 overflow-y-auto custom-scrollbar flex-1">
           <p className="text-xs text-gray-400">
-            Ações executadas automaticamente quando chegar uma mensagem. Defina o gatilho de cada
-            ação (ex.: mensagem de grupo → acender a luz da sala).
+            {t('page.automations_desc')}
           </p>
 
           {loading ? (
-            <p className="text-xs text-gray-500">Carregando…</p>
+            <p className="text-xs text-gray-500">{t('page.loading_actions')}</p>
           ) : (
             <>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-300">Ações</span>
+                <span className="text-xs font-semibold text-gray-300">{t('page.actions')}</span>
                 <button
                   type="button"
                   onClick={showDraft ? cancelDraft : () => setShowDraft(true)}
                   className="text-[11px] font-medium text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-400 px-2.5 py-1 rounded-lg transition-colors"
                 >
-                  {showDraft ? 'Cancelar' : '+ Adicionar ação'}
+                  {showDraft ? t('page.cancel') : t('page.add_action')}
                 </button>
               </div>
 
               {actions.length === 0 && !showDraft ? (
                 <p className="text-[11px] text-gray-500">
-                  Nenhuma automação. Campos disponíveis:{' '}
+                  {t('page.no_automations', { tokens: PLACEHOLDERS.map((p) => p.token).join(', ') })}{' '}
                   {PLACEHOLDERS.map((p) => p.token).join(', ')}
                 </p>
               ) : null}
@@ -601,7 +641,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                     </div>
                     {a.when && Object.keys(a.when).length > 0 ? (
                       <div className="text-[11px] text-emerald-400 truncate">
-                        Quando: {formatWhen(a.when)}
+                        {t('page.when', { condition: formatWhen(a.when) })}
                       </div>
                     ) : null}
                     {a.args && Object.keys(a.args).length > 0 ? (
@@ -612,8 +652,8 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                     <button
                       type="button"
                       onClick={() => startEdit(a)}
-                      title="Editar"
-                      aria-label="Editar"
+                      title={t('page.edit')}
+                      aria-label={t('page.edit')}
                       className="text-gray-500 hover:text-emerald-300 text-sm p-0.5"
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -624,7 +664,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                       type="button"
                       onClick={() => persist(actions.filter((_, j) => j !== i))}
                       className="text-gray-500 hover:text-red-400 text-sm"
-                      aria-label="Remover"
+                      aria-label={t('page.remove')}
                     >
                       ×
                     </button>
@@ -636,13 +676,11 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                 <div className="space-y-3 bg-white/5 border border-white/10 rounded-xl p-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-400 mb-1">
-                      Gatilho (quando chegar mensagem)
+                      {t('page.trigger_label')}
                     </label>
                     <div className="space-y-2">
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">
-                          Contato
-                        </label>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">{t('page.trigger_contact')}</label>
                         <SearchableInput
                           target="whatsapp"
                           paramKey="contact"
@@ -651,35 +689,33 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">
-                          Grupo
-                        </label>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">{t('page.trigger_group')}</label>
                         <input
                           type="text"
                           value={draftWhen.groupName ?? ''}
                           onChange={(e) => setDraftWhen((d) => ({ ...d, groupName: e.target.value }))}
-                          placeholder="Qualquer"
+                          placeholder={t('page.trigger_any')}
                           className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
                       <div>
                         <label className="block text-[11px] font-semibold text-gray-400 mb-1">
-                          Tipo de conversa
+                          {t('page.trigger_group_type')}
                         </label>
                         <select
                           value={draftWhen.isGroup ?? ''}
                           onChange={(e) => setDraftWhen((d) => ({ ...d, isGroup: e.target.value }))}
                           className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-emerald-500"
                         >
-                          <option value="">Qualquer</option>
-                          <option value="true">Grupos</option>
-                          <option value="false">Direto (1 a 1)</option>
+                          <option value="">{t('page.trigger_any')}</option>
+                          <option value="true">{t('page.trigger_groups')}</option>
+                          <option value="false">{t('page.trigger_direct')}</option>
                         </select>
                       </div>
 
                       <div className="pt-1 border-t border-white/5">
                         <label className="block text-[11px] font-semibold text-gray-400 mb-1">
-                          Mensagem começa com
+                          {t('page.trigger_starts')}
                         </label>
                         <input
                           type="text"
@@ -691,7 +727,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                       </div>
                       <div>
                         <label className="block text-[11px] font-semibold text-gray-400 mb-1">
-                          Mensagem termina com
+                          {t('page.trigger_ends')}
                         </label>
                         <input
                           type="text"
@@ -703,7 +739,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                       </div>
                       <div>
                         <label className="block text-[11px] font-semibold text-gray-400 mb-1">
-                          Mensagem contém
+                          {t('page.trigger_contains')}
                         </label>
                         <input
                           type="text"
@@ -715,7 +751,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                       </div>
 
                       <p className="text-[10px] text-gray-500">
-                        Deixe vazio para rodar com qualquer mensagem. Todos os filtros preenchidos
+                        {t('page.trigger_hint')}
                         devem bater (e o contato/grupo/tipo, se preenchidos).
                       </p>
                     </div>
@@ -723,7 +759,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
 
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-400 mb-1">
-                      Extensão alvo
+                      {t('page.target_ext')}
                     </label>
                     <select
                       value={target}
@@ -731,7 +767,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                       className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-emerald-500"
                     >
                       {catalog.length === 0 ? (
-                        <option value="">Nenhuma extensão com ações instalada</option>
+                        <option value="">{t('page.target_none')}</option>
                       ) : null}
                       {catalog.map((ext) => (
                         <option key={ext.id} value={ext.id}>
@@ -744,7 +780,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                   {toolDef ? (
                     <>
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">Ação</label>
+                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">{t('page.action_label')}</label>
                         <select
                           value={tool}
                           onChange={(e) => selectTool(e.target.value)}
@@ -765,7 +801,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                           <div key={key}>
                             <label className="block text-[11px] font-semibold text-gray-400 mb-1">
                               {PARAM_LABELS[key] || humanizeKey(key)}
-                              {param?.default !== undefined ? ' (pré-preenchido)' : ''}
+                              {param?.default !== undefined ? t('page.action_prefilled') : ''}
                             </label>
                             {param?.enum ? (
                               <select
@@ -825,7 +861,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                         onClick={saveDraft}
                         className="text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg transition-colors"
                       >
-                        {editingId ? 'Salvar alterações' : 'Usar esta ação'}
+                        {editingId ? t('page.save_changes') : t('page.use_action')}
                       </button>
                     </>
                   ) : null}
@@ -840,12 +876,12 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
             className={`text-[11px] ${saveState === 'error' ? 'text-red-400' : saveState === 'saved' ? 'text-emerald-400' : 'text-gray-500'}`}
           >
             {saveState === 'saving'
-              ? 'Salvando…'
+              ? t('page.saving')
               : saveState === 'saved'
-                ? 'Salvo automaticamente'
+                ? t('page.saved')
                 : saveState === 'error'
-                  ? 'Erro ao salvar. Tente novamente.'
-                  : 'As ações são salvas automaticamente.'}
+                  ? t('page.save_error')
+                  : t('page.auto_save')}
           </span>
           <button
             type="button"
@@ -871,6 +907,7 @@ function SearchableInput({
   value: string
   onChange: (v: string) => void
 }) {
+  const { t } = useI18n()
   const [options, setOptions] = useState<string[]>([])
   const [open, setOpen] = useState(false)
 
@@ -909,7 +946,7 @@ function SearchableInput({
         }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder={options.length > 0 ? 'Digite para buscar…' : 'Digite nome ou número'}
+        placeholder={options.length > 0 ? t('page.contact_placeholder_search') : t('page.contact_placeholder_number')}
         className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
       />
       {open && filtered.length > 0 ? (
@@ -999,6 +1036,7 @@ const _stateCache = {
 }
 
 export default function WhatsAppView() {
+  const { t } = useI18n()
   const [connected, _setConnected] = useState(_stateCache.connected)
   const [totalMessages, setTotalMessages] = useState(_stateCache.totalMessages)
   const [syncedContacts, setSyncedContacts] = useState(_stateCache.syncedContacts)
@@ -1715,7 +1753,7 @@ export default function WhatsAppView() {
       avatarByJid[contactJid] ||
       null
 
-    const contactName = convo.contactLabel || (isGroup ? groupName : 'Contato')
+    const contactName = convo.contactLabel || (isGroup ? groupName : t('panel.unknown_contact'))
     const defaultQuickReplies = [
       `Obrigado pela mensagem, ${contactName}!`,
       'Vou verificar e respondo em breve.'
@@ -1725,6 +1763,9 @@ export default function WhatsAppView() {
       skillId: 'momai-whatsapp',
       panel: 'dist/panel.js',
       panelType: 'whatsapp-panel',
+      overlaySize: { width: 592, height: 472 },
+      center: true,
+      isHistoryOverlay: true,
       structuredResponse: {
         type: 'whatsapp-panel',
         data: {
@@ -1734,8 +1775,14 @@ export default function WhatsAppView() {
           isGroup,
           groupName,
           contactAvatar,
-          quickReplies: defaultQuickReplies,
-          conversationHistory
+          quickReplies: [],
+          conversationHistory,
+          isHistoryOverlay: true,
+          audio: contextMsg.audio,
+          sticker: contextMsg.sticker,
+          image: contextMsg.image,
+          document: contextMsg.document,
+          documentName: contextMsg.documentName
         }
       }
     }
@@ -1757,19 +1804,18 @@ export default function WhatsAppView() {
       const isGroup = item.id.endsWith('@g.us')
       const contactJid = item.id
       const contactLabel =
-        item.displayName || item.name || item.notify || (isGroup ? 'Grupo' : item.phone ? `+${item.phone}` : item.id)
-      const groupName = isGroup ? item.displayName || item.name || 'Grupo' : undefined
+        item.displayName || item.name || item.notify || (isGroup ? t('panel.groups') : item.phone ? `+${item.phone}` : item.id)
+      const groupName = isGroup ? item.displayName || item.name || t('panel.groups') : undefined
 
       const contactAvatar = avatarByJid[item.id] ?? item.profilePicUrl ?? null
-      const defaultQuickReplies = [
-        `Olá, ${contactLabel}!`,
-        'Como posso te ajudar?'
-      ]
 
       const overlayData = {
         skillId: 'momai-whatsapp',
         panel: 'dist/panel.js',
         panelType: 'whatsapp-panel',
+        overlaySize: { width: 592, height: 472 },
+        center: true,
+        isHistoryOverlay: true,
         structuredResponse: {
           type: 'whatsapp-panel',
           data: {
@@ -1779,8 +1825,9 @@ export default function WhatsAppView() {
             isGroup,
             groupName,
             contactAvatar,
-            quickReplies: defaultQuickReplies,
-            conversationHistory: []
+            quickReplies: [],
+            conversationHistory: [],
+            isHistoryOverlay: true
           }
         }
       }
@@ -1981,7 +2028,7 @@ export default function WhatsAppView() {
       <div className="shrink-0 px-6 pt-6 pb-4 w-full">
         <div className="flex items-center gap-3">
           <WhatsAppIcon className="w-8 h-8 shrink-0" />
-          <h1 className="text-xl font-semibold">WhatsApp</h1>
+          <h1 className="text-xl font-semibold">{t('page.title')}</h1>
           <div className="ml-auto flex items-center gap-2">
             {showDashboard && (
               <div className="relative" ref={notificationDropdownRef}>
@@ -1990,7 +2037,7 @@ export default function WhatsAppView() {
                   className={`py-2 px-3 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all flex items-center gap-2 group ${
                     showNotificationDropdown ? 'bg-white/10' : ''
                   }`}
-                  title={notificationsDisabled ? 'Notificações desativadas' : 'Notificações ativas'}
+                  title={notificationsDisabled ? t('page.notifications_disabled') : t('page.notifications_active')}
                 >
                   {!notificationsDisabled ? (
                     <svg
@@ -2066,7 +2113,7 @@ export default function WhatsAppView() {
                         <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
                         <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
                       </svg>
-                      Ativa
+                      {t('page.active')}
                     </button>
                     <button
                       onClick={() => {
@@ -2095,7 +2142,7 @@ export default function WhatsAppView() {
                         <path d="M18 8a6 6 0 0 0-9.33-5" />
                         <line x1="2" y1="2" x2="22" y2="22" />
                       </svg>
-                      Desativada
+                      {t('page.deactivated')}
                     </button>
                   </div>
                 )}
@@ -2110,7 +2157,7 @@ export default function WhatsAppView() {
                     ? 'bg-accent/10 border-accent/30 text-accent cursor-wait'
                     : 'bg-white/5 border-white/10 hover:bg-white/10 text-text-muted hover:text-text disabled:opacity-50'
                 }`}
-                title={syncing ? 'Sincronizando contatos...' : 'Sincronizar contatos'}
+                title={syncing ? t('page.syncing') : t('page.sync')}
                 aria-busy={syncing}
               >
                 <svg
@@ -2137,7 +2184,7 @@ export default function WhatsAppView() {
               <button
                 onClick={disconnect}
                 className="px-3 py-1.5 rounded-lg border border-red-500/20 bg-red-500/5 hover:bg-red-500/15 text-red-400 transition-colors flex items-center gap-2 group cursor-pointer"
-                title="Desconectar sessão"
+                title={t('page.disconnect_confirm')}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -2154,7 +2201,7 @@ export default function WhatsAppView() {
                   <polyline points="16 17 21 12 16 7" />
                   <line x1="21" y1="12" x2="9" y2="12" />
                 </svg>
-                <span className="text-xs font-medium">Desconectar</span>
+                <span className="text-xs font-medium">{t('page.disconnect')}</span>
               </button>
             )}
           </div>{' '}
@@ -2167,7 +2214,7 @@ export default function WhatsAppView() {
             {qrUrl ? (
               <>
                 <p className="text-sm text-text-muted max-w-sm">
-                  Escaneie o QR code com o WhatsApp do seu celular
+                  {t('page.scan_qr')}
                 </p>
                 <img
                   src={qrUrl}
@@ -2252,7 +2299,7 @@ export default function WhatsAppView() {
               )}
               {conversations.map((convo) => {
                 const lastMsg = convo.lastMessage || convo.latestIncoming
-                const avatarName = convo.isGroup ? convo.groupName || 'Grupo' : convo.contactLabel
+                const avatarName = convo.isGroup ? convo.groupName || t('panel.unknown_group') : convo.contactLabel
                 const isOutgoing = lastMsg.direction === 'outgoing'
 
                 return (
@@ -2368,14 +2415,34 @@ export default function WhatsAppView() {
                             </span>
                           </div>
                         </div>
-                        <p className="text-sm text-text-muted mt-0.5 truncate flex items-center gap-1.5">
+                        <div className="text-sm text-text-muted mt-0.5 flex items-center gap-1.5 min-h-[1.75rem]">
                           {isOutgoing && (
                             <span className="font-semibold text-text-muted/90 shrink-0">
                               Você:
                             </span>
                           )}
-                          <span className="truncate">{lastMsg.text || (lastMsg.audio ? '🎵 Áudio' : '')}</span>
-                        </p>
+                          {lastMsg.sticker ? (
+                            <div className="flex items-center gap-1.5 py-0.5">
+                              <img
+                                src={getStickerUrl(lastMsg.sticker)}
+                                alt="Sticker"
+                                className="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded drop-shadow-sm shrink-0 select-none hover:scale-105 transition-transform"
+                                loading="lazy"
+                              />
+                            </div>
+                          ) : (
+                            <span className="truncate">
+                              {lastMsg.text ||
+                                (lastMsg.audio
+                                  ? '🎵 Áudio'
+                                  : lastMsg.image
+                                    ? '📷 Foto'
+                                    : lastMsg.document
+                                      ? `📄 ${lastMsg.documentName || 'Documento'}`
+                                      : '')}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2421,13 +2488,13 @@ export default function WhatsAppView() {
             <>
               <div className="rounded-xl border border-white/5 bg-card">
                 <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between flex-wrap gap-2">
-                  <span>Grupos do WhatsApp</span>
+                  <span>{t('page.groups_tab')}</span>
                   <div className="flex items-center gap-2">
                     <div className="relative w-64">
                       <input
                         value={groupSearch}
                         onChange={(e) => setGroupSearch(e.target.value)}
-                        placeholder="Buscar grupo..."
+                        placeholder={t('page.search_group')}
                         className="w-full bg-white/5 rounded-lg pl-3 pr-8 py-1.5 text-xs border border-white/10 outline-none focus:border-accent/50"
                       />
                       {groupsLoading && (
@@ -2505,7 +2572,7 @@ export default function WhatsAppView() {
                           }
                         }}
                         className="px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors cursor-pointer focus:outline-none focus:bg-white/10"
-                        title="Enviar mensagem"
+                        title={t('page.send_message')}
                       >
                         <div onClick={(e) => e.stopPropagation()}>
                           <ContactAvatar src={c.profilePicUrl} name={c.displayName} id={c.id} />
@@ -2734,12 +2801,12 @@ export default function WhatsAppView() {
 
               <div className="rounded-xl border border-white/5 bg-card">
                 <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between flex-wrap gap-2">
-                  <span>Contatos do WhatsApp</span>
+                  <span>{t('page.contacts_tab')}</span>
                   <div className="relative w-64">
                     <input
                       value={contactSearch}
                       onChange={(e) => setContactSearch(e.target.value)}
-                      placeholder="Buscar contato..."
+                      placeholder={t('page.search_contact')}
                       className="w-full bg-white/5 rounded-lg pl-3 pr-8 py-1.5 text-xs border border-white/10 outline-none focus:border-accent/50"
                     />
                     {contactsLoading && (
@@ -2783,7 +2850,7 @@ export default function WhatsAppView() {
                           }
                         }}
                         className="px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors cursor-pointer focus:outline-none focus:bg-white/10"
-                        title="Enviar mensagem"
+                        title={t('page.send_message')}
                       >
                         <div onClick={(e) => e.stopPropagation()}>
                           <ContactAvatar src={c.profilePicUrl} name={c.displayName} id={c.id} />
@@ -3020,7 +3087,7 @@ export default function WhatsAppView() {
           items={[
             {
               id: 'open',
-              label: listMenu.kind === 'conversation' ? 'Abrir conversa' : 'Enviar mensagem',
+              label: listMenu.kind === 'conversation' ? t('page.open_conversation') : t('page.send_message'),
               onClick: () => {
                 if (listMenu.kind === 'conversation') {
                   const convo = allConversations.find((c) => c.jid === listMenu.id)
@@ -3060,7 +3127,7 @@ export default function WhatsAppView() {
               ? [
                   {
                     id: 'copy-preview',
-                    label: 'Copiar última mensagem',
+                    label: t('page.copy_last_message'),
                     onClick: () => {
                       try {
                         void navigator.clipboard?.writeText?.(listMenu.preview || '')
