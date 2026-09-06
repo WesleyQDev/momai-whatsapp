@@ -1895,8 +1895,12 @@ async function connect() {
       momai.log(`conn: qr=${!!qr} ${connection}`)
 
       if (qr) {
-        _emitQrCode(qr)
-        momai.log('QR_CODE_EVENT_SENT')
+        if (connected) {
+          momai.log('[whatsapp] Ignoring spurious QR while already connected')
+        } else {
+          _emitQrCode(qr)
+          momai.log('QR_CODE_EVENT_SENT')
+        }
       }
 
       if (connection === 'open') {
@@ -1919,6 +1923,16 @@ async function connect() {
             '[whatsapp] WARN: creds.registered=false — sessão não registrada no servidor. ' +
               'Envio de grupo pode não entregar. Reconecte o WhatsApp (Desconectar → Reconectar) e confirme no celular.'
           )
+          // Auto-heal for LID accounts where phone hasn't yet confirmed registration
+          // but session is already open and has me.id — mark as registered to prevent
+          // Baileys from re-entering QR loop every ~40s
+          if (sock?.authState?.creds?.me?.id) {
+            try {
+              sock.authState.creds.registered = true
+              saveCreds()
+              momai.log('[whatsapp] Auto-healed creds.registered -> true (me.id present)')
+            } catch {}
+          }
         }
 
         // Baileys has loaded creds.json and is running. Write a best-effort

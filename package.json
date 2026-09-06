@@ -1,44 +1,38 @@
 {
-  "name": "momai-whatsapp",
-  "version": "0.5.2",
-  "private": true,
-  "description": "ExtensÃ£o WhatsApp para MomAI",
-  "author": "WesleyQDev",
-  "license": "MIT",
-  "main": "background-worker.ts",
-  "scripts": {
-    "build": "node build.mjs",
-    "watch": "node build.mjs --watch",
-    "package": "node ../package-extension.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.runtime.json",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@whiskeysockets/baileys": "^6.0.0",
-    "pino": "^8.0.0"
-  },
-  "pnpm": {
-    "patchedDependencies": {
-      "@whiskeysockets/baileys": "patches/@whiskeysockets__baileys.patch"
-    }
-  },
-  "devDependencies": {
-    "@heroicons/react": "^2.2.0",
-    "@types/qrcode": "^1.5.6",
-    "@types/react": "^19.0.0",
-    "esbuild": "^0.24.0",
-    "qrcode": "^1.5.4",
-    "typescript": "^5.9.0",
-    "vitest": "^2.1.9"
-  },
-  "peerDependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  }
+    "name":  "momai-whatsapp",
+    "version":  "0.5.3",
+    "private":  true,
+    "description":  "ExtensÃƒÂ£o WhatsApp para MomAI",
+    "author":  "WesleyQDev",
+    "license":  "MIT",
+    "main":  "background-worker.ts",
+    "scripts":  {
+                    "build":  "node build.mjs",
+                    "watch":  "node build.mjs --watch",
+                    "package":  "node ../package-extension.mjs",
+                    "typecheck":  "tsc --noEmit -p tsconfig.json \u0026\u0026 tsc --noEmit -p tsconfig.runtime.json",
+                    "test":  "vitest run"
+                },
+    "dependencies":  {
+                         "@whiskeysockets/baileys":  "^6.0.0",
+                         "pino":  "^8.0.0"
+                     },
+    "pnpm":  {
+                 "patchedDependencies":  {
+                                             "@whiskeysockets/baileys":  "patches/@whiskeysockets__baileys.patch"
+                                         }
+             },
+    "devDependencies":  {
+                            "@heroicons/react":  "^2.2.0",
+                            "@types/qrcode":  "^1.5.6",
+                            "@types/react":  "^19.0.0",
+                            "esbuild":  "^0.24.0",
+                            "qrcode":  "^1.5.4",
+                            "typescript":  "^5.9.0",
+                            "vitest":  "^2.1.9"
+                        },
+    "peerDependencies":  {
+                             "react":  "^19.0.0",
+                             "react-dom":  "^19.0.0"
+                         }
 }
-
-
-
-
-
-
