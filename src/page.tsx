@@ -1070,6 +1070,7 @@ export default function WhatsAppView() {
   )
   const disconnectGraceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const pendingQrRef = useRef<string | null>(null)
+  const connectedAtRef = useRef<number>(0)
 
   // Wrappers that also update the module-level cache and localStorage
   const setConnected = useCallback((v: boolean) => {
@@ -1394,19 +1395,31 @@ export default function WhatsAppView() {
       if (data.ok === false) return
       const isConnected = Boolean(data.connected)
       const hasCreds = Boolean(data.hasCredentials)
-      setConnected(isConnected)
+      const recentlyConnected = Date.now() - connectedAtRef.current < 15000
       if (isConnected) {
         clearDisconnectGraceTimer()
+        setConnected(true)
+        setPairingActive(false)
         setConnectionStatus('connected')
         setShowQrFallback(false)
         setQrUrl(null)
         pendingQrRef.current = null
         setHasCredentials(true)
+      } else if (recentlyConnected) {
+        // Keep active connection state: Baileys is still finishing handshake / writing creds
+        setConnected(true)
+        setPairingActive(false)
+        setHasCredentials(true)
+        setShowQrFallback(false)
       } else if (hasCreds || hasCredentials) {
+        setConnected(false)
+        setPairingActive(false)
+        setShowQrFallback(false)
         setHasCredentials(true)
         setConnectionStatus((prev) => (prev === 'connected' ? 'reconnecting' : prev))
         startDisconnectGraceTimer()
       } else if (!hasCreds && !hasCredentials) {
+        setConnected(false)
         setHasCredentials(false)
         setShowQrFallback(true)
         setConnectionStatus('disconnected')
@@ -1945,6 +1958,7 @@ export default function WhatsAppView() {
         } else if (event.eventType === 'connection_status') {
           const status = event.data?.status
           if (status === 'connected') {
+            connectedAtRef.current = Date.now()
             clearDisconnectGraceTimer()
             setConnected(true)
             setConnectionStatus('connected')
@@ -1994,6 +2008,28 @@ export default function WhatsAppView() {
           event.eventType === 'whatsapp_notification' ||
           event.eventType === 'history_loaded'
         ) {
+          if (event.eventType === 'whatsapp_notification' && event.data) {
+            const d = event.data
+            const jid = d.contactJid || d.senderJid || d.contact || ''
+            const text = d.message || d.text || ''
+            if (jid && (text || d.audio || d.image || d.document)) {
+              const incomingMsg: Message = {
+                from: d.contact || d.senderName || 'Contato',
+                jid,
+                text,
+                timestamp: typeof d.timestamp === 'number' ? d.timestamp : Math.floor(Date.now() / 1000),
+                direction: 'incoming',
+                isGroup: Boolean(d.isGroup),
+                groupName: d.groupName || null,
+                senderJid: d.senderJid,
+                audio: d.audio,
+                image: d.image,
+                document: d.document,
+                documentName: d.documentName
+              }
+              setHistory((prev) => [incomingMsg, ...prev.filter((m) => !(m.jid === jid && m.timestamp === incomingMsg.timestamp))])
+            }
+          }
           loadHistory()
           void loadStats()
           return
@@ -2011,6 +2047,7 @@ export default function WhatsAppView() {
               startDisconnectGraceTimer()
             }
           } else if (status === 'connected') {
+            connectedAtRef.current = Date.now()
             clearDisconnectGraceTimer()
             setConnected(true)
             setConnectionStatus('connected')
@@ -2057,8 +2094,8 @@ export default function WhatsAppView() {
     )
   })
 
-  // Exibe o dashboard quando conectado ou com sessão salva durante o período de carência (sem forçar tela de QR code).
-  const showDashboard = (connected || hasCredentials) && !pairingActive && (!showQrFallback || connected)
+  // Exibe o dashboard se estiver conectado, ou com sessão salva durante o período de carência (sem forçar tela de QR code).
+  const showDashboard = connected || (hasCredentials && !pairingActive && !showQrFallback)
 
   return (
     <div className="flex-1 h-full flex flex-col min-h-0">

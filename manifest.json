@@ -1,7 +1,7 @@
 {
     "id":  "momai-whatsapp",
     "name":  "MomAI WhatsApp",
-    "version":  "0.5.4",
+    "version":  "0.5.5",
     "kind":  "packaged",
     "is_official":  true,
     "description":  "Acompanhe e responda suas conversas do WhatsApp por voz ou texto, sem pegar o celular.",
