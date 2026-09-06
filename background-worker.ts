@@ -733,10 +733,14 @@ function _scheduleReEncrypt() {
    hasCredentials=true and the QR never shows in the UI. */
 function _hasSavedSession() {
   try {
+    if (connected) return true
+
+    const creds = sock?.authState?.creds
     if (
-      sock?.authState?.creds?.registered === true &&
-      Number.isFinite(sock?.authState?.creds?.registrationId) &&
-      sock?.authState?.creds?.registrationId > 0
+      creds &&
+      (creds.registered === true || Boolean(creds.me?.id)) &&
+      Number.isFinite(creds.registrationId) &&
+      creds.registrationId > 0
     ) {
       return true
     }
@@ -745,10 +749,14 @@ function _hasSavedSession() {
     const fs = require('fs')
     if (fs.existsSync(cp)) {
       const raw = fs.readFileSync(cp, 'utf8')
-      const creds = JSON.parse(raw)
-      // creds.registered is only true after the user scans the QR code.
-      // Before pairing, Baileys writes registrationId but registered=false.
-      return creds.registered === true && Number.isFinite(creds.registrationId) && creds.registrationId > 0
+      const fileCreds = JSON.parse(raw)
+      // creds.registered is only true after the user scans the QR code,
+      // or fileCreds.me.id is populated when paired.
+      return (
+        (fileCreds.registered === true || Boolean(fileCreds.me?.id)) &&
+        Number.isFinite(fileCreds.registrationId) &&
+        fileCreds.registrationId > 0
+      )
     }
     if (fs.existsSync(ecp)) {
       // .enc may exist even for un-paired sessions (written on close);
@@ -2016,9 +2024,13 @@ async function connect() {
           momai.log(
             `[whatsapp] Connection closed (statusCode=${statusCode}, reason=${lastDisconnect?.error?.message || 'unknown'}). Reconnecting.`
           )
+          if (statusCode === 515 || statusCode === DisconnectReason.restartRequired) {
+            lastQr = null
+            lastQrAt = 0
+          }
           momai.sendEvent('connection_status', { status: 'reconnecting' })
           _clearReconnectTimer()
-          const delay = nextReconnectDelay()
+          const delay = (statusCode === 515 || statusCode === DisconnectReason.restartRequired) ? 1000 : nextReconnectDelay()
           reconnectTimer = setTimeout(connect, delay)
         } else {
           // LOGGED OUT: Baileys confirmed the stored creds are invalid.
@@ -2707,25 +2719,31 @@ async function handleMessagesUpsert({ messages }) {
       })
 
       if (!isNoteToSelf) {
-        const defaultContact = await getDefaultContact()
-        momai.sendEvent('whatsapp_message', {
-          contact: finalDisplayName,
-          senderName: isGroup ? displayName : undefined,
-          contactJid: replyJid,
-          senderJid,
-          message: text,
-          audio: audioFilename,
-          sticker: stickerFilename,
-          image: imageFilename,
-          document: documentFilename,
-          documentName,
-          recentMedia,
-          contactAvatar: resolveChatAvatarUrl(remoteJid, isGroup, senderJid),
-          timestamp: msg.messageTimestamp,
-          isGroup: !!isGroup,
-          groupName: isGroup ? resGroupName : undefined,
-          defaultContact: defaultContact || undefined
-        })
+        setTimeout(async () => {
+          try {
+            const defaultContact = await getDefaultContact()
+            momai.sendEvent('whatsapp_message', {
+              contact: finalDisplayName,
+              senderName: isGroup ? displayName : undefined,
+              contactJid: replyJid,
+              senderJid,
+              message: text,
+              audio: audioFilename,
+              sticker: stickerFilename,
+              image: imageFilename,
+              document: documentFilename,
+              documentName,
+              recentMedia,
+              contactAvatar: resolveChatAvatarUrl(remoteJid, isGroup, senderJid),
+              timestamp: msg.messageTimestamp,
+              isGroup: !!isGroup,
+              groupName: isGroup ? resGroupName : undefined,
+              defaultContact: defaultContact || undefined
+            })
+          } catch (err: any) {
+            momai.log(`Error sending delayed whatsapp_message: ${err?.message || err}`)
+          }
+        }, 500)
       }
     }
   }

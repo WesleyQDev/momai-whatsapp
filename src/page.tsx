@@ -1952,6 +1952,7 @@ export default function WhatsAppView() {
             setPairingActive(false)
             setQrUrl(null)
             pendingQrRef.current = null
+            setHasCredentials(true)
             void loadStats()
             void loadHistory()
             void loadPaginatedContacts(contactsPage, contactSearch)
@@ -1961,8 +1962,6 @@ export default function WhatsAppView() {
             setConnectionStatus('reconnecting')
             if (hasCredentials || _stateCache.hasCredentials) {
               startDisconnectGraceTimer()
-            } else {
-              setShowQrFallback(true)
             }
           } else if (status === 'disconnected') {
             setConnected(false)
@@ -2019,6 +2018,7 @@ export default function WhatsAppView() {
             setPairingActive(false)
             setQrUrl(null)
             pendingQrRef.current = null
+            setHasCredentials(true)
             setSyncing(true)
             void loadStats()
             loadHistory()
