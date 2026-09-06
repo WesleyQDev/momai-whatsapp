@@ -7,6 +7,7 @@ import { api } from './services/api'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { useI18n } from './hooks/useI18n'
 import { resolveWhatsAppChannel } from './utils/whatsappChannel'
+import { toUnixSeconds, getHistoryMessageKey, mergeHistoryWithServer } from './utils/historySync'
 import ImageViewer from 'momai:image-viewer'
 
 const getApiBaseUrl = (): string => {
@@ -1035,6 +1036,8 @@ function getInitialCachedGroups(): WaContact[] {
 
 const _initialStats = getInitialCachedStats()
 
+const CONNECTED_HISTORY_POLL_MS = 10_000
+
 // Module-level cache: survives component re-mounts (tab switches) so the UI
 // never flashes the QR screen or empty lists when the user returns to an already-connected
 // session. Cleared only on explicit disconnect / logged_out.
@@ -1469,15 +1472,15 @@ export default function WhatsAppView() {
         args: {}
       })
       if (data?.history) {
-        setHistory(data.history)
-        _stateCache.history = data.history
+        const serverHistory = data.history as Message[]
+        setHistory((prev) => mergeHistoryWithServer(prev, serverHistory))
         const jids = [
-          ...new Set(data.history.map((m: Message) => m.jid).filter(Boolean))
+          ...new Set(serverHistory.map((m: Message) => m.jid).filter(Boolean))
         ] as string[]
         loadAvatars(jids)
       }
     } catch {}
-  }, [loadAvatars])
+  }, [loadAvatars, setHistory])
 
   const loadPaginatedContacts = useCallback(
     async (page: number, search: string) => {
@@ -1495,6 +1498,8 @@ export default function WhatsAppView() {
           setPaginatedContacts(data.contacts)
           setTotalFilteredContacts(data.totalFiltered || 0)
           setContactsTotalPages(data.totalPages || 1)
+          const ids = (data.contacts as WaContact[]).map((c) => c.id).filter(Boolean)
+          if (ids.length > 0) void loadAvatars(ids)
         }
         return data
       } catch {
@@ -1503,7 +1508,7 @@ export default function WhatsAppView() {
         setContactsLoading(false)
       }
     },
-    [contactsPerPage]
+    [contactsPerPage, loadAvatars]
   )
 
   const loadPaginatedGroups = useCallback(
@@ -1522,6 +1527,8 @@ export default function WhatsAppView() {
           setPaginatedGroups(data.contacts)
           setTotalFilteredGroups(data.totalFiltered || 0)
           setGroupsTotalPages(data.totalPages || 1)
+          const ids = (data.contacts as WaContact[]).map((c) => c.id).filter(Boolean)
+          if (ids.length > 0) void loadAvatars(ids)
         }
         return data
       } catch {
@@ -1530,7 +1537,7 @@ export default function WhatsAppView() {
         setGroupsLoading(false)
       }
     },
-    [groupsPerPage]
+    [groupsPerPage, loadAvatars]
   )
 
   // Força o refetch de TODAS as fotos de perfil (grupos + contatos + conversas)
@@ -1929,6 +1936,33 @@ export default function WhatsAppView() {
     return () => clearInterval(interval)
   }, [connected, pairingActive, qrUrl, loadStats])
 
+  // While connected, refresh recent messages periodically and when the view
+  // regains focus, so a missed realtime event never leaves the list stale.
+  useEffect(() => {
+    if (!connected) return
+    const interval = setInterval(() => {
+      void loadHistory()
+      void loadStats()
+    }, CONNECTED_HISTORY_POLL_MS)
+    const onFocus = () => {
+      void loadHistory()
+      void loadStats()
+    }
+    const onVisibility = () => {
+      if (!document.hidden) {
+        void loadHistory()
+        void loadStats()
+      }
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [connected, loadHistory, loadStats])
+
   // Safety: stop spinner if contacts_synced never arrives
   useEffect(() => {
     if (!syncing) return
@@ -2012,22 +2046,30 @@ export default function WhatsAppView() {
             const d = event.data
             const jid = d.contactJid || d.senderJid || d.contact || ''
             const text = d.message || d.text || ''
-            if (jid && (text || d.audio || d.image || d.document)) {
+            if (jid && typeof jid === 'string' && jid.includes('@') && (text || d.audio || d.image || d.document)) {
+              const isGroupMsg = Boolean(d.isGroup)
               const incomingMsg: Message = {
-                from: d.contact || d.senderName || 'Contato',
+                from: (isGroupMsg ? d.senderName || d.contact : d.contact || d.senderName) || 'Contato',
                 jid,
                 text,
-                timestamp: typeof d.timestamp === 'number' ? d.timestamp : Math.floor(Date.now() / 1000),
+                timestamp: toUnixSeconds(d.timestamp),
                 direction: 'incoming',
-                isGroup: Boolean(d.isGroup),
+                isGroup: isGroupMsg,
                 groupName: d.groupName || null,
                 senderJid: d.senderJid,
+                profilePicUrl: d.contactAvatar || null,
                 audio: d.audio,
                 image: d.image,
                 document: d.document,
                 documentName: d.documentName
               }
-              setHistory((prev) => [incomingMsg, ...prev.filter((m) => !(m.jid === jid && m.timestamp === incomingMsg.timestamp))])
+              ;(incomingMsg as Message & { replyJid?: string }).replyJid = jid
+              setHistory((prev) => {
+                const key = getHistoryMessageKey(incomingMsg)
+                if (prev.some((m) => getHistoryMessageKey(m) === key)) return prev
+                return [incomingMsg, ...prev].slice(0, 100)
+              })
+              if (jid) void loadAvatars([jid])
             }
           }
           loadHistory()
@@ -2073,6 +2115,8 @@ export default function WhatsAppView() {
       },
       [
         loadHistory,
+        loadAvatars,
+        setHistory,
         applyQrString,
         tryFinishContactSync,
         loadStats,
