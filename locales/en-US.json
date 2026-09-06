@@ -233,6 +233,7 @@
                   "audio":  "🎙️ Audio",
                   "photo":  "📷 Photo",
                   "document":  "📄 Document",
+                  "video":  "🎥 Video",
                   "sticker":  "Sticker",
                   "photo_alt":  "Photo",
                   "loading_gifs":  "Loading GIFs...",

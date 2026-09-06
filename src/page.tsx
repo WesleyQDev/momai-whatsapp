@@ -40,6 +40,7 @@ interface Message {
   image?: string
   document?: string
   documentName?: string
+  video?: string
 }
 
 interface ConversationTurn {
@@ -57,6 +58,7 @@ interface ConversationHistoryLine {
   image?: string
   document?: string
   documentName?: string
+  video?: string
 }
 
 interface ConversationSummary {
@@ -107,7 +109,8 @@ function buildTurns(sorted: Message[]): ConversationTurn[] {
             sticker: msg.sticker,
             image: msg.image,
             document: msg.document,
-            documentName: msg.documentName
+            documentName: msg.documentName,
+            video: msg.video
           },
           replies: [msg]
         }
@@ -122,7 +125,7 @@ function buildTurns(sorted: Message[]): ConversationTurn[] {
 function turnsToHistoryLines(turns: ConversationTurn[]): ConversationHistoryLine[] {
   const lines: ConversationHistoryLine[] = []
   for (const turn of turns) {
-    if (turn.incoming.text || turn.incoming.audio || turn.incoming.sticker || turn.incoming.image || turn.incoming.document) {
+    if (turn.incoming.text || turn.incoming.audio || turn.incoming.sticker || turn.incoming.image || turn.incoming.document || turn.incoming.video) {
       lines.push({
         direction: 'incoming',
         text: turn.incoming.text,
@@ -132,7 +135,8 @@ function turnsToHistoryLines(turns: ConversationTurn[]): ConversationHistoryLine
         sticker: turn.incoming.sticker,
         image: turn.incoming.image,
         document: turn.incoming.document,
-        documentName: turn.incoming.documentName
+        documentName: turn.incoming.documentName,
+        video: turn.incoming.video
       })
     }
     for (const reply of turn.replies) {
@@ -144,7 +148,8 @@ function turnsToHistoryLines(turns: ConversationTurn[]): ConversationHistoryLine
         sticker: reply.sticker,
         image: reply.image,
         document: reply.document,
-        documentName: reply.documentName
+        documentName: reply.documentName,
+        video: reply.video
       })
     }
   }
@@ -1837,7 +1842,8 @@ export default function WhatsAppView() {
           sticker: contextMsg.sticker,
           image: contextMsg.image,
           document: contextMsg.document,
-          documentName: contextMsg.documentName
+          documentName: contextMsg.documentName,
+          video: contextMsg.video
         }
       }
     }
@@ -1963,6 +1969,19 @@ export default function WhatsAppView() {
     }
   }, [connected, loadHistory, loadStats])
 
+  // First contacts sync runs automatically on every (re)connect, mirroring the
+  // manual sync button, so names and profile pictures appear without user action.
+  const autoContactsSyncRef = useRef(false)
+  useEffect(() => {
+    if (!connected) {
+      autoContactsSyncRef.current = false
+      return
+    }
+    if (autoContactsSyncRef.current || syncingRef.current) return
+    autoContactsSyncRef.current = true
+    void handleSync()
+  }, [connected, handleSync])
+
   // Safety: stop spinner if contacts_synced never arrives
   useEffect(() => {
     if (!syncing) return
@@ -2046,7 +2065,7 @@ export default function WhatsAppView() {
             const d = event.data
             const jid = d.contactJid || d.senderJid || d.contact || ''
             const text = d.message || d.text || ''
-            if (jid && typeof jid === 'string' && jid.includes('@') && (text || d.audio || d.image || d.document)) {
+            if (jid && typeof jid === 'string' && jid.includes('@') && (text || d.audio || d.image || d.document || d.video)) {
               const isGroupMsg = Boolean(d.isGroup)
               const incomingMsg: Message = {
                 from: (isGroupMsg ? d.senderName || d.contact : d.contact || d.senderName) || 'Contato',
@@ -2061,7 +2080,8 @@ export default function WhatsAppView() {
                 audio: d.audio,
                 image: d.image,
                 document: d.document,
-                documentName: d.documentName
+                documentName: d.documentName,
+                video: d.video
               }
               ;(incomingMsg as Message & { replyJid?: string }).replyJid = jid
               setHistory((prev) => {
@@ -2562,9 +2582,11 @@ export default function WhatsAppView() {
                                   ? t('page.audio_fallback')
                                   : lastMsg.image
                                     ? t('media.photo')
-                                    : lastMsg.document
-                                      ? `📄 ${lastMsg.documentName || t('page.document_default')}`
-                                      : '')}
+                                    : lastMsg.video
+                                      ? t('media.video')
+                                      : lastMsg.document
+                                        ? `📄 ${lastMsg.documentName || t('page.document_default')}`
+                                        : '')}
                             </span>
                           )}
                         </div>

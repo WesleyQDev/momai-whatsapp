@@ -15,6 +15,8 @@ const {
   getImageNotificationText,
   isDocumentMessage,
   getDocumentNotificationText,
+  isVideoMessage,
+  getVideoNotificationText,
   getRecentChatMedia,
   resolveDocumentPath
 } = utils as any
@@ -553,6 +555,41 @@ describe('incoming document helpers (document notification reaches overlay)', ()
 
   it('exports a document size cap', () => {
     expect(utils.MAX_DOCUMENT_BYTES).toBe(25 * 1024 * 1024)
+  })
+})
+
+describe('incoming video helpers (plain videos reach history and overlay)', () => {
+  it('detects videoMessage without gifPlayback', () => {
+    expect(isVideoMessage({ videoMessage: {} })).toBe(true)
+    expect(isVideoMessage({ videoMessage: { caption: 'festa' } })).toBe(true)
+  })
+
+  it('keeps GIFs out of the video branch', () => {
+    expect(isVideoMessage({ videoMessage: { gifPlayback: true } })).toBe(false)
+    expect(isVideoMessage({ conversation: 'hi' })).toBe(false)
+    expect(isVideoMessage(null)).toBe(false)
+  })
+
+  it('prefers caption, then placeholder', () => {
+    expect(getVideoNotificationText({ videoMessage: { caption: 'olha' } })).toBe('olha')
+    expect(getVideoNotificationText({ videoMessage: {} })).toBe('🎥 Vídeo')
+    expect(getVideoNotificationText({ videoMessage: { caption: '  ' } })).toBe('🎥 Vídeo')
+    expect(getVideoNotificationText(null)).toBe('🎥 Vídeo')
+  })
+
+  it('exports a video size cap', () => {
+    expect(utils.MAX_VIDEO_BYTES).toBe(64 * 1024 * 1024)
+  })
+
+  it('includes videos in recent chat media', () => {
+    const history = [
+      { replyJid: 'a@g.us', video: 'v.mp4', text: '🎥 Vídeo', timestamp: 5 },
+      { replyJid: 'a@g.us', image: 'c.jpg', text: '📷 Foto', timestamp: 2 }
+    ]
+    const media = getRecentChatMedia(history, 'a@g.us')
+    expect(media).toHaveLength(2)
+    expect(media[0].image).toBe('c.jpg')
+    expect(media[1].video).toBe('v.mp4')
   })
 })
 

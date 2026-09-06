@@ -58,12 +58,15 @@ const {
   getImageNotificationText: _getImageNotificationText,
   isDocumentMessage: _isDocumentMessage,
   getDocumentNotificationText: _getDocumentNotificationText,
+  isVideoMessage: _isVideoMessage,
+  getVideoNotificationText: _getVideoNotificationText,
   getRecentChatMedia: _getRecentChatMedia,
   resolveDocumentPath: _resolveDocumentPath,
   MAX_AUDIO_BYTES,
   MAX_DOCUMENT_BYTES,
   MAX_IMAGE_BYTES,
-  MAX_STICKER_BYTES
+  MAX_STICKER_BYTES,
+  MAX_VIDEO_BYTES
 } = require('./worker-utils.ts')
 
 let safeStorageAvailable = true
@@ -2402,8 +2405,10 @@ async function handleMessagesUpsert({ messages }) {
       typeof _isImageMessage === 'function' ? _isImageMessage(innerMsg) : !!innerMsg?.imageMessage
     const isDocument =
       typeof _isDocumentMessage === 'function' ? _isDocumentMessage(innerMsg) : !!innerMsg?.documentMessage
+    const isVideo =
+      typeof _isVideoMessage === 'function' ? _isVideoMessage(innerMsg) : !!innerMsg?.videoMessage && !innerMsg?.videoMessage?.gifPlayback
 
-    if (!isConversation && !isSticker && !isGif && !isAudio && !isImage && !isDocument) continue
+    if (!isConversation && !isSticker && !isGif && !isAudio && !isImage && !isDocument && !isVideo) continue
 
     const isFromMe = msg.key.fromMe
     let text = ''
@@ -2412,6 +2417,7 @@ async function handleMessagesUpsert({ messages }) {
     let imageFilename = null
     let documentFilename = null
     let documentName = null
+    let videoFilename = null
     if (isConversation) {
       text = innerMsg.conversation || innerMsg.extendedTextMessage?.text || ''
     } else if (isImage) {
@@ -2428,6 +2434,12 @@ async function handleMessagesUpsert({ messages }) {
       const saved = await saveIncomingDocument(msg)
       documentFilename = saved?.filename || null
       documentName = saved?.displayName || null
+    } else if (isVideo) {
+      text =
+        typeof _getVideoNotificationText === 'function'
+          ? _getVideoNotificationText(innerMsg)
+          : innerMsg.videoMessage?.caption || '🎥 Vídeo'
+      videoFilename = await saveIncomingVideo(msg)
     } else if (isSticker) {
       text = '[Sticker]'
       stickerFilename = await saveIncomingSticker(msg)
@@ -2632,6 +2644,7 @@ async function handleMessagesUpsert({ messages }) {
         image: imageFilename,
         document: documentFilename,
         documentName,
+        video: videoFilename,
         timestamp: msg.messageTimestamp
           ? Number(msg.messageTimestamp)
           : Math.floor(Date.now() / 1000),
@@ -2723,6 +2736,7 @@ async function handleMessagesUpsert({ messages }) {
         image: imageFilename,
         document: documentFilename,
         documentName,
+        video: videoFilename,
         recentMedia,
         timestamp: msg.messageTimestamp,
         contactAvatar: resolveChatAvatarUrl(remoteJid, isGroup, senderJid),
@@ -2747,6 +2761,7 @@ async function handleMessagesUpsert({ messages }) {
               image: imageFilename,
               document: documentFilename,
               documentName,
+              video: videoFilename,
               recentMedia,
               contactAvatar: resolveChatAvatarUrl(remoteJid, isGroup, senderJid),
               timestamp: msg.messageTimestamp,
@@ -3047,6 +3062,88 @@ async function saveIncomingDocument(msg) {
     }
   } catch (err) {
     momai.log(`[whatsapp-document] Failed to download document: ${err.message}`)
+  }
+  return null
+}
+
+/**
+ * Downloads an incoming video message into the extension `videos/` storage
+ * dir. Mirrors `saveIncomingImage`: dedupes by message id, caps the size, and
+ * picks the container extension from the mimetype. GIFs never reach here
+ * (they ride on videoMessage with gifPlayback and keep their own branch).
+ */
+async function saveIncomingVideo(msg) {
+  try {
+    const rawMsg = msg.message
+    const innerMsg =
+      rawMsg?.ephemeralMessage?.message ||
+      rawMsg?.viewOnceMessage?.message ||
+      rawMsg?.viewOnceMessageV2?.message ||
+      rawMsg?.documentWithCaptionMessage?.message ||
+      rawMsg
+
+    const videoMessage = innerMsg?.videoMessage
+    if (!videoMessage || videoMessage.gifPlayback) return null
+
+    const fsSync = require('fs')
+    const videoDir = path.join(momai.storage.storageDir, 'videos')
+    if (!fsSync.existsSync(videoDir)) {
+      fsSync.mkdirSync(videoDir, { recursive: true })
+    }
+
+    const baseName = sanitizeMediaFilename(msg.key?.id, '')
+    if (baseName) {
+      for (const ext of ['.mp4', '.3gp', '.mov', '.webm']) {
+        if (fsSync.existsSync(path.join(videoDir, `${baseName}${ext}`))) {
+          return `${baseName}${ext}`
+        }
+      }
+    }
+
+    const baileys = require('@whiskeysockets/baileys')
+    const downloadMediaMessage = baileys.downloadMediaMessage || baileys.default?.downloadMediaMessage
+    if (!downloadMediaMessage) {
+      momai.log(`[whatsapp-video] downloadMediaMessage helper not found in Baileys`)
+      return null
+    }
+
+    const msgToDownload = innerMsg !== rawMsg ? { ...msg, message: innerMsg } : msg
+    const buffer = await withTimeout(
+      downloadMediaMessage(
+        msgToDownload,
+        'buffer',
+        {},
+        {
+          rekey: false
+        }
+      ),
+      60000,
+      'video download timeout'
+    )
+
+    if (buffer) {
+      if (buffer.length > MAX_VIDEO_BYTES) {
+        momai.log(
+          `[whatsapp-video] Video too large (${buffer.length} bytes > ${MAX_VIDEO_BYTES}); skipped`
+        )
+        return null
+      }
+      const mimetype = String(videoMessage.mimetype || '')
+      const ext = mimetype.includes('3gpp')
+        ? '.3gp'
+        : mimetype.includes('quicktime')
+          ? '.mov'
+          : mimetype.includes('webm')
+            ? '.webm'
+            : '.mp4'
+      const filename = `${sanitizeMediaFilename(msg.key?.id, String(Date.now()))}${ext}`
+      const filePath = path.join(videoDir, filename)
+      fsSync.writeFileSync(filePath, buffer)
+      momai.log(`[whatsapp-video] Saved video message: ${filename} (${buffer.length} bytes)`)
+      return filename
+    }
+  } catch (err) {
+    momai.log(`[whatsapp-video] Failed to download video: ${err.message}`)
   }
   return null
 }

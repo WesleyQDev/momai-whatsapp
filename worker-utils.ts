@@ -7,6 +7,7 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024 // 10MB
 const MAX_AUDIO_BYTES = 16 * 1024 * 1024 // 16MB (voice notes do WhatsApp)
 const MAX_STICKER_BYTES = 5 * 1024 * 1024 // 5MB (stickers WebP do WhatsApp)
 const MAX_DOCUMENT_BYTES = 25 * 1024 * 1024 // 25MB (incoming documents)
+const MAX_VIDEO_BYTES = 64 * 1024 * 1024 // 64MB (incoming videos)
 
 /**
  * Races a promise against a timeout. Sempre limpa o timer depois que o race
@@ -534,6 +535,28 @@ function resolveDocumentPath(storageDir, filename) {
   return resolved
 }
 /**
+ * True when the unwrapped message carries a video (not a GIF: GIFs ride on
+ * videoMessage with gifPlayback and keep their own branch). Checked in
+ * `handleMessagesUpsert` alongside the other media kinds so plain videos reach
+ * history and `whatsapp_notification` events instead of being dropped.
+ */
+function isVideoMessage(innerMsg) {
+  return !!innerMsg?.videoMessage && !innerMsg.videoMessage.gifPlayback
+}
+
+/**
+ * Notification text for an incoming video: keeps the sender caption when
+ * present, otherwise falls back to a non-empty placeholder so the overlay
+ * gate (`message`/`text` required) opens. Matches the existing photo/audio
+ * placeholders.
+ */
+function getVideoNotificationText(innerMsg) {
+  const caption = innerMsg?.videoMessage?.caption
+  if (typeof caption === 'string' && caption.trim().length > 0) return caption
+  return '🎥 Vídeo'
+}
+
+/**
  * Latest media attachments of one chat, oldest first, capped. Derived from the
  * in-memory `chatHistory` (newest first) so each `whatsapp_notification` event
  * carries every recent photo/document of that chat — the overlay remounts per
@@ -544,11 +567,12 @@ function getRecentChatMedia(history, replyJid, limit = 10) {
   const items = []
   for (const entry of history) {
     if (!entry || entry.replyJid !== replyJid) continue
-    if (!entry.image && !entry.document) continue
+    if (!entry.image && !entry.document && !entry.video) continue
     items.push({
       image: entry.image || null,
       document: entry.document || null,
       documentName: entry.documentName || null,
+      video: entry.video || null,
       text: typeof entry.text === 'string' ? entry.text : '',
       timestamp: Number(entry.timestamp) || 0
     })
@@ -609,10 +633,13 @@ module.exports = {
   getImageNotificationText,
   isDocumentMessage,
   getDocumentNotificationText,
+  isVideoMessage,
+  getVideoNotificationText,
   getRecentChatMedia,
   resolveDocumentPath,
   MAX_IMAGE_BYTES,
   MAX_AUDIO_BYTES,
   MAX_STICKER_BYTES,
-  MAX_DOCUMENT_BYTES
+  MAX_DOCUMENT_BYTES,
+  MAX_VIDEO_BYTES
 }

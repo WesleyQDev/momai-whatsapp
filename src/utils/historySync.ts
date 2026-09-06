@@ -6,6 +6,7 @@ export interface SyncableMessage {
   audio?: string
   image?: string
   document?: string
+  video?: string
 }
 
 // Baileys timestamps arrive as number, numeric string, or Long-like objects.
@@ -33,7 +34,7 @@ export function toUnixSeconds(ts: unknown): number {
 }
 
 export function getHistoryMessageKey(msg: SyncableMessage): string {
-  return `${msg.jid}|${Math.floor(Number(msg.timestamp) || 0)}|${msg.direction}|${msg.text || ''}|${msg.audio || ''}|${msg.image || ''}|${msg.document || ''}`
+  return `${msg.jid}|${Math.floor(Number(msg.timestamp) || 0)}|${msg.direction}|${msg.text || ''}|${msg.audio || ''}|${msg.image || ''}|${msg.document || ''}|${msg.video || ''}`
 }
 
 // Keep optimistic realtime messages that the server response does not include yet,

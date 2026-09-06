@@ -74,6 +74,13 @@ const getImageUrl = (filename: string): string => {
   return `${base}/extensions/momai-whatsapp/storage/images/${encodeURIComponent(filename)}`
 }
 
+const getVideoUrl = (filename: string): string => {
+  if (!filename) return ''
+  if (isDirectUrl(filename)) return filename
+  const base = getApiBaseUrl()
+  return `${base}/extensions/momai-whatsapp/storage/videos/${encodeURIComponent(filename)}`
+}
+
 // Placeholder texts used for media messages without a caption (both locales).
 const isMediaPlaceholder = (text: string): boolean =>
   text === '🎙️ Áudio' ||
@@ -81,7 +88,9 @@ const isMediaPlaceholder = (text: string): boolean =>
   text === '📷 Foto' ||
   text === '📷 Photo' ||
   text === '📄 Documento' ||
-  text === '📄 Document'
+  text === '📄 Document' ||
+  text === '🎥 Vídeo' ||
+  text === '🎥 Video'
 
 type MediaItem = {
   key: string
@@ -188,6 +197,7 @@ type HistoryLine = {
   image?: string
   document?: string
   documentName?: string
+  video?: string
 }
 
 type Participant = {
@@ -471,6 +481,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     audio: data?.audio,
     image: data?.image,
     document: data?.document,
+    video: data?.video,
     message,
     contactJid,
     isGroup,
@@ -1490,7 +1501,28 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                       : {})
                                   }}
                                 >
-                                  {line.image ? (
+                                  {line.video ? (
+                                    <div className="flex flex-col gap-1 max-w-full overflow-hidden">
+                                      <video
+                                        controls
+                                        preload="metadata"
+                                        src={getVideoUrl(line.video)}
+                                        className="w-40 h-40 sm:w-48 sm:h-48 object-cover rounded-lg drop-shadow-sm select-none max-w-full"
+                                      />
+                                      {line.text && !isMediaPlaceholder(line.text) && (
+                                        <p
+                                          className="text-xs whitespace-pre-wrap break-words select-text max-w-full"
+                                          style={{
+                                            wordBreak: 'break-word',
+                                            overflowWrap: 'anywhere',
+                                            ...(isOutgoing ? { color: isLight ? '#111b21' : '#e9edef' } : {})
+                                          }}
+                                        >
+                                          {line.text}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ) : line.image ? (
                                     <div className="flex flex-col gap-1 max-w-full overflow-hidden">
                                       <MediaThumbnail
                                         src={getImageUrl(line.image)}
@@ -1578,7 +1610,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                     )
                   ) : (
                     /* MODO NOTIFICAÇÃO (Novas Mensagens): Somente a última mensagem enviada */
-                    message || data?.image || data?.sticker || data?.document || data?.audio ? (
+                    message || data?.image || data?.sticker || data?.document || data?.audio || data?.video ? (
                       <div className="min-h-[4.5rem] rounded-lg bg-input/40 border border-border/30 p-2.5 select-text flex flex-col justify-center min-w-0 overflow-hidden">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-medium text-text-muted select-text">
@@ -1590,7 +1622,24 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                             </span>
                           )}
                         </div>
-                        {data?.image ? (
+                        {data?.video ? (
+                          <div className="mt-1 flex flex-col gap-1 max-w-full overflow-hidden">
+                            <video
+                              controls
+                              preload="metadata"
+                              src={getVideoUrl(data.video)}
+                              className="w-40 h-40 sm:w-48 sm:h-48 object-cover rounded-lg drop-shadow-sm max-w-full"
+                            />
+                            {message && !isMediaPlaceholder(message) && (
+                              <p
+                                className="text-sm text-text/90 whitespace-pre-wrap break-words select-text max-w-full"
+                                style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                              >
+                                {message}
+                              </p>
+                            )}
+                          </div>
+                        ) : data?.image ? (
                           <div className="mt-1 flex flex-col gap-1 max-w-full overflow-hidden">
                             <MediaThumbnail
                               src={getImageUrl(data.image)}
