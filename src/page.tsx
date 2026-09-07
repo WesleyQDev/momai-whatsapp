@@ -6,6 +6,7 @@ import MonitoringDropdown from './components/MonitoringDropdown'
 import { api } from './services/api'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { useI18n } from './hooks/useI18n'
+import { useUnreadConversations } from './hooks/useUnreadConversations'
 import { resolveWhatsAppChannel } from './utils/whatsappChannel'
 import { toUnixSeconds, getHistoryMessageKey, mergeHistoryWithServer } from './utils/historySync'
 import ImageViewer from 'momai:image-viewer'
@@ -1061,6 +1062,7 @@ const _stateCache = {
 
 export default function WhatsAppView() {
   const { locale, t } = useI18n()
+  const { unreadJids, markUnread, markRead } = useUnreadConversations()
   const [connected, _setConnected] = useState(_stateCache.connected)
   const [totalMessages, setTotalMessages] = useState(_stateCache.totalMessages)
   const [syncedContacts, setSyncedContacts] = useState(_stateCache.syncedContacts)
@@ -1136,6 +1138,7 @@ export default function WhatsAppView() {
   }, [])
 
   const handleDeleteConversation = useCallback(async (convoJid: string) => {
+    markRead(convoJid)
     try {
       await api.post('/extensions/whatsapp/command', {
         toolName: 'delete_message',
@@ -1158,7 +1161,7 @@ export default function WhatsAppView() {
     } catch (err) {
       console.error('[whatsapp] delete conversation failed:', err)
     }
-  }, [setHistory])
+  }, [setHistory, markRead])
 
   useEffect(() => {
     syncingRef.current = syncing
@@ -1478,6 +1481,14 @@ export default function WhatsAppView() {
       })
       if (data?.history) {
         const serverHistory = data.history as Message[]
+        const prevKeys = new Set(_stateCache.history.map(getHistoryMessageKey))
+        if (prevKeys.size > 0) {
+          for (const msg of serverHistory) {
+            if (msg.direction === 'incoming' && msg.jid?.includes('@') && !prevKeys.has(getHistoryMessageKey(msg))) {
+              markUnread(msg.jid)
+            }
+          }
+        }
         setHistory((prev) => mergeHistoryWithServer(prev, serverHistory))
         const jids = [
           ...new Set(serverHistory.map((m: Message) => m.jid).filter(Boolean))
@@ -1485,7 +1496,7 @@ export default function WhatsAppView() {
         loadAvatars(jids)
       }
     } catch {}
-  }, [loadAvatars, setHistory])
+  }, [loadAvatars, setHistory, markUnread])
 
   const loadPaginatedContacts = useCallback(
     async (page: number, search: string) => {
@@ -1793,6 +1804,7 @@ export default function WhatsAppView() {
   const openConversationOverlay = useCallback((convo: ConversationSummary) => {
     const { jid, latestIncoming: contextMsg, turns } = convo
     if (!jid) return
+    markRead(jid)
 
     const isGroupChat = jid.endsWith('@g.us')
     const replyJid =
@@ -1853,7 +1865,7 @@ export default function WhatsAppView() {
     if (openOverlay) {
       openOverlay(overlayData)
     }
-  }, [avatarByJid])
+  }, [avatarByJid, markRead])
 
   const openContactOrGroupOverlay = useCallback(
     (item: WaContact) => {
@@ -1999,6 +2011,11 @@ export default function WhatsAppView() {
   useExtensionEvents({
     onEvent: useCallback(
       (event: any) => {
+        if (event.eventType === 'badge_update' && event.data?.contactJid) {
+          const badgeJid = String(event.data.contactJid)
+          if (badgeJid.includes('@')) markUnread(badgeJid)
+          return
+        }
         if (event.eventType === 'qr_code' && event.data?.qr) {
           pendingQrRef.current = event.data.qr
           // Só exibe a tela de QR code se o usuário clicou explicitamente em Gerar QR / Reconectar,
@@ -2066,6 +2083,7 @@ export default function WhatsAppView() {
             const jid = d.contactJid || d.senderJid || d.contact || ''
             const text = d.message || d.text || ''
             if (jid && typeof jid === 'string' && jid.includes('@') && (text || d.audio || d.image || d.document || d.video)) {
+              markUnread(jid)
               const isGroupMsg = Boolean(d.isGroup)
               const incomingMsg: Message = {
                 from: (isGroupMsg ? d.senderName || d.contact : d.contact || d.senderName) || 'Contato',
@@ -2153,7 +2171,8 @@ export default function WhatsAppView() {
         showQrFallback,
         hasCredentials,
         connected,
-        setConnected
+        setConnected,
+        markUnread
       ]
     )
   })
@@ -2439,6 +2458,7 @@ export default function WhatsAppView() {
                 const lastMsg = convo.lastMessage || convo.latestIncoming
                 const avatarName = convo.isGroup ? convo.groupName || t('panel.unknown_group') : convo.contactLabel
                 const isOutgoing = lastMsg.direction === 'outgoing'
+                const hasNew = unreadJids.includes(convo.jid)
 
                 return (
                   <div
@@ -2469,7 +2489,7 @@ export default function WhatsAppView() {
                         openConversationOverlay(convo)
                       }
                     }}
-                    className="px-4 py-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors cursor-pointer focus:outline-none focus:bg-white/10"
+                    className="px-4 py-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors cursor-pointer focus:outline-none focus:bg-white/10 relative"
                     title={t('page.view_conversation')}
                   >
                     <div className="flex gap-3">
@@ -2518,6 +2538,18 @@ export default function WhatsAppView() {
                             </>
                           )}
                           <div className="ml-auto flex items-center gap-2 shrink-0">
+                            {hasNew && (
+                              <span
+                                className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide shadow-sm"
+                                style={{
+                                  backgroundColor: '#ffffff',
+                                  color: '#16a34a',
+                                  border: '1px solid #16a34a'
+                                }}
+                              >
+                                nova
+                              </span>
+                            )}
                             {editingName !== convo.jid && !convo.isGroup && (
                               <button
                                 type="button"

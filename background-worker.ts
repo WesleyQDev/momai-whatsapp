@@ -127,6 +127,19 @@ process.on('unhandledRejection', (err) => {
 
 const DISABLED_CONTACTS_KEY = 'disabled_contacts'
 const workerStartTime = Math.floor(Date.now() / 1000)
+// Last successful (re)connect, updated on every connection open. Messages with a
+// timestamp older than this were sent while the app was closed and must land in
+// history without opening the overlay.
+let lastConnectAtSec = workerStartTime
+// Message ids already processed, guards against Baileys delivering the same
+// upsert twice (notify + append) which opened two identical overlays.
+// Keyed by message id alone: the same logical message can arrive with a
+// different remoteJid format (s.whatsapp.net vs lid).
+const notifiedMessageIds = new Set()
+// Last overlay content + time, suppresses retransmissions that arrive with a
+// fresh message id but identical content within a short window.
+let lastOverlayKey = ''
+let lastOverlayAt = 0
 const CONTACT_NAMES_KEY = 'contact_names'
 const WA_CONTACTS_KEY = 'wa_contacts'
 const SETTINGS_KEY = 'settings'
@@ -1912,6 +1925,7 @@ async function connect() {
         lastQr = null
         lastQrAt = 0
         connected = true
+        lastConnectAtSec = Math.floor(Date.now() / 1000)
         resetReconnectBackoff()
         groupMetaCache.clear()
         _markSyncingContacts()
@@ -2384,8 +2398,18 @@ async function connect() {
   }
 }
 
-async function handleMessagesUpsert({ messages }) {
+async function handleMessagesUpsert({ messages, type }) {
+  const isHistoryAppend = type && type !== 'notify'
   for (const msg of messages) {
+    const messageId = msg.key?.id ? String(msg.key.id) : null
+    if (messageId) {
+      if (notifiedMessageIds.has(messageId)) continue
+      notifiedMessageIds.add(messageId)
+      if (notifiedMessageIds.size > 500) {
+        const oldest = notifiedMessageIds.values().next().value
+        notifiedMessageIds.delete(oldest)
+      }
+    }
     if (msg.message && msg.key?.id) {
       cacheMessage(msg.key, msg.message)
     }
@@ -2680,17 +2704,39 @@ async function handleMessagesUpsert({ messages }) {
         standardizedRemoteJid === myJidStandardized)
 
     const isOldMessage = msg.messageTimestamp && Number(msg.messageTimestamp) < workerStartTime
+    const messageTs = Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000)
+    const isBacklog = messageTs < lastConnectAtSec
 
     const senderDisabled = _isContactDisabled(resolvedSenderJid)
     const remoteDisabled = _isContactDisabled(remoteJid)
     const shouldNotify =
+      !isHistoryAppend &&
       !notificationsDisabled &&
       !isOldMessage &&
       ((!isFromMe && !senderDisabled && !remoteDisabled) || isNoteToSelf)
+    const shouldOverlay = shouldNotify && !isBacklog
     momai.log(
-      `[notif-debug] shouldNotify=${shouldNotify} isFromMe=${isFromMe} isOldMessage=${isOldMessage} notificationsDisabled=${notificationsDisabled} senderDisabled=${senderDisabled} remoteDisabled=${remoteDisabled} isNoteToSelf=${isNoteToSelf} remoteJid=${remoteJid} standardizedRemoteJid=${standardizedRemoteJid} resolvedSenderJid=${resolvedSenderJid} myJidRaw=${myJidRaw} myJidStandardized=${myJidStandardized} myLidRaw=${myLidRaw} myLidStandardized=${myLidStandardized} isGroup=${isGroup} disabledContacts=${JSON.stringify(disabledContacts)}`
+      `[notif-debug] shouldNotify=${shouldNotify} isFromMe=${isFromMe} isOldMessage=${isOldMessage} isBacklog=${isBacklog} isHistoryAppend=${isHistoryAppend} notificationsDisabled=${notificationsDisabled} senderDisabled=${senderDisabled} remoteDisabled=${remoteDisabled} isNoteToSelf=${isNoteToSelf} remoteJid=${remoteJid} standardizedRemoteJid=${standardizedRemoteJid} resolvedSenderJid=${resolvedSenderJid} myJidRaw=${myJidRaw} myJidStandardized=${myJidStandardized} myLidRaw=${myLidRaw} myLidStandardized=${myLidStandardized} isGroup=${isGroup} disabledContacts=${JSON.stringify(disabledContacts)}`
     )
     if (shouldNotify) {
+      // Backlog (offline while the app was closed) updates history and the
+      // sidebar dot, but never opens the overlay. Only live messages overlay.
+      momai.sendEvent('badge_update', {
+        extensionId: 'momai-whatsapp',
+        count: true,
+        contactJid: replyJid
+      })
+    }
+    if (shouldOverlay) {
+      // Suppress retransmissions with identical content in a short window,
+      // even when they arrive with a fresh message id.
+      const overlayKey = `${replyJid}|${text || ''}|${audioFilename || ''}|${stickerFilename || ''}|${imageFilename || ''}|${documentName || ''}|${videoFilename || ''}`
+      const nowMs = Date.now()
+      if (overlayKey === lastOverlayKey && nowMs - lastOverlayAt < 15000) {
+        momai.log(`[notif-debug] Suppressing duplicate overlay for: ${replyJid}`)
+      } else {
+        lastOverlayKey = overlayKey
+        lastOverlayAt = nowMs
       const finalDisplayName = isGroup ? resGroupName : displayName
 
       // Every recent photo/document of this chat, so the overlay (which
@@ -2774,6 +2820,7 @@ async function handleMessagesUpsert({ messages }) {
           }
         }, 500)
       }
+      }
     }
   }
 }
@@ -2792,6 +2839,10 @@ async function handleIncomingCalls(calls) {
 
       momai.log(`[call-debug] Sending call notification for: ${finalDisplayName}`)
 
+      momai.sendEvent('badge_update', {
+        extensionId: 'momai-whatsapp',
+        count: true
+      })
       momai.sendEvent('whatsapp_notification', {
         contact: finalDisplayName,
         senderName: isGroup ? displayName : undefined,

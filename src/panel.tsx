@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo, Fragment } from 'react'
+import { createPortal } from 'react-dom'
 import {
   XMarkIcon,
   MicrophoneIcon,
@@ -127,6 +128,95 @@ function MediaThumbnail({
         title={t('panel.photo_click')}
       />
     </div>
+  )
+}
+
+function VideoThumbnail({
+  src,
+  alt,
+  size = 'md',
+  onOpen
+}: {
+  src: string
+  alt: string
+  size?: 'md' | 'sm'
+  onOpen: () => void
+}) {
+  const containerClass =
+    size === 'sm'
+      ? 'w-20 h-20 rounded-lg drop-shadow-sm select-none pointer-events-auto hover:scale-105 transition-transform cursor-pointer'
+      : 'w-40 h-40 sm:w-48 sm:h-48 rounded-lg drop-shadow-sm select-none pointer-events-auto hover:scale-[1.02] transition-transform cursor-pointer'
+  return (
+    <div className="relative shrink-0 group/thumb" onClick={onOpen} title="Clique para ampliar o vídeo">
+      <video
+        src={src}
+        preload="metadata"
+        muted
+        playsInline
+        className={`${containerClass} object-cover`}
+      />
+      <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-80 group-hover/thumb:opacity-100 transition-opacity pointer-events-none">
+        <svg className="w-10 h-10 text-white drop-shadow-lg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+      </div>
+    </div>
+  )
+}
+
+function VideoViewer({ src, onClose }: { src: string; onClose: () => void }) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    dialogRef.current?.focus()
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeydown)
+    return () => {
+      window.removeEventListener('keydown', handleKeydown)
+    }
+  }, [onClose])
+
+  return createPortal(
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Video viewer"
+      tabIndex={-1}
+      className="fixed inset-0 z-[500] flex items-center justify-center bg-zinc-900/80 backdrop-blur-sm animate-in fade-in duration-300"
+      onClick={(e) => {
+        e.stopPropagation()
+        onClose()
+      }}
+    >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onClose()
+        }}
+        className="absolute top-4 right-4 p-2.5 rounded-full bg-white text-zinc-900 shadow-xl ring-1 ring-black/20 hover:bg-zinc-100 hover:scale-105 transition-all z-[600] cursor-pointer"
+        style={{ WebkitAppRegion: 'no-drag' } as any}
+        aria-label="Close"
+      >
+        <XMarkIcon className="w-6 h-6" />
+      </button>
+
+      <div
+        className="relative max-w-[70vw] max-h-[70vh] flex items-center justify-center animate-in zoom-in duration-300"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <video
+          src={src}
+          controls
+          autoPlay
+          className="max-w-full max-h-[70vh] object-contain shadow-2xl border-2 border-white/10 rounded-lg"
+        />
+      </div>
+    </div>,
+    document.body
   )
 }
 
@@ -500,6 +590,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedStickerUrl, setSelectedStickerUrl] = useState<string | null>(null)
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
+  const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null)
   const { openDocument, openingFile, docError } = useOpenDocument()
 
   const [showMediaPicker, setShowMediaPicker] = useState(false)
@@ -1503,11 +1594,10 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                 >
                                   {line.video ? (
                                     <div className="flex flex-col gap-1 max-w-full overflow-hidden">
-                                      <video
-                                        controls
-                                        preload="metadata"
+                                      <VideoThumbnail
                                         src={getVideoUrl(line.video)}
-                                        className="w-40 h-40 sm:w-48 sm:h-48 object-cover rounded-lg drop-shadow-sm select-none max-w-full"
+                                        alt={line.text && !isMediaPlaceholder(line.text) ? line.text : 'Vídeo'}
+                                        onOpen={() => setSelectedVideoUrl(getVideoUrl(line.video!))}
                                       />
                                       {line.text && !isMediaPlaceholder(line.text) && (
                                         <p
@@ -1624,11 +1714,10 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                         </div>
                         {data?.video ? (
                           <div className="mt-1 flex flex-col gap-1 max-w-full overflow-hidden">
-                            <video
-                              controls
-                              preload="metadata"
+                            <VideoThumbnail
                               src={getVideoUrl(data.video)}
-                              className="w-40 h-40 sm:w-48 sm:h-48 object-cover rounded-lg drop-shadow-sm max-w-full"
+                              alt={message && !isMediaPlaceholder(message) ? message : 'Vídeo'}
+                              onOpen={() => setSelectedVideoUrl(getVideoUrl(data.video))}
                             />
                             {message && !isMediaPlaceholder(message) && (
                               <p
@@ -2025,6 +2114,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       )}
       {selectedImageUrl && (
         <ImageViewer src={selectedImageUrl} alt="Foto" onClose={() => setSelectedImageUrl(null)} />
+      )}
+      {selectedVideoUrl && (
+        <VideoViewer src={selectedVideoUrl} onClose={() => setSelectedVideoUrl(null)} />
       )}
     </>
   )
