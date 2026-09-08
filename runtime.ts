@@ -103,6 +103,46 @@ module.exports = {
       }
     },
     {
+      name: 'get_conversation',
+      description: 'Obtem o historico de mensagens de um contato ou grupo especifico',
+      parameters: {
+        type: 'object',
+        required: ['jid'],
+        properties: {
+          jid: {
+            type: 'string',
+            description: 'JID do contato ou grupo (@s.whatsapp.net ou @g.us)'
+          },
+          limit: {
+            type: 'number',
+            description: 'Maximo de mensagens (opcional, padrao 100, maximo 200)'
+          }
+        }
+      }
+    },
+    {
+      name: 'mark_conversation_read',
+      description: 'Marca as mensagens de um contato ou grupo como lidas (limpa o aviso de nova mensagem)',
+      parameters: {
+        type: 'object',
+        required: ['jid'],
+        properties: {
+          jid: {
+            type: 'string',
+            description: 'JID do contato ou grupo (@s.whatsapp.net ou @g.us)'
+          }
+        }
+      }
+    },
+    {
+      name: 'get_unread',
+      description: 'Lista os JIDs com mensagens nao lidas (bolinha de aviso ativa)',
+      parameters: {
+        type: 'object',
+        properties: {}
+      }
+    },
+    {
       name: 'get_avatars',
       description: 'Busca fotos de perfil para uma lista de JIDs (contatos ou grupos)',
       parameters: {

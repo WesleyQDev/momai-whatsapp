@@ -1,9 +1,12 @@
 // scripts/skills/packaged/whatsapp/background-worker.js
 // Persistent worker for WhatsApp Web connection via Baileys
 
-const MAX_HISTORY = 50
-const MAX_PERSISTED_CONVERSATIONS = 3
+const MAX_HISTORY = 300
+const MAX_PERSISTED_CONVERSATIONS = 10
 const CHAT_HISTORY_KEY = 'chat_history'
+const UNREAD_BADGE_KEY = 'whatsapp_unread_badges'
+const unreadBadgeJids = new Set()
+let _unreadBadgesLoaded = false
 
 let makeWASocket,
   useMultiFileAuthState,
@@ -1325,6 +1328,82 @@ function schedulePersistChatHistory() {
     _persistHistoryTimer = null
     persistChatHistorySnapshot().catch(() => {})
   }, 2000)
+}
+
+function _getUnreadBadgeKey() {
+  return _currentPhone ? `${UNREAD_BADGE_KEY}-${_currentPhone}` : UNREAD_BADGE_KEY
+}
+
+async function loadUnreadBadges() {
+  if (_unreadBadgesLoaded) return
+  _unreadBadgesLoaded = true
+  try {
+    const keys = [
+      ...new Set([_currentPhone ? _getUnreadBadgeKey() : null, UNREAD_BADGE_KEY].filter(Boolean))
+    ]
+    for (const key of keys) {
+      const saved = await momai.storage.get(key)
+      if (Array.isArray(saved) && saved.length > 0) {
+        saved
+          .filter((v) => typeof v === 'string' && v.includes('@'))
+          .forEach((v) => unreadBadgeJids.add(v))
+        momai.log(`loadUnreadBadges: ${unreadBadgeJids.size} from ${key}`)
+        return
+      }
+    }
+  } catch (e) {
+    momai.log(`loadUnreadBadges: ${e.message}`)
+  }
+}
+
+function persistUnreadBadges() {
+  try {
+    momai.storage.set(_getUnreadBadgeKey(), [...unreadBadgeJids]).catch(() => {})
+  } catch {}
+}
+
+function unreadBadgeMatches(entry, jid) {
+  if (entry === jid) return true
+  const [entryUser, entryDomain] = String(entry).split('@')
+  const [jidUser, jidDomain] = String(jid).split('@')
+  if (!entryUser || !jidUser) return false
+  if (entryUser.split(':')[0] === jidUser.split(':')[0] && entryDomain === jidDomain) return true
+  if (String(jid).endsWith('@g.us') || String(entry).endsWith('@g.us')) return false
+  const entryDigits = entryUser.replace(/\D/g, '')
+  const jidDigits = jidUser.replace(/\D/g, '')
+  return !!entryDigits && entryDigits === jidDigits
+}
+
+async function addUnreadBadge(jid) {
+  if (!jid || typeof jid !== 'string' || !jid.includes('@')) return
+  await loadUnreadBadges()
+  if (!unreadBadgeJids.has(jid)) {
+    unreadBadgeJids.add(jid)
+    persistUnreadBadges()
+  }
+  momai.sendEvent('badge_update', {
+    extensionId: 'momai-whatsapp',
+    count: true,
+    contactJid: jid
+  })
+}
+
+async function removeUnreadBadge(jid) {
+  if (!jid || typeof jid !== 'string' || !jid.includes('@')) return false
+  await loadUnreadBadges()
+  let changed = false
+  for (const entry of [...unreadBadgeJids]) {
+    if (unreadBadgeMatches(entry, jid)) {
+      unreadBadgeJids.delete(entry)
+      changed = true
+    }
+  }
+  if (changed) persistUnreadBadges()
+  momai.sendEvent('badge_update', {
+    extensionId: 'momai-whatsapp',
+    count: unreadBadgeJids.size > 0
+  })
+  return changed
 }
 
 function resolveStandardJid(jid) {
@@ -2721,11 +2800,7 @@ async function handleMessagesUpsert({ messages, type }) {
     if (shouldNotify) {
       // Backlog (offline while the app was closed) updates history and the
       // sidebar dot, but never opens the overlay. Only live messages overlay.
-      momai.sendEvent('badge_update', {
-        extensionId: 'momai-whatsapp',
-        count: true,
-        contactJid: replyJid
-      })
+      await addUnreadBadge(replyJid)
     }
     if (shouldOverlay) {
       // Suppress retransmissions with identical content in a short window,
@@ -2839,10 +2914,7 @@ async function handleIncomingCalls(calls) {
 
       momai.log(`[call-debug] Sending call notification for: ${finalDisplayName}`)
 
-      momai.sendEvent('badge_update', {
-        extensionId: 'momai-whatsapp',
-        count: true
-      })
+      await addUnreadBadge(isGroup && groupJid ? groupJid : callerJid)
       momai.sendEvent('whatsapp_notification', {
         contact: finalDisplayName,
         senderName: isGroup ? displayName : undefined,
@@ -4059,9 +4131,45 @@ process.on('message', async (msg) => {
             await loadChatHistory()
           }
           result = {
-            history: chatHistory.slice(0, 50).map(enrichHistoryEntry)
+            history: chatHistory.slice(0, 200).map(enrichHistoryEntry)
           }
           break
+        case 'get_conversation': {
+          if (chatHistory.length === 0) {
+            await loadChatHistory()
+          }
+          const rawJid = String(msg.payload?.args?.jid || msg.payload?.args?.contactJid || '').trim()
+          const limit = Math.min(Math.max(Number(msg.payload?.args?.limit) || 100, 1), 200)
+          const norm = (v) => String(v || '').split(':')[0]
+          const filtered = rawJid
+            ? chatHistory.filter((m) => {
+                const jid = String(m.jid || '')
+                const senderJid = String(m.senderJid || m.replyJid || '')
+                if (jid === rawJid || senderJid === rawJid) return true
+                if (rawJid.endsWith('@g.us')) return jid === rawJid
+                return norm(jid) === norm(rawJid) || norm(senderJid) === norm(rawJid)
+              })
+            : chatHistory
+          result = {
+            history: filtered.slice(0, limit).map(enrichHistoryEntry)
+          }
+          break
+        }
+        case 'mark_conversation_read': {
+          const readJid = String(msg.payload?.args?.jid || msg.payload?.args?.contactJid || '').trim()
+          if (readJid) {
+            momai.log(`[whatsapp] mark_conversation_read: ${readJid}`)
+            await removeUnreadBadge(readJid)
+            momai.sendEvent('conversation_read', { contactJid: readJid })
+          }
+          result = { ok: true }
+          break
+        }
+        case 'get_unread': {
+          await loadUnreadBadges()
+          result = { unread: [...unreadBadgeJids] }
+          break
+        }
         case 'get_stickers': {
           const fsSync = require('fs')
           const stickerDir = path.join(momai.storage.storageDir, 'stickers')

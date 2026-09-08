@@ -549,23 +549,26 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const contact = data?.contact || data?.from || t('panel.unknown_contact')
   const message = data?.message || data?.text || ''
   const [localHistory, setLocalHistory] = useState<HistoryLine[]>(() => data?.conversationHistory || [])
+  const [showFullHistory, setShowFullHistory] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const [historyError, setHistoryError] = useState('')
 
   useEffect(() => {
     if (Array.isArray(data?.conversationHistory)) {
       setLocalHistory(data.conversationHistory)
     }
+    setShowFullHistory(false)
+    setHistoryError('')
   }, [data?.conversationHistory])
 
   const conversationHistory = localHistory
+  const showHistoryView = isHistoryOverlay || showFullHistory
   const quickReplies = data?.quickReplies || []
   const contactJid = data?.contactJid || data?.contact || ''
   const isGroup = data?.isGroup || false
   const groupName = data?.groupName || ''
   const isAdminsOnly = data?.isAdminsOnly || false
   const onClose = data?.onClose || (() => {})
-  const isLight =
-    typeof document !== 'undefined' &&
-    Boolean(document.documentElement.getAttribute('data-theme')?.includes('light'))
 
   console.log('[WhatsAppPanel] data received:', {
     audio: data?.audio,
@@ -924,11 +927,93 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     }
   }, [contactJid, data?.contactAvatar])
 
+  const loadFullHistory = useCallback(async () => {
+    if (!contactJid || loadingHistory) return
+    setLoadingHistory(true)
+    setHistoryError('')
+    try {
+      let messages: any[] = []
+      try {
+        const { data: res } = await sdk.api.post('/extensions/momai-whatsapp/command', {
+          toolName: 'get_conversation',
+          args: { jid: contactJid, limit: 100 }
+        })
+        if (Array.isArray(res?.history)) messages = res.history
+      } catch {
+        messages = []
+      }
+      if (messages.length === 0) {
+        const { data: res } = await sdk.api.post('/extensions/momai-whatsapp/command', {
+          toolName: 'get_history',
+          args: {}
+        })
+        const all = Array.isArray(res?.history) ? res.history : []
+        const norm = (v: unknown) => String(v || '').split(':')[0]
+        messages = all.filter((m: any) => {
+          const jid = String(m?.jid || '')
+          const sender = String(m?.senderJid || m?.replyJid || '')
+          if (jid === contactJid || sender === contactJid) return true
+          if (contactJid.endsWith('@g.us')) return jid === contactJid
+          return norm(jid) === norm(contactJid) || norm(sender) === norm(contactJid)
+        })
+      }
+      const lines: HistoryLine[] = messages
+        .map((m: any) => ({
+          direction: (m.direction === 'outgoing' ? 'outgoing' : 'incoming') as HistoryLine['direction'],
+          text: m.text || '',
+          timestamp: Number(m.timestamp) || 0,
+          from: m.from,
+          audio: m.audio,
+          sticker: m.sticker,
+          image: m.image,
+          document: m.document,
+          documentName: m.documentName,
+          video: m.video
+        }))
+        .filter((l: HistoryLine) => l.text || l.audio || l.sticker || l.image || l.document || l.video)
+        .sort((a: HistoryLine, b: HistoryLine) => a.timestamp - b.timestamp)
+      setLocalHistory(lines)
+      setShowFullHistory(true)
+    } catch {
+      setHistoryError(t('panel.history_load_failed'))
+    } finally {
+      setLoadingHistory(false)
+    }
+  }, [contactJid, loadingHistory, t])
+
+  const collapseHistory = useCallback(() => {
+    setShowFullHistory(false)
+  }, [])
+
+  const notifyConversationRead = useCallback(() => {
+    if (!contactJid) return
+    try {
+      const base = getApiBaseUrl()
+      if (!base) return
+      fetch(`${base}/extensions/momai-whatsapp/command`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-Token': (window as any)?.api?.getSessionToken?.() || ''
+        },
+        body: JSON.stringify({
+          toolName: 'mark_conversation_read',
+          args: { jid: contactJid }
+        })
+      }).catch(() => {})
+    } catch {}
+  }, [contactJid])
+
+  const dismissAfterEngagement = useCallback(() => {
+    notifyConversationRead()
+    onClose()
+  }, [notifyConversationRead, onClose])
+
   useEffect(() => {
     const el = historyScrollRef.current
     if (!el || conversationHistory.length === 0) return
     el.scrollTop = el.scrollHeight
-  }, [contactJid, conversationHistory.length])
+  }, [contactJid, conversationHistory.length, showHistoryView])
 
   useEffect(() => {
     const el = cardRef.current
@@ -937,11 +1022,11 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       (window as any).api?.setOverlaySize
     if (!el || typeof setSize !== 'function') return
 
-    const CARD_BASE_WIDTH = isHistoryOverlay ? 560 : 320
+    const CARD_BASE_WIDTH = showHistoryView ? 560 : 320
     const PICKER_WIDTH = 360
     const GAP = 12
     const totalWidth = showMediaPicker ? CARD_BASE_WIDTH + GAP + PICKER_WIDTH : CARD_BASE_WIDTH
-    const exactHeight = isHistoryOverlay
+    const exactHeight = showHistoryView
       ? pastedImages.length > 0 || attachedDocuments.length > 0
         ? 540
         : 440
@@ -953,10 +1038,10 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     setSize({
       width: totalWidth + MARGIN * 2,
       height: exactHeight + MARGIN * 2,
-      center: isHistoryOverlay,
-      isHistoryOverlay
+      center: showHistoryView,
+      isHistoryOverlay: showHistoryView
     })
-  }, [pastedImages.length, attachedDocuments.length, showMediaPicker, isHistoryOverlay])
+  }, [pastedImages.length, attachedDocuments.length, showMediaPicker, showHistoryView])
 
   const stop = useCallback(() => {
     if (abortRef.current) {
@@ -1100,7 +1185,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             }
           ])
         } else {
-          onClose()
+          dismissAfterEngagement()
         }
       } catch (err: any) {
         if (gen !== interactionGenRef.current) return
@@ -1111,7 +1196,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         setMinimized(false)
       }
     },
-    [activeRecipient.jid, isHistoryOverlay, onClose]
+    [activeRecipient.jid, isHistoryOverlay, dismissAfterEngagement]
   )
 
   const handleInsertEmoji = useCallback((emoji: string) => {
@@ -1201,7 +1286,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
               }
             ])
           } else {
-            onClose()
+            dismissAfterEngagement()
           }
         } else {
           setSendError(t('panel.send_sticker_error', { error: resData?.error || t('panel.server_error') }))
@@ -1213,7 +1298,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         setSending(false)
       }
     },
-    [activeRecipient.jid, beginUserSend, isHistoryOverlay, onClose]
+    [activeRecipient.jid, beginUserSend, isHistoryOverlay, dismissAfterEngagement]
   )
 
   const handleSendGif = useCallback(
@@ -1258,7 +1343,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
               }
             ])
           } else {
-            onClose()
+            dismissAfterEngagement()
           }
         } else {
           setSendError(t('panel.send_gif_error', { error: resData?.error || t('panel.server_error') }))
@@ -1270,7 +1355,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         setSending(false)
       }
     },
-    [activeRecipient.jid, beginUserSend, isHistoryOverlay, onClose]
+    [activeRecipient.jid, beginUserSend, isHistoryOverlay, dismissAfterEngagement]
   )
 
   const handleQuickReply = useCallback(
@@ -1319,9 +1404,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           }`}
           style={{
             WebkitAppRegion: 'drag',
-            width: `${isHistoryOverlay ? 560 : 320}px`,
+            width: `${showHistoryView ? 560 : 320}px`,
             height: `${
-              isHistoryOverlay
+              showHistoryView
                 ? pastedImages.length > 0 || attachedDocuments.length > 0
                   ? 540
                   : 440
@@ -1330,7 +1415,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                   : 400
             }px`,
             maxHeight: `${
-              isHistoryOverlay
+              showHistoryView
                 ? pastedImages.length > 0 || attachedDocuments.length > 0
                   ? 540
                   : 440
@@ -1524,14 +1609,24 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                 {/* Upper scrollable section */}
                 <div
                   className={`flex-1 min-w-0 w-full min-h-0 ${
-                    isHistoryOverlay
+                    showHistoryView
                       ? 'flex flex-col overflow-hidden p-0'
                       : 'overflow-y-auto custom-scrollbar overscroll-contain pr-0.5 space-y-2'
                   }`}
                 >
-                  {isHistoryOverlay ? (
-                    /* MODO HISTÓRICO: Balões horizontais estilo WhatsApp */
-                    conversationHistory.length > 0 ? (
+                  {showHistoryView ? (
+                    <>
+                    {!isHistoryOverlay && (
+                      <button
+                        type="button"
+                        onClick={collapseHistory}
+                        className="mb-2 self-start text-[11px] font-medium text-text-muted hover:text-text transition-colors cursor-pointer"
+                      >
+                        {'‹ '}{t('panel.history_hide')}
+                      </button>
+                    )}
+                    {/* MODO HISTÓRICO: Balões horizontais estilo WhatsApp */}
+                    {conversationHistory.length > 0 ? (
                       <div
                         ref={historyScrollRef}
                         className="flex-1 min-w-0 w-full min-h-0 h-full overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar rounded-xl bg-input/20 border border-border/25 p-3 space-y-3.5 select-text"
@@ -1577,19 +1672,12 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                 <div
                                   className={`rounded-2xl px-3.5 py-2 shadow-sm select-text flex flex-col gap-1.5 border max-w-full min-w-0 overflow-hidden ${
                                     isOutgoing
-                                      ? 'rounded-tr-xs'
+                                      ? 'rounded-tr-xs bg-accent border-accent text-card'
                                       : 'bg-input/80 border-border/50 text-text rounded-tl-xs'
                                   }`}
                                   style={{
                                     wordBreak: 'break-word',
-                                    overflowWrap: 'anywhere',
-                                    ...(isOutgoing
-                                      ? {
-                                          backgroundColor: isLight ? '#d9fdd3' : '#005c4b',
-                                          borderColor: isLight ? '#c4eec0' : '#026955',
-                                          color: isLight ? '#111b21' : '#e9edef'
-                                        }
-                                      : {})
+                                    overflowWrap: 'anywhere'
                                   }}
                                 >
                                   {line.video ? (
@@ -1604,8 +1692,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                           className="text-xs whitespace-pre-wrap break-words select-text max-w-full"
                                           style={{
                                             wordBreak: 'break-word',
-                                            overflowWrap: 'anywhere',
-                                            ...(isOutgoing ? { color: isLight ? '#111b21' : '#e9edef' } : {})
+                                            overflowWrap: 'anywhere'
                                           }}
                                         >
                                           {line.text}
@@ -1624,8 +1711,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                           className="text-xs whitespace-pre-wrap break-words select-text max-w-full"
                                           style={{
                                             wordBreak: 'break-word',
-                                            overflowWrap: 'anywhere',
-                                            ...(isOutgoing ? { color: isLight ? '#111b21' : '#e9edef' } : {})
+                                            overflowWrap: 'anywhere'
                                           }}
                                         >
                                           {line.text}
@@ -1650,8 +1736,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                         className="text-xs whitespace-pre-wrap break-words select-text leading-relaxed max-w-full"
                                         style={{
                                           wordBreak: 'break-word',
-                                          overflowWrap: 'anywhere',
-                                          ...(isOutgoing ? { color: isLight ? '#111b21' : '#e9edef' } : {})
+                                          overflowWrap: 'anywhere'
                                         }}
                                       >
                                         {line.text}
@@ -1673,12 +1758,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                   )}
                                   <div className="flex justify-end items-center mt-0.5 shrink-0">
                                     <span
-                                      className="text-[10px] select-none font-normal shrink-0"
-                                      style={
-                                        isOutgoing
-                                          ? { color: isLight ? '#54656f' : '#8696a0' }
-                                          : undefined
-                                      }
+                                      className={`text-[10px] select-none font-normal shrink-0 ${
+                                        isOutgoing ? 'text-card/70' : 'text-text-muted'
+                                      }`}
                                     >
                                       {formatHistoryTime(line.timestamp, locale)}
                                     </span>
@@ -1697,7 +1779,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                             : 'Nenhuma mensagem recente'}
                         </p>
                       </div>
-                    )
+                    )}
+                    </>
                   ) : (
                     /* MODO NOTIFICAÇÃO (Novas Mensagens): Somente a última mensagem enviada */
                     message || data?.image || data?.sticker || data?.document || data?.audio || data?.video ? (
@@ -1717,7 +1800,10 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                             <VideoThumbnail
                               src={getVideoUrl(data.video)}
                               alt={message && !isMediaPlaceholder(message) ? message : 'Vídeo'}
-                              onOpen={() => setSelectedVideoUrl(getVideoUrl(data.video))}
+                              onOpen={() => {
+                                notifyConversationRead()
+                                setSelectedVideoUrl(getVideoUrl(data.video))
+                              }}
                             />
                             {message && !isMediaPlaceholder(message) && (
                               <p
@@ -1733,7 +1819,10 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                             <MediaThumbnail
                               src={getImageUrl(data.image)}
                               alt={message && !isMediaPlaceholder(message) ? message : 'Foto'}
-                              onOpen={() => setSelectedImageUrl(getImageUrl(data.image))}
+                              onOpen={() => {
+                                notifyConversationRead()
+                                setSelectedImageUrl(getImageUrl(data.image))
+                              }}
                             />
                             {message && !isMediaPlaceholder(message) && (
                               <p
@@ -1751,7 +1840,10 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                               alt="Sticker"
                               className="w-24 h-24 sm:w-28 sm:h-28 object-contain rounded-lg drop-shadow-sm select-none pointer-events-auto hover:scale-105 transition-transform cursor-pointer"
                               loading="lazy"
-                              onClick={() => setSelectedStickerUrl(getStickerUrl(data.sticker))}
+                              onClick={() => {
+                                notifyConversationRead()
+                                setSelectedStickerUrl(getStickerUrl(data.sticker))
+                              }}
                               title="Clique para ampliar o sticker"
                             />
                           </div>
@@ -1771,11 +1863,25 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                             file={data.document}
                             name={data.documentName || data.document}
                             opening={openingFile === data.document}
-                            onOpen={() => openDocument(data.document, data.documentName || data.document)}
+                            onOpen={() => {
+                              notifyConversationRead()
+                              openDocument(data.document, data.documentName || data.document)
+                            }}
                           />
                         ) : null}
                         {data?.audio && (
                           <CustomAudioPlayer src={getAudioUrl(data.audio)} />
+                        )}
+                        <button
+                          type="button"
+                          onClick={loadFullHistory}
+                          disabled={loadingHistory}
+                          className="mt-2 self-start text-[11px] font-medium text-text-muted hover:text-text transition-colors cursor-pointer disabled:opacity-60"
+                        >
+                          {loadingHistory ? t('panel.history_loading') : `${t('panel.history_show')} ›`}
+                        </button>
+                        {historyError && (
+                          <p className="text-[11px] text-error mt-1 select-text">{historyError}</p>
                         )}
                       </div>
                     ) : (
@@ -1789,7 +1895,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                 </div>
 
                 {docError && (
-                  <p className="text-[11px] text-red-400 px-1 select-text">{docError}</p>
+                  <p className="text-[11px] text-error px-1 select-text">{docError}</p>
                 )}
 
                 {/* Previews de Anexos Pendentes */}
@@ -1869,7 +1975,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                 )}
 
                 {sendError && (
-                  <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs mt-1 select-text">
+                  <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-error/10 border border-error/30 text-error text-xs mt-1 select-text">
                     <span className="truncate flex-1">{sendError}</span>
                     <button
                       type="button"
@@ -2176,7 +2282,7 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
     >
       <div className="flex items-center justify-between pb-3 border-b border-border/40 mb-3">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
+          <div className="w-6 h-6 rounded-full bg-error/10 flex items-center justify-center text-error">
             <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
               <path
                 strokeLinecap="round"
@@ -2218,7 +2324,7 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
         </div>
 
         {error && (
-          <p className="text-[11px] text-red-400 mt-2 max-w-[260px] leading-tight select-text">
+          <p className="text-[11px] text-error mt-2 max-w-[260px] leading-tight select-text">
             {error}
           </p>
         )}

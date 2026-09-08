@@ -2012,8 +2012,30 @@ export default function WhatsAppView() {
     onEvent: useCallback(
       (event: any) => {
         if (event.eventType === 'badge_update' && event.data?.contactJid) {
+          const badgeCount = event.data?.count
+          if (badgeCount === 0 || badgeCount === '0' || badgeCount === false) return
           const badgeJid = String(event.data.contactJid)
           if (badgeJid.includes('@')) markUnread(badgeJid)
+          return
+        }
+        if (event.eventType === 'conversation_read' && event.data?.contactJid) {
+          const readJid = String(event.data.contactJid)
+          if (readJid.includes('@')) {
+            markRead(readJid)
+            const user = readJid.split('@')[0].split(':')[0]
+            const domain = readJid.split('@')[1]
+            const stripped = `${user}@${domain}`
+            if (stripped !== readJid) markRead(stripped)
+            if (!readJid.endsWith('@g.us')) {
+              const digits = user.replace(/\D/g, '')
+              if (digits) {
+                for (const jid of [...unreadJids]) {
+                  if (jid.endsWith('@g.us')) continue
+                  if (jid.split('@')[0].replace(/\D/g, '') === digits) markRead(jid)
+                }
+              }
+            }
+          }
           return
         }
         if (event.eventType === 'qr_code' && event.data?.qr) {
@@ -2172,10 +2194,45 @@ export default function WhatsAppView() {
         hasCredentials,
         connected,
         setConnected,
-        markUnread
+        markUnread,
+        markRead,
+        unreadJids
       ]
     )
   })
+
+  // Reconcilia o "nova" local com o worker (fonte da bolinha): se o worker
+  // nao tem mais o contato como nao lido, limpa aqui tambem.
+  const reconcileUnread = useCallback(async () => {
+    if (unreadJids.length === 0) return
+    try {
+      const res = await api.post('/extensions/whatsapp/command', {
+        toolName: 'get_unread',
+        args: {}
+      })
+      const server = res?.data?.unread
+      if (!Array.isArray(server)) return
+      const serverList = server.map((v: unknown) => String(v))
+      const sameChat = (a: string, b: string) => {
+        if (a === b) return true
+        const [aUser, aDomain] = a.split('@')
+        const [bUser, bDomain] = b.split('@')
+        if (!aUser || !bUser || aDomain !== bDomain) return false
+        if (aUser.split(':')[0] === bUser.split(':')[0]) return true
+        if (a.endsWith('@g.us') || b.endsWith('@g.us')) return false
+        const aDigits = aUser.replace(/\D/g, '')
+        const bDigits = bUser.replace(/\D/g, '')
+        return !!aDigits && aDigits === bDigits
+      }
+      unreadJids.forEach((jid) => {
+        if (!serverList.some((s) => sameChat(s, jid))) markRead(jid)
+      })
+    } catch {}
+  }, [unreadJids, markRead])
+
+  useEffect(() => {
+    if (connected) void reconcileUnread()
+  }, [connected, reconcileUnread])
 
   // Exibe o dashboard se estiver conectado, ou com sessão salva durante o período de carência (sem forçar tela de QR code).
   const showDashboard = connected || (hasCredentials && !pairingActive && !showQrFallback)
