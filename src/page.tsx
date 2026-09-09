@@ -23,7 +23,7 @@ const getApiBaseUrl = (): string => {
 
 const getStickerUrl = (filename: string): string => {
   const base = getApiBaseUrl()
-  return `${base}/extensions/momai-whatsapp/storage/stickers/${encodeURIComponent(filename)}`
+  return `${base}${sdk.media.url('momai-whatsapp', `stickers/${encodeURIComponent(filename)}`)}`
 }
 
 interface Message {
@@ -1292,7 +1292,13 @@ export default function WhatsAppView() {
   }, [conversationsPage, conversationsTotalPages])
 
   const applyQrString = useCallback((qr: string) => {
-    QRCode.toDataURL(qr, { width: 256, margin: 1 })
+    // QR scanners require black modules on a solid white background in every
+    // app theme, so the colors are fixed here instead of using theme tokens.
+    QRCode.toDataURL(qr, {
+      width: 256,
+      margin: 2,
+      color: { dark: '#000000', light: '#ffffff' }
+    })
       .then(setQrUrl)
       .catch(() => {})
   }, [])
@@ -2430,17 +2436,23 @@ export default function WhatsAppView() {
                 <p className="text-sm text-text-muted max-w-sm">
                   {t('page.scan_qr')}
                 </p>
-                <img
-                  src={qrUrl}
-                  alt="QR Code"
-                  className="block mx-auto rounded-xl p-2 bg-white border border-white/10 shadow-2xl"
-                  width={240}
-                  height={240}
-                />
+                <div
+                  className="mx-auto p-2 border border-black/10 shadow-2xl"
+                  style={{ backgroundColor: '#ffffff', borderRadius: 12 }}
+                >
+                  <img
+                    src={qrUrl}
+                    alt="QR Code"
+                    className="block mx-auto"
+                    style={{ backgroundColor: '#ffffff', borderRadius: 0 }}
+                    width={240}
+                    height={240}
+                  />
+                </div>
               </>
             ) : (
               <div className="flex justify-center">
-                <div className="w-48 h-48 rounded-xl bg-white/5 flex items-center justify-center border border-white/10">
+                <div className="w-48 h-48 rounded-xl bg-card border border-border flex items-center justify-center">
                   <WhatsAppIcon className="w-16 h-16 opacity-30" />
                 </div>
               </div>

@@ -58,28 +58,28 @@ const getAudioUrl = (filename: string): string => {
   if (!filename) return ''
   if (isDirectUrl(filename)) return filename
   const base = getApiBaseUrl()
-  return `${base}/extensions/momai-whatsapp/storage/audio/${encodeURIComponent(filename)}`
+  return `${base}${sdk.media.url('momai-whatsapp', `audio/${encodeURIComponent(filename)}`)}`
 }
 
 const getStickerUrl = (filename: string): string => {
   if (!filename) return ''
   if (isDirectUrl(filename)) return filename
   const base = getApiBaseUrl()
-  return `${base}/extensions/momai-whatsapp/storage/stickers/${encodeURIComponent(filename)}`
+  return `${base}${sdk.media.url('momai-whatsapp', `stickers/${encodeURIComponent(filename)}`)}`
 }
 
 const getImageUrl = (filename: string): string => {
   if (!filename) return ''
   if (isDirectUrl(filename)) return filename
   const base = getApiBaseUrl()
-  return `${base}/extensions/momai-whatsapp/storage/images/${encodeURIComponent(filename)}`
+  return `${base}${sdk.media.url('momai-whatsapp', `images/${encodeURIComponent(filename)}`)}`
 }
 
 const getVideoUrl = (filename: string): string => {
   if (!filename) return ''
   if (isDirectUrl(filename)) return filename
   const base = getApiBaseUrl()
-  return `${base}/extensions/momai-whatsapp/storage/videos/${encodeURIComponent(filename)}`
+  return `${base}${sdk.media.url('momai-whatsapp', `videos/${encodeURIComponent(filename)}`)}`
 }
 
 // Placeholder texts used for media messages without a caption (both locales).
@@ -919,9 +919,10 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     } else if (contactJid) {
       const base = getApiBaseUrl()
       if (!base) return
-      fetch(`${base}/extensions/momai-whatsapp/storage/avatars/${encodeURIComponent(contactJid)}.jpg`)
+      const avatarUrl = `${base}${sdk.media.url('momai-whatsapp', `avatars/${encodeURIComponent(contactJid)}.jpg`)}`
+      fetch(avatarUrl)
         .then((r) => {
-          if (r.ok) setAvatarSrc(`${base}/extensions/momai-whatsapp/storage/avatars/${encodeURIComponent(contactJid)}.jpg`)
+          if (r.ok) setAvatarSrc(avatarUrl)
         })
         .catch(() => {})
     }
@@ -2311,10 +2312,15 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
 
         <div
           className="p-2.5 bg-white rounded-xl shadow-inner border border-border/40 flex items-center justify-center min-h-[190px] min-w-[190px]"
-          style={{ WebkitAppRegion: 'no-drag' } as any}
+          style={{ WebkitAppRegion: 'no-drag', backgroundColor: '#ffffff' } as any}
         >
           {qrUrl ? (
-            <img src={qrUrl} alt="WhatsApp QR Code" className="w-44 h-44 rounded-lg select-none" />
+            <img
+              src={qrUrl}
+              alt="WhatsApp QR Code"
+              className="block w-44 h-44 select-none"
+              style={{ backgroundColor: '#ffffff', borderRadius: 0 }}
+            />
           ) : (
             <div className="flex flex-col items-center justify-center gap-2">
               <div className="w-7 h-7 rounded-full border-2 border-accent border-t-transparent animate-spin" />
