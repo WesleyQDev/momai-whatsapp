@@ -46,7 +46,6 @@ const {
   decryptCredsForBaileys: _decryptCredsForBaileys,
   reEncryptCredsAfterBaileys: _reEncryptCredsAfterBaileys
 } = require('./baileys-cred-migration.ts')
-const { secureWriteFile } = require('./fs-permissions.ts')
 const {
   withTimeout,
   friendlySendError,
@@ -163,28 +162,28 @@ const _dataDir =
   path.resolve(__dirname, '..', '..', '..', '..', 'data')
 const _storageBase = path.join(_dataDir, 'extensions', _skillId)
 
+// Host-owned storage via IPC (Phase 1): same storage/collections/sessionFiles
+// shape as the pool bridge, executed by the parent process against the
+// extension's SQLite database. Replaces the former self-contained JSON files.
+const { createIpcMomai: _createIpcMomai } = require('./worker-utils.ts')
+let _storageResponseListener = null
+const _ipcMomai = _createIpcMomai({
+  send: (msg) => process.send(msg),
+  onResponse: (fn) => {
+    _storageResponseListener = fn
+  },
+  storageDir: _storageBase,
+  log: (msg) => process.send({ type: 'log', message: String(msg) })
+})
+
 const momai = {
   log: (msg) => process.send({ type: 'log', message: String(msg) }),
   sendEvent: (eventType, data) =>
     process.send({ type: 'event', eventType: String(eventType), data }),
   sendStructuredResponse: (data) => process.send({ type: 'structured_response', data }),
-  storage: {
-    storageDir: _storageBase,
-    async get(key) {
-      try {
-        const content = await fs.readFile(path.join(_storageBase, `${key}.json`), 'utf-8')
-        return JSON.parse(content)
-      } catch {
-        return null
-      }
-    },
-    async set(key, value) {
-      await fs.mkdir(_storageBase, { recursive: true })
-      const serialized = JSON.stringify(value, null, 2)
-      if (serialized.length > 5 * 1024 * 1024) throw new Error('Storage quota exceeded')
-      await secureWriteFile(path.join(_storageBase, `${key}.json`), serialized)
-    }
-  }
+  storage: _ipcMomai.storage,
+  collections: _ipcMomai.collections,
+  sessionFiles: _ipcMomai.sessionFiles
 }
 
 // Actions config ("quando chegar mensagem → executar X") + default contact for
@@ -3727,6 +3726,12 @@ if (typeof process.send === 'function') {
 
 // IPC listener for tool execution from LLM
 process.on('message', async (msg) => {
+  if (msg.type === 'storage-response') {
+    try {
+      if (_storageResponseListener) _storageResponseListener(msg)
+    } catch {}
+    return
+  }
   if (msg.type === 'shutdown') {
     reEncryptCredsAfterBaileys(path.join(momai.storage.storageDir, 'baileys-auth'))
       .catch(() => {})

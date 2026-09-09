@@ -754,6 +754,83 @@ async function pruneHistoryMessages(momai, olderThanMs = HISTORY_RETENTION_MS) {
   }
 }
 
+/**
+ * IPC momai bridge for persistent workers: same storage/collections/
+ * sessionFiles shape as the host bridge, executed by the parent process
+ * over the fork channel. Rejects with the host errorCode instead of
+ * hanging when the parent answers { ok:false } or never answers.
+ */
+function createIpcMomai(
+  {
+    send,
+    onResponse,
+    storageDir,
+    timeoutMs = 30000,
+    log
+  }: {
+    send: (msg: any) => void
+    onResponse: (fn: (msg: any) => void) => void
+    storageDir: string
+    timeoutMs?: number
+    log?: (msg: string) => void
+  } = {} as any
+) {
+  let seq = 0
+  const pending = new Map()
+  const notify = (message) => {
+    try {
+      if (typeof log === 'function') log(message)
+    } catch {}
+  }
+  onResponse((msg) => {
+    if (!msg || msg.type !== 'storage-response' || !msg.requestId) return
+    const entry = pending.get(msg.requestId)
+    if (!entry) return
+    pending.delete(msg.requestId)
+    clearTimeout(entry.timer)
+    const result = msg.result || {}
+    if (result.ok === false) {
+      const err = new Error(result.error || 'storage request failed') as Error & { code?: string }
+      if (result.errorCode) err.code = result.errorCode
+      entry.reject(err)
+    } else {
+      entry.resolve(result.value)
+    }
+  })
+  function call(method, args) {
+    return new Promise((resolve, reject) => {
+      const requestId = `s${Date.now()}.${seq++}`
+      const timer = setTimeout(() => {
+        pending.delete(requestId)
+        reject(new Error(`storage IPC timeout: ${method}`))
+      }, timeoutMs)
+      if (timer.unref) timer.unref()
+      pending.set(requestId, { resolve, reject, timer })
+      try {
+        send({ type: 'storage-request', requestId, method, args })
+      } catch (e) {
+        pending.delete(requestId)
+        clearTimeout(timer)
+        reject(e)
+      }
+    })
+  }
+  const area = (prefix, methods) =>
+    Object.fromEntries(methods.map((name) => [name, (...args) => call(`${prefix}.${name}`, args)]))
+  return {
+    log: (message) => notify(message),
+    sendEvent: () => {},
+    sendStructuredResponse: () => {},
+    storage: {
+      storageDir,
+      ...area('storage', ['get', 'set', 'getMany', 'setMany', 'delete', 'listKeys', 'migrate'])
+    },
+    collections: area('collections', ['insert', 'list', 'remove', 'clear']),
+    sessionFiles: area('sessionFiles', ['write', 'read', 'list', 'remove']),
+    __pendingCount: () => pending.size
+  }
+}
+
 module.exports = {
   withTimeout,
   friendlySendError,
@@ -780,6 +857,7 @@ module.exports = {
   trackHistoryMessage,
   loadHistoryMessages,
   pruneHistoryMessages,
+  createIpcMomai,
   MAX_IMAGE_BYTES,
   MAX_AUDIO_BYTES,
   MAX_STICKER_BYTES,

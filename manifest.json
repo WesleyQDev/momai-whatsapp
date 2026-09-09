@@ -813,7 +813,8 @@
                                            "indexes":  ["jid"],
                                            "retentionDays":  90
                                        }
-                                   ]
+                                   ],
+                    "sessionFiles":  true
                 },
     "voiceHooks":  {
                        "reply":  {
