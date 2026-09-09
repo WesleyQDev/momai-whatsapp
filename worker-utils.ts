@@ -619,6 +619,141 @@ function summarizeBaileysDetail(source) {
   return parts.join(' ')
 }
 
+/**
+ * Unified extension cache with storage fallback. Newer hosts expose
+ * `momai.cache` (discardable, under <userData>/cache/extensions/<id>/cache);
+ * older hosts only have `momai.storage`. Reads check the cache first and
+ * promote a legacy storage value on hit, so one upgrade moves the data.
+ */
+function hasExtensionCache(momai) {
+  return !!(
+    momai &&
+    momai.cache &&
+    typeof momai.cache.get === 'function' &&
+    typeof momai.cache.set === 'function'
+  )
+}
+
+async function cacheGet(momai, key) {
+  if (hasExtensionCache(momai)) {
+    let hit = null
+    try {
+      hit = await momai.cache.get(key)
+    } catch {}
+    if (hit !== null && hit !== undefined) return hit
+    let legacy = null
+    try {
+      legacy = await momai.storage.get(key)
+    } catch {}
+    if (legacy !== null && legacy !== undefined) {
+      try {
+        await momai.cache.set(key, legacy)
+      } catch {}
+      return legacy
+    }
+    return null
+  }
+  return momai.storage.get(key)
+}
+
+async function cacheSet(momai, key, value) {
+  if (hasExtensionCache(momai)) {
+    await momai.cache.set(key, value)
+    return
+  }
+  await momai.storage.set(key, value)
+}
+
+const MESSAGES_COLLECTION = 'messages'
+const HISTORY_LIST_LIMIT = 500
+const HISTORY_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
+
+function hasCollections(momai) {
+  return Boolean(
+    momai && momai.collections && typeof momai.collections.insert === 'function'
+  )
+}
+
+function logHistory(momai, message) {
+  try {
+    momai.log(message)
+  } catch {}
+}
+
+/** One row per message; never rewrites history. Fire-and-forget safe. */
+async function trackHistoryMessage(momai, entry, phone) {
+  if (!hasCollections(momai)) return
+  try {
+    await momai.collections.insert(MESSAGES_COLLECTION, { ...entry, _phone: phone || null })
+  } catch (e) {
+    logHistory(momai, `trackHistoryMessage: ${e.message}`)
+  }
+}
+
+/**
+ * Collection first (filtered by phone when given), legacy KV sources second
+ * with best-effort backfill stamped from the source key. Returns the raw
+ * rows; callers enrich and cap in memory as before.
+ */
+async function loadHistoryMessages(
+  momai,
+  opts: { sources?: Array<string | { key: string; phone?: string | null }>; phone?: string | null } = {}
+) {
+  const { sources = [], phone = null } = opts
+  const pickPhone = phone
+  if (hasCollections(momai)) {
+    try {
+      const rows = await momai.collections.list(MESSAGES_COLLECTION, {
+        limit: HISTORY_LIST_LIMIT
+      })
+      if (Array.isArray(rows) && rows.length > 0) {
+        const filtered =
+          pickPhone === null ? rows : rows.filter((row) => row._phone === pickPhone)
+        if (filtered.length > 0) return filtered
+      }
+    } catch (e) {
+      logHistory(momai, `loadHistoryMessages: ${e.message}`)
+    }
+  }
+  for (const source of sources) {
+    const key = typeof source === 'string' ? source : source.key
+    const sourcePhone = typeof source === 'string' ? null : source.phone || null
+    let saved = null
+    try {
+      saved = await momai.storage.get(key)
+    } catch {}
+    if (!Array.isArray(saved) || saved.length === 0) continue
+    if (hasCollections(momai)) {
+      try {
+        for (const message of saved) {
+          await momai.collections.insert(MESSAGES_COLLECTION, {
+            ...message,
+            _phone: sourcePhone
+          })
+        }
+        try {
+          await momai.storage.delete(key)
+        } catch {}
+      } catch (e) {
+        logHistory(momai, `loadHistoryMessages backfill: ${e.message}`)
+      }
+    }
+    return saved
+  }
+  return []
+}
+
+/** Deletes records older than the retention window. */
+async function pruneHistoryMessages(momai, olderThanMs = HISTORY_RETENTION_MS) {
+  if (!hasCollections(momai)) return { removed: 0 }
+  try {
+    return await momai.collections.clear(MESSAGES_COLLECTION, { olderThanMs })
+  } catch (e) {
+    logHistory(momai, `pruneHistoryMessages: ${e.message}`)
+    return { removed: 0 }
+  }
+}
+
 module.exports = {
   withTimeout,
   friendlySendError,
@@ -637,6 +772,14 @@ module.exports = {
   getVideoNotificationText,
   getRecentChatMedia,
   resolveDocumentPath,
+  cacheGet,
+  cacheSet,
+  MESSAGES_COLLECTION,
+  HISTORY_LIST_LIMIT,
+  HISTORY_RETENTION_MS,
+  trackHistoryMessage,
+  loadHistoryMessages,
+  pruneHistoryMessages,
   MAX_IMAGE_BYTES,
   MAX_AUDIO_BYTES,
   MAX_STICKER_BYTES,

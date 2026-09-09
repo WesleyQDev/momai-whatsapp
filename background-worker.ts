@@ -65,6 +65,12 @@ const {
   getVideoNotificationText: _getVideoNotificationText,
   getRecentChatMedia: _getRecentChatMedia,
   resolveDocumentPath: _resolveDocumentPath,
+  cacheGet: _cacheGet,
+  cacheSet: _cacheSet,
+  trackHistoryMessage: _trackHistoryMessage,
+  loadHistoryMessages: _loadHistoryMessages,
+  pruneHistoryMessages: _pruneHistoryMessages,
+  HISTORY_RETENTION_MS: _HISTORY_RETENTION_MS,
   MAX_AUDIO_BYTES,
   MAX_DOCUMENT_BYTES,
   MAX_IMAGE_BYTES,
@@ -372,13 +378,13 @@ function releaseLock() {
 
 async function loadMessageCaches() {
   try {
-    const sent = await momai.storage.get('message_cache_sent')
+    const sent = await _cacheGet(momai, 'message_cache_sent')
     if (sent && typeof sent === 'object') {
       for (const [k, v] of Object.entries(sent)) {
         sentMessagesCache.set(k, v)
       }
     }
-    const stored = await momai.storage.get('message_cache_store')
+    const stored = await _cacheGet(momai, 'message_cache_store')
     if (stored && typeof stored === 'object') {
       for (const [k, v] of Object.entries(stored)) {
         messageStore.set(k, v)
@@ -421,8 +427,8 @@ function queueSaveMessageCaches() {
 async function _persistMessageCaches() {
   const sentObj = Object.fromEntries(sentMessagesCache.entries())
   const storeObj = Object.fromEntries(messageStore.entries())
-  await momai.storage.set('message_cache_sent', sentObj)
-  await momai.storage.set('message_cache_store', storeObj)
+  await _cacheSet(momai, 'message_cache_sent', sentObj)
+  await _cacheSet(momai, 'message_cache_store', storeObj)
 }
 
 async function repairSession(jid) {
@@ -1278,23 +1284,21 @@ function buildPersistedHistorySnapshot(limit = MAX_PERSISTED_CONVERSATIONS) {
   return chatHistory.filter((m) => keepJids.has(m.jid))
 }
 
-/** Grava em disco as 3 conversas mais recentes sem alterar o historico em memoria. */
+/** Periodic prune: history lives as one row per message, retention enforced by age. */
 async function persistChatHistorySnapshot() {
   try {
-    const snapshot = buildPersistedHistorySnapshot()
-    if (snapshot.length === 0) return
-    await momai.storage.set(_getChatHistoryKey(), snapshot)
+    await _pruneHistoryMessages(momai, _HISTORY_RETENTION_MS)
   } catch (e) {
     momai.log(`persistChatHistorySnapshot: ${e.message}`)
   }
 }
 
-/** Ao fechar o app: grava snapshot e alinha memoria ao que foi salvo. */
+/** Ao fechar o app: alinha memoria ao limite e poda registros vencidos. */
 async function flushPersistedChatHistory() {
   if (chatHistory.length === 0) return
   try {
     chatHistory = buildPersistedHistorySnapshot()
-    await momai.storage.set(_getChatHistoryKey(), chatHistory)
+    await _pruneHistoryMessages(momai, _HISTORY_RETENTION_MS)
   } catch (e) {
     momai.log(`flushPersistedChatHistory: ${e.message}`)
   }
@@ -1303,18 +1307,19 @@ async function flushPersistedChatHistory() {
 async function loadChatHistory() {
   if (chatHistory.length > 0) return true
   try {
-    const keys = [
+    const sources = [
       ...new Set([_currentPhone ? _getChatHistoryKey() : null, CHAT_HISTORY_KEY].filter(Boolean))
-    ]
-    for (const key of keys) {
-      const saved = await momai.storage.get(key)
-      if (!Array.isArray(saved) || saved.length === 0) continue
-      chatHistory = saved.map(enrichHistoryEntry)
-      totalMessages = Math.max(totalMessages, chatHistory.length)
-      momai.log(`loadChatHistory: ${saved.length} msgs from ${key}`)
-      schedulePersistChatHistory()
-      return true
-    }
+    ].map((key) => ({
+      key,
+      phone: key === CHAT_HISTORY_KEY ? null : _currentPhone || null
+    }))
+    const saved = await _loadHistoryMessages(momai, { sources, phone: _currentPhone || null })
+    if (!Array.isArray(saved) || saved.length === 0) return false
+    chatHistory = saved.map(enrichHistoryEntry)
+    totalMessages = Math.max(totalMessages, chatHistory.length)
+    momai.log(`loadChatHistory: ${saved.length} msgs from collection/legacy`)
+    schedulePersistChatHistory()
+    return true
   } catch (e) {
     momai.log(`loadChatHistory: ${e.message}`)
   }
@@ -2735,28 +2740,28 @@ async function handleMessagesUpsert({ messages, type }) {
 
     const replyJid = isGroup ? remoteJid : resolveStandardJid(remoteJid) || remoteJid
 
-    chatHistory.unshift(
-      enrichHistoryEntry({
-        from: displayName,
-        jid: remoteJid,
-        senderJid,
-        replyJid,
-        text,
-        audio: audioFilename,
-        sticker: stickerFilename,
-        image: imageFilename,
-        document: documentFilename,
-        documentName,
-        video: videoFilename,
-        timestamp: msg.messageTimestamp
-          ? Number(msg.messageTimestamp)
-          : Math.floor(Date.now() / 1000),
-        direction: isFromMe ? 'outgoing' : 'incoming',
-        isGroup,
-        groupName: resGroupName,
-        forceUpdateNames: true
-      })
-    )
+    const historyEntry = enrichHistoryEntry({
+      from: displayName,
+      jid: remoteJid,
+      senderJid,
+      replyJid,
+      text,
+      audio: audioFilename,
+      sticker: stickerFilename,
+      image: imageFilename,
+      document: documentFilename,
+      documentName,
+      video: videoFilename,
+      timestamp: msg.messageTimestamp
+        ? Number(msg.messageTimestamp)
+        : Math.floor(Date.now() / 1000),
+      direction: isFromMe ? 'outgoing' : 'incoming',
+      isGroup,
+      groupName: resGroupName,
+      forceUpdateNames: true
+    })
+    chatHistory.unshift(historyEntry)
+    _trackHistoryMessage(momai, historyEntry, _currentPhone).catch(() => {})
     if (chatHistory.length > MAX_HISTORY) chatHistory.pop()
     totalMessages++
     schedulePersistChatHistory()

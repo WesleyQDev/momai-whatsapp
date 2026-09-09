@@ -804,8 +804,16 @@
                     "description":  "Guarda sua conexÃ£o do WhatsApp, os contatos escolhidos e as mensagens recentes neste computador.",
                     "locations":  [
                                       "baileys-auth/",
-                                      "*.json (contatos, histÃ³rico, settings)"
-                                  ]
+                                      "extension.db (histÃ³rico de mensagens)",
+                                      "*.json (contatos, settings)"
+                                  ],
+                    "collections":  [
+                                       {
+                                           "name":  "messages",
+                                           "indexes":  ["jid"],
+                                           "retentionDays":  90
+                                       }
+                                   ]
                 },
     "voiceHooks":  {
                        "reply":  {
