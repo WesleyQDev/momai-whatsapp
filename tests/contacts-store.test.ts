@@ -5,7 +5,8 @@ import {
   syncContacts,
   rekeyContacts,
   fetchContactPage,
-  searchContacts
+  searchContacts,
+  mapWithConcurrency
 } from '../worker-utils'
 
 function stubMomai(options: { declared?: string[]; legacy?: Record<string, any>; rows?: any[] } = {}) {
@@ -229,5 +230,21 @@ describe('searchContacts', () => {
   it('returns null without collections so callers use memory', async () => {
     const { momai } = stubMomai({ declared: [] })
     await expect(searchContacts(momai as any, { phone: '111', query: 'ana' })).resolves.toBeNull()
+  })
+})
+
+describe('mapWithConcurrency', () => {
+  it('runs bounded parallel tasks preserving order', async () => {
+    let running = 0
+    let peak = 0
+    const results = await mapWithConcurrency([1, 2, 3, 4, 5], 2, async (n: number) => {
+      running += 1
+      peak = Math.max(peak, running)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      running -= 1
+      return n * 2
+    })
+    expect(results).toEqual([2, 4, 6, 8, 10])
+    expect(peak).toBeLessThanOrEqual(2)
   })
 })

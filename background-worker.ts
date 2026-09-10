@@ -75,6 +75,7 @@ const {
   rekeyContacts: _rekeyContacts,
   fetchContactPage: _fetchContactPage,
   searchContacts: _searchContacts,
+  mapWithConcurrency: _mapWithConcurrency,
   MAX_AUDIO_BYTES,
   MAX_DOCUMENT_BYTES,
   MAX_IMAGE_BYTES,
@@ -4436,10 +4437,15 @@ process.on('message', async (msg) => {
           const force = msg.payload.args?.force === true
           const unique: any[] = [...new Set(jids.filter((j) => typeof j === 'string' && j.includes('@')))]
           const avatars = {}
-          for (let i = 0; i < unique.length; i++) {
-            if (i > 0) await new Promise((r) => setTimeout(r, 300))
-            avatars[unique[i]] = await ensureAvatarForJid(unique[i], { force })
-          }
+          // Bounded parallelism (4): sequential fetches with 300ms pacing
+          // turned every page into seconds of phone roundtrips.
+          await _mapWithConcurrency(
+            unique,
+            4,
+            async (jid) => {
+              avatars[jid] = await ensureAvatarForJid(jid, { force })
+            }
+          )
           result = { avatars }
           break
         }

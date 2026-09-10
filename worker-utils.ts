@@ -991,6 +991,25 @@ async function syncContacts(
 }
 
 /**
+ * Bounded-parallel map preserving input order. Network fan-out without
+ * stampeding the phone connection.
+ */
+async function mapWithConcurrency(items, limit, fn) {
+  const list = Array.isArray(items) ? items : []
+  const workers = Math.min(Math.max(Number(limit) || 1, 1), list.length || 1)
+  const results = new Array(list.length)
+  let next = 0
+  async function run() {
+    while (next < list.length) {
+      const index = next++
+      results[index] = await fn(list[index], index)
+    }
+  }
+  await Promise.all(Array.from({ length: workers }, () => run()))
+  return results
+}
+
+/**
  * IPC momai bridge for persistent workers: same storage/collections/
  * sessionFiles shape as the host bridge, executed by the parent process
  * over the fork channel. Rejects with the host errorCode instead of
@@ -1099,6 +1118,7 @@ module.exports = {
   rekeyContacts,
   fetchContactPage,
   searchContacts,
+  mapWithConcurrency,
   createIpcMomai,
   MAX_IMAGE_BYTES,
   MAX_AUDIO_BYTES,
