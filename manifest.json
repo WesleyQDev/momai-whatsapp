@@ -812,6 +812,11 @@
                                            "name":  "messages",
                                            "indexes":  ["jid"],
                                            "retentionDays":  90
+                                       },
+                                       {
+                                           "name":  "contacts",
+                                           "indexes":  ["_key"],
+                                           "unique":  "_key"
                                        }
                                    ],
                     "sessionFiles":  true

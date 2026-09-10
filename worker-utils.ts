@@ -667,6 +667,12 @@ async function cacheSet(momai, key, value) {
 const MESSAGES_COLLECTION = 'messages'
 const HISTORY_LIST_LIMIT = 500
 const HISTORY_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
+const CONTACTS_COLLECTION = 'contacts'
+const CONTACTS_LIST_LIMIT = 5000
+
+function contactKey(phone, jid) {
+  return `${phone || ''}:${jid}`
+}
 
 function hasCollections(momai) {
   return Boolean(
@@ -752,6 +758,149 @@ async function pruneHistoryMessages(momai, olderThanMs = HISTORY_RETENTION_MS) {
     logHistory(momai, `pruneHistoryMessages: ${e.message}`)
     return { removed: 0 }
   }
+}
+
+/**
+ * Rebuilds the contacts map from one row per contact. Falls back to legacy
+ * whole-map keys once, backfilling stamped rows and deleting the legacy key.
+ */
+async function loadContacts(momai, { sources = [], phone = null } = {}) {
+  const pickPhone = phone === undefined ? null : phone
+  if (hasCollections(momai)) {
+    try {
+      const rows = await momai.collections.list(CONTACTS_COLLECTION, {
+        limit: CONTACTS_LIST_LIMIT
+      })
+      const map = {}
+      for (const row of Array.isArray(rows) ? rows : []) {
+        if (pickPhone !== null && row._phone !== pickPhone) continue
+        const body = { ...row }
+        delete body._rowId
+        delete body._key
+        delete body._phone
+        delete body.created_at
+        if (body.id) map[body.id] = body
+      }
+      if (Object.keys(map).length > 0) return map
+    } catch (e) {
+      logHistory(momai, `loadContacts: ${e.message}`)
+    }
+  }
+  for (const source of sources) {
+    const key = typeof source === 'string' ? source : source.key
+    const sourcePhone = typeof source === 'string' ? null : source.phone || null
+    let saved = null
+    try {
+      saved = await momai.storage.get(key)
+    } catch {}
+    if (!saved || typeof saved !== 'object' || Object.keys(saved).length === 0) continue
+    if (hasCollections(momai)) {
+      try {
+        await momai.collections.upsertMany(
+          CONTACTS_COLLECTION,
+          Object.entries(saved).map(([jid, contact]) => ({
+            ...((contact ?? {}) as Record<string, unknown>),
+            id: jid,
+            _phone: sourcePhone,
+            _key: contactKey(sourcePhone, jid)
+          }))
+        )
+        try {
+          await momai.storage.delete(key)
+        } catch {}
+      } catch (e) {
+        logHistory(momai, `loadContacts backfill: ${e.message}`)
+      }
+    }
+    return { ...saved }
+  }
+  return {}
+}
+
+/**
+ * Deletes unscoped rows left by a persist that ran before the phone was
+ * known. The next sync re-inserts them stamped, so nothing is lost.
+ */
+async function rekeyContacts(momai) {
+  if (!hasCollections(momai)) return { removed: 0 }
+  try {
+    const rows = await momai.collections.list(CONTACTS_COLLECTION, {
+      limit: CONTACTS_LIST_LIMIT
+    })
+    let removed = 0
+    for (const row of Array.isArray(rows) ? rows : []) {
+      if (row && row._phone !== undefined && row._phone !== null) continue
+      await momai.collections.remove(CONTACTS_COLLECTION, row._rowId ?? row.id)
+      removed += 1
+    }
+    return { removed }
+  } catch (e) {
+    logHistory(momai, `rekeyContacts: ${e.message}`)
+    return { removed: 0 }
+  }
+}
+
+/**
+ * Diffs the in-memory map against the last persisted snapshot: upserts
+ * changed/new contacts in one batch and removes deleted rows by id.
+ * The 40 mutation sites keep touching the map; only this persist path
+ * talks to storage. Returns the new snapshot plus stats.
+ */
+async function syncContacts(
+  momai,
+  { phone = null, map = {}, snapshot = null }: { phone?: string | null; map?: Record<string, any>; snapshot?: string | null } = {}
+) {
+  const empty = { snapshot: snapshot || '{}', stats: { upserted: 0, removed: 0 } }
+  if (!hasCollections(momai)) return empty
+  /** @type {Record<string, string>} */
+  const current: Record<string, string> = {}
+  for (const [jid, contact] of Object.entries(map || {})) {
+    try {
+      current[jid] = JSON.stringify(contact ?? null)
+    } catch {
+      current[jid] = ''
+    }
+  }
+  /** @type {Record<string, string>} */
+  let previous: Record<string, string> = {}
+  try {
+    previous = snapshot ? JSON.parse(snapshot) : {}
+  } catch {
+    previous = {}
+  }
+  const changed = Object.entries(current)
+    .filter(([jid, serialized]) => previous[jid] !== serialized)
+    .map(([jid, serialized]) => ({
+      ...JSON.parse(serialized || 'null'),
+      id: jid,
+      _phone: phone,
+      _key: contactKey(phone, jid)
+    }))
+  const removedKeys = Object.keys(previous).filter((jid) => !(jid in current))
+  let upserted = 0
+  let removed = 0
+  try {
+    if (changed.length > 0) {
+      const res = await momai.collections.upsertMany(CONTACTS_COLLECTION, changed)
+      upserted = res.upserted
+    }
+    if (removedKeys.length > 0) {
+      const rows = await momai.collections.list(CONTACTS_COLLECTION, {
+        limit: CONTACTS_LIST_LIMIT
+      })
+      const condemned = new Set(removedKeys.map((jid) => contactKey(phone, jid)))
+      for (const row of Array.isArray(rows) ? rows : []) {
+        if (condemned.has(row._key)) {
+          await momai.collections.remove(CONTACTS_COLLECTION, row._rowId ?? row.id)
+          removed += 1
+        }
+      }
+    }
+  } catch (e) {
+    logHistory(momai, `syncContacts: ${e.message}`)
+    return { snapshot: snapshot || '{}', stats: { upserted: 0, removed: 0 } }
+  }
+  return { snapshot: JSON.stringify(current), stats: { upserted, removed } }
 }
 
 /**
@@ -854,9 +1003,13 @@ module.exports = {
   MESSAGES_COLLECTION,
   HISTORY_LIST_LIMIT,
   HISTORY_RETENTION_MS,
+  CONTACTS_COLLECTION,
   trackHistoryMessage,
   loadHistoryMessages,
   pruneHistoryMessages,
+  loadContacts,
+  syncContacts,
+  rekeyContacts,
   createIpcMomai,
   MAX_IMAGE_BYTES,
   MAX_AUDIO_BYTES,

@@ -70,6 +70,9 @@ const {
   loadHistoryMessages: _loadHistoryMessages,
   pruneHistoryMessages: _pruneHistoryMessages,
   HISTORY_RETENTION_MS: _HISTORY_RETENTION_MS,
+  loadContacts: _loadContacts,
+  syncContacts: _syncContacts,
+  rekeyContacts: _rekeyContacts,
   MAX_AUDIO_BYTES,
   MAX_DOCUMENT_BYTES,
   MAX_IMAGE_BYTES,
@@ -970,7 +973,7 @@ async function fetchAndStoreGroups() {
         }
       })
       if (added > 0 || updated > 0) {
-        await momai.storage.set(_getWaContactsKey(), waContacts)
+        _scheduleWaContactsPersist()
         momai.log(
           `Groups updated: ${added} new groups, ${updated} updated, ${Object.keys(waContacts).length} total waContacts`
         )
@@ -993,7 +996,7 @@ async function fetchAndStoreGroups() {
           }
         })
         if (pruned > 0) {
-          await momai.storage.set(_getWaContactsKey(), waContacts)
+          _scheduleWaContactsPersist()
           momai.log(`Groups pruned: removed ${pruned} stale group(s) not in participating list`)
         }
       }
@@ -1243,6 +1246,7 @@ function _notifyContactsUpdated() {
  */
 let waContactsPersistTimer = null
 let waContactsDirty = false
+let waContactsSnapshot = null
 function _scheduleWaContactsPersist({ emitEvent = true } = {}) {
   waContactsDirty = true
   if (waContactsPersistTimer) return
@@ -1251,7 +1255,12 @@ function _scheduleWaContactsPersist({ emitEvent = true } = {}) {
     if (!waContactsDirty) return
     waContactsDirty = false
     try {
-      await momai.storage.set(_getWaContactsKey(), waContacts)
+      const result = await _syncContacts(momai, {
+        phone: _currentPhone || null,
+        map: waContacts,
+        snapshot: waContactsSnapshot
+      })
+      waContactsSnapshot = result.snapshot
       // Por padrão emite contacts_updated para manter a UI sincronizada.
       // Passar { emitEvent: false } para evitar loops (ex: retry de avatar).
       if (emitEvent) {
@@ -1261,6 +1270,26 @@ function _scheduleWaContactsPersist({ emitEvent = true } = {}) {
       momai.log(`[whatsapp] Failed to persist waContacts (avatars): ${err.message}`)
     }
   }, 1500)
+}
+
+/** Immediate contacts flush for shutdown (the debounced scheduler may not fire). */
+async function flushPersistedContacts() {
+  if (!waContactsDirty) return
+  waContactsDirty = false
+  if (waContactsPersistTimer) {
+    clearTimeout(waContactsPersistTimer)
+    waContactsPersistTimer = null
+  }
+  try {
+    const result = await _syncContacts(momai, {
+      phone: _currentPhone || null,
+      map: waContacts,
+      snapshot: waContactsSnapshot
+    })
+    waContactsSnapshot = result.snapshot
+  } catch (err) {
+    momai.log(`[whatsapp] Failed to flush waContacts: ${err.message}`)
+  }
 }
 
 function buildPersistedHistorySnapshot(limit = MAX_PERSISTED_CONVERSATIONS) {
@@ -1696,8 +1725,13 @@ async function _loadPerPhoneData() {
       if (dc) disabledContacts = dc
       const pn = await momai.storage.get(_getContactNamesKey())
       if (pn) contactNames = pn
-      const wc = await momai.storage.get(_getWaContactsKey())
-      if (wc) waContacts = wc
+      const wc = await _loadContacts(momai, {
+        sources: [{ key: _getWaContactsKey(), phone }],
+        phone
+      })
+      if (Object.keys(wc).length > 0) waContacts = wc
+      waContactsSnapshot = null
+      await _rekeyContacts(momai)
       const st = await momai.storage.get(_getSettingsKey())
       if (st) {
         if (st.notificationsDisabled !== undefined) notificationsDisabled = st.notificationsDisabled
@@ -1707,7 +1741,7 @@ async function _loadPerPhoneData() {
       if (_cleanupStaleContacts()) storageDirty = true
       if (_sanitizeStoredContactNames()) storageDirty = true
       if (storageDirty) {
-        await momai.storage.set(_getWaContactsKey(), waContacts)
+        _scheduleWaContactsPersist()
         await momai.storage.set(_getContactNamesKey(), contactNames)
         momai.log('Cleaned up stale or placeholder WhatsApp contacts from phone storage')
       }
@@ -1729,7 +1763,11 @@ async function main() {
   // Load whitelist (generic fallback)
   disabledContacts = (await momai.storage.get(DISABLED_CONTACTS_KEY)) || []
   contactNames = (await momai.storage.get(CONTACT_NAMES_KEY)) || {}
-  waContacts = (await momai.storage.get(WA_CONTACTS_KEY)) || {}
+  waContacts = await _loadContacts(momai, {
+    sources: [{ key: WA_CONTACTS_KEY, phone: null }],
+    phone: null
+  })
+  waContactsSnapshot = null
 
   // Try to load per-phone data from existing creds (includes chat history)
   await _loadPerPhoneData()
@@ -1738,7 +1776,7 @@ async function main() {
   }
 
   if (_cleanupStaleContacts() || _sanitizeStoredContactNames()) {
-    await momai.storage.set(WA_CONTACTS_KEY, waContacts)
+    _scheduleWaContactsPersist()
     await momai.storage.set(CONTACT_NAMES_KEY, contactNames)
     momai.log('Cleaned up stale or placeholder WhatsApp contacts from fallback storage')
   }
@@ -2068,21 +2106,21 @@ async function connect() {
               await momai.storage.set(_getContactNamesKey(), contactNames)
             }
 
-            const wc = await momai.storage.get(_getWaContactsKey())
-            if (wc && Object.keys(wc).length > 0) {
+            const wc = await _loadContacts(momai, {
+              sources: [
+                { key: _getWaContactsKey(), phone: _currentPhone || null },
+                { key: WA_CONTACTS_KEY, phone: null }
+              ],
+              phone: _currentPhone || null
+            })
+            if (Object.keys(wc).length > 0) {
               waContacts = { ...wc, ...waContacts }
-            } else if (waContacts && Object.keys(waContacts).length > 0) {
-              await momai.storage.set(_getWaContactsKey(), waContacts)
-            } else {
-              const genericWc = await momai.storage.get(WA_CONTACTS_KEY)
-              if (genericWc && Object.keys(genericWc).length > 0) {
-                waContacts = { ...genericWc, ...waContacts }
-                await momai.storage.set(_getWaContactsKey(), waContacts)
-              }
+              waContactsSnapshot = null
+              _scheduleWaContactsPersist()
             }
 
             if (_cleanupStaleContacts()) {
-              await momai.storage.set(_getWaContactsKey(), waContacts)
+              _scheduleWaContactsPersist()
               await momai.storage.set(_getContactNamesKey(), contactNames)
               momai.log('Automatically cleaned up stale @lid contacts on active phone detection')
             }
@@ -2305,7 +2343,7 @@ async function connect() {
 
       const historyAdded = populateContactsFromChatHistory()
       if (added > 0 || updated > 0 || historyAdded > 0) {
-        momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+        _scheduleWaContactsPersist()
         momai.log(
           `Contacts stored: ${added} new, ${updated} updated, ${historyAdded} from history, ${Object.keys(waContacts).length} total` +
             (lidCount > 0 ? ` (${lidCount} lid)` : '')
@@ -2370,7 +2408,7 @@ async function connect() {
         updated++
       })
       if (updated > 0) {
-        momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+        _scheduleWaContactsPersist()
         _notifyContactsUpdated()
       }
     })
@@ -2409,7 +2447,7 @@ async function connect() {
         }
       })
       if (changed > 0) {
-        momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+        _scheduleWaContactsPersist()
         _notifyContactsUpdated()
       }
     })
@@ -2438,7 +2476,7 @@ async function connect() {
         }
       })
       if (changed) {
-        momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+        _scheduleWaContactsPersist()
         _notifyContactsUpdated()
       }
     })
@@ -2465,7 +2503,7 @@ async function connect() {
         }
       })
       if (changed) {
-        momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+        _scheduleWaContactsPersist()
         _notifyContactsUpdated()
       }
     })
@@ -2580,7 +2618,7 @@ async function handleMessagesUpsert({ messages, type }) {
         )
         if (match) {
           waContacts[match.id].lid = lidJid
-          await momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+          _scheduleWaContactsPersist()
           momai.log(
             `Self-healed JID mapping: associated LID ${lidJid} with standard JID ${match.id} via pushName "${msg.pushName}"`
           )
@@ -2599,7 +2637,7 @@ async function handleMessagesUpsert({ messages, type }) {
           name: 'Grupo',
           phone: msg.key.remoteJid.split('@')[0]
         }
-        await momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+        _scheduleWaContactsPersist()
       }
     } else {
       const storeJid = remoteJid.endsWith('@lid') ? remoteJid : resolvedSenderJid
@@ -2614,11 +2652,11 @@ async function handleMessagesUpsert({ messages, type }) {
             phone,
             ...(remoteJid.endsWith('@lid') ? { lid: remoteJid } : {})
           }
-          await momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+          _scheduleWaContactsPersist()
         }
       } else if (remoteJid.endsWith('@lid') && waContacts[storeJid] && !waContacts[storeJid].lid) {
         waContacts[storeJid].lid = remoteJid
-        await momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+        _scheduleWaContactsPersist()
       }
     }
 
@@ -2637,9 +2675,7 @@ async function handleMessagesUpsert({ messages, type }) {
         const meta: any = await withTimeout(sock.groupMetadata(msg.key.remoteJid), 3000)
         if (meta?.subject) {
           waContacts[msg.key.remoteJid].name = meta.subject
-          await momai.storage.set(_getWaContactsKey(), waContacts).catch((e) =>
-            momai.log(`Failed to persist group subject for ${msg.key.remoteJid}: ${e.message}`)
-          )
+          _scheduleWaContactsPersist()
         }
         groupMetaCache.set(msg.key.remoteJid, { data: meta, fetchedAt: Date.now() })
       } catch (err) {
@@ -2669,13 +2705,13 @@ async function handleMessagesUpsert({ messages, type }) {
           if (waContacts[avatarTarget]) {
             waContacts[avatarTarget].profilePicUrl = url
             waContacts[avatarTarget].profilePicCheckedAt = now
-            await momai.storage.set(_getWaContactsKey(), waContacts)
+            _scheduleWaContactsPersist()
           }
         } catch {
           if (waContacts[avatarTarget]) {
             // Cooldown real: now permite retry após RETRY_DELAY (10 min)
             waContacts[avatarTarget].profilePicCheckedAt = now
-            await momai.storage.set(_getWaContactsKey(), waContacts)
+            _scheduleWaContactsPersist()
           }
         }
       }
@@ -2699,7 +2735,7 @@ async function handleMessagesUpsert({ messages, type }) {
             // Update the subject in waContacts while we're at it
             if (meta.subject && waContacts[msg.key.remoteJid]) {
               waContacts[msg.key.remoteJid].name = meta.subject
-              await momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+              _scheduleWaContactsPersist()
             }
           }
         } catch (err) {
@@ -3738,6 +3774,7 @@ process.on('message', async (msg) => {
       .finally(async () => {
         releaseLock()
         await flushPersistedChatHistory()
+        await flushPersistedContacts()
         process.exit(0)
       })
     return
@@ -3961,7 +3998,7 @@ process.on('message', async (msg) => {
             if (waContacts[rawContact]) {
               waContacts[rawContact].name = name
             }
-            await momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+            _scheduleWaContactsPersist()
 
             // 3. Update chatHistory in-memory and persist snapshot
             let historyUpdated = false
@@ -4074,7 +4111,7 @@ process.on('message', async (msg) => {
           momai.log('Manual contacts sync requested')
           const cleaned = _cleanupStaleContacts() || _sanitizeStoredContactNames()
           if (cleaned) {
-            await momai.storage.set(_getWaContactsKey(), waContacts)
+            _scheduleWaContactsPersist()
             await momai.storage.set(_getContactNamesKey(), contactNames)
           }
 
@@ -4102,7 +4139,7 @@ process.on('message', async (msg) => {
             await Promise.all(promises)
           }
 
-          await momai.storage.set(_getWaContactsKey(), waContacts).catch(() => {})
+          _scheduleWaContactsPersist()
 
           const total = Object.values<any>(waContacts).filter(
             (c) => c.phone && !c.id.endsWith('@g.us')
