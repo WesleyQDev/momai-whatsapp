@@ -3853,6 +3853,8 @@ process.on('message', async (msg) => {
   }
   if (msg.type === 'execute') {
     console.log(`[PERF] WORKER RECEIVE msg.type=${msg.type} toolName=${msg.payload?.toolName} requestId=${msg.requestId}`)
+    const execStart = Date.now()
+    const execTool = msg.payload?.toolName
     try {
       let result
       switch (msg.payload?.toolName) {
@@ -4208,7 +4210,9 @@ process.on('message', async (msg) => {
                 // Ignore profile picture fetch errors
               }
             })
+            const avatarsStart = Date.now()
             await Promise.all(promises)
+            momai.log(`sync_contacts avatars batch: ${Date.now() - avatarsStart}ms`)
           }
 
           _scheduleWaContactsPersist()
@@ -4647,6 +4651,7 @@ process.on('message', async (msg) => {
         }
       }
       process.send({ type: 'response', requestId: msg.requestId, result })
+      console.log(`[PERF] WORKER DONE toolName=${execTool} requestId=${msg.requestId} in=${Date.now() - execStart}ms`)
     } catch (err) {
       process.send({
         type: 'response',
