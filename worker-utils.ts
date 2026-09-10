@@ -866,6 +866,31 @@ async function fetchContactPage(
 }
 
 /**
+ * Server-side contact search over indexed text fields. Returns stripped
+ * bodies in rank order, or null when collections are unavailable.
+ */
+async function searchContacts(momai, { phone = null, query = '', limit = 100 } = {}) {
+  if (!hasCollections(momai)) return null
+  try {
+    const rows = await momai.collections.search(CONTACTS_COLLECTION, query, {
+      where: { _phone: phone },
+      limit
+    })
+    return (Array.isArray(rows) ? rows : []).map((row) => {
+      const body = { ...(row || {}) }
+      delete body._rowId
+      delete body._key
+      delete body._phone
+      delete body.created_at
+      return body
+    })
+  } catch (e) {
+    logHistory(momai, `searchContacts: ${e.message}`)
+    return null
+  }
+}
+
+/**
  * Deletes unscoped rows left by a persist that ran before the phone was
  * known. The next sync re-inserts them stamped, so nothing is lost.
  */
@@ -1036,7 +1061,7 @@ function createIpcMomai(
       storageDir,
       ...area('storage', ['get', 'set', 'getMany', 'setMany', 'delete', 'listKeys', 'migrate'])
     },
-    collections: area('collections', ['insert', 'list', 'count', 'remove', 'clear', 'upsert', 'upsertMany']),
+    collections: area('collections', ['insert', 'list', 'count', 'search', 'remove', 'clear', 'upsert', 'upsertMany']),
     sessionFiles: area('sessionFiles', ['write', 'read', 'list', 'remove']),
     __pendingCount: () => pending.size
   }
@@ -1073,6 +1098,7 @@ module.exports = {
   syncContacts,
   rekeyContacts,
   fetchContactPage,
+  searchContacts,
   createIpcMomai,
   MAX_IMAGE_BYTES,
   MAX_AUDIO_BYTES,

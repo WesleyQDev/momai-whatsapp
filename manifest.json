@@ -816,7 +816,8 @@
                                        {
                                            "name":  "contacts",
                                            "indexes":  ["_key", "sortKey", "isGroup"],
-                                           "unique":  "_key"
+                                           "unique":  "_key",
+                                           "textIndex":  ["name", "notify", "phone"]
                                        }
                                    ],
                     "sessionFiles":  true

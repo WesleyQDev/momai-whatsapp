@@ -74,6 +74,7 @@ const {
   syncContacts: _syncContacts,
   rekeyContacts: _rekeyContacts,
   fetchContactPage: _fetchContactPage,
+  searchContacts: _searchContacts,
   MAX_AUDIO_BYTES,
   MAX_DOCUMENT_BYTES,
   MAX_IMAGE_BYTES,
@@ -894,6 +895,33 @@ async function _fetchPaginatedWaEntries({ groupsOnly, search, page, perPage }) {
   )
 
   if (q) {
+    try {
+      // Flush pending contact edits so the index sees them before searching.
+      await flushPersistedContacts().catch(() => {})
+      const serverHits = await _searchContacts(momai, {
+        phone: _currentPhone || null,
+        query: search,
+        limit: 200
+      })
+      if (serverHits !== null) {
+        const inScope = serverHits.filter((c) =>
+          groupsOnly ? c.id.endsWith('@g.us') : c.phone && !c.id.endsWith('@g.us')
+        )
+        const sorted = inScope
+          .map((c) => enrichContactRow(c, groupsOnly))
+          .sort(_compareContactsForList)
+        const totalPages = Math.max(1, Math.ceil(sorted.length / perPageNum))
+        const start = (pageNum - 1) * perPageNum
+        return {
+          contacts: sorted.slice(start, start + perPageNum),
+          total: sorted.length,
+          totalFiltered: sorted.length,
+          page: pageNum,
+          totalPages,
+          perPage: perPageNum
+        }
+      }
+    } catch {}
     entries = entries.filter((c) => {
       const label = _resolveWaContactDisplayName(c, c.id).toLowerCase()
       return (

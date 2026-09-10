@@ -4,7 +4,8 @@ import {
   loadContacts,
   syncContacts,
   rekeyContacts,
-  fetchContactPage
+  fetchContactPage,
+  searchContacts
 } from '../worker-utils'
 
 function stubMomai(options: { declared?: string[]; legacy?: Record<string, any>; rows?: any[] } = {}) {
@@ -63,6 +64,21 @@ function stubMomai(options: { declared?: string[]; legacy?: Record<string, any>;
             out = out.filter((r) => Object.entries(where).every(([f, v]) => r[f] === v))
           }
           return { count: out.length }
+        },
+        search: async (name: string, query: string, opts?: any) => {
+          let out = [...table(name)]
+          const where = opts?.where
+          if (where && typeof where === 'object') {
+            out = out.filter((r) => Object.entries(where).every(([f, v]) => r[f] === v))
+          }
+          const words = String(query || '').toLowerCase().split(/\s+/).filter(Boolean)
+          if (words.length === 0) return []
+          out = out.filter((r) => {
+            const hay = JSON.stringify(r).toLowerCase()
+            return words.every((w) => hay.includes(w))
+          })
+          const limit = opts?.limit ?? 50
+          return out.slice(0, limit)
         },
         remove: async (name: string, id: number) => {
           const all = table(name)
@@ -194,5 +210,24 @@ describe('fetchContactPage', () => {
   it('returns null without collections so callers use memory', async () => {
     const { momai } = stubMomai({ declared: [] })
     await expect(fetchContactPage(momai as any, { phone: '111' })).resolves.toBeNull()
+  })
+})
+
+describe('searchContacts', () => {
+  it('finds contacts by text scoped to the phone', async () => {
+    const { momai } = stubMomai({
+      rows: [
+        { ...ana, name: 'Ana Beatriz', _phone: '111' },
+        { ...bia, name: 'Bia', _phone: '111' },
+        { ...ana, name: 'Ana Beatriz', _phone: '222' }
+      ]
+    })
+    const found = await searchContacts(momai as any, { phone: '111', query: 'ana bea' })
+    expect(found?.map((c: any) => c.name)).toEqual(['Ana Beatriz'])
+  })
+
+  it('returns null without collections so callers use memory', async () => {
+    const { momai } = stubMomai({ declared: [] })
+    await expect(searchContacts(momai as any, { phone: '111', query: 'ana' })).resolves.toBeNull()
   })
 })
