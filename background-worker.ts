@@ -3852,7 +3852,6 @@ process.on('message', async (msg) => {
     return
   }
   if (msg.type === 'execute') {
-    console.log(`[PERF] WORKER RECEIVE msg.type=${msg.type} toolName=${msg.payload?.toolName} requestId=${msg.requestId}`)
     const execStart = Date.now()
     const execTool = msg.payload?.toolName
     try {
@@ -3861,7 +3860,7 @@ process.on('message', async (msg) => {
         case 'send_message': {
           const args = msg.payload.args || {}
           const cmdStart = Date.now()
-          console.log(`[PERF] send_message START contact=${args.contact}`)
+          momai.log(`[PERF] send_message START contact=${args.contact}`)
           try {
             const rawImages = Array.isArray(args.images)
               ? args.images
@@ -4651,7 +4650,7 @@ process.on('message', async (msg) => {
         }
       }
       process.send({ type: 'response', requestId: msg.requestId, result })
-      console.log(`[PERF] WORKER DONE toolName=${execTool} requestId=${msg.requestId} in=${Date.now() - execStart}ms`)
+      momai.log(`[PERF] worker done tool=${execTool} in=${Date.now() - execStart}ms`)
     } catch (err) {
       process.send({
         type: 'response',
