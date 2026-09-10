@@ -3853,15 +3853,12 @@ process.on('message', async (msg) => {
     return
   }
   if (msg.type === 'execute') {
-    const execStart = Date.now()
-    const execTool = msg.payload?.toolName
     try {
       let result
       switch (msg.payload?.toolName) {
         case 'send_message': {
           const args = msg.payload.args || {}
           const cmdStart = Date.now()
-          momai.log(`[PERF] send_message START contact=${args.contact}`)
           try {
             const rawImages = Array.isArray(args.images)
               ? args.images
@@ -3894,14 +3891,12 @@ process.on('message', async (msg) => {
             momai.log(
               `send_message OK: to=${args.contact} msg="${(args.message || '').substring(0, 50)}" (t+${Date.now() - cmdStart}ms)`
             )
-            console.log(`[PERF] send_message END OK time=${Date.now() - cmdStart}ms`)
             result = result || { ok: true }
             result.directResponse = `Mensagem enviada`
           } catch (err) {
             momai.log(
               `send_message FAILED: ${err.message} (t+${Date.now() - cmdStart}ms)`
             )
-            console.log(`[PERF] send_message END FAILED err=${err.message} time=${Date.now() - cmdStart}ms`)
             const friendly = friendlySendError(err.message, args.contact)
             result = {
               ok: false,
@@ -4210,9 +4205,7 @@ process.on('message', async (msg) => {
                 // Ignore profile picture fetch errors
               }
             })
-            const avatarsStart = Date.now()
             await Promise.all(promises)
-            momai.log(`sync_contacts avatars batch: ${Date.now() - avatarsStart}ms`)
           }
 
           _scheduleWaContactsPersist()
@@ -4656,7 +4649,6 @@ process.on('message', async (msg) => {
         }
       }
       process.send({ type: 'response', requestId: msg.requestId, result })
-      momai.log(`[PERF] worker done tool=${execTool} in=${Date.now() - execStart}ms`)
     } catch (err) {
       process.send({
         type: 'response',
