@@ -674,6 +674,12 @@ function contactKey(phone, jid) {
   return `${phone || ''}:${jid}`
 }
 
+function defaultContactSortKey(jid, contact) {
+  const candidate =
+    (contact && (contact.name || contact.notify || contact.phone)) || (jid || '').split('@')[0] || jid || ''
+  return String(candidate).toLowerCase()
+}
+
 function hasCollections(momai) {
   return Boolean(
     momai && momai.collections && typeof momai.collections.insert === 'function'
@@ -798,12 +804,17 @@ async function loadContacts(momai, { sources = [], phone = null } = {}) {
       try {
         await momai.collections.upsertMany(
           CONTACTS_COLLECTION,
-          Object.entries(saved).map(([jid, contact]) => ({
-            ...((contact ?? {}) as Record<string, unknown>),
-            id: jid,
-            _phone: sourcePhone,
-            _key: contactKey(sourcePhone, jid)
-          }))
+          Object.entries(saved).map(([jid, contact]) => {
+            const body = ((contact ?? {}) as Record<string, unknown>) || {}
+            return {
+              ...body,
+              id: jid,
+              isGroup: typeof jid === 'string' && jid.endsWith('@g.us'),
+              sortKey: defaultContactSortKey(jid, body),
+              _phone: sourcePhone,
+              _key: contactKey(sourcePhone, jid)
+            }
+          })
         )
         try {
           await momai.storage.delete(key)
@@ -815,6 +826,43 @@ async function loadContacts(momai, { sources = [], phone = null } = {}) {
     return { ...saved }
   }
   return {}
+}
+
+/**
+ * Server-side contact page: filter + sort + count in storage, returning
+ * only the requested window. Null when collections are unavailable so
+ * callers fall back to the in-memory path.
+ */
+async function fetchContactPage(
+  momai,
+  { phone = null, groupsOnly = false, limit = 20, offset = 0 } = {}
+) {
+  if (!hasCollections(momai)) return null
+  try {
+    const where = { _phone: phone, isGroup: Boolean(groupsOnly) }
+    const [rows, counted] = await Promise.all([
+      momai.collections.list(CONTACTS_COLLECTION, {
+        where,
+        orderBy: 'sortKey',
+        order: 'asc',
+        limit,
+        offset
+      }),
+      momai.collections.count(CONTACTS_COLLECTION, { where })
+    ])
+    const contacts = (Array.isArray(rows) ? rows : []).map((row) => {
+      const body = { ...(row || {}) }
+      delete body._rowId
+      delete body._key
+      delete body._phone
+      delete body.created_at
+      return body
+    })
+    return { contacts, total: counted.count }
+  } catch (e) {
+    logHistory(momai, `fetchContactPage: ${e.message}`)
+    return null
+  }
 }
 
 /**
@@ -848,7 +896,7 @@ async function rekeyContacts(momai) {
  */
 async function syncContacts(
   momai,
-  { phone = null, map = {}, snapshot = null }: { phone?: string | null; map?: Record<string, any>; snapshot?: string | null } = {}
+  { phone = null, map = {}, snapshot = null, sortKeyFor = null }: { phone?: string | null; map?: Record<string, any>; snapshot?: string | null; sortKeyFor?: ((jid: string, contact: any) => string) | null } = {}
 ) {
   const empty = { snapshot: snapshot || '{}', stats: { upserted: 0, removed: 0 } }
   if (!hasCollections(momai)) return empty
@@ -868,15 +916,29 @@ async function syncContacts(
   } catch {
     previous = {}
   }
-  const changed = Object.entries(current)
+  const keyFor = typeof sortKeyFor === 'function' ? sortKeyFor : defaultContactSortKey
+  // Stamp first, diff second: sortKey/isGroup changes must trigger upserts too.
+  /** @type {Record<string, string>} */
+  const stamped: Record<string, string> = {}
+  for (const [jid, serialized] of Object.entries(current)) {
+    try {
+      const contact = JSON.parse(serialized || 'null') || {}
+      stamped[jid] = JSON.stringify({
+        ...contact,
+        id: jid,
+        isGroup: typeof jid === 'string' && jid.endsWith('@g.us'),
+        sortKey: keyFor(jid, contact),
+        _phone: phone,
+        _key: contactKey(phone, jid)
+      })
+    } catch {
+      stamped[jid] = ''
+    }
+  }
+  const changed = Object.entries(stamped)
     .filter(([jid, serialized]) => previous[jid] !== serialized)
-    .map(([jid, serialized]) => ({
-      ...JSON.parse(serialized || 'null'),
-      id: jid,
-      _phone: phone,
-      _key: contactKey(phone, jid)
-    }))
-  const removedKeys = Object.keys(previous).filter((jid) => !(jid in current))
+    .map(([, serialized]) => JSON.parse(serialized))
+  const removedKeys = Object.keys(previous).filter((jid) => !(jid in stamped))
   let upserted = 0
   let removed = 0
   try {
@@ -900,7 +962,7 @@ async function syncContacts(
     logHistory(momai, `syncContacts: ${e.message}`)
     return { snapshot: snapshot || '{}', stats: { upserted: 0, removed: 0 } }
   }
-  return { snapshot: JSON.stringify(current), stats: { upserted, removed } }
+  return { snapshot: JSON.stringify(stamped), stats: { upserted, removed } }
 }
 
 /**
@@ -974,7 +1036,7 @@ function createIpcMomai(
       storageDir,
       ...area('storage', ['get', 'set', 'getMany', 'setMany', 'delete', 'listKeys', 'migrate'])
     },
-    collections: area('collections', ['insert', 'list', 'remove', 'clear']),
+    collections: area('collections', ['insert', 'list', 'count', 'remove', 'clear', 'upsert', 'upsertMany']),
     sessionFiles: area('sessionFiles', ['write', 'read', 'list', 'remove']),
     __pendingCount: () => pending.size
   }
@@ -1010,6 +1072,7 @@ module.exports = {
   loadContacts,
   syncContacts,
   rekeyContacts,
+  fetchContactPage,
   createIpcMomai,
   MAX_IMAGE_BYTES,
   MAX_AUDIO_BYTES,

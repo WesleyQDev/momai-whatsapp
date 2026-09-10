@@ -815,7 +815,7 @@
                                        },
                                        {
                                            "name":  "contacts",
-                                           "indexes":  ["_key"],
+                                           "indexes":  ["_key", "sortKey", "isGroup"],
                                            "unique":  "_key"
                                        }
                                    ],

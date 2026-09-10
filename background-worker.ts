@@ -73,6 +73,7 @@ const {
   loadContacts: _loadContacts,
   syncContacts: _syncContacts,
   rekeyContacts: _rekeyContacts,
+  fetchContactPage: _fetchContactPage,
   MAX_AUDIO_BYTES,
   MAX_DOCUMENT_BYTES,
   MAX_IMAGE_BYTES,
@@ -827,10 +828,66 @@ function _compareContactsForList(a, b) {
   })
 }
 
+/** Shapes one contact row for list responses (server page or memory path). */
+function enrichContactRow(c, groupsOnly) {
+  const resolvedLabel = _resolveWaContactDisplayName(c, c.id)
+  const customName = _pickContactLabel(contactNames[c.id], contactNames[c.phone])
+  const hasRealName = Boolean(customName || _isUsableDisplayName(c.name))
+  return {
+    id: c.id,
+    displayName: resolvedLabel,
+    hasName: hasRealName,
+    name: _isUsableDisplayName(c.name) ? c.name : null,
+    notify: _isUsableDisplayName(c.notify) ? c.notify : null,
+    phone: c.phone || c.id.split('@')[0],
+    monitoring: !_isContactDisabled(c.id),
+    profilePicUrl: c.profilePicUrl || null,
+    isGroup: groupsOnly
+  }
+}
+
+/** Sort key stored per row so server-side pages arrive ordered. */
+function resolveContactSortKey(jid, contact) {
+  const label = _pickContactLabel(
+    contactNames[jid],
+    contactNames[contact?.phone],
+    contact?.name,
+    contact?.notify,
+    contact?.phone,
+    jid
+  )
+  return (label || jid || '').toLowerCase()
+}
+
 async function _fetchPaginatedWaEntries({ groupsOnly, search, page, perPage }) {
   const q = String(search || '').toLowerCase()
   const pageNum = parseInt(page) || 1
   const perPageNum = parseInt(perPage) || 20
+
+  // No-search pages come straight from storage (filter + sort + count),
+  // so page turns cost one window instead of sorting the whole map.
+  if (!q) {
+    try {
+      const server = await _fetchContactPage(momai, {
+        phone: _currentPhone || null,
+        groupsOnly: Boolean(groupsOnly),
+        limit: perPageNum,
+        offset: (pageNum - 1) * perPageNum
+      })
+      if (server && Array.isArray(server.contacts)) {
+        const paginated = server.contacts.map((c) => enrichContactRow(c, Boolean(groupsOnly)))
+        const totalPages = Math.max(1, Math.ceil(server.total / perPageNum))
+        return {
+          contacts: paginated,
+          total: server.total,
+          totalFiltered: server.total,
+          page: pageNum,
+          totalPages,
+          perPage: perPageNum
+        }
+      }
+    } catch {}
+  }
 
   let entries = Object.values<any>(waContacts).filter((c) =>
     groupsOnly ? c.id.endsWith('@g.us') : c.phone && !c.id.endsWith('@g.us')
@@ -851,22 +908,7 @@ async function _fetchPaginatedWaEntries({ groupsOnly, search, page, perPage }) {
   }
 
   const sorted = entries
-    .map((c) => {
-      const resolvedLabel = _resolveWaContactDisplayName(c, c.id)
-      const customName = _pickContactLabel(contactNames[c.id], contactNames[c.phone])
-      const hasRealName = Boolean(customName || _isUsableDisplayName(c.name))
-      return {
-        id: c.id,
-        displayName: resolvedLabel,
-        hasName: hasRealName,
-        name: _isUsableDisplayName(c.name) ? c.name : null,
-        notify: _isUsableDisplayName(c.notify) ? c.notify : null,
-        phone: c.phone || c.id.split('@')[0],
-        monitoring: !_isContactDisabled(c.id),
-        profilePicUrl: c.profilePicUrl || null,
-        isGroup: groupsOnly
-      }
-    })
+    .map((c) => enrichContactRow(c, groupsOnly))
     .sort(_compareContactsForList)
 
   const totalFiltered = sorted.length
@@ -1258,7 +1300,8 @@ function _scheduleWaContactsPersist({ emitEvent = true } = {}) {
       const result = await _syncContacts(momai, {
         phone: _currentPhone || null,
         map: waContacts,
-        snapshot: waContactsSnapshot
+        snapshot: waContactsSnapshot,
+        sortKeyFor: resolveContactSortKey
       })
       waContactsSnapshot = result.snapshot
       // Por padrão emite contacts_updated para manter a UI sincronizada.
@@ -1284,7 +1327,8 @@ async function flushPersistedContacts() {
     const result = await _syncContacts(momai, {
       phone: _currentPhone || null,
       map: waContacts,
-      snapshot: waContactsSnapshot
+      snapshot: waContactsSnapshot,
+      sortKeyFor: resolveContactSortKey
     })
     waContactsSnapshot = result.snapshot
   } catch (err) {

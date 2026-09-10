@@ -3,7 +3,8 @@ import {
   CONTACTS_COLLECTION,
   loadContacts,
   syncContacts,
-  rekeyContacts
+  rekeyContacts,
+  fetchContactPage
 } from '../worker-utils'
 
 function stubMomai(options: { declared?: string[]; legacy?: Record<string, any>; rows?: any[] } = {}) {
@@ -38,7 +39,31 @@ function stubMomai(options: { declared?: string[]; legacy?: Record<string, any>;
           rows.push({ ...record, _rowId: seq })
           return { id: seq }
         },
-        list: async (name: string) => [...table(name)].reverse(),
+        list: async (name: string, opts?: any) => {
+          let out = [...table(name)]
+          const where = opts?.where
+          if (where && typeof where === 'object') {
+            out = out.filter((r) => Object.entries(where).every(([f, v]) => r[f] === v))
+          }
+          const orderBy = opts?.orderBy ?? 'id'
+          out.sort((a, b) => {
+            const av = orderBy === 'id' ? a._rowId : a[orderBy]
+            const bv = orderBy === 'id' ? b._rowId : b[orderBy]
+            if (av === bv) return 0
+            return (av < bv ? -1 : 1) * (opts?.order === 'asc' ? 1 : -1)
+          })
+          const offset = Math.max(opts?.offset || 0, 0)
+          const limit = opts?.limit ?? 50
+          return out.slice(offset, offset + limit)
+        },
+        count: async (name: string, opts?: any) => {
+          let out = [...table(name)]
+          const where = opts?.where
+          if (where && typeof where === 'object') {
+            out = out.filter((r) => Object.entries(where).every(([f, v]) => r[f] === v))
+          }
+          return { count: out.length }
+        },
         remove: async (name: string, id: number) => {
           const all = table(name)
           const index = all.findIndex((r) => r._rowId === id)
@@ -149,5 +174,25 @@ describe('syncContacts', () => {
     })
     await expect(rekeyContacts(momai as any)).resolves.toEqual({ removed: 1 })
     expect(rows).toHaveLength(0)
+  })
+})
+
+describe('fetchContactPage', () => {
+  it('returns only the requested window, newest sort first', async () => {
+    const { momai } = stubMomai({
+      rows: [
+        { ...ana, sortKey: 'ana', isGroup: false, _phone: '111' },
+        { ...bia, sortKey: 'bia', isGroup: false, _phone: '111' },
+        { id: 'g@g.us', sortKey: 'grupo', isGroup: true, _phone: '111' }
+      ]
+    })
+    const page = await fetchContactPage(momai as any, { phone: '111', groupsOnly: false, limit: 1, offset: 1 })
+    expect(page?.contacts.map((c: any) => c.sortKey)).toEqual(['bia'])
+    expect(page?.total).toBe(2)
+  })
+
+  it('returns null without collections so callers use memory', async () => {
+    const { momai } = stubMomai({ declared: [] })
+    await expect(fetchContactPage(momai as any, { phone: '111' })).resolves.toBeNull()
   })
 })
