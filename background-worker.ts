@@ -166,7 +166,11 @@ const _dataDir =
   process.env.MOMAI_DATA_DIR ||
   process.env.MOMAI_NODE_CORE_DATA_DIR ||
   path.resolve(__dirname, '..', '..', '..', '..', 'data')
-const _storageBase = path.join(_dataDir, 'extensions', _skillId)
+// Mode-scoped dir supplied by the host so Symlink and Testar Loja never share
+// the WhatsApp session (baileys-auth) or media. Falls back to the legacy store
+// path when an older host does not provide it.
+const _storageBase =
+  process.env.MOMAI_EXTENSION_STORAGE_DIR || path.join(_dataDir, 'extensions', _skillId)
 
 // Host-owned storage via IPC (Phase 1): same storage/collections/sessionFiles
 // shape as the pool bridge, executed by the parent process against the
