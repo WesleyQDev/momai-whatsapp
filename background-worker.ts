@@ -1588,11 +1588,11 @@ function enrichHistoryEntry(h) {
         resolveContactName(senderJid) ||
         h.senderName ||
         (h.from && h.from !== groupLabel && h.from !== 'Grupo' ? h.from : null) ||
-        (senderJid && !senderJid.endsWith('@g.us') ? senderJid.split('@')[0] : 'Participante')
+        (senderJid && !senderJid.endsWith('@g.us') ? senderJid.split('@')[0] : '')
       from = senderDisplayName
     }
   } else {
-    from = resolveContactName(senderJid) || resolveContactName(remoteJid) || h.from || 'Contato'
+    from = resolveContactName(senderJid) || resolveContactName(remoteJid) || h.from || ''
   }
 
   return {
@@ -1608,7 +1608,7 @@ function enrichHistoryEntry(h) {
   }
 }
 
-function resolveContactName(jid) {
+function resolveContactName(jid, pushName = null) {
   if (!jid) return ''
 
   jid = resolveStandardJid(jid)
@@ -1656,6 +1656,22 @@ function resolveContactName(jid) {
     if (keyDigits && (digitsOnly.endsWith(keyDigits) || keyDigits.endsWith(digitsOnly))) {
       return _resolveWaContactDisplayName(contact, key)
     }
+  }
+
+  // Bridge by push name: group senders often arrive as @lid, which may not map
+  // to the saved contact. If a non-lid contact carries the same push name, use
+  // its saved label (e.g. address-book "Mãe") instead of the push name.
+  if (_isUsableDisplayName(pushName)) {
+    const target = String(pushName).trim()
+    const match = Object.values<any>(waContacts).find(
+      (c) =>
+        c &&
+        c.id &&
+        !String(c.id).endsWith('@lid') &&
+        !String(c.id).endsWith('@g.us') &&
+        (c.notify === target || c.name === target || c.verifiedName === target)
+    )
+    if (match) return _resolveWaContactDisplayName(match, match.id)
   }
 
   if (jid.endsWith('@g.us')) return 'Grupo'
@@ -2833,7 +2849,7 @@ async function handleMessagesUpsert({ messages, type }) {
     const pushDisplayName = _isUsableDisplayName(msg.pushName) ? String(msg.pushName).trim() : null
     const displayName = isFromMe
       ? resolvedSenderJid.split('@')[0] || resolvedSenderJid
-      : resolveContactName(resolvedSenderJid) ||
+      : resolveContactName(resolvedSenderJid, pushDisplayName) ||
         pushDisplayName ||
         (resolvedSenderJid ? resolvedSenderJid.split('@')[0] : 'Participante')
 
@@ -4603,13 +4619,9 @@ process.on('message', async (msg) => {
             }
           }
 
-          const quickReplies = []
-          if (notifMessage && !isGif && !isSticker && !isCall && !isAudio && !isImage && !isDocument) {
-            quickReplies.push(`Obrigado pela mensagem, ${notifContact}!`)
-            quickReplies.push(`Vou verificar e respondo em breve.`)
-          }
           result = {
-            quickReplies,
+            // Suggestions are generated contextually in the panel, not here.
+            quickReplies: [],
             tts: ttsText,
             audio: notifAudio,
             sticker: notifSticker,

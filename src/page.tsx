@@ -1831,12 +1831,6 @@ export default function WhatsAppView() {
       avatarByJid[contactJid] ||
       null
 
-    const contactName = convo.contactLabel || (isGroup ? groupName : t('panel.unknown_contact'))
-    const defaultQuickReplies = [
-      `Obrigado pela mensagem, ${contactName}!`,
-      'Vou verificar e respondo em breve.'
-    ]
-
     const overlayData = {
       skillId: 'momai-whatsapp',
       panel: 'dist/panel.js',
@@ -2114,7 +2108,7 @@ export default function WhatsAppView() {
               markUnread(jid)
               const isGroupMsg = Boolean(d.isGroup)
               const incomingMsg: Message = {
-                from: (isGroupMsg ? d.senderName || d.contact : d.contact || d.senderName) || 'Contato',
+                from: (isGroupMsg ? d.senderName || d.contact : d.contact || d.senderName) || '',
                 jid,
                 text,
                 timestamp: toUnixSeconds(d.timestamp),

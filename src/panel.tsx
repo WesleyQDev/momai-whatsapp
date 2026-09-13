@@ -15,6 +15,7 @@ import ImageViewer from 'momai:image-viewer'
 import sdk from 'momai:sdk'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { useI18n } from './hooks/useI18n'
+import { useReplySuggestions } from './hooks/useReplySuggestions'
 import ContextMenu from './components/ContextMenu'
 import MediaPicker from './components/MediaPicker'
 
@@ -622,6 +623,28 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     isGroup,
     avatar: data?.contactAvatar || null
   }))
+
+  const fallbackQuickReplies = useMemo(() => {
+    if (!activeRecipient.isGroup && activeRecipient.fromGroupJid) {
+      return [t('page.quick_reply_hello', { name: activeRecipient.name }), t('page.quick_reply_help')]
+    }
+    return [
+      t('page.quick_reply_check'),
+      t('page.quick_reply_hello', { name: activeRecipient.name || contact }),
+      t('page.quick_reply_help')
+    ]
+  }, [t, activeRecipient.name, activeRecipient.isGroup, activeRecipient.fromGroupJid, contact])
+
+  const { suggestions: generatedQuickReplies, loading: suggestionsLoading } = useReplySuggestions({
+    enabled: !isHistoryOverlay,
+    contactName: activeRecipient.name || senderName || contact,
+    contactJid,
+    isGroup,
+    latestMessage: message,
+    history: conversationHistory,
+    language: locale,
+    fallback: fallbackQuickReplies
+  })
 
   const [inputContextMenu, setInputContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [participantContextMenu, setParticipantContextMenu] = useState<{
@@ -1373,19 +1396,16 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
   const isSelectedMember = Boolean(!activeRecipient.isGroup && activeRecipient.fromGroupJid)
   const contactName = activeRecipient.name || senderName || contact || t('panel.unknown_contact')
-  const defaultQuickReplies = [
-    '👍 Ok',
-    t('page.quick_reply_check'),
-    t('page.quick_reply_hello', { name: contactName }),
-    t('page.quick_reply_help')
-  ]
+  const payloadQuickReplies = Array.isArray(quickReplies)
+    ? quickReplies.filter(
+        (reply: unknown): reply is string => typeof reply === 'string' && reply.trim().length > 0
+      )
+    : []
   const resolvedQuickReplies = isHistoryOverlay
     ? []
-    : !activeRecipient.isGroup && activeRecipient.fromGroupJid
-      ? [t('page.quick_reply_hello', { name: activeRecipient.name }), t('page.quick_reply_help')]
-      : Array.isArray(quickReplies) && quickReplies.length > 0
-        ? quickReplies
-        : defaultQuickReplies
+    : payloadQuickReplies.length > 0
+      ? payloadQuickReplies
+      : generatedQuickReplies
 
   return (
     <>
@@ -2139,6 +2159,17 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                     >
                       <PaperAirplaneIcon className="w-4 h-4" />
                     </button>
+                  </div>
+                )}
+
+                {suggestionsLoading && payloadQuickReplies.length === 0 && !isHistoryOverlay && !showMediaPicker && (!isAdminsOnly || !activeRecipient.isGroup) && (
+                  <div className="flex shrink-0 flex-col gap-1.5 mt-2">
+                    {[0, 1].map((i) => (
+                      <div
+                        key={i}
+                        className="h-[26px] w-full rounded-lg bg-input/40 border border-border/30 animate-pulse"
+                      />
+                    ))}
                   </div>
                 )}
 
