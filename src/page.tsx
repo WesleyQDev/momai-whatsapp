@@ -2,14 +2,16 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import QRCode from 'qrcode'
 import sdk from 'momai:sdk'
 import ContextMenu from './components/ContextMenu'
+import ContactAvatar from './components/ContactAvatar'
+import ConversationListItem from './components/ConversationListItem'
 import MonitoringDropdown from './components/MonitoringDropdown'
 import { api } from './services/api'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { useI18n } from './hooks/useI18n'
 import { useUnreadConversations } from './hooks/useUnreadConversations'
+import { isSameChat, resolveUnreadJid } from './utils/chatJid'
 import { resolveWhatsAppChannel } from './utils/whatsappChannel'
 import { toUnixSeconds, getHistoryMessageKey, mergeHistoryWithServer } from './utils/historySync'
-import ImageViewer from 'momai:image-viewer'
 
 const getApiBaseUrl = (): string => {
   const fromHost =
@@ -272,27 +274,6 @@ interface WaContact {
   profilePicUrl?: string | null
 }
 
-const getAvatarColor = (id: string) => {
-  let hash = 0
-  const str = id || 'default'
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  const hue = Math.abs(hash) % 360
-  return `hsl(${hue}, 55%, 40%)`
-}
-
-const getInitials = (name: string): string => {
-  if (!name) return ''
-  const clean = name.replace(/[^\p{L}\p{N}\s]/gu, '').trim()
-  if (!clean || /^\d+$/.test(clean)) return ''
-  const parts = clean.split(/\s+/)
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase()
-  }
-  return parts[0].slice(0, 1).toUpperCase()
-}
-
 function WhatsAppIcon({ className = 'w-7 h-7' }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden>
@@ -308,54 +289,6 @@ function WhatsAppIcon({ className = 'w-7 h-7' }: { className?: string }) {
         fill="#25D366"
       />
     </svg>
-  )
-}
-
-function ContactAvatar({ src, name, id }: { src?: string | null; name: string; id: string }) {
-  const [error, setError] = useState(false)
-  const [showViewer, setShowViewer] = useState(false)
-
-  useEffect(() => {
-    setError(false)
-  }, [src])
-
-  if (src && !error) {
-    return (
-      <>
-        <img
-          src={src}
-          alt={name}
-          onError={() => setError(true)}
-          className="w-10 h-10 rounded-full object-cover shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-          onClick={(e) => {
-            e.stopPropagation()
-            setShowViewer(true)
-          }}
-        />
-        {showViewer && <ImageViewer src={src} alt={name} onClose={() => setShowViewer(false)} />}
-      </>
-    )
-  }
-
-  const initials = getInitials(name)
-  if (initials) {
-    const color = getAvatarColor(id)
-    return (
-      <div
-        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm shrink-0"
-        style={{ backgroundColor: color }}
-      >
-        {initials}
-      </div>
-    )
-  }
-
-  const isPhone = /^[+\d\s().-]*$/.test(name)
-  const isGroup = id.endsWith('@g.us')
-  return (
-    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-lg shrink-0">
-      {isGroup ? '👥' : isPhone ? '📱' : '👤'}
-    </div>
   )
 }
 
@@ -1188,8 +1121,11 @@ export default function WhatsAppView() {
   const [conversationsPage, setConversationsPage] = useState(1)
   const [conversationsPerPage] = useState(10)
   const [notificationsDisabled, setNotificationsDisabled] = useState(false)
+  const [statusNotificationsDisabled, setStatusNotificationsDisabled] = useState(true)
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false)
   const notificationDropdownRef = useRef<HTMLDivElement>(null)
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
+  const statusDropdownRef = useRef<HTMLDivElement>(null)
   const [showAutomations, setShowAutomations] = useState(false)
   const [listMenu, setListMenu] = useState<{
     x: number
@@ -1237,6 +1173,12 @@ export default function WhatsAppView() {
       ) {
         setShowNotificationDropdown(false)
       }
+      if (
+        statusDropdownRef.current &&
+        !statusDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowStatusDropdown(false)
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -1250,6 +1192,9 @@ export default function WhatsAppView() {
         const data = res.data
         if (data?.settings?.notificationsDisabled !== undefined) {
           setNotificationsDisabled(data.settings.notificationsDisabled)
+        }
+        if (data?.settings?.statusNotificationsDisabled !== undefined) {
+          setStatusNotificationsDisabled(data.settings.statusNotificationsDisabled)
         }
       })
       .catch(() => {})
@@ -1265,6 +1210,19 @@ export default function WhatsAppView() {
       })
     } catch {
       setNotificationsDisabled(!newState)
+    }
+  }
+
+  const setStatusNotificationsPreference = async (disabled: boolean) => {
+    const previous = statusNotificationsDisabled
+    setStatusNotificationsDisabled(disabled)
+    try {
+      await api.post('/extensions/whatsapp/command', {
+        toolName: 'update_settings',
+        args: { statusNotificationsDisabled: disabled }
+      })
+    } catch {
+      setStatusNotificationsDisabled(previous)
     }
   }
 
@@ -1490,8 +1448,12 @@ export default function WhatsAppView() {
         const prevKeys = new Set(_stateCache.history.map(getHistoryMessageKey))
         if (prevKeys.size > 0) {
           for (const msg of serverHistory) {
-            if (msg.direction === 'incoming' && msg.jid?.includes('@') && !prevKeys.has(getHistoryMessageKey(msg))) {
-              markUnread(msg.jid)
+            if (
+              msg.direction === 'incoming' &&
+              !prevKeys.has(getHistoryMessageKey(msg))
+            ) {
+              const unreadJid = resolveUnreadJid(msg as unknown as { jid?: unknown; replyJid?: unknown })
+              if (unreadJid) markUnread(unreadJid)
             }
           }
         }
@@ -1811,6 +1773,12 @@ export default function WhatsAppView() {
     const { jid, latestIncoming: contextMsg, turns } = convo
     if (!jid) return
     markRead(jid)
+    void api
+      .post('/extensions/whatsapp/command', {
+        toolName: 'mark_conversation_read',
+        args: { jid }
+      })
+      .catch(() => {})
 
     const isGroupChat = jid.endsWith('@g.us')
     const replyJid =
@@ -2020,22 +1988,7 @@ export default function WhatsAppView() {
         }
         if (event.eventType === 'conversation_read' && event.data?.contactJid) {
           const readJid = String(event.data.contactJid)
-          if (readJid.includes('@')) {
-            markRead(readJid)
-            const user = readJid.split('@')[0].split(':')[0]
-            const domain = readJid.split('@')[1]
-            const stripped = `${user}@${domain}`
-            if (stripped !== readJid) markRead(stripped)
-            if (!readJid.endsWith('@g.us')) {
-              const digits = user.replace(/\D/g, '')
-              if (digits) {
-                for (const jid of [...unreadJids]) {
-                  if (jid.endsWith('@g.us')) continue
-                  if (jid.split('@')[0].replace(/\D/g, '') === digits) markRead(jid)
-                }
-              }
-            }
-          }
+          if (readJid.includes('@')) markRead(readJid)
           return
         }
         if (event.eventType === 'qr_code' && event.data?.qr) {
@@ -2195,8 +2148,7 @@ export default function WhatsAppView() {
         connected,
         setConnected,
         markUnread,
-        markRead,
-        unreadJids
+        markRead
       ]
     )
   })
@@ -2213,20 +2165,8 @@ export default function WhatsAppView() {
       const server = res?.data?.unread
       if (!Array.isArray(server)) return
       const serverList = server.map((v: unknown) => String(v))
-      const sameChat = (a: string, b: string) => {
-        if (a === b) return true
-        const [aUser, aDomain] = a.split('@')
-        const [bUser, bDomain] = b.split('@')
-        if (!aUser || !bUser || aDomain !== bDomain) return false
-        if (aUser.split(':')[0] === bUser.split(':')[0]) return true
-        if (a.endsWith('@g.us') || b.endsWith('@g.us')) return false
-        const aDigits = aUser.replace(/\D/g, '')
-        const bDigits = bUser.replace(/\D/g, '')
-        return !!aDigits && aDigits === bDigits
-      }
-      unreadJids.forEach((jid) => {
-        if (!serverList.some((s) => sameChat(s, jid))) markRead(jid)
-      })
+      const stale = unreadJids.filter((jid) => !serverList.some((s) => isSameChat(s, jid)))
+      stale.forEach((jid) => markRead(jid))
     } catch {}
   }, [unreadJids, markRead])
 
@@ -2354,6 +2294,127 @@ export default function WhatsAppView() {
                         <path d="M18.63 13A17.89 17.89 0 0 1 18 8" />
                         <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14" />
                         <path d="M18 8a6 6 0 0 0-9.33-5" />
+                        <line x1="2" y1="2" x2="22" y2="22" />
+                      </svg>
+                      {t('page.deactivated')}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {showDashboard && (
+              <div className="relative" ref={statusDropdownRef}>
+                <button
+                  onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                  className={`py-2 px-3 rounded-full border border-border bg-card hover:bg-input text-text transition-all flex items-center gap-2 group ${
+                    showStatusDropdown ? 'bg-input' : ''
+                  }`}
+                  title={
+                    statusNotificationsDisabled
+                      ? t('page.status_notifications_disabled')
+                      : t('page.status_notifications_active')
+                  }
+                  aria-pressed={!statusNotificationsDisabled}
+                >
+                  {!statusNotificationsDisabled ? (
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="9" />
+                      <circle cx="12" cy="12" r="4" />
+                      <circle cx="12" cy="12" r="0.5" />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-text-muted"
+                    >
+                      <circle cx="12" cy="12" r="9" />
+                      <circle cx="12" cy="12" r="4" />
+                      <line x1="2" y1="2" x2="22" y2="22" />
+                    </svg>
+                  )}
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`}
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+
+                {showStatusDropdown && (
+                  <div className="absolute top-full mt-2 right-0 w-48 rounded-xl border border-border bg-card shadow-2xl z-[100] py-2 overflow-hidden animate-in fade-in zoom-in duration-200">
+                    <button
+                      onClick={() => {
+                        void setStatusNotificationsPreference(false)
+                        setShowStatusDropdown(false)
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                        !statusNotificationsDisabled
+                          ? 'bg-input text-text'
+                          : 'text-text-muted hover:bg-input hover:text-text'
+                      }`}
+                    >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="9" />
+                        <circle cx="12" cy="12" r="4" />
+                        <circle cx="12" cy="12" r="0.5" />
+                      </svg>
+                      {t('page.active')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        void setStatusNotificationsPreference(true)
+                        setShowStatusDropdown(false)
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                        statusNotificationsDisabled
+                          ? 'bg-input text-text'
+                          : 'text-text-muted hover:bg-input hover:text-text'
+                      }`}
+                    >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="9" />
+                        <circle cx="12" cy="12" r="4" />
                         <line x1="2" y1="2" x2="22" y2="22" />
                       </svg>
                       {t('page.deactivated')}
@@ -2519,175 +2580,45 @@ export default function WhatsAppView() {
               )}
               {conversations.map((convo) => {
                 const lastMsg = convo.lastMessage || convo.latestIncoming
-                const avatarName = convo.isGroup ? convo.groupName || t('panel.unknown_group') : convo.contactLabel
-                const isOutgoing = lastMsg.direction === 'outgoing'
-                const hasNew = unreadJids.includes(convo.jid)
+                const hasNew = unreadJids.some((item) => isSameChat(item, convo.jid))
 
                 return (
-                  <div
+                  <ConversationListItem
                     key={convo.jid}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => {
-                      if (editingName !== convo.jid) openConversationOverlay(convo)
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
+                    jid={convo.jid}
+                    isGroup={convo.isGroup}
+                    groupName={convo.groupName}
+                    contactLabel={convo.contactLabel}
+                    avatarName={
+                      convo.isGroup ? convo.groupName || t('panel.unknown_group') : convo.contactLabel
+                    }
+                    avatarSrc={convo.profilePicUrl}
+                    preview={lastMsg}
+                    stickerSrc={lastMsg.sticker ? getStickerUrl(lastMsg.sticker) : null}
+                    timeLabel={formatTime(lastMsg.timestamp, locale)}
+                    hasNew={hasNew}
+                    monitoring={resolveMonitoring(convo.jid)}
+                    editing={editingName === convo.jid}
+                    editValue={editValue}
+                    onEditValueChange={setEditValue}
+                    onStartEdit={() => handleStartEdit(convo.jid, convo.contactLabel)}
+                    onSaveEdit={() => saveContactName(convo.jid)}
+                    onCancelEdit={handleCancelEdit}
+                    onOpen={() => openConversationOverlay(convo)}
+                    onOpenMenu={({ x, y }) =>
                       setListMenu({
-                        x: e.clientX,
-                        y: e.clientY,
+                        x,
+                        y,
                         kind: 'conversation',
                         id: convo.jid,
-                        label: convo.isGroup
-                          ? convo.groupName || convo.contactLabel
-                          : convo.contactLabel,
+                        label:
+                          convo.isGroup ? convo.groupName || convo.contactLabel : convo.contactLabel,
                         preview: lastMsg.text || ''
                       })
-                    }}
-                    onKeyDown={(e) => {
-                      if (editingName === convo.jid) return
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        openConversationOverlay(convo)
-                      }
-                    }}
-                    className="px-4 py-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors cursor-pointer focus:outline-none focus:bg-white/10 relative"
-                    title={t('page.view_conversation')}
-                  >
-                    <div className="flex gap-3">
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <ContactAvatar src={convo.profilePicUrl} name={avatarName} id={convo.jid} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {editingName === convo.jid ? (
-                            <div className="flex-1 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                onKeyDown={(e) => {
-                                  e.stopPropagation()
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault()
-                                    saveContactName(convo.jid)
-                                  }
-                                  if (e.key === 'Escape') {
-                                    e.preventDefault()
-                                    handleCancelEdit()
-                                  }
-                                }}
-                                onBlur={() => saveContactName(convo.jid)}
-                                autoFocus
-                                className="w-full max-w-xs bg-white/10 rounded px-2 py-0.5 text-sm border border-emerald-500/50 outline-none text-text"
-                              />
-                            </div>
-                          ) : (
-                            <>
-                              {convo.isGroup && convo.groupName ? (
-                                <>
-                                  <span className="font-medium text-sm truncate">
-                                    {convo.groupName}
-                                  </span>
-                                  <span className="text-xs text-text-muted truncate shrink-0">
-                                    · {convo.contactLabel}
-                                  </span>
-                                </>
-                              ) : (
-                                <span className="font-medium text-sm truncate">
-                                  {convo.contactLabel}
-                                </span>
-                              )}
-                            </>
-                          )}
-                          <div className="ml-auto flex items-center gap-2 shrink-0">
-                            {hasNew && (
-                              <span
-                                className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide shadow-sm"
-                                style={{
-                                  backgroundColor: '#ffffff',
-                                  color: '#16a34a',
-                                  border: '1px solid #16a34a'
-                                }}
-                              >
-                                nova
-                              </span>
-                            )}
-                            {editingName !== convo.jid && !convo.isGroup && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleStartEdit(convo.jid, convo.contactLabel)
-                                }}
-                                className="text-text-muted hover:text-emerald-400 p-1 rounded-lg hover:bg-white/10 transition-colors"
-                                title={t('page.rename')}
-                              >
-                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                                  <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
-                                </svg>
-                              </button>
-                            )}
-                            {editingName !== convo.jid && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleDeleteConversation(convo.jid)
-                                }}
-                                className="text-text-muted hover:text-red-400 p-1 rounded-lg hover:bg-white/10 transition-colors"
-                                title={t('page.delete_conversation')}
-                              >
-                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                                  <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675a.75.75 0 1 0-1.492.15l.66 6.6A1.75 1.75 0 0 0 5.405 15h5.19a1.75 1.75 0 0 0 1.741-1.575l.66-6.6a.75.75 0 0 0-1.492-.15l-.66 6.6a.25.25 0 0 1-.249.225h-5.19a.25.25 0 0 1-.249-.225l-.66-6.6Z" />
-                                </svg>
-                              </button>
-                            )}
-                            {editingName !== convo.jid && (
-                              <MonitoringDropdown
-                                id={convo.jid}
-                                monitoring={resolveMonitoring(convo.jid)}
-                                onToggle={toggleMonitoring}
-                              />
-                            )}
-                            <span className="text-xs text-text-muted">
-                              {formatTime(lastMsg.timestamp, locale)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-sm text-text-muted mt-0.5 flex items-center gap-1.5 min-h-[1.75rem]">
-                          {isOutgoing && (
-                            <span className="font-semibold text-text-muted/90 shrink-0">
-                              {t('page.you_label')}
-                            </span>
-                          )}
-                          {lastMsg.sticker ? (
-                            <div className="flex items-center gap-1.5 py-0.5">
-                              <img
-                                src={getStickerUrl(lastMsg.sticker)}
-                                alt="Sticker"
-                                className="w-8 h-8 sm:w-9 sm:h-9 object-contain rounded drop-shadow-sm shrink-0 select-none hover:scale-105 transition-transform"
-                                loading="lazy"
-                              />
-                            </div>
-                          ) : (
-                            <span className="truncate">
-                              {lastMsg.text ||
-                                (lastMsg.audio
-                                  ? t('page.audio_fallback')
-                                  : lastMsg.image
-                                    ? t('media.photo')
-                                    : lastMsg.video
-                                      ? t('media.video')
-                                      : lastMsg.document
-                                        ? `📄 ${lastMsg.documentName || t('page.document_default')}`
-                                        : '')}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    }
+                    onDelete={() => handleDeleteConversation(convo.jid)}
+                    onToggleMonitoring={() => toggleMonitoring(convo.jid)}
+                  />
                 )
               })}
 

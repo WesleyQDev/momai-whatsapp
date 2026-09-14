@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import sdk from 'momai:sdk'
+import { isSameChat } from '../utils/chatJid'
 
 const STORAGE_KEY = 'momai_whatsapp_unread_jids'
 const EXTENSION_ID = 'momai-whatsapp'
@@ -45,10 +46,17 @@ export function useUnreadConversations() {
 
   const markRead = useCallback((jid: string) => {
     if (!jid) return
-    setUnreadJids((prev) => (prev.includes(jid) ? prev.filter((item) => item !== jid) : prev))
+    setUnreadJids((prev) =>
+      prev.some((item) => isSameChat(item, jid))
+        ? prev.filter((item) => !isSameChat(item, jid))
+        : prev
+    )
   }, [])
 
-  const isUnread = useCallback((jid: string) => unreadJids.includes(jid), [unreadJids])
+  const isUnread = useCallback(
+    (jid: string) => unreadJids.some((item) => isSameChat(item, jid)),
+    [unreadJids]
+  )
 
   return { unreadJids, markUnread, markRead, isUnread }
 }

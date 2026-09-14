@@ -1086,6 +1086,80 @@ function createIpcMomai(
   }
 }
 
+/**
+ * True when the remote JID carries a WhatsApp Status (story) update.
+ * Baileys delivers stories as `status@broadcast`.
+ */
+function isStatusUpdate(remoteJid) {
+  if (typeof remoteJid !== 'string' || remoteJid.length === 0) return false
+  return remoteJid === 'status@broadcast' || remoteJid.endsWith('@broadcast')
+}
+
+/**
+ * True when a status update must be skipped because the user disabled
+ * status notifications. Regular chats and groups are never suppressed.
+ */
+function shouldSuppressStatusUpdate(remoteJid, statusNotificationsDisabled) {
+  if (!isStatusUpdate(remoteJid)) return false
+  return Boolean(statusNotificationsDisabled)
+}
+
+/**
+ * Reply target for a notification: status updates answer the author,
+ * everything else keeps the default conversation target. Falls back to
+ * the default when the author cannot be resolved.
+ */
+function resolveNotificationReplyJid(remoteJid, resolvedSenderJid, defaultReplyJid) {
+  if (
+    isStatusUpdate(remoteJid) &&
+    typeof resolvedSenderJid === 'string' &&
+    resolvedSenderJid.length > 0
+  ) {
+    return resolvedSenderJid
+  }
+  return defaultReplyJid
+}
+
+/**
+ * Spoken alert for a status update. Names the status so it never sounds
+ * like a regular chat message.
+ */
+function getStatusTtsText(opts) {
+  const input = opts || {}
+  const isNoteToSelf = Boolean(input.isNoteToSelf)
+  const isPhoneNumber = Boolean(input.isPhoneNumber)
+  const contact = typeof input.contact === 'string' && input.contact ? input.contact : 'Alguém'
+  const message = typeof input.message === 'string' ? input.message.trim() : ''
+  const mediaKind = input.mediaKind || 'text'
+  const subject = isNoteToSelf ? 'Você' : isPhoneNumber ? 'Um número desconhecido' : contact
+  if (mediaKind === 'video') return `${subject} postou um status em vídeo`
+  if (mediaKind === 'image') return `${subject} postou um status com foto`
+  if (mediaKind === 'audio') return `${subject} postou um status com áudio`
+  if (mediaKind === 'document') return `${subject} postou um status com documento`
+  if (mediaKind === 'sticker') return `${subject} postou um status com figurinha`
+  if (mediaKind === 'gif') return `${subject} postou um status com gif`
+  if (message) return `${subject} postou um status: ${message}`
+  return `${subject} postou um status`
+}
+
+/**
+ * Resolves the `quoted` payload used to answer a WhatsApp Status (story).
+ * Replying with the original status message makes WhatsApp render the
+ * "Name · Status" quote with the media preview, exactly like the app;
+ * a plain reply would show up as an unrelated message. Returns null when
+ * the status message is no longer cached or the context is malformed.
+ */
+function resolveStatusReplyQuoted(statusContext, storedMessage) {
+  if (!statusContext || typeof statusContext !== 'object') return null
+  const stanzaId =
+    typeof statusContext.stanzaId === 'string' ? statusContext.stanzaId.trim() : ''
+  if (!stanzaId) return null
+  if (!storedMessage || !storedMessage.key || !storedMessage.message) return null
+  const participant =
+    typeof statusContext.participant === 'string' ? statusContext.participant.trim() : ''
+  return participant ? { ...storedMessage, participant } : storedMessage
+}
+
 module.exports = {
   withTimeout,
   friendlySendError,
@@ -1104,6 +1178,11 @@ module.exports = {
   getVideoNotificationText,
   getRecentChatMedia,
   resolveDocumentPath,
+  isStatusUpdate,
+  shouldSuppressStatusUpdate,
+  resolveNotificationReplyJid,
+  getStatusTtsText,
+  resolveStatusReplyQuoted,
   cacheGet,
   cacheSet,
   MESSAGES_COLLECTION,

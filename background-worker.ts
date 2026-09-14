@@ -64,6 +64,11 @@ const {
   getVideoNotificationText: _getVideoNotificationText,
   getRecentChatMedia: _getRecentChatMedia,
   resolveDocumentPath: _resolveDocumentPath,
+  isStatusUpdate: _isStatusUpdate,
+  shouldSuppressStatusUpdate: _shouldSuppressStatusUpdate,
+  resolveNotificationReplyJid: _resolveNotificationReplyJid,
+  getStatusTtsText: _getStatusTtsText,
+  resolveStatusReplyQuoted: _resolveStatusReplyQuoted,
   cacheGet: _cacheGet,
   cacheSet: _cacheSet,
   trackHistoryMessage: _trackHistoryMessage,
@@ -665,8 +670,24 @@ let disabledContacts: any[] = []
 let contactNames: any = {}
 let waContacts: any = {}
 let notificationsDisabled = false
+let statusNotificationsDisabled = true
 let connected = false
 let lastQr: any = null
+
+// Últimas mensagens de Status (stories) recebidas, por id, mantidas apenas em
+// memória. A resposta do overlay cita a story original para o destinatário ver
+// "Nome · Status" com a prévia da mídia, igual ao WhatsApp.
+const STATUS_MESSAGE_CACHE_MAX = 20
+const statusMessagesById = new Map()
+function _rememberStatusMessage(msg) {
+  if (!msg || !msg.key || !msg.key.id) return
+  statusMessagesById.set(String(msg.key.id), msg)
+  while (statusMessagesById.size > STATUS_MESSAGE_CACHE_MAX) {
+    const oldest = statusMessagesById.keys().next().value
+    if (oldest === undefined) break
+    statusMessagesById.delete(oldest)
+  }
+}
 
 // True enquanto o histórico/contatos do WhatsApp estão sendo sincronizados após
 // uma conexão (messaging-history.set popula waContacts aos poucos). Durante esse
@@ -1828,6 +1849,9 @@ async function _loadPerPhoneData() {
       const st = await momai.storage.get(_getSettingsKey())
       if (st) {
         if (st.notificationsDisabled !== undefined) notificationsDisabled = st.notificationsDisabled
+        if (st.statusNotificationsDisabled !== undefined) {
+          statusNotificationsDisabled = st.statusNotificationsDisabled
+        }
       }
 
       let storageDirty = false
@@ -2692,6 +2716,18 @@ async function handleMessagesUpsert({ messages, type }) {
 
     const remoteJid = msg.key.remoteJid
     if (!remoteJid) continue
+    const isStatusMessage =
+      typeof _isStatusUpdate === 'function'
+        ? _isStatusUpdate(remoteJid)
+        : remoteJid === 'status@broadcast'
+    const suppressStatusMessage =
+      typeof _shouldSuppressStatusUpdate === 'function'
+        ? _shouldSuppressStatusUpdate(remoteJid, statusNotificationsDisabled)
+        : isStatusMessage && statusNotificationsDisabled
+    if (suppressStatusMessage) continue
+    // Guarda a story crua enquanto ela é recente: a resposta do overlay a cita
+    // para o WhatsApp renderizar "Nome · Status" com a prévia da mídia.
+    if (isStatusMessage) _rememberStatusMessage(msg)
 
     const isGroup = remoteJid.endsWith('@g.us')
     const senderJid = resolveMessageSenderJid(remoteJid, msg.key.participant)
@@ -2866,11 +2902,14 @@ async function handleMessagesUpsert({ messages, type }) {
       }
     }
 
-    const replyJid = isGroup ? remoteJid : resolveStandardJid(remoteJid) || remoteJid
+    const defaultReplyJid = isGroup ? remoteJid : resolveStandardJid(remoteJid) || remoteJid
+    const replyJid = typeof _resolveNotificationReplyJid === 'function'
+      ? _resolveNotificationReplyJid(remoteJid, resolvedSenderJid, defaultReplyJid)
+      : defaultReplyJid
 
     const historyEntry = enrichHistoryEntry({
       from: displayName,
-      jid: remoteJid,
+      jid: isStatusMessage && resolvedSenderJid ? resolvedSenderJid : remoteJid,
       senderJid,
       replyJid,
       text,
@@ -2974,10 +3013,14 @@ async function handleMessagesUpsert({ messages, type }) {
       }
 
       momai.log(
-        `[notif-debug] Sending whatsapp_notification event: contact=${finalDisplayName} isGroup=${!!isGroup} isNoteToSelf=${isNoteToSelf}`
+        `[notif-debug] Sending whatsapp_notification event: contact=${finalDisplayName} isGroup=${!!isGroup} isNoteToSelf=${isNoteToSelf} isStatus=${isStatusMessage}`
       )
       // For self-messages, use the user's own JID (not the corrupted LID-resolved one)
       const notifContactJid = isNoteToSelf ? myJidStandardized || replyJid : replyJid
+      // Contexto que permite responder citando a story (Nome · Status) como no WhatsApp.
+      const statusContext = isStatusMessage
+        ? { stanzaId: msg.key.id, participant: msg.key.participant || senderJid }
+        : undefined
       momai.log(`[audio-debug] whatsapp_notification audioFilename=${audioFilename} isGroup=${isGroup} contact=${finalDisplayName}`)
       momai.sendEvent('whatsapp_notification', {
         contact: finalDisplayName,
@@ -2993,9 +3036,15 @@ async function handleMessagesUpsert({ messages, type }) {
         video: videoFilename,
         recentMedia,
         timestamp: msg.messageTimestamp,
-        contactAvatar: resolveChatAvatarUrl(remoteJid, isGroup, senderJid),
+        contactAvatar: resolveChatAvatarUrl(
+          isStatusMessage && resolvedSenderJid ? resolvedSenderJid : remoteJid,
+          isGroup,
+          senderJid
+        ),
         isGroup: !!isGroup,
         isNoteToSelf,
+        isStatus: isStatusMessage,
+        statusContext,
         groupName: isGroup ? resGroupName : undefined,
         isAdminsOnly: !!groupAnnounce && !isMeAdmin
       })
@@ -3017,9 +3066,15 @@ async function handleMessagesUpsert({ messages, type }) {
               documentName,
               video: videoFilename,
               recentMedia,
-              contactAvatar: resolveChatAvatarUrl(remoteJid, isGroup, senderJid),
+              contactAvatar: resolveChatAvatarUrl(
+                isStatusMessage && resolvedSenderJid ? resolvedSenderJid : remoteJid,
+                isGroup,
+                senderJid
+              ),
               timestamp: msg.messageTimestamp,
               isGroup: !!isGroup,
+              isStatus: isStatusMessage,
+              statusContext,
               groupName: isGroup ? resGroupName : undefined,
               defaultContact: defaultContact || undefined
             })
@@ -3489,7 +3544,15 @@ function _groupNameMatches(contact, clean) {
 // Builds the Baileys message content (with image → caption). Implementação em
 // worker-utils.ts (validada por testes) e importada no topo deste arquivo.
 
-async function sendMessage(contact, message, image = null, sticker = null, gif = null, document = null) {
+async function sendMessage(
+  contact,
+  message,
+  image = null,
+  sticker = null,
+  gif = null,
+  document = null,
+  statusContext = null
+) {
   const t0 = Date.now()
   const stage = (label, extra = '') =>
     momai.log(`[send] ${label}${extra ? ' ' + extra : ''} (t+${Date.now() - t0}ms)`)
@@ -3517,6 +3580,17 @@ async function sendMessage(contact, message, image = null, sticker = null, gif =
 
   // Valida/decodifica conteúdo antes de qualquer retry
   const content = buildMessageContent(message, image, sticker, gif, document)
+
+  // Resposta a Status: cita a story original para o WhatsApp renderizar
+  // "Nome · Status" com a prévia da mídia no destinatário. Sem a story em
+  // cache (worker reiniciado), envia normal em vez de citar errado.
+  const statusQuoted = _resolveStatusReplyQuoted(
+    statusContext,
+    statusContext?.stanzaId ? statusMessagesById.get(String(statusContext.stanzaId)) : null
+  )
+  if (statusQuoted) {
+    stage('status_quote', `stanzaId=${statusContext.stanzaId}`)
+  }
 
   // Resolve o JID do destino com retry curto. Logo após uma reconexão o sync de
   // contatos/grupos (messaging-history.set) ainda está populando waContacts; um
@@ -3732,7 +3806,11 @@ async function sendMessage(contact, message, image = null, sticker = null, gif =
     const attemptStart = Date.now()
     try {
       console.log(`[PERF] sendMessage Baileys START attempt=${attempt} jid=${jid}`)
-      const sent = await withTimeout(current.sendMessage(jid, content), 15000, 'send timeout')
+      const sent = await withTimeout(
+        current.sendMessage(jid, content, statusQuoted ? { quoted: statusQuoted } : {}),
+        15000,
+        'send timeout'
+      )
       console.log(`[PERF] sendMessage Baileys END attempt=${attempt} took=${Date.now() - attemptStart}ms sent=${sent ? 'ok' : 'null'} keys=${sent && sent.key ? sent.key.id : 'n/a'}`)
       stage(`send_ok`, `attempt=${attempt} sock.sendMessage took ${Date.now() - attemptStart}ms`)
       if (sent?.key?.id && sent?.message) {
@@ -3879,6 +3957,18 @@ process.on('message', async (msg) => {
         case 'send_message': {
           const args = msg.payload.args || {}
           const cmdStart = Date.now()
+          const statusContext =
+            args.statusContext && typeof args.statusContext === 'object'
+              ? args.statusContext
+              : null
+          const sendWithStatus = (
+            contact,
+            text,
+            image = null,
+            sticker = null,
+            gif = null,
+            document = null
+          ) => sendMessage(contact, text, image, sticker, gif, document, statusContext)
           try {
             const rawImages = Array.isArray(args.images)
               ? args.images
@@ -3890,23 +3980,23 @@ process.on('message', async (msg) => {
             const documents = rawDocuments.filter(Boolean)
 
             if (args.sticker) {
-              result = await sendMessage(args.contact, '', null, args.sticker, null)
+              result = await sendWithStatus(args.contact, '', null, args.sticker, null)
             } else if (args.gif) {
-              result = await sendMessage(args.contact, args.message || '', null, null, args.gif)
+              result = await sendWithStatus(args.contact, args.message || '', null, null, args.gif)
             } else if (documents.length > 0 || images.length > 0) {
               let captionAssigned = false
               for (let i = 0; i < documents.length; i++) {
                 const caption = !captionAssigned ? (args.message || '') : ''
                 if (caption) captionAssigned = true
-                result = await sendMessage(args.contact, caption, null, null, null, documents[i])
+                result = await sendWithStatus(args.contact, caption, null, null, null, documents[i])
               }
               for (let i = 0; i < images.length; i++) {
                 const caption = !captionAssigned ? (args.message || '') : ''
                 if (caption) captionAssigned = true
-                result = await sendMessage(args.contact, caption, images[i])
+                result = await sendWithStatus(args.contact, caption, images[i])
               }
             } else {
-              result = await sendMessage(args.contact, args.message, null)
+              result = await sendWithStatus(args.contact, args.message, null)
             }
             momai.log(
               `send_message OK: to=${args.contact} msg="${(args.message || '').substring(0, 50)}" (t+${Date.now() - cmdStart}ms)`
@@ -4294,8 +4384,8 @@ process.on('message', async (msg) => {
         case 'mark_conversation_read': {
           const readJid = String(msg.payload?.args?.jid || msg.payload?.args?.contactJid || '').trim()
           if (readJid) {
-            momai.log(`[whatsapp] mark_conversation_read: ${readJid}`)
-            await removeUnreadBadge(readJid)
+            const changed = await removeUnreadBadge(readJid)
+            if (changed) momai.log(`[whatsapp] mark_conversation_read: ${readJid}`)
             momai.sendEvent('conversation_read', { contactJid: readJid })
           }
           result = { ok: true }
@@ -4523,12 +4613,15 @@ process.on('message', async (msg) => {
           if (args.notificationsDisabled !== undefined) {
             notificationsDisabled = args.notificationsDisabled
           }
-          await momai.storage.set(_getSettingsKey(), { notificationsDisabled })
-          result = { ok: true, notificationsDisabled }
+          if (args.statusNotificationsDisabled !== undefined) {
+            statusNotificationsDisabled = args.statusNotificationsDisabled
+          }
+          await momai.storage.set(_getSettingsKey(), { notificationsDisabled, statusNotificationsDisabled })
+          result = { ok: true, notificationsDisabled, statusNotificationsDisabled }
           break
         }
         case 'get_settings': {
-          result = { ok: true, settings: { notificationsDisabled } }
+          result = { ok: true, settings: { notificationsDisabled, statusNotificationsDisabled } }
           break
         }
         case 'panel':
@@ -4542,6 +4635,8 @@ process.on('message', async (msg) => {
           const notifImage = msg.payload?.args?.image || null
           const notifDocument = msg.payload?.args?.document || null
           const notifDocumentName = msg.payload?.args?.documentName || null
+          const notifVideo = msg.payload?.args?.video || null
+          const notifIsStatus = !!msg.payload?.args?.isStatus
           const isNoteToSelf = !!msg.payload?.args?.isNoteToSelf
           const isGroupNotif = !!msg.payload?.args?.isGroup
           const isPhoneNumber = /^\d+$/.test(String(notifContact).replace(/\D/g, ''))
@@ -4558,7 +4653,29 @@ process.on('message', async (msg) => {
             !!notifDocument
 
           let ttsText
-          if (isCall) {
+          if (notifIsStatus && typeof _getStatusTtsText === 'function') {
+            const isVideo = notifMessage === '🎥 Vídeo' || notifMessage.startsWith('🎥') || !!notifVideo
+            const mediaKind = isVideo
+              ? 'video'
+              : isAudio
+                ? 'audio'
+                : isGif
+                  ? 'gif'
+                  : isSticker
+                    ? 'sticker'
+                    : isImage
+                      ? 'image'
+                      : isDocument
+                        ? 'document'
+                        : 'text'
+            ttsText = _getStatusTtsText({
+              contact: notifContact,
+              message: notifMessage,
+              mediaKind,
+              isNoteToSelf,
+              isPhoneNumber
+            })
+          } else if (isCall) {
             ttsText = `Ligação pendente de contato ${notifContact}`
           } else if (isAudio) {
             if (isNoteToSelf) {
@@ -4627,7 +4744,8 @@ process.on('message', async (msg) => {
             sticker: notifSticker,
             image: notifImage,
             document: notifDocument,
-            documentName: notifDocumentName
+            documentName: notifDocumentName,
+            video: notifVideo
           }
           break
         }

@@ -15,6 +15,7 @@ import ImageViewer from 'momai:image-viewer'
 import sdk from 'momai:sdk'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { useI18n } from './hooks/useI18n'
+import { getChatBubbleClasses, getChatBubbleStyle, getChatBubbleTimeClasses } from './utils/chatBubble'
 import { useReplySuggestions } from './hooks/useReplySuggestions'
 import ContextMenu from './components/ContextMenu'
 import MediaPicker from './components/MediaPicker'
@@ -568,6 +569,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const contactJid = data?.contactJid || data?.contact || ''
   const isGroup = data?.isGroup || false
   const groupName = data?.groupName || ''
+  const isStatus = Boolean(data?.isStatus)
   const isAdminsOnly = data?.isAdminsOnly || false
   const onClose = data?.onClose || (() => {})
 
@@ -1160,6 +1162,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             args: {
               contact: targetJid,
               message: body,
+              ...(isStatus && data?.statusContext ? { statusContext: data.statusContext } : {}),
               ...(imagesToSend.length > 0
                 ? { images: imagesToSend, image: imagesToSend[0] }
                 : {}),
@@ -1220,7 +1223,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         setMinimized(false)
       }
     },
-    [activeRecipient.jid, isHistoryOverlay, dismissAfterEngagement]
+    [activeRecipient.jid, isHistoryOverlay, dismissAfterEngagement, isStatus, data?.statusContext]
   )
 
   const handleInsertEmoji = useCallback((emoji: string) => {
@@ -1494,7 +1497,11 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  {activeRecipient.isGroup ? (
+                  {isStatus ? (
+                    <span className="text-[11px] font-semibold truncate select-none text-accent">
+                      {t('panel.status_of', { name: contactName })}
+                    </span>
+                  ) : activeRecipient.isGroup ? (
                     <span className="text-[11px] text-text-muted hover:text-accent font-medium truncate cursor-pointer transition-colors text-left">
                       {participants.length > 0
                         ? `${participants.length} participantes • clique para ver`
@@ -1691,12 +1698,11 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                   </span>
                                 )}
                                 <div
-                                  className={`rounded-2xl px-3.5 py-2 shadow-sm select-text flex flex-col gap-1.5 border max-w-full min-w-0 overflow-hidden ${
+                                  className={`rounded-2xl px-3.5 py-2 shadow-sm select-text flex flex-col gap-1.5 border max-w-full min-w-0 overflow-hidden ${getChatBubbleClasses(
                                     isOutgoing
-                                      ? 'rounded-tr-xs bg-accent border-accent text-card'
-                                      : 'bg-input/80 border-border/50 text-text rounded-tl-xs'
-                                  }`}
+                                  )}`}
                                   style={{
+                                    ...getChatBubbleStyle(isOutgoing),
                                     wordBreak: 'break-word',
                                     overflowWrap: 'anywhere'
                                   }}
@@ -1779,9 +1785,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                   )}
                                   <div className="flex justify-end items-center mt-0.5 shrink-0">
                                     <span
-                                      className={`text-[10px] select-none font-normal shrink-0 ${
-                                        isOutgoing ? 'text-card/70' : 'text-text-muted'
-                                      }`}
+                                      className={`text-[10px] select-none font-normal shrink-0 ${getChatBubbleTimeClasses(
+                                        isOutgoing
+                                      )}`}
                                     >
                                       {formatHistoryTime(line.timestamp, locale)}
                                     </span>
@@ -1805,6 +1811,75 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                   ) : (
                     /* MODO NOTIFICAÇÃO (Novas Mensagens): Somente a última mensagem enviada */
                     message || data?.image || data?.sticker || data?.document || data?.audio || data?.video ? (
+                      isStatus ? (
+                      <div className="flex flex-col gap-2 min-w-0 overflow-hidden select-text">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-accent select-text">
+                            {t('panel.status_of', { name: senderName || contact })}
+                          </span>
+                          {data?.timestamp && (
+                            <span className="text-[10px] text-text-muted ml-auto shrink-0 select-none">
+                              {formatHistoryTime(data.timestamp, locale)}
+                            </span>
+                          )}
+                        </div>
+                        {data?.video ? (
+                          <video
+                            src={getVideoUrl(data.video)}
+                            controls
+                            preload="metadata"
+                            playsInline
+                            className="w-full h-auto max-h-72 object-contain rounded-lg bg-black"
+                          />
+                        ) : data?.image ? (
+                          <img
+                            src={getImageUrl(data.image)}
+                            alt={message && !isMediaPlaceholder(message) ? message : 'Status'}
+                            loading="lazy"
+                            onClick={() => {
+                              notifyConversationRead()
+                              setSelectedImageUrl(getImageUrl(data.image))
+                            }}
+                            title={t('panel.photo_click')}
+                            className="w-full h-auto max-h-72 object-contain rounded-lg cursor-pointer"
+                          />
+                        ) : data?.sticker ? (
+                          <img
+                            src={getStickerUrl(data.sticker)}
+                            alt="Sticker"
+                            loading="lazy"
+                            onClick={() => {
+                              notifyConversationRead()
+                              setSelectedStickerUrl(getStickerUrl(data.sticker))
+                            }}
+                            title={t('panel.sticker_click')}
+                            className="w-full h-48 object-contain rounded-lg cursor-pointer"
+                          />
+                        ) : null}
+                        {message && !isMediaPlaceholder(message) && (
+                          <p
+                            className="text-sm text-text/90 whitespace-pre-wrap break-words select-text max-w-full"
+                            style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                          >
+                            {message}
+                          </p>
+                        )}
+                        {data?.document ? (
+                          <DocumentCard
+                            file={data.document}
+                            name={data.documentName || data.document}
+                            opening={openingFile === data.document}
+                            onOpen={() => {
+                              notifyConversationRead()
+                              openDocument(data.document, data.documentName || data.document)
+                            }}
+                          />
+                        ) : null}
+                        {data?.audio && (
+                          <CustomAudioPlayer src={getAudioUrl(data.audio)} />
+                        )}
+                      </div>
+                      ) : (
                       <div className="min-h-[4.5rem] rounded-lg bg-input/40 border border-border/30 p-2.5 select-text flex flex-col justify-center min-w-0 overflow-hidden">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-medium text-text-muted select-text">
@@ -1905,6 +1980,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                           <p className="text-[11px] text-error mt-1 select-text">{historyError}</p>
                         )}
                       </div>
+                      )
                     ) : (
                       <div className="min-h-[4.5rem] rounded-lg bg-input/40 border border-border/30 p-3 flex items-center justify-center select-none">
                         <p className="text-xs text-text-muted/60 font-normal">
