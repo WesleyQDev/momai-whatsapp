@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "WhatsApp",
     "description": "WhatsApp-Nachrichten überwachen und beantworten",
     "category": "communication",
@@ -199,6 +199,7 @@
         "no_messages": "Noch keine Nachrichten erhalten",
         "view_conversation": "Unterhaltung ansehen und antworten",
         "you_label": "Du:",
+        "new_badge": "Neu",
         "audio_fallback": "🎵 Audio",
         "document_default": "Dokument",
         "pagination_showing": "Zeige {{from}} bis {{to}} von {{total}}",

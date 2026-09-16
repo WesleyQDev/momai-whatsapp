@@ -9,7 +9,7 @@ import { api } from './services/api'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { useI18n } from './hooks/useI18n'
 import { useUnreadConversations } from './hooks/useUnreadConversations'
-import { isSameChat, resolveUnreadJid } from './utils/chatJid'
+import { isSameChat } from './utils/chatJid'
 import { resolveWhatsAppChannel } from './utils/whatsappChannel'
 import { toUnixSeconds, getHistoryMessageKey, mergeHistoryWithServer } from './utils/historySync'
 
@@ -1445,18 +1445,6 @@ export default function WhatsAppView() {
       })
       if (data?.history) {
         const serverHistory = data.history as Message[]
-        const prevKeys = new Set(_stateCache.history.map(getHistoryMessageKey))
-        if (prevKeys.size > 0) {
-          for (const msg of serverHistory) {
-            if (
-              msg.direction === 'incoming' &&
-              !prevKeys.has(getHistoryMessageKey(msg))
-            ) {
-              const unreadJid = resolveUnreadJid(msg as unknown as { jid?: unknown; replyJid?: unknown })
-              if (unreadJid) markUnread(unreadJid)
-            }
-          }
-        }
         setHistory((prev) => mergeHistoryWithServer(prev, serverHistory))
         const jids = [
           ...new Set(serverHistory.map((m: Message) => m.jid).filter(Boolean))
@@ -1464,7 +1452,7 @@ export default function WhatsAppView() {
         loadAvatars(jids)
       }
     } catch {}
-  }, [loadAvatars, setHistory, markUnread])
+  }, [loadAvatars, setHistory])
 
   const loadPaginatedContacts = useCallback(
     async (page: number, search: string) => {
@@ -2053,6 +2041,9 @@ export default function WhatsAppView() {
           event.eventType === 'whatsapp_notification' ||
           event.eventType === 'history_loaded'
         ) {
+          if (event.eventType === 'message_sent' && event.data?.jid) {
+            markRead(String(event.data.jid))
+          }
           if (event.eventType === 'whatsapp_notification' && event.data) {
             const d = event.data
             const jid = d.contactJid || d.senderJid || d.contact || ''
@@ -2156,7 +2147,6 @@ export default function WhatsAppView() {
   // Reconcilia o "nova" local com o worker (fonte da bolinha): se o worker
   // nao tem mais o contato como nao lido, limpa aqui tambem.
   const reconcileUnread = useCallback(async () => {
-    if (unreadJids.length === 0) return
     try {
       const res = await api.post('/extensions/whatsapp/command', {
         toolName: 'get_unread',
@@ -2165,8 +2155,10 @@ export default function WhatsAppView() {
       const server = res?.data?.unread
       if (!Array.isArray(server)) return
       const serverList = server.map((v: unknown) => String(v))
-      const stale = unreadJids.filter((jid) => !serverList.some((s) => isSameChat(s, jid)))
-      stale.forEach((jid) => markRead(jid))
+      if (unreadJids.length > 0) {
+        const stale = unreadJids.filter((jid) => !serverList.some((s) => isSameChat(s, jid)))
+        stale.forEach((jid) => markRead(jid))
+      }
     } catch {}
   }, [unreadJids, markRead])
 
@@ -2174,11 +2166,66 @@ export default function WhatsAppView() {
     if (connected) void reconcileUnread()
   }, [connected, reconcileUnread])
 
+  // Limpa badges "nova" de conversas cuja última mensagem foi enviada pelo próprio usuário
+  useEffect(() => {
+    if (unreadJids.length === 0 || allConversations.length === 0) return
+    for (const convo of allConversations) {
+      const lastMsg = convo.lastMessage || convo.latestIncoming
+      const isLastOutgoing = lastMsg?.direction === 'outgoing' || lastMsg?.from === 'Você'
+      if (isLastOutgoing && unreadJids.some((item) => isSameChat(item, convo.jid))) {
+        markRead(convo.jid)
+      }
+    }
+  }, [allConversations, unreadJids, markRead])
+
   // Exibe o dashboard se estiver conectado, ou com sessão salva durante o período de carência (sem forçar tela de QR code).
   const showDashboard = connected || (hasCredentials && !pairingActive && !showQrFallback)
 
   return (
     <div className="flex-1 h-full flex flex-col min-h-0">
+      <style>{`
+        .wa-conversation-item {
+          position: relative;
+          transition: background-color 0.15s ease-out;
+        }
+        .wa-conversation-item:hover,
+        .wa-conversation-item:focus {
+          background-color: rgba(0, 0, 0, 0.10);
+          background-color: rgb(var(--text-primary) / 0.10) !important;
+          outline: none;
+        }
+        .wa-conversation-item:active {
+          background-color: rgba(0, 0, 0, 0.16);
+          background-color: rgb(var(--text-primary) / 0.16) !important;
+        }
+        [data-theme='light'] .wa-conversation-item:hover,
+        [data-theme='light'] .wa-conversation-item:focus,
+        [data-theme='selenized-light'] .wa-conversation-item:hover,
+        [data-theme='selenized-light'] .wa-conversation-item:focus {
+          background-color: rgba(0, 0, 0, 0.11) !important;
+        }
+        [data-theme='light'] .wa-conversation-item:active,
+        [data-theme='selenized-light'] .wa-conversation-item:active {
+          background-color: rgba(0, 0, 0, 0.18) !important;
+        }
+        .wa-conversation-item::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 5px;
+          background-color: #16a34a;
+          opacity: 0;
+          transition: opacity 0.15s ease-out;
+          pointer-events: none;
+          z-index: 10;
+        }
+        .wa-conversation-item:hover::before,
+        .wa-conversation-item:focus::before {
+          opacity: 1 !important;
+        }
+      `}</style>
       <div className="shrink-0 px-6 pt-6 pb-4 w-full">
         <div className="flex items-center gap-3">
           <WhatsAppIcon className="w-8 h-8 shrink-0" />
@@ -2580,7 +2627,8 @@ export default function WhatsAppView() {
               )}
               {conversations.map((convo) => {
                 const lastMsg = convo.lastMessage || convo.latestIncoming
-                const hasNew = unreadJids.some((item) => isSameChat(item, convo.jid))
+                const isLastOutgoing = lastMsg?.direction === 'outgoing' || lastMsg?.from === 'Você'
+                const hasNew = !isLastOutgoing && unreadJids.some((item) => isSameChat(item, convo.jid))
 
                 return (
                   <ConversationListItem
@@ -2747,7 +2795,7 @@ export default function WhatsAppView() {
                             openContactOrGroupOverlay(c)
                           }
                         }}
-                        className="px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors cursor-pointer focus:outline-none focus:bg-white/10"
+                        className="wa-conversation-item group relative px-4 py-3 flex items-center gap-3 border-b border-white/5 last:border-0 cursor-pointer focus:outline-none"
                         title={t('page.send_message')}
                       >
                         <div onClick={(e) => e.stopPropagation()}>
@@ -2913,7 +2961,7 @@ export default function WhatsAppView() {
                             openContactOrGroupOverlay(c)
                           }
                         }}
-                        className="px-4 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors cursor-pointer focus:outline-none focus:bg-white/10"
+                        className="wa-conversation-item group relative px-4 py-3 flex items-center gap-3 border-b border-white/5 last:border-0 cursor-pointer focus:outline-none"
                         title={t('page.send_message')}
                       >
                         <div onClick={(e) => e.stopPropagation()}>

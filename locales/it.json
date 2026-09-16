@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "WhatsApp",
     "description": "Monitora e rispondi ai messaggi WhatsApp",
     "category": "communication",
@@ -199,6 +199,7 @@
         "no_messages": "Nessun messaggio ricevuto ancora",
         "view_conversation": "Vedi conversazione e rispondi",
         "you_label": "Tu:",
+        "new_badge": "Nuovo",
         "audio_fallback": "🎵 Audio",
         "document_default": "Documento",
         "pagination_showing": "Visualizzati da {{from}} a {{to}} di {{total}}",

@@ -2932,6 +2932,9 @@ async function handleMessagesUpsert({ messages, type }) {
     if (chatHistory.length > MAX_HISTORY) chatHistory.pop()
     totalMessages++
     schedulePersistChatHistory()
+    if (isFromMe && replyJid) {
+      removeUnreadBadge(replyJid).catch(() => {})
+    }
     momai.log(
       `Message tracked: from=${displayName} text="${text.substring(0, 50)}" total=${totalMessages}`
     )
@@ -3858,6 +3861,9 @@ async function sendMessage(
   if (chatHistory.length > MAX_HISTORY) chatHistory.pop()
   totalMessages++
   schedulePersistChatHistory()
+  if (jid) {
+    removeUnreadBadge(jid).catch(() => {})
+  }
 
   momai.sendEvent('message_sent', { contact: displayName, jid })
 

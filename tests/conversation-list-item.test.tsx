@@ -78,4 +78,17 @@ describe('ConversationListItem', () => {
     const previewText = previewRow.querySelector('span.truncate') as HTMLElement
     expect(previewText.textContent).toBe(LONG_PREVIEW)
   })
+
+  it('renders the unread badge when hasNew is true', async () => {
+    const view = await renderItem({ hasNew: true })
+    const badge = view.querySelector('span.uppercase')
+    expect(badge).not.toBeNull()
+    expect(badge?.textContent?.trim().toLowerCase()).toBe('nova')
+  })
+
+  it('does not render the unread badge when hasNew is false', async () => {
+    const view = await renderItem({ hasNew: false })
+    const badge = view.querySelector('span.uppercase')
+    expect(badge).toBeNull()
+  })
 })

@@ -83,7 +83,7 @@ export default function ConversationListItem({
           onOpen()
         }
       }}
-      className="px-4 py-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors cursor-pointer focus:outline-none focus:bg-white/10 relative"
+      className="wa-conversation-item group relative px-4 py-3 border-b border-white/5 last:border-0 cursor-pointer focus:outline-none"
       title={t('page.view_conversation')}
     >
       <div className="flex gap-3">
@@ -141,7 +141,7 @@ export default function ConversationListItem({
                   border: '1px solid #16a34a'
                 }}
               >
-                nova
+                {t('page.new_badge')}
               </span>
             )}
             {!editing && !isGroup && (

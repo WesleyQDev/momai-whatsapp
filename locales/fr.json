@@ -1,4 +1,4 @@
-﻿{
+{
     "name": "WhatsApp",
     "description": "Surveillez et répondez aux messages WhatsApp",
     "category": "communication",
@@ -199,6 +199,7 @@
         "no_messages": "Aucun message reçu pour le moment",
         "view_conversation": "Voir la conversation et répondre",
         "you_label": "Vous :",
+        "new_badge": "Nouveau",
         "audio_fallback": "🎵 Audio",
         "document_default": "Document",
         "pagination_showing": "Affichage de {{from}} à {{to}} sur {{total}}",
