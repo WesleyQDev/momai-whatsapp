@@ -18,7 +18,9 @@ const {
   isVideoMessage,
   getVideoNotificationText,
   getRecentChatMedia,
-  resolveDocumentPath
+  resolveDocumentPath,
+  GROUP_FETCH_COOLDOWN_MS,
+  shouldFetchGroups
 } = utils as any
 
 describe('withTimeout', () => {
@@ -644,5 +646,36 @@ describe('getRecentChatMedia (gallery of one chat, oldest first)', () => {
     expect(getRecentChatMedia(history, 'nobody')).toEqual([])
     expect(getRecentChatMedia(null, 'a@g.us')).toEqual([])
     expect(getRecentChatMedia(history, '')).toEqual([])
+  })
+})
+
+describe('shouldFetchGroups & GROUP_FETCH_COOLDOWN_MS', () => {
+  it('defines a 3-minute cooldown default', () => {
+    expect(GROUP_FETCH_COOLDOWN_MS).toBe(180000)
+  })
+
+  it('allows fetching on first run when lastFetchTs is 0 or uninitialized', () => {
+    expect(shouldFetchGroups(0)).toBe(true)
+    expect(shouldFetchGroups(-1)).toBe(true)
+    expect(shouldFetchGroups(null as any)).toBe(true)
+  })
+
+  it('throttles fetching within cooldown window', () => {
+    const now = 1000000
+    const lastFetchTs = now - 60000 // 1 minute ago
+    expect(shouldFetchGroups(lastFetchTs, GROUP_FETCH_COOLDOWN_MS, now)).toBe(false)
+  })
+
+  it('allows fetching once cooldown threshold has passed', () => {
+    const now = 1000000
+    const lastFetchTs = now - 180000 // 3 minutes ago
+    expect(shouldFetchGroups(lastFetchTs, GROUP_FETCH_COOLDOWN_MS, now)).toBe(true)
+    expect(shouldFetchGroups(now - 200000, GROUP_FETCH_COOLDOWN_MS, now)).toBe(true)
+  })
+
+  it('bypasses cooldown when force flag is set', () => {
+    const now = 1000000
+    const lastFetchTs = now - 5000 // 5 seconds ago
+    expect(shouldFetchGroups(lastFetchTs, GROUP_FETCH_COOLDOWN_MS, now, true)).toBe(true)
   })
 })

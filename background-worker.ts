@@ -81,6 +81,8 @@ const {
   fetchContactPage: _fetchContactPage,
   searchContacts: _searchContacts,
   mapWithConcurrency: _mapWithConcurrency,
+  GROUP_FETCH_COOLDOWN_MS,
+  shouldFetchGroups,
   MAX_AUDIO_BYTES,
   MAX_DOCUMENT_BYTES,
   MAX_IMAGE_BYTES,
@@ -623,9 +625,9 @@ const messageStore = new Map()
 /** @type {Map<string, { data: object, fetchedAt: number }>} */
 const groupMetaCache = new Map()
 
-/** Cooldown do fetch sob demanda de grupos no envio (evita refetch por mensagem). */
+/** Cooldown do fetch de grupos no WhatsApp (evita rate-overlimit e refetch frequente). */
 let lastGroupFetchTs = 0
-const GROUP_FETCH_COOLDOWN_MS = 60000
+let pendingGroupFetchPromise: Promise<void> | null = null
 
 let sock: any = null
 let preventAutoReconnect = false
@@ -1034,72 +1036,88 @@ function _sanitizeStoredContactNames() {
   return changed
 }
 
-async function fetchAndStoreGroups() {
+async function fetchAndStoreGroups(options: { force?: boolean } = {}) {
   if (!sock || !connected) return
-  try {
-    momai.log('Fetching participating WhatsApp groups...')
-    const groups = await sock.groupFetchAllParticipating()
-    if (groups && typeof groups === 'object') {
-      let added = 0
-      let updated = 0
-      const groupEntries = Object.entries<any>(groups)
-      await _forEachYield(groupEntries, (entry) => {
-        const [jid, meta] = entry
-        if (!jid.endsWith('@g.us')) return
-        groupMetaCache.set(jid, { data: meta, fetchedAt: Date.now() })
+  const force = Boolean(options && options.force)
+  if (!shouldFetchGroups(lastGroupFetchTs, GROUP_FETCH_COOLDOWN_MS, Date.now(), force)) {
+    return
+  }
+  if (pendingGroupFetchPromise) {
+    return pendingGroupFetchPromise
+  }
 
-        const subjectName = meta.subject ? String(meta.subject).trim() : null
-        const formattedName = _isUsableDisplayName(subjectName) ? subjectName : 'Grupo'
+  pendingGroupFetchPromise = (async () => {
+    try {
+      lastGroupFetchTs = Date.now()
+      momai.log('Fetching participating WhatsApp groups...')
+      const groups = await sock.groupFetchAllParticipating()
+      if (groups && typeof groups === 'object') {
+        let added = 0
+        let updated = 0
+        const groupEntries = Object.entries<any>(groups)
+        await _forEachYield(groupEntries, (entry) => {
+          const [jid, meta] = entry
+          if (!jid.endsWith('@g.us')) return
+          groupMetaCache.set(jid, { data: meta, fetchedAt: Date.now() })
 
-        if (!waContacts[jid]) {
-          waContacts[jid] = {
-            id: jid,
-            name: formattedName,
-            notify: null,
-            verifiedName: null,
-            phone: null,
-            lid: null
-          }
-          added++
-        } else {
-          if (_isUsableDisplayName(subjectName)) {
-            waContacts[jid].name = subjectName
-          }
-          updated++
-        }
-      })
-      if (added > 0 || updated > 0) {
-        _scheduleWaContactsPersist()
-        momai.log(
-          `Groups updated: ${added} new groups, ${updated} updated, ${Object.keys(waContacts).length} total waContacts`
-        )
-        _notifyContactsUpdated()
-      }
+          const subjectName = meta.subject ? String(meta.subject).trim() : null
+          const formattedName = _isUsableDisplayName(subjectName) ? subjectName : 'Grupo'
 
-      // Remove do cache grupos em que o número não participa mais (JID velho
-      // de grupo excluído/removido). Sem isso, o nome do grupo continua
-      // resolvendo para o JID fantasma e o envio é recusado pelo WhatsApp
-      // com "not-acceptable" (não-membro). Só poda quando o fetch retornou a
-      // lista real de grupos participados (evita apagar tudo em fetch parcial).
-      const participating = new Set(Object.keys(groups))
-      if (participating.size > 0) {
-        let pruned = 0
-        await _forEachYield(Object.keys(waContacts), (jid) => {
-          if (jid.endsWith('@g.us') && !participating.has(jid)) {
-            delete waContacts[jid]
-            groupMetaCache.delete(jid)
-            pruned++
+          if (!waContacts[jid]) {
+            waContacts[jid] = {
+              id: jid,
+              name: formattedName,
+              notify: null,
+              verifiedName: null,
+              phone: null,
+              lid: null
+            }
+            added++
+          } else {
+            if (_isUsableDisplayName(subjectName)) {
+              waContacts[jid].name = subjectName
+            }
+            updated++
           }
         })
-        if (pruned > 0) {
+        if (added > 0 || updated > 0) {
           _scheduleWaContactsPersist()
-          momai.log(`Groups pruned: removed ${pruned} stale group(s) not in participating list`)
+          momai.log(
+            `Groups updated: ${added} new groups, ${updated} updated, ${Object.keys(waContacts).length} total waContacts`
+          )
+          _notifyContactsUpdated()
+        }
+
+        // Remove do cache grupos em que o número não participa mais (JID velho
+        // de grupo excluído/removido). Sem isso, o nome do grupo continua
+        // resolvendo para o JID fantasma e o envio é recusado pelo WhatsApp
+        // com "not-acceptable" (não-membro). Só poda quando o fetch retornou a
+        // lista real de grupos participados (evita apagar tudo em fetch parcial).
+        const participating = new Set(Object.keys(groups))
+        if (participating.size > 0) {
+          let pruned = 0
+          await _forEachYield(Object.keys(waContacts), (jid) => {
+            if (jid.endsWith('@g.us') && !participating.has(jid)) {
+              delete waContacts[jid]
+              groupMetaCache.delete(jid)
+              pruned++
+            }
+          })
+          if (pruned > 0) {
+            _scheduleWaContactsPersist()
+            momai.log(`Groups pruned: removed ${pruned} stale group(s) not in participating list`)
+          }
         }
       }
+    } catch (err: any) {
+      lastGroupFetchTs = Date.now()
+      momai.log(`Failed to fetch groups: ${err?.message || err}`)
+    } finally {
+      pendingGroupFetchPromise = null
     }
-  } catch (err) {
-    momai.log(`Failed to fetch groups: ${err.message}`)
-  }
+  })()
+
+  return pendingGroupFetchPromise
 }
 
 function populateContactsFromChatHistory() {

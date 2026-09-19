@@ -324,5 +324,22 @@
         "message": "Messaggio",
         "contact": "Contatto o numero",
         "image": "Immagine"
+    },
+    "widget": {
+        "unread": {
+            "title": "Non letti",
+            "loading": "Caricamento non letti…",
+            "empty": "Tutto letto.",
+            "disconnected": "WhatsApp disconnesso. Apri WhatsApp per associare di nuovo.",
+            "unknown": "Contatto"
+        },
+        "lastMessage": {
+            "title": "Ultimo messaggio",
+            "loading": "Caricamento ultimo messaggio…",
+            "empty": "Ancora nessun messaggio.",
+            "media": "(messaggio multimediale)",
+            "mediaBadge": "media",
+            "unknown": "Contatto"
+        }
     }
 }

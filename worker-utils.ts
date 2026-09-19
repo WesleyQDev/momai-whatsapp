@@ -1160,6 +1160,24 @@ function resolveStatusReplyQuoted(statusContext, storedMessage) {
   return participant ? { ...storedMessage, participant } : storedMessage
 }
 
+/** Cooldown / debounce threshold for WhatsApp group fetching (3 minutes). */
+const GROUP_FETCH_COOLDOWN_MS = 3 * 60 * 1000
+
+/**
+ * Determines whether group fetching should be executed based on the last fetch timestamp,
+ * cooldown threshold, and whether a forced sync was requested.
+ */
+function shouldFetchGroups(
+  lastFetchTs: number,
+  cooldownMs: number = GROUP_FETCH_COOLDOWN_MS,
+  now: number = Date.now(),
+  force: boolean = false
+): boolean {
+  if (force) return true
+  if (!lastFetchTs || lastFetchTs <= 0) return true
+  return now - lastFetchTs >= cooldownMs
+}
+
 module.exports = {
   withTimeout,
   friendlySendError,
@@ -1199,6 +1217,8 @@ module.exports = {
   searchContacts,
   mapWithConcurrency,
   createIpcMomai,
+  GROUP_FETCH_COOLDOWN_MS,
+  shouldFetchGroups,
   MAX_IMAGE_BYTES,
   MAX_AUDIO_BYTES,
   MAX_STICKER_BYTES,

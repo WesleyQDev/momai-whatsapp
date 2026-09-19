@@ -2202,11 +2202,11 @@ export default function WhatsAppView() {
         [data-theme='light'] .wa-conversation-item:focus,
         [data-theme='selenized-light'] .wa-conversation-item:hover,
         [data-theme='selenized-light'] .wa-conversation-item:focus {
-          background-color: rgba(0, 0, 0, 0.11) !important;
+          background-color: rgba(0, 0, 0, 0.06) !important;
         }
         [data-theme='light'] .wa-conversation-item:active,
         [data-theme='selenized-light'] .wa-conversation-item:active {
-          background-color: rgba(0, 0, 0, 0.18) !important;
+          background-color: rgba(0, 0, 0, 0.10) !important;
         }
         .wa-conversation-item::before {
           content: '';

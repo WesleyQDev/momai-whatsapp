@@ -455,7 +455,27 @@
     "page": "dist/page.js",
     "pageType": "whatsapp-page",
     "panel": "dist/panel.js",
-    "panelType": "whatsapp-panel"
+    "panelType": "whatsapp-panel",
+    "widgets": [
+      {
+        "id": "unread",
+        "name": "WhatsApp — Não lidas",
+        "description": "Conversas com mensagens não lidas",
+        "entry": "dist/widget-unread.js",
+        "type": "momai-whatsapp-unread-widget",
+        "defaultSize": "compact_2x1",
+        "supportsTransparency": true
+      },
+      {
+        "id": "last-message",
+        "name": "WhatsApp — Última mensagem",
+        "description": "Última mensagem recebida",
+        "entry": "dist/widget-last-message.js",
+        "type": "momai-whatsapp-last-message-widget",
+        "defaultSize": "compact_2x1",
+        "supportsTransparency": true
+      }
+    ]
   },
   "eventTypes": {
     "qr_code": {

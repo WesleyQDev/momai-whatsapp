@@ -324,5 +324,22 @@
         "message": "Nachricht",
         "contact": "Kontakt oder Nummer",
         "image": "Bild"
+    },
+    "widget": {
+        "unread": {
+            "title": "Ungelesen",
+            "loading": "Ungelesene werden geladen…",
+            "empty": "Alles gelesen.",
+            "disconnected": "WhatsApp getrennt. Öffne WhatsApp, um erneut zu koppeln.",
+            "unknown": "Kontakt"
+        },
+        "lastMessage": {
+            "title": "Letzte Nachricht",
+            "loading": "Letzte Nachricht wird geladen…",
+            "empty": "Noch keine Nachrichten.",
+            "media": "(Mediennachricht)",
+            "mediaBadge": "Medien",
+            "unknown": "Kontakt"
+        }
     }
 }

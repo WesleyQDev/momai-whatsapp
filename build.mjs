@@ -11,6 +11,21 @@ if (manifest.ui?.page && existsSync(path.join(__dirname, 'src/page.tsx')))
   entries.push({ in: 'src/page.tsx', out: 'page' })
 if (manifest.ui?.panel && existsSync(path.join(__dirname, 'src/panel.tsx')))
   entries.push({ in: 'src/panel.tsx', out: 'panel' })
+if (Array.isArray(manifest.ui?.widgets)) {
+  for (const widget of manifest.ui.widgets) {
+    const entry = widget?.entry || widget?.file
+    if (!entry || typeof entry !== 'string' || !entry.startsWith('dist/') || !entry.endsWith('.js')) continue
+    const out = entry.slice('dist/'.length, -'.js'.length)
+    const id = widget?.id
+    const candidates = id ? [`src/widgets/${id}.tsx`, `src/widgets/${id}.ts`] : []
+    for (const candidate of candidates) {
+      if (existsSync(path.join(__dirname, candidate))) {
+        entries.push({ in: candidate, out })
+        break
+      }
+    }
+  }
+}
 
 if (entries.length === 0) {
   console.log('[skill:build] No UI entries in manifest. Nothing to do.')
