@@ -6,6 +6,7 @@ import ContactAvatar from './components/ContactAvatar'
 import ConversationListItem from './components/ConversationListItem'
 import MonitoringDropdown from './components/MonitoringDropdown'
 import { api } from './services/api'
+import { resolveSocketTransition, resolveStatsTransition } from './services/disconnectTransition'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { useI18n } from './hooks/useI18n'
 import { useUnreadConversations } from './hooks/useUnreadConversations'
@@ -1012,6 +1013,7 @@ export default function WhatsAppView() {
     !_stateCache.hasCredentials && !_stateCache.connected
   )
   const disconnectGraceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const explicitDisconnectRef = useRef(false)
   const pendingQrRef = useRef<string | null>(null)
   const connectedAtRef = useRef<number>(0)
 
@@ -1372,6 +1374,7 @@ export default function WhatsAppView() {
       const hasCreds = Boolean(data.hasCredentials)
       const recentlyConnected = Date.now() - connectedAtRef.current < 15000
       if (isConnected) {
+        explicitDisconnectRef.current = false
         clearDisconnectGraceTimer()
         setConnected(true)
         setPairingActive(false)
@@ -1380,6 +1383,20 @@ export default function WhatsAppView() {
         setQrUrl(null)
         pendingQrRef.current = null
         setHasCredentials(true)
+      } else if (explicitDisconnectRef.current) {
+        const transition = resolveStatsTransition({
+          explicitDisconnect: true,
+          isConnected: false,
+          serverHasCredentials: hasCreds,
+          localHasCredentials: hasCredentials,
+          recentlyConnected: false,
+          previousStatus: 'reconnecting'
+        })
+        setConnected(false)
+        setPairingActive(transition.pairingActive)
+        setShowQrFallback(transition.showQrFallback)
+        setHasCredentials(transition.hasCredentials)
+        setConnectionStatus(transition.nextStatus)
       } else if (recentlyConnected) {
         // Keep active connection state: Baileys is still finishing handshake / writing creds
         setConnected(true)
@@ -1399,6 +1416,12 @@ export default function WhatsAppView() {
         setShowQrFallback(true)
         setConnectionStatus('disconnected')
       }
+      if (explicitDisconnectRef.current && !isConnected) {
+        if (data.qr) {
+          pendingQrRef.current = data.qr
+          applyQrString(data.qr)
+        }
+      } else {
       const msgs = data.totalMessages || 0
       const synced = data.syncedContacts || 0
       const monitored = data.monitoredCount || 0
@@ -1422,6 +1445,7 @@ export default function WhatsAppView() {
           applyQrString(data.qr)
         }
       }
+      }
     } catch {
     } finally {
       setStatsLoaded(true)
@@ -1438,6 +1462,7 @@ export default function WhatsAppView() {
   ])
 
   const loadHistory = useCallback(async () => {
+    if (explicitDisconnectRef.current) return
     try {
       const { data } = await api.post('/extensions/whatsapp/command', {
         toolName: 'get_history',
@@ -1712,6 +1737,7 @@ export default function WhatsAppView() {
   }
 
   const disconnect = useCallback(async () => {
+    explicitDisconnectRef.current = true
     clearDisconnectGraceTimer()
     pendingQrRef.current = null
     setShowQrFallback(true)
@@ -1726,13 +1752,13 @@ export default function WhatsAppView() {
     setMonitoredCount(0)
     setSyncedContacts(0)
     setQrUrl(null)
-    beginPairing()
     try {
       await api.post('/extensions/whatsapp/command', {
         toolName: 'disconnect',
         args: {}
       })
     } catch {}
+    beginPairing()
   }, [beginPairing, clearDisconnectGraceTimer, setHistory, setConnected, setHasCredentials])
 
   const [generatingQr, setGeneratingQr] = useState(false)
@@ -1991,6 +2017,7 @@ export default function WhatsAppView() {
         } else if (event.eventType === 'connection_status') {
           const status = event.data?.status
           if (status === 'connected') {
+            explicitDisconnectRef.current = false
             connectedAtRef.current = Date.now()
             clearDisconnectGraceTimer()
             setConnected(true)
@@ -2005,12 +2032,34 @@ export default function WhatsAppView() {
             void loadPaginatedContacts(contactsPage, contactSearch)
             void loadPaginatedGroups(groupsPage, groupSearch)
           } else if (status === 'reconnecting') {
+            const forced = resolveSocketTransition({
+              explicitDisconnect: explicitDisconnectRef.current,
+              eventStatus: 'reconnecting'
+            })
+            if (forced) {
+              setConnected(false)
+              setConnectionStatus(forced.nextStatus)
+              setShowQrFallback(forced.showQrFallback)
+              setPairingActive(forced.pairingActive)
+              return
+            }
             setConnected(false)
             setConnectionStatus('reconnecting')
             if (hasCredentials || _stateCache.hasCredentials) {
               startDisconnectGraceTimer()
             }
           } else if (status === 'disconnected') {
+            const forced = resolveSocketTransition({
+              explicitDisconnect: explicitDisconnectRef.current,
+              eventStatus: 'disconnected'
+            })
+            if (forced) {
+              setConnected(false)
+              setConnectionStatus(forced.nextStatus)
+              setShowQrFallback(forced.showQrFallback)
+              setPairingActive(forced.pairingActive)
+              return
+            }
             setConnected(false)
             if (hasCredentials || _stateCache.hasCredentials) {
               setConnectionStatus('reconnecting')
@@ -2022,6 +2071,7 @@ export default function WhatsAppView() {
           }
           return
         } else if (event.eventType === 'contacts_synced') {
+          if (explicitDisconnectRef.current) return
           setSyncedContacts(event.data?.count || 0)
           void loadStats()
           void loadPaginatedContacts(contactsPage, contactSearch)
@@ -2029,6 +2079,7 @@ export default function WhatsAppView() {
           void tryFinishContactSync(event.data?.count, event.data?.isFinal)
           return
         } else if (event.eventType === 'contacts_updated') {
+          if (explicitDisconnectRef.current) return
           void loadStats()
           if (syncingRef.current) void tryFinishContactSync()
           void loadPaginatedContacts(contactsPage, contactSearch)
@@ -2041,6 +2092,7 @@ export default function WhatsAppView() {
           event.eventType === 'whatsapp_notification' ||
           event.eventType === 'history_loaded'
         ) {
+          if (explicitDisconnectRef.current) return
           if (event.eventType === 'message_sent' && event.data?.jid) {
             markRead(String(event.data.jid))
           }
@@ -2082,6 +2134,18 @@ export default function WhatsAppView() {
         } else if (event.eventType === 'authenticated') {
           const status = event.data?.status
           if (status === 'logged_out') {
+            const forced = resolveSocketTransition({
+              explicitDisconnect: explicitDisconnectRef.current,
+              eventStatus: 'logged_out'
+            })
+            if (forced) {
+              setConnected(false)
+              setConnectionStatus(forced.nextStatus)
+              setShowQrFallback(forced.showQrFallback)
+              setPairingActive(forced.pairingActive)
+              setSyncing(false)
+              return
+            }
             if (pairingActive || showQrFallback || !hasCredentials) {
               beginPairing()
               setConnected(false)
@@ -2093,6 +2157,7 @@ export default function WhatsAppView() {
               startDisconnectGraceTimer()
             }
           } else if (status === 'connected') {
+            explicitDisconnectRef.current = false
             connectedAtRef.current = Date.now()
             clearDisconnectGraceTimer()
             setConnected(true)
@@ -2108,6 +2173,17 @@ export default function WhatsAppView() {
             void loadPaginatedContacts(contactsPage, contactSearch)
             void loadPaginatedGroups(groupsPage, groupSearch)
           } else {
+            const forced = resolveSocketTransition({
+              explicitDisconnect: explicitDisconnectRef.current,
+              eventStatus: 'other'
+            })
+            if (forced) {
+              setConnected(false)
+              setConnectionStatus(forced.nextStatus)
+              setShowQrFallback(forced.showQrFallback)
+              setPairingActive(forced.pairingActive)
+              return
+            }
             setConnected(false)
             if (hasCredentials || _stateCache.hasCredentials) {
               setConnectionStatus('reconnecting')

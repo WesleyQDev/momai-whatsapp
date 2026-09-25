@@ -331,7 +331,9 @@
             "loading": "Chargement des non lus…",
             "empty": "Tout est lu.",
             "disconnected": "WhatsApp déconnecté. Ouvrez WhatsApp pour associer à nouveau.",
-            "unknown": "Contact"
+            "unknown": "Contact",
+            "customizeTitle": "Personnaliser non lus",
+            "limit": "Conversations max"
         },
         "lastMessage": {
             "title": "Dernier message",

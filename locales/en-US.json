@@ -331,7 +331,9 @@
             "loading": "Loading unread…",
             "empty": "All read.",
             "disconnected": "WhatsApp disconnected. Open WhatsApp to pair again.",
-            "unknown": "Contact"
+            "unknown": "Contact",
+            "customizeTitle": "Customize unread",
+            "limit": "Max conversations"
         },
         "lastMessage": {
             "title": "Last message",

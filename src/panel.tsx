@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback, useMemo, Fragment } from 'react'
-import { createPortal } from 'react-dom'
 import {
   XMarkIcon,
   MicrophoneIcon,
@@ -11,11 +10,11 @@ import {
 } from '@heroicons/react/24/outline'
 import { PlayIcon, PauseIcon } from '@heroicons/react/24/solid'
 import QRCode from 'qrcode'
-import ImageViewer from 'momai:image-viewer'
 import sdk from 'momai:sdk'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { useI18n } from './hooks/useI18n'
 import { getChatBubbleClasses, getChatBubbleStyle, getChatBubbleTimeClasses } from './utils/chatBubble'
+import { renderTextWithLinks } from './utils/linkify'
 import { useReplySuggestions } from './hooks/useReplySuggestions'
 import ContextMenu from './components/ContextMenu'
 import MediaPicker from './components/MediaPicker'
@@ -166,61 +165,6 @@ function VideoThumbnail({
   )
 }
 
-function VideoViewer({ src, onClose }: { src: string; onClose: () => void }) {
-  const dialogRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    dialogRef.current?.focus()
-    const handleKeydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handleKeydown)
-    return () => {
-      window.removeEventListener('keydown', handleKeydown)
-    }
-  }, [onClose])
-
-  return createPortal(
-    <div
-      ref={dialogRef}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Video viewer"
-      tabIndex={-1}
-      className="fixed inset-0 z-[500] flex items-center justify-center bg-zinc-900/80 backdrop-blur-sm animate-in fade-in duration-300"
-      onClick={(e) => {
-        e.stopPropagation()
-        onClose()
-      }}
-    >
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          onClose()
-        }}
-        className="absolute top-4 right-4 p-2.5 rounded-full bg-white text-zinc-900 shadow-xl ring-1 ring-black/20 hover:bg-zinc-100 hover:scale-105 transition-all z-[600] cursor-pointer"
-        style={{ WebkitAppRegion: 'no-drag' } as any}
-        aria-label="Close"
-      >
-        <XMarkIcon className="w-6 h-6" />
-      </button>
-
-      <div
-        className="relative max-w-[70vw] max-h-[70vh] flex items-center justify-center animate-in zoom-in duration-300"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <video
-          src={src}
-          controls
-          autoPlay
-          className="max-w-full max-h-[70vh] object-contain shadow-2xl border-2 border-white/10 rounded-lg"
-        />
-      </div>
-    </div>,
-    document.body
-  )
-}
 
 function DocumentCard({
   file,
@@ -254,6 +198,230 @@ function DocumentCard({
         </span>
       </span>
     </button>
+  )
+}
+
+function OverlayImagePreview({
+  src,
+  alt,
+  contactName,
+  caption,
+  onClose,
+  onHeaderMouseDown,
+  onHeaderMouseMove,
+  onHeaderMouseUp
+}: {
+  src: string
+  alt: string
+  contactName: string
+  caption?: string | null
+  onClose: () => void
+  onHeaderMouseDown?: (e: React.MouseEvent) => void
+  onHeaderMouseMove?: (e: React.MouseEvent) => void
+  onHeaderMouseUp?: (e: React.MouseEvent) => void
+}) {
+  const { t } = useI18n()
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const panStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 })
+  const containerRef = useRef<HTMLDivElement>(null)
+  const imgRef = useRef<HTMLImageElement>(null)
+
+  useEffect(() => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }, [src])
+
+  const clampPan = (newX: number, newY: number, currentZoom: number) => {
+    if (currentZoom <= 1) return { x: 0, y: 0 }
+    if (!imgRef.current || !containerRef.current) return { x: newX, y: newY }
+    const containerW = containerRef.current.clientWidth
+    const containerH = containerRef.current.clientHeight
+    const baseW = imgRef.current.clientWidth
+    const baseH = imgRef.current.clientHeight
+
+    const scaledW = baseW * currentZoom
+    const scaledH = baseH * currentZoom
+
+    const maxPanX = Math.max(0, (scaledW - containerW) / 2 + 15)
+    const maxPanY = Math.max(0, (scaledH - containerH) / 2 + 15)
+
+    return {
+      x: Math.min(maxPanX, Math.max(-maxPanX, newX)),
+      y: Math.min(maxPanY, Math.max(-maxPanY, newY))
+    }
+  }
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const factor = e.deltaY < 0 ? 1.25 : 0.8
+      setZoom((prev) => {
+        const next = Math.min(6, Math.max(1, prev * factor))
+        if (next <= 1) {
+          setPan({ x: 0, y: 0 })
+          return 1
+        }
+        setPan((prevPan) => clampPan(prevPan.x, prevPan.y, next))
+        return next
+      })
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [])
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (zoom > 1 && e.button === 0) {
+      e.preventDefault()
+      setIsPanning(true)
+      panStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        panX: pan.x,
+        panY: pan.y
+      }
+    }
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isPanning && zoom > 1) {
+      const dx = e.clientX - panStartRef.current.x
+      const dy = e.clientY - panStartRef.current.y
+      setPan(clampPan(panStartRef.current.panX + dx, panStartRef.current.panY + dy, zoom))
+    }
+  }
+
+  const handleMouseUp = () => {
+    setIsPanning(false)
+  }
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (zoom > 1) {
+      setZoom(1)
+      setPan({ x: 0, y: 0 })
+    } else {
+      setZoom(2)
+      setPan({ x: 0, y: 0 })
+    }
+  }
+
+  const resetZoom = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }
+
+  return (
+    <div
+      className="absolute inset-0 z-30 flex flex-col bg-card animate-in fade-in duration-200 select-none overflow-hidden"
+      style={{ WebkitAppRegion: 'no-drag' } as any}
+      onClick={(e) => e.stopPropagation()}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+    >
+      {/* Header */}
+      <div
+        className="flex shrink-0 items-center justify-between px-4 py-3 border-b border-border/40 bg-sidebar/30 select-none cursor-move w-full min-w-0"
+        onMouseDown={onHeaderMouseDown}
+        onMouseMove={onHeaderMouseMove}
+        onMouseUp={onHeaderMouseUp}
+        style={{ WebkitAppRegion: 'no-drag' } as any}
+        title={t('panel.drag_window') || 'Arraste para mover a janela'}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text transition-colors p-1 rounded-md hover:bg-input/50 cursor-pointer"
+          title={t('panel.back_to_chat')}
+        >
+          <ArrowLeftIcon className="w-3.5 h-3.5" />
+          <span className="font-medium">{t('panel.back_to_chat')}</span>
+        </button>
+        <div className="flex items-center gap-1.5 min-w-0 px-2">
+          <span className="text-xs font-semibold text-text truncate max-w-[150px]">
+            {contactName}
+          </span>
+          <svg
+            viewBox="0 0 24 24"
+            className="w-3.5 h-3.5 shrink-0"
+            fill="none"
+            stroke="#25D366"
+            strokeWidth="1.4"
+            aria-hidden
+          >
+            <path d="M12 2.5C6.753 2.5 2.5 6.753 2.5 12c0 1.7.446 3.296 1.226 4.684L2.5 21.5l4.916-1.29A9.45 9.45 0 0 0 12 21.5c5.247 0 9.5-4.253 9.5-9.5S17.247 2.5 12 2.5z" />
+            <path
+              d="M16.3 14.66c-.2.56-1.18 1.08-1.64 1.12-.42.04-.96.2-2.78-.52-2.32-.92-3.78-3.28-3.9-3.44-.12-.16-.94-1.24-.94-2.36 0-1.12.58-1.68.8-1.9.2-.22.44-.28.6-.28h.46c.14 0 .34.04.52.48l.92 2.24c.08.2.12.4.02.64-.08.16-.18.36-.3.48-.12.12-.24.26-.1.48.52.88 1.16 1.56 2.06 2.08.22.14.38.08.54-.08.14-.16.66-.76.84-1 .18-.24.36-.2.64-.1.26.1 1.68.8 1.96.94.28.14.48.2.54.32.08.12.08.68-.14 1.28z"
+              fill="#25D366"
+              stroke="none"
+            />
+          </svg>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1 rounded-md hover:bg-text/10 text-text-muted hover:text-text transition-colors shrink-0 cursor-pointer"
+          aria-label={t('panel.close')}
+          title={t('panel.close')}
+        >
+          <XMarkIcon className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Media element occupying the full space of the overlay with scroll zoom & pan */}
+      <div
+        ref={containerRef}
+        className={`relative flex-1 min-h-0 w-full p-2.5 flex items-center justify-center overflow-hidden select-none ${
+          zoom > 1 ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'
+        }`}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onDoubleClick={handleDoubleClick}
+        title={zoom > 1 ? 'Arraste para mover ou dê duplo clique para resetar' : 'Role o mouse para dar zoom'}
+      >
+        <img
+          ref={imgRef}
+          src={src}
+          alt={alt}
+          style={{
+            transform: zoom > 1 ? `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` : 'none',
+            transformOrigin: 'center center',
+            transition: isPanning ? 'none' : 'transform 120ms ease-out'
+          }}
+          className="max-w-full max-h-full object-contain rounded-lg select-none pointer-events-none shadow-sm"
+          draggable={false}
+        />
+
+        {/* Zoom badge when zoomed in */}
+        {zoom > 1 && (
+          <button
+            type="button"
+            onClick={resetZoom}
+            className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-input/90 hover:bg-input border border-border/60 text-[10px] font-medium text-text-muted hover:text-text shadow-sm transition-all cursor-pointer z-10"
+            title="Resetar zoom (100%)"
+          >
+            {Math.round(zoom * 100)}% • Reset
+          </button>
+        )}
+      </div>
+
+      {/* Caption if message exists and is not a placeholder */}
+      {caption && (
+        <div className="px-3.5 py-2.5 border-t border-border/40 bg-input/20 select-text max-h-24 overflow-y-auto">
+          <p
+            className="text-xs text-text/90 whitespace-pre-wrap break-words"
+            style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+          >
+            {renderTextWithLinks(caption)}
+          </p>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -490,8 +658,17 @@ const getInitials = (name: string): string => {
   return parts[0].slice(0, 1).toUpperCase()
 }
 
-function ContactAvatar({ src, name, id }: { src?: string | null; name: string; id: string }) {
-  const [showViewer, setShowViewer] = useState(false)
+function ContactAvatar({
+  src,
+  name,
+  id,
+  onOpenImage
+}: {
+  src?: string | null
+  name: string
+  id: string
+  onOpenImage?: (src: string) => void
+}) {
   const [stableSrc, setStableSrc] = useState<string | null>(src || null)
   const prevIdRef = useRef<string>(id)
 
@@ -506,20 +683,17 @@ function ContactAvatar({ src, name, id }: { src?: string | null; name: string; i
 
   if (stableSrc) {
     return (
-      <>
-        <img
-          key={stableSrc}
-          src={stableSrc}
-          alt={name}
-          onError={() => setStableSrc((prev) => (prev === src ? null : prev))}
-          className="w-10 h-10 rounded-full object-cover shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-          onClick={(e) => {
-            e.stopPropagation()
-            setShowViewer(true)
-          }}
-        />
-        {showViewer && <ImageViewer src={stableSrc} alt={name} onClose={() => setShowViewer(false)} />}
-      </>
+      <img
+        key={stableSrc}
+        src={stableSrc}
+        alt={name}
+        onError={() => setStableSrc((prev) => (prev === src ? null : prev))}
+        className="w-10 h-10 rounded-full object-cover shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+        onClick={(e) => {
+          e.stopPropagation()
+          if (onOpenImage) onOpenImage(stableSrc)
+        }}
+      />
     )
   }
 
@@ -597,6 +771,21 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const [selectedStickerUrl, setSelectedStickerUrl] = useState<string | null>(null)
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!selectedImageUrl && !selectedStickerUrl && !selectedVideoUrl) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        setSelectedImageUrl(null)
+        setSelectedStickerUrl(null)
+        setSelectedVideoUrl(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [selectedImageUrl, selectedStickerUrl, selectedVideoUrl])
+
   const { openDocument, openingFile, docError } = useOpenDocument()
 
   const [showMediaPicker, setShowMediaPicker] = useState(false)
@@ -1423,7 +1612,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             e.stopPropagation()
           }}
           onDrop={handleDropImage}
-          className={`flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden ${
+          className={`flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden relative ${
             minimized ? 'hidden' : ''
           }`}
           style={{
@@ -1449,6 +1638,71 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             }px`
           } as any}
         >
+          {/* Media overlay occupying the overlay card space without opaque frosted backdrop */}
+          {(selectedImageUrl || selectedStickerUrl) && (
+            <OverlayImagePreview
+              src={selectedImageUrl || selectedStickerUrl || ''}
+              alt={selectedStickerUrl ? 'Sticker' : message && !isMediaPlaceholder(message) ? message : 'Foto'}
+              contactName={contactName}
+              caption={selectedImageUrl && message && !isMediaPlaceholder(message) ? message : null}
+              onClose={() => {
+                setSelectedImageUrl(null)
+                setSelectedStickerUrl(null)
+              }}
+              onHeaderMouseDown={handleHeaderMouseDown}
+              onHeaderMouseMove={handleHeaderMouseMove}
+              onHeaderMouseUp={handleHeaderMouseUp}
+            />
+          )}
+
+          {selectedVideoUrl && (
+            <div
+              className="absolute inset-0 z-30 flex flex-col bg-card animate-in fade-in duration-200 select-none overflow-hidden"
+              style={{ WebkitAppRegion: 'no-drag' } as any}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="flex shrink-0 items-center justify-between px-4 py-3 border-b border-border/40 bg-sidebar/30 select-none cursor-move w-full min-w-0"
+                onMouseDown={handleHeaderMouseDown}
+                onMouseMove={handleHeaderMouseMove}
+                onMouseUp={handleHeaderMouseUp}
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+                title={t('panel.drag_window') || 'Arraste para mover a janela'}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSelectedVideoUrl(null)}
+                  className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text transition-colors p-1 rounded-md hover:bg-input/50 cursor-pointer"
+                  title={t('panel.back_to_chat')}
+                >
+                  <ArrowLeftIcon className="w-3.5 h-3.5" />
+                  <span className="font-medium">{t('panel.back_to_chat')}</span>
+                </button>
+                <span className="text-xs font-semibold text-text truncate max-w-[150px]">
+                  {contactName}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedVideoUrl(null)}
+                  className="p-1 rounded-md hover:bg-text/10 text-text-muted hover:text-text transition-colors shrink-0 cursor-pointer"
+                  aria-label={t('panel.close')}
+                  title={t('panel.close')}
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex-1 min-h-0 w-full p-2 flex items-center justify-center overflow-hidden bg-black/90">
+                <video
+                  src={selectedVideoUrl}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="max-w-full max-h-full object-contain rounded-lg"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Header */}
           <div
             className="flex shrink-0 items-center gap-3 px-4 py-3 border-b border-border/40 bg-sidebar/30 select-none cursor-move w-full min-w-0 overflow-hidden"
@@ -1473,6 +1727,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                   src={activeRecipient.avatar || (activeRecipient.isGroup ? avatarSrc : null)}
                   name={activeRecipient.name}
                   id={activeRecipient.jid}
+                  onOpenImage={setSelectedImageUrl}
                 />
               </div>
 
@@ -1609,7 +1864,12 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                         onClick={() => handleSelectParticipant(p)}
                         className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-input/60 transition-colors text-left group/item cursor-pointer"
                       >
-                        <ContactAvatar src={p.avatar || null} name={p.name} id={p.id} />
+                        <ContactAvatar
+                          src={p.avatar || null}
+                          name={p.name}
+                          id={p.id}
+                          onOpenImage={setSelectedImageUrl}
+                        />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
                             <p className="text-xs font-medium text-text truncate group-hover/item:text-accent transition-colors">
@@ -1722,7 +1982,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                             overflowWrap: 'anywhere'
                                           }}
                                         >
-                                          {line.text}
+                                          {renderTextWithLinks(line.text, isOutgoing)}
                                         </p>
                                       )}
                                     </div>
@@ -1741,7 +2001,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                             overflowWrap: 'anywhere'
                                           }}
                                         >
-                                          {line.text}
+                                          {renderTextWithLinks(line.text, isOutgoing)}
                                         </p>
                                       )}
                                     </div>
@@ -1766,7 +2026,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                           overflowWrap: 'anywhere'
                                         }}
                                       >
-                                        {line.text}
+                                        {renderTextWithLinks(line.text, isOutgoing)}
                                       </p>
                                     )
                                   )}
@@ -1861,7 +2121,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                             className="text-sm text-text/90 whitespace-pre-wrap break-words select-text max-w-full"
                             style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                           >
-                            {message}
+                            {renderTextWithLinks(message)}
                           </p>
                         )}
                         {data?.document ? (
@@ -1906,7 +2166,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                 className="text-sm text-text/90 whitespace-pre-wrap break-words select-text max-w-full"
                                 style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                               >
-                                {message}
+                                {renderTextWithLinks(message)}
                               </p>
                             )}
                           </div>
@@ -1925,7 +2185,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                 className="text-sm text-text/90 whitespace-pre-wrap break-words select-text max-w-full"
                                 style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                               >
-                                {message}
+                                {renderTextWithLinks(message)}
                               </p>
                             )}
                           </div>
@@ -1950,7 +2210,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                               className="text-sm text-text/90 mt-1 whitespace-pre-wrap break-words select-text max-w-full"
                               style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                             >
-                              {message}
+                              {renderTextWithLinks(message)}
                             </p>
                           )
                         )}
@@ -2014,7 +2274,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                           <img
                             src={imgSrc}
                             alt={`Imagem ${index + 1}`}
-                            className="w-10 h-10 object-cover rounded-md border border-border shadow-sm shrink-0"
+                            className="w-10 h-10 object-cover rounded-md border border-border shadow-sm shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => setSelectedImageUrl(imgSrc)}
+                            title={t('panel.photo_click')}
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-semibold text-text truncate">
@@ -2134,8 +2396,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                         }
                         setShowMediaPicker((prev) => !prev)
                       }}
-                      title="Emojis, GIFs e Figurinhas"
-                      aria-label="Emojis, GIFs e Figurinhas"
+                      title={t('panel.emoji_hint')}
+                      aria-label={t('panel.emoji_hint')}
                       className={`p-1 -ml-1 rounded-md transition-colors shrink-0 cursor-pointer ${
                         showMediaPicker ? 'text-accent' : 'text-text-muted hover:text-text'
                       }`}
@@ -2160,8 +2422,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                       type="button"
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={() => fileInputRef.current?.click()}
-                      title="Anexar imagens ou documentos"
-                      aria-label="Anexar imagens ou documentos"
+                      title={t('panel.attach_hint')}
+                      aria-label={t('panel.attach_hint')}
                       className="p-1 rounded-md transition-colors shrink-0 cursor-pointer text-text-muted hover:text-text"
                     >
                       <PaperClipIcon className="w-4 h-4" />
@@ -2202,16 +2464,16 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                         pastedImages.length > 0 || attachedDocuments.length > 0
                           ? attachedDocuments.length > 0 && pastedImages.length === 0
                             ? (attachedDocuments.length === 1
-                                ? `Legenda para ${attachedDocuments[0].name}...`
-                                : `${attachedDocuments.length} documentos anexados. Legenda...`)
+                                ? t('panel.input_placeholder_one_doc', { name: attachedDocuments[0].name })
+                                : t('panel.input_placeholder_multi_doc', { count: attachedDocuments.length }))
                             : pastedImages.length > 0 && attachedDocuments.length === 0
                               ? (pastedImages.length === 1
-                                  ? 'Legenda opcional (pressione Enter)...'
-                                  : `${pastedImages.length} imagens anexadas. Legenda...`)
-                              : `${pastedImages.length + attachedDocuments.length} arquivos anexados. Legenda...`
+                                  ? t('panel.input_placeholder_caption')
+                                  : t('panel.input_placeholder_multi_image', { count: pastedImages.length }))
+                              : t('panel.input_placeholder_multi_mixed', { count: pastedImages.length + attachedDocuments.length })
                           : !activeRecipient.isGroup && activeRecipient.fromGroupJid
-                            ? `Mensagem para ${activeRecipient.name}...`
-                            : 'Digite uma mensagem...'
+                            ? t('panel.input_placeholder_direct', { name: activeRecipient.name })
+                            : t('panel.input_placeholder')
                       }
                       className={`flex-1 min-w-0 bg-transparent text-xs text-text placeholder:text-text-muted/50 focus:outline-none ${
                         sending ? 'opacity-50 cursor-default' : 'cursor-text'
@@ -2318,19 +2580,6 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           onClose={() => setParticipantContextMenu(null)}
           minWidth={170}
         />
-      )}
-      {selectedStickerUrl && (
-        <ImageViewer
-          src={selectedStickerUrl}
-          alt="Sticker"
-          onClose={() => setSelectedStickerUrl(null)}
-        />
-      )}
-      {selectedImageUrl && (
-        <ImageViewer src={selectedImageUrl} alt="Foto" onClose={() => setSelectedImageUrl(null)} />
-      )}
-      {selectedVideoUrl && (
-        <VideoViewer src={selectedVideoUrl} onClose={() => setSelectedVideoUrl(null)} />
       )}
     </>
   )

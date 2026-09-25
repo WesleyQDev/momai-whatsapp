@@ -1,7 +1,7 @@
 {
   "id": "momai-whatsapp",
   "name": "MomAI WhatsApp",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "is_official": true,
   "description": "Acompanhe e responda suas conversas do WhatsApp por voz ou texto, sem pegar o celular.",
   "category": "communication",
@@ -443,6 +443,7 @@
   "icon_bg": "#25D366",
   "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"#ffffff\"><path d=\"M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z\"/></svg>",
   "sidebar_icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"#25D366\"><path d=\"M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z\"/></svg>",
+  "sidebar_icon_essential": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 21l1.65-3.8A9 9 0 1 1 8.05 20.1L3 21\"/><path d=\"M15.5 13.8c-.2-.1-1.2-.6-1.4-.7-.2-.1-.3-.1-.4.1-.1.2-.5.7-.6.8-.1.1-.2.1-.4 0-.2-.1-.9-.3-1.7-1-.6-.5-1-1.2-1.1-1.4-.1-.2 0-.3.1-.4.1-.1.2-.2.3-.3.1-.1.1-.2.2-.3 0-.1 0-.2 0-.3-.1-.1-.4-1.1-.6-1.5-.2-.4-.3-.3-.4-.3h-.4c-.1 0-.3.1-.5.3-.2.2-.7.7-.7 1.7 0 1 .7 2 1 2.2.1.2 1.5 2.3 3.6 3.2.5.2.9.3 1.2.4.5.2 1 .1 1.3.1.4-.1 1.2-.5 1.4-1 .2-.5.2-.9.1-1-.1-.1-.2-.1-.4-.2z\" fill=\"currentColor\" stroke=\"none\"/></svg>",
   "sidebar": true,
   "background": true,
   "backgroundScript": "background-worker.ts",
@@ -532,39 +533,59 @@
   },
   "tools": [
     {
-      "name": "send_message",
-      "label": "Enviar Mensagem no WhatsApp",
-      "description": "Envia uma mensagem para um contato ou grupo do WhatsApp. Pode incluir uma imagem (data URI ou base64) com o texto como legenda.",
-      "parameters": {
-        "type": "object",
-        "required": [
-          "contact",
-          "message"
-        ],
-        "properties": {
-          "contact": {
-            "type": "string",
-            "description": "Nome ou número do contato ou grupo",
-            "x-options-source": {
-              "tool": "list_contacts"
-            }
-          },
-          "message": {
-            "type": "string",
-            "description": "Texto da mensagem"
-          },
-          "image": {
-            "type": "string",
-            "description": "Imagem a enviar (data URI como data:image/jpeg;base64,... ou base64 puro). O texto vira a legenda.",
-            "default": "{event.imageDataUri}"
-          },
-          "documents": {
-            "type": "array",
-            "description": "Documentos a enviar (PDF, Word, Excel, etc.). Cada item pode ser objeto { dataUrl, fileName, mimetype } ou data URI."
+    "name": "send_message",
+    "label": "Enviar Mensagem no WhatsApp",
+    "description": "Envia uma mensagem para um contato ou grupo do WhatsApp. Pode incluir uma imagem (data URI ou base64) com o texto como legenda.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "contact",
+        "message"
+      ],
+      "properties": {
+        "contact": {
+          "type": "string",
+          "description": "Nome ou número do contato ou grupo",
+          "x-options-source": {
+            "tool": "list_contacts"
           }
+        },
+        "message": {
+          "type": "string",
+          "description": "Texto da mensagem"
+        },
+        "image": {
+          "type": "string",
+          "description": "Imagem a enviar (data URI como data:image/jpeg;base64,... ou base64 puro). O texto vira a legenda.",
+          "default": "{event.imageDataUri}"
+        },
+        "documents": {
+          "type": "array",
+          "description": "Documentos a enviar (PDF, Word, Excel, etc.). Cada item pode ser objeto { dataUrl, fileName, mimetype } ou data URI."
+        },
+        "images": {
+          "type": "array",
+          "description": "Varias imagens a enviar (forma plural de image; cada item e data URI/base64)"
+        },
+        "media": {
+          "type": "string",
+          "description": "Midia a enviar quando image nao for usada (data URI/base64)"
+        },
+        "document": {
+          "type": "string",
+          "description": "Documento unico a enviar (data URI); para varios ou com nome de arquivo use documents"
+        },
+        "sticker": {
+          "type": "string",
+          "description": "Figurinha .webp a enviar (data URI, caminho local ou URL)"
+        },
+        "gif": {
+          "type": "string",
+          "description": "URL de GIF a enviar com a mensagem como legenda"
         }
       }
-    },
+    }
+  },
     {
       "name": "set_default_contact",
       "description": "Define o contato padrão para preencher o campo 'para quem' das actions.",
@@ -592,6 +613,58 @@
     {
       "name": "list_contacts",
       "description": "Lista os contatos monitorados no WhatsApp",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+    "name": "get_conversation",
+    "description": "Obtem o historico de mensagens de um contato ou grupo especifico",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "jid"
+      ],
+      "properties": {
+        "jid": {
+          "type": "string",
+          "description": "JID do contato ou grupo (@s.whatsapp.net ou @g.us)"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Maximo de mensagens (opcional, padrao 100, maximo 200)"
+        },
+        "contactJid": {
+          "type": "string",
+          "description": "Alias de jid aceito pelo handler (JID do contato ou grupo)"
+        }
+      }
+    }
+  },
+    {
+    "name": "mark_conversation_read",
+    "description": "Marca as mensagens de um contato ou grupo como lidas (limpa o aviso de nova mensagem)",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "jid"
+      ],
+      "properties": {
+        "jid": {
+          "type": "string",
+          "description": "JID do contato ou grupo (@s.whatsapp.net ou @g.us)"
+        },
+        "contactJid": {
+          "type": "string",
+          "description": "Alias de jid aceito pelo handler (JID do contato ou grupo)"
+        }
+      }
+    }
+  },
+    {
+      "name": "get_unread",
+      "description": "Lista os JIDs com mensagens nao lidas (bolinha de aviso ativa)",
       "parameters": {
         "type": "object",
         "properties": {}
@@ -659,44 +732,52 @@
       }
     },
     {
-      "name": "get_avatars",
-      "description": "Busca fotos de perfil para uma lista de JIDs (contatos ou grupos)",
-      "parameters": {
-        "type": "object",
-        "required": [
-          "jids"
-        ],
-        "properties": {
-          "jids": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Lista de JIDs WhatsApp (@s.whatsapp.net ou @g.us)"
-          }
-        }
-      }
-    },
-    {
-      "name": "open_document",
-      "description": "Abre um documento recebido no aplicativo padrão do computador (Word para .docx, Acrobat/navegador para .pdf)",
-      "parameters": {
-        "type": "object",
-        "required": [
-          "filename"
-        ],
-        "properties": {
-          "filename": {
-            "type": "string",
-            "description": "Nome do arquivo salvo (campo document do evento)"
+    "name": "get_avatars",
+    "description": "Busca fotos de perfil para uma lista de JIDs (contatos ou grupos)",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "jids"
+      ],
+      "properties": {
+        "jids": {
+          "type": "array",
+          "items": {
+            "type": "string"
           },
-          "documentName": {
-            "type": "string",
-            "description": "Nome original para exibição (campo documentName do evento)"
-          }
+          "description": "Lista de JIDs WhatsApp (@s.whatsapp.net ou @g.us)"
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Forca buscar a foto no telefone em vez de usar o cache"
         }
       }
-    },
+    }
+  },
+    {
+    "name": "open_document",
+    "description": "Abre um documento recebido no aplicativo padrão do computador (Word para .docx, Acrobat/navegador para .pdf)",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "filename"
+      ],
+      "properties": {
+        "filename": {
+          "type": "string",
+          "description": "Nome do arquivo salvo (campo document do evento)"
+        },
+        "documentName": {
+          "type": "string",
+          "description": "Nome original para exibição (campo documentName do evento)"
+        },
+        "document": {
+          "type": "string",
+          "description": "Alias de filename aceito pelo handler (nome do arquivo salvo)"
+        }
+      }
+    }
+  },
     {
       "name": "get_stats",
       "description": "Obtém estatísticas do WhatsApp",
@@ -714,18 +795,26 @@
       }
     },
     {
-      "name": "get_wa_contacts",
-      "description": "Lista os contatos do WhatsApp importados do telefone.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "search": {
-            "type": "string",
-            "description": "Busca por nome ou número (opcional)"
-          }
+    "name": "get_wa_contacts",
+    "description": "Lista os contatos do WhatsApp importados do telefone.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "search": {
+          "type": "string",
+          "description": "Busca por nome ou número (opcional)"
+        },
+        "page": {
+          "type": "number",
+          "description": "Pagina (opcional)"
+        },
+        "perPage": {
+          "type": "number",
+          "description": "Itens por pagina (opcional)"
         }
       }
-    },
+    }
+  },
     {
       "name": "get_wa_groups",
       "description": "Lista os grupos do WhatsApp sincronizados.",
@@ -748,21 +837,25 @@
       }
     },
     {
-      "name": "get_group_participants",
-      "description": "Lista os participantes de um grupo do WhatsApp com nomes e fotos.",
-      "parameters": {
-        "type": "object",
-        "required": [
-          "groupJid"
-        ],
-        "properties": {
-          "groupJid": {
-            "type": "string",
-            "description": "JID do grupo (@g.us)"
-          }
+    "name": "get_group_participants",
+    "description": "Lista os participantes de um grupo do WhatsApp com nomes e fotos.",
+    "parameters": {
+      "type": "object",
+      "required": [
+        "groupJid"
+      ],
+      "properties": {
+        "groupJid": {
+          "type": "string",
+          "description": "JID do grupo (@g.us)"
+        },
+        "jid": {
+          "type": "string",
+          "description": "Alias de groupJid aceito pelo handler (JID do grupo)"
         }
       }
-    },
+    }
+  },
     {
       "name": "delete_message",
       "description": "Deleta todas as mensagens de um contato ou grupo do histórico.",

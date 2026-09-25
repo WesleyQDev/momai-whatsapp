@@ -223,7 +223,7 @@ async function requestSuggestions(
   system: string,
   user: string
 ): Promise<string[]> {
-  const opts = { system, user, temperature: 0.5, maxTokens: 160, timeoutMs: 6000, format: 'json' }
+  const opts = { system, user, temperature: 0.5, maxTokens: 160, timeoutMs: 15000, format: 'json' }
   // `complete` returns the raw text, so we can parse it tolerantly even when
   // the model does not produce strict JSON.
   if (typeof llm.complete === 'function' && methodAvailable(llm, 'llm.complete')) {

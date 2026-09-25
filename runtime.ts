@@ -21,7 +21,19 @@ module.exports = {
             type: 'string',
             description: 'Imagem a enviar (data URI como data:image/jpeg;base64,... ou base64 puro). O texto vira a legenda.',
             default: '{event.imageDataUri}'
-          }
+          },
+          images: {
+            type: 'array',
+            description: 'Varias imagens a enviar (forma plural de image; cada item e data URI/base64)'
+          },
+          documents: {
+            type: 'array',
+            description: 'Documentos a enviar (PDF, Word, Excel): cada item e um data URI ou um objeto { dataUrl, fileName, mimetype }'
+          },
+          media: { type: 'string', description: 'Midia a enviar quando image nao for usada (data URI/base64)' },
+          document: { type: 'string', description: 'Documento unico a enviar (data URI); para varios ou com nome de arquivo use documents' },
+          sticker: { type: 'string', description: 'Figurinha .webp a enviar (data URI, caminho local ou URL)' },
+          gif: { type: 'string', description: 'URL de GIF a enviar com a mensagem como legenda' }
         }
       }
     },
@@ -113,6 +125,7 @@ module.exports = {
             type: 'string',
             description: 'JID do contato ou grupo (@s.whatsapp.net ou @g.us)'
           },
+          contactJid: { type: 'string', description: 'Alias de jid aceito pelo handler (JID do contato ou grupo)' },
           limit: {
             type: 'number',
             description: 'Maximo de mensagens (opcional, padrao 100, maximo 200)'
@@ -130,7 +143,8 @@ module.exports = {
           jid: {
             type: 'string',
             description: 'JID do contato ou grupo (@s.whatsapp.net ou @g.us)'
-          }
+          },
+          contactJid: { type: 'string', description: 'Alias de jid aceito pelo handler (JID do contato ou grupo)' }
         }
       }
     },
@@ -152,7 +166,8 @@ module.exports = {
             type: 'array',
             items: { type: 'string' },
             description: 'Lista de JIDs WhatsApp (@s.whatsapp.net ou @g.us)'
-          }
+          },
+          force: { type: 'boolean', description: 'Forca buscar a foto no telefone em vez de usar o cache' }
         },
         required: ['jids']
       }
@@ -168,6 +183,7 @@ module.exports = {
             type: 'string',
             description: 'Nome do arquivo salvo (campo document do evento)'
           },
+          document: { type: 'string', description: 'Alias de filename aceito pelo handler (nome do arquivo salvo)' },
           documentName: {
             type: 'string',
             description: 'Nome original para exibição (campo documentName do evento)'
@@ -183,7 +199,9 @@ module.exports = {
       parameters: {
         type: 'object',
         properties: {
-          search: { type: 'string', description: 'Busca por nome ou numero (opcional)' }
+          search: { type: 'string', description: 'Busca por nome ou numero (opcional)' },
+          page: { type: 'number', description: 'Pagina (opcional)' },
+          perPage: { type: 'number', description: 'Itens por pagina (opcional)' }
         }
       }
     },
@@ -215,7 +233,8 @@ module.exports = {
         type: 'object',
         required: ['groupJid'],
         properties: {
-          groupJid: { type: 'string', description: 'JID do grupo (@g.us)' }
+          groupJid: { type: 'string', description: 'JID do grupo (@g.us)' },
+          jid: { type: 'string', description: 'Alias de groupJid aceito pelo handler (JID do grupo)' }
         }
       }
     },

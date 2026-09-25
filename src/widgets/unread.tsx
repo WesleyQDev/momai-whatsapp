@@ -3,6 +3,11 @@ import ContactAvatar from '../components/ContactAvatar'
 import { useI18n } from '../hooks/useI18n'
 import { useUnreadWidget } from './hooks/useUnreadWidget'
 import { resolveWidgetLabel, type WidgetHistoryMessage } from './services/widgetApi'
+import {
+  resolveUnreadLimit,
+  WHATSAPP_UNREAD_CUSTOMIZATION
+} from './unreadCustomization'
+import type { WidgetProps } from './types'
 import { WidgetLoading, WidgetState } from './components/WidgetState'
 
 function formatTime(timestamp: number): string {
@@ -26,9 +31,9 @@ function describePreview(
   return prefix.trim()
 }
 
-export default function WhatsappUnreadWidget(): JSX.Element {
+export default function WhatsappUnreadWidget({ config }: WidgetProps<{ limit?: number | string }>): JSX.Element {
   const { t } = useI18n()
-  const { loading, connected, total, rows, error } = useUnreadWidget()
+  const { loading, connected, total, rows, error } = useUnreadWidget(resolveUnreadLimit(config))
 
   if (loading) return <WidgetLoading message={t('widget.unread.loading')} />
   if (error) return <WidgetState title={t('widget.unread.title')} message={error} />
@@ -78,3 +83,5 @@ export default function WhatsappUnreadWidget(): JSX.Element {
     </div>
   )
 }
+
+WhatsappUnreadWidget.customization = WHATSAPP_UNREAD_CUSTOMIZATION

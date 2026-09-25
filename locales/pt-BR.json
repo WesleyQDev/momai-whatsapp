@@ -331,7 +331,9 @@
             "loading": "Carregando não lidas…",
             "empty": "Tudo lido.",
             "disconnected": "WhatsApp desconectado. Abra o WhatsApp para parear de novo.",
-            "unknown": "Contato"
+            "unknown": "Contato",
+            "customizeTitle": "Personalizar não lidas",
+            "limit": "Máximo de conversas"
         },
         "lastMessage": {
             "title": "Última mensagem",

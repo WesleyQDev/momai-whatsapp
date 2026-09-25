@@ -37,7 +37,7 @@ const initialState: UnreadWidgetState = {
  * enriching rows with avatar URLs like the conversation list does.
  * Always live, even in edit mode.
  */
-export function useUnreadWidget(): UnreadWidgetState {
+export function useUnreadWidget(limit = 3): UnreadWidgetState {
   const [state, setState] = useState<UnreadWidgetState>(initialState)
   const liveSignal = useWidgetLiveSignal()
   const liveMessages = useWidgetLiveMessages()
@@ -51,7 +51,7 @@ export function useUnreadWidget(): UnreadWidgetState {
         const [connection, history] = await Promise.all([fetchConnection(), fetchWidgetHistory(20)])
         if (cancelled) return
         const effective = mergeHistoryWithServer(liveMessagesRef.current, history)
-        const latest = groupLatestByConversation(effective, 3)
+        const latest = groupLatestByConversation(effective, limit)
         const missing = latest.filter((item) => !item.profilePicUrl).map((item) => item.jid)
         const avatars = await fetchAvatars(missing).catch((): Record<string, string> => ({}))
         if (cancelled) return
@@ -79,10 +79,9 @@ export function useUnreadWidget(): UnreadWidgetState {
       void load()
     }, WIDGET_HISTORY_POLL_MS)
     return () => {
-      cancelled = true
       clearInterval(timer)
     }
-  }, [liveSignal])
+  }, [liveSignal, limit])
 
   return state
 }
