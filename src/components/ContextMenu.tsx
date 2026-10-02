@@ -124,7 +124,12 @@ export default function ContextMenu({
               key={item.id || idx}
               type="button"
               role="menuitem"
-              onClick={() => {
+              onMouseDown={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
                 item.onClick()
                 onClose()
               }}

@@ -91,4 +91,21 @@ describe('ConversationListItem', () => {
     const badge = view.querySelector('span.uppercase')
     expect(badge).toBeNull()
   })
+
+  it('does not render rename (pencil) or delete (trash) buttons in the conversation row', async () => {
+    const view = await renderItem()
+    const buttons = Array.from(view.querySelectorAll('button'))
+    // Should not have rename or delete buttons with title attributes
+    const renameBtn = buttons.find((b) => b.getAttribute('title')?.includes('Renomear'))
+    const deleteBtn = buttons.find((b) => b.getAttribute('title')?.includes('Excluir'))
+    expect(renameBtn).toBeUndefined()
+    expect(deleteBtn).toBeUndefined()
+  })
+
+  it('renders the monitored bell icon in black', async () => {
+    const view = await renderItem({ monitoring: true })
+    const monitoredSvg = view.querySelector('svg.text-black')
+    expect(monitoredSvg).not.toBeNull()
+  })
 })
+

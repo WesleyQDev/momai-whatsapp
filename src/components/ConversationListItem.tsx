@@ -1,6 +1,65 @@
+import { useEffect, useRef } from 'react'
 import ContactAvatar from './ContactAvatar'
 import MonitoringDropdown from './MonitoringDropdown'
 import { useI18n } from '../hooks/useI18n'
+
+export interface RenameInputProps {
+  value: string
+  onChange: (val: string) => void
+  onSave: (val?: string) => void
+  onCancel: () => void
+  className?: string
+}
+
+export function RenameInput({
+  value,
+  onChange,
+  onSave,
+  onCancel,
+  className = 'w-full max-w-xs bg-white/10 rounded px-2 py-0.5 text-sm border border-emerald-500/50 outline-none text-text'
+}: RenameInputProps) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const mountTimeRef = useRef(Date.now())
+
+  useEffect(() => {
+    mountTimeRef.current = Date.now()
+    const timer = setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus()
+        inputRef.current.select()
+      }
+    }, 40)
+    return () => clearTimeout(timer)
+  }, [])
+
+  return (
+    <input
+      ref={inputRef}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          onSave(e.currentTarget.value)
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          onCancel()
+        }
+      }}
+      onBlur={(e) => {
+        if (Date.now() - mountTimeRef.current < 200) {
+          inputRef.current?.focus()
+          return
+        }
+        onSave(e.currentTarget.value)
+      }}
+      className={className}
+    />
+  )
+}
 
 export interface ConversationListItemPreview {
   direction: 'incoming' | 'outgoing'
@@ -29,12 +88,12 @@ export interface ConversationListItemProps {
   editing: boolean
   editValue: string
   onEditValueChange: (value: string) => void
-  onStartEdit: () => void
-  onSaveEdit: () => void
+  onStartEdit?: () => void
+  onSaveEdit: (val?: string) => void
   onCancelEdit: () => void
   onOpen: () => void
   onOpenMenu: (position: { x: number; y: number }) => void
-  onDelete: () => void
+  onDelete?: () => void
   onToggleMonitoring: () => void
 }
 
@@ -97,23 +156,11 @@ export default function ConversationListItem({
           <div className="flex items-center gap-2 min-w-0">
             {editing ? (
               <div className="flex-1 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                <input
+                <RenameInput
                   value={editValue}
-                  onChange={(e) => onEditValueChange(e.target.value)}
-                  onKeyDown={(e) => {
-                    e.stopPropagation()
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      onSaveEdit()
-                    }
-                    if (e.key === 'Escape') {
-                      e.preventDefault()
-                      onCancelEdit()
-                    }
-                  }}
-                  onBlur={() => onSaveEdit()}
-                  autoFocus
-                  className="w-full max-w-xs bg-white/10 rounded px-2 py-0.5 text-sm border border-emerald-500/50 outline-none text-text"
+                  onChange={onEditValueChange}
+                  onSave={onSaveEdit}
+                  onCancel={onCancelEdit}
                 />
               </div>
             ) : (
@@ -143,36 +190,6 @@ export default function ConversationListItem({
               >
                 {t('page.new_badge')}
               </span>
-            )}
-            {!editing && !isGroup && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onStartEdit()
-                }}
-                className="text-text-muted hover:text-emerald-400 p-1 rounded-lg hover:bg-white/10 transition-colors"
-                title={t('page.rename')}
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
-                </svg>
-              </button>
-            )}
-            {!editing && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onDelete()
-                }}
-                className="text-text-muted hover:text-red-400 p-1 rounded-lg hover:bg-white/10 transition-colors"
-                title={t('page.delete_conversation')}
-              >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675a.75.75 0 1 0-1.492.15l.66 6.6A1.75 1.75 0 0 0 5.405 15h5.19a1.75 1.75 0 0 0 1.741-1.575l.66-6.6a.75.75 0 0 0-1.492-.15l-.66 6.6a.25.25 0 0 1-.249.225h-5.19a.25.25 0 0 1-.249-.225l-.66-6.6Z" />
-                </svg>
-              </button>
             )}
             {!editing && (
               <MonitoringDropdown id={jid} monitoring={monitoring} onToggle={onToggleMonitoring} />

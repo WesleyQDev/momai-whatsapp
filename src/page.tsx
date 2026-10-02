@@ -3,9 +3,10 @@ import QRCode from 'qrcode'
 import sdk from 'momai:sdk'
 import ContextMenu from './components/ContextMenu'
 import ContactAvatar from './components/ContactAvatar'
-import ConversationListItem from './components/ConversationListItem'
+import ConversationListItem, { RenameInput } from './components/ConversationListItem'
 import MonitoringDropdown from './components/MonitoringDropdown'
 import { api } from './services/api'
+import { fetchQrOutcome } from './services/qrRequest'
 import { resolveSocketTransition, resolveStatsTransition } from './services/disconnectTransition'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { useI18n } from './hooks/useI18n'
@@ -27,6 +28,18 @@ const getApiBaseUrl = (): string => {
 const getStickerUrl = (filename: string): string => {
   const base = getApiBaseUrl()
   return `${base}${sdk.media.url('momai-whatsapp', `stickers/${encodeURIComponent(filename)}`)}`
+}
+
+function isProfilePicUrlExpired(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return true
+  try {
+    const match = url.match(/[?&]oe=([0-9a-fA-F]+)/)
+    if (match) {
+      const expSec = parseInt(match[1], 16)
+      return Date.now() >= (expSec - 3600) * 1000
+    }
+  } catch {}
+  return false
 }
 
 interface Message {
@@ -210,7 +223,8 @@ function buildConversationSummaries(history: Message[]): ConversationSummary[] {
     const latestIncoming =
       [...sorted].reverse().find((m) => m.direction === 'incoming') || latestTurn.incoming
     const lastMessage = sorted[sorted.length - 1]
-    const profilePicUrl = [...sorted].reverse().find((m) => m.profilePicUrl)?.profilePicUrl || null
+    const profilePicUrl =
+      [...sorted].reverse().find((m) => m.profilePicUrl && !isProfilePicUrlExpired(m.profilePicUrl))?.profilePicUrl || null
     // Escolhe o melhor JID de destino para abrir e responder (prefere @s.whatsapp.net ou @g.us antes de @lid)
     const isGroup = messages.some((m) => m.isGroup || m.jid?.endsWith('@g.us'))
     const groupName = isGroup
@@ -1003,6 +1017,7 @@ export default function WhatsAppView() {
   const [monitoredCount, setMonitoredCount] = useState(_stateCache.monitoredCount)
   const [history, _setHistory] = useState<Message[]>(_stateCache.history)
   const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [qrError, setQrError] = useState<string | null>(null)
   const [statsLoaded, setStatsLoaded] = useState(_stateCache.statsLoaded)
   const [hasCredentials, _setHasCredentials] = useState(_stateCache.hasCredentials)
   const [pairingActive, setPairingActive] = useState(false)
@@ -1055,6 +1070,7 @@ export default function WhatsAppView() {
 
   const qrRequestInFlight = useRef(false)
   const editingNameRef = useRef<string | null>(null)
+  const editValueRef = useRef('')
   const [editingName, setEditingName] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [monitoringOverrides, setMonitoringOverrides] = useState<Record<string, boolean>>({})
@@ -1063,12 +1079,14 @@ export default function WhatsAppView() {
 
   const handleStartEdit = useCallback((id: string, initialValue: string) => {
     editingNameRef.current = id
+    editValueRef.current = initialValue || ''
     setEditingName(id)
-    setEditValue(initialValue)
+    setEditValue(initialValue || '')
   }, [])
 
   const handleCancelEdit = useCallback(() => {
     editingNameRef.current = null
+    editValueRef.current = ''
     setEditingName(null)
   }, [])
 
@@ -1259,8 +1277,14 @@ export default function WhatsAppView() {
       margin: 2,
       color: { dark: '#000000', light: '#ffffff' }
     })
-      .then(setQrUrl)
-      .catch(() => {})
+      .then((url) => {
+        setQrUrl(url)
+        setQrError(null)
+      })
+      .catch((err) => {
+        console.error('[whatsapp] QR render failed:', err instanceof Error ? err.message : err)
+        setQrError('page.qr_failed')
+      })
   }, [])
 
   const requestQr = useCallback(
@@ -1275,16 +1299,20 @@ export default function WhatsAppView() {
         // gets a QR on every page open. The worker now self-heals on
         // `loggedOut` (background-worker.js) so the QR appears when the
         // session is genuinely invalid.
-        const { data } = await api.post('/extensions/whatsapp/command', {
-          toolName: 'request_qr',
-          args: { force: opts?.force ?? false }
-        })
-        if (data?.qr) {
-          applyQrString(data.qr)
+        const outcome = await fetchQrOutcome(api.post, opts?.force ?? false)
+        if (outcome.status === 'ready') {
+          setQrError(null)
+          applyQrString(outcome.qr)
           return true
         }
+        if (outcome.status === 'error') {
+          setQrError(outcome.messageKey)
+          console.error('[whatsapp] QR request failed:', outcome.detail ?? outcome.messageKey)
+        }
         return false
-      } catch {
+      } catch (err) {
+        setQrError('page.reconnect_failed')
+        console.error('[whatsapp] QR request failed:', err instanceof Error ? err.message : err)
         return false
       } finally {
         qrRequestInFlight.current = false
@@ -1330,6 +1358,7 @@ export default function WhatsAppView() {
       localStorage.removeItem(LOCAL_STORAGE_GROUPS_KEY)
     } catch {}
     setQrUrl(null)
+    setQrError(null)
     qrRequestInFlight.current = false
     // No `force: true` — see comment in requestQr above.
     requestQr().catch(() => {})
@@ -1340,7 +1369,12 @@ export default function WhatsAppView() {
     if (unique.length === 0) return
     const toFetch = opts?.force
       ? unique
-      : unique.filter((jid) => !_stateCache.avatars || !_stateCache.avatars[jid])
+      : unique.filter(
+          (jid) =>
+            !_stateCache.avatars ||
+            !_stateCache.avatars[jid] ||
+            isProfilePicUrlExpired(_stateCache.avatars[jid])
+        )
     if (toFetch.length === 0) return
 
     for (let i = 0; i < toFetch.length; i += 25) {
@@ -1681,12 +1715,14 @@ export default function WhatsAppView() {
     return true
   }
 
-  const saveContactName = async (targetJidOrPhone: string) => {
+  const saveContactName = async (targetJidOrPhone: string, customValue?: string) => {
     if (editingNameRef.current !== targetJidOrPhone) return
     editingNameRef.current = null
+    editValueRef.current = ''
     setEditingName(null)
 
-    const trimmed = editValue.trim()
+    const rawVal = customValue !== undefined ? customValue : editValueRef.current
+    const trimmed = (rawVal || '').trim()
     if (!trimmed) return
 
     const cleanKey = targetJidOrPhone.split('@')[0].replace(/\D/g, '')
@@ -1765,20 +1801,24 @@ export default function WhatsAppView() {
 
   const reconnect = useCallback(async () => {
     setGeneratingQr(true)
+    setQrError(null)
     clearDisconnectGraceTimer()
     setShowQrFallback(true)
     try {
       beginPairing()
       setConnected(false)
-      const res = await api.post('/extensions/whatsapp/command', {
-        toolName: 'request_qr',
-        args: { force: true }
-      }).catch(() => null)
-      if (res?.data?.qr) {
-        pendingQrRef.current = res.data.qr
-        applyQrString(res.data.qr)
+      const outcome = await fetchQrOutcome(api.post, true)
+      if (outcome.status === 'ready') {
+        pendingQrRef.current = outcome.qr
+        applyQrString(outcome.qr)
+      } else if (outcome.status === 'error') {
+        setQrError(outcome.messageKey)
+        console.error('[whatsapp] QR reconnect failed:', outcome.detail ?? outcome.messageKey)
       }
-    } catch {} finally {
+    } catch (err) {
+      setQrError('page.reconnect_failed')
+      console.error('[whatsapp] QR reconnect failed:', err instanceof Error ? err.message : err)
+    } finally {
       setGeneratingQr(false)
     }
   }, [beginPairing, applyQrString, clearDisconnectGraceTimer, setConnected])
@@ -2647,6 +2687,9 @@ export default function WhatsAppView() {
               </svg>
               <span>{generatingQr ? 'Gerando...' : qrUrl ? 'Gerar Novo QR Code' : 'Gerar QR Code'}</span>
             </button>
+            {qrError ? (
+              <p className="text-xs text-error max-w-sm">{t(qrError)}</p>
+            ) : null}
           </div>
         </div>
       )}
@@ -2726,7 +2769,7 @@ export default function WhatsAppView() {
                     editValue={editValue}
                     onEditValueChange={setEditValue}
                     onStartEdit={() => handleStartEdit(convo.jid, convo.contactLabel)}
-                    onSaveEdit={() => saveContactName(convo.jid)}
+                    onSaveEdit={(val) => saveContactName(convo.jid, val)}
                     onCancelEdit={handleCancelEdit}
                     onOpen={() => openConversationOverlay(convo)}
                     onOpenMenu={({ x, y }) =>
@@ -2884,16 +2927,14 @@ export default function WhatsAppView() {
                           }}
                         >
                           {editingName === c.id ? (
-                            <input
+                            <RenameInput
                               value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                e.stopPropagation()
-                                if (e.key === 'Enter') saveContactName(c.id)
-                                if (e.key === 'Escape') handleCancelEdit()
+                              onChange={(val) => {
+                                setEditValue(val)
+                                editValueRef.current = val
                               }}
-                              onBlur={() => saveContactName(c.id)}
-                              autoFocus
+                              onSave={(val) => saveContactName(c.id, val)}
+                              onCancel={handleCancelEdit}
                               className="w-full max-w-xs bg-white/10 rounded px-2 py-0.5 text-sm border border-accent/50 outline-none text-text"
                             />
                           ) : (
@@ -2912,35 +2953,6 @@ export default function WhatsAppView() {
                             </>
                           )}
                         </div>
-
-                        {editingName !== c.id && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleStartEdit(c.id, c.displayName)
-                            }}
-                            className="text-text-muted hover:text-text p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                            title={t('page.rename')}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                              <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
-                            </svg>
-                          </button>
-                        )}
-                        {editingName !== c.id && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDeleteConversation(c.id)
-                            }}
-                            className="text-text-muted hover:text-red-400 p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                            title={t('page.delete_conversation')}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                              <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675a.75.75 0 1 0-1.492.15l.66 6.6A1.75 1.75 0 0 0 5.405 15h5.19a1.75 1.75 0 0 0 1.741-1.575l.66-6.6a.75.75 0 0 0-1.492-.15l-.66 6.6a.25.25 0 0 1-.249.225h-5.19a.25.25 0 0 1-.249-.225l-.66-6.6Z" />
-                            </svg>
-                          </button>
-                        )}
 
                         <MonitoringDropdown
                           id={c.id}
@@ -3050,16 +3062,14 @@ export default function WhatsAppView() {
                           }}
                         >
                           {editingName === c.id ? (
-                            <input
+                            <RenameInput
                               value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                e.stopPropagation()
-                                if (e.key === 'Enter') saveContactName(c.id)
-                                if (e.key === 'Escape') handleCancelEdit()
+                              onChange={(val) => {
+                                setEditValue(val)
+                                editValueRef.current = val
                               }}
-                              onBlur={() => saveContactName(c.id)}
-                              autoFocus
+                              onSave={(val) => saveContactName(c.id, val)}
+                              onCancel={handleCancelEdit}
                               className="w-full max-w-xs bg-white/10 rounded px-2 py-0.5 text-sm border border-accent/50 outline-none text-text"
                             />
                           ) : (
@@ -3076,35 +3086,6 @@ export default function WhatsAppView() {
                             </>
                           )}
                         </div>
-
-                        {editingName !== c.id && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleStartEdit(c.id, c.displayName)
-                            }}
-                            className="text-text-muted hover:text-text p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                            title={t('page.rename')}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                              <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
-                            </svg>
-                          </button>
-                        )}
-                        {editingName !== c.id && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDeleteConversation(c.id)
-                            }}
-                            className="text-text-muted hover:text-red-400 p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                            title={t('page.delete_conversation')}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                              <path d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675a.75.75 0 1 0-1.492.15l.66 6.6A1.75 1.75 0 0 0 5.405 15h5.19a1.75 1.75 0 0 0 1.741-1.575l.66-6.6a.75.75 0 0 0-1.492-.15l-.66 6.6a.25.25 0 0 1-.249.225h-5.19a.25.25 0 0 1-.249-.225l-.66-6.6Z" />
-                            </svg>
-                          </button>
-                        )}
 
                         <MonitoringDropdown
                           id={c.id}

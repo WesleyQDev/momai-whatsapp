@@ -185,19 +185,48 @@ const _storageBase =
 const { createIpcMomai: _createIpcMomai } = require('./worker-utils.ts')
 let _storageResponseListener = null
 const _ipcMomai = _createIpcMomai({
-  send: (msg) => process.send(msg),
+  send: (msg) => {
+    try {
+      if (typeof process.send === 'function' && process.connected !== false) {
+        process.send(msg)
+      }
+    } catch {}
+  },
   onResponse: (fn) => {
     _storageResponseListener = fn
   },
   storageDir: _storageBase,
-  log: (msg) => process.send({ type: 'log', message: String(msg) })
+  log: (msg) => {
+    try {
+      if (typeof process.send === 'function' && process.connected !== false) {
+        process.send({ type: 'log', message: String(msg) })
+      }
+    } catch {}
+  }
 })
 
 const momai = {
-  log: (msg) => process.send({ type: 'log', message: String(msg) }),
-  sendEvent: (eventType, data) =>
-    process.send({ type: 'event', eventType: String(eventType), data }),
-  sendStructuredResponse: (data) => process.send({ type: 'structured_response', data }),
+  log: (msg) => {
+    try {
+      if (typeof process.send === 'function' && process.connected !== false) {
+        process.send({ type: 'log', message: String(msg) })
+      }
+    } catch {}
+  },
+  sendEvent: (eventType, data) => {
+    try {
+      if (typeof process.send === 'function' && process.connected !== false) {
+        process.send({ type: 'event', eventType: String(eventType), data })
+      }
+    } catch {}
+  },
+  sendStructuredResponse: (data) => {
+    try {
+      if (typeof process.send === 'function' && process.connected !== false) {
+        process.send({ type: 'structured_response', data })
+      }
+    } catch {}
+  },
   storage: _ipcMomai.storage,
   collections: _ipcMomai.collections,
   sessionFiles: _ipcMomai.sessionFiles
@@ -1717,9 +1746,29 @@ function resolveContactName(jid, pushName = null) {
   return _formatPhoneLabel(rawNumber)
 }
 
+function isProfilePicUrlExpired(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return true
+  try {
+    const match = url.match(/[?&]oe=([0-9a-fA-F]+)/)
+    if (match) {
+      const expSec = parseInt(match[1], 16)
+      // Expired or expiring within 1 hour: treat as expired
+      return Date.now() >= (expSec - 3600) * 1000
+    }
+  } catch {}
+  return false
+}
+
 function getStoredAvatarUrl(jid) {
-  if (!jid || !waContacts[jid]) return null
-  return waContacts[jid].profilePicUrl || null
+  if (!jid) return null
+  const direct = waContacts[jid]?.profilePicUrl
+  if (direct && !isProfilePicUrlExpired(direct)) return direct
+  const standard = resolveStandardJid(jid)
+  if (standard && standard !== jid) {
+    const fromStandard = waContacts[standard]?.profilePicUrl
+    if (fromStandard && !isProfilePicUrlExpired(fromStandard)) return fromStandard
+  }
+  return direct || null
 }
 
 function resolveChatAvatarUrl(jid, isGroup, senderJid) {
@@ -1743,56 +1792,73 @@ function resolveChatAvatarUrl(jid, isGroup, senderJid) {
 async function ensureAvatarForJid(jid, opts: any = {}) {
   if (!jid) return null
 
-  const cached = getStoredAvatarUrl(jid)
+  const standardJid = resolveStandardJid(jid) || jid
+  const cached = getStoredAvatarUrl(standardJid) || getStoredAvatarUrl(jid)
   if (!sock || !connected) return cached
 
-  if (!waContacts[jid]) {
-    if (jid.endsWith('@g.us')) {
-      waContacts[jid] = {
-        id: jid,
+  if (!waContacts[jid] && !waContacts[standardJid]) {
+    const effectiveJid = standardJid.endsWith('@lid') ? jid : standardJid
+    if (effectiveJid.endsWith('@g.us')) {
+      waContacts[effectiveJid] = {
+        id: effectiveJid,
         name: 'Grupo',
-        phone: jid.split('@')[0]
+        phone: effectiveJid.split('@')[0]
       }
-    } else if (jid.endsWith('@s.whatsapp.net') || jid.endsWith('@lid')) {
-      waContacts[jid] = {
-        id: jid,
-        name: resolveContactName(jid),
-        phone: jid.split('@')[0]
+    } else if (effectiveJid.endsWith('@s.whatsapp.net') || effectiveJid.endsWith('@lid')) {
+      waContacts[effectiveJid] = {
+        id: effectiveJid,
+        name: resolveContactName(effectiveJid),
+        phone: effectiveJid.split('@')[0]
       }
-    } else {
-      return cached
     }
   }
 
-  const entry = waContacts[jid]
+  const entry = waContacts[standardJid] || waContacts[jid]
   const force = opts?.force === true
 
-  // Já existe foto válida no banco: nunca refetch automático. Somente com
-  // force=true (botão "Atualizar fotos de perfil") a API é consultada de novo.
-  if (!force && entry.profilePicUrl) return entry.profilePicUrl
+  // If valid cached avatar exists and signature is not expired, reuse it
+  if (!force && entry?.profilePicUrl && !isProfilePicUrlExpired(entry.profilePicUrl)) {
+    return entry.profilePicUrl
+  }
 
   const now = Date.now()
-  const ONE_DAY = 24 * 60 * 60 * 1000
   const RETRY_DELAY = 10 * 60 * 1000
-  const lastChecked = entry.profilePicCheckedAt || 0
-  const isFailedRecently = !force && !entry.profilePicUrl && now - lastChecked < RETRY_DELAY
+  const lastChecked = entry?.profilePicCheckedAt || 0
+  const isFailedRecently = !force && (!entry || !entry.profilePicUrl) && now - lastChecked < RETRY_DELAY
 
   if (isFailedRecently) {
-    return entry.profilePicUrl || null
+    return entry?.profilePicUrl || cached
+  }
+
+  // Baileys profilePictureUrl only works for standard phone JIDs (@s.whatsapp.net) and groups (@g.us)
+  const queryJid = !standardJid.endsWith('@lid') ? standardJid : (!jid.endsWith('@lid') ? jid : null)
+  if (!queryJid) {
+    return cached
   }
 
   try {
-    const url = await withTimeout(sock.profilePictureUrl(jid, 'image'), 5000)
-    entry.profilePicUrl = url
-    entry.profilePicCheckedAt = now
-    _scheduleWaContactsPersist({ emitEvent: false })
-    return url
+    const url = await withTimeout(sock.profilePictureUrl(queryJid, 'image'), 5000)
+    if (url) {
+      if (entry) {
+        entry.profilePicUrl = url
+        entry.profilePicCheckedAt = now
+      }
+      if (waContacts[jid]) {
+        waContacts[jid].profilePicUrl = url
+        waContacts[jid].profilePicCheckedAt = now
+      }
+      if (waContacts[standardJid]) {
+        waContacts[standardJid].profilePicUrl = url
+        waContacts[standardJid].profilePicCheckedAt = now
+      }
+      _scheduleWaContactsPersist({ emitEvent: false })
+      return url
+    }
+    return cached
   } catch {
-    // Cooldown real: isFailedRecently usa (now - lastChecked < RETRY_DELAY),
-    // então now é suficiente para impedir retry por 10 min.
-    entry.profilePicCheckedAt = now
+    if (entry) entry.profilePicCheckedAt = now
     _scheduleWaContactsPersist({ emitEvent: false })
-    return entry.profilePicUrl || null
+    return cached
   }
 }
 
@@ -2666,6 +2732,19 @@ async function handleMessagesUpsert({ messages, type }) {
         notifiedMessageIds.delete(oldest)
       }
     }
+
+    const stubType = (msg as any).messageStubType
+    if (stubType === 2 || stubType === 'CIPHERTEXT') {
+      const jid = msg.key?.remoteJid
+      if (jid) {
+        momai.log(`[whatsapp] Message failed to decrypt (CIPHERTEXT/Bad MAC) from ${jid}. Scheduling session repair.`)
+        repairSession(jid).catch((e) => {
+          momai.log(`[whatsapp] Error repairing session for ${jid}: ${e.message}`)
+        })
+      }
+      continue
+    }
+
     if (msg.message && msg.key?.id) {
       cacheMessage(msg.key, msg.message)
     }
@@ -3899,25 +3978,42 @@ async function getPanelData() {
   }
 }
 
+let shuttingDown = false
+async function shutdownWorker(reason) {
+  if (shuttingDown) return
+  shuttingDown = true
+  try {
+    momai.log(`[whatsapp:worker] Shutting down (${reason})...`)
+  } catch {}
+  _clearReconnectTimer()
+  preventAutoReconnect = true
+  if (sock) {
+    try {
+      sock.end(undefined)
+    } catch {}
+    try {
+      sock.ws?.close()
+    } catch {}
+    sock = null
+  }
+  try {
+    await reEncryptCredsAfterBaileys(path.join(momai.storage.storageDir, 'baileys-auth')).catch(() => {})
+  } finally {
+    releaseLock()
+    try {
+      await flushPersistedChatHistory().catch(() => {})
+      await flushPersistedContacts().catch(() => {})
+    } finally {
+      process.exit(0)
+    }
+  }
+}
+
 process.on('SIGINT', () => {
-  reEncryptCredsAfterBaileys(path.join(momai.storage.storageDir, 'baileys-auth'))
-    .catch(() => {})
-    .finally(() => {
-      releaseLock()
-      flushPersistedChatHistory()
-        .catch(() => {})
-        .finally(() => process.exit(0))
-    })
+  void shutdownWorker('SIGINT')
 })
 process.on('SIGTERM', () => {
-  reEncryptCredsAfterBaileys(path.join(momai.storage.storageDir, 'baileys-auth'))
-    .catch(() => {})
-    .finally(() => {
-      releaseLock()
-      flushPersistedChatHistory()
-        .catch(() => {})
-        .finally(() => process.exit(0))
-    })
+  void shutdownWorker('SIGTERM')
 })
 
 // When node-core restarts (dev hot-reload, crash), this worker would otherwise
@@ -3925,21 +4021,8 @@ process.on('SIGTERM', () => {
 // fresh workers spawned by the new node-core retry the lock for seconds and
 // messages fail with "No persistent host". Exit and release the lock as soon as
 // the IPC channel to the parent closes.
-let parentGoneHandled = false
 function onParentGone() {
-  if (parentGoneHandled) return
-  parentGoneHandled = true
-  try {
-    momai.log('[whatsapp] Parent process (node-core) is gone; releasing lock and exiting.')
-  } catch {}
-  reEncryptCredsAfterBaileys(path.join(momai.storage.storageDir, 'baileys-auth'))
-    .catch(() => {})
-    .finally(() => {
-      releaseLock()
-      flushPersistedChatHistory()
-        .catch(() => {})
-        .finally(() => process.exit(0))
-    })
+  void shutdownWorker('parent-gone')
 }
 if (typeof process.send === 'function') {
   process.on('disconnect', onParentGone)
@@ -3964,14 +4047,7 @@ process.on('message', async (msg) => {
     return
   }
   if (msg.type === 'shutdown') {
-    reEncryptCredsAfterBaileys(path.join(momai.storage.storageDir, 'baileys-auth'))
-      .catch(() => {})
-      .finally(async () => {
-        releaseLock()
-        await flushPersistedChatHistory()
-        await flushPersistedContacts()
-        process.exit(0)
-      })
+    void shutdownWorker('shutdown-message')
     return
   }
   if (msg.type === 'execute') {
@@ -4816,25 +4892,6 @@ process.on('message', async (msg) => {
     }
   }
 })
-
-function gracefulShutdown(reason) {
-  momai.log(`[whatsapp:worker] Shutting down (${reason})...`)
-  _clearReconnectTimer()
-  preventAutoReconnect = true
-  if (sock) {
-    try {
-      sock.end(undefined)
-    } catch {}
-    try {
-      sock.ws?.close()
-    } catch {}
-    sock = null
-  }
-  process.exit(0)
-}
-
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
-process.on('SIGINT', () => gracefulShutdown('SIGINT'))
 
 main().catch((err) => {
   momai.log(`Fatal error: ${err.message}`)

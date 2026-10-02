@@ -1265,27 +1265,6 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     }
   }, [])
 
-  const expandQuickReply = useCallback(
-    async (intent: string) => {
-      const displayContact = activeRecipient.name || senderName || contact
-      try {
-        const { data } = await sdk.api.post('/extensions/llm/complete', {
-          prompt: [
-            'Escreva APENAS o texto de uma mensagem de WhatsApp a ser enviada.',
-            'Sem aspas, sem explicações, sem preâmbulo, sem assinatura.',
-            `Contexto: resposta para "${displayContact}".`,
-            `Última mensagem recebida: "${message}"`,
-            `Intenção da resposta: "${intent}"`
-          ].join('\n')
-        })
-        return data?.text?.trim() || intent
-      } catch {
-        return intent
-      }
-    },
-    [activeRecipient.name, senderName, contact, message]
-  )
-
   useExtensionEvents({
     onEvent: (event: any) => {
       if (event?.type !== 'whatsapp.voice_response') return
@@ -1575,13 +1554,12 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   )
 
   const handleQuickReply = useCallback(
-    async (label: string) => {
+    (reply: string) => {
       if (sending) return
       const gen = beginUserSend()
-      const finalReply = await expandQuickReply(label)
-      sendReply(finalReply, gen)
+      void sendReply(reply, gen)
     },
-    [sending, expandQuickReply, sendReply, beginUserSend]
+    [sending, sendReply, beginUserSend]
   )
 
   if (!data || data?.status === 'disconnected' || data?.qr) return null
