@@ -7,6 +7,15 @@ const CHAT_HISTORY_KEY = 'chat_history'
 const UNREAD_BADGE_KEY = 'whatsapp_unread_badges'
 const unreadBadgeJids = new Set()
 let _unreadBadgesLoaded = false
+// Overlays de conversa (chat aberto por clique) anunciados pelo panel via
+// `history_overlay_presence` (opened/heartbeat/closed). Enquanto algum
+// estiver aberto, `whatsapp_notification` é suprimido: a notificação abriria
+// um novo overlay e substituiria o chat aberto (strategy `replace` do host).
+// Badges + `whatsapp_message` (automations, NOVA, append ao vivo) continuam.
+const historyOverlayPresence = new Map()
+function isAnyHistoryOverlayOpen() {
+  return _isHistoryOverlayOpen(historyOverlayPresence, Date.now(), _HISTORY_OVERLAY_PRESENCE_TTL_MS)
+}
 
 let makeWASocket,
   useMultiFileAuthState,
@@ -62,6 +71,8 @@ const {
   getDocumentNotificationText: _getDocumentNotificationText,
   isVideoMessage: _isVideoMessage,
   getVideoNotificationText: _getVideoNotificationText,
+  isGifMessage: _isGifMessage,
+  getGifNotificationText: _getGifNotificationText,
   getRecentChatMedia: _getRecentChatMedia,
   resolveDocumentPath: _resolveDocumentPath,
   isStatusUpdate: _isStatusUpdate,
@@ -69,10 +80,14 @@ const {
   resolveNotificationReplyJid: _resolveNotificationReplyJid,
   getStatusTtsText: _getStatusTtsText,
   resolveStatusReplyQuoted: _resolveStatusReplyQuoted,
+  resolveReplyQuoted: _resolveReplyQuoted,
+  extractQuotedMessage: _extractQuotedMessage,
   cacheGet: _cacheGet,
   cacheSet: _cacheSet,
   trackHistoryMessage: _trackHistoryMessage,
   loadHistoryMessages: _loadHistoryMessages,
+  deleteHistoryMessages: _deleteHistoryMessages,
+  isSameChat: _isSameChat,
   pruneHistoryMessages: _pruneHistoryMessages,
   HISTORY_RETENTION_MS: _HISTORY_RETENTION_MS,
   loadContacts: _loadContacts,
@@ -83,6 +98,12 @@ const {
   mapWithConcurrency: _mapWithConcurrency,
   GROUP_FETCH_COOLDOWN_MS,
   shouldFetchGroups,
+  HISTORY_OVERLAY_PRESENCE_TTL_MS: _HISTORY_OVERLAY_PRESENCE_TTL_MS,
+  cleanHistoryOverlayJid: _cleanHistoryOverlayJid,
+  noteHistoryOverlayPresence: _noteHistoryOverlayPresence,
+  removeHistoryOverlayPresence: _removeHistoryOverlayPresence,
+  isHistoryOverlayOpen: _isHistoryOverlayOpen,
+  isHistoryOverlayOpenFor: _isHistoryOverlayOpenFor,
   MAX_AUDIO_BYTES,
   MAX_DOCUMENT_BYTES,
   MAX_IMAGE_BYTES,
@@ -157,6 +178,20 @@ let lastConnectAtSec = workerStartTime
 // Keyed by message id alone: the same logical message can arrive with a
 // different remoteJid format (s.whatsapp.net vs lid).
 const notifiedMessageIds = new Set()
+/**
+ * Marks a message id as already processed so a retransmission (notify +
+ * append, or the echo of our own send) is never tracked or emitted twice.
+ * Own sends are registered right after `sock.sendMessage` resolves.
+ */
+function markMessageNotified(messageId) {
+  const id = messageId ? String(messageId) : null
+  if (!id) return
+  notifiedMessageIds.add(id)
+  if (notifiedMessageIds.size > 500) {
+    const oldest = notifiedMessageIds.values().next().value
+    notifiedMessageIds.delete(oldest)
+  }
+}
 // Last overlay content + time, suppresses retransmissions that arrive with a
 // fresh message id but identical content within a short window.
 let lastOverlayKey = ''
@@ -166,6 +201,64 @@ const WA_CONTACTS_KEY = 'wa_contacts'
 const SETTINGS_KEY = 'settings'
 const ACTIONS_KEY = 'actions'
 const DEFAULT_CONTACT_KEY = 'default_contact'
+const DELETED_CONVERSATIONS_KEY = 'deleted_conversations'
+const DELETED_CONVERSATION_NAMES_KEY = 'deleted_conversation_names'
+let deletedConversations: Record<string, number> = {}
+// Tombstones por NOME normalizado (ex: "piriguetes", "paisao", "paiso"):
+// cobrem divergência de formato de JID (@lid vs @s.whatsapp.net) entre o
+// momento do delete e o reload. Mapa nome -> deletedAt (segundos).
+let deletedConversationNames: Record<string, number> = {}
+function _normalizeConversationName(str) {
+  return String(str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}]/gu, '')
+    .trim()
+}
+function _getDeletedConversationNamesKey() {
+  return _currentPhone ? `${DELETED_CONVERSATION_NAMES_KEY}-${_currentPhone}` : DELETED_CONVERSATION_NAMES_KEY
+}
+async function loadDeletedConversationNames() {
+  try {
+    const keys = [
+      ...new Set([_currentPhone ? _getDeletedConversationNamesKey() : null, DELETED_CONVERSATION_NAMES_KEY].filter(Boolean))
+    ]
+    for (const key of keys) {
+      try {
+        const saved = await momai.storage.get(key)
+        if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+          for (const [name, ts] of Object.entries(saved)) {
+            const norm = _normalizeConversationName(name)
+            if (!norm) continue
+            const prev = deletedConversationNames[norm] || 0
+            const cur = Number(ts) || 0
+            if (cur > prev) deletedConversationNames[norm] = cur
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+}
+async function saveDeletedConversationNames() {
+  try {
+    await momai.storage.set(_getDeletedConversationNamesKey(), deletedConversationNames)
+  } catch (e) {
+    momai.log(`saveDeletedConversationNames: ${e?.message || e}`)
+  }
+}
+/** True se algum dos nomes (from/groupName/etc) foi apagado e a msg é anterior ao delete. */
+function isNameDeleted(names, timestampSec = 0) {
+  const ts = Number(timestampSec) || 0
+  const list = Array.isArray(names) ? names : [names]
+  for (const n of list) {
+    const norm = _normalizeConversationName(n)
+    if (!norm) continue
+    const deletedAt = deletedConversationNames[norm]
+    if (deletedAt && (!ts || ts <= Number(deletedAt))) return true
+  }
+  return false
+}
 
 // Self-contained momai bridge (not loaded via extension-host-worker)
 const _skillId = process.env.MOMAI_EXTENSION_ID || 'whatsapp'
@@ -554,80 +647,49 @@ function getSessionFiles(authDir, jid) {
 async function forceClearSession(jid) {
   if (!jid) return
 
+  const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
+  const sessionFiles = getSessionFiles(authDir, jid)
+  const digits = jid.replace(/[^0-9]/g, '')
+  const alt = getAltJid(jid)
+  const altDigits = alt ? alt.replace(/[^0-9]/g, '') : null
+
   if (sock?.authState?.keys?.set) {
     try {
-      const digits = jid.replace(/[^0-9]/g, '')
-      const alt = getAltJid(jid)
-      const altDigits = alt ? alt.replace(/[^0-9]/g, '') : null
-      const keysToNull = {}
+      const keysToNull: Record<string, null> = {}
+
+      for (const file of sessionFiles) {
+        const base = path.basename(file)
+        const keyId = base.replace(/^session-/, '').replace(/\.json$/, '')
+        if (keyId) {
+          keysToNull[keyId] = null
+        }
+      }
+
       for (const d of [digits, altDigits].filter(Boolean)) {
+        keysToNull[`${d}`] = null
+        keysToNull[`${d}.0`] = null
+        keysToNull[`${d}.1`] = null
+        keysToNull[`${d}:0`] = null
+        keysToNull[`${d}-0`] = null
         keysToNull[`${d}@s.whatsapp.net`] = null
         keysToNull[`${d}:0@s.whatsapp.net`] = null
-        keysToNull[d] = null
       }
+
       await sock.authState.keys.set({ session: keysToNull })
       momai.log(`[whatsapp] Cleared session for ${jid} (Signal re-handshake on next send)`)
-    } catch (err) {
+    } catch (err: any) {
       momai.log(`[whatsapp] Failed to clear session for ${jid}: ${err.message}`)
     }
   } else {
-    // Fallback somente quando não há socket ativo (ex.: startup): sem Baileys
-    // rodando não há corrida de leitura, então o unlink direto é seguro aqui.
-    const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
-    const sessionFiles = getSessionFiles(authDir, jid)
     for (const file of sessionFiles) {
       try {
         fsSync.unlinkSync(file)
         momai.log(`[whatsapp] Cleared stale session file: ${path.basename(file)}`)
-      } catch (err) {
+      } catch (err: any) {
         momai.log(`[whatsapp] Failed to delete session file ${path.basename(file)}: ${err.message}`)
       }
     }
   }
-}
-
-const SESSION_HEALTH_TTL_MS = 8000
-/** @type {Map<string, { unhealthy: boolean, at: number }>} */
-const sessionHealthCache = new Map()
-
-/**
- * Detecta sessão corrompida (criada mas não confirmada, baseKeyType 1) que causa
- * o envio ficar preso em "Aguardando mensagem". Limpa a sessão para que o Baileys
- * a recrie com prekeys novas. Cache com TTL curto: readdir+read de arquivos a
- * cada envio era caro (várias mensagens seguidas = N leituras síncronas).
- */
-function isSessionUnhealthy(jid) {
-  if (!jid || jid.endsWith('@g.us')) return false
-  const cached = sessionHealthCache.get(jid)
-  if (cached && Date.now() - cached.at < SESSION_HEALTH_TTL_MS) return cached.unhealthy
-
-  const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
-  const sessionFiles = getSessionFiles(authDir, jid)
-  let unhealthy = false
-  if (sessionFiles.length > 0) {
-    for (const file of sessionFiles) {
-      try {
-        const raw = fsSync.readFileSync(file, 'utf8')
-        const parsed = JSON.parse(raw)
-        const sessions = parsed?._sessions || {}
-        let unconfirmed = 0
-        let total = 0
-        for (const entry of Object.values<any>(sessions)) {
-          if (!entry) continue
-          total++
-          if (entry.indexInfo && entry.indexInfo.baseKeyType === 1) unconfirmed++
-        }
-        if (total > 0 && unconfirmed === total) {
-          unhealthy = true
-          break
-        }
-      } catch {
-        // ignore
-      }
-    }
-  }
-  sessionHealthCache.set(jid, { unhealthy, at: Date.now() })
-  return unhealthy
 }
 
 function handleLogEvent(obj, msgStr = '') {
@@ -886,10 +948,28 @@ function _compareContactsForList(a, b) {
   })
 }
 
+function normalizeSearchText(str: any): string {
+  return String(str || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+}
+
 /** Shapes one contact row for list responses (server page or memory path). */
 function enrichContactRow(c, groupsOnly) {
   const resolvedLabel = _resolveWaContactDisplayName(c, c.id)
-  const customName = _pickContactLabel(contactNames[c.id], contactNames[c.phone])
+  const phone = c?.phone || (c.id || '').split('@')[0]
+  const jidDigits = (c.id || '').split('@')[0].replace(/\D/g, '')
+  const phoneDigits = String(phone || '').replace(/\D/g, '')
+  const customName = _pickContactLabel(
+    contactNames[c.id],
+    contactNames[phone],
+    contactNames[jidDigits],
+    contactNames[phoneDigits],
+    c.lid && contactNames[c.lid],
+    c.lid && contactNames[c.lid.split('@')[0]]
+  )
   const hasRealName = Boolean(customName || _isUsableDisplayName(c.name))
   return {
     id: c.id,
@@ -906,11 +986,20 @@ function enrichContactRow(c, groupsOnly) {
 
 /** Sort key stored per row so server-side pages arrive ordered. */
 function resolveContactSortKey(jid, contact) {
+  const phone = contact?.phone || (jid || '').split('@')[0]
+  const jidDigits = (jid || '').split('@')[0].replace(/\D/g, '')
+  const phoneDigits = String(phone || '').replace(/\D/g, '')
   const label = _pickContactLabel(
     contactNames[jid],
-    contactNames[contact?.phone],
+    contactNames[phone],
+    contactNames[jidDigits],
+    contactNames[phoneDigits],
+    contact?.lid && contactNames[contact.lid],
+    contact?.lid && contactNames[contact.lid.split('@')[0]],
     contact?.name,
     contact?.notify,
+    contact?.verifiedName,
+    contact?.subject,
     contact?.phone,
     jid
   )
@@ -918,13 +1007,15 @@ function resolveContactSortKey(jid, contact) {
 }
 
 async function _fetchPaginatedWaEntries({ groupsOnly, search, page, perPage }) {
-  const q = String(search || '').toLowerCase()
+  const rawQuery = String(search || '').trim()
+  const qNorm = normalizeSearchText(rawQuery)
+  const qDigits = rawQuery.replace(/\D/g, '')
   const pageNum = parseInt(page) || 1
   const perPageNum = parseInt(perPage) || 20
 
   // No-search pages come straight from storage (filter + sort + count),
   // so page turns cost one window instead of sorting the whole map.
-  if (!q) {
+  if (!qNorm && !qDigits) {
     try {
       const server = await _fetchContactPage(momai, {
         phone: _currentPhone || null,
@@ -948,47 +1039,58 @@ async function _fetchPaginatedWaEntries({ groupsOnly, search, page, perPage }) {
   }
 
   let entries = Object.values<any>(waContacts).filter((c) =>
-    groupsOnly ? c.id.endsWith('@g.us') : c.phone && !c.id.endsWith('@g.us')
+    groupsOnly
+      ? c.id && c.id.endsWith('@g.us')
+      : c.id && !c.id.endsWith('@g.us') && !c.id.endsWith('@lid')
   )
 
-  if (q) {
-    try {
-      // Flush pending contact edits so the index sees them before searching.
-      await flushPersistedContacts().catch(() => {})
-      const serverHits = await _searchContacts(momai, {
-        phone: _currentPhone || null,
-        query: search,
-        limit: 200
-      })
-      if (serverHits !== null) {
-        const inScope = serverHits.filter((c) =>
-          groupsOnly ? c.id.endsWith('@g.us') : c.phone && !c.id.endsWith('@g.us')
-        )
-        const sorted = inScope
-          .map((c) => enrichContactRow(c, groupsOnly))
-          .sort(_compareContactsForList)
-        const totalPages = Math.max(1, Math.ceil(sorted.length / perPageNum))
-        const start = (pageNum - 1) * perPageNum
-        return {
-          contacts: sorted.slice(start, start + perPageNum),
-          total: sorted.length,
-          totalFiltered: sorted.length,
-          page: pageNum,
-          totalPages,
-          perPage: perPageNum
-        }
-      }
-    } catch {}
+  if (qNorm || qDigits) {
     entries = entries.filter((c) => {
-      const label = _resolveWaContactDisplayName(c, c.id).toLowerCase()
-      return (
-        label.includes(q) ||
-        (c.name || '').toLowerCase().includes(q) ||
-        (c.notify || '').toLowerCase().includes(q) ||
-        (c.verifiedName || '').toLowerCase().includes(q) ||
-        (c.phone || '').includes(q) ||
-        (c.id || '').toLowerCase().includes(q)
+      const jid = String(c.id || '')
+      const phone = String(c.phone || jid.split('@')[0] || '')
+      const phoneDigits = phone.replace(/\D/g, '')
+      const jidDigits = jid.split('@')[0].replace(/\D/g, '')
+      const lidDigits = c.lid ? String(c.lid).split('@')[0].replace(/\D/g, '') : ''
+
+      // 1. Nome renomeado pelo usuário (contactNames)
+      const customName = _pickContactLabel(
+        contactNames[jid],
+        contactNames[phone],
+        contactNames[jidDigits],
+        contactNames[phoneDigits],
+        c.lid && contactNames[c.lid],
+        c.lid && contactNames[lidDigits]
       )
+      const customNorm = normalizeSearchText(customName)
+
+      // 2. Nome do contato salvo no WhatsApp / agenda / grupo
+      const waNameNorm = normalizeSearchText(c.name)
+      const notifyNorm = normalizeSearchText(c.notify)
+      const verifiedNorm = normalizeSearchText(c.verifiedName)
+      const subjectNorm = normalizeSearchText(c.subject)
+      const displayNameNorm = normalizeSearchText(_resolveWaContactDisplayName(c, jid))
+
+      // 3. Checagem de texto (com suporte a acentuação)
+      const textMatched = Boolean(
+        (qNorm && displayNameNorm.includes(qNorm)) ||
+        (qNorm && customNorm.includes(qNorm)) ||
+        (qNorm && waNameNorm.includes(qNorm)) ||
+        (qNorm && notifyNorm.includes(qNorm)) ||
+        (qNorm && verifiedNorm.includes(qNorm)) ||
+        (qNorm && subjectNorm.includes(qNorm)) ||
+        (qNorm && jid.toLowerCase().includes(qNorm)) ||
+        (qNorm && phone.toLowerCase().includes(qNorm))
+      )
+
+      // 4. Checagem por número de telefone (dígitos)
+      const digitsMatched = Boolean(
+        qDigits.length >= 2 &&
+        (phoneDigits.includes(qDigits) ||
+         jidDigits.includes(qDigits) ||
+         (lidDigits && lidDigits.includes(qDigits)))
+      )
+
+      return textMatched || digitsMatched
     })
   }
 
@@ -1000,10 +1102,6 @@ async function _fetchPaginatedWaEntries({ groupsOnly, search, page, perPage }) {
   const totalPages = Math.max(1, Math.ceil(totalFiltered / perPageNum))
   const start = (pageNum - 1) * perPageNum
   const paginated = sorted.slice(start, start + perPageNum)
-
-  // Nota: nenhuma busca automática de fotos de perfil aqui. A listagem apenas
-  // devolve o que já está no cache (waContacts.profilePicUrl). O único caminho
-  // para refetch é o botão "Atualizar fotos de perfil" da UI (get_avatars force).
 
   return {
     contacts: paginated,
@@ -1038,8 +1136,22 @@ function _formatPhoneLabel(phone) {
 
 function _resolveWaContactDisplayName(contact, jid) {
   const phone = contact?.phone || (jid || '').split('@')[0]
-  const custom = _pickContactLabel(contactNames[jid], contactNames[phone])
-  const fromWa = _pickContactLabel(contact?.name, contact?.notify, contact?.verifiedName)
+  const jidDigits = (jid || '').split('@')[0].replace(/\D/g, '')
+  const phoneDigits = String(phone || '').replace(/\D/g, '')
+  const custom = _pickContactLabel(
+    contactNames[jid],
+    contactNames[phone],
+    contactNames[jidDigits],
+    contactNames[phoneDigits],
+    contact?.lid && contactNames[contact.lid],
+    contact?.lid && contactNames[contact.lid.split('@')[0]]
+  )
+  const fromWa = _pickContactLabel(
+    contact?.name,
+    contact?.notify,
+    contact?.verifiedName,
+    contact?.subject
+  )
   if (custom) return custom
   if (fromWa) return fromWa
   if (jid?.endsWith('@g.us')) return 'Grupo'
@@ -1153,7 +1265,7 @@ function populateContactsFromChatHistory() {
   let added = 0
   for (const m of chatHistory) {
     if (!m.jid) continue
-    if (m.jid.endsWith('@g.us')) continue
+    if (m.jid.endsWith('@g.us') || m.jid.endsWith('@lid')) continue
 
     const jid = m.jid
     const phone = jid.split('@')[0].replace(/\D/g, '')
@@ -1372,6 +1484,76 @@ function _getChatHistoryKey() {
   return _currentPhone ? `${CHAT_HISTORY_KEY}-${_currentPhone}` : CHAT_HISTORY_KEY
 }
 
+function _getDeletedConversationsKey() {
+  return _currentPhone ? `deleted_conversations-${_currentPhone}` : DELETED_CONVERSATIONS_KEY
+}
+
+async function loadDeletedConversations() {
+  try {
+    const keys = [
+      ...new Set([_currentPhone ? _getDeletedConversationsKey() : null, DELETED_CONVERSATIONS_KEY].filter(Boolean))
+    ]
+    for (const key of keys) {
+      const saved = await momai.storage.get(key)
+      if (saved && typeof saved === 'object') {
+        Object.assign(deletedConversations, saved)
+      }
+    }
+  } catch (e: any) {
+    momai.log(`loadDeletedConversations: ${e?.message || e}`)
+  }
+  try {
+    await loadDeletedConversationNames()
+  } catch {}
+}
+
+function isMessageFromDeletedConversation(jid: string | null | undefined, timestampSec: number, messageId?: string | null): boolean {
+  if (messageId && deletedConversations[`msg_${messageId}`]) return true
+  if (jid && timestampSec && deletedConversations[`msg_${jid}_${timestampSec}`]) return true
+  if (!jid) return false
+  if (jid.endsWith('@g.us')) {
+    const clean = jid.includes(':') ? `${jid.split('@')[0].split(':')[0]}@${jid.split('@')[1]}` : jid
+    if (timestampSec && deletedConversations[`msg_${clean}_${timestampSec}`]) return true
+    for (const key of Object.keys(deletedConversations)) {
+      if (key.startsWith('msg_')) continue
+      const deletedAt = Number(deletedConversations[key]) || 0
+      if (!deletedAt) continue
+      if (key === jid || key === clean || _isSameChat(key, clean)) {
+        if (timestampSec <= deletedAt) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+  const std = resolveStandardJid(jid) || jid
+  if (std && timestampSec && deletedConversations[`msg_${std}_${timestampSec}`]) return true
+  const rawNum = std.split('@')[0].replace(/\D/g, '')
+  const matchedContact =
+    waContacts[jid] ||
+    waContacts[std] ||
+    (rawNum ? Object.values<any>(waContacts).find((c) => c.phone === rawNum || c.id?.split('@')[0] === rawNum) : null)
+  const candidates = new Set<string>([jid, std])
+  if (rawNum) candidates.add(rawNum)
+  if (matchedContact) {
+    if (matchedContact.id) candidates.add(matchedContact.id)
+    if (matchedContact.lid) candidates.add(matchedContact.lid)
+    if (matchedContact.phone) candidates.add(matchedContact.phone)
+  }
+  for (const key of Object.keys(deletedConversations)) {
+    if (key.startsWith('msg_')) continue
+    const deletedAt = Number(deletedConversations[key]) || 0
+    if (!deletedAt) continue
+    if (candidates.has(key) || [...candidates].some((c) => _isSameChat(c, key))) {
+      if (timestampSec <= deletedAt) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+
 let _contactsUpdatedTimer = null
 function _notifyContactsUpdated() {
   if (_contactsUpdatedTimer) return
@@ -1480,6 +1662,7 @@ async function flushPersistedChatHistory() {
 async function loadChatHistory() {
   if (chatHistory.length > 0) return true
   try {
+    await loadDeletedConversations()
     const sources = [
       ...new Set([_currentPhone ? _getChatHistoryKey() : null, CHAT_HISTORY_KEY].filter(Boolean))
     ].map((key) => ({
@@ -1488,13 +1671,18 @@ async function loadChatHistory() {
     }))
     const saved = await _loadHistoryMessages(momai, { sources, phone: _currentPhone || null })
     if (!Array.isArray(saved) || saved.length === 0) return false
-    chatHistory = saved.map(enrichHistoryEntry)
+    const validSaved = saved.filter(
+      (m: any) =>
+        !isMessageFromDeletedConversation(m.jid, Number(m.timestamp) || 0) &&
+        !isNameDeleted([m.from, m.groupName, m.senderName, m.pushName], Number(m.timestamp) || 0)
+    )
+    chatHistory = validSaved.map(enrichHistoryEntry)
     totalMessages = Math.max(totalMessages, chatHistory.length)
-    momai.log(`loadChatHistory: ${saved.length} msgs from collection/legacy`)
+    momai.log(`loadChatHistory: ${chatHistory.length} msgs from collection/legacy`)
     schedulePersistChatHistory()
     return true
-  } catch (e) {
-    momai.log(`loadChatHistory: ${e.message}`)
+  } catch (e: any) {
+    momai.log(`loadChatHistory: ${e?.message || e}`)
   }
   return false
 }
@@ -1595,16 +1783,30 @@ function resolveStandardJid(jid) {
   }
 
   const rawNumber = standard.split('@')[0]
+  const digitsOnly = rawNumber.replace(/\D/g, '')
 
   // Try to find by LID mapping
   const matchByLid = Object.values<any>(waContacts).find(
-    (c) => c.lid === standard || c.lid === rawNumber
+    (c) => c.lid === standard || c.lid === rawNumber || (c.lid && c.lid.split('@')[0] === rawNumber)
   )
   if (matchByLid) return matchByLid.id
 
-  // Try to find by phone (for LID-like JIDs that are actually mapped)
-  const matchByPhone = Object.values<any>(waContacts).find((c) => c.phone === rawNumber)
+  // Try to find by phone (for LID-like JIDs or phone numbers that are actually mapped)
+  const matchByPhone = Object.values<any>(waContacts).find(
+    (c) => c.phone === rawNumber || (digitsOnly.length >= 7 && c.phone === digitsOnly)
+  )
   if (matchByPhone) return matchByPhone.id
+
+  // Try to find by matching ID
+  if (digitsOnly.length >= 7 && !standard.endsWith('@g.us')) {
+    const matchById = Object.values<any>(waContacts).find(
+      (c) => c.id && c.id.split('@')[0].replace(/\D/g, '') === digitsOnly
+    )
+    if (matchById) return matchById.id
+    if (!standard.endsWith('@lid') && !standard.endsWith('@s.whatsapp.net')) {
+      return `${digitsOnly}@s.whatsapp.net`
+    }
+  }
 
   return standard
 }
@@ -1624,8 +1826,15 @@ function resolveMessageSenderJid(remoteJid, participant) {
 
 function enrichHistoryEntry(h) {
   if (!h) return h
-  const remoteJid = h.jid || ''
+  let remoteJid = h.jid || ''
   const isGroupChat = remoteJid.endsWith('@g.us')
+
+  if (!isGroupChat && remoteJid.endsWith('@lid')) {
+    const std = resolveStandardJid(remoteJid)
+    if (std && std.endsWith('@s.whatsapp.net')) {
+      remoteJid = std
+    }
+  }
 
   let senderJid = h.senderJid || remoteJid
   if (!isGroupChat && senderJid.endsWith('@g.us')) {
@@ -1665,6 +1874,7 @@ function enrichHistoryEntry(h) {
 
   return {
     ...h,
+    id: h.id || null,
     jid: remoteJid,
     senderJid,
     replyJid,
@@ -1771,7 +1981,7 @@ function getStoredAvatarUrl(jid) {
   return direct || null
 }
 
-function resolveChatAvatarUrl(jid, isGroup, senderJid) {
+function resolveChatAvatarUrl(jid: string | null | undefined, isGroup?: boolean, senderJid?: string | null) {
   if (!jid) return null
   if (isGroup || jid.endsWith('@g.us')) {
     return getStoredAvatarUrl(jid)
@@ -1804,7 +2014,7 @@ async function ensureAvatarForJid(jid, opts: any = {}) {
         name: 'Grupo',
         phone: effectiveJid.split('@')[0]
       }
-    } else if (effectiveJid.endsWith('@s.whatsapp.net') || effectiveJid.endsWith('@lid')) {
+    } else if (effectiveJid.endsWith('@s.whatsapp.net')) {
       waContacts[effectiveJid] = {
         id: effectiveJid,
         name: resolveContactName(effectiveJid),
@@ -1886,24 +2096,25 @@ function _normalizeContactId(raw) {
 
 function _cleanupStaleContacts() {
   let changed = false
-  const standardLids = new Set(
-    Object.values<any>(waContacts)
-      .filter((c) => c.id && !c.id.endsWith('@lid') && c.lid)
-      .map((c) => c.lid)
-  )
-
-  for (const key of Object.keys(waContacts)) {
+  for (const [key, contact] of Object.entries<any>(waContacts)) {
     if (key.endsWith('@lid')) {
-      const contact = waContacts[key]
-      const hasName = contact.name || contact.verifiedName || contact.notify
-      if (standardLids.has(key) || !hasName) {
-        delete waContacts[key]
-        changed = true
-        delete contactNames[key]
-        const rawNumber = key.split('@')[0]
-        if (rawNumber) {
-          delete contactNames[rawNumber]
-        }
+      const standardMatch = Object.values<any>(waContacts).find(
+        (c) =>
+          c.id &&
+          c.id.endsWith('@s.whatsapp.net') &&
+          ((contact.name && c.name === contact.name) ||
+            (contact.notify && c.notify === contact.notify) ||
+            (contact.verifiedName && c.verifiedName === contact.verifiedName))
+      )
+      if (standardMatch && !standardMatch.lid) {
+        standardMatch.lid = key
+      }
+      delete waContacts[key]
+      changed = true
+      delete contactNames[key]
+      const rawNumber = key.split('@')[0]
+      if (rawNumber) {
+        delete contactNames[rawNumber]
       }
     }
   }
@@ -1947,6 +2158,7 @@ async function _loadPerPhoneData() {
         momai.log('Cleaned up stale or placeholder WhatsApp contacts from phone storage')
       }
 
+      await loadDeletedConversations()
       await loadChatHistory()
     }
   } catch {
@@ -1964,6 +2176,7 @@ async function main() {
   // Load whitelist (generic fallback)
   disabledContacts = (await momai.storage.get(DISABLED_CONTACTS_KEY)) || []
   contactNames = (await momai.storage.get(CONTACT_NAMES_KEY)) || {}
+  await loadDeletedConversations()
   waContacts = await _loadContacts(momai, {
     sources: [{ key: WA_CONTACTS_KEY, phone: null }],
     phone: null
@@ -1975,6 +2188,7 @@ async function main() {
   if (!chatHistory.length) {
     await loadChatHistory()
   }
+
 
   if (_cleanupStaleContacts() || _sanitizeStoredContactNames()) {
     _scheduleWaContactsPersist()
@@ -2447,20 +2661,23 @@ async function connect() {
         await _forEachYield(syncedContacts, (c) => {
           if (!c.id) return
 
-          // For @lid contacts, try to resolve to a standard JID or store with verifiedName (Business)
+          // For @lid contacts, try to resolve to a standard JID or associate with existing contact
           if (c.id.endsWith('@lid')) {
             lidCount++
-            const existingMatch = byVerifiedName.get(c.verifiedName)
+            const existingMatch =
+              byVerifiedName.get(c.verifiedName) ||
+              Object.values<any>(waContacts).find(
+                (ex) =>
+                  ex.id &&
+                  ex.id.endsWith('@s.whatsapp.net') &&
+                  ((c.name && ex.name === c.name) || (c.notify && ex.notify === c.notify))
+              )
             if (existingMatch) {
               existingMatch.lid = c.id
               if (c.verifiedName) existingMatch.verifiedName = c.verifiedName
               if (c.name) existingMatch.name = c.name
-              return
             }
-
-            if (!c.name && !c.verifiedName && !c.notify) {
-              return
-            }
+            return
           }
 
           const phone = c.id.split('@')[0].replace(/\D/g, '')
@@ -2575,19 +2792,20 @@ async function connect() {
         if (!c.id) return
 
         if (c.id.endsWith('@lid')) {
-          // If this LID has a verifiedName, it's likely a Business account
-          // Try to associate it with an existing standard JID
-          const existingMatch = byVerifiedName.get(c.verifiedName)
+          const existingMatch =
+            byVerifiedName.get(c.verifiedName) ||
+            Object.values<any>(waContacts).find(
+              (ex) =>
+                ex.id &&
+                ex.id.endsWith('@s.whatsapp.net') &&
+                ((c.name && ex.name === c.name) || (c.notify && ex.notify === c.notify))
+            )
           if (existingMatch) {
             existingMatch.lid = c.id
             if (c.verifiedName) existingMatch.verifiedName = c.verifiedName
             if (_isUsableDisplayName(c.name)) existingMatch.name = String(c.name).trim()
-            return
           }
-          // If no name details, skip
-          if (!_pickContactLabel(c.name, c.verifiedName, c.notify)) {
-            return
-          }
+          return
         }
 
         const phone = c.id.split('@')[0].replace(/\D/g, '')
@@ -2724,14 +2942,8 @@ async function handleMessagesUpsert({ messages, type }) {
   const isHistoryAppend = type && type !== 'notify'
   for (const msg of messages) {
     const messageId = msg.key?.id ? String(msg.key.id) : null
-    if (messageId) {
-      if (notifiedMessageIds.has(messageId)) continue
-      notifiedMessageIds.add(messageId)
-      if (notifiedMessageIds.size > 500) {
-        const oldest = notifiedMessageIds.values().next().value
-        notifiedMessageIds.delete(oldest)
-      }
-    }
+    if (messageId && notifiedMessageIds.has(messageId)) continue
+    markMessageNotified(messageId)
 
     const stubType = (msg as any).messageStubType
     if (stubType === 2 || stubType === 'CIPHERTEXT') {
@@ -2803,7 +3015,11 @@ async function handleMessagesUpsert({ messages, type }) {
       text = '[Sticker]'
       stickerFilename = await saveIncomingSticker(msg)
     } else if (isGif) {
-      text = '[GIF]'
+      text =
+        typeof _getGifNotificationText === 'function'
+          ? _getGifNotificationText(innerMsg)
+          : innerMsg.videoMessage?.caption || '[GIF]'
+      videoFilename = await saveIncomingVideo(msg)
     } else if (isAudio) {
       text = '🎙️ Áudio'
       audioFilename = await saveIncomingAudio(msg)
@@ -2854,6 +3070,24 @@ async function handleMessagesUpsert({ messages, type }) {
 
     // Now resolve standard JID for lookups
     const resolvedSenderJid = resolveStandardJid(senderJid) || senderJid
+    const messageTs = Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000)
+
+    const msgId = msg.key?.id
+    const isDeleted = isGroup
+      ? isMessageFromDeletedConversation(remoteJid, messageTs, msgId)
+      : isMessageFromDeletedConversation(remoteJid, messageTs, msgId) ||
+        (resolvedSenderJid && isMessageFromDeletedConversation(resolvedSenderJid, messageTs, msgId))
+    // Nome também bloqueia (divergência @lid vs @s.whatsapp.net entre delete e reload)
+    let nameDeleted = false
+    try {
+      const grpSubject = isGroup ? groupMetaCache.get(remoteJid)?.data?.subject : null
+      nameDeleted = isNameDeleted([msg.pushName, grpSubject], messageTs)
+    } catch {}
+
+    if (isDeleted || nameDeleted) {
+      continue
+    }
+
 
     // Ensure group/contact exists in waContacts
     if (isGroup) {
@@ -3004,7 +3238,33 @@ async function handleMessagesUpsert({ messages, type }) {
       ? _resolveNotificationReplyJid(remoteJid, resolvedSenderJid, defaultReplyJid)
       : defaultReplyJid
 
+    const myJidRaw = sock?.user?.id || sock?.authState?.creds?.me?.id
+    const myJidStandardized = resolveStandardJid(myJidRaw)
+
+    const extractedQuoted = typeof _extractQuotedMessage === 'function' ? _extractQuotedMessage(innerMsg) : null
+    if (extractedQuoted && !extractedQuoted.from) {
+      if (extractedQuoted.senderJid) {
+        const qSenderStd = resolveStandardJid(extractedQuoted.senderJid) || extractedQuoted.senderJid
+        extractedQuoted.from =
+          qSenderStd === myJidStandardized
+            ? 'Você'
+            : resolveContactName(qSenderStd) || qSenderStd.split('@')[0]
+      } else if (extractedQuoted.id && Array.isArray(chatHistory)) {
+        // Sem `participant` no contextInfo (ex.: resposta à própria mensagem
+        // em conversa 1:1): localiza a mensagem citada no histórico local.
+        const quotedId = String(extractedQuoted.id)
+        const original = chatHistory.find(
+          (h) => h && (h.id === quotedId || String(h.id || '') === quotedId)
+        )
+        if (original) {
+          extractedQuoted.from =
+            original.direction === 'outgoing' ? 'Você' : original.from || displayName
+        }
+      }
+    }
+
     const historyEntry = enrichHistoryEntry({
+      id: msg.key?.id || null,
       from: displayName,
       jid: isStatusMessage && resolvedSenderJid ? resolvedSenderJid : remoteJid,
       senderJid,
@@ -3016,6 +3276,9 @@ async function handleMessagesUpsert({ messages, type }) {
       document: documentFilename,
       documentName,
       video: videoFilename,
+      gif: isGif ? videoFilename : undefined,
+      isGif: Boolean(isGif),
+      quoted: extractedQuoted || undefined,
       timestamp: msg.messageTimestamp
         ? Number(msg.messageTimestamp)
         : Math.floor(Date.now() / 1000),
@@ -3035,10 +3298,16 @@ async function handleMessagesUpsert({ messages, type }) {
     momai.log(
       `Message tracked: from=${displayName} text="${text.substring(0, 50)}" total=${totalMessages}`
     )
+    if (isFromMe && !isHistoryAppend) {
+      momai.sendEvent('message_sent', {
+        ...historyEntry,
+        contact: displayName,
+        jid: remoteJid,
+        id: msg.key?.id || null
+      })
+    }
 
     const standardizedRemoteJid = resolveStandardJid(remoteJid)
-    const myJidRaw = sock?.user?.id || sock?.authState?.creds?.me?.id
-    const myJidStandardized = resolveStandardJid(myJidRaw)
     const myLidRaw = sock?.user?.lid || sock?.authState?.creds?.me?.lid
     // Strip device suffix from LID manually (resolveStandardJid uses corrupted waContacts mapping)
     const myLidStandardized =
@@ -3055,8 +3324,8 @@ async function handleMessagesUpsert({ messages, type }) {
         standardizedRemoteJid === myJidStandardized)
 
     const isOldMessage = msg.messageTimestamp && Number(msg.messageTimestamp) < workerStartTime
-    const messageTs = Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000)
     const isBacklog = messageTs < lastConnectAtSec
+
 
     const senderDisabled = _isContactDisabled(resolvedSenderJid)
     const remoteDisabled = _isContactDisabled(remoteJid)
@@ -3072,7 +3341,13 @@ async function handleMessagesUpsert({ messages, type }) {
     if (shouldNotify) {
       // Backlog (offline while the app was closed) updates history and the
       // sidebar dot, but never opens the overlay. Only live messages overlay.
-      await addUnreadBadge(replyJid)
+      // Chat com overlay aberto está sendo visto ao vivo: sem bolinha/NOVA.
+      const seenLive = _isHistoryOverlayOpenFor(historyOverlayPresence, replyJid, Date.now(), _HISTORY_OVERLAY_PRESENCE_TTL_MS)
+      if (seenLive) {
+        momai.log(`[notif-debug] Skipping unread badge (chat open in overlay): ${replyJid}`)
+      } else {
+        await addUnreadBadge(replyJid)
+      }
     }
     if (shouldOverlay) {
       // Suppress retransmissions with identical content in a short window,
@@ -3112,9 +3387,20 @@ async function handleMessagesUpsert({ messages, type }) {
         }
       }
 
-      momai.log(
-        `[notif-debug] Sending whatsapp_notification event: contact=${finalDisplayName} isGroup=${!!isGroup} isNoteToSelf=${isNoteToSelf} isStatus=${isStatusMessage}`
-      )
+      // Overlay de contatos aberto (qualquer conversa): não abre overlay de
+      // notificação — ele substituiria o chat aberto (host usa `replace`).
+      // Mesmo contato: a mensagem entra ao vivo no chat via `whatsapp_message`.
+      // Outro contato: só bolinha verde (badge, já enviado acima) + card NOVA.
+      const suppressNotification = isAnyHistoryOverlayOpen()
+      if (suppressNotification) {
+        momai.log(
+          `[notif-debug] Skipping whatsapp_notification overlay (history overlay open): contact=${finalDisplayName} isGroup=${!!isGroup}`
+        )
+      } else {
+        momai.log(
+          `[notif-debug] Sending whatsapp_notification event: contact=${finalDisplayName} isGroup=${!!isGroup} isNoteToSelf=${isNoteToSelf} isStatus=${isStatusMessage}`
+        )
+      }
       // For self-messages, use the user's own JID (not the corrupted LID-resolved one)
       const notifContactJid = isNoteToSelf ? myJidStandardized || replyJid : replyJid
       // Contexto que permite responder citando a story (Nome · Status) como no WhatsApp.
@@ -3122,32 +3408,40 @@ async function handleMessagesUpsert({ messages, type }) {
         ? { stanzaId: msg.key.id, participant: msg.key.participant || senderJid }
         : undefined
       momai.log(`[audio-debug] whatsapp_notification audioFilename=${audioFilename} isGroup=${isGroup} contact=${finalDisplayName}`)
-      momai.sendEvent('whatsapp_notification', {
-        contact: finalDisplayName,
-        senderName: isGroup ? displayName : undefined,
-        contactJid: notifContactJid,
-        senderJid,
-        message: text,
-        audio: audioFilename,
-        sticker: stickerFilename,
-        image: imageFilename,
-        document: documentFilename,
-        documentName,
-        video: videoFilename,
-        recentMedia,
-        timestamp: msg.messageTimestamp,
-        contactAvatar: resolveChatAvatarUrl(
-          isStatusMessage && resolvedSenderJid ? resolvedSenderJid : remoteJid,
-          isGroup,
-          senderJid
-        ),
-        isGroup: !!isGroup,
-        isNoteToSelf,
-        isStatus: isStatusMessage,
-        statusContext,
-        groupName: isGroup ? resGroupName : undefined,
-        isAdminsOnly: !!groupAnnounce && !isMeAdmin
-      })
+      // Suprimido quando há overlay de contatos aberto: badge + histórico +
+      // `whatsapp_message` (abaixo) continuam, só não abre novo overlay.
+      if (!suppressNotification) {
+        momai.sendEvent('whatsapp_notification', {
+          contact: finalDisplayName,
+          senderName: isGroup ? displayName : undefined,
+          contactJid: notifContactJid,
+          senderJid,
+          // Stanza id da mensagem: o overlay usa esse id para responder citando
+          // a mensagem (sem ele o envio vira mensagem comum no WhatsApp).
+          id: msg.key?.id || undefined,
+          quoted: extractedQuoted || undefined,
+          message: text,
+          audio: audioFilename,
+          sticker: stickerFilename,
+          image: imageFilename,
+          document: documentFilename,
+          documentName,
+          video: videoFilename,
+          recentMedia,
+          timestamp: msg.messageTimestamp,
+          contactAvatar: resolveChatAvatarUrl(
+            isStatusMessage && resolvedSenderJid ? resolvedSenderJid : remoteJid,
+            isGroup,
+            senderJid
+          ),
+          isGroup: !!isGroup,
+          isNoteToSelf,
+          isStatus: isStatusMessage,
+          statusContext,
+          groupName: isGroup ? resGroupName : undefined,
+          isAdminsOnly: !!groupAnnounce && !isMeAdmin
+        })
+      }
 
       if (!isNoteToSelf) {
         setTimeout(async () => {
@@ -3158,6 +3452,10 @@ async function handleMessagesUpsert({ messages, type }) {
               senderName: isGroup ? displayName : undefined,
               contactJid: replyJid,
               senderJid,
+              // Mesmo contrato do whatsapp_notification: id permite responder
+              // citando a mensagem a partir de automações e do chat da página.
+              id: msg.key?.id || undefined,
+              quoted: extractedQuoted || undefined,
               message: text,
               audio: audioFilename,
               sticker: stickerFilename,
@@ -3196,21 +3494,24 @@ async function handleIncomingCalls(calls) {
       const isGroup = !!call.isGroup
       const groupJid = call.groupJid
 
-      const displayName = resolveContactName(callerJid) || callerJid.split('@')[0]
+      const standardCallerJid = resolveStandardJid(callerJid) || callerJid
+      const targetJid = isGroup && groupJid ? groupJid : standardCallerJid
+
+      const displayName = resolveContactName(targetJid) || resolveContactName(callerJid) || callerJid.split('@')[0]
       const groupName = isGroup && groupJid ? resolveContactName(groupJid) || 'Grupo' : null
       const finalDisplayName = isGroup ? groupName : displayName
 
       momai.log(`[call-debug] Sending call notification for: ${finalDisplayName}`)
 
-      await addUnreadBadge(isGroup && groupJid ? groupJid : callerJid)
+      await addUnreadBadge(targetJid)
       momai.sendEvent('whatsapp_notification', {
         contact: finalDisplayName,
         senderName: isGroup ? displayName : undefined,
-        contactJid: isGroup && groupJid ? groupJid : callerJid,
-        senderJid: callerJid,
+        contactJid: targetJid,
+        senderJid: standardCallerJid,
         message: '📞Chamada em curso...',
         timestamp: Math.floor(Date.now() / 1000),
-        contactAvatar: resolveChatAvatarUrl(isGroup && groupJid ? groupJid : callerJid, isGroup, callerJid),
+        contactAvatar: resolveChatAvatarUrl(targetJid, isGroup, standardCallerJid),
         isGroup,
         isNoteToSelf: false,
         groupName: isGroup ? groupName : undefined,
@@ -3494,7 +3795,7 @@ async function saveIncomingVideo(msg) {
       rawMsg
 
     const videoMessage = innerMsg?.videoMessage
-    if (!videoMessage || videoMessage.gifPlayback) return null
+    if (!videoMessage) return null
 
     const fsSync = require('fs')
     const videoDir = path.join(momai.storage.storageDir, 'videos')
@@ -3651,7 +3952,8 @@ async function sendMessage(
   sticker = null,
   gif = null,
   document = null,
-  statusContext = null
+  statusContext = null,
+  quoted = null
 ) {
   const t0 = Date.now()
   const stage = (label, extra = '') =>
@@ -3659,7 +3961,7 @@ async function sendMessage(
   if (!sock || !connected) throw new Error('WhatsApp not connected')
   stage(
     'enter',
-    `to="${contact}" msg="${(message || '').substring(0, 40)}" image=${image ? 'yes' : 'no'} sticker=${sticker ? 'yes' : 'no'} gif=${gif ? 'yes' : 'no'} document=${document ? 'yes' : 'no'} connected=${connected}`
+    `to="${contact}" msg="${(message || '').substring(0, 40)}" image=${image ? 'yes' : 'no'} sticker=${sticker ? 'yes' : 'no'} gif=${gif ? 'yes' : 'no'} document=${document ? 'yes' : 'no'} quoted=${quoted ? 'yes' : 'no'} connected=${connected}`
   )
   console.log(`[PERF] sendMessage START contact=${contact}`)
 
@@ -3883,16 +4185,6 @@ async function sendMessage(
     await prepareGroupForSend(jid)
   }
 
-  // Sessão Signal corrompida (criada mas nunca confirmada, baseKeyType 1) faz o
-  // envio resolver mas a mensagem ficar presa no relógio "Aguardando mensagem".
-  // Limpar a sessão antes de enviar força o Baileys a refazer o handshake.
-  if (!isGroup && isSessionUnhealthy(jid)) {
-    console.log(`[PERF] sendMessage UNHEALTHY_SESSION jid=${jid} time=${Date.now() - t0}ms`)
-    momai.log(`[whatsapp] Unhealthy session detected for ${jid}; clearing before send`)
-    await forceClearSession(jid)
-    console.log(`[PERF] sendMessage SESSION_CLEARED jid=${jid} time=${Date.now() - t0}ms`)
-  }
-
   if (content.image && Buffer.isBuffer(content.image)) {
     momai.log(`sendMessage: media size = ${content.image.length} bytes (${jid})`)
   }
@@ -3900,14 +4192,34 @@ async function sendMessage(
     momai.log(`sendMessage: document size = ${content.document.length} bytes (${content.fileName || 'unnamed'}, ${jid})`)
   }
 
+  let finalQuoted = statusQuoted
+  if (!finalQuoted && quoted) {
+    const qId = typeof quoted === 'string' ? quoted : quoted.id || quoted.stanzaId
+    const cachedProto = qId ? (sentMessagesCache.get(qId) || null) : null
+    finalQuoted = typeof _resolveReplyQuoted === 'function'
+      ? _resolveReplyQuoted(quoted, jid, isGroup, cachedProto)
+      : null
+    if (finalQuoted) {
+      stage('reply_quote', `id=${qId}`)
+    } else {
+      // Sem stanzaId não há como citar: o destinatário receberia mensagem
+      // comum enquanto o overlay mostra o balão como resposta. Logar para
+      // não repetir o diagnóstico silencioso.
+      momai.log(
+        `sendMessage: quoted ignorado para "${contact}" (sem id/stanzaId) — enviando como mensagem comum`
+      )
+    }
+  }
+
   const MAX_RETRIES = isGroup ? 4 : 3
   let lastError
+  let sentMessage: any = null
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     const attemptStart = Date.now()
     try {
       console.log(`[PERF] sendMessage Baileys START attempt=${attempt} jid=${jid}`)
       const sent = await withTimeout(
-        current.sendMessage(jid, content, statusQuoted ? { quoted: statusQuoted } : {}),
+        current.sendMessage(jid, content, finalQuoted ? { quoted: finalQuoted } : {}),
         15000,
         'send timeout'
       )
@@ -3916,9 +4228,10 @@ async function sendMessage(
       if (sent?.key?.id && sent?.message) {
         cacheMessage(sent.key, sent.message)
       }
+      sentMessage = sent
       lastError = null
       break
-    } catch (err) {
+    } catch (err: any) {
       lastError = err
       stage(
         `send_fail`,
@@ -3947,14 +4260,63 @@ async function sendMessage(
 
   const displayName = resolveContactName(jid)
   const stickerFilename = sticker && typeof sticker === 'string' ? path.basename(sticker) : null
-  chatHistory.unshift({
+  const imageFilename = typeof image === 'string' ? image : null
+  const documentFilename = typeof document === 'string' ? document : null
+  const documentDisplayName =
+    document && typeof document === 'object' && (document as any).fileName
+      ? (document as any).fileName
+      : null
+  const sentId = sentMessage?.key?.id || null
+  // Prevent the socket echo (messages.upsert) of our own send from being
+  // tracked/emitted a second time if Baileys delivers it.
+  markMessageNotified(sentId)
+  const timestamp = Math.floor(Date.now() / 1000)
+  const isGroupMsg = Boolean(isGroup)
+  const resolvedGroupName = isGroupMsg ? resolveContactName(jid) || 'Grupo' : null
+  const historyEntry = enrichHistoryEntry({
+    id: sentId,
     from: displayName,
     jid: jid,
-    text: sticker ? '[Sticker]' : gif ? '[GIF]' : message,
+    senderJid: jid,
+    replyJid: jid,
+    text: sticker
+      ? '[Sticker]'
+      : gif
+        ? (message || '[GIF]')
+        : image
+          ? message || '📷 Foto'
+          : document
+            ? message || '📄 Documento'
+            : message || '',
     sticker: stickerFilename,
-    timestamp: Math.floor(Date.now() / 1000),
-    direction: 'outgoing'
+    image: imageFilename,
+    document: documentFilename,
+    documentName: documentDisplayName,
+    video: gif && typeof gif === 'string' ? gif : null,
+    gif: gif && typeof gif === 'string' ? gif : null,
+    isGif: Boolean(gif),
+    quoted: quoted && typeof quoted === 'object'
+      ? {
+          id: quoted.id || quoted.stanzaId || null,
+          text: quoted.text || quoted.documentName || '',
+          from: quoted.from || null,
+          senderJid: quoted.senderJid || null,
+          timestamp: quoted.timestamp || null,
+          image: quoted.image,
+          video: quoted.video,
+          audio: quoted.audio,
+          sticker: quoted.sticker,
+          document: quoted.document,
+          documentName: quoted.documentName
+        }
+      : undefined,
+    timestamp,
+    direction: 'outgoing',
+    isGroup: isGroupMsg,
+    groupName: resolvedGroupName,
+    profilePicUrl: resolveChatAvatarUrl(jid, isGroupMsg)
   })
+  chatHistory.unshift(historyEntry)
   if (chatHistory.length > MAX_HISTORY) chatHistory.pop()
   totalMessages++
   schedulePersistChatHistory()
@@ -3962,11 +4324,16 @@ async function sendMessage(
     removeUnreadBadge(jid).catch(() => {})
   }
 
-  momai.sendEvent('message_sent', { contact: displayName, jid })
+  momai.sendEvent('message_sent', {
+    ...historyEntry,
+    contact: displayName,
+    jid,
+    id: sentId
+  })
 
   stage('total', `sent to "${jid}" ok in ${Date.now() - t0}ms`)
   console.log(`[PERF] sendMessage END OK time=${Date.now() - t0}ms`)
-  return { ok: true }
+  return { ok: true, id: sentId }
 }
 
 async function getPanelData() {
@@ -4061,6 +4428,14 @@ process.on('message', async (msg) => {
             args.statusContext && typeof args.statusContext === 'object'
               ? args.statusContext
               : null
+          const quotedParam =
+            args.quoted && typeof args.quoted === 'object'
+              ? args.quoted
+              : args.quotedMessage && typeof args.quotedMessage === 'object'
+                ? args.quotedMessage
+                : args.quotedMessageId
+                  ? { id: args.quotedMessageId }
+                  : null
           const sendWithStatus = (
             contact,
             text,
@@ -4068,7 +4443,7 @@ process.on('message', async (msg) => {
             sticker = null,
             gif = null,
             document = null
-          ) => sendMessage(contact, text, image, sticker, gif, document, statusContext)
+          ) => sendMessage(contact, text, image, sticker, gif, document, statusContext, quotedParam)
           try {
             const rawImages = Array.isArray(args.images)
               ? args.images
@@ -4190,6 +4565,21 @@ process.on('message', async (msg) => {
             disabledContacts = disabledContacts.filter((d) => !matches(d))
             const removedCount = before - disabledContacts.length
             await momai.storage.set(_getDisabledContactsKey(), disabledContacts)
+            // Re-adicionar limpa o tombstone de conversa apagada (volta a aparecer)
+            try {
+              let untombstoned = false
+              for (const key of Object.keys(deletedConversations)) {
+                if (key.startsWith('msg_')) continue
+                if (key === jid || key === raw || _isSameChat(key, jid) || _isSameChat(key, raw)) {
+                  delete deletedConversations[key]
+                  untombstoned = true
+                }
+              }
+              if (untombstoned) {
+                await momai.storage.set(_getDeletedConversationsKey(), deletedConversations).catch(() => {})
+                await momai.storage.set(DELETED_CONVERSATIONS_KEY, deletedConversations).catch(() => {})
+              }
+            } catch {}
             result = {
               ok: true,
               contact: raw,
@@ -4453,29 +4843,82 @@ process.on('message', async (msg) => {
           break
         }
         case 'get_history':
+          await loadDeletedConversations()
           if (chatHistory.length === 0) {
             await loadChatHistory()
           }
+          const validHistory = chatHistory.filter((m) => {
+            if (isNameDeleted([m.from, m.groupName, m.senderName], Number(m.timestamp) || 0)) return false
+            const isMsgGroup = Boolean(m.isGroup || m.jid?.endsWith('@g.us'))
+            if (isMsgGroup) {
+              return (
+                !isMessageFromDeletedConversation(m.jid, Number(m.timestamp) || 0, m.id) &&
+                !isMessageFromDeletedConversation((m as any).replyJid, Number(m.timestamp) || 0, m.id)
+              )
+            }
+            return (
+              !isMessageFromDeletedConversation(m.jid, Number(m.timestamp) || 0, m.id) &&
+              !isMessageFromDeletedConversation(m.senderJid, Number(m.timestamp) || 0, m.id) &&
+              !isMessageFromDeletedConversation((m as any).replyJid, Number(m.timestamp) || 0, m.id)
+            )
+          })
+          // Tombstones de conversa (segundos) acompanham o histórico para a UI
+          // semear o ledger interno de "últimas mensagens": se o localStorage do
+          // page foi limpo, a exclusão continua valendo sem re-sync.
+          const conversationTombstones = Object.entries(deletedConversations)
+            .filter(([key]) => !key.startsWith('msg_'))
+            .map(([tombstoneJid, deletedAt]) => ({ jid: tombstoneJid, deletedAt: Number(deletedAt) || 0 }))
+            .filter((tombstone) => tombstone.deletedAt > 0)
           result = {
-            history: chatHistory.slice(0, 200).map(enrichHistoryEntry)
+            history: validHistory.slice(0, 200).map(enrichHistoryEntry),
+            deletedConversations: conversationTombstones
           }
           break
         case 'get_conversation': {
+          await loadDeletedConversations()
           if (chatHistory.length === 0) {
             await loadChatHistory()
           }
           const rawJid = String(msg.payload?.args?.jid || msg.payload?.args?.contactJid || '').trim()
           const limit = Math.min(Math.max(Number(msg.payload?.args?.limit) || 100, 1), 200)
-          const norm = (v) => String(v || '').split(':')[0]
+          const targetStandard = resolveStandardJid(rawJid) || rawJid
+          const rawDigits = rawJid.split('@')[0].replace(/\D/g, '')
+
+          const unDeletedHistory = chatHistory.filter((m) => {
+            if (isNameDeleted([m.from, m.groupName, m.senderName], Number(m.timestamp) || 0)) return false
+            const isMsgGroup = Boolean(m.isGroup || m.jid?.endsWith('@g.us'))
+            if (isMsgGroup) {
+              return (
+                !isMessageFromDeletedConversation(m.jid, Number(m.timestamp) || 0, m.id) &&
+                !isMessageFromDeletedConversation((m as any).replyJid, Number(m.timestamp) || 0, m.id)
+              )
+            }
+            return (
+              !isMessageFromDeletedConversation(m.jid, Number(m.timestamp) || 0, m.id) &&
+              !isMessageFromDeletedConversation(m.senderJid, Number(m.timestamp) || 0, m.id) &&
+              !isMessageFromDeletedConversation((m as any).replyJid, Number(m.timestamp) || 0, m.id)
+            )
+          })
+
           const filtered = rawJid
-            ? chatHistory.filter((m) => {
+            ? unDeletedHistory.filter((m) => {
                 const jid = String(m.jid || '')
-                const senderJid = String(m.senderJid || m.replyJid || '')
-                if (jid === rawJid || senderJid === rawJid) return true
-                if (rawJid.endsWith('@g.us')) return jid === rawJid
-                return norm(jid) === norm(rawJid) || norm(senderJid) === norm(rawJid)
+                const senderJid = String(m.senderJid || '')
+                const replyJid = String(m.replyJid || '')
+                if (jid === rawJid || senderJid === rawJid || replyJid === rawJid) return true
+                if (jid === targetStandard || senderJid === targetStandard || replyJid === targetStandard) return true
+                if (rawJid.endsWith('@g.us')) return _isSameChat(rawJid, jid)
+                if (_isSameChat(rawJid, jid) || _isSameChat(rawJid, senderJid) || _isSameChat(rawJid, replyJid)) return true
+                if (targetStandard && (_isSameChat(targetStandard, jid) || _isSameChat(targetStandard, senderJid) || _isSameChat(targetStandard, replyJid))) return true
+                if (rawDigits.length >= 7) {
+                  const mDigits = jid.split('@')[0].replace(/\D/g, '')
+                  const sDigits = senderJid.split('@')[0].replace(/\D/g, '')
+                  const rDigits = replyJid.split('@')[0].replace(/\D/g, '')
+                  if (mDigits === rawDigits || sDigits === rawDigits || rDigits === rawDigits) return true
+                }
+                return false
               })
-            : chatHistory
+            : unDeletedHistory
           result = {
             history: filtered.slice(0, limit).map(enrichHistoryEntry)
           }
@@ -4489,6 +4932,20 @@ process.on('message', async (msg) => {
             momai.sendEvent('conversation_read', { contactJid: readJid })
           }
           result = { ok: true }
+          break
+        }
+        case 'history_overlay_presence': {
+          // Protocolo interno panel -> worker (não é tool de LLM): o overlay
+          // de contatos anuncia opened na montagem, heartbeat a cada 10s e
+          // closed na desmontagem. TTL expira sozinho se fechar sem avisar.
+          const presenceJid = String(msg.payload?.args?.jid || msg.payload?.args?.contactJid || '').trim()
+          const presenceState = String(msg.payload?.args?.state || 'heartbeat').trim()
+          if (presenceState === 'closed') {
+            if (presenceJid) _removeHistoryOverlayPresence(historyOverlayPresence, presenceJid)
+          } else if (presenceJid) {
+            _noteHistoryOverlayPresence(historyOverlayPresence, presenceJid, Date.now())
+          }
+          result = { ok: true, historyOverlayOpen: isAnyHistoryOverlayOpen() }
           break
         }
         case 'get_unread': {
@@ -4515,9 +4972,39 @@ process.on('message', async (msg) => {
           break
         }
         case 'fetch_gifs': {
-          const query = (msg.payload?.args?.query || '').trim().toLowerCase()
+          const query = (msg.payload?.args?.query || '').trim()
           const limit = Math.min(Number(msg.payload?.args?.limit) || 20, 20)
-          const categoryMap = {
+          const GIPHY_API_KEY = 'sXpGFDGZs0Dv1mmNFvYaGUvYwKX0PWIh'
+
+          // 1. Tentar GIPHY API (retorna MP4 nativo para o WhatsApp + preview/gif)
+          try {
+            const endpoint = query
+              ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=${limit}&rating=g`
+              : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=${limit}&rating=g`
+            const resp = await fetch(endpoint)
+            if (resp.ok) {
+              const data = (await resp.json()) as any
+              if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
+                const gifs = data.data.map((item: any) => ({
+                  id: item.id || item.images?.fixed_height?.url,
+                  title: item.title || 'GIF',
+                  previewUrl:
+                    item.images?.fixed_height_small?.url ||
+                    item.images?.fixed_height?.url ||
+                    item.images?.original?.url,
+                  url: item.images?.fixed_height?.url || item.images?.original?.url,
+                  mp4Url: item.images?.fixed_height?.mp4 || item.images?.original?.mp4
+                }))
+                result = { ok: true, gifs }
+                break
+              }
+            }
+          } catch (err: any) {
+            momai.log(`[fetch_gifs] Giphy error: ${err.message}`)
+          }
+
+          // 2. Fallback via Nekos.best
+          const categoryMap: Record<string, string> = {
             abraco: 'hug',
             abraço: 'hug',
             hug: 'hug',
@@ -4534,43 +5021,19 @@ process.on('message', async (msg) => {
             dance: 'dance',
             tchau: 'wave',
             wave: 'wave',
-            ola: 'wave',
-            olá: 'wave',
             choro: 'cry',
             triste: 'cry',
             cry: 'cry',
-            carinho: 'cuddle',
-            pat: 'pat',
-            cafune: 'pat',
-            cafuné: 'pat',
-            palmas: 'clap',
-            clap: 'clap',
             dormir: 'sleep',
             sono: 'sleep',
-            sleep: 'sleep',
             joinha: 'thumbsup',
             ok: 'thumbsup',
-            thumbsup: 'thumbsup',
             piscar: 'wink',
-            piscada: 'wink',
-            wink: 'wink',
-            bravo: 'angry',
-            raiva: 'angry',
-            angry: 'angry',
-            comendo: 'nom',
-            nom: 'nom',
-            bocejo: 'yawn',
-            yawn: 'yawn',
-            soco: 'punch',
-            punch: 'punch',
-            tapa: 'slap',
-            slap: 'slap',
-            shrug: 'shrug',
-            pensando: 'think',
-            think: 'think'
+            wink: 'wink'
           }
 
-          const matchedCategory = categoryMap[query]
+          const qLower = query.toLowerCase()
+          const matchedCategory = categoryMap[qLower]
           const USER_AGENT = 'MomAI (https://github.com/WesleyQDev/MomAI)'
           let fetchUrl = ''
           if (matchedCategory) {
@@ -4593,7 +5056,8 @@ process.on('message', async (msg) => {
                 id: item.url,
                 title: item.anime_name || 'Anime GIF',
                 previewUrl: item.url,
-                url: item.url
+                url: item.url,
+                mp4Url: item.url
               }))
               result = { ok: true, gifs }
             } else {
@@ -4610,14 +5074,226 @@ process.on('message', async (msg) => {
             result = { ok: false, error: 'jid is required' }
             break
           }
+          const isGroupChat = jid.endsWith('@g.us')
+          const cleanJid = jid.includes(':') ? `${jid.split('@')[0].split(':')[0]}@${jid.split('@')[1]}` : jid
+          const targetJids = new Set<string>([jid, cleanJid])
+
+          if (!isGroupChat) {
+            const standard = resolveStandardJid(jid)
+            if (standard) targetJids.add(standard)
+
+            const rawNum = (standard || jid).split('@')[0].replace(/\D/g, '')
+            for (const c of Object.values<any>(waContacts)) {
+              if (c.id === jid || c.id === standard || c.lid === jid || (c.phone && rawNum && c.phone === rawNum)) {
+                if (c.id) targetJids.add(c.id)
+                if (c.lid) targetJids.add(c.lid)
+                if (c.phone) targetJids.add(`${c.phone}@s.whatsapp.net`)
+              }
+            }
+            if (rawNum) {
+              const nowSec = Math.floor(Date.now() / 1000)
+              deletedConversations[rawNum] = nowSec
+            }
+          }
+
+          const nowSec = Math.floor(Date.now() / 1000)
+          for (const target of targetJids) {
+            deletedConversations[target] = nowSec
+          }
+          // Tombstones por nome (cobre divergência @lid vs @s.whatsapp.net).
+          // Escopo ESTRITO: só o rótulo da própria conversa (subject do grupo
+          // ou nome do contato). Nunca nomes de remetentes dentro de outros
+          // grupos — isso esconderia conversas alheias.
+          try {
+            const extraNames: string[] = []
+            if (isGroupChat) {
+              const meta = groupMetaCache.get(jid)?.data || groupMetaCache.get(cleanJid)?.data
+              if (meta?.subject) extraNames.push(String(meta.subject))
+              const wc = waContacts[jid] || waContacts[cleanJid]
+              if (wc?.name) extraNames.push(String(wc.name))
+            } else {
+              for (const target of targetJids) {
+                const wc = waContacts[target]
+                if (wc) {
+                  if (wc.name) extraNames.push(String(wc.name))
+                  if (wc.notify) extraNames.push(String(wc.notify))
+                  if (wc.verifiedName) extraNames.push(String(wc.verifiedName))
+                }
+              }
+              for (const m of chatHistory) {
+                // Só mensagens CUJA conversa é o alvo (m.jid), nunca por remetente
+                if (m.jid && targetJids.has(String(m.jid)) && !(m.isGroup || String(m.jid).endsWith('@g.us'))) {
+                  if (m.from) extraNames.push(String(m.from))
+                }
+              }
+            }
+            let namesChanged = false
+            for (const n of extraNames) {
+              const norm = _normalizeConversationName(n)
+              if (norm && norm.length >= 3 && !deletedConversationNames[norm]) {
+                deletedConversationNames[norm] = nowSec
+                namesChanged = true
+              }
+            }
+            if (namesChanged) saveDeletedConversationNames().catch(() => {})
+          } catch {}
+          await momai.storage.set(_getDeletedConversationsKey(), deletedConversations).catch(() => {})
+          await momai.storage.set(DELETED_CONVERSATIONS_KEY, deletedConversations).catch(() => {})
+
+
           const before = chatHistory.length
-          chatHistory = chatHistory.filter((m) => m.jid !== jid)
+          chatHistory = chatHistory.filter((m) => {
+            const isMsgGroup = Boolean(m.isGroup || m.jid?.endsWith('@g.us'))
+            const mJid = m.jid || ''
+            const mReply = m.replyJid || ''
+            if (isGroupChat || isMsgGroup) {
+              if (targetJids.has(mJid) || targetJids.has(mReply)) return false
+              if ([...targetJids].some((target) => _isSameChat(target, mJid) || _isSameChat(target, mReply))) return false
+              return true
+            }
+            const mSender = m.senderJid || ''
+            if (targetJids.has(mJid) || targetJids.has(mSender) || targetJids.has(mReply)) return false
+            if ([...targetJids].some((target) => _isSameChat(target, mJid) || _isSameChat(target, mSender) || _isSameChat(target, mReply))) return false
+            return true
+          })
           const deleted = before - chatHistory.length
+
+
+          const legacySources = [
+            ...new Set([_currentPhone ? _getChatHistoryKey() : null, CHAT_HISTORY_KEY].filter(Boolean))
+          ].map((key) => ({
+            key,
+            phone: key === CHAT_HISTORY_KEY ? null : _currentPhone || null
+          }))
+          await _deleteHistoryMessages(momai, [...targetJids], { sources: legacySources, phone: _currentPhone || null })
+
+          if (_currentPhone) {
+            await momai.storage.set(_getChatHistoryKey(), chatHistory).catch(() => {})
+          }
+          await momai.storage.set(CHAT_HISTORY_KEY, chatHistory).catch(() => {})
+
+          for (const target of targetJids) {
+            await removeUnreadBadge(target).catch(() => {})
+          }
+
           if (deleted > 0) {
-            schedulePersistChatHistory()
             momai.sendEvent('history_updated', { count: chatHistory.length })
           }
           result = { ok: true, deleted, remaining: chatHistory.length }
+          break
+        }
+        case 'delete_chat_messages': {
+          const rawJid = String(msg.payload?.args?.jid || '').trim()
+          const messagesToDelete = Array.isArray(msg.payload?.args?.messages) ? msg.payload.args.messages : []
+          const deleteForEveryone = Boolean(msg.payload?.args?.deleteForEveryone)
+
+          if (!rawJid || messagesToDelete.length === 0) {
+            result = { ok: false, error: 'jid and messages array required' }
+            break
+          }
+
+          const targetStandard = resolveStandardJid(rawJid) || rawJid
+          const targetSendJid = resolveJidForSending(rawJid) || targetStandard || rawJid
+
+          // 1. If deleteForEveryone, tell Baileys to send revoke protocol message
+          if (sock && connected) {
+            for (const item of messagesToDelete) {
+              let msgId = item.id
+              let fromMe = item.fromMe !== false
+              let participant = item.participant || item.senderJid
+
+              if (!msgId) {
+                const match = chatHistory.find((m) => {
+                  const isTarget =
+                    _isSameChat(m.jid, rawJid) ||
+                    _isSameChat(m.senderJid, rawJid) ||
+                    _isSameChat(m.jid, targetStandard) ||
+                    _isSameChat(m.jid, targetSendJid)
+                  if (!isTarget) return false
+                  if (item.timestamp && Math.abs((Number(m.timestamp) || 0) - (Number(item.timestamp) || 0)) <= 3) {
+                    return true
+                  }
+                  return false
+                })
+                if (match) {
+                  msgId = match.id || match.key?.id
+                  if (match.direction === 'outgoing') fromMe = true
+                  if (match.senderJid) participant = match.senderJid
+                }
+              }
+
+              if (!msgId) {
+                momai.log(`[whatsapp] Cannot revoke message without id for ${rawJid}`)
+                continue
+              }
+
+              if (deleteForEveryone) {
+                try {
+                  const deleteKey: any = {
+                    remoteJid: targetSendJid,
+                    id: msgId,
+                    fromMe: fromMe
+                  }
+                  if (targetSendJid.endsWith('@g.us') && participant) {
+                    deleteKey.participant = participant
+                  }
+                  await sock.sendMessage(targetSendJid, { delete: deleteKey })
+                  momai.log(`[whatsapp] Revoked message ${msgId} on WhatsApp for everyone in ${targetSendJid}`)
+                } catch (err: any) {
+                  momai.log(`[whatsapp] Error revoking message ${msgId}: ${err?.message || err}`)
+                }
+              } else {
+                try {
+                  await sock.chatModify({
+                    clear: {
+                      messages: [{ id: msgId, fromMe, timestamp: Number(item.timestamp) || Date.now() }]
+                    }
+                  }, targetSendJid)
+                } catch {}
+              }
+            }
+          }
+
+          // 2. Track deleted message keys in deletedConversations so they never resurface
+          await loadDeletedConversations()
+          const deleteKeys = new Set<string>()
+          for (const item of messagesToDelete) {
+            if (item.id) deleteKeys.add(item.id)
+            if (item.timestamp) {
+              deleteKeys.add(`${rawJid}_${item.timestamp}`)
+              if (targetStandard) deleteKeys.add(`${targetStandard}_${item.timestamp}`)
+            }
+          }
+
+          for (const key of deleteKeys) {
+            deletedConversations[`msg_${key}`] = Math.floor(Date.now() / 1000)
+          }
+          await momai.storage.set(_getDeletedConversationsKey(), deletedConversations).catch(() => {})
+          await momai.storage.set(DELETED_CONVERSATIONS_KEY, deletedConversations).catch(() => {})
+
+          // 3. Remove matching messages from in-memory chatHistory
+          const before = chatHistory.length
+          chatHistory = chatHistory.filter((m) => {
+            if (m.id && deleteKeys.has(m.id)) return false
+            const mKey = `${m.jid}_${m.timestamp}`
+            if (deleteKeys.has(mKey)) return false
+            const isTargetChat = _isSameChat(m.jid, rawJid) || _isSameChat(m.senderJid, rawJid) || (targetStandard && (_isSameChat(m.jid, targetStandard) || _isSameChat(m.senderJid, targetStandard)))
+            if (isTargetChat) {
+              if (messagesToDelete.some((del: any) => (del.id && del.id === m.id) || (del.timestamp && Number(del.timestamp) === Number(m.timestamp)))) {
+                return false
+              }
+            }
+            return true
+          })
+
+          const deletedCount = before - chatHistory.length
+          schedulePersistChatHistory()
+
+          if (deletedCount > 0) {
+            momai.sendEvent('history_updated', { count: chatHistory.length })
+          }
+
+          result = { ok: true, deleted: deletedCount, remaining: chatHistory.length }
           break
         }
         case 'flush_history':

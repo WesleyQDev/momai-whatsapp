@@ -117,16 +117,26 @@ function buildMessageContent(message, image, sticker = null, gif = null, documen
 
   if (gif) {
     if (typeof gif === 'string' && (gif.startsWith('http://') || gif.startsWith('https://'))) {
-      return { video: { url: gif }, gifPlayback: true, caption: message || undefined }
+      return {
+        video: { url: gif },
+        gifPlayback: true,
+        mimetype: 'video/mp4',
+        caption: message && message !== '[GIF]' ? message : undefined
+      }
     }
     let buffer
     if (Buffer.isBuffer(gif)) {
       buffer = gif
-    } else if (typeof gif === 'string' && /^data:video\/[^;]+;base64,/.test(gif)) {
+    } else if (typeof gif === 'string' && /^data:(video|image)\/[^;]+;base64,/.test(gif)) {
       buffer = _decodeB64(gif.slice(gif.indexOf(',') + 1), 'gif')
     }
     if (buffer) {
-      return { video: buffer, gifPlayback: true, caption: message || undefined }
+      return {
+        video: buffer,
+        gifPlayback: true,
+        mimetype: 'video/mp4',
+        caption: message && message !== '[GIF]' ? message : undefined
+      }
     }
   }
 
@@ -557,6 +567,23 @@ function getVideoNotificationText(innerMsg) {
 }
 
 /**
+ * True when the unwrapped message carries a GIF playback video.
+ */
+function isGifMessage(innerMsg) {
+  return !!innerMsg?.videoMessage?.gifPlayback
+}
+
+/**
+ * Notification text for an incoming GIF message: keeps the sender caption when
+ * present, otherwise falls back to '[GIF]' placeholder so the overlay gate opens.
+ */
+function getGifNotificationText(innerMsg) {
+  const caption = innerMsg?.videoMessage?.caption
+  if (typeof caption === 'string' && caption.trim().length > 0) return caption
+  return '[GIF]'
+}
+
+/**
  * Latest media attachments of one chat, oldest first, capped. Derived from the
  * in-memory `chatHistory` (newest first) so each `whatsapp_notification` event
  * carries every recent photo/document of that chat — the overlay remounts per
@@ -766,6 +793,133 @@ async function pruneHistoryMessages(momai, olderThanMs = HISTORY_RETENTION_MS) {
   }
 }
 
+function isSameChat(a: string, b: string): boolean {
+  if (!a || !b || typeof a !== 'string' || typeof b !== 'string') return false
+  if (a === b) return true
+  const aIsGroup = a.endsWith('@g.us')
+  const bIsGroup = b.endsWith('@g.us')
+  if (aIsGroup || bIsGroup) {
+    if (aIsGroup !== bIsGroup) return false
+    const aClean = a.includes(':') ? `${a.split('@')[0].split(':')[0]}@${a.split('@')[1]}` : a
+    const bClean = b.includes(':') ? `${b.split('@')[0].split(':')[0]}@${b.split('@')[1]}` : b
+    return aClean === bClean
+  }
+  const [aUser, aDomain] = a.split('@')
+  const [bUser, bDomain] = b.split('@')
+  if (!aUser || !bUser || !aDomain || !bDomain) {
+    const aDig = String(a).replace(/\D/g, '')
+    const bDig = String(b).replace(/\D/g, '')
+    return aDig.length >= 7 && aDig === bDig
+  }
+  if (aUser.split(':')[0] === bUser.split(':')[0] && aDomain === bDomain) return true
+  const aDigits = aUser.replace(/\D/g, '')
+  const bDigits = bUser.replace(/\D/g, '')
+  return aDigits.length >= 7 && aDigits === bDigits
+}
+
+/**
+ * Deletes all messages matching target JIDs from collections and legacy KV sources.
+ */
+async function deleteHistoryMessages(
+  momai,
+  targetJids: string[],
+  opts: { sources?: Array<string | { key: string; phone?: string | null }>; phone?: string | null } = {}
+) {
+  const { sources = [], phone = null } = opts
+  const pickPhone = phone
+  let removedCount = 0
+
+  if (hasCollections(momai)) {
+    try {
+      const rows = await momai.collections.list(MESSAGES_COLLECTION, {
+        limit: HISTORY_LIST_LIMIT * 10
+      })
+      if (Array.isArray(rows) && rows.length > 0) {
+        for (const row of rows) {
+          if (pickPhone !== null && row._phone && row._phone !== pickPhone) continue
+          const rowJid = row.jid || ''
+          const rowSender = row.senderJid || ''
+          const rowReply = row.replyJid || ''
+          const rowIsGroup = Boolean(row.isGroup || rowJid.endsWith('@g.us'))
+          let matches = false
+          if (rowIsGroup) {
+            matches = targetJids.some(
+              (target) =>
+                isSameChat(target, rowJid) ||
+                isSameChat(target, rowReply) ||
+                target === rowJid ||
+                target === rowReply
+            )
+          } else {
+            matches = targetJids.some(
+              (target) =>
+                isSameChat(target, rowJid) ||
+                isSameChat(target, rowSender) ||
+                isSameChat(target, rowReply) ||
+                target === rowJid ||
+                target === rowSender ||
+                target === rowReply
+            )
+          }
+          if (matches) {
+            const rowId = row._rowId ?? row.id
+            if (rowId !== undefined) {
+              await momai.collections.remove(MESSAGES_COLLECTION, rowId)
+              removedCount++
+            }
+          }
+        }
+      }
+    } catch (e) {
+      logHistory(momai, `deleteHistoryMessages (collections): ${e.message}`)
+    }
+  }
+
+  for (const source of sources) {
+    const key = typeof source === 'string' ? source : source.key
+    try {
+      const saved = await momai.storage.get(key)
+      if (Array.isArray(saved) && saved.length > 0) {
+        const filtered = saved.filter((row) => {
+          const rowJid = row.jid || ''
+          const rowSender = row.senderJid || ''
+          const rowReply = row.replyJid || ''
+          const rowIsGroup = Boolean(row.isGroup || rowJid.endsWith('@g.us'))
+          if (rowIsGroup) {
+            const matches = targetJids.some(
+              (target) =>
+                isSameChat(target, rowJid) ||
+                isSameChat(target, rowReply) ||
+                target === rowJid ||
+                target === rowReply
+            )
+            return !matches
+          }
+          const matches = targetJids.some(
+            (target) =>
+              isSameChat(target, rowJid) ||
+              isSameChat(target, rowSender) ||
+              isSameChat(target, rowReply) ||
+              target === rowJid ||
+              target === rowSender ||
+              target === rowReply
+          )
+          return !matches
+        })
+        if (filtered.length !== saved.length) {
+          await momai.storage.set(key, filtered)
+          removedCount += saved.length - filtered.length
+        }
+      }
+    } catch (e) {
+      logHistory(momai, `deleteHistoryMessages (legacy ${key}): ${e.message}`)
+    }
+  }
+
+  return { removed: removedCount }
+}
+
+
 /**
  * Rebuilds the contacts map from one row per contact. Falls back to legacy
  * whole-map keys once, backfilling stamped rows and deleting the legacy key.
@@ -780,6 +934,12 @@ async function loadContacts(momai, { sources = [], phone = null } = {}) {
       const map = {}
       for (const row of Array.isArray(rows) ? rows : []) {
         if (pickPhone !== null && row._phone !== pickPhone) continue
+        if (typeof row.id === 'string' && row.id.endsWith('@lid')) {
+          try {
+            await momai.collections.remove(CONTACTS_COLLECTION, row._rowId ?? row.id)
+          } catch {}
+          continue
+        }
         const body = { ...row }
         delete body._rowId
         delete body._key
@@ -800,11 +960,14 @@ async function loadContacts(momai, { sources = [], phone = null } = {}) {
       saved = await momai.storage.get(key)
     } catch {}
     if (!saved || typeof saved !== 'object' || Object.keys(saved).length === 0) continue
+    const filteredSaved = Object.fromEntries(
+      Object.entries(saved).filter(([jid]) => !jid.endsWith('@lid'))
+    )
     if (hasCollections(momai)) {
       try {
         await momai.collections.upsertMany(
           CONTACTS_COLLECTION,
-          Object.entries(saved).map(([jid, contact]) => {
+          Object.entries(filteredSaved).map(([jid, contact]) => {
             const body = ((contact ?? {}) as Record<string, unknown>) || {}
             return {
               ...body,
@@ -823,7 +986,7 @@ async function loadContacts(momai, { sources = [], phone = null } = {}) {
         logHistory(momai, `loadContacts backfill: ${e.message}`)
       }
     }
-    return { ...saved }
+    return { ...filteredSaved }
   }
   return {}
 }
@@ -845,19 +1008,22 @@ async function fetchContactPage(
         where,
         orderBy: 'sortKey',
         order: 'asc',
-        limit,
+        limit: limit * 2,
         offset
       }),
       momai.collections.count(CONTACTS_COLLECTION, { where })
     ])
-    const contacts = (Array.isArray(rows) ? rows : []).map((row) => {
-      const body = { ...(row || {}) }
-      delete body._rowId
-      delete body._key
-      delete body._phone
-      delete body.created_at
-      return body
-    })
+    const contacts = (Array.isArray(rows) ? rows : [])
+      .filter((row) => row && typeof row.id === 'string' && !row.id.endsWith('@lid'))
+      .slice(0, limit)
+      .map((row) => {
+        const body = { ...(row || {}) }
+        delete body._rowId
+        delete body._key
+        delete body._phone
+        delete body.created_at
+        return body
+      })
     return { contacts, total: counted.count }
   } catch (e) {
     logHistory(momai, `fetchContactPage: ${e.message}`)
@@ -876,14 +1042,16 @@ async function searchContacts(momai, { phone = null, query = '', limit = 100 } =
       where: { _phone: phone },
       limit
     })
-    return (Array.isArray(rows) ? rows : []).map((row) => {
-      const body = { ...(row || {}) }
-      delete body._rowId
-      delete body._key
-      delete body._phone
-      delete body.created_at
-      return body
-    })
+    return (Array.isArray(rows) ? rows : [])
+      .filter((row) => row && typeof row.id === 'string' && !row.id.endsWith('@lid'))
+      .map((row) => {
+        const body = { ...(row || {}) }
+        delete body._rowId
+        delete body._key
+        delete body._phone
+        delete body.created_at
+        return body
+      })
   } catch (e) {
     logHistory(momai, `searchContacts: ${e.message}`)
     return null
@@ -902,6 +1070,11 @@ async function rekeyContacts(momai) {
     })
     let removed = 0
     for (const row of Array.isArray(rows) ? rows : []) {
+      if (row && typeof row.id === 'string' && row.id.endsWith('@lid')) {
+        await momai.collections.remove(CONTACTS_COLLECTION, row._rowId ?? row.id)
+        removed += 1
+        continue
+      }
       if (row && row._phone !== undefined && row._phone !== null) continue
       await momai.collections.remove(CONTACTS_COLLECTION, row._rowId ?? row.id)
       removed += 1
@@ -1160,6 +1333,123 @@ function resolveStatusReplyQuoted(statusContext, storedMessage) {
   return participant ? { ...storedMessage, participant } : storedMessage
 }
 
+/**
+ * Resolves the `quoted` payload used to answer a standard WhatsApp message.
+ */
+function resolveReplyQuoted(quoted, targetJid, isGroup = false, cachedProto = null) {
+  if (!quoted) return null
+  const id = typeof quoted === 'string' ? quoted : quoted.id || quoted.stanzaId
+  if (!id) return null
+
+  const fromMe = quoted.direction === 'outgoing' || Boolean(quoted.fromMe)
+  const participant = isGroup
+    ? (quoted.senderJid || quoted.participant || (!fromMe ? targetJid : undefined))
+    : undefined
+
+  const key = {
+    remoteJid: targetJid,
+    fromMe,
+    id: String(id),
+    ...(participant ? { participant } : {})
+  }
+
+  if (cachedProto) {
+    return {
+      key,
+      message: cachedProto
+    }
+  }
+
+  let message: any = {}
+  if (quoted.image) {
+    message = {
+      imageMessage: {
+        caption: quoted.text && quoted.text !== '📷 Foto' ? quoted.text : ''
+      }
+    }
+  } else if (quoted.video || quoted.gif || quoted.isGif) {
+    message = {
+      videoMessage: {
+        caption: quoted.text && quoted.text !== '🎥 Vídeo' && quoted.text !== '[GIF]' ? quoted.text : '',
+        gifPlayback: Boolean(quoted.gif || quoted.isGif)
+      }
+    }
+  } else if (quoted.sticker) {
+    message = {
+      stickerMessage: {}
+    }
+  } else if (quoted.document || quoted.documentName) {
+    message = {
+      documentMessage: {
+        fileName: quoted.documentName || quoted.text || 'Documento'
+      }
+    }
+  } else if (quoted.audio) {
+    message = {
+      audioMessage: {}
+    }
+  } else {
+    message = {
+      conversation: quoted.text || ''
+    }
+  }
+
+  return {
+    key,
+    message
+  }
+}
+
+/**
+ * Extracts quoted message info from a Baileys inner message contextInfo.
+ */
+function extractQuotedMessage(innerMsg) {
+  if (!innerMsg || typeof innerMsg !== 'object') return null
+  const contextInfo =
+    innerMsg?.extendedTextMessage?.contextInfo ||
+    innerMsg?.imageMessage?.contextInfo ||
+    innerMsg?.videoMessage?.contextInfo ||
+    innerMsg?.documentMessage?.contextInfo ||
+    innerMsg?.stickerMessage?.contextInfo ||
+    innerMsg?.audioMessage?.contextInfo ||
+    innerMsg?.contextInfo ||
+    null
+
+  if (!contextInfo?.stanzaId || !contextInfo?.quotedMessage) return null
+
+  const qm = contextInfo.quotedMessage
+  const qInner =
+    qm?.ephemeralMessage?.message ||
+    qm?.viewOnceMessage?.message ||
+    qm?.viewOnceMessageV2?.message ||
+    qm?.documentWithCaptionMessage?.message ||
+    qm
+
+  const qSenderJid = contextInfo.participant ? String(contextInfo.participant).trim() : null
+  const qText =
+    qInner?.conversation ||
+    qInner?.extendedTextMessage?.text ||
+    qInner?.imageMessage?.caption ||
+    qInner?.videoMessage?.caption ||
+    qInner?.documentMessage?.caption ||
+    qInner?.documentMessage?.fileName ||
+    (qInner?.imageMessage ? '📷 Foto' : qInner?.videoMessage ? (qInner?.videoMessage?.gifPlayback ? '[GIF]' : '🎥 Vídeo') : qInner?.stickerMessage ? '🏷️ Figurinha' : qInner?.audioMessage ? '🎙️ Áudio' : '')
+
+  return {
+    id: String(contextInfo.stanzaId),
+    senderJid: qSenderJid,
+    text: qText || '',
+    image: qInner?.imageMessage ? true : undefined,
+    video: qInner?.videoMessage && !qInner?.videoMessage?.gifPlayback ? true : undefined,
+    gif: qInner?.videoMessage?.gifPlayback ? true : undefined,
+    isGif: Boolean(qInner?.videoMessage?.gifPlayback),
+    audio: qInner?.audioMessage ? true : undefined,
+    sticker: qInner?.stickerMessage ? true : undefined,
+    document: qInner?.documentMessage ? true : undefined,
+    documentName: qInner?.documentMessage?.fileName || undefined
+  }
+}
+
 /** Cooldown / debounce threshold for WhatsApp group fetching (3 minutes). */
 const GROUP_FETCH_COOLDOWN_MS = 3 * 60 * 1000
 
@@ -1178,6 +1468,81 @@ function shouldFetchGroups(
   return now - lastFetchTs >= cooldownMs
 }
 
+/**
+ * Presença do overlay de contatos (chat aberto por clique).
+ *
+ * Enquanto houver um overlay de conversa aberto, mensagens novas NÃO devem
+ * abrir o overlay de notificação (que substituiria o chat aberto no modo
+ * `replace` do host). A mensagem aparece ao vivo no chat aberto via eventos
+ * `whatsapp_message`, e os demais contatos sinalizam só pela bolinha verde
+ * (badge) + card "Nova" (unread). O worker é o gatekeeper: o panel anuncia
+ * `opened`/`heartbeat`/`closed` e o worker consulta `isHistoryOverlayOpen`
+ * antes de emitir `whatsapp_notification`.
+ *
+ * O store é um Map<jId, lastSeenMs> mantido pelo worker; `now` é injetável
+ * para testes. Entradas sem heartbeat expiram pelo TTL (fecha-crash seguro:
+ * overlay fechado sem `closed` some sozinho).
+ */
+const HISTORY_OVERLAY_PRESENCE_TTL_MS = 30 * 1000
+
+function cleanHistoryOverlayJid(jid) {
+  const raw = String(jid || '').trim()
+  if (!raw) return ''
+  if (raw.includes(':') && raw.includes('@')) {
+    const [user, domain] = raw.split('@')
+    return `${user.split(':')[0]}@${domain}`
+  }
+  return raw
+}
+
+function noteHistoryOverlayPresence(store, jid, now = Date.now()) {
+  const key = cleanHistoryOverlayJid(jid)
+  if (!key) return false
+  store.set(key, Number(now) || Date.now())
+  return true
+}
+
+function removeHistoryOverlayPresence(store, jid) {
+  const key = cleanHistoryOverlayJid(jid)
+  if (!key) return false
+  return store.delete(key)
+}
+
+function isHistoryOverlayOpen(store, now = Date.now(), ttlMs = HISTORY_OVERLAY_PRESENCE_TTL_MS) {
+  const at = Number(now) || Date.now()
+  let open = false
+  for (const [key, lastSeen] of store) {
+    if (at - Number(lastSeen) < ttlMs) {
+      open = true
+    } else {
+      store.delete(key)
+    }
+  }
+  return open
+}
+
+/**
+ * True quando a conversa `jid` tem um overlay de contatos aberto (comparação
+ * tolerante a sufixo de device/telefone). Mensagem desse chat já está sendo
+ * vista ao vivo: não gera badge (bolinha) nem entra no card NOVA.
+ */
+function isHistoryOverlayOpenFor(store, jid, now = Date.now(), ttlMs = HISTORY_OVERLAY_PRESENCE_TTL_MS) {
+  const target = cleanHistoryOverlayJid(jid)
+  if (!target) return false
+  const at = Number(now) || Date.now()
+  let open = false
+  for (const [key, lastSeen] of store) {
+    if (at - Number(lastSeen) >= ttlMs) {
+      store.delete(key)
+      continue
+    }
+    if (typeof isSameChat === 'function' ? isSameChat(key, target) : key === target) {
+      open = true
+    }
+  }
+  return open
+}
+
 module.exports = {
   withTimeout,
   friendlySendError,
@@ -1194,6 +1559,8 @@ module.exports = {
   getDocumentNotificationText,
   isVideoMessage,
   getVideoNotificationText,
+  isGifMessage,
+  getGifNotificationText,
   getRecentChatMedia,
   resolveDocumentPath,
   isStatusUpdate,
@@ -1201,6 +1568,8 @@ module.exports = {
   resolveNotificationReplyJid,
   getStatusTtsText,
   resolveStatusReplyQuoted,
+  resolveReplyQuoted,
+  extractQuotedMessage,
   cacheGet,
   cacheSet,
   MESSAGES_COLLECTION,
@@ -1209,6 +1578,8 @@ module.exports = {
   CONTACTS_COLLECTION,
   trackHistoryMessage,
   loadHistoryMessages,
+  deleteHistoryMessages,
+  isSameChat,
   pruneHistoryMessages,
   loadContacts,
   syncContacts,
@@ -1219,6 +1590,12 @@ module.exports = {
   createIpcMomai,
   GROUP_FETCH_COOLDOWN_MS,
   shouldFetchGroups,
+  HISTORY_OVERLAY_PRESENCE_TTL_MS,
+  cleanHistoryOverlayJid,
+  noteHistoryOverlayPresence,
+  removeHistoryOverlayPresence,
+  isHistoryOverlayOpen,
+  isHistoryOverlayOpenFor,
   MAX_IMAGE_BYTES,
   MAX_AUDIO_BYTES,
   MAX_STICKER_BYTES,

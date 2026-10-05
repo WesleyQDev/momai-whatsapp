@@ -13,7 +13,29 @@ import { useI18n } from './hooks/useI18n'
 import { useUnreadConversations } from './hooks/useUnreadConversations'
 import { isSameChat } from './utils/chatJid'
 import { resolveWhatsAppChannel } from './utils/whatsappChannel'
-import { toUnixSeconds, getHistoryMessageKey, mergeHistoryWithServer } from './utils/historySync'
+import {
+  SHARE_EVENT,
+  clearPendingShare,
+  parseShareDetail,
+  readPendingShare,
+  writePendingShare
+} from './services/share-intent'
+import { toUnixSeconds, getHistoryMessageKey, mergeHistoryWithServer, normalizeDeletedName, getDeletedNamesMap, rememberDeletedNames, isDeletedByName, toMs } from './utils/historySync'
+import {
+  applyRecentConversations,
+  clearRecentConversations,
+  emptyRecentConversations,
+  isConversationVisible,
+  isMessageHiddenByLedger,
+  loadRecentConversations,
+  markConversationDeleted,
+  persistRecentConversations,
+  seedDeletedConversations,
+  type RecentConversationItem,
+  type RecentConversationsStore
+} from './utils/recentConversations'
+import type { QuotedMessageInfo } from './utils/quoteDisplay'
+import { copyTextToClipboard } from './utils/clipboard'
 
 const getApiBaseUrl = (): string => {
   const fromHost =
@@ -25,7 +47,20 @@ const getApiBaseUrl = (): string => {
   return 'http://127.0.0.1:8050'
 }
 
+const isDirectMediaUrl = (url: string): boolean => {
+  if (!url) return false
+  return (
+    url.startsWith('data:') ||
+    url.startsWith('blob:') ||
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('file://')
+  )
+}
+
 const getStickerUrl = (filename: string): string => {
+  if (!filename) return ''
+  if (isDirectMediaUrl(filename)) return filename
   const base = getApiBaseUrl()
   return `${base}${sdk.media.url('momai-whatsapp', `stickers/${encodeURIComponent(filename)}`)}`
 }
@@ -43,6 +78,7 @@ function isProfilePicUrlExpired(url: string | null | undefined): boolean {
 }
 
 interface Message {
+  id?: string | null
   from: string
   jid: string
   text: string
@@ -52,12 +88,15 @@ interface Message {
   groupName?: string | null
   senderJid?: string
   profilePicUrl?: string | null
+  quoted?: QuotedMessageInfo | null
   audio?: string
   sticker?: string
   image?: string
   document?: string
   documentName?: string
   video?: string
+  gif?: string
+  isGif?: boolean
 }
 
 interface ConversationTurn {
@@ -66,16 +105,21 @@ interface ConversationTurn {
 }
 
 interface ConversationHistoryLine {
+  id?: string
   direction: 'incoming' | 'outgoing'
   text: string
   timestamp: number
   from?: string
+  senderJid?: string
+  quoted?: QuotedMessageInfo | null
   audio?: string
   sticker?: string
   image?: string
   document?: string
   documentName?: string
   video?: string
+  gif?: string
+  isGif?: boolean
 }
 
 interface ConversationSummary {
@@ -127,7 +171,10 @@ function buildTurns(sorted: Message[]): ConversationTurn[] {
             image: msg.image,
             document: msg.document,
             documentName: msg.documentName,
-            video: msg.video
+            video: msg.video,
+            gif: msg.gif,
+            isGif: msg.isGif,
+            quoted: msg.quoted || undefined
           },
           replies: [msg]
         }
@@ -142,77 +189,230 @@ function buildTurns(sorted: Message[]): ConversationTurn[] {
 function turnsToHistoryLines(turns: ConversationTurn[]): ConversationHistoryLine[] {
   const lines: ConversationHistoryLine[] = []
   for (const turn of turns) {
-    if (turn.incoming.text || turn.incoming.audio || turn.incoming.sticker || turn.incoming.image || turn.incoming.document || turn.incoming.video) {
+    if (turn.incoming.text || turn.incoming.audio || turn.incoming.sticker || turn.incoming.image || turn.incoming.document || turn.incoming.video || turn.incoming.gif || turn.incoming.isGif) {
       lines.push({
+        id: turn.incoming.id || undefined,
         direction: 'incoming',
         text: turn.incoming.text,
         timestamp: turn.incoming.timestamp,
         from: turn.incoming.from,
+        senderJid: turn.incoming.senderJid,
+        quoted: turn.incoming.quoted || undefined,
         audio: turn.incoming.audio,
         sticker: turn.incoming.sticker,
         image: turn.incoming.image,
         document: turn.incoming.document,
         documentName: turn.incoming.documentName,
-        video: turn.incoming.video
+        video: turn.incoming.video,
+        gif: turn.incoming.gif,
+        isGif: turn.incoming.isGif
       })
     }
     for (const reply of turn.replies) {
       lines.push({
+        id: reply.id || undefined,
         direction: 'outgoing',
         text: reply.text,
         timestamp: reply.timestamp,
+        senderJid: reply.senderJid,
+        quoted: reply.quoted || undefined,
         audio: reply.audio,
         sticker: reply.sticker,
         image: reply.image,
         document: reply.document,
         documentName: reply.documentName,
-        video: reply.video
+        video: reply.video,
+        gif: reply.gif,
+        isGif: reply.isGif
       })
     }
   }
   return lines
 }
 
-/** Chave única para agrupar mensagens da mesma conversa (unifica @lid e @s.whatsapp.net de um mesmo contato 1:1) */
-function getConversationGroupKey(msg: Message): string {
+interface WaContact {
+  id: string
+  displayName: string
+  name: string | null
+  notify: string | null
+  phone: string
+  lid?: string | null
+  monitoring: boolean
+  profilePicUrl?: string | null
+}
+
+interface ContactsIndex {
+  byJid: Map<string, WaContact>
+  byLid: Map<string, WaContact>
+  byPhone: Map<string, WaContact>
+  byName: Map<string, WaContact>
+}
+
+function buildContactsIndex(contacts?: WaContact[]): ContactsIndex {
+  const index: ContactsIndex = {
+    byJid: new Map(),
+    byLid: new Map(),
+    byPhone: new Map(),
+    byName: new Map()
+  }
+  for (const c of contacts || []) {
+    if (c.id) {
+      index.byJid.set(c.id, c)
+      const clean = c.id.includes(':') ? `${c.id.split('@')[0].split(':')[0]}@${c.id.split('@')[1]}` : c.id
+      index.byJid.set(clean, c)
+      const digits = c.id.split('@')[0].replace(/\D/g, '')
+      if (digits.length >= 7) index.byPhone.set(digits, c)
+    }
+    if (c.lid) {
+      index.byLid.set(c.lid, c)
+      const clean = c.lid.includes(':') ? `${c.lid.split('@')[0].split(':')[0]}@${c.lid.split('@')[1]}` : c.lid
+      index.byLid.set(clean, c)
+    }
+    if (c.phone) {
+      const digits = c.phone.replace(/\D/g, '')
+      if (digits.length >= 7) index.byPhone.set(digits, c)
+    }
+    const name = c.displayName || c.name || c.notify
+    if (name && name.trim()) {
+      index.byName.set(name.trim().toLowerCase(), c)
+    }
+  }
+  return index
+}
+
+/** Chave única para agrupar mensagens da mesma conversa (unifica @lid, @s.whatsapp.net, telefone e chamadas de um mesmo contato 1:1) */
+function getConversationGroupKey(msg: Message, contactsIndex?: ContactsIndex): string {
   const jid = msg.jid || ''
-  if (jid.endsWith('@g.us')) return jid
+  const senderJid = msg.senderJid || ''
+  const replyJid = (msg as any).replyJid || ''
 
-  // Se a mensagem possui replyJid ou senderJid com número de telefone/@s.whatsapp.net, use como chave comum
-  const replyJid = (msg as any).replyJid
-  if (replyJid && typeof replyJid === 'string' && replyJid.includes('@')) {
-    const raw = replyJid.includes(':') ? replyJid.split('@')[0].split(':')[0] + '@' + replyJid.split('@')[1] : replyJid
-    return raw
+  // Grupos sempre usam o JID limpo do grupo
+  if (jid.endsWith('@g.us') || senderJid.endsWith('@g.us') || replyJid.endsWith('@g.us')) {
+    const groupJid = jid.endsWith('@g.us') ? jid : replyJid.endsWith('@g.us') ? replyJid : senderJid
+    const [user, domain] = groupJid.split('@')
+    return `${user.split(':')[0]}@${domain}`
   }
 
-  const senderJid = msg.senderJid
-  if (senderJid && typeof senderJid === 'string' && senderJid.includes('@') && !senderJid.endsWith('@g.us')) {
-    const raw = senderJid.includes(':') ? senderJid.split('@')[0].split(':')[0] + '@' + senderJid.split('@')[1] : senderJid
-    return raw
+  // 1. Se temos índice de contatos, tenta encontrar o contato canônico
+  if (contactsIndex) {
+    const candidates = [replyJid, senderJid, jid].filter(Boolean)
+    for (const cand of candidates) {
+      const clean = cand.includes(':') ? `${cand.split('@')[0].split(':')[0]}@${cand.split('@')[1]}` : cand
+      if (contactsIndex.byJid.has(clean)) return contactsIndex.byJid.get(clean)!.id
+      if (contactsIndex.byLid.has(clean)) return contactsIndex.byLid.get(clean)!.id
+      const digits = clean.split('@')[0].replace(/\D/g, '')
+      if (digits.length >= 7 && contactsIndex.byPhone.has(digits)) return contactsIndex.byPhone.get(digits)!.id
+    }
+    // Se o contato tem nome não genérico, agrupa com o contato de mesmo nome
+    if (
+      msg.from &&
+      msg.from !== 'Você' &&
+      msg.from !== 'Contato' &&
+      msg.from !== 'Grupo' &&
+      !msg.from.includes('Chamada em curso')
+    ) {
+      const nameKey = msg.from.trim().toLowerCase()
+      if (contactsIndex.byName.has(nameKey)) {
+        return contactsIndex.byName.get(nameKey)!.id
+      }
+    }
   }
 
-  // Strip device suffix (e.g. 5511...@s.whatsapp.net)
+  // 2. Extrai JID de resposta ou remetente preferindo @s.whatsapp.net com dígitos válidos
+  for (const cand of [replyJid, senderJid, jid]) {
+    if (typeof cand === 'string' && cand.includes('@s.whatsapp.net')) {
+      const [user] = cand.split('@')
+      const digits = user.split(':')[0].replace(/\D/g, '')
+      if (digits.length >= 7) return `${digits}@s.whatsapp.net`
+    }
+  }
+
+  // 3. Extrai dígitos de telefone limpos de qualquer JID/número (ex: +55 41 9659-6620)
+  for (const cand of [replyJid, senderJid, jid]) {
+    if (typeof cand === 'string') {
+      const user = cand.split('@')[0]
+      const digits = user.replace(/\D/g, '')
+      if (digits.length >= 7 && !cand.endsWith('@lid')) {
+        return `${digits}@s.whatsapp.net`
+      }
+    }
+  }
+
+  // 4. Se for @lid, limpa sufixo de dispositivo
+  for (const cand of [replyJid, senderJid, jid]) {
+    if (typeof cand === 'string' && cand.includes('@lid')) {
+      const [user, domain] = cand.split('@')
+      return `${user.split(':')[0]}@${domain}`
+    }
+  }
+
+  // 5. Fallback limpo (strip device suffix)
   if (jid.includes(':') && jid.includes('@')) {
     const [user, domain] = jid.split('@')
-    return user.split(':')[0] + '@' + domain
+    return `${user.split(':')[0]}@${domain}`
   }
 
   return jid
 }
 
 /** Um card por conversa (jid): preview = última mensagem (recebida ou enviada); histórico completo no overlay. */
-function buildConversationSummaries(history: Message[]): ConversationSummary[] {
+function buildConversationSummaries(history: Message[], contactsList?: WaContact[]): ConversationSummary[] {
+  const contactsIndex = buildContactsIndex(contactsList)
   const byKey = new Map<string, Message[]>()
+
+  // Mapeia nomes não genéricos para chaves canônicas encontradas no histórico
+  const nameToKey = new Map<string, string>()
   for (const msg of history) {
-    const key = getConversationGroupKey(msg)
+    if (msg.isGroup || msg.jid?.endsWith('@g.us')) continue
+    const key = getConversationGroupKey(msg, contactsIndex)
+    if (
+      msg.from &&
+      msg.from !== 'Você' &&
+      msg.from !== 'Contato' &&
+      msg.from !== 'Grupo' &&
+      !msg.from.includes('Chamada em curso') &&
+      !/^\+?\d{14,}$/.test(msg.from.trim())
+    ) {
+      const normalizedName = msg.from.trim().toLowerCase()
+      if (!nameToKey.has(normalizedName) || key.endsWith('@s.whatsapp.net')) {
+        nameToKey.set(normalizedName, key)
+      }
+    }
+  }
+
+  for (const msg of history) {
+    let key = getConversationGroupKey(msg, contactsIndex)
+    if (!msg.isGroup && !msg.jid?.endsWith('@g.us') && msg.from) {
+      const normalizedName = msg.from.trim().toLowerCase()
+      if (nameToKey.has(normalizedName)) {
+        const canonicalKey = nameToKey.get(normalizedName)!
+        if (key.endsWith('@lid') && canonicalKey.endsWith('@s.whatsapp.net')) {
+          key = canonicalKey
+        }
+      }
+    }
     const list = byKey.get(key) || []
     list.push(msg)
     byKey.set(key, list)
   }
 
+  // Unifica mensagens @lid órfãs (ex: enviadas antes da sync de contato) com a conversa 1:1
+  const standardKeys = [...byKey.keys()].filter((k) => !k.endsWith('@g.us') && k.endsWith('@s.whatsapp.net'))
+  if (standardKeys.length === 1) {
+    const singleStandardKey = standardKeys[0]
+    for (const [key, msgs] of [...byKey.entries()]) {
+      if (key !== singleStandardKey && key.endsWith('@lid')) {
+        const dest = byKey.get(singleStandardKey) || []
+        dest.push(...msgs)
+        byKey.set(singleStandardKey, dest)
+        byKey.delete(key)
+      }
+    }
+  }
+
   const summaries: ConversationSummary[] = []
 
-  for (const [, messages] of byKey) {
+  for (const [key, messages] of byKey) {
     const sorted = [...messages].sort(
       (a, b) => normalizeTimestamp(a.timestamp) - normalizeTimestamp(b.timestamp)
     )
@@ -225,22 +425,51 @@ function buildConversationSummaries(history: Message[]): ConversationSummary[] {
     const lastMessage = sorted[sorted.length - 1]
     const profilePicUrl =
       [...sorted].reverse().find((m) => m.profilePicUrl && !isProfilePicUrlExpired(m.profilePicUrl))?.profilePicUrl || null
-    // Escolhe o melhor JID de destino para abrir e responder (prefere @s.whatsapp.net ou @g.us antes de @lid)
     const isGroup = messages.some((m) => m.isGroup || m.jid?.endsWith('@g.us'))
     const groupName = isGroup
       ? ([...sorted].reverse().find((m) => m.groupName)?.groupName ?? latestIncoming.groupName ?? 'Grupo')
       : null
+
+    const matchedContact =
+      contactsIndex.byJid.get(key) ||
+      contactsIndex.byLid.get(key) ||
+      (key.endsWith('@s.whatsapp.net') ? contactsIndex.byPhone.get(key.split('@')[0]) : null)
+
+    const cleanFromName = [...sorted].reverse().find(
+      (m) =>
+        m.from &&
+        m.from !== 'Você' &&
+        m.from !== 'Contato' &&
+        !m.from.includes('Chamada em curso') &&
+        !m.from.endsWith('@lid') &&
+        !/^\+?\d{14,}$/.test(m.from.trim())
+    )?.from
+
     const contactLabel = isGroup
       ? (groupName || 'Grupo')
-      : ([...sorted].reverse().find((m) => m.from && m.from !== 'Você')?.from ||
-         latestTurn.incoming.from ||
-         'Contato')
-    const preferredJid =
+      : (matchedContact?.displayName ||
+         matchedContact?.name ||
+         matchedContact?.notify ||
+         cleanFromName ||
+         (latestTurn.incoming.from &&
+          latestTurn.incoming.from !== 'Você' &&
+          latestTurn.incoming.from !== 'Contato' &&
+          !latestTurn.incoming.from.endsWith('@lid') &&
+          !/^\+?\d{14,}$/.test(latestTurn.incoming.from.trim())
+            ? latestTurn.incoming.from
+            : null) ||
+         (key.endsWith('@s.whatsapp.net') ? `+${key.split('@')[0]}` : matchedContact?.phone ? `+${matchedContact.phone}` : 'Contato'))
+
+    let preferredJid =
       [...sorted]
         .reverse()
         .map((m) => (m as any).replyJid || m.jid)
         .find((j) => typeof j === 'string' && (isGroup ? j.endsWith('@g.us') : j.endsWith('@s.whatsapp.net')) && !j.includes(':')) ||
-      lastMessage.jid
+      (key.includes('@') ? key : lastMessage.jid)
+
+    if (preferredJid && preferredJid.endsWith('@lid') && contactsIndex.byLid.has(preferredJid)) {
+      preferredJid = contactsIndex.byLid.get(preferredJid)!.id
+    }
 
     summaries.push({
       jid: preferredJid,
@@ -273,20 +502,51 @@ function buildConversationSummaries(history: Message[]): ConversationSummary[] {
   return summaries
 }
 
-interface Contact {
-  id: string
-  name: string
-  number: string
+/** Message timestamps may arrive in seconds or ms; the ledger stores seconds. */
+function messageTimestampSeconds(ts: number | undefined): number {
+  const n = Number(ts) || 0
+  if (!n) return 0
+  return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n)
 }
 
-interface WaContact {
-  id: string
-  displayName: string
-  name: string | null
-  notify: string | null
-  phone: string
-  monitoring: boolean
-  profilePicUrl?: string | null
+/**
+ * Converts a conversation summary into the ledger item. Aliases cover the JID
+ * formats the same chat can arrive in (@lid, @s.whatsapp.net, digits, device
+ * suffix) so a deletion survives WhatsApp re-sync and contact re-resolution.
+ * For groups only the group JID is used — participant addresses must never
+ * match a 1:1 conversation.
+ */
+function conversationLedgerItem(
+  convo: ConversationSummary,
+  contacts: WaContact[]
+): RecentConversationItem {
+  const aliases: Array<string | null | undefined> = [
+    convo.jid,
+    convo.lastMessage?.jid,
+    (convo.lastMessage as any)?.replyJid,
+    convo.latestIncoming?.jid
+  ]
+  if (!convo.isGroup) {
+    aliases.push(convo.latestIncoming?.senderJid)
+    const contact = contacts.find(
+      (candidate) =>
+        candidate.id === convo.jid ||
+        isSameChat(candidate.id, convo.jid) ||
+        (candidate.lid ? isSameChat(candidate.lid, convo.jid) : false) ||
+        (candidate.phone ? isSameChat(`${candidate.phone}@s.whatsapp.net`, convo.jid) : false)
+    )
+    if (contact) {
+      aliases.push(contact.id, contact.lid, contact.phone ? `${contact.phone}@s.whatsapp.net` : null)
+    }
+  }
+  return {
+    jid: convo.jid,
+    aliases,
+    label: convo.contactLabel,
+    groupName: convo.groupName,
+    isGroup: convo.isGroup,
+    lastMessageAt: messageTimestampSeconds(convo.lastMessage?.timestamp)
+  }
 }
 
 function WhatsAppIcon({ className = 'w-7 h-7' }: { className?: string }) {
@@ -892,7 +1152,7 @@ function SearchableInput({
         if (cancelled || !res.ok) return
         const items = res.data?.contacts
         const names = (items || [])
-          .map((c: any) => c.name || c.notify || c.phone || '')
+          .map((c: any) => c.displayName || c.name || c.notify || c.phone || '')
           .filter(Boolean) as string[]
         setOptions(Array.from(new Set(names)))
       })
@@ -902,8 +1162,14 @@ function SearchableInput({
     }
   }, [paramKey, target])
 
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+
   const filtered = value.trim()
-    ? options.filter((o) => o.toLowerCase().includes(value.toLowerCase()))
+    ? options.filter((o) => normalize(o).includes(normalize(value)))
     : options
 
   return (
@@ -947,6 +1213,82 @@ const LOCAL_STORAGE_STATS_KEY = 'momai_whatsapp_cached_stats'
 const LOCAL_STORAGE_HISTORY_KEY = 'momai_whatsapp_cached_history'
 const LOCAL_STORAGE_CONTACTS_KEY = 'momai_whatsapp_cached_contacts'
 const LOCAL_STORAGE_GROUPS_KEY = 'momai_whatsapp_cached_groups'
+const LOCAL_STORAGE_DELETED_JIDS_KEY = 'momai_whatsapp_deleted_jids'
+
+function getDeletedJidsList(): string[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_DELETED_JIDS_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function rememberDeletedJid(jid: string) {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_DELETED_JIDS_KEY)
+    const set = new Set<string>(raw ? JSON.parse(raw) : [])
+    set.add(jid)
+    if (jid.includes(':') && jid.includes('@')) {
+      const [user, domain] = jid.split('@')
+      set.add(`${user.split(':')[0]}@${domain}`)
+    }
+    localStorage.setItem(LOCAL_STORAGE_DELETED_JIDS_KEY, JSON.stringify([...set]))
+  } catch {}
+}
+
+function forgetDeletedJid(jid: string) {
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_DELETED_JIDS_KEY)
+    if (!raw) return
+    const list: string[] = JSON.parse(raw)
+    const next = list.filter((item) => !isSameChat(item, jid))
+    localStorage.setItem(LOCAL_STORAGE_DELETED_JIDS_KEY, JSON.stringify(next))
+  } catch {}
+}
+
+// Migração única (05/10/2026): restaura Piriguetes + Paisão nas listas.
+// Remove os tombstones locais dessas conversas para que contatos, grupos e
+// mensagens futuras voltem a aparecer. O histórico antigo continua apagado
+// (linhas já removidas do banco).
+function migrateRestoredConversations() {
+  try {
+    const jids = [
+      '120363409570599269@g.us',
+      '120363409570599269',
+      '554196863850@s.whatsapp.net',
+      '554196863850',
+      '179423064117270@lid',
+      '179423064117270'
+    ]
+    const raw = localStorage.getItem(LOCAL_STORAGE_DELETED_JIDS_KEY)
+    if (raw) {
+      const list: string[] = JSON.parse(raw)
+      const next = list.filter((item) => !jids.some((j) => isSameChat(item, j) || item === j))
+      if (next.length !== list.length) {
+        localStorage.setItem(LOCAL_STORAGE_DELETED_JIDS_KEY, JSON.stringify(next))
+      }
+    }
+  } catch {}
+  try {
+    const rawN = localStorage.getItem('momai_whatsapp_deleted_names')
+    if (rawN) {
+      const map = JSON.parse(rawN) || {}
+      const drop = ['piriguetes', 'pireguetes', 'paisao', 'paiso']
+      let changed = false
+      for (const k of Object.keys(map)) {
+        if (drop.includes(k)) {
+          delete map[k]
+          changed = true
+        }
+      }
+      if (changed) localStorage.setItem('momai_whatsapp_deleted_names', JSON.stringify(map))
+    }
+  } catch {}
+}
+try {
+  migrateRestoredConversations()
+} catch {}
 
 function getInitialHasSession(): boolean {
   try {
@@ -967,7 +1309,30 @@ function getInitialCachedStats() {
 function getInitialCachedHistory(): Message[] {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_HISTORY_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      const deleted = getDeletedJidsList()
+      const deletedNames = getDeletedNamesMap()
+      const ledger = loadRecentConversations(deleted)
+      if (Array.isArray(parsed)) {
+        return parsed.filter((m: Message) => {
+          if (isDeletedByName(m, deletedNames)) return false
+          if (isMessageHiddenByLedger(ledger, m)) return false
+          const isGroupMsg = Boolean(m.isGroup || m.jid?.endsWith('@g.us'))
+          if (isGroupMsg) {
+            return !deleted.some(
+              (d) => isSameChat(m.jid, d) || isSameChat((m as any).replyJid || '', d)
+            )
+          }
+          return !deleted.some(
+            (d) =>
+              isSameChat(m.jid, d) ||
+              isSameChat(m.senderJid || '', d) ||
+              isSameChat((m as any).replyJid || '', d)
+          )
+        })
+      }
+    }
   } catch {}
   return []
 }
@@ -975,7 +1340,12 @@ function getInitialCachedHistory(): Message[] {
 function getInitialCachedContacts(): WaContact[] {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_CONTACTS_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return parsed.filter((c: WaContact) => c && c.id && !c.id.endsWith('@lid'))
+      }
+    }
   } catch {}
   return []
 }
@@ -1016,6 +1386,11 @@ export default function WhatsAppView() {
   const [syncedContacts, setSyncedContacts] = useState(_stateCache.syncedContacts)
   const [monitoredCount, setMonitoredCount] = useState(_stateCache.monitoredCount)
   const [history, _setHistory] = useState<Message[]>(_stateCache.history)
+  // Internal "Últimas Mensagens" ledger: survives restarts and ignores stale
+  // WhatsApp history re-sync, so deleted conversations stay deleted.
+  const [recentConversations, setRecentConversations] = useState<RecentConversationsStore>(() =>
+    loadRecentConversations(getDeletedJidsList())
+  )
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [qrError, setQrError] = useState<string | null>(null)
   const [statsLoaded, setStatsLoaded] = useState(_stateCache.statsLoaded)
@@ -1090,32 +1465,6 @@ export default function WhatsAppView() {
     setEditingName(null)
   }, [])
 
-  const handleDeleteConversation = useCallback(async (convoJid: string) => {
-    markRead(convoJid)
-    try {
-      await api.post('/extensions/whatsapp/command', {
-        toolName: 'delete_message',
-        args: { jid: convoJid }
-      })
-      setHistory((prev) => {
-        const targetConvos = buildConversationSummaries(prev)
-        const targetConvo = targetConvos.find((c) => c.jid === convoJid)
-        if (targetConvo) {
-          const matchingKeys = new Set(
-            targetConvo.turns.flatMap((t) => [
-              getConversationGroupKey(t.incoming),
-              ...t.replies.map(getConversationGroupKey)
-            ])
-          )
-          return prev.filter((m) => !matchingKeys.has(getConversationGroupKey(m)) && m.jid !== convoJid)
-        }
-        return prev.filter((m) => m.jid !== convoJid)
-      })
-    } catch (err) {
-      console.error('[whatsapp] delete conversation failed:', err)
-    }
-  }, [setHistory, markRead])
-
   useEffect(() => {
     syncingRef.current = syncing
   }, [syncing])
@@ -1136,30 +1485,12 @@ export default function WhatsAppView() {
   const [totalFilteredGroups, setTotalFilteredGroups] = useState(0)
   const [groupsTotalPages, setGroupsTotalPages] = useState(1)
   const [groupsLoading, setGroupsLoading] = useState(false)
-  const [avatarsRefreshing, setAvatarsRefreshing] = useState(false)
-  const [avatarByJid, setAvatarByJid] = useState<Record<string, string | null>>({})
-  const [conversationsPage, setConversationsPage] = useState(1)
-  const [conversationsPerPage] = useState(10)
-  const [notificationsDisabled, setNotificationsDisabled] = useState(false)
-  const [statusNotificationsDisabled, setStatusNotificationsDisabled] = useState(true)
-  const [showNotificationDropdown, setShowNotificationDropdown] = useState(false)
-  const notificationDropdownRef = useRef<HTMLDivElement>(null)
-  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
-  const statusDropdownRef = useRef<HTMLDivElement>(null)
-  const [showAutomations, setShowAutomations] = useState(false)
-  const [listMenu, setListMenu] = useState<{
-    x: number
-    y: number
-    kind: 'conversation' | 'group' | 'contact'
-    id: string
-    label: string
-    preview?: string
-  } | null>(null)
 
   const setPaginatedContacts = useCallback(
     (action: WaContact[] | ((prev: WaContact[]) => WaContact[])) => {
       _setPaginatedContacts((prev) => {
-        const next = typeof action === 'function' ? action(prev) : action
+        const raw = typeof action === 'function' ? action(prev) : action
+        const next = (raw || []).filter((c) => c && c.id && !c.id.endsWith('@lid'))
         _stateCache.paginatedContacts = next
         try {
           localStorage.setItem(LOCAL_STORAGE_CONTACTS_KEY, JSON.stringify(next.slice(0, 50)))
@@ -1184,6 +1515,178 @@ export default function WhatsAppView() {
     []
   )
 
+  const handleDeleteConversation = useCallback(
+    async (convoJid: string) => {
+      markRead(convoJid)
+      rememberDeletedJid(convoJid)
+      let ledgerItem: RecentConversationItem = {
+        jid: convoJid,
+        aliases: [convoJid],
+        isGroup: convoJid.endsWith('@g.us'),
+        lastMessageAt: 0
+      }
+      try {
+        const prevHist = (_stateCache as any)?.history
+        if (Array.isArray(prevHist)) {
+          const tcs = buildConversationSummaries(prevHist, paginatedContacts)
+          const tc = tcs.find((c) => c.jid === convoJid || isSameChat(c.jid, convoJid))
+          if (tc) {
+            rememberDeletedNames([tc.contactLabel, tc.groupName])
+            ledgerItem = conversationLedgerItem(tc, paginatedContacts)
+          }
+        }
+      } catch (err) {
+        console.error('[whatsapp] delete conversation lookup failed:', err)
+      }
+      // Durable extension-owned tombstone: independent from WhatsApp history
+      // re-sync and resilient to @lid/@s.whatsapp.net drift. Written even when
+      // the conversation is no longer in memory, so the restart can never
+      // resurrect it from the local history cache.
+      try {
+        const ledger = markConversationDeleted(
+          loadRecentConversations(getDeletedJidsList()),
+          ledgerItem
+        )
+        persistRecentConversations(ledger)
+        setRecentConversations(ledger)
+      } catch (err) {
+        console.error('[whatsapp] delete conversation ledger failed:', err)
+      }
+      const isConvoGroup = convoJid.endsWith('@g.us')
+      try {
+        await api.post('/extensions/whatsapp/command', {
+          toolName: 'delete_message',
+          args: { jid: convoJid }
+        })
+        setHistory((prev) => {
+          const targetConvos = buildConversationSummaries(prev, paginatedContacts)
+          const targetConvo = targetConvos.find((c) => c.jid === convoJid || isSameChat(c.jid, convoJid))
+          if (targetConvo) {
+            const index = buildContactsIndex(paginatedContacts)
+            const targetGroupKey = getConversationGroupKey(targetConvo.lastMessage, index)
+            return prev.filter((m) => {
+              const isMsgGroup = Boolean(m.isGroup || m.jid?.endsWith('@g.us'))
+              if (isConvoGroup || isMsgGroup) {
+                if (isSameChat(m.jid, convoJid) || isSameChat((m as any).replyJid || '', convoJid)) {
+                  return false
+                }
+                return true
+              }
+              const msgKey = getConversationGroupKey(m, index)
+              if (msgKey === targetGroupKey) return false
+              if (
+                isSameChat(m.jid, convoJid) ||
+                isSameChat(m.senderJid || '', convoJid) ||
+                isSameChat((m as any).replyJid || '', convoJid)
+              ) {
+                return false
+              }
+              return true
+            })
+          }
+          return prev.filter((m) => {
+            const isMsgGroup = Boolean(m.isGroup || m.jid?.endsWith('@g.us'))
+            if (isConvoGroup || isMsgGroup) {
+              return !isSameChat(m.jid, convoJid) && !isSameChat((m as any).replyJid || '', convoJid)
+            }
+            return (
+              !isSameChat(m.jid, convoJid) &&
+              !isSameChat(m.senderJid || '', convoJid) &&
+              !isSameChat((m as any).replyJid || '', convoJid)
+            )
+          })
+        })
+        if (!isConvoGroup) {
+          setPaginatedContacts((prev) =>
+            prev.filter((c) => !isSameChat(c.id, convoJid) && !(c.phone && isSameChat(c.phone, convoJid)))
+          )
+        }
+      } catch (err) {
+        console.error('[whatsapp] delete conversation failed:', err)
+      }
+    },
+    [paginatedContacts, markRead, setHistory, setPaginatedContacts]
+  )
+  const [avatarsRefreshing, setAvatarsRefreshing] = useState(false)
+  const [avatarByJid, setAvatarByJid] = useState<Record<string, string | null>>({})
+  const [conversationsPage, setConversationsPage] = useState(1)
+  const [conversationsPerPage] = useState(10)
+  const [notificationsDisabled, setNotificationsDisabled] = useState(false)
+  const [statusNotificationsDisabled, setStatusNotificationsDisabled] = useState(true)
+  const [showNotificationDropdown, setShowNotificationDropdown] = useState(false)
+  const notificationDropdownRef = useRef<HTMLDivElement>(null)
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
+  const statusDropdownRef = useRef<HTMLDivElement>(null)
+  const [showAutomations, setShowAutomations] = useState(false)
+  const [pinnedJids, setPinnedJids] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('momai_whatsapp_pinned_jids')
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
+  const [starredJids, setStarredJids] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('momai_whatsapp_starred_jids')
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
+  const [selectedJids, setSelectedJids] = useState<string[]>([])
+
+  const togglePinJid = useCallback((jid: string) => {
+    setPinnedJids((prev) => {
+      const next = prev.includes(jid) ? prev.filter((id) => id !== jid) : [jid, ...prev]
+      try {
+        localStorage.setItem('momai_whatsapp_pinned_jids', JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  }, [])
+
+  const toggleStarJid = useCallback((jid: string) => {
+    setStarredJids((prev) => {
+      const next = prev.includes(jid) ? prev.filter((id) => id !== jid) : [jid, ...prev]
+      try {
+        localStorage.setItem('momai_whatsapp_starred_jids', JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  }, [])
+
+  const toggleSelectJid = useCallback((jid: string) => {
+    setSelectedJids((prev) =>
+      prev.includes(jid) ? prev.filter((id) => id !== jid) : [...prev, jid]
+    )
+  }, [])
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const toastTimeoutRef = useRef<any>(null)
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg)
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null)
+    }, 2200)
+  }, [])
+
+  const [listMenu, setListMenu] = useState<{
+    x: number
+    y: number
+    kind: 'conversation' | 'group' | 'contact'
+    id: string
+    label: string
+    preview?: string
+  } | null>(null)
+
+  // Text shared from another extension (e.g. a Bible verse). Selecting any
+  // contact or conversation consumes it once into the composer draft.
+  const [pendingShareText, setPendingShareText] = useState<string | null>(
+    () => readPendingShare()?.text ?? null
+  )
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1202,6 +1705,19 @@ export default function WhatsAppView() {
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Incoming shares from other extensions arrive via sessionStorage (fresh
+  // tab mount reads it above) or via a live event when already mounted.
+  useEffect(() => {
+    const handleShareIntent = (e: Event) => {
+      const share = parseShareDetail((e as CustomEvent).detail)
+      if (!share) return
+      writePendingShare(share.text, share.source)
+      setPendingShareText(share.text)
+    }
+    window.addEventListener(SHARE_EVENT, handleShareIntent)
+    return () => window.removeEventListener(SHARE_EVENT, handleShareIntent)
   }, [])
 
   // Load notifications state
@@ -1246,12 +1762,57 @@ export default function WhatsAppView() {
     }
   }
 
+  const conversationSummaries = useMemo(
+    () => buildConversationSummaries(history, paginatedContacts),
+    [history, paginatedContacts]
+  )
+
+  // Feed the internal ledger with everything the extension knows. Tombstoned
+  // conversations are ignored unless a newer message arrives (revival), so a
+  // WhatsApp history re-sync can never resurrect a conversation the user
+  // deleted. Runs after every history change (poll + realtime events).
+  useEffect(() => {
+    const current = loadRecentConversations(getDeletedJidsList())
+    const next = applyRecentConversations(
+      current,
+      conversationSummaries.map((c) => conversationLedgerItem(c, paginatedContacts))
+    )
+    if (next === current) return
+    persistRecentConversations(next)
+    setRecentConversations(next)
+  }, [conversationSummaries, paginatedContacts])
+
   const allConversations = useMemo(() => {
-    return buildConversationSummaries(history).map((c) => ({
-      ...c,
-      profilePicUrl: avatarByJid[c.jid] ?? c.profilePicUrl ?? null
-    }))
-  }, [history, avatarByJid])
+    const deletedJids = getDeletedJidsList()
+    const deletedNames = getDeletedNamesMap()
+    const raw = conversationSummaries
+      .filter((c) => isConversationVisible(recentConversations, conversationLedgerItem(c, paginatedContacts)))
+      .filter((c) => !deletedJids.some((d) => isSameChat(c.jid, d)))
+      .filter((c) => {
+        const t = Math.max(
+          ...c.turns.map((t2) => Math.max(toMs(t2.incoming.timestamp), ...t2.replies.map((r) => toMs(r.timestamp))))
+        )
+        const names = [c.contactLabel, c.groupName].filter(Boolean) as string[]
+        for (const n of names) {
+          const delAt = deletedNames[normalizeDeletedName(n)]
+          if (delAt && (!t || t <= Number(delAt))) return false
+        }
+        return true
+      })
+      .map((c) => ({
+        ...c,
+        profilePicUrl: avatarByJid[c.jid] ?? c.profilePicUrl ?? null
+      }))
+    return [...raw].sort((a, b) => {
+      const aPinned = pinnedJids.includes(a.jid) ? 1 : 0
+      const bPinned = pinnedJids.includes(b.jid) ? 1 : 0
+      if (aPinned !== bPinned) return bPinned - aPinned
+      return (
+        normalizeTimestamp(b.lastMessage?.timestamp || 0) -
+        normalizeTimestamp(a.lastMessage?.timestamp || 0)
+      )
+    })
+  }, [conversationSummaries, recentConversations, paginatedContacts, avatarByJid, pinnedJids])
 
   const conversationsTotalPages = Math.max(
     1,
@@ -1356,7 +1917,10 @@ export default function WhatsAppView() {
       localStorage.removeItem(LOCAL_STORAGE_HISTORY_KEY)
       localStorage.removeItem(LOCAL_STORAGE_CONTACTS_KEY)
       localStorage.removeItem(LOCAL_STORAGE_GROUPS_KEY)
+      localStorage.removeItem(LOCAL_STORAGE_DELETED_JIDS_KEY)
+      clearRecentConversations()
     } catch {}
+    setRecentConversations(emptyRecentConversations())
     setQrUrl(null)
     setQrError(null)
     qrRequestInFlight.current = false
@@ -1502,8 +2066,37 @@ export default function WhatsAppView() {
         toolName: 'get_history',
         args: {}
       })
-      if (data?.history) {
-        const serverHistory = data.history as Message[]
+      if (data?.history && Array.isArray(data.history)) {
+        const deletedJids = getDeletedJidsList()
+        const deletedNames = getDeletedNamesMap()
+        let ledger = loadRecentConversations(deletedJids)
+        // Worker-persisted tombstones heal the ledger when the page storage is
+        // empty (fresh profile, cleared cache) so deleted conversations never
+        // come back through the local history cache.
+        if (Array.isArray(data.deletedConversations) && data.deletedConversations.length > 0) {
+          const seeded = seedDeletedConversations(ledger, data.deletedConversations)
+          if (seeded !== ledger) {
+            ledger = seeded
+            persistRecentConversations(seeded)
+            setRecentConversations(seeded)
+          }
+        }
+        const serverHistory = (data.history as Message[]).filter((m) => {
+          if (isDeletedByName(m, deletedNames)) return false
+          if (isMessageHiddenByLedger(ledger, m)) return false
+          const isGroupMsg = Boolean(m.isGroup || m.jid?.endsWith('@g.us'))
+          if (isGroupMsg) {
+            return !deletedJids.some(
+              (d) => isSameChat(m.jid, d) || isSameChat((m as any).replyJid || '', d)
+            )
+          }
+          return !deletedJids.some(
+            (d) =>
+              isSameChat(m.jid, d) ||
+              isSameChat(m.senderJid || '', d) ||
+              isSameChat((m as any).replyJid || '', d)
+          )
+        })
         setHistory((prev) => mergeHistoryWithServer(prev, serverHistory))
         const jids = [
           ...new Set(serverHistory.map((m: Message) => m.jid).filter(Boolean))
@@ -1525,12 +2118,15 @@ export default function WhatsAppView() {
             search: search.trim()
           }
         })
-        if (data?.contacts) {
-          setPaginatedContacts(data.contacts)
-          setTotalFilteredContacts(data.totalFiltered || 0)
-          setContactsTotalPages(data.totalPages || 1)
-          const ids = (data.contacts as WaContact[]).map((c) => c.id).filter(Boolean)
-          if (ids.length > 0) void loadAvatars(ids)
+        if (data?.contacts && Array.isArray(data.contacts)) {
+          const isSearch = Boolean(search.trim())
+          if (data.contacts.length > 0 || isSearch) {
+            setPaginatedContacts(data.contacts)
+            setTotalFilteredContacts(data.totalFiltered || 0)
+            setContactsTotalPages(data.totalPages || 1)
+            const ids = (data.contacts as WaContact[]).map((c) => c.id).filter(Boolean)
+            if (ids.length > 0) void loadAvatars(ids)
+          }
         }
         return data
       } catch {
@@ -1539,7 +2135,7 @@ export default function WhatsAppView() {
         setContactsLoading(false)
       }
     },
-    [contactsPerPage, loadAvatars]
+    [contactsPerPage, loadAvatars, setPaginatedContacts]
   )
 
   const loadPaginatedGroups = useCallback(
@@ -1554,12 +2150,15 @@ export default function WhatsAppView() {
             search: search.trim()
           }
         })
-        if (data?.contacts) {
-          setPaginatedGroups(data.contacts)
-          setTotalFilteredGroups(data.totalFiltered || 0)
-          setGroupsTotalPages(data.totalPages || 1)
-          const ids = (data.contacts as WaContact[]).map((c) => c.id).filter(Boolean)
-          if (ids.length > 0) void loadAvatars(ids)
+        if (data?.contacts && Array.isArray(data.contacts)) {
+          const isSearch = Boolean(search.trim())
+          if (data.contacts.length > 0 || isSearch) {
+            setPaginatedGroups(data.contacts)
+            setTotalFilteredGroups(data.totalFiltered || 0)
+            setGroupsTotalPages(data.totalPages || 1)
+            const ids = (data.contacts as WaContact[]).map((c) => c.id).filter(Boolean)
+            if (ids.length > 0) void loadAvatars(ids)
+          }
         }
         return data
       } catch {
@@ -1568,7 +2167,7 @@ export default function WhatsAppView() {
         setGroupsLoading(false)
       }
     },
-    [groupsPerPage, loadAvatars]
+    [groupsPerPage, loadAvatars, setPaginatedGroups]
   )
 
   // Força o refetch de TODAS as fotos de perfil (grupos + contatos + conversas)
@@ -1846,6 +2445,13 @@ export default function WhatsAppView() {
     })
     const conversationHistory = turnsToHistoryLines(turns)
 
+    // A pending cross-extension share is pasted into this composer once.
+    const initialDraft = pendingShareText
+    if (initialDraft) {
+      clearPendingShare()
+      setPendingShareText(null)
+    }
+
     const contactAvatar =
       convo.profilePicUrl ||
       avatarByJid[jid] ||
@@ -1866,6 +2472,7 @@ export default function WhatsAppView() {
           contact: convo.contactLabel,
           contactJid,
           message: contextMsg.text,
+          initialDraft: initialDraft ?? undefined,
           isGroup,
           groupName,
           contactAvatar,
@@ -1877,7 +2484,9 @@ export default function WhatsAppView() {
           image: contextMsg.image,
           document: contextMsg.document,
           documentName: contextMsg.documentName,
-          video: contextMsg.video
+          video: contextMsg.video,
+          gif: (contextMsg as Message).gif,
+          isGif: (contextMsg as Message).isGif
         }
       }
     }
@@ -1887,11 +2496,17 @@ export default function WhatsAppView() {
     if (openOverlay) {
       openOverlay(overlayData)
     }
-  }, [avatarByJid, markRead])
+  }, [avatarByJid, markRead, pendingShareText])
 
   const openContactOrGroupOverlay = useCallback(
     (item: WaContact) => {
-      const existingConvo = allConversations.find((c) => c.jid === item.id)
+      const existingConvo = allConversations.find(
+        (c) =>
+          c.jid === item.id ||
+          isSameChat(c.jid, item.id) ||
+          (item.lid && (c.jid === item.lid || isSameChat(c.jid, item.lid))) ||
+          (item.phone && isSameChat(c.jid, item.phone))
+      )
       if (existingConvo) {
         return openConversationOverlay(existingConvo)
       }
@@ -1903,6 +2518,13 @@ export default function WhatsAppView() {
       const groupName = isGroup ? item.displayName || item.name || t('panel.groups') : undefined
 
       const contactAvatar = avatarByJid[item.id] ?? item.profilePicUrl ?? null
+
+      // A pending cross-extension share is pasted into this composer once.
+      const initialDraft = pendingShareText
+      if (initialDraft) {
+        clearPendingShare()
+        setPendingShareText(null)
+      }
 
       const overlayData = {
         skillId: 'momai-whatsapp',
@@ -1917,6 +2539,7 @@ export default function WhatsAppView() {
             contact: contactLabel,
             contactJid,
             message: '',
+            initialDraft: initialDraft ?? undefined,
             isGroup,
             groupName,
             contactAvatar,
@@ -1933,7 +2556,7 @@ export default function WhatsAppView() {
         openOverlay(overlayData)
       }
     },
-    [allConversations, avatarByJid, openConversationOverlay]
+    [allConversations, avatarByJid, openConversationOverlay, pendingShareText]
   )
 
   // Initial data load on mount
@@ -2029,6 +2652,66 @@ export default function WhatsAppView() {
       clearDisconnectGraceTimer()
     }
   }, [clearDisconnectGraceTimer])
+
+  // BroadcastChannel listener para sincronização instantânea com a janela de overlay
+  useEffect(() => {
+    try {
+      const bc = new BroadcastChannel('momai-whatsapp-channel')
+      bc.onmessage = (event) => {
+        if (event.data?.type === 'message_sent' && event.data?.data) {
+          const d = event.data.data
+          const jid = d.jid || d.contactJid || d.contact || ''
+          if (jid && typeof jid === 'string' && jid.includes('@')) {
+            markRead(jid)
+            forgetDeletedJid(jid)
+            const isGroupMsg = Boolean(d.isGroup)
+            const outgoingMsg: Message = {
+              id: d.id || null,
+              from: d.from || d.contact || 'Você',
+              jid,
+              senderJid: d.senderJid || jid,
+              text: d.text || d.message || '',
+              timestamp: toUnixSeconds(d.timestamp),
+              direction: 'outgoing',
+              isGroup: isGroupMsg,
+              groupName: d.groupName || null,
+              profilePicUrl: d.profilePicUrl || avatarByJid[jid] || null,
+              quoted: d.quoted || undefined,
+              sticker: d.sticker,
+              image: d.image,
+              audio: d.audio,
+              document: d.document,
+              documentName: d.documentName,
+              video: d.video,
+              gif: d.gif,
+              isGif: d.isGif
+            }
+            ;(outgoingMsg as Message & { replyJid?: string }).replyJid = d.replyJid || jid
+            setHistory((prev) => {
+              const key = getHistoryMessageKey(outgoingMsg)
+              if (prev.some((m) => getHistoryMessageKey(m) === key)) return prev
+              return [outgoingMsg, ...prev].slice(0, 100)
+            })
+            if (jid) void loadAvatars([jid])
+          }
+        } else if (event.data?.type === 'messages_deleted' && event.data?.data) {
+          const { timestamps, ids } = event.data.data
+          const tsSet = new Set((timestamps || []).map((t: any) => Number(t)))
+          const idSet = new Set((ids || []).filter(Boolean))
+          setHistory((prev) =>
+            prev.filter(
+              (m) =>
+                !tsSet.has(Number(m.timestamp)) &&
+                !(m.id && idSet.has(m.id))
+            )
+          )
+        }
+      }
+      return () => {
+        bc.close()
+      }
+    } catch {}
+  }, [avatarByJid, loadAvatars, markRead, setHistory])
 
   useExtensionEvents({
     onEvent: useCallback(
@@ -2133,17 +2816,52 @@ export default function WhatsAppView() {
           event.eventType === 'history_loaded'
         ) {
           if (explicitDisconnectRef.current) return
-          if (event.eventType === 'message_sent' && event.data?.jid) {
-            markRead(String(event.data.jid))
+          if (event.eventType === 'message_sent' && event.data) {
+            const d = event.data
+            const jid = d.jid || d.contactJid || d.contact || ''
+            if (jid && typeof jid === 'string' && jid.includes('@')) {
+              markRead(jid)
+              forgetDeletedJid(jid)
+              const isGroupMsg = Boolean(d.isGroup)
+              const outgoingMsg: Message = {
+                id: d.id || null,
+                from: d.from || d.contact || 'Você',
+                jid,
+                senderJid: d.senderJid || jid,
+                text: d.text || d.message || '',
+                timestamp: toUnixSeconds(d.timestamp),
+                direction: 'outgoing',
+                isGroup: isGroupMsg,
+                groupName: d.groupName || null,
+                profilePicUrl: d.profilePicUrl || avatarByJid[jid] || null,
+                quoted: d.quoted || undefined,
+                sticker: d.sticker,
+                image: d.image,
+                audio: d.audio,
+                document: d.document,
+                documentName: d.documentName,
+                video: d.video,
+                gif: d.gif,
+                isGif: d.isGif
+              }
+              ;(outgoingMsg as Message & { replyJid?: string }).replyJid = d.replyJid || jid
+              setHistory((prev) => {
+                const key = getHistoryMessageKey(outgoingMsg)
+                if (prev.some((m) => getHistoryMessageKey(m) === key)) return prev
+                return [outgoingMsg, ...prev].slice(0, 100)
+              })
+              if (jid) void loadAvatars([jid])
+            }
           }
           if (event.eventType === 'whatsapp_notification' && event.data) {
             const d = event.data
             const jid = d.contactJid || d.senderJid || d.contact || ''
             const text = d.message || d.text || ''
-            if (jid && typeof jid === 'string' && jid.includes('@') && (text || d.audio || d.image || d.document || d.video)) {
+            if (jid && typeof jid === 'string' && jid.includes('@') && (text || d.audio || d.image || d.document || d.video || d.sticker || d.gif || d.isGif)) {
               markUnread(jid)
               const isGroupMsg = Boolean(d.isGroup)
               const incomingMsg: Message = {
+                id: d.id || null,
                 from: (isGroupMsg ? d.senderName || d.contact : d.contact || d.senderName) || '',
                 jid,
                 text,
@@ -2153,11 +2871,15 @@ export default function WhatsAppView() {
                 groupName: d.groupName || null,
                 senderJid: d.senderJid,
                 profilePicUrl: d.contactAvatar || null,
+                quoted: d.quoted || undefined,
                 audio: d.audio,
                 image: d.image,
+                sticker: d.sticker,
                 document: d.document,
                 documentName: d.documentName,
-                video: d.video
+                video: d.video,
+                gif: d.gif,
+                isGif: d.isGif
               }
               ;(incomingMsg as Message & { replyJid?: string }).replyJid = jid
               setHistory((prev) => {
@@ -2730,108 +3452,107 @@ export default function WhatsAppView() {
             </div>
           </div>
 
-          {(connected || allConversations.length > 0) && (
-            <div className="rounded-xl border border-white/5 bg-card">
-              <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between">
-                <span>{t('page.recent_title')}</span>
-                <span className="text-xs text-text-muted">
-                  {t(allConversations.length === 1 ? 'page.recent_count_one' : 'page.recent_count_other', { count: allConversations.length })} ·{' '}
-                  {t('page.recent_hint')}
-                </span>
-              </div>
-              {allConversations.length === 0 && (
-                <div className="p-6 text-center text-sm text-text-muted">
-                  {t('page.no_messages')}
-                </div>
-              )}
-              {conversations.map((convo) => {
-                const lastMsg = convo.lastMessage || convo.latestIncoming
-                const isLastOutgoing = lastMsg?.direction === 'outgoing' || lastMsg?.from === 'Você'
-                const hasNew = !isLastOutgoing && unreadJids.some((item) => isSameChat(item, convo.jid))
-
-                return (
-                  <ConversationListItem
-                    key={convo.jid}
-                    jid={convo.jid}
-                    isGroup={convo.isGroup}
-                    groupName={convo.groupName}
-                    contactLabel={convo.contactLabel}
-                    avatarName={
-                      convo.isGroup ? convo.groupName || t('panel.unknown_group') : convo.contactLabel
-                    }
-                    avatarSrc={convo.profilePicUrl}
-                    preview={lastMsg}
-                    stickerSrc={lastMsg.sticker ? getStickerUrl(lastMsg.sticker) : null}
-                    timeLabel={formatTime(lastMsg.timestamp, locale)}
-                    hasNew={hasNew}
-                    monitoring={resolveMonitoring(convo.jid)}
-                    editing={editingName === convo.jid}
-                    editValue={editValue}
-                    onEditValueChange={setEditValue}
-                    onStartEdit={() => handleStartEdit(convo.jid, convo.contactLabel)}
-                    onSaveEdit={(val) => saveContactName(convo.jid, val)}
-                    onCancelEdit={handleCancelEdit}
-                    onOpen={() => openConversationOverlay(convo)}
-                    onOpenMenu={({ x, y }) =>
-                      setListMenu({
-                        x,
-                        y,
-                        kind: 'conversation',
-                        id: convo.jid,
-                        label:
-                          convo.isGroup ? convo.groupName || convo.contactLabel : convo.contactLabel,
-                        preview: lastMsg.text || ''
-                      })
-                    }
-                    onDelete={() => handleDeleteConversation(convo.jid)}
-                    onToggleMonitoring={() => toggleMonitoring(convo.jid)}
-                  />
-                )
-              })}
-
-              {conversationsTotalPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
-                  <span className="text-xs text-text-muted">
-                    {t('page.pagination_showing', {
-                      from: (conversationsPage - 1) * conversationsPerPage + 1,
-                      to: Math.min(conversationsPage * conversationsPerPage, allConversations.length),
-                      total: allConversations.length
-                    })}{' '}
-                    {t('page.pagination_unit_conversations')}
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setConversationsPage((p) => Math.max(1, p - 1))}
-                      disabled={conversationsPage === 1}
-                      className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {t('page.pagination_previous')}
-                    </button>
-                    <span className="text-xs self-center px-2 text-text-muted">
-                      {conversationsPage} / {conversationsTotalPages}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setConversationsPage((p) => Math.min(conversationsTotalPages, p + 1))
-                      }
-                      disabled={conversationsPage === conversationsTotalPages}
-                      className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {t('page.pagination_next')}
-                    </button>
-                  </div>
-                </div>
-              )}
+          <div className="rounded-xl border border-white/5 bg-card">
+            <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between">
+              <span>{t('page.recent_title')}</span>
+              <span className="text-xs text-text-muted">
+                {t(allConversations.length === 1 ? 'page.recent_count_one' : 'page.recent_count_other', { count: allConversations.length })} ·{' '}
+                {t('page.recent_hint')}
+              </span>
             </div>
-          )}
+            {allConversations.length === 0 && (
+              <div className="p-6 text-center text-sm text-text-muted">
+                {t('page.no_messages')}
+              </div>
+            )}
+            {conversations.map((convo) => {
+              const lastMsg = convo.lastMessage || convo.latestIncoming
+              const isLastOutgoing = lastMsg?.direction === 'outgoing' || lastMsg?.from === 'Você'
+              const hasNew = !isLastOutgoing && unreadJids.some((item) => isSameChat(item, convo.jid))
 
-          {showDashboard && (
-            <>
-              <div className="rounded-xl border border-white/5 bg-card">
-                <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between flex-wrap gap-2">
-                  <span>{t('page.groups_tab')}</span>
+              return (
+                <ConversationListItem
+                  key={convo.jid}
+                  jid={convo.jid}
+                  isGroup={convo.isGroup}
+                  groupName={convo.groupName}
+                  contactLabel={convo.contactLabel}
+                  avatarName={
+                    convo.isGroup ? convo.groupName || t('panel.unknown_group') : convo.contactLabel
+                  }
+                  avatarSrc={convo.profilePicUrl}
+                  preview={lastMsg}
+                  stickerSrc={lastMsg.sticker ? getStickerUrl(lastMsg.sticker) : null}
+                  timeLabel={formatTime(lastMsg.timestamp, locale)}
+                  hasNew={hasNew}
+                  monitoring={resolveMonitoring(convo.jid)}
+                  editing={editingName === convo.jid}
+                  editValue={editValue}
+                  isPinned={pinnedJids.includes(convo.jid)}
+                  isFavorite={starredJids.includes(convo.jid)}
+                  isSelected={selectedJids.includes(convo.jid)}
+                  onEditValueChange={setEditValue}
+                  onStartEdit={() => handleStartEdit(convo.jid, convo.contactLabel)}
+                  onSaveEdit={(val) => saveContactName(convo.jid, val)}
+                  onCancelEdit={handleCancelEdit}
+                  onOpen={() => openConversationOverlay(convo)}
+                  onOpenMenu={({ x, y }) =>
+                    setListMenu({
+                      x,
+                      y,
+                      kind: 'conversation',
+                      id: convo.jid,
+                      label:
+                        convo.isGroup ? convo.groupName || convo.contactLabel : convo.contactLabel,
+                      preview: lastMsg.text || ''
+                    })
+                  }
+                  onDelete={() => handleDeleteConversation(convo.jid)}
+                  onToggleMonitoring={() => toggleMonitoring(convo.jid)}
+                />
+              )
+            })}
+
+            {conversationsTotalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
+                <span className="text-xs text-text-muted">
+                  {t('page.pagination_showing', {
+                    from: (conversationsPage - 1) * conversationsPerPage + 1,
+                    to: Math.min(conversationsPage * conversationsPerPage, allConversations.length),
+                    total: allConversations.length
+                  })}{' '}
+                  {t('page.pagination_unit_conversations')}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConversationsPage((p) => Math.max(1, p - 1))}
+                    disabled={conversationsPage === 1}
+                    className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {t('page.pagination_previous')}
+                  </button>
+                  <span className="text-xs self-center px-2 text-text-muted">
+                    {conversationsPage} / {conversationsTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConversationsPage((p) => Math.min(conversationsTotalPages, p + 1))
+                    }
+                    disabled={conversationsPage === conversationsTotalPages}
+                    className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {t('page.pagination_next')}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-white/5 bg-card">
+            <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between flex-wrap gap-2">
+              <span>{t('page.groups_tab')}</span>
                   <div className="flex items-center gap-2">
                     <div className="relative w-64">
                       <input
@@ -2914,7 +3635,9 @@ export default function WhatsAppView() {
                             openContactOrGroupOverlay(c)
                           }
                         }}
-                        className="wa-conversation-item group relative px-4 py-3 flex items-center gap-3 border-b border-white/5 last:border-0 cursor-pointer focus:outline-none"
+                        className={`wa-conversation-item group relative px-4 py-3 flex items-center gap-3 border-b border-white/5 last:border-0 cursor-pointer focus:outline-none transition-colors ${
+                          selectedJids.includes(c.id) ? 'bg-accent/15 ring-1 ring-accent/30' : ''
+                        }`}
                         title={t('page.send_message')}
                       >
                         <div onClick={(e) => e.stopPropagation()}>
@@ -2953,6 +3676,23 @@ export default function WhatsAppView() {
                             </>
                           )}
                         </div>
+
+                        {pinnedJids.includes(c.id) && (
+                          <span title={t('page.pin')} className="text-text-muted shrink-0">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="12" y1="17" x2="12" y2="22" />
+                              <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24V17z" />
+                            </svg>
+                          </span>
+                        )}
+
+                        {starredJids.includes(c.id) && (
+                          <span title={t('page.favorite')} className="text-highlight shrink-0">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                            </svg>
+                          </span>
+                        )}
 
                         <MonitoringDropdown
                           id={c.id}
@@ -3049,7 +3789,9 @@ export default function WhatsAppView() {
                             openContactOrGroupOverlay(c)
                           }
                         }}
-                        className="wa-conversation-item group relative px-4 py-3 flex items-center gap-3 border-b border-white/5 last:border-0 cursor-pointer focus:outline-none"
+                        className={`wa-conversation-item group relative px-4 py-3 flex items-center gap-3 border-b border-white/5 last:border-0 cursor-pointer focus:outline-none transition-colors ${
+                          selectedJids.includes(c.id) ? 'bg-accent/15 ring-1 ring-accent/30' : ''
+                        }`}
                         title={t('page.send_message')}
                       >
                         <div onClick={(e) => e.stopPropagation()}>
@@ -3086,6 +3828,23 @@ export default function WhatsAppView() {
                             </>
                           )}
                         </div>
+
+                        {pinnedJids.includes(c.id) && (
+                          <span title={t('page.pin')} className="text-text-muted shrink-0">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="12" y1="17" x2="12" y2="22" />
+                              <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24V17z" />
+                            </svg>
+                          </span>
+                        )}
+
+                        {starredJids.includes(c.id) && (
+                          <span title={t('page.favorite')} className="text-highlight shrink-0">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                            </svg>
+                          </span>
+                        )}
 
                         <MonitoringDropdown
                           id={c.id}
@@ -3132,8 +3891,6 @@ export default function WhatsAppView() {
                   </div>
                 )}
               </div>
-            </>
-          )}
         </div>
       )}
       {listMenu && (
@@ -3143,8 +3900,14 @@ export default function WhatsAppView() {
           onClose={() => setListMenu(null)}
           items={[
             {
-              id: 'open',
-              label: listMenu.kind === 'conversation' ? t('page.open_conversation') : t('page.send_message'),
+              id: 'reply',
+              label: t('page.reply'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 14 4 9 9 4" />
+                  <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+                </svg>
+              ),
               onClick: () => {
                 if (listMenu.kind === 'conversation') {
                   const convo = allConversations.find((c) => c.jid === listMenu.id)
@@ -3158,54 +3921,155 @@ export default function WhatsAppView() {
               }
             },
             {
+              id: 'copy',
+              label: t('page.copy'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              ),
+              onClick: async () => {
+                const textToCopy =
+                  listMenu.kind === 'conversation' && listMenu.preview
+                    ? listMenu.preview
+                    : listMenu.label
+                if (textToCopy) {
+                  await copyTextToClipboard(textToCopy)
+                  showToast('Copiado para a área de transferência')
+                }
+              }
+            },
+            {
+              id: 'forward',
+              label: t('page.forward'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 14 20 9 15 4" />
+                  <path d="M4 20v-7a4 4 0 0 1 4-4h12" />
+                </svg>
+              ),
+              onClick: async () => {
+                const textToForward =
+                  listMenu.kind === 'conversation' && listMenu.preview
+                    ? listMenu.preview
+                    : listMenu.label
+                if (textToForward) {
+                  writePendingShare(textToForward, 'whatsapp')
+                  setPendingShareText(textToForward)
+                  await copyTextToClipboard(textToForward)
+                  showToast('Pronto para encaminhar')
+                }
+              }
+            },
+            {
+              id: 'pin',
+              label: pinnedJids.includes(listMenu.id) ? t('page.unpin') : t('page.pin'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="17" x2="12" y2="22" />
+                  <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24V17z" />
+                </svg>
+              ),
+              onClick: () => {
+                togglePinJid(listMenu.id)
+                showToast(pinnedJids.includes(listMenu.id) ? 'Desafixado' : 'Fixado no topo')
+              }
+            },
+            {
+              id: 'favorite',
+              label: starredJids.includes(listMenu.id) ? t('page.unfavorite') : t('page.favorite'),
+              icon: (
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill={starredJids.includes(listMenu.id) ? 'currentColor' : 'none'}
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+              ),
+              onClick: () => {
+                toggleStarJid(listMenu.id)
+                showToast(
+                  starredJids.includes(listMenu.id)
+                    ? 'Removido dos favoritos'
+                    : 'Adicionado aos favoritos'
+                )
+              }
+            },
+            {
+              id: 'select',
+              label: t('page.select'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="3" />
+                  <path d="m8.5 12.5 2.5 2.5 5-5" />
+                </svg>
+              ),
+              onClick: () => toggleSelectJid(listMenu.id)
+            },
+            {
               id: 'rename',
               label: t('page.rename'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                </svg>
+              ),
               onClick: () => handleStartEdit(listMenu.id, listMenu.label)
             },
             {
-              id: 'copy-name',
-              label: t('panel.copy_name'),
-              onClick: () => {
-                try {
-                  void navigator.clipboard?.writeText?.(listMenu.label)
-                } catch {}
-              }
-            },
-            {
-              id: 'copy-id',
-              label: t('page.copy_id'),
-              onClick: () => {
-                try {
-                  void navigator.clipboard?.writeText?.(listMenu.id)
-                } catch {}
-              }
-            },
-            ...(listMenu.kind === 'conversation' && listMenu.preview
-              ? [
-                  {
-                    id: 'copy-preview',
-                    label: t('page.copy_last_message'),
-                    onClick: () => {
-                      try {
-                        void navigator.clipboard?.writeText?.(listMenu.preview || '')
-                      } catch {}
-                    }
-                  }
-                ]
-              : []),
-            {
               id: resolveMonitoring(listMenu.id) ? 'ignore' : 'monitor',
               label: resolveMonitoring(listMenu.id) ? t('page.ignore') : t('page.monitor'),
-              onClick: () => toggleMonitoring(listMenu.id)
+              icon: resolveMonitoring(listMenu.id) ? (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              ),
+              onClick: () => {
+                toggleMonitoring(listMenu.id)
+                showToast(
+                  resolveMonitoring(listMenu.id)
+                    ? 'Ignorando notificações'
+                    : 'Monitorando conversa'
+                )
+              }
             },
             {
               id: 'delete',
-              label: t('page.delete_conversation'),
+              label: t('page.delete'),
               danger: true,
-              onClick: () => handleDeleteConversation(listMenu.id)
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+              ),
+              onClick: () => {
+                handleDeleteConversation(listMenu.id)
+                showToast('Conversa apagada')
+              }
             }
           ]}
         />
+      )}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-2 rounded-xl bg-card border border-border shadow-xl text-xs font-medium text-text flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150 select-none">
+          <svg className="w-4 h-4 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span>{toastMessage}</span>
+        </div>
       )}
     </div>
   )

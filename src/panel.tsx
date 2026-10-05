@@ -12,12 +12,16 @@ import { PlayIcon, PauseIcon } from '@heroicons/react/24/solid'
 import QRCode from 'qrcode'
 import sdk from 'momai:sdk'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
+import { isSameChat } from './utils/chatJid'
 import { useI18n } from './hooks/useI18n'
 import { getChatBubbleClasses, getChatBubbleStyle, getChatBubbleTimeClasses } from './utils/chatBubble'
 import { renderTextWithLinks } from './utils/linkify'
 import { useReplySuggestions } from './hooks/useReplySuggestions'
+import { writePendingShare } from './services/share-intent'
 import ContextMenu from './components/ContextMenu'
 import MediaPicker from './components/MediaPicker'
+import { QuotedMessage } from './components/QuotedMessage'
+import { copyTextToClipboard } from './utils/clipboard'
 
 interface AttachedDocument {
   id: string
@@ -92,7 +96,51 @@ const isMediaPlaceholder = (text: string): boolean =>
   text === '📄 Documento' ||
   text === '📄 Document' ||
   text === '🎥 Vídeo' ||
-  text === '🎥 Video'
+  text === '🎥 Video' ||
+  text === '[GIF]' ||
+  text === '[Sticker]'
+
+const isGifUrl = (text?: string): boolean => {
+  if (!text) return false
+  const t = text.trim()
+  return (
+    /^(https?:\/\/|data:image\/gif|data:video\/mp4)[^\s]+\.(gif|mp4)(\?[^\s]*)?$/i.test(t) ||
+    /^(https?:\/\/media[0-9]*\.giphy\.com\/[^\s]+|https?:\/\/nekos\.best\/api\/v2\/[^\s]+|https?:\/\/tenor\.com\/[^\s]+)/i.test(t)
+  )
+}
+
+function getOnlyEmojiCount(text?: string | null): number | null {
+  if (!text) return null
+  const trimmed = text.trim()
+  if (!trimmed) return null
+
+  // NOTE: sem flag `g` no teste por grapheme — `RegExp.test` com `g` é
+  // stateful (lastIndex avança) e fazia "😀😀" ou "😂🤣😅" retornarem null.
+  const emojiTest = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff]|\p{Extended_Pictographic})/u
+  const emojiGlobal = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff]|\p{Extended_Pictographic})/gu
+
+  try {
+    const segmenter = new (Intl as any).Segmenter('en', { granularity: 'grapheme' })
+    const graphemes = Array.from(segmenter.segment(trimmed))
+      .map((s: any) => s.segment.trim())
+      .filter(Boolean)
+    if (graphemes.length === 0 || graphemes.length > 3) return null
+
+    for (const g of graphemes) {
+      if (!emojiTest.test(g)) return null
+      if (/[a-zA-Z0-9]/i.test(g) && !g.includes('\u20e3')) return null
+    }
+    return graphemes.length
+  } catch {
+    const cleaned = trimmed.replace(/\s+/g, '')
+    const matches = cleaned.match(emojiGlobal)
+    if (!matches) return null
+    if (cleaned.replace(emojiGlobal, '').length === 0 && matches.length <= 3) {
+      return matches.length
+    }
+    return null
+  }
+}
 
 type MediaItem = {
   key: string
@@ -105,18 +153,20 @@ function MediaThumbnail({
   src,
   alt,
   size = 'md',
-  onOpen
+  onOpen,
+  timestampOverlay
 }: {
   src: string
   alt: string
   size?: 'md' | 'sm'
   onOpen: () => void
+  timestampOverlay?: React.ReactNode
 }) {
   const { t } = useI18n()
   const imgClass =
     size === 'sm'
-      ? 'w-20 h-20 object-cover rounded-lg drop-shadow-sm select-none pointer-events-auto hover:scale-105 transition-transform cursor-pointer'
-      : 'w-40 h-40 sm:w-48 sm:h-48 object-cover rounded-lg drop-shadow-sm select-none pointer-events-auto hover:scale-[1.02] transition-transform cursor-pointer'
+      ? 'w-20 h-20 object-cover rounded-[11px] drop-shadow-sm select-none pointer-events-auto hover:scale-105 transition-transform cursor-pointer'
+      : 'w-40 h-40 sm:w-48 sm:h-48 object-cover rounded-[13px] drop-shadow-sm select-none pointer-events-auto hover:scale-[1.02] transition-transform cursor-pointer'
   return (
     <div className="relative shrink-0 group/thumb">
       <img
@@ -128,6 +178,11 @@ function MediaThumbnail({
         onDoubleClick={onOpen}
         title={t('panel.photo_click')}
       />
+      {timestampOverlay && (
+        <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-xs text-[10px] font-normal text-white/95 flex items-center gap-1 shadow-xs pointer-events-none select-none z-10">
+          {timestampOverlay}
+        </div>
+      )}
     </div>
   )
 }
@@ -136,17 +191,19 @@ function VideoThumbnail({
   src,
   alt,
   size = 'md',
-  onOpen
+  onOpen,
+  timestampOverlay
 }: {
   src: string
   alt: string
   size?: 'md' | 'sm'
   onOpen: () => void
+  timestampOverlay?: React.ReactNode
 }) {
   const containerClass =
     size === 'sm'
-      ? 'w-20 h-20 rounded-lg drop-shadow-sm select-none pointer-events-auto hover:scale-105 transition-transform cursor-pointer'
-      : 'w-40 h-40 sm:w-48 sm:h-48 rounded-lg drop-shadow-sm select-none pointer-events-auto hover:scale-[1.02] transition-transform cursor-pointer'
+      ? 'w-20 h-20 rounded-[11px] drop-shadow-sm select-none pointer-events-auto hover:scale-105 transition-transform cursor-pointer'
+      : 'w-40 h-40 sm:w-48 sm:h-48 rounded-[13px] drop-shadow-sm select-none pointer-events-auto hover:scale-[1.02] transition-transform cursor-pointer'
   return (
     <div className="relative shrink-0 group/thumb" onClick={onOpen} title="Clique para ampliar o vídeo">
       <video
@@ -154,14 +211,111 @@ function VideoThumbnail({
         preload="metadata"
         muted
         playsInline
-        className={`${containerClass} object-cover`}
+        className={`${containerClass} object-cover rounded-[inherit]`}
       />
-      <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-80 group-hover/thumb:opacity-100 transition-opacity pointer-events-none">
+      <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-[inherit] opacity-80 group-hover/thumb:opacity-100 transition-opacity pointer-events-none">
         <svg className="w-10 h-10 text-white drop-shadow-lg" viewBox="0 0 24 24" fill="currentColor">
           <path d="M8 5v14l11-7z" />
         </svg>
       </div>
+      {timestampOverlay && (
+        <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-xs text-[10px] font-normal text-white/95 flex items-center gap-1 shadow-xs pointer-events-none select-none z-10">
+          {timestampOverlay}
+        </div>
+      )}
     </div>
+  )
+}
+
+function GifThumbnail({
+  src,
+  alt = 'GIF',
+  size = 'md',
+  onOpen,
+  timestampOverlay
+}: {
+  src: string
+  alt?: string
+  size?: 'md' | 'sm'
+  onOpen: () => void
+  timestampOverlay?: React.ReactNode
+}) {
+  const isVideo =
+    src.endsWith('.mp4') ||
+    src.includes('.mp4?') ||
+    src.includes('/mp4') ||
+    src.startsWith('data:video/')
+  const containerClass =
+    size === 'sm'
+      ? 'w-24 h-24 sm:w-28 sm:h-28 rounded-[11px] drop-shadow-xs select-none pointer-events-auto hover:scale-105 transition-transform cursor-pointer relative overflow-hidden bg-black/10'
+      : 'w-44 h-44 sm:w-52 sm:h-52 rounded-[13px] drop-shadow-xs select-none pointer-events-auto hover:scale-[1.01] transition-transform cursor-pointer relative overflow-hidden bg-black/10'
+
+  return (
+    <div className={containerClass} onClick={onOpen} title="Clique para ampliar o GIF">
+      {isVideo ? (
+        <video
+          src={src}
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="w-full h-full object-cover rounded-[inherit]"
+        />
+      ) : (
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          className="w-full h-full object-cover rounded-[inherit]"
+        />
+      )}
+      <div className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-[10px] font-bold text-white uppercase tracking-wider select-none pointer-events-none shadow-xs z-10">
+        GIF
+      </div>
+      {timestampOverlay && (
+        <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-xs text-[10px] font-normal text-white/95 flex items-center gap-1 shadow-xs pointer-events-none select-none z-10">
+          {timestampOverlay}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StickerImg({
+  src,
+  onOpen
+}: {
+  src: string
+  onOpen: () => void
+}) {
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    setFailed(false)
+  }, [src])
+  if (!src || failed) {
+    return (
+      <div
+        className="w-28 h-28 sm:w-36 sm:h-36 flex flex-col items-center justify-center gap-1 rounded-xl bg-input/40 border border-border/40 select-none cursor-pointer hover:scale-105 transition-transform"
+        onClick={onOpen}
+        title="Figurinha indisponível — clique para tentar ampliar"
+      >
+        <span className="text-4xl leading-none" aria-hidden="true">
+          🏷️
+        </span>
+        <span className="text-[10px] text-text-muted font-medium">Figurinha</span>
+      </div>
+    )
+  }
+  return (
+    <img
+      src={src}
+      alt="Sticker"
+      className="w-28 h-28 sm:w-36 sm:h-36 object-contain drop-shadow-sm select-none pointer-events-auto hover:scale-105 transition-transform cursor-pointer"
+      loading="lazy"
+      onClick={onOpen}
+      onError={() => setFailed(true)}
+      title="Clique para ampliar o sticker"
+    />
   )
 }
 
@@ -448,16 +602,35 @@ function useOpenDocument() {
 }
 
 type HistoryLine = {
+  id?: string
   direction: 'incoming' | 'outgoing'
   text: string
   timestamp: number
   from?: string
+  senderJid?: string
   audio?: string
   sticker?: string
   image?: string
   document?: string
   documentName?: string
   video?: string
+  gif?: string
+  isGif?: boolean
+  quoted?: {
+    id?: string
+    text?: string
+    from?: string
+    senderJid?: string
+    timestamp?: number
+    image?: string
+    video?: string
+    audio?: string
+    document?: string
+    documentName?: string
+    sticker?: string
+    gif?: string
+    isGif?: boolean
+  }
 }
 
 type Participant = {
@@ -466,6 +639,131 @@ type Participant = {
   phone: string
   admin?: string
   avatar?: string | null
+}
+
+/**
+ * Normaliza a citação (`quoted`) recebida do worker/eventos para o formato
+ * de `HistoryLine`, preservando nome (`from`), remetente e mídias para que o
+ * bloco de resposta do overlay renderize como no WhatsApp Web.
+ */
+function normalizeIncomingQuoted(q: any): HistoryLine['quoted'] {
+  if (!q || typeof q !== 'object') return undefined
+  return {
+    id: q.id || q.stanzaId || undefined,
+    text: q.text || q.documentName || '',
+    from: q.from || undefined,
+    senderJid: q.senderJid || undefined,
+    timestamp: q.timestamp ? Number(q.timestamp) : undefined,
+    image: q.image,
+    video: q.video,
+    audio: q.audio,
+    sticker: q.sticker,
+    document: q.document,
+    documentName: q.documentName,
+    gif: q.gif,
+    isGif: q.isGif
+  }
+}
+
+function normalizeServerLine(m: any): HistoryLine | null {
+  if (!m || typeof m !== 'object') return null
+  const line: HistoryLine = {
+    id: m.id || m.key?.id || undefined,
+    direction: m.direction === 'outgoing' ? 'outgoing' : 'incoming',
+    text: m.text || m.message || '',
+    timestamp: Number(m.timestamp) || 0,
+    from: m.from || undefined,
+    senderJid: m.senderJid || m.participant || undefined,
+    audio: m.audio,
+    sticker: m.sticker,
+    image: m.image,
+    document: m.document,
+    documentName: m.documentName,
+    video: m.video,
+    gif: m.gif,
+    isGif: m.isGif,
+    quoted: normalizeIncomingQuoted(m.quoted)
+  }
+  if (!line.text && !line.audio && !line.sticker && !line.image && !line.document && !line.video && !line.gif && !line.isGif && !line.quoted) {
+    return null
+  }
+  return line
+}
+
+/**
+ * Monta o payload de citação enviado ao worker. O `id` é obrigatório: o
+ * worker só consegue anexar o `contextInfo` (resposta real no WhatsApp)
+ * quando recebe o stanzaId da mensagem citada.
+ */
+function buildQuotedPayload(
+  reply: HistoryLine,
+  opts: { youLabel: string; fallbackFrom: string }
+) {
+  const fromMe = reply.direction === 'outgoing'
+  return {
+    id: reply.id,
+    text: reply.text || reply.documentName || '',
+    from: fromMe ? opts.youLabel : reply.from || opts.fallbackFrom,
+    fromMe,
+    senderJid: reply.senderJid || undefined,
+    timestamp: reply.timestamp,
+    image: reply.image,
+    video: reply.video,
+    audio: reply.audio,
+    sticker: reply.sticker,
+    document: reply.document,
+    documentName: reply.documentName,
+    gif: reply.gif,
+    isGif: reply.isGif
+  }
+}
+
+/**
+ * Mescla o histórico fresco do worker com envios otimistas locais ainda não
+ * confirmados (sem id ou mais novos que o servidor), sem duplicar.
+ */
+function mergeServerConversation(prev: HistoryLine[], server: HistoryLine[]): HistoryLine[] {
+  if (server.length === 0) return prev
+  const serverIds = new Set(server.map((m) => m.id).filter(Boolean))
+  const maxServerTs = Math.max(...server.map((m) => Number(m.timestamp) || 0))
+  const optimistic = prev.filter((m) => {
+    if (m.id && serverIds.has(m.id)) return false
+    if (!m.id) return true
+    return m.direction === 'outgoing' && (Number(m.timestamp) || 0) > maxServerTs
+  })
+  return [...server, ...optimistic].sort((a, b) => a.timestamp - b.timestamp)
+}
+
+/**
+ * True when `line` is already represented in `prev`: same message id, or same
+ * direction and content inside a 2s window (covers optimistic lines whose id
+ * is not known yet). The `message_sent` worker event and the HTTP response of
+ * `send_message` both insert the outgoing bubble, so this check must be used
+ * by every insert path.
+ */
+function isDuplicateHistoryLine(prev: HistoryLine[], line: HistoryLine): boolean {
+  return prev.some(
+    (m) =>
+      Boolean(line.id && m.id && line.id === m.id) ||
+      (Boolean(line.timestamp) &&
+        Boolean(m.timestamp) &&
+        Math.abs((Number(line.timestamp) || 0) - (Number(m.timestamp) || 0)) <= 2 &&
+        m.direction === line.direction &&
+        (m.text || '') === (line.text || '') &&
+        (m.image || '') === (line.image || '') &&
+        (m.audio || '') === (line.audio || '') &&
+        (m.video || '') === (line.video || '') &&
+        (m.sticker || '') === (line.sticker || '') &&
+        (m.gif || '') === (line.gif || '') &&
+        Boolean(m.isGif) === Boolean(line.isGif) &&
+        (m.document || '') === (line.document || ''))
+  )
+}
+
+/** Appends `line` to the history unless an equivalent line is already there. */
+function appendHistoryLine(prev: HistoryLine[], line: HistoryLine): HistoryLine[] {
+  if (isDuplicateHistoryLine(prev, line)) return prev
+  return [...prev, line]
 }
 
 const formatHistoryTime = (ts: number, locale = 'pt-BR') => {
@@ -724,21 +1022,122 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const senderName = data?.senderName
   const contact = data?.contact || data?.from || t('panel.unknown_contact')
   const message = data?.message || data?.text || ''
-  const [localHistory, setLocalHistory] = useState<HistoryLine[]>(() => data?.conversationHistory || [])
-  const [showFullHistory, setShowFullHistory] = useState(false)
-  const [loadingHistory, setLoadingHistory] = useState(false)
-  const [historyError, setHistoryError] = useState('')
-
-  useEffect(() => {
-    if (Array.isArray(data?.conversationHistory)) {
-      setLocalHistory(data.conversationHistory)
+  const [localHistory, setLocalHistory] = useState<HistoryLine[]>(() => {
+    if (Array.isArray(data?.conversationHistory) && data.conversationHistory.length > 0) {
+      return data.conversationHistory
     }
-    setShowFullHistory(false)
-    setHistoryError('')
-  }, [data?.conversationHistory])
+    const hasInitialMsg =
+      message ||
+      data?.image ||
+      data?.sticker ||
+      data?.document ||
+      data?.audio ||
+      data?.video ||
+      data?.gif ||
+      data?.isGif
+    if (hasInitialMsg) {
+      return [
+        {
+          id: data?.id || data?.stanzaId || undefined,
+          direction: 'incoming',
+          text: message || '',
+          timestamp: data?.timestamp || Math.floor(Date.now() / 1000),
+          from: senderName || contact,
+          senderJid: data?.senderJid || undefined,
+          audio: data?.audio,
+          image: data?.image,
+          sticker: data?.sticker,
+          document: data?.document,
+          documentName: data?.documentName,
+          video: data?.video,
+          gif: data?.gif,
+          isGif: data?.isGif,
+          quoted: normalizeIncomingQuoted(data?.quoted)
+        }
+      ]
+    }
+    return []
+  })
+
+  const prevChatJidRef = useRef<string>(data?.contactJid || data?.contact || '')
+  useEffect(() => {
+    const activeJid = data?.contactJid || data?.contact || ''
+    const isDifferentChat = prevChatJidRef.current !== activeJid
+    prevChatJidRef.current = activeJid
+
+    if (Array.isArray(data?.conversationHistory) && data.conversationHistory.length > 0) {
+      setLocalHistory(data.conversationHistory)
+      return
+    }
+
+    const hasMsg =
+      message ||
+      data?.image ||
+      data?.sticker ||
+      data?.document ||
+      data?.audio ||
+      data?.video ||
+      data?.gif ||
+      data?.isGif
+    if (!hasMsg) return
+
+    const incomingLine: HistoryLine = {
+      id: data?.id || data?.stanzaId || undefined,
+      direction: 'incoming',
+      text: message || '',
+      timestamp: data?.timestamp || Math.floor(Date.now() / 1000),
+      from: senderName || contact,
+      senderJid: data?.senderJid || undefined,
+      audio: data?.audio,
+      image: data?.image,
+      sticker: data?.sticker,
+      document: data?.document,
+      documentName: data?.documentName,
+      video: data?.video,
+      gif: data?.gif,
+      isGif: data?.isGif,
+      quoted: normalizeIncomingQuoted(data?.quoted)
+    }
+
+    if (isDifferentChat) {
+      setLocalHistory([incomingLine])
+    } else {
+      setLocalHistory((prev) => appendHistoryLine(prev, incomingLine))
+    }
+  }, [
+    data?.contactJid,
+    data?.contact,
+    message,
+    data?.id,
+    data?.stanzaId,
+    data?.timestamp,
+    data?.image,
+    data?.audio,
+    data?.video,
+    data?.document,
+    data?.documentName,
+    data?.sticker,
+    data?.gif,
+    data?.isGif,
+    data?.conversationHistory,
+    senderName,
+    contact
+  ])
 
   const conversationHistory = localHistory
-  const showHistoryView = isHistoryOverlay || showFullHistory
+  // `page.you_label` vem com dois-pontos ("Você:") para uso em previews;
+  // no balão de citação o padrão WhatsApp Web é sem dois-pontos.
+  const youLabel = t('page.you_label', { defaultValue: 'Você' }).replace(/:\s*$/, '') || 'Você'
+  // Índice id -> mensagem para resolver o nome do autor da citação
+  // (ex.: responder à própria mensagem, que chega sem `participant`).
+  const messageById = useMemo(() => {
+    const map = new Map<string, { direction: 'incoming' | 'outgoing'; from?: string }>()
+    for (const m of conversationHistory) {
+      if (m.id && !map.has(m.id)) map.set(m.id, { direction: m.direction, from: m.from })
+    }
+    return map
+  }, [conversationHistory])
+  const showHistoryView = isHistoryOverlay
   const quickReplies = data?.quickReplies || []
   const contactJid = data?.contactJid || data?.contact || ''
   const isGroup = data?.isGroup || false
@@ -746,6 +1145,44 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const isStatus = Boolean(data?.isStatus)
   const isAdminsOnly = data?.isAdminsOnly || false
   const onClose = data?.onClose || (() => {})
+
+  // No overlay de contato (modo histórico), busca a conversa direto do worker
+  // para garantir dados frescos — incluindo a citação (`quoted`) do bloco de
+  // resposta — independente do que a página repassou ao abrir o overlay.
+  useEffect(() => {
+    if (!isHistoryOverlay || !contactJid) return
+    let cancelled = false
+    const targetJid = contactJid
+    void (async () => {
+      try {
+        const base = getApiBaseUrl()
+        if (!base) return
+        const res = await fetch(`${base}/extensions/momai-whatsapp/command`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-Token': (window as any)?.api?.getSessionToken?.() || ''
+          },
+          body: JSON.stringify({
+            toolName: 'get_conversation',
+            args: { jid: targetJid, limit: 100 }
+          })
+        })
+        const resData: any = await res.json().catch(() => null)
+        const serverHistory: any[] = Array.isArray(resData?.history) ? resData.history : []
+        if (cancelled || serverHistory.length === 0) return
+        const lines = serverHistory
+          .map(normalizeServerLine)
+          .filter((l): l is HistoryLine => l !== null)
+          .sort((a, b) => a.timestamp - b.timestamp)
+        if (cancelled || lines.length === 0) return
+        setLocalHistory((prev) => mergeServerConversation(prev, lines))
+      } catch {}
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isHistoryOverlay, contactJid])
 
   console.log('[WhatsAppPanel] data received:', {
     audio: data?.audio,
@@ -764,7 +1201,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const [voiceStatus, setVoiceStatus] = useState<
     'idle' | 'listening' | 'detected' | 'complete' | 'error' | 'timeout'
   >('idle')
-  const [customText, setCustomText] = useState('')
+  const [customText, setCustomText] = useState<string>(
+    () => (typeof data?.initialDraft === 'string' ? data.initialDraft : '')
+  )
   const [pastedImages, setPastedImages] = useState<string[]>([])
   const [attachedDocuments, setAttachedDocuments] = useState<AttachedDocument[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -843,6 +1282,203 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     y: number
     participant: Participant
   } | null>(null)
+  const [messageContextMenu, setMessageContextMenu] = useState<{
+    x: number
+    y: number
+    message: HistoryLine
+  } | null>(null)
+  const [pinnedContextMenu, setPinnedContextMenu] = useState<{
+    x: number
+    y: number
+    message: HistoryLine
+  } | null>(null)
+
+  const [replyingTo, setReplyingTo] = useState<HistoryLine | null>(null)
+
+  const scrollToMessage = useCallback((ts?: number) => {
+    if (!ts) return
+    const el = document.getElementById(`msg-${ts}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHighlightedMessageTs(ts)
+      setTimeout(() => setHighlightedMessageTs(null), 1800)
+    }
+  }, [])
+  const [pinnedMessageTimestamps, setPinnedMessageTimestamps] = useState<number[]>(() => {
+    try {
+      const raw = localStorage.getItem(`momai_wa_pinned_msgs_${contactJid}`)
+      return raw ? JSON.parse(raw) : []
+    } catch {
+      return []
+    }
+  })
+  const [starredMessageTimestamps, setStarredMessageTimestamps] = useState<number[]>(() => {
+    try {
+      const raw = localStorage.getItem(`momai_wa_starred_msgs_${contactJid}`)
+      return raw ? JSON.parse(raw) : []
+    } catch {
+      return []
+    }
+  })
+  const [selectedMessageTimestamps, setSelectedMessageTimestamps] = useState<number[]>([])
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [highlightedMessageTs, setHighlightedMessageTs] = useState<number | null>(null)
+  const [pinnedIndex, setPinnedIndex] = useState<number>(0)
+
+  const singleMessageLine: HistoryLine = useMemo(
+    () => ({
+      id: data?.id || data?.stanzaId || undefined,
+      direction: 'incoming',
+      text: message || '',
+      timestamp: data?.timestamp || Math.floor(Date.now() / 1000),
+      from: senderName || contact,
+      senderJid: data?.senderJid || undefined,
+      audio: data?.audio,
+      image: data?.image,
+      sticker: data?.sticker,
+      document: data?.document,
+      documentName: data?.documentName,
+      video: data?.video,
+      gif: data?.gif,
+      isGif: data?.isGif
+    }),
+    [message, data, senderName, contact]
+  )
+
+  const allAvailableMessages = useMemo(() => {
+    if (conversationHistory.length > 0) return conversationHistory
+    if (message || data?.image || data?.video || data?.audio || data?.document || data?.sticker || data?.gif || data?.isGif) {
+      return [singleMessageLine]
+    }
+    return []
+  }, [conversationHistory, message, data, singleMessageLine])
+
+  const pinnedMessages = useMemo(
+    () => conversationHistory.filter((m) => pinnedMessageTimestamps.includes(m.timestamp)),
+    [conversationHistory, pinnedMessageTimestamps]
+  )
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const toastTimeoutRef = useRef<any>(null)
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg)
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null)
+    }, 2200)
+  }, [])
+
+  const togglePinMessage = useCallback(
+    (ts: number) => {
+      setPinnedMessageTimestamps((prev) => {
+        const next = prev.includes(ts) ? prev.filter((t) => t !== ts) : [...prev, ts]
+        try {
+          localStorage.setItem(`momai_wa_pinned_msgs_${contactJid}`, JSON.stringify(next))
+        } catch {}
+        return next
+      })
+    },
+    [contactJid]
+  )
+
+  const toggleStarMessage = useCallback(
+    (ts: number) => {
+      setStarredMessageTimestamps((prev) => {
+        const next = prev.includes(ts) ? prev.filter((t) => t !== ts) : [...prev, ts]
+        try {
+          localStorage.setItem(`momai_wa_starred_msgs_${contactJid}`, JSON.stringify(next))
+        } catch {}
+        return next
+      })
+    },
+    [contactJid]
+  )
+
+  const toggleSelectMessage = useCallback((ts: number) => {
+    setSelectedMessageTimestamps((prev) =>
+      prev.includes(ts) ? prev.filter((t) => t !== ts) : [...prev, ts]
+    )
+  }, [])
+
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{
+    messages: HistoryLine[]
+  } | null>(null)
+
+  const handleDeleteMessages = useCallback(
+    async (messagesToDelete: HistoryLine[], deleteForEveryone: boolean) => {
+      if (!messagesToDelete || messagesToDelete.length === 0) return
+      const timestampsToDelete = new Set(messagesToDelete.map((m) => m.timestamp))
+      const idsToDelete = new Set(messagesToDelete.map((m) => m.id).filter(Boolean))
+
+      // Atualiza estado local imediatamente
+      setLocalHistory((prev) =>
+        prev.filter(
+          (m) =>
+            !timestampsToDelete.has(m.timestamp) &&
+            !(m.id && idsToDelete.has(m.id))
+        )
+      )
+
+      // Remove de fixadas, favoritadas e selecionadas
+      setPinnedMessageTimestamps((prev) => prev.filter((ts) => !timestampsToDelete.has(ts)))
+      setStarredMessageTimestamps((prev) => prev.filter((ts) => !timestampsToDelete.has(ts)))
+      setSelectedMessageTimestamps((prev) => prev.filter((ts) => !timestampsToDelete.has(ts)))
+      setIsSelectionMode(false)
+      setDeleteConfirmTarget(null)
+
+      try {
+        const bc = new BroadcastChannel('momai-whatsapp-channel')
+        bc.postMessage({
+          type: 'messages_deleted',
+          data: {
+            jid: contactJid,
+            timestamps: Array.from(timestampsToDelete),
+            ids: Array.from(idsToDelete)
+          }
+        })
+        bc.close()
+      } catch {}
+
+      showToast(
+        deleteForEveryone
+          ? messagesToDelete.length > 1
+            ? 'Mensagens apagadas para todos'
+            : 'Mensagem apagada para todos'
+          : messagesToDelete.length > 1
+            ? 'Mensagens apagadas para mim'
+            : 'Mensagem apagada para mim'
+      )
+
+      try {
+        const base = getApiBaseUrl()
+        if (base) {
+          await fetch(`${base}/extensions/momai-whatsapp/command`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Session-Token': (window as any)?.api?.getSessionToken?.() || ''
+            },
+            body: JSON.stringify({
+              toolName: 'delete_chat_messages',
+              args: {
+                jid: contactJid,
+                messages: messagesToDelete.map((m) => ({
+                  id: m.id,
+                  timestamp: m.timestamp,
+                  fromMe: m.direction === 'outgoing',
+                  participant: m.senderJid
+                })),
+                deleteForEveryone
+              }
+            })
+          })
+        }
+      } catch (err) {
+        console.error('[whatsapp] delete messages error:', err)
+      }
+    },
+    [contactJid, showToast]
+  )
 
   const cardRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -861,7 +1497,66 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     setInputContextMenu({ x: e.clientX, y: e.clientY })
   }, [])
 
+  const insertTextAtCursor = useCallback((text: string) => {
+    const input = inputRef.current
+    if (!input) {
+      setCustomText((prev) => prev + text)
+      return
+    }
+    input.focus()
+    const current = input.value ?? customText
+    const start = input.selectionStart ?? current.length
+    const end = input.selectionEnd ?? current.length
+    const next = current.slice(0, start) + text + current.slice(end)
+    setCustomText(next)
+    requestAnimationFrame(() => {
+      const el = inputRef.current
+      if (!el) return
+      el.focus()
+      const pos = start + text.length
+      try {
+        el.setSelectionRange(pos, pos)
+      } catch {}
+    })
+  }, [customText])
+
   const handlePasteFromContextMenu = useCallback(async () => {
+    const input = inputRef.current
+    input?.focus()
+    // Primary path: native Electron clipboard via SDK/preload IPC.
+    // The Web Clipboard API (navigator.clipboard.read/readText) requires a
+    // clipboard-read grant that the overlay session denies, so clicking the
+    // custom "Colar" menu item always throws DOMException while Ctrl+V
+    // (trusted paste event with clipboardData) keeps working.
+    try {
+      const sdkRead = (sdk as any)?.clipboard?.read
+      const apiRead =
+        (window as any)?.api?.readClipboard || (window as any)?.momaiAPI?.readClipboard
+      if (typeof sdkRead === 'function' || typeof apiRead === 'function') {
+        const result = await (typeof sdkRead === 'function'
+          ? (sdk as any).clipboard.read()
+          : (window as any)?.api?.readClipboard?.() ??
+            (window as any)?.momaiAPI?.readClipboard?.())
+        if (result?.ok) {
+          if (result.type === 'image' && result.dataUrl) {
+            setPastedImages((prev) => [...prev, result.dataUrl as string])
+            setSendError('')
+            inputRef.current?.focus()
+            return
+          }
+          if (result.type === 'text' && result.text) {
+            insertTextAtCursor(result.text)
+            setSendError('')
+            inputRef.current?.focus()
+            return
+          }
+        } else if (result?.error === 'Clipboard is empty') {
+          return
+        }
+      }
+    } catch {
+      // Fall through to the Web Clipboard API below.
+    }
     try {
       if (navigator.clipboard?.read) {
         const items = await navigator.clipboard.read()
@@ -885,13 +1580,21 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       }
       const text = await navigator.clipboard.readText()
       if (text) {
-        setCustomText((prev) => prev + text)
+        insertTextAtCursor(text)
         inputRef.current?.focus()
+        return
       }
     } catch (err) {
       console.warn('[WhatsAppPanel] Falha ao colar do clipboard:', err)
     }
-  }, [])
+    // Last resort: let Chromium perform a native paste into the focused
+    // input. This fires onPaste (image path via handlePasteImage) and inserts
+    // text natively without needing the clipboard-read grant.
+    try {
+      inputRef.current?.focus()
+      document.execCommand('paste')
+    } catch {}
+  }, [insertTextAtCursor])
 
   const handleSelectAll = useCallback(() => {
     inputRef.current?.select()
@@ -1057,10 +1760,22 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
   const filteredParticipants = useMemo(() => {
     if (!participantSearch.trim()) return participants
-    const q = participantSearch.toLowerCase()
-    return participants.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.phone.includes(q)
-    )
+    const qNorm = participantSearch
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+    const qDigits = participantSearch.replace(/\D/g, '')
+    return participants.filter((p) => {
+      const pNameNorm = (p.name || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+      const pPhone = (p.phone || '').toLowerCase()
+      const pPhoneDigits = (p.phone || '').replace(/\D/g, '')
+      const textMatched = pNameNorm.includes(qNorm) || pPhone.includes(qNorm)
+      const digitsMatched = qDigits.length >= 2 && pPhoneDigits.includes(qDigits)
+      return textMatched || digitsMatched
+    })
   }, [participants, participantSearch])
 
   const isDraggingRef = useRef(false)
@@ -1110,12 +1825,42 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     }
   }
 
+  // A share from another extension (e.g. a Bible verse) arrives as
+  // `initialDraft` with the overlay data. The composer resets whenever the
+  // chat target changes (overlay open included), so the draft is consumed
+  // here: each unique chat+draft combination pre-fills once instead of
+  // starting empty, and later resets keep the previous empty behavior.
+  const currentChatRef = useRef<string>(contactJid)
+  const consumedDraftRef = useRef<string | null>(
+    typeof data?.initialDraft === 'string' && data.initialDraft ? data.initialDraft : null
+  )
   useEffect(() => {
-    setCustomText('')
-    setSending(false)
-    setShowMediaPicker(false)
-    interactionGenRef.current += 1
-  }, [contactJid, message, conversationHistory.length])
+    const isNewChat = currentChatRef.current !== contactJid
+    currentChatRef.current = contactJid
+
+    const incomingDraft =
+      typeof data?.initialDraft === 'string' && data.initialDraft ? data.initialDraft : ''
+
+    if (incomingDraft && consumedDraftRef.current !== incomingDraft) {
+      consumedDraftRef.current = incomingDraft
+      setCustomText(incomingDraft)
+      setSending(false)
+      setShowMediaPicker(false)
+      interactionGenRef.current += 1
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus()
+          inputRef.current.selectionStart = inputRef.current.value.length
+          inputRef.current.selectionEnd = inputRef.current.value.length
+        }
+      }, 50)
+    } else if (isNewChat) {
+      setCustomText('')
+      setSending(false)
+      setShowMediaPicker(false)
+      interactionGenRef.current += 1
+    }
+  }, [contactJid, data?.initialDraft])
 
   useEffect(() => {
     setActiveRecipient({
@@ -1141,64 +1886,6 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         .catch(() => {})
     }
   }, [contactJid, data?.contactAvatar])
-
-  const loadFullHistory = useCallback(async () => {
-    if (!contactJid || loadingHistory) return
-    setLoadingHistory(true)
-    setHistoryError('')
-    try {
-      let messages: any[] = []
-      try {
-        const { data: res } = await sdk.api.post('/extensions/momai-whatsapp/command', {
-          toolName: 'get_conversation',
-          args: { jid: contactJid, limit: 100 }
-        })
-        if (Array.isArray(res?.history)) messages = res.history
-      } catch {
-        messages = []
-      }
-      if (messages.length === 0) {
-        const { data: res } = await sdk.api.post('/extensions/momai-whatsapp/command', {
-          toolName: 'get_history',
-          args: {}
-        })
-        const all = Array.isArray(res?.history) ? res.history : []
-        const norm = (v: unknown) => String(v || '').split(':')[0]
-        messages = all.filter((m: any) => {
-          const jid = String(m?.jid || '')
-          const sender = String(m?.senderJid || m?.replyJid || '')
-          if (jid === contactJid || sender === contactJid) return true
-          if (contactJid.endsWith('@g.us')) return jid === contactJid
-          return norm(jid) === norm(contactJid) || norm(sender) === norm(contactJid)
-        })
-      }
-      const lines: HistoryLine[] = messages
-        .map((m: any) => ({
-          direction: (m.direction === 'outgoing' ? 'outgoing' : 'incoming') as HistoryLine['direction'],
-          text: m.text || '',
-          timestamp: Number(m.timestamp) || 0,
-          from: m.from,
-          audio: m.audio,
-          sticker: m.sticker,
-          image: m.image,
-          document: m.document,
-          documentName: m.documentName,
-          video: m.video
-        }))
-        .filter((l: HistoryLine) => l.text || l.audio || l.sticker || l.image || l.document || l.video)
-        .sort((a: HistoryLine, b: HistoryLine) => a.timestamp - b.timestamp)
-      setLocalHistory(lines)
-      setShowFullHistory(true)
-    } catch {
-      setHistoryError(t('panel.history_load_failed'))
-    } finally {
-      setLoadingHistory(false)
-    }
-  }, [contactJid, loadingHistory, t])
-
-  const collapseHistory = useCallback(() => {
-    setShowFullHistory(false)
-  }, [])
 
   const notifyConversationRead = useCallback(() => {
     if (!contactJid) return
@@ -1226,9 +1913,63 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
   useEffect(() => {
     const el = historyScrollRef.current
-    if (!el || conversationHistory.length === 0) return
+    if (!el || localHistory.length === 0) return
     el.scrollTop = el.scrollHeight
-  }, [contactJid, conversationHistory.length, showHistoryView])
+  }, [contactJid, localHistory.length, showHistoryView])
+
+  // Presença do overlay de contatos: enquanto este chat estiver aberto, o
+  // worker suprime o overlay de notificação de mensagens novas (ele
+  // substituiria este chat). Mesmo contato entra ao vivo aqui via eventos e
+  // não gera bolinha/NOVA; outro contato sinaliza só pela bolinha + NOVA.
+  // Divulga em 3 canais: worker (supressão + badge), BroadcastChannel e
+  // localStorage (widget NOVA filtra a conversa aberta).
+  useEffect(() => {
+    if (!isHistoryOverlay || !contactJid) return
+    const targetJid = contactJid
+    const announce = (state: 'opened' | 'heartbeat' | 'closed') => {
+      try {
+        const bc = new BroadcastChannel('momai-whatsapp-channel')
+        bc.postMessage({ type: `history_overlay_${state}`, data: { jid: targetJid } })
+        bc.close()
+      } catch {}
+      try {
+        const key = 'momai_wa_history_overlay_open'
+        if (state === 'closed') {
+          const raw = localStorage.getItem(key)
+          if (raw) {
+            try {
+              if (JSON.parse(raw)?.jid === targetJid) localStorage.removeItem(key)
+            } catch {
+              localStorage.removeItem(key)
+            }
+          }
+        } else {
+          localStorage.setItem(key, JSON.stringify({ jid: targetJid, at: Date.now() }))
+        }
+      } catch {}
+      try {
+        const base = getApiBaseUrl()
+        if (!base) return
+        fetch(`${base}/extensions/momai-whatsapp/command`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-Token': (window as any)?.api?.getSessionToken?.() || ''
+          },
+          body: JSON.stringify({
+            toolName: 'history_overlay_presence',
+            args: { jid: targetJid, state }
+          })
+        }).catch(() => {})
+      } catch {}
+    }
+    announce('opened')
+    const timer = setInterval(() => announce('heartbeat'), 10000)
+    return () => {
+      clearInterval(timer)
+      announce('closed')
+    }
+  }, [isHistoryOverlay, contactJid])
 
   useEffect(() => {
     const el = cardRef.current
@@ -1267,19 +2008,114 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
   useExtensionEvents({
     onEvent: (event: any) => {
-      if (event?.type !== 'whatsapp.voice_response') return
-      const eventContactJid = event.data?.contactJid || event.data?.contact
-      if (eventContactJid && eventContactJid !== contactJid) return
+      // O bridge `momai:events` entrega `{ eventType, data }` (ver page.tsx e
+      // widgets). Versões antigas do painel liam `event.type`, o que fazia o
+      // overlay aberto nunca receber mensagens novas. Aceita ambos.
+      const eventType: string = String(event?.eventType || event?.type || '')
+      if (eventType === 'whatsapp.voice_response' || eventType === 'voice_response') {
+        const eventContactJid = event.data?.contactJid || event.data?.contact
+        if (eventContactJid && !isSameChat(String(eventContactJid), contactJid)) return
 
-      const status = event.data?.status
-      if (status) setVoiceStatus(status)
+        const status = event.data?.status
+        if (status) setVoiceStatus(status)
 
-      if (status === 'complete' && event.data?.text) {
-        setCustomText(event.data.text)
-        const gen = beginUserSend()
-        sendReply(event.data.text, gen, pastedImages, attachedDocuments)
-      } else if (status === 'timeout' || status === 'error') {
-        stop()
+        if (status === 'complete' && event.data?.text) {
+          setCustomText(event.data.text)
+          const gen = beginUserSend()
+          sendReply(event.data.text, gen, pastedImages, attachedDocuments)
+        } else if (status === 'timeout' || status === 'error') {
+          stop()
+        }
+        return
+      }
+
+      if (
+        eventType === 'whatsapp_notification' ||
+        eventType === 'whatsapp_message' ||
+        eventType === 'message_received'
+      ) {
+        // `contactJid` é o endereço da conversa (grupo = @g.us). Usa
+        // comparação tolerante a sufixo de device/telefone (@lid vs
+        // @s.whatsapp.net) em vez de igualdade estrita, senão a mensagem do
+        // contato aberto é ignorada.
+        const rawJid =
+          event.data?.contactJid || event.data?.jid || event.data?.replyJid || event.data?.contact || ''
+        const senderJid = event.data?.senderJid || ''
+        const matchesChat =
+          (rawJid && isSameChat(String(rawJid), contactJid)) ||
+          (senderJid && !String(rawJid).includes('@') && isSameChat(String(senderJid), contactJid))
+        if (!matchesChat) return
+        if (event.data?.fromMe) return
+
+        const hasMsg =
+          event.data?.message ||
+          event.data?.text ||
+          event.data?.image ||
+          event.data?.sticker ||
+          event.data?.document ||
+          event.data?.audio ||
+          event.data?.video ||
+          event.data?.gif ||
+          event.data?.isGif
+        if (!hasMsg) return
+
+        const incomingLine: HistoryLine = {
+          id: event.data?.id || event.data?.stanzaId || undefined,
+          direction: 'incoming',
+          text: event.data?.message || event.data?.text || '',
+          timestamp: event.data?.timestamp || Math.floor(Date.now() / 1000),
+          from: event.data?.senderName || event.data?.contact || contact,
+          senderJid: event.data?.senderJid || undefined,
+          audio: event.data?.audio,
+          image: event.data?.image,
+          sticker: event.data?.sticker,
+          document: event.data?.document,
+          documentName: event.data?.documentName,
+          video: event.data?.video,
+          gif: event.data?.gif,
+          isGif: event.data?.isGif,
+          quoted: normalizeIncomingQuoted(event.data?.quoted)
+        }
+
+        setLocalHistory((prev) => appendHistoryLine(prev, incomingLine))
+        return
+      }
+
+      // Eco de mensagem enviada pelo próprio número em outro aparelho: aparece
+      // no overlay aberto como balão verde sem precisar reabrir.
+      if (eventType === 'message_sent') {
+        const rawJid =
+          event.data?.contactJid || event.data?.jid || event.data?.replyJid || event.data?.contact || ''
+        if (!rawJid || !isSameChat(String(rawJid), contactJid)) return
+        const text = event.data?.text || event.data?.message || ''
+        const hasMsg =
+          text ||
+          event.data?.image ||
+          event.data?.sticker ||
+          event.data?.document ||
+          event.data?.audio ||
+          event.data?.video ||
+          event.data?.gif ||
+          event.data?.isGif
+        if (!hasMsg) return
+        const outgoingLine: HistoryLine = {
+          id: event.data?.id || undefined,
+          direction: 'outgoing',
+          text,
+          timestamp: event.data?.timestamp || Math.floor(Date.now() / 1000),
+          from: event.data?.from || contact,
+          senderJid: event.data?.senderJid || undefined,
+          audio: event.data?.audio,
+          image: event.data?.image,
+          sticker: event.data?.sticker,
+          document: event.data?.document,
+          documentName: event.data?.documentName,
+          video: event.data?.video,
+          gif: event.data?.gif,
+          isGif: event.data?.isGif,
+          quoted: normalizeIncomingQuoted(event.data?.quoted)
+        }
+        setLocalHistory((prev) => appendHistoryLine(prev, outgoingLine))
       }
     }
   })
@@ -1306,8 +2142,26 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         if (gen === interactionGenRef.current) setSending(false)
         return
       }
+      const currentReply =
+        replyingTo ||
+        (!isHistoryOverlay &&
+        !isStatus &&
+        (message || data?.image || data?.video || data?.document || data?.audio || data?.sticker || data?.gif || data?.isGif)
+          ? singleMessageLine
+          : null)
+      // Sem stanzaId o worker não consegue anexar a citação: enviar sem
+      // `quoted` evita o balão local de "respondido" que chega como mensagem
+      // comum no aparelho do contato.
+      const quotedReply = currentReply?.id ? currentReply : null
+      const quotedPayload = quotedReply
+        ? buildQuotedPayload(quotedReply, {
+            youLabel,
+            fallbackFrom: activeRecipient.name || contact
+          })
+        : null
       setSending(true)
       setCustomText('')
+      setReplyingTo(null)
       setPastedImages([])
       setAttachedDocuments([])
       setSendError('')
@@ -1330,6 +2184,12 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             args: {
               contact: targetJid,
               message: body,
+              ...(quotedPayload
+                ? {
+                    quotedMessageId: quotedPayload.id,
+                    quoted: quotedPayload
+                  }
+                : {}),
               ...(isStatus && data?.statusContext ? { statusContext: data.statusContext } : {}),
               ...(imagesToSend.length > 0
                 ? { images: imagesToSend, image: imagesToSend[0] }
@@ -1361,24 +2221,46 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           setMinimized(false)
           return
         }
+        try {
+          const bc = new BroadcastChannel('momai-whatsapp-channel')
+          bc.postMessage({
+            type: 'message_sent',
+            data: {
+              jid: targetJid,
+              text: body,
+              direction: 'outgoing',
+              timestamp: Math.floor(Date.now() / 1000),
+              contact: activeRecipient.name || contact,
+              id: resData?.id || undefined,
+              isGroup: activeRecipient.isGroup,
+              groupName: activeRecipient.isGroup ? activeRecipient.name : undefined,
+              image: imagesToSend[0] || undefined,
+              document: documentsToSend[0]?.dataUrl || undefined,
+              documentName: documentsToSend[0]?.name || undefined,
+              quoted: quotedPayload || undefined
+            }
+          })
+          bc.close()
+        } catch {}
         if (isHistoryOverlay) {
           setCustomText('')
           setPastedImages([])
           setAttachedDocuments([])
+          setReplyingTo(null)
           setSending(false)
           setMinimized(false)
-          setLocalHistory((prev) => [
-            ...prev,
-            {
-              direction: 'outgoing',
-              text: body,
-              timestamp: Math.floor(Date.now() / 1000),
-              ...(imagesToSend.length > 0 ? { image: imagesToSend[0] } : {}),
-              ...(documentsToSend.length > 0
-                ? { document: documentsToSend[0]?.dataUrl, documentName: documentsToSend[0]?.name }
-                : {})
-            }
-          ])
+          const outgoingLine: HistoryLine = {
+            id: resData?.id || undefined,
+            direction: 'outgoing',
+            text: body,
+            timestamp: Math.floor(Date.now() / 1000),
+            quoted: quotedPayload || undefined,
+            ...(imagesToSend.length > 0 ? { image: imagesToSend[0] } : {}),
+            ...(documentsToSend.length > 0
+              ? { document: documentsToSend[0]?.dataUrl, documentName: documentsToSend[0]?.name }
+              : {})
+          }
+          setLocalHistory((prev) => appendHistoryLine(prev, outgoingLine))
         } else {
           dismissAfterEngagement()
         }
@@ -1391,7 +2273,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         setMinimized(false)
       }
     },
-    [activeRecipient.jid, isHistoryOverlay, dismissAfterEngagement, isStatus, data?.statusContext]
+    [activeRecipient, isHistoryOverlay, dismissAfterEngagement, isStatus, data?.statusContext, youLabel, replyingTo, message, singleMessageLine, contact, t]
   )
 
   const handleInsertEmoji = useCallback((emoji: string) => {
@@ -1471,15 +2353,15 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         if (resData?.ok) {
           if (isHistoryOverlay) {
             setSending(false)
-            setLocalHistory((prev) => [
-              ...prev,
-              {
+            setLocalHistory((prev) =>
+              appendHistoryLine(prev, {
+                id: resData?.id || undefined,
                 direction: 'outgoing',
                 text: '',
                 sticker: stickerFilename,
                 timestamp: Math.floor(Date.now() / 1000)
-              }
-            ])
+              })
+            )
           } else {
             dismissAfterEngagement()
           }
@@ -1497,7 +2379,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   )
 
   const handleSendGif = useCallback(
-    async (gifUrl: string) => {
+    async (gifUrl: string, previewUrl?: string) => {
       setShowMediaPicker(false)
       const gen = beginUserSend()
       const targetJid = activeRecipient.jid
@@ -1529,14 +2411,24 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         if (resData?.ok) {
           if (isHistoryOverlay) {
             setSending(false)
-            setLocalHistory((prev) => [
-              ...prev,
-              {
+            const isMp4 =
+              gifUrl.endsWith('.mp4') ||
+              gifUrl.includes('.mp4?') ||
+              gifUrl.includes('/mp4') ||
+              gifUrl.startsWith('data:video/')
+            const displayMedia = previewUrl || gifUrl
+            setLocalHistory((prev) =>
+              appendHistoryLine(prev, {
+                id: resData?.id || undefined,
                 direction: 'outgoing',
-                text: gifUrl,
+                text: '',
+                video: isMp4 ? gifUrl : undefined,
+                image: !isMp4 ? displayMedia : undefined,
+                gif: displayMedia,
+                isGif: true,
                 timestamp: Math.floor(Date.now() / 1000)
-              }
-            ])
+              })
+            )
           } else {
             dismissAfterEngagement()
           }
@@ -1550,7 +2442,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         setSending(false)
       }
     },
-    [activeRecipient.jid, beginUserSend, isHistoryOverlay, dismissAfterEngagement]
+    [activeRecipient.jid, beginUserSend, isHistoryOverlay, dismissAfterEngagement, t]
   )
 
   const handleQuickReply = useCallback(
@@ -1616,6 +2508,18 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             }px`
           } as any}
         >
+          {toastMessage && (
+            <div
+              className="absolute top-12 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg bg-card/95 backdrop-blur-sm border border-border shadow-lg text-[11px] font-medium text-text select-none animate-in fade-in slide-in-from-top-2 duration-150 flex items-center gap-1.5"
+              style={{ WebkitAppRegion: 'no-drag' } as any}
+            >
+              <svg className="w-3.5 h-3.5 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span>{toastMessage}</span>
+            </div>
+          )}
+
           {/* Media overlay occupying the overlay card space without opaque frosted backdrop */}
           {(selectedImageUrl || selectedStickerUrl) && (
             <OverlayImagePreview
@@ -1882,15 +2786,83 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                 >
                   {showHistoryView ? (
                     <>
-                    {!isHistoryOverlay && (
-                      <button
-                        type="button"
-                        onClick={collapseHistory}
-                        className="mb-2 self-start text-[11px] font-medium text-text-muted hover:text-text transition-colors cursor-pointer"
+
+                    {/* Barra de Mensagem Fixada no topo do chat (Estilo WhatsApp Web) */}
+                    {pinnedMessages.length > 0 && (
+                      <div
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          const currentPinned = pinnedMessages[pinnedIndex % pinnedMessages.length]
+                          if (currentPinned) {
+                            setPinnedContextMenu({ x: e.clientX, y: e.clientY, message: currentPinned })
+                          }
+                        }}
+                        className="mb-2 flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-card border border-border/50 shadow-xs select-none animate-in fade-in duration-150"
                       >
-                        {'‹ '}{t('panel.history_hide')}
-                      </button>
+                        <button
+                          type="button"
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            const currentPinned = pinnedMessages[pinnedIndex % pinnedMessages.length]
+                            if (currentPinned) {
+                              setPinnedContextMenu({ x: e.clientX, y: e.clientY, message: currentPinned })
+                            }
+                          }}
+                          onClick={() => {
+                            const currentPinned = pinnedMessages[pinnedIndex % pinnedMessages.length]
+                            if (currentPinned) {
+                              scrollToMessage(currentPinned.timestamp)
+                            }
+                            if (pinnedMessages.length > 1) {
+                              setPinnedIndex((prev) => (prev + 1) % pinnedMessages.length)
+                            }
+                          }}
+                          className="flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer group/pin"
+                        >
+                          <div className="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center text-accent shrink-0 group-hover/pin:bg-accent/25 transition-colors">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="12" y1="17" x2="12" y2="22" />
+                              <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24V17z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] font-semibold text-accent truncate">
+                                {pinnedMessages.length > 1
+                                  ? `Mensagem fixada (${(pinnedIndex % pinnedMessages.length) + 1}/${pinnedMessages.length})`
+                                  : 'Mensagem fixada'}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-text-muted truncate max-w-full">
+                              {(() => {
+                                const m = pinnedMessages[pinnedIndex % pinnedMessages.length]
+                                return (
+                                  m.text ||
+                                  m.documentName ||
+                                  (m.image ? '📷 Foto' : m.video ? '🎥 Vídeo' : m.audio ? '🎙️ Áudio' : m.sticker ? 'Sticker' : 'Mensagem')
+                                )
+                              })()}
+                            </p>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentPinned = pinnedMessages[pinnedIndex % pinnedMessages.length]
+                            togglePinMessage(currentPinned.timestamp)
+                            showToast(t('page.unpinned_toast', { defaultValue: 'Mensagem desafixada' }))
+                          }}
+                          className="p-1 rounded-md text-text-muted hover:text-text hover:bg-input/60 transition-colors shrink-0 cursor-pointer"
+                          title={t('page.unpin', { defaultValue: 'Desafixar mensagem' })}
+                          aria-label={t('page.unpin', { defaultValue: 'Desafixar mensagem' })}
+                        >
+                          <XMarkIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     )}
+
                     {/* MODO HISTÓRICO: Balões horizontais estilo WhatsApp */}
                     {conversationHistory.length > 0 ? (
                       <div
@@ -1915,6 +2887,37 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                           const senderDisplayName =
                             line.from || (activeRecipient.isGroup ? 'Participante' : contact)
 
+                          const isGifMsg = Boolean(
+                            line.isGif ||
+                              line.gif ||
+                              (line.video && (line.isGif || isGifUrl(line.video) || line.text === '[GIF]')) ||
+                              (line.image && isGifUrl(line.image)) ||
+                              isGifUrl(line.text)
+                          )
+                          const onlyEmojiCount =
+                            !line.quoted &&
+                            !line.audio &&
+                            !line.image &&
+                            !line.video &&
+                            !line.document &&
+                            !line.sticker &&
+                            !line.gif &&
+                            !line.isGif
+                              ? getOnlyEmojiCount(line.text)
+                              : null
+                          const isOnlyEmojiMsg = Boolean(onlyEmojiCount !== null)
+                          const isStickerMsg = Boolean(
+                            line.sticker && !line.quoted && (!line.text || isMediaPlaceholder(line.text))
+                          )
+                          const isPureMedia = Boolean(
+                            !line.quoted &&
+                              (isStickerMsg ||
+                                isOnlyEmojiMsg ||
+                                (isGifMsg && (!line.text || isMediaPlaceholder(line.text) || isGifUrl(line.text))) ||
+                                (line.video && (!line.text || isMediaPlaceholder(line.text))) ||
+                                (line.image && (!line.text || isMediaPlaceholder(line.text))))
+                          )
+
                           return (
                             <Fragment key={`${line.timestamp}-${i}`}>
                               {isNewDay && (
@@ -1925,110 +2928,369 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                 </div>
                               )}
                               <div
-                                className={`flex flex-col ${
-                                  isOutgoing ? 'items-end self-end ml-auto' : 'items-start self-start'
-                                } max-w-[85%] min-w-0 ${isSameSenderAsPrev ? 'mt-1' : 'mt-2.5'}`}
-                                style={{ maxWidth: '85%' }}
+                                className={`flex items-center gap-2.5 w-full ${
+                                  isOutgoing ? 'justify-end' : 'justify-start'
+                                } ${isSameSenderAsPrev ? 'mt-1' : 'mt-2.5'}`}
                               >
-                                {showSenderName && (
-                                  <span className="text-[11px] font-semibold mb-1 px-1 select-text text-accent truncate max-w-full">
-                                    {senderDisplayName}
-                                  </span>
+                                {isSelectionMode && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      toggleSelectMessage(line.timestamp)
+                                    }}
+                                    className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
+                                      selectedMessageTimestamps.includes(line.timestamp)
+                                        ? 'bg-accent border-accent text-card'
+                                        : 'border-border/60 bg-input/40 hover:border-accent/60'
+                                    }`}
+                                    aria-label="Selecionar mensagem"
+                                  >
+                                    {selectedMessageTimestamps.includes(line.timestamp) && (
+                                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="20 6 9 17 4 12" />
+                                      </svg>
+                                    )}
+                                  </button>
                                 )}
                                 <div
-                                  className={`rounded-2xl px-3.5 py-2 shadow-sm select-text flex flex-col gap-1.5 border max-w-full min-w-0 overflow-hidden ${getChatBubbleClasses(
-                                    isOutgoing
-                                  )}`}
-                                  style={{
-                                    ...getChatBubbleStyle(isOutgoing),
-                                    wordBreak: 'break-word',
-                                    overflowWrap: 'anywhere'
-                                  }}
+                                  className={`flex flex-col ${
+                                    isOutgoing ? 'items-end self-end' : 'items-start self-start'
+                                  } max-w-[85%] min-w-0`}
+                                  style={{ maxWidth: isSelectionMode ? 'calc(85% - 2rem)' : '85%' }}
                                 >
-                                  {line.video ? (
-                                    <div className="flex flex-col gap-1 max-w-full overflow-hidden">
-                                      <VideoThumbnail
-                                        src={getVideoUrl(line.video)}
-                                        alt={line.text && !isMediaPlaceholder(line.text) ? line.text : 'Vídeo'}
-                                        onOpen={() => setSelectedVideoUrl(getVideoUrl(line.video!))}
-                                      />
-                                      {line.text && !isMediaPlaceholder(line.text) && (
-                                        <p
-                                          className="text-xs whitespace-pre-wrap break-words select-text max-w-full"
-                                          style={{
-                                            wordBreak: 'break-word',
-                                            overflowWrap: 'anywhere'
-                                          }}
-                                        >
-                                          {renderTextWithLinks(line.text, isOutgoing)}
-                                        </p>
-                                      )}
-                                    </div>
-                                  ) : line.image ? (
-                                    <div className="flex flex-col gap-1 max-w-full overflow-hidden">
-                                      <MediaThumbnail
-                                        src={getImageUrl(line.image)}
-                                        alt={line.text && !isMediaPlaceholder(line.text) ? line.text : 'Foto'}
-                                        onOpen={() => setSelectedImageUrl(getImageUrl(line.image!))}
-                                      />
-                                      {line.text && !isMediaPlaceholder(line.text) && (
-                                        <p
-                                          className="text-xs whitespace-pre-wrap break-words select-text max-w-full"
-                                          style={{
-                                            wordBreak: 'break-word',
-                                            overflowWrap: 'anywhere'
-                                          }}
-                                        >
-                                          {renderTextWithLinks(line.text, isOutgoing)}
-                                        </p>
-                                      )}
-                                    </div>
-                                  ) : line.sticker ? (
-                                    <div className="flex items-center">
-                                      <img
-                                        src={getStickerUrl(line.sticker)}
-                                        alt="Sticker"
-                                        className="w-24 h-24 sm:w-28 sm:h-28 object-contain rounded-lg drop-shadow-sm select-none pointer-events-auto hover:scale-105 transition-transform cursor-pointer"
-                                        loading="lazy"
-                                        onClick={() => setSelectedStickerUrl(getStickerUrl(line.sticker!))}
-                                        title="Clique para ampliar o sticker"
-                                      />
-                                    </div>
-                                  ) : (
-                                    line.text &&
-                                    !isMediaPlaceholder(line.text) && (
-                                      <p
-                                        className="text-xs whitespace-pre-wrap break-words select-text leading-relaxed max-w-full"
-                                        style={{
-                                          wordBreak: 'break-word',
-                                          overflowWrap: 'anywhere'
-                                        }}
-                                      >
-                                        {renderTextWithLinks(line.text, isOutgoing)}
-                                      </p>
-                                    )
-                                  )}
-                                  {line.document ? (
-                                    <DocumentCard
-                                      file={line.document}
-                                      name={line.documentName || line.document}
-                                      opening={openingFile === line.document}
-                                      onOpen={() =>
-                                        openDocument(line.document!, line.documentName || line.document)
-                                      }
-                                    />
-                                  ) : null}
-                                  {(line.audio || ((line.text === '🎙️ Áudio' || line.text === '🎙️ Audio') && data?.audio)) && (
-                                    <CustomAudioPlayer src={getAudioUrl(line.audio || data?.audio)} />
-                                  )}
-                                  <div className="flex justify-end items-center mt-0.5 shrink-0">
-                                    <span
-                                      className={`text-[10px] select-none font-normal shrink-0 ${getChatBubbleTimeClasses(
-                                        isOutgoing
-                                      )}`}
-                                    >
-                                      {formatHistoryTime(line.timestamp, locale)}
+                                  {showSenderName && (
+                                    <span className="text-[11px] font-semibold mb-1 px-1 select-text text-accent truncate max-w-full">
+                                      {senderDisplayName}
                                     </span>
+                                  )}
+                                  <div
+                                    id={`msg-${line.timestamp}`}
+                                    onClick={() => {
+                                      if (isSelectionMode) {
+                                        toggleSelectMessage(line.timestamp)
+                                      }
+                                    }}
+                                    onDoubleClick={(e) => {
+                                      e.stopPropagation()
+                                      if (!isSelectionMode) {
+                                        setReplyingTo(line)
+                                        inputRef.current?.focus()
+                                      }
+                                    }}
+                                    onContextMenu={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      setMessageContextMenu({ x: e.clientX, y: e.clientY, message: line })
+                                    }}
+                                    className={`group/bubble relative select-text flex flex-col max-w-full min-w-0 transition-all ${
+                                      isStickerMsg || isOnlyEmojiMsg
+                                        ? 'bg-transparent border-transparent shadow-none p-0 overflow-visible'
+                                        : `rounded-lg shadow-xs border overflow-hidden ${
+                                            isPureMedia ? 'p-[2px] gap-0' : 'px-2.5 py-1.5 gap-1'
+                                          } ${
+                                            selectedMessageTimestamps.includes(line.timestamp)
+                                              ? 'ring-2 ring-accent/60 bg-accent/20'
+                                              : highlightedMessageTs === line.timestamp
+                                                ? 'ring-2 ring-accent shadow-md animate-pulse'
+                                                : ''
+                                          } ${getChatBubbleClasses(isOutgoing)}`
+                                    }`}
+                                    style={
+                                      isStickerMsg || isOnlyEmojiMsg
+                                        ? { wordBreak: 'break-word', overflowWrap: 'anywhere' }
+                                        : {
+                                            ...getChatBubbleStyle(isOutgoing),
+                                            wordBreak: 'break-word',
+                                            overflowWrap: 'anywhere'
+                                          }
+                                    }
+                                  >
+                                    {/* Quick context menu button on hover (like WhatsApp Web) */}
+                                    {!isSelectionMode && !isStickerMsg && !isOnlyEmojiMsg && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          const rect = e.currentTarget.getBoundingClientRect()
+                                          setMessageContextMenu({ x: rect.left, y: rect.bottom + 4, message: line })
+                                        }}
+                                        className={`absolute top-1 right-1.5 p-0.5 rounded-full opacity-0 group-hover/bubble:opacity-100 transition-opacity z-20 cursor-pointer shadow-xs ${
+                                          isOutgoing
+                                            ? 'bg-black/30 hover:bg-black/50 text-white'
+                                            : 'bg-card/80 hover:bg-card text-text border border-border/50'
+                                        }`}
+                                        title="Opções da mensagem"
+                                      >
+                                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                          <polyline points="6 9 12 15 18 9" />
+                                        </svg>
+                                      </button>
+                                    )}
+
+                                    {/* Bloco de citação no padrão do WhatsApp Web (igual nos dois overlays) */}
+                                    {line.quoted && (
+                                      <QuotedMessage
+                                        quoted={line.quoted}
+                                        isOutgoing={isOutgoing}
+                                        youLabel={youLabel}
+                                        contactName={
+                                          activeRecipient.isGroup
+                                            ? undefined
+                                            : activeRecipient.name || contact
+                                        }
+                                        findLine={(id) => messageById.get(id)}
+                                        replyLabel={t('page.reply')}
+                                        onOpenQuote={(ts) => {
+                                          if (ts) scrollToMessage(ts)
+                                        }}
+                                        getImageUrl={getImageUrl}
+                                      />
+                                    )}
+
+                                    {(() => {
+                                      const isGifMsg = Boolean(
+                                        line.isGif ||
+                                          line.gif ||
+                                          (line.video && (line.isGif || isGifUrl(line.video) || line.text === '[GIF]')) ||
+                                          (line.image && isGifUrl(line.image)) ||
+                                          isGifUrl(line.text)
+                                      )
+                                      const gifUrlResolved =
+                                        (line.gif
+                                          ? isDirectUrl(line.gif)
+                                            ? line.gif
+                                            : line.gif.endsWith('.mp4') || line.gif.includes('.mp4?') || line.gif.includes('/mp4')
+                                              ? getVideoUrl(line.gif)
+                                              : getImageUrl(line.gif)
+                                          : '') ||
+                                        (line.video && isGifMsg ? getVideoUrl(line.video) : '') ||
+                                        (line.image && isGifMsg ? getImageUrl(line.image) : '') ||
+                                        (isGifUrl(line.text) ? line.text.trim() : '')
+
+                                      const timestampOverlayNode = isPureMedia ? (
+                                        <div className="flex items-center gap-1 shrink-0 select-none">
+                                          {pinnedMessageTimestamps.includes(line.timestamp) && (
+                                            <span title={t('page.pin')} className="text-white/80 shrink-0">
+                                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                                <line x1="12" y1="17" x2="12" y2="22" />
+                                                <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24V17z" />
+                                              </svg>
+                                            </span>
+                                          )}
+                                          {starredMessageTimestamps.includes(line.timestamp) && (
+                                            <span title={t('page.favorite')} className="text-amber-400 shrink-0">
+                                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                              </svg>
+                                            </span>
+                                          )}
+                                          <span className="text-[10px] select-none font-normal shrink-0 text-white/95 leading-none">
+                                            {formatHistoryTime(line.timestamp, locale)}
+                                          </span>
+                                          {isOutgoing && (
+                                            <span className="text-white/90 shrink-0 inline-flex items-center">
+                                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="18 6 9 15 4 10" />
+                                                <polyline points="22 10 13 19 11 17" />
+                                              </svg>
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : undefined
+
+                                      if (isGifMsg && gifUrlResolved) {
+                                        return (
+                                          <div className="flex flex-col gap-1 max-w-full overflow-hidden">
+                                            <GifThumbnail
+                                              src={gifUrlResolved}
+                                              alt={line.text && !isMediaPlaceholder(line.text) && !isGifUrl(line.text) ? line.text : 'GIF'}
+                                              timestampOverlay={timestampOverlayNode}
+                                              onOpen={() => {
+                                                const isVid =
+                                                  gifUrlResolved.endsWith('.mp4') ||
+                                                  gifUrlResolved.includes('.mp4?') ||
+                                                  gifUrlResolved.includes('/mp4') ||
+                                                  gifUrlResolved.startsWith('data:video/')
+                                                if (isVid) setSelectedVideoUrl(gifUrlResolved)
+                                                else setSelectedImageUrl(gifUrlResolved)
+                                              }}
+                                            />
+                                            {line.text && !isMediaPlaceholder(line.text) && !isGifUrl(line.text) && (
+                                              <p
+                                                className="text-xs whitespace-pre-wrap break-words select-text max-w-full"
+                                                style={{
+                                                  wordBreak: 'break-word',
+                                                  overflowWrap: 'anywhere'
+                                                }}
+                                              >
+                                                {renderTextWithLinks(line.text, isOutgoing)}
+                                              </p>
+                                            )}
+                                          </div>
+                                        )
+                                      }
+
+                                      if (line.video) {
+                                        return (
+                                          <div className="flex flex-col gap-1 max-w-full overflow-hidden">
+                                            <VideoThumbnail
+                                              src={getVideoUrl(line.video)}
+                                              alt={line.text && !isMediaPlaceholder(line.text) ? line.text : 'Vídeo'}
+                                              timestampOverlay={timestampOverlayNode}
+                                              onOpen={() => setSelectedVideoUrl(getVideoUrl(line.video!))}
+                                            />
+                                            {line.text && !isMediaPlaceholder(line.text) && (
+                                              <p
+                                                className="text-xs whitespace-pre-wrap break-words select-text max-w-full"
+                                                style={{
+                                                  wordBreak: 'break-word',
+                                                  overflowWrap: 'anywhere'
+                                                }}
+                                              >
+                                                {renderTextWithLinks(line.text, isOutgoing)}
+                                              </p>
+                                            )}
+                                          </div>
+                                        )
+                                      }
+
+                                      if (line.image) {
+                                        return (
+                                          <div className="flex flex-col gap-1 max-w-full overflow-hidden">
+                                            <MediaThumbnail
+                                              src={getImageUrl(line.image)}
+                                              alt={line.text && !isMediaPlaceholder(line.text) ? line.text : 'Foto'}
+                                              timestampOverlay={timestampOverlayNode}
+                                              onOpen={() => setSelectedImageUrl(getImageUrl(line.image!))}
+                                            />
+                                            {line.text && !isMediaPlaceholder(line.text) && (
+                                              <p
+                                                className="text-xs whitespace-pre-wrap break-words select-text max-w-full"
+                                                style={{
+                                                  wordBreak: 'break-word',
+                                                  overflowWrap: 'anywhere'
+                                                }}
+                                              >
+                                                {renderTextWithLinks(line.text, isOutgoing)}
+                                              </p>
+                                            )}
+                                          </div>
+                                        )
+                                      }
+
+                                      if (line.sticker) {
+                                        return (
+                                          <div className="relative shrink-0 flex items-center justify-center group/sticker">
+                                            <StickerImg
+                                              src={getStickerUrl(line.sticker)}
+                                              onOpen={() => setSelectedStickerUrl(getStickerUrl(line.sticker!))}
+                                            />
+                                            {timestampOverlayNode && (
+                                              <div className="absolute bottom-0 right-0 px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-xs text-[10px] font-normal text-white/95 flex items-center gap-1 shadow-xs pointer-events-none select-none z-10">
+                                                {timestampOverlayNode}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )
+                                      }
+
+                                      // Sticker sem arquivo (download falhou): mostra placeholder em vez de bolha vazia
+                                      if (line.text === '[Sticker]') {
+                                        return (
+                                          <div className="flex items-center gap-1.5 text-xs text-text-muted select-none">
+                                            <span className="text-base" aria-hidden="true">
+                                              🏷️
+                                            </span>
+                                            <span>Figurinha</span>
+                                          </div>
+                                        )
+                                      }
+
+                                      if (onlyEmojiCount !== null && line.text) {
+                                        const sizeClass =
+                                          onlyEmojiCount === 1
+                                            ? 'text-5xl sm:text-6xl'
+                                            : onlyEmojiCount === 2
+                                              ? 'text-4xl sm:text-5xl'
+                                              : 'text-3xl sm:text-4xl'
+                                        return (
+                                          <div className="relative shrink-0 flex items-center justify-center group/emoji py-1.5 px-2 select-none">
+                                            <span className={`${sizeClass} select-text leading-none drop-shadow-xs tracking-normal`}>
+                                              {line.text.trim()}
+                                            </span>
+                                            {timestampOverlayNode && (
+                                              <div className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-xs text-[10px] font-normal text-white/95 flex items-center gap-1 shadow-xs pointer-events-none select-none z-10">
+                                                {timestampOverlayNode}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )
+                                      }
+
+                                      if (line.text && !isMediaPlaceholder(line.text)) {
+                                        return (
+                                          <p
+                                            className="text-xs whitespace-pre-wrap break-words select-text leading-relaxed max-w-full"
+                                            style={{
+                                              wordBreak: 'break-word',
+                                              overflowWrap: 'anywhere'
+                                            }}
+                                          >
+                                            {renderTextWithLinks(line.text, isOutgoing)}
+                                          </p>
+                                        )
+                                      }
+
+                                      return null
+                                    })()}
+                                    {line.document ? (
+                                      <DocumentCard
+                                        file={line.document}
+                                        name={line.documentName || line.document}
+                                        opening={openingFile === line.document}
+                                        onOpen={() =>
+                                          openDocument(line.document!, line.documentName || line.document)
+                                        }
+                                      />
+                                    ) : null}
+                                    {(line.audio || ((line.text === '🎙️ Áudio' || line.text === '🎙️ Audio') && data?.audio)) && (
+                                      <CustomAudioPlayer src={getAudioUrl(line.audio || data?.audio)} />
+                                    )}
+                                    {!isPureMedia && (
+                                      <div className="flex justify-end items-center gap-1.5 mt-0.5 shrink-0">
+                                        {pinnedMessageTimestamps.includes(line.timestamp) && (
+                                          <span title={t('page.pin')} className="text-text-muted shrink-0">
+                                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                              <line x1="12" y1="17" x2="12" y2="22" />
+                                              <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24V17z" />
+                                            </svg>
+                                          </span>
+                                        )}
+                                        {starredMessageTimestamps.includes(line.timestamp) && (
+                                          <span title={t('page.favorite')} className="text-highlight shrink-0">
+                                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                            </svg>
+                                          </span>
+                                        )}
+                                        <span
+                                          className={`text-[10px] select-none font-normal shrink-0 inline-flex items-center gap-1 ${getChatBubbleTimeClasses(
+                                            isOutgoing
+                                          )}`}
+                                        >
+                                          <span>{formatHistoryTime(line.timestamp, locale)}</span>
+                                          {isOutgoing && (
+                                            <span className="text-white/90 shrink-0 inline-flex items-center" title="Enviada">
+                                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="18 6 9 15 4 10" />
+                                                <polyline points="22 10 13 19 11 17" />
+                                              </svg>
+                                            </span>
+                                          )}
+                                        </span>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -2047,178 +3309,367 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                     )}
                     </>
                   ) : (
-                    /* MODO NOTIFICAÇÃO (Novas Mensagens): Somente a última mensagem enviada */
-                    message || data?.image || data?.sticker || data?.document || data?.audio || data?.video ? (
-                      isStatus ? (
-                      <div className="flex flex-col gap-2 min-w-0 overflow-hidden select-text">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-accent select-text">
-                            {t('panel.status_of', { name: senderName || contact })}
-                          </span>
-                          {data?.timestamp && (
-                            <span className="text-[10px] text-text-muted ml-auto shrink-0 select-none">
-                              {formatHistoryTime(data.timestamp, locale)}
+                    /* MODO NOTIFICAÇÃO (Novas Mensagens): Mostra todas as mensagens recebidas durante a sessão do overlay */
+                    isStatus ? (
+                      message || data?.image || data?.sticker || data?.document || data?.audio || data?.video ? (
+                        <div className="flex flex-col gap-2 min-w-0 overflow-hidden select-text">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-accent select-text">
+                              {t('panel.status_of', { name: senderName || contact })}
                             </span>
-                          )}
-                        </div>
-                        {data?.video ? (
-                          <video
-                            src={getVideoUrl(data.video)}
-                            controls
-                            preload="metadata"
-                            playsInline
-                            className="w-full h-auto max-h-72 object-contain rounded-lg bg-black"
-                          />
-                        ) : data?.image ? (
-                          <img
-                            src={getImageUrl(data.image)}
-                            alt={message && !isMediaPlaceholder(message) ? message : 'Status'}
-                            loading="lazy"
-                            onClick={() => {
-                              notifyConversationRead()
-                              setSelectedImageUrl(getImageUrl(data.image))
-                            }}
-                            title={t('panel.photo_click')}
-                            className="w-full h-auto max-h-72 object-contain rounded-lg cursor-pointer"
-                          />
-                        ) : data?.sticker ? (
-                          <img
-                            src={getStickerUrl(data.sticker)}
-                            alt="Sticker"
-                            loading="lazy"
-                            onClick={() => {
-                              notifyConversationRead()
-                              setSelectedStickerUrl(getStickerUrl(data.sticker))
-                            }}
-                            title={t('panel.sticker_click')}
-                            className="w-full h-48 object-contain rounded-lg cursor-pointer"
-                          />
-                        ) : null}
-                        {message && !isMediaPlaceholder(message) && (
-                          <p
-                            className="text-sm text-text/90 whitespace-pre-wrap break-words select-text max-w-full"
-                            style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
-                          >
-                            {renderTextWithLinks(message)}
-                          </p>
-                        )}
-                        {data?.document ? (
-                          <DocumentCard
-                            file={data.document}
-                            name={data.documentName || data.document}
-                            opening={openingFile === data.document}
-                            onOpen={() => {
-                              notifyConversationRead()
-                              openDocument(data.document, data.documentName || data.document)
-                            }}
-                          />
-                        ) : null}
-                        {data?.audio && (
-                          <CustomAudioPlayer src={getAudioUrl(data.audio)} />
-                        )}
-                      </div>
-                      ) : (
-                      <div className="min-h-[4.5rem] rounded-lg bg-input/40 border border-border/30 p-2.5 select-text flex flex-col justify-center min-w-0 overflow-hidden">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-text-muted select-text">
-                            {senderName || contact}
-                          </span>
-                          {data?.timestamp && (
-                            <span className="text-[10px] text-text-muted ml-auto shrink-0 select-none">
-                              {formatHistoryTime(data.timestamp, locale)}
-                            </span>
-                          )}
-                        </div>
-                        {data?.video ? (
-                          <div className="mt-1 flex flex-col gap-1 max-w-full overflow-hidden">
-                            <VideoThumbnail
-                              src={getVideoUrl(data.video)}
-                              alt={message && !isMediaPlaceholder(message) ? message : 'Vídeo'}
-                              onOpen={() => {
-                                notifyConversationRead()
-                                setSelectedVideoUrl(getVideoUrl(data.video))
-                              }}
-                            />
-                            {message && !isMediaPlaceholder(message) && (
-                              <p
-                                className="text-sm text-text/90 whitespace-pre-wrap break-words select-text max-w-full"
-                                style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
-                              >
-                                {renderTextWithLinks(message)}
-                              </p>
+                            {data?.timestamp && (
+                              <span className="text-[10px] text-text-muted ml-auto shrink-0 select-none">
+                                {formatHistoryTime(data.timestamp, locale)}
+                              </span>
                             )}
                           </div>
-                        ) : data?.image ? (
-                          <div className="mt-1 flex flex-col gap-1 max-w-full overflow-hidden">
-                            <MediaThumbnail
+                          {data?.video ? (
+                            <video
+                              src={getVideoUrl(data.video)}
+                              controls
+                              preload="metadata"
+                              playsInline
+                              className="w-full h-auto max-h-72 object-contain rounded-lg bg-black"
+                            />
+                          ) : data?.image ? (
+                            <img
                               src={getImageUrl(data.image)}
-                              alt={message && !isMediaPlaceholder(message) ? message : 'Foto'}
-                              onOpen={() => {
+                              alt={message && !isMediaPlaceholder(message) ? message : 'Status'}
+                              loading="lazy"
+                              onClick={() => {
                                 notifyConversationRead()
                                 setSelectedImageUrl(getImageUrl(data.image))
                               }}
+                              title={t('panel.photo_click')}
+                              className="w-full h-auto max-h-72 object-contain rounded-lg cursor-pointer"
                             />
-                            {message && !isMediaPlaceholder(message) && (
-                              <p
-                                className="text-sm text-text/90 whitespace-pre-wrap break-words select-text max-w-full"
-                                style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
-                              >
-                                {renderTextWithLinks(message)}
-                              </p>
-                            )}
-                          </div>
-                        ) : data?.sticker ? (
-                          <div className="mt-1 flex items-center">
+                          ) : data?.sticker ? (
                             <img
                               src={getStickerUrl(data.sticker)}
                               alt="Sticker"
-                              className="w-24 h-24 sm:w-28 sm:h-28 object-contain rounded-lg drop-shadow-sm select-none pointer-events-auto hover:scale-105 transition-transform cursor-pointer"
                               loading="lazy"
                               onClick={() => {
                                 notifyConversationRead()
                                 setSelectedStickerUrl(getStickerUrl(data.sticker))
                               }}
-                              title="Clique para ampliar o sticker"
+                              title={t('panel.sticker_click')}
+                              className="w-full h-48 object-contain rounded-lg cursor-pointer"
                             />
-                          </div>
-                        ) : (
-                          message &&
-                          !isMediaPlaceholder(message) && (
+                          ) : null}
+                          {message && !isMediaPlaceholder(message) && (
                             <p
-                              className="text-sm text-text/90 mt-1 whitespace-pre-wrap break-words select-text max-w-full"
+                              className="text-sm text-text/90 whitespace-pre-wrap break-words select-text max-w-full"
                               style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                             >
                               {renderTextWithLinks(message)}
                             </p>
-                          )
-                        )}
-                        {data?.document ? (
-                          <DocumentCard
-                            file={data.document}
-                            name={data.documentName || data.document}
-                            opening={openingFile === data.document}
-                            onOpen={() => {
-                              notifyConversationRead()
-                              openDocument(data.document, data.documentName || data.document)
-                            }}
-                          />
-                        ) : null}
-                        {data?.audio && (
-                          <CustomAudioPlayer src={getAudioUrl(data.audio)} />
-                        )}
-                        <button
-                          type="button"
-                          onClick={loadFullHistory}
-                          disabled={loadingHistory}
-                          className="mt-2 self-start text-[11px] font-medium text-text-muted hover:text-text transition-colors cursor-pointer disabled:opacity-60"
-                        >
-                          {loadingHistory ? t('panel.history_loading') : `${t('panel.history_show')} ›`}
-                        </button>
-                        {historyError && (
-                          <p className="text-[11px] text-error mt-1 select-text">{historyError}</p>
-                        )}
-                      </div>
+                          )}
+                          {data?.document ? (
+                            <DocumentCard
+                              file={data.document}
+                              name={data.documentName || data.document}
+                              opening={openingFile === data.document}
+                              onOpen={() => {
+                                notifyConversationRead()
+                                openDocument(data.document, data.documentName || data.document)
+                              }}
+                            />
+                          ) : null}
+                          {data?.audio && (
+                            <CustomAudioPlayer src={getAudioUrl(data.audio)} />
+                          )}
+                        </div>
+                      ) : (
+                        <div className="min-h-[4.5rem] rounded-lg bg-input/40 border border-border/30 p-3 flex items-center justify-center select-none">
+                          <p className="text-xs text-text-muted/60 font-normal">
+                            Nenhuma mensagem recente
+                          </p>
+                        </div>
                       )
+                    ) : localHistory.length > 0 ? (
+                      <div
+                        ref={historyScrollRef}
+                        className="flex flex-col gap-2 min-w-0 w-full min-h-0 flex-1 overflow-y-auto custom-scrollbar overscroll-contain pr-0.5 select-text"
+                      >
+                        {localHistory.map((line, i) => {
+                          const isOutgoing = line.direction === 'outgoing'
+                          const lineSender =
+                            line.from ||
+                            (isOutgoing
+                              ? youLabel
+                              : senderName || contact)
+                          const isGifNotif = Boolean(
+                            line.isGif ||
+                              line.gif ||
+                              (line.video && (isGifUrl(line.video) || line.text === '[GIF]')) ||
+                              (line.image && isGifUrl(line.image)) ||
+                              isGifUrl(line.text)
+                          )
+                          const notifGifUrl =
+                            (line.gif
+                              ? isDirectUrl(line.gif)
+                                ? line.gif
+                                : line.gif.endsWith('.mp4') ||
+                                    line.gif.includes('.mp4?') ||
+                                    line.gif.includes('/mp4')
+                                  ? getVideoUrl(line.gif)
+                                  : getImageUrl(line.gif)
+                              : '') ||
+                            (line.video && isGifNotif ? getVideoUrl(line.video) : '') ||
+                            (line.image && isGifNotif ? getImageUrl(line.image) : '') ||
+                            (isGifUrl(line.text) ? line.text.trim() : '')
+
+                          return (
+                            <div
+                              key={line.id || `${line.timestamp}-${i}`}
+                              className="flex items-center gap-2.5 w-full shrink-0"
+                            >
+                              {isSelectionMode && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleSelectMessage(line.timestamp)
+                                  }}
+                                  className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
+                                    selectedMessageTimestamps.includes(line.timestamp)
+                                      ? 'bg-accent border-accent text-card'
+                                      : 'border-border/60 bg-input/40 hover:border-accent/60'
+                                  }`}
+                                  aria-label="Selecionar mensagem"
+                                >
+                                  {selectedMessageTimestamps.includes(line.timestamp) && (
+                                    <svg
+                                      className="w-3.5 h-3.5"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="3"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
+                                  )}
+                                </button>
+                              )}
+                              <div
+                                id={`msg-${line.timestamp}`}
+                                onClick={() => {
+                                  if (isSelectionMode) {
+                                    toggleSelectMessage(line.timestamp)
+                                  }
+                                }}
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation()
+                                  if (!isSelectionMode) {
+                                    setReplyingTo(line)
+                                    inputRef.current?.focus()
+                                  }
+                                }}
+                                onContextMenu={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  setMessageContextMenu({
+                                    x: e.clientX,
+                                    y: e.clientY,
+                                    message: line
+                                  })
+                                }}
+                                className={`min-h-[4.5rem] rounded-lg bg-input/40 border p-2.5 select-text flex flex-col justify-center min-w-0 overflow-hidden flex-1 transition-all ${
+                                  isSelectionMode ? 'cursor-pointer' : ''
+                                } ${
+                                  selectedMessageTimestamps.includes(line.timestamp)
+                                    ? 'ring-2 ring-accent/60 bg-accent/20 border-accent/40'
+                                    : 'border-border/30'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-text-muted select-text truncate">
+                                    {lineSender}
+                                  </span>
+                                  {line.timestamp && (
+                                    <span className="text-[10px] text-text-muted ml-auto shrink-0 select-none">
+                                      {formatHistoryTime(line.timestamp, locale)}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Bloco de citação no padrão do WhatsApp Web (igual ao overlay de contato) */}
+                                {line.quoted && (
+                                  <div className="mt-1.5">
+                                    <QuotedMessage
+                                      quoted={line.quoted}
+                                      isOutgoing={isOutgoing}
+                                      youLabel={youLabel}
+                                      contactName={
+                                        activeRecipient.isGroup
+                                          ? undefined
+                                          : activeRecipient.name || contact
+                                      }
+                                      findLine={(id) => messageById.get(id)}
+                                      replyLabel={t('page.reply')}
+                                      onOpenQuote={(ts) => {
+                                        if (ts) scrollToMessage(ts)
+                                      }}
+                                      getImageUrl={getImageUrl}
+                                    />
+                                  </div>
+                                )}
+
+                                {isGifNotif && notifGifUrl && (
+                                  <div className="mt-1 flex flex-col gap-1 max-w-full overflow-hidden">
+                                    <GifThumbnail
+                                      src={notifGifUrl}
+                                      alt={
+                                        line.text &&
+                                        !isMediaPlaceholder(line.text) &&
+                                        !isGifUrl(line.text)
+                                          ? line.text
+                                          : 'GIF'
+                                      }
+                                      onOpen={() => {
+                                        notifyConversationRead()
+                                        const isVid =
+                                          notifGifUrl.endsWith('.mp4') ||
+                                          notifGifUrl.includes('.mp4?') ||
+                                          notifGifUrl.includes('/mp4') ||
+                                          notifGifUrl.startsWith('data:video/')
+                                        if (isVid) setSelectedVideoUrl(notifGifUrl)
+                                        else setSelectedImageUrl(notifGifUrl)
+                                      }}
+                                    />
+                                    {line.text &&
+                                      !isMediaPlaceholder(line.text) &&
+                                      !isGifUrl(line.text) && (
+                                        <p
+                                          className="text-sm text-text/90 whitespace-pre-wrap break-words select-text max-w-full"
+                                          style={{
+                                            wordBreak: 'break-word',
+                                            overflowWrap: 'anywhere'
+                                          }}
+                                        >
+                                          {renderTextWithLinks(line.text, isOutgoing)}
+                                        </p>
+                                      )}
+                                  </div>
+                                )}
+
+                                {!isGifNotif && line.video && (
+                                  <div className="mt-1 flex flex-col gap-1 max-w-full overflow-hidden">
+                                    <VideoThumbnail
+                                      src={getVideoUrl(line.video)}
+                                      alt={
+                                        line.text && !isMediaPlaceholder(line.text)
+                                          ? line.text
+                                          : 'Vídeo'
+                                      }
+                                      onOpen={() => {
+                                        notifyConversationRead()
+                                        setSelectedVideoUrl(getVideoUrl(line.video!))
+                                      }}
+                                    />
+                                    {line.text && !isMediaPlaceholder(line.text) && (
+                                      <p
+                                        className="text-sm text-text/90 whitespace-pre-wrap break-words select-text max-w-full"
+                                        style={{
+                                          wordBreak: 'break-word',
+                                          overflowWrap: 'anywhere'
+                                        }}
+                                      >
+                                        {renderTextWithLinks(line.text, isOutgoing)}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {!isGifNotif && line.image && (
+                                  <div className="mt-1 flex flex-col gap-1 max-w-full overflow-hidden">
+                                    <MediaThumbnail
+                                      src={getImageUrl(line.image)}
+                                      alt={
+                                        line.text && !isMediaPlaceholder(line.text)
+                                          ? line.text
+                                          : 'Foto'
+                                      }
+                                      onOpen={() => {
+                                        notifyConversationRead()
+                                        setSelectedImageUrl(getImageUrl(line.image!))
+                                      }}
+                                    />
+                                    {line.text && !isMediaPlaceholder(line.text) && (
+                                      <p
+                                        className="text-sm text-text/90 whitespace-pre-wrap break-words select-text max-w-full"
+                                        style={{
+                                          wordBreak: 'break-word',
+                                          overflowWrap: 'anywhere'
+                                        }}
+                                      >
+                                        {renderTextWithLinks(line.text, isOutgoing)}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {!isGifNotif && line.sticker && (
+                                  <div className="mt-1 flex items-center">
+                                    <StickerImg
+                                      src={getStickerUrl(line.sticker)}
+                                      onOpen={() => {
+                                        notifyConversationRead()
+                                        setSelectedStickerUrl(getStickerUrl(line.sticker!))
+                                      }}
+                                    />
+                                  </div>
+                                )}
+
+                                {!isGifNotif &&
+                                  !line.video &&
+                                  !line.image &&
+                                  !line.sticker &&
+                                  line.text === '[Sticker]' && (
+                                    <div className="flex items-center gap-1.5 mt-1 text-xs text-text-muted select-none">
+                                      <span className="text-base" aria-hidden="true">
+                                        🏷️
+                                      </span>
+                                      <span>Figurinha</span>
+                                    </div>
+                                  )}
+
+                                {!isGifNotif &&
+                                  !line.video &&
+                                  !line.image &&
+                                  line.text &&
+                                  !isMediaPlaceholder(line.text) && (
+                                    <p
+                                      className="text-sm text-text/90 mt-1 whitespace-pre-wrap break-words select-text max-w-full"
+                                      style={{
+                                        wordBreak: 'break-word',
+                                        overflowWrap: 'anywhere'
+                                      }}
+                                    >
+                                      {renderTextWithLinks(line.text, isOutgoing)}
+                                    </p>
+                                  )}
+
+                                {line.document ? (
+                                  <DocumentCard
+                                    file={line.document}
+                                    name={line.documentName || line.document}
+                                    opening={openingFile === line.document}
+                                    onOpen={() => {
+                                      notifyConversationRead()
+                                      openDocument(line.document!, line.documentName || line.document)
+                                    }}
+                                  />
+                                ) : null}
+
+                                {line.audio && <CustomAudioPlayer src={getAudioUrl(line.audio)} />}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
                     ) : (
                       <div className="min-h-[4.5rem] rounded-lg bg-input/40 border border-border/30 p-3 flex items-center justify-center select-none">
                         <p className="text-xs text-text-muted/60 font-normal">
@@ -2311,6 +3762,64 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                   </div>
                 )}
 
+                {replyingTo && (
+                  <div
+                    onClick={() => scrollToMessage(replyingTo.timestamp)}
+                    className="flex items-center justify-between gap-2.5 p-2 rounded-lg bg-input/70 border-l-4 border-accent border border-border/40 text-xs mt-2 select-none animate-in fade-in duration-150 cursor-pointer hover:bg-input transition-colors group/reply"
+                    style={{ WebkitAppRegion: 'no-drag' } as any}
+                  >
+                    <div className="flex-1 min-w-0 pr-1">
+                      <p className="text-[11px] font-semibold text-accent truncate">
+                        {replyingTo.direction === 'outgoing'
+                          ? youLabel
+                          : replyingTo.from || senderName || contact}
+                      </p>
+                      <p className="text-[10px] text-text-muted truncate mt-0.5">
+                        {replyingTo.text ||
+                          replyingTo.documentName ||
+                          replyingTo.document ||
+                          (replyingTo.audio
+                            ? '🎙️ Áudio'
+                            : replyingTo.image
+                              ? '📷 Foto'
+                              : replyingTo.video
+                                ? '🎥 Vídeo'
+                                : replyingTo.sticker
+                                  ? '🏷️ Figurinha'
+                                  : 'Mensagem')}
+                      </p>
+                    </div>
+
+                    {replyingTo.image && (
+                      <img
+                        src={getImageUrl(replyingTo.image)}
+                        alt="Preview"
+                        className="w-9 h-9 object-cover rounded shrink-0 border border-border/40"
+                      />
+                    )}
+                    {replyingTo.sticker && (
+                      <img
+                        src={getStickerUrl(replyingTo.sticker)}
+                        alt="Sticker Preview"
+                        className="w-9 h-9 object-contain rounded shrink-0"
+                      />
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setReplyingTo(null)
+                      }}
+                      className="p-1 rounded-md text-text-muted hover:text-text hover:bg-card border border-transparent hover:border-border transition-all cursor-pointer shrink-0 self-start"
+                      title={t('panel.cancel_reply', { defaultValue: 'Cancelar resposta' })}
+                      aria-label={t('panel.cancel_reply', { defaultValue: 'Cancelar resposta' })}
+                    >
+                      <XMarkIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
                 {sendError && (
                   <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-error/10 border border-error/30 text-error text-xs mt-1 select-text">
                     <span className="truncate flex-1">{sendError}</span>
@@ -2325,8 +3834,123 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                   </div>
                 )}
 
-                {/* Input Area */}
-                {isAdminsOnly && activeRecipient.isGroup ? (
+                {/* Selection Bar or Input Area */}
+                {isSelectionMode ? (
+                  <div className="flex shrink-0 items-center justify-between px-3 py-2.5 rounded-lg bg-input border border-border mt-2 animate-in fade-in">
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSelectionMode(false)
+                          setSelectedMessageTimestamps([])
+                        }}
+                        className="p-1 rounded-md text-text-muted hover:text-text hover:bg-card border border-transparent hover:border-border transition-colors cursor-pointer"
+                        title={t('page.cancel_selection', { defaultValue: 'Cancelar seleção' })}
+                        aria-label={t('page.cancel_selection', { defaultValue: 'Cancelar seleção' })}
+                      >
+                        <XMarkIcon className="w-4 h-4" />
+                      </button>
+                      <span className="text-xs font-semibold text-text">
+                        {selectedMessageTimestamps.length}{' '}
+                        {selectedMessageTimestamps.length === 1
+                          ? t('page.selected_singular', { defaultValue: 'selecionada' })
+                          : t('page.selected_plural', { defaultValue: 'selecionadas' })}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={selectedMessageTimestamps.length === 0}
+                        onClick={async () => {
+                          const selected = allAvailableMessages.filter((m) =>
+                            selectedMessageTimestamps.includes(m.timestamp)
+                          )
+                          const text = selected
+                            .map((m) => m.text || m.documentName || m.document || '')
+                            .filter(Boolean)
+                            .join('\n')
+                          if (text) {
+                            await copyTextToClipboard(text)
+                            showToast(t('page.copied_clipboard', { defaultValue: 'Copiado para a área de transferência' }))
+                          }
+                        }}
+                        className="p-1.5 rounded-md hover:bg-card text-text-muted hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        title={t('page.copy')}
+                        aria-label={t('page.copy')}
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={selectedMessageTimestamps.length === 0}
+                        onClick={async () => {
+                          const selected = allAvailableMessages.filter((m) =>
+                            selectedMessageTimestamps.includes(m.timestamp)
+                          )
+                          const text = selected
+                            .map((m) => m.text || m.documentName || '')
+                            .filter(Boolean)
+                            .join('\n')
+                          if (text) {
+                            writePendingShare(text, 'whatsapp')
+                            await copyTextToClipboard(text)
+                            showToast(t('page.ready_to_forward', { defaultValue: 'Pronto para encaminhar' }))
+                          }
+                        }}
+                        className="p-1.5 rounded-md hover:bg-card text-text-muted hover:text-text disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        title={t('page.forward')}
+                        aria-label={t('page.forward')}
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="15 14 20 9 15 4" />
+                          <path d="M4 20v-7a4 4 0 0 1 4-4h12" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={selectedMessageTimestamps.length === 0}
+                        onClick={() => {
+                          selectedMessageTimestamps.forEach((ts) => {
+                            if (!starredMessageTimestamps.includes(ts)) {
+                              toggleStarMessage(ts)
+                            }
+                          })
+                          showToast(t('page.messages_starred', { defaultValue: 'Mensagens favoritadas' }))
+                        }}
+                        className="p-1.5 rounded-md hover:bg-card text-text-muted hover:text-highlight disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        title={t('page.favorite')}
+                        aria-label={t('page.favorite')}
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={selectedMessageTimestamps.length === 0}
+                        onClick={() => {
+                          const selectedSet = new Set(selectedMessageTimestamps)
+                          const selectedMsgs = allAvailableMessages.filter((m) => selectedSet.has(m.timestamp))
+                          if (selectedMsgs.length > 0) {
+                            setDeleteConfirmTarget({ messages: selectedMsgs })
+                          }
+                        }}
+                        className="p-1.5 rounded-md hover:bg-error/20 text-text-muted hover:text-error disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        title={t('page.delete')}
+                        aria-label={t('page.delete')}
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ) : isAdminsOnly && activeRecipient.isGroup ? (
                   <div className="flex items-center justify-center py-2 px-3 rounded-lg bg-input/40 border border-border/30 mt-2">
                     <p className="text-[11px] text-text-muted">
                       Somente <span className="text-accent font-bold">admins</span> podem enviar
@@ -2523,6 +4147,149 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
         )}
       </div>
 
+      {messageContextMenu && (
+        <ContextMenu
+          x={messageContextMenu.x}
+          y={messageContextMenu.y}
+          items={[
+            {
+              id: 'reply',
+              label: t('page.reply'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 14 4 9 9 4" />
+                  <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+                </svg>
+              ),
+              onClick: () => {
+                setReplyingTo(messageContextMenu.message)
+                inputRef.current?.focus()
+              }
+            },
+            {
+              id: 'copy',
+              label: t('page.copy'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              ),
+              onClick: async () => {
+                const textToCopy =
+                  messageContextMenu.message.text ||
+                  messageContextMenu.message.documentName ||
+                  messageContextMenu.message.document ||
+                  ''
+                if (textToCopy) {
+                  await copyTextToClipboard(textToCopy)
+                  showToast('Copiado para a área de transferência')
+                }
+              }
+            },
+            {
+              id: 'forward',
+              label: t('page.forward'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 14 20 9 15 4" />
+                  <path d="M4 20v-7a4 4 0 0 1 4-4h12" />
+                </svg>
+              ),
+              onClick: async () => {
+                const textToForward =
+                  messageContextMenu.message.text ||
+                  messageContextMenu.message.documentName ||
+                  ''
+                if (textToForward) {
+                  writePendingShare(textToForward, 'whatsapp')
+                  await copyTextToClipboard(textToForward)
+                  showToast('Pronto para encaminhar')
+                }
+              }
+            },
+            {
+              id: 'pin',
+              label: pinnedMessageTimestamps.includes(messageContextMenu.message.timestamp) ? t('page.unpin') : t('page.pin'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="17" x2="12" y2="22" />
+                  <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24V17z" />
+                </svg>
+              ),
+              onClick: () => {
+                togglePinMessage(messageContextMenu.message.timestamp)
+                showToast(
+                  pinnedMessageTimestamps.includes(messageContextMenu.message.timestamp)
+                    ? 'Mensagem desafixada'
+                    : 'Mensagem fixada'
+                )
+              }
+            },
+            {
+              id: 'favorite',
+              label: starredMessageTimestamps.includes(messageContextMenu.message.timestamp) ? t('page.unfavorite') : t('page.favorite'),
+              icon: (
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill={starredMessageTimestamps.includes(messageContextMenu.message.timestamp) ? 'currentColor' : 'none'}
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+              ),
+              onClick: () => {
+                toggleStarMessage(messageContextMenu.message.timestamp)
+                showToast(
+                  starredMessageTimestamps.includes(messageContextMenu.message.timestamp)
+                    ? 'Removida dos favoritos'
+                    : 'Adicionada aos favoritos'
+                )
+              }
+            },
+            {
+              id: 'select',
+              label: t('page.select'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="3" />
+                  <path d="m8.5 12.5 2.5 2.5 5-5" />
+                </svg>
+              ),
+              onClick: () => {
+                setIsSelectionMode(true)
+                if (!selectedMessageTimestamps.includes(messageContextMenu.message.timestamp)) {
+                  setSelectedMessageTimestamps((prev) => [...prev, messageContextMenu.message.timestamp])
+                }
+              }
+            },
+            {
+              id: 'delete',
+              label: t('page.delete'),
+              danger: true,
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+              ),
+              onClick: () => {
+                setIsSelectionMode(true)
+                if (!selectedMessageTimestamps.includes(messageContextMenu.message.timestamp)) {
+                  setSelectedMessageTimestamps((prev) => [...prev, messageContextMenu.message.timestamp])
+                }
+              }
+            }
+          ]}
+          onClose={() => setMessageContextMenu(null)}
+          minWidth={170}
+        />
+      )}
+
       {inputContextMenu && (
         <ContextMenu
           x={inputContextMenu.x}
@@ -2531,15 +4298,66 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             {
               id: 'paste',
               label: t('panel.context_paste'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              ),
               onClick: handlePasteFromContextMenu
             },
             {
               id: 'select-all',
               label: t('panel.context_select_all'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="3" />
+                  <path d="m8.5 12.5 2.5 2.5 5-5" />
+                </svg>
+              ),
               onClick: handleSelectAll
             }
           ]}
           onClose={() => setInputContextMenu(null)}
+          minWidth={170}
+        />
+      )}
+
+      {pinnedContextMenu && (
+        <ContextMenu
+          x={pinnedContextMenu.x}
+          y={pinnedContextMenu.y}
+          items={[
+            {
+              id: 'go-to-message',
+              label: t('page.go_to_message', { defaultValue: 'Ir para a mensagem' }),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 16 16 12 12 8" />
+                  <line x1="8" y1="12" x2="16" y2="12" />
+                </svg>
+              ),
+              onClick: () => {
+                scrollToMessage(pinnedContextMenu.message.timestamp)
+              }
+            },
+            {
+              id: 'unpin',
+              label: t('page.unpin', { defaultValue: 'Desafixar' }),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="17" x2="12" y2="22" />
+                  <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24V17z" />
+                </svg>
+              ),
+              onClick: () => {
+                togglePinMessage(pinnedContextMenu.message.timestamp)
+                showToast(t('page.unpinned_toast', { defaultValue: 'Mensagem desafixada' }))
+              }
+            }
+          ]}
+          onClose={() => setPinnedContextMenu(null)}
           minWidth={170}
         />
       )}
@@ -2552,12 +4370,68 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             {
               id: 'direct-message',
               label: 'Enviar mensagem direta',
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              ),
               onClick: () => handleSelectParticipant(participantContextMenu.participant)
             }
           ]}
           onClose={() => setParticipantContextMenu(null)}
           minWidth={170}
         />
+      )}
+
+      {deleteConfirmTarget && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setDeleteConfirmTarget(null)}
+        >
+          <div
+            className="rounded-3xl bg-card border border-border/60 p-6 flex flex-col items-center text-center max-w-[280px] w-full shadow-2xl space-y-3.5 select-none animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-bold text-text leading-snug">
+              {deleteConfirmTarget.messages.length > 1
+                ? t('page.delete_confirm_multiple', {
+                    count: deleteConfirmTarget.messages.length,
+                    defaultValue: `Deseja apagar as ${deleteConfirmTarget.messages.length} mensagens?`
+                  })
+                : t('page.delete_confirm_single', {
+                    defaultValue: 'Deseja apagar a mensagem?'
+                  })}
+            </h3>
+
+            <div className="flex flex-col gap-2.5 w-full pt-1">
+              {deleteConfirmTarget.messages.some((m) => m.direction === 'outgoing') && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteMessages(deleteConfirmTarget.messages, true)}
+                  className="w-full py-2.5 px-4 rounded-full border border-border/50 text-error hover:bg-error/15 font-semibold text-xs tracking-wide transition-colors cursor-pointer"
+                >
+                  {t('page.delete_for_everyone', { defaultValue: 'Apagar para todos' })}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => handleDeleteMessages(deleteConfirmTarget.messages, false)}
+                className="w-full py-2.5 px-4 rounded-full border border-border/50 text-accent hover:bg-accent/15 font-semibold text-xs tracking-wide transition-colors cursor-pointer"
+              >
+                {t('page.delete_for_me', { defaultValue: 'Apagar para mim' })}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmTarget(null)}
+                className="text-accent hover:text-accent/80 font-semibold text-xs pt-1 transition-colors cursor-pointer"
+              >
+                {t('page.cancel', { defaultValue: 'Cancelar' })}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )

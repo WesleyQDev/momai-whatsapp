@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchAvatars,
   fetchConnection,
@@ -10,6 +10,10 @@ import {
 import { mergeHistoryWithServer } from '../../utils/historySync'
 import { useWidgetLiveMessages } from './useWidgetLiveMessages'
 import { useWidgetLiveSignal } from './useWidgetLiveSignal'
+import {
+  isChatOpenInOverlay,
+  useHistoryOverlayPresence
+} from '../../hooks/useHistoryOverlayPresence'
 
 export interface UnreadRow {
   message: WidgetHistoryMessage
@@ -43,6 +47,8 @@ export function useUnreadWidget(limit = 3): UnreadWidgetState {
   const liveMessages = useWidgetLiveMessages()
   const liveMessagesRef = useRef(liveMessages)
   liveMessagesRef.current = liveMessages
+  // Conversa com chat aberto já está sendo vista ao vivo: fora do NOVA.
+  const openOverlayJids = useHistoryOverlayPresence()
 
   useEffect(() => {
     let cancelled = false
@@ -83,5 +89,12 @@ export function useUnreadWidget(limit = 3): UnreadWidgetState {
     }
   }, [liveSignal, limit])
 
-  return state
+  // Reativo à abertura/fechamento do chat, sem novo fetch: a conversa aberta
+  // está sendo vista ao vivo e não entra no NOVA.
+  const visibleRows = useMemo(
+    () => state.rows.filter(({ message }) => !isChatOpenInOverlay(openOverlayJids, message.jid)),
+    [state.rows, openOverlayJids]
+  )
+
+  return { ...state, rows: visibleRows }
 }

@@ -16,10 +16,13 @@ describe('isSameChat', () => {
     expect(isSameChat('+55 11 99999-9999@s.whatsapp.net', '5511999999999@s.whatsapp.net')).toBe(
       true
     )
+    expect(isSameChat('+55 41 9659-6620', '554196596620@s.whatsapp.net')).toBe(true)
+    expect(isSameChat('554196596620', '554196596620@s.whatsapp.net')).toBe(true)
   })
 
   it('keeps group chats on exact equality only', () => {
     expect(isSameChat('120363426533298550@g.us', '120363426533298550@g.us')).toBe(true)
+    expect(isSameChat('120363426533298550:1@g.us', '120363426533298550@g.us')).toBe(true)
     expect(isSameChat('120363426533298550@g.us', '120363426533298551@g.us')).toBe(false)
   })
 

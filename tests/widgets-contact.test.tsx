@@ -18,6 +18,11 @@ vi.mock('momai:sdk', () => ({
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import WhatsappUnreadWidget from '../src/widgets/unread'
 import WhatsappLastMessageWidget from '../src/widgets/last-message'
+import {
+  emptyRecentConversations,
+  markConversationDeleted,
+  persistRecentConversations
+} from '../src/utils/recentConversations'
 import { __emitExtensionEvent, __resetExtensionEvents } from './stubs/momai-events'
 
 const NOW = 1758036670
@@ -123,6 +128,29 @@ describe('whatsapp widgets show contact name and photo', () => {
     })
     await flush()
     expect(container.textContent).toContain('cheguei agora')
+  })
+
+  it('hides a conversation deleted in the extension-owned ledger', async () => {
+    const store = markConversationDeleted(emptyRecentConversations(), {
+      jid: '211093884559589@lid',
+      aliases: ['211093884559589@lid'],
+      isGroup: false,
+      lastMessageAt: NOW
+    })
+    persistRecentConversations(store)
+
+    await mount(<WhatsappUnreadWidget />)
+    expect(container.textContent).not.toContain('Mae')
+    expect(container.textContent).toContain('Joao')
+
+    await act(async () => root.unmount())
+    container.remove()
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    await mount(<WhatsappLastMessageWidget />)
+    expect(container.textContent).not.toContain('Mae')
   })
 
   it('unread widget lists a conversation started after mount', async () => {

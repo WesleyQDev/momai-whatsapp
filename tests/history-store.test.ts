@@ -4,6 +4,7 @@ import {
   HISTORY_LIST_LIMIT,
   trackHistoryMessage,
   loadHistoryMessages,
+  deleteHistoryMessages,
   pruneHistoryMessages
 } from '../worker-utils'
 
@@ -30,12 +31,19 @@ function stubMomai(options: { declared?: string[]; legacy?: Record<string, any> 
       collections: {
         insert: async (name: string, record: any) => {
           if (!declared.has(name)) throw Object.assign(new Error('not declared'), { code: 'permission_denied' })
-          rows.push({ ...record, id: rows.length + 1 })
-          return { id: rows.length }
+          const id = rows.length + 1
+          rows.push({ ...record, id, _rowId: id })
+          return { id }
         },
         list: async (name: string) => {
           if (!declared.has(name)) throw Object.assign(new Error('not declared'), { code: 'permission_denied' })
           return [...rows].reverse().slice(0, HISTORY_LIST_LIMIT)
+        },
+        remove: async (name: string, id: number) => {
+          if (!declared.has(name)) throw Object.assign(new Error('not declared'), { code: 'permission_denied' })
+          const idx = rows.findIndex((r) => r.id === id || r._rowId === id)
+          if (idx !== -1) rows.splice(idx, 1)
+          return { ok: true }
         },
         clear: async (name: string) => {
           if (!declared.has(name)) throw Object.assign(new Error('not declared'), { code: 'permission_denied' })
@@ -113,3 +121,35 @@ describe('pruneHistoryMessages', () => {
     expect(cleared.removed).toBe(1)
   })
 })
+
+describe('deleteHistoryMessages', () => {
+  it('deletes messages from collection matching target JID across formats and suffixes', async () => {
+    const { momai, rows } = stubMomai()
+    rows.push({ ...entry, id: 1, _rowId: 1 })
+    rows.push({ jid: '5511999999999:1@s.whatsapp.net', text: 'call', id: 2, _rowId: 2 })
+    rows.push({ jid: '5511888888888@s.whatsapp.net', text: 'other', id: 3, _rowId: 3 })
+
+    const res = await deleteHistoryMessages(momai as any, ['5511999999999@s.whatsapp.net'])
+    expect(res.removed).toBe(2)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].text).toBe('other')
+  })
+
+  it('deletes matching messages from legacy KV storage', async () => {
+    const { momai, kv } = stubMomai({
+      legacy: {
+        chat_history: [
+          entry,
+          { jid: '5511888888888@s.whatsapp.net', text: 'keep' }
+        ]
+      }
+    })
+
+    const res = await deleteHistoryMessages(momai as any, ['5511999999999@s.whatsapp.net'], {
+      sources: ['chat_history']
+    })
+    expect(res.removed).toBe(1)
+    expect(kv.get('chat_history')).toEqual([{ jid: '5511888888888@s.whatsapp.net', text: 'keep' }])
+  })
+})
+

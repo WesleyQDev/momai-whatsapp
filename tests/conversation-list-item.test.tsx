@@ -107,5 +107,30 @@ describe('ConversationListItem', () => {
     const monitoredSvg = view.querySelector('svg.text-black')
     expect(monitoredSvg).not.toBeNull()
   })
+
+  it('renders pin and star icons when isPinned and isFavorite are true', async () => {
+    const view = await renderItem({ isPinned: true, isFavorite: true })
+    const svgs = view.querySelectorAll('svg')
+    expect(svgs.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('triggers onOpenMenu with click coordinates on contextmenu event', async () => {
+    let menuCoords: { x: number; y: number } | null = null
+    const view = await renderItem({
+      onOpenMenu: (pos) => {
+        menuCoords = pos
+      }
+    })
+    const item = view.querySelector('.wa-conversation-item') as HTMLElement
+    expect(item).not.toBeNull()
+    const event = new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 120,
+      clientY: 240
+    })
+    item.dispatchEvent(event)
+    expect(menuCoords).toEqual({ x: 120, y: 240 })
+  })
 })
 

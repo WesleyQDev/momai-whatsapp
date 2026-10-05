@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
   MagnifyingGlassIcon,
   XMarkIcon,
@@ -14,7 +14,7 @@ import { fetchTrendingGifs, searchGifs, GifItem } from '../services/tenorService
 interface MediaPickerProps {
   height?: number
   onSelectEmoji: (emoji: string) => void
-  onSelectGif: (gifUrl: string) => void
+  onSelectGif: (gifUrl: string, previewUrl?: string) => void
   onSelectSticker: (stickerFilename: string) => void
   onClose: () => void
   getStickerUrl: (filename: string) => string
@@ -597,7 +597,7 @@ export default function MediaPicker({
                     key={gif.id}
                     type="button"
                     onClick={() => {
-                      onSelectGif(gif.url)
+                      onSelectGif(gif.mp4Url || gif.url, gif.previewUrl || gif.url)
                       onClose()
                     }}
                     style={{

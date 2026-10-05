@@ -5,6 +5,7 @@ export interface ContextMenuOption {
   id?: string
   label: string
   shortcut?: string
+  icon?: React.ReactNode
   onClick: () => void
   danger?: boolean
   disabled?: boolean
@@ -25,7 +26,7 @@ export default function ContextMenu({
   items,
   onClose,
   className = '',
-  minWidth = 130
+  minWidth = 140
 }: ContextMenuProps): React.ReactElement | null {
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ top: y, left: x })
@@ -88,7 +89,7 @@ export default function ContextMenu({
       ref={menuRef}
       role="menu"
       aria-orientation="vertical"
-      className={`fixed z-[9999] bg-card/95 backdrop-blur-md border border-border/80 rounded-lg shadow-xl p-1 select-none animate-in fade-in zoom-in-95 duration-100 ${className}`}
+      className={`fixed z-[9999] bg-card/95 backdrop-blur-md border border-border/80 rounded-xl shadow-xl p-1 select-none animate-in fade-in zoom-in-95 duration-100 ${className}`}
       style={{
         top: `${pos.top}px`,
         left: `${pos.left}px`,
@@ -107,9 +108,16 @@ export default function ContextMenu({
             return (
               <div
                 key={item.id || idx}
-                className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs text-text-muted/40 cursor-not-allowed rounded-md select-none"
+                className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs text-text-muted/40 cursor-not-allowed rounded-lg select-none"
               >
-                <span className="truncate">{item.label}</span>
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  {item.icon && (
+                    <span className="shrink-0 w-4 h-4 flex items-center justify-center opacity-40">
+                      {item.icon}
+                    </span>
+                  )}
+                  <span className="truncate">{item.label}</span>
+                </div>
                 {item.shortcut && (
                   <span className="text-[10px] text-text-muted/30 font-mono tracking-wider shrink-0 ml-2">
                     {item.shortcut}
@@ -133,9 +141,26 @@ export default function ContextMenu({
                 item.onClick()
                 onClose()
               }}
-              className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs text-text hover:bg-input/80 hover:text-accent rounded-md transition-colors cursor-pointer text-left w-full group focus:outline-none focus:bg-input/80 focus:text-accent"
+              className={`flex items-center justify-between gap-3 px-3 py-1.5 text-xs ${
+                item.danger
+                  ? 'text-error hover:bg-error/10 hover:text-error focus:bg-error/10 focus:text-error'
+                  : 'text-text hover:bg-input/80 hover:text-accent focus:bg-input/80 focus:text-accent'
+              } rounded-lg transition-colors cursor-pointer text-left w-full group focus:outline-none`}
             >
-              <span className="truncate">{item.label}</span>
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                {item.icon && (
+                  <span
+                    className={`shrink-0 w-4 h-4 flex items-center justify-center transition-colors ${
+                      item.danger
+                        ? 'text-error group-hover:text-error'
+                        : 'text-text-muted group-hover:text-accent group-focus:text-accent'
+                    }`}
+                  >
+                    {item.icon}
+                  </span>
+                )}
+                <span className="truncate">{item.label}</span>
+              </div>
               {item.shortcut && (
                 <span className="text-[10px] text-text-muted/60 group-hover:text-accent/80 font-mono tracking-wider shrink-0 ml-2">
                   {item.shortcut}

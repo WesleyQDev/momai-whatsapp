@@ -1,6 +1,7 @@
 import { api } from '../../services/api'
 import { resolveUnreadJid } from '../../utils/chatJid'
-import { mergeHistoryWithServer, toUnixSeconds } from '../../utils/historySync'
+import { mergeHistoryWithServer, toUnixSeconds, getDeletedNamesMap, isDeletedByName } from '../../utils/historySync'
+import { isMessageHiddenByLedger, loadRecentConversations } from '../../utils/recentConversations'
 
 export interface WidgetHistoryMessage {
   jid: string
@@ -125,7 +126,15 @@ export async function fetchWidgetHistory(limit = 20): Promise<WidgetHistoryMessa
     if (cached.length === 0) throw err
     server = []
   }
-  return mergeHistoryWithServer(cached, server)
+  const deletedNames = getDeletedNamesMap()
+  // Extension-owned ledger: deleted conversations stay out of the widgets even
+  // when a WhatsApp history re-sync returns their old messages again.
+  const ledger = loadRecentConversations()
+  const clean = (list: WidgetHistoryMessage[]) =>
+    list
+      .filter((m) => !isDeletedByName(m, deletedNames))
+      .filter((m) => !isMessageHiddenByLedger(ledger, m))
+  return mergeHistoryWithServer(clean(cached), clean(server))
     .sort((a, b) => compareWidgetTs(a.timestamp, b.timestamp))
     .slice(0, limit)
 }

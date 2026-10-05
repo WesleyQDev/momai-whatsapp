@@ -17,8 +17,12 @@ const {
   getDocumentNotificationText,
   isVideoMessage,
   getVideoNotificationText,
+  isGifMessage,
+  getGifNotificationText,
   getRecentChatMedia,
   resolveDocumentPath,
+  resolveReplyQuoted,
+  extractQuotedMessage,
   GROUP_FETCH_COOLDOWN_MS,
   shouldFetchGroups
 } = utils as any
@@ -184,11 +188,12 @@ describe('buildMessageContent (limite de imagem M5)', () => {
     expect(content.sticker.toString()).toBe('sticker-data')
   })
 
-  it('builds gif content with url and gifPlayback: true', () => {
-    const gifUrl = 'https://media.tenor.com/test.gif'
+  it('builds gif content with url, gifPlayback: true, and video/mp4 mimetype', () => {
+    const gifUrl = 'https://media.tenor.com/test.mp4'
     const content = buildMessageContent('nice gif', undefined, undefined, gifUrl)
     expect(content.video).toEqual({ url: gifUrl })
     expect(content.gifPlayback).toBe(true)
+    expect(content.mimetype).toBe('video/mp4')
     expect(content.caption).toBe('nice gif')
   })
 
@@ -595,6 +600,22 @@ describe('incoming video helpers (plain videos reach history and overlay)', () =
   })
 })
 
+describe('incoming GIF helpers (GIFs detected with gifPlayback)', () => {
+  it('detects videoMessage with gifPlayback', () => {
+    expect(isGifMessage({ videoMessage: { gifPlayback: true } })).toBe(true)
+    expect(isGifMessage({ videoMessage: { gifPlayback: false } })).toBe(false)
+    expect(isGifMessage({ videoMessage: {} })).toBe(false)
+    expect(isGifMessage(null)).toBe(false)
+  })
+
+  it('prefers caption, then [GIF] placeholder', () => {
+    expect(getGifNotificationText({ videoMessage: { caption: 'engraçado' } })).toBe('engraçado')
+    expect(getGifNotificationText({ videoMessage: {} })).toBe('[GIF]')
+    expect(getGifNotificationText({ videoMessage: { caption: '  ' } })).toBe('[GIF]')
+    expect(getGifNotificationText(null)).toBe('[GIF]')
+  })
+})
+
 describe('resolveDocumentPath (open_document stays inside documents/)', () => {
   const path = require('path')
   const dir = path.join('C:', 'data', 'momai-whatsapp')
@@ -677,5 +698,85 @@ describe('shouldFetchGroups & GROUP_FETCH_COOLDOWN_MS', () => {
     const now = 1000000
     const lastFetchTs = now - 5000 // 5 seconds ago
     expect(shouldFetchGroups(lastFetchTs, GROUP_FETCH_COOLDOWN_MS, now, true)).toBe(true)
+  })
+})
+
+describe('resolveReplyQuoted (citação enviada ao WhatsApp)', () => {
+  const contactJid = '5511999999999@s.whatsapp.net'
+
+  it('returns null without a stanza id (previously sent a plain message silently)', () => {
+    expect(resolveReplyQuoted(null, contactJid)).toBeNull()
+    expect(resolveReplyQuoted({ text: 'sem id' }, contactJid)).toBeNull()
+    expect(resolveReplyQuoted({ id: '' }, contactJid)).toBeNull()
+  })
+
+  it('builds the quoted key/proto for an incoming DM text', () => {
+    const quoted = resolveReplyQuoted(
+      { id: '3EB0ABC', text: 'pergunta', direction: 'incoming' },
+      contactJid
+    )
+    expect(quoted.key).toEqual({
+      remoteJid: contactJid,
+      fromMe: false,
+      id: '3EB0ABC'
+    })
+    expect(quoted.message).toEqual({ conversation: 'pergunta' })
+  })
+
+  it('marks own messages with fromMe so Baileys attributes the participant correctly', () => {
+    const quoted = resolveReplyQuoted(
+      { id: '3EB0OWN', text: 'minha', direction: 'outgoing' },
+      contactJid
+    )
+    expect(quoted.key.fromMe).toBe(true)
+    expect(quoted.key.participant).toBeUndefined()
+  })
+
+  it('uses the sender as participant when replying inside a group', () => {
+    const groupJid = '120363000000000000@g.us'
+    const quoted = resolveReplyQuoted(
+      {
+        id: '3EB0GRP',
+        text: 'no grupo',
+        direction: 'incoming',
+        senderJid: '5511977777777@s.whatsapp.net'
+      },
+      groupJid,
+      true
+    )
+    expect(quoted.key.participant).toBe('5511977777777@s.whatsapp.net')
+  })
+
+  it('prefers the cached proto when the quoted message was sent by us', () => {
+    const cached = { extendedTextMessage: { text: 'original' } }
+    const quoted = resolveReplyQuoted(
+      { id: '3EB0CACHE', direction: 'outgoing' },
+      contactJid,
+      false,
+      cached
+    )
+    expect(quoted.message).toBe(cached)
+  })
+})
+
+describe('extractQuotedMessage (citação recebida)', () => {
+  it('extracts the stanza id and text from a reply contextInfo', () => {
+    const extracted = extractQuotedMessage({
+      extendedTextMessage: {
+        text: 'resposta',
+        contextInfo: {
+          stanzaId: '3EB0ORIG',
+          participant: '5511977777777@s.whatsapp.net',
+          quotedMessage: { conversation: 'original' }
+        }
+      }
+    })
+    expect(extracted.id).toBe('3EB0ORIG')
+    expect(extracted.senderJid).toBe('5511977777777@s.whatsapp.net')
+    expect(extracted.text).toBe('original')
+  })
+
+  it('returns null when there is no quote context', () => {
+    expect(extractQuotedMessage({ conversation: 'oi' })).toBeNull()
   })
 })

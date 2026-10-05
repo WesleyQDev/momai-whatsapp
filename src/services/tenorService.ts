@@ -3,6 +3,7 @@ export interface GifItem {
   title: string
   previewUrl: string
   url: string
+  mp4Url?: string
 }
 
 const getApiBaseUrl = (): string => {
@@ -16,6 +17,8 @@ const getApiBaseUrl = (): string => {
 export async function fetchTrendingGifs(limit = 20): Promise<GifItem[]> {
   return searchGifs('', limit)
 }
+
+const GIPHY_API_KEY = 'sXpGFDGZs0Dv1mmNFvYaGUvYwKX0PWIh'
 
 export async function searchGifs(query: string, limit = 20): Promise<GifItem[]> {
   // 1. Tentar via backend tool do worker da extensão (envia User-Agent oficial do MomAI sem restrições)
@@ -35,15 +38,38 @@ export async function searchGifs(query: string, limit = 20): Promise<GifItem[]> 
     })
     if (res.ok) {
       const data = await res.json()
-      if (data?.ok && Array.isArray(data.gifs)) {
+      if (data?.ok && Array.isArray(data.gifs) && data.gifs.length > 0) {
         return data.gifs
       }
     }
   } catch (err) {
-    console.warn('[NekosBestService] Falha na chamada via worker tool, tentando fallback:', err)
+    console.warn('[GifService] Falha na chamada via worker tool, tentando fallback:', err)
   }
 
-  // 2. Fallback direto via fetch
+  // 2. Fallback direto via GIPHY API (retorna tanto preview/gif quanto mp4 nativo para o WhatsApp)
+  try {
+    const q = query.trim()
+    const endpoint = q
+      ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(q)}&limit=${limit}&rating=g`
+      : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=${limit}&rating=g`
+    const res = await fetch(endpoint)
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
+        return data.data.map((item: any) => ({
+          id: item.id || item.images?.fixed_height?.url,
+          title: item.title || 'GIF',
+          previewUrl: item.images?.fixed_height_small?.url || item.images?.fixed_height?.url || item.images?.original?.url,
+          url: item.images?.fixed_height?.url || item.images?.original?.url,
+          mp4Url: item.images?.fixed_height?.mp4 || item.images?.original?.mp4
+        }))
+      }
+    }
+  } catch (err) {
+    console.warn('[GifService] Erro no fallback GIPHY:', err)
+  }
+
+  // 3. Fallback secundário via Nekos.best
   try {
     const q = query.trim().toLowerCase()
     const categoryMap: Record<string, string> = {
@@ -84,10 +110,11 @@ export async function searchGifs(query: string, limit = 20): Promise<GifItem[]> 
       id: item.url,
       title: item.anime_name || 'Anime GIF',
       previewUrl: item.url,
-      url: item.url
+      url: item.url,
+      mp4Url: item.url
     }))
   } catch (err) {
-    console.warn('[NekosBestService] Erro na busca de GIFs:', err)
+    console.warn('[GifService] Erro no fallback secundário:', err)
     return []
   }
 }
