@@ -13,6 +13,10 @@ const {
 const JID = '5511999999999@s.whatsapp.net'
 
 describe('history overlay presence', () => {
+  it('uses the short TTL paired with the 5s heartbeat', () => {
+    expect(HISTORY_OVERLAY_PRESENCE_TTL_MS).toBe(15 * 1000)
+  })
+
   it('opens on note and closes on remove', () => {
     const store = new Map()
     expect(isHistoryOverlayOpen(store, 1000)).toBe(false)

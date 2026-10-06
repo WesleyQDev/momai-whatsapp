@@ -1184,20 +1184,6 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     }
   }, [isHistoryOverlay, contactJid])
 
-  console.log('[WhatsAppPanel] data received:', {
-    audio: data?.audio,
-    image: data?.image,
-    document: data?.document,
-    video: data?.video,
-    message,
-    contactJid,
-    isGroup,
-    conversationHistoryLen: conversationHistory.length,
-    conversationHistoryAudios: conversationHistory.map((l: any) => l.audio),
-    activeRecipientJid: contactJid,
-    dataKeys: data ? Object.keys(data) : []
-  })
-
   const [voiceStatus, setVoiceStatus] = useState<
     'idle' | 'listening' | 'detected' | 'complete' | 'error' | 'timeout'
   >('idle')
@@ -1956,6 +1942,10 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             'Content-Type': 'application/json',
             'X-Session-Token': (window as any)?.api?.getSessionToken?.() || ''
           },
+          // keepalive: o `closed` precisa sair mesmo quando a janela fecha no
+          // mesmo instante (unmount/pagehide), senão o worker segue achando
+          // que o chat está aberto e suprime notificações até o TTL expirar.
+          keepalive: true,
           body: JSON.stringify({
             toolName: 'history_overlay_presence',
             args: { jid: targetJid, state }
@@ -1964,9 +1954,14 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       } catch {}
     }
     announce('opened')
-    const timer = setInterval(() => announce('heartbeat'), 10000)
+    const timer = setInterval(() => announce('heartbeat'), 5000)
+    // O cleanup do React não roda de forma garantida quando a janela do
+    // overlay é fechada; `pagehide` garante o aviso de fechamento ao worker.
+    const handlePageHide = () => announce('closed')
+    window.addEventListener('pagehide', handlePageHide)
     return () => {
       clearInterval(timer)
+      window.removeEventListener('pagehide', handlePageHide)
       announce('closed')
     }
   }, [isHistoryOverlay, contactJid])
@@ -3812,8 +3807,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                         setReplyingTo(null)
                       }}
                       className="p-1 rounded-md text-text-muted hover:text-text hover:bg-card border border-transparent hover:border-border transition-all cursor-pointer shrink-0 self-start"
-                      title={t('panel.cancel_reply', { defaultValue: 'Cancelar resposta' })}
-                      aria-label={t('panel.cancel_reply', { defaultValue: 'Cancelar resposta' })}
+                      title={t('panel.cancel_reply')}
+                      aria-label={t('panel.cancel_reply')}
                     >
                       <XMarkIcon className="w-3.5 h-3.5" />
                     </button>

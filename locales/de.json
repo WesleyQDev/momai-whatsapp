@@ -45,6 +45,8 @@
         }
     },
     "panel": {
+        "drag_window": "Zum Verschieben des Fensters ziehen",
+        "cancel_reply": "Antwort abbrechen",
         "title": "WhatsApp",
         "connected": "Verbunden",
         "disconnected": "Getrennt",

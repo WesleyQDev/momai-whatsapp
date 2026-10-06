@@ -759,6 +759,31 @@ function _clearReconnectTimer() {
   }
 }
 
+/**
+ * Clears every piece of state that belongs to a dead session. Called both on an
+ * explicit disconnect and on a server-side loggedOut (phone unlinked / session
+ * invalidated). Per-phone preferences (disabled contacts, custom names,
+ * notification settings) are intentionally preserved, matching the explicit
+ * disconnect behavior.
+ */
+function _resetSessionState() {
+  if (sock) {
+    try {
+      sock.ev.removeAllListeners('connection.update')
+      sock.ev.removeAllListeners('creds.update')
+      sock.ev.removeAllListeners('messages.upsert')
+    } catch {}
+  }
+  sock = null
+  connected = false
+  lastQr = null
+  lastQrAt = 0
+  waContacts = {}
+  chatHistory = []
+  totalMessages = 0
+  _currentPhone = null
+}
+
 let disabledContacts: any[] = []
 let contactNames: any = {}
 let waContacts: any = {}
@@ -2614,8 +2639,10 @@ async function connect() {
           } catch (err) {
             momai.log(`logged-out wipe failed: ${err.message}`)
           }
-          lastQr = null
-          lastQrAt = 0
+          // Drop the dead session from memory too (contacts, history, socket):
+          // otherwise get_stats keeps reporting stale credentials and the UI
+          // shows the old contact list while the new QR waits to be scanned.
+          _resetSessionState()
           momai.sendEvent('authenticated', { status: 'logged_out' })
           momai.sendEvent('connection_status', { status: 'disconnected' })
           _clearReconnectTimer()
@@ -3295,9 +3322,7 @@ async function handleMessagesUpsert({ messages, type }) {
     if (isFromMe && replyJid) {
       removeUnreadBadge(replyJid).catch(() => {})
     }
-    momai.log(
-      `Message tracked: from=${displayName} text="${text.substring(0, 50)}" total=${totalMessages}`
-    )
+    momai.log(`Message tracked: from=${displayName} total=${totalMessages}`)
     if (isFromMe && !isHistoryAppend) {
       momai.sendEvent('message_sent', {
         ...historyEntry,
@@ -3335,9 +3360,37 @@ async function handleMessagesUpsert({ messages, type }) {
       !isOldMessage &&
       ((!isFromMe && !senderDisabled && !remoteDisabled) || isNoteToSelf)
     const shouldOverlay = shouldNotify && !isBacklog
-    momai.log(
-      `[notif-debug] shouldNotify=${shouldNotify} isFromMe=${isFromMe} isOldMessage=${isOldMessage} isBacklog=${isBacklog} isHistoryAppend=${isHistoryAppend} notificationsDisabled=${notificationsDisabled} senderDisabled=${senderDisabled} remoteDisabled=${remoteDisabled} isNoteToSelf=${isNoteToSelf} remoteJid=${remoteJid} standardizedRemoteJid=${standardizedRemoteJid} resolvedSenderJid=${resolvedSenderJid} myJidRaw=${myJidRaw} myJidStandardized=${myJidStandardized} myLidRaw=${myLidRaw} myLidStandardized=${myLidStandardized} isGroup=${isGroup} disabledContacts=${JSON.stringify(disabledContacts)}`
+    // Canal ao vivo independente do popup: o chat aberto no overlay precisa
+    // receber a mensagem mesmo quando o popup é suprimido (backlog pós-
+    // reconexão, notificações desativadas ou duplicata recente). Só o
+    // `whatsapp_notification` passa pelo gate de popup/dedup abaixo.
+    const shouldEmitLive =
+      !isHistoryAppend && !isOldMessage && !isFromMe && !senderDisabled && !remoteDisabled
+
+    const finalDisplayName = isGroup ? resGroupName : displayName
+
+    // Every recent photo/document of this chat, so the overlay (which
+    // remounts per notification) can show them all with scroll instead of
+    // only the latest one. chatHistory is newest first and already holds
+    // the current message at this point. Só calcula quando há popup/evento
+    // ao vivo: durante a sincronização de histórico nada disso é usado.
+    const recentMedia =
+      (shouldOverlay || shouldEmitLive) && typeof _getRecentChatMedia === 'function'
+        ? _getRecentChatMedia(chatHistory, replyJid, 10)
+        : []
+
+    // Contexto que permite responder citando a story (Nome · Status) como no WhatsApp.
+    const statusContext = isStatusMessage
+      ? { stanzaId: msg.key.id, participant: msg.key.participant || senderJid }
+      : undefined
+
+    // Avatar do chat (grupo ou remetente) compartilhado entre popup e evento ao vivo.
+    const contactAvatar = resolveChatAvatarUrl(
+      isStatusMessage && resolvedSenderJid ? resolvedSenderJid : remoteJid,
+      isGroup,
+      senderJid
     )
+
     if (shouldNotify) {
       // Backlog (offline while the app was closed) updates history and the
       // sidebar dot, but never opens the overlay. Only live messages overlay.
@@ -3349,25 +3402,25 @@ async function handleMessagesUpsert({ messages, type }) {
         await addUnreadBadge(replyJid)
       }
     }
-    if (shouldOverlay) {
-      // Suppress retransmissions with identical content in a short window,
-      // even when they arrive with a fresh message id.
-      const overlayKey = `${replyJid}|${text || ''}|${audioFilename || ''}|${stickerFilename || ''}|${imageFilename || ''}|${documentName || ''}|${videoFilename || ''}`
-      const nowMs = Date.now()
-      if (overlayKey === lastOverlayKey && nowMs - lastOverlayAt < 15000) {
-        momai.log(`[notif-debug] Suppressing duplicate overlay for: ${replyJid}`)
-      } else {
-        lastOverlayKey = overlayKey
-        lastOverlayAt = nowMs
-      const finalDisplayName = isGroup ? resGroupName : displayName
+    // Dedup de conteúdo com o timestamp na chave: retransmissão preserva o
+    // timestamp original, enquanto duas mensagens reais iguais (ex.: "ok"
+    // duas vezes) chegam com timestamps diferentes. Vale para o popup E para
+    // o evento ao vivo — evita balão duplicado no chat aberto — sem bloquear
+    // backlog nem notificações desativadas.
+    const overlayKey = `${replyJid}|${messageTs}|${text || ''}|${audioFilename || ''}|${stickerFilename || ''}|${imageFilename || ''}|${documentName || ''}|${videoFilename || ''}`
+    const nowMs = Date.now()
+    const isDuplicateOverlay =
+      (shouldOverlay || shouldEmitLive) &&
+      overlayKey === lastOverlayKey &&
+      nowMs - lastOverlayAt < 15000
+    if (isDuplicateOverlay) {
+      momai.log(`[notif-debug] Suppressing duplicate overlay for: ${replyJid}`)
+    } else if (shouldOverlay || shouldEmitLive) {
+      lastOverlayKey = overlayKey
+      lastOverlayAt = nowMs
+    }
 
-      // Every recent photo/document of this chat, so the overlay (which
-      // remounts per notification) can show them all with scroll instead of
-      // only the latest one. chatHistory is newest first and already holds
-      // the current message at this point.
-      const recentMedia =
-        typeof _getRecentChatMedia === 'function' ? _getRecentChatMedia(chatHistory, replyJid, 10) : []
-
+    if (shouldOverlay && !isDuplicateOverlay) {
       // Check if I am admin in this group
       let isMeAdmin = false
       if (isGroup && groupAnnounce) {
@@ -3403,13 +3456,10 @@ async function handleMessagesUpsert({ messages, type }) {
       }
       // For self-messages, use the user's own JID (not the corrupted LID-resolved one)
       const notifContactJid = isNoteToSelf ? myJidStandardized || replyJid : replyJid
-      // Contexto que permite responder citando a story (Nome · Status) como no WhatsApp.
-      const statusContext = isStatusMessage
-        ? { stanzaId: msg.key.id, participant: msg.key.participant || senderJid }
-        : undefined
       momai.log(`[audio-debug] whatsapp_notification audioFilename=${audioFilename} isGroup=${isGroup} contact=${finalDisplayName}`)
-      // Suprimido quando há overlay de contatos aberto: badge + histórico +
-      // `whatsapp_message` (abaixo) continuam, só não abre novo overlay.
+      // Suprimido quando há overlay de contatos aberto: badge + histórico
+      // continuam, só não abre novo overlay. O `whatsapp_message` ao vivo é
+      // emitido fora deste bloco, independente do popup.
       if (!suppressNotification) {
         momai.sendEvent('whatsapp_notification', {
           contact: finalDisplayName,
@@ -3429,11 +3479,7 @@ async function handleMessagesUpsert({ messages, type }) {
           video: videoFilename,
           recentMedia,
           timestamp: msg.messageTimestamp,
-          contactAvatar: resolveChatAvatarUrl(
-            isStatusMessage && resolvedSenderJid ? resolvedSenderJid : remoteJid,
-            isGroup,
-            senderJid
-          ),
+          contactAvatar,
           isGroup: !!isGroup,
           isNoteToSelf,
           isStatus: isStatusMessage,
@@ -3442,46 +3488,44 @@ async function handleMessagesUpsert({ messages, type }) {
           isAdminsOnly: !!groupAnnounce && !isMeAdmin
         })
       }
+    }
 
-      if (!isNoteToSelf) {
-        setTimeout(async () => {
-          try {
-            const defaultContact = await getDefaultContact()
-            momai.sendEvent('whatsapp_message', {
-              contact: finalDisplayName,
-              senderName: isGroup ? displayName : undefined,
-              contactJid: replyJid,
-              senderJid,
-              // Mesmo contrato do whatsapp_notification: id permite responder
-              // citando a mensagem a partir de automações e do chat da página.
-              id: msg.key?.id || undefined,
-              quoted: extractedQuoted || undefined,
-              message: text,
-              audio: audioFilename,
-              sticker: stickerFilename,
-              image: imageFilename,
-              document: documentFilename,
-              documentName,
-              video: videoFilename,
-              recentMedia,
-              contactAvatar: resolveChatAvatarUrl(
-                isStatusMessage && resolvedSenderJid ? resolvedSenderJid : remoteJid,
-                isGroup,
-                senderJid
-              ),
-              timestamp: msg.messageTimestamp,
-              isGroup: !!isGroup,
-              isStatus: isStatusMessage,
-              statusContext,
-              groupName: isGroup ? resGroupName : undefined,
-              defaultContact: defaultContact || undefined
-            })
-          } catch (err: any) {
-            momai.log(`Error sending delayed whatsapp_message: ${err?.message || err}`)
-          }
-        }, 500)
-      }
-      }
+    if (shouldEmitLive && !isDuplicateOverlay) {
+      // Emissão ao vivo fora do gate de popup: independe de backlog e de
+      // notificações desativadas. Retransmissões idênticas (mesmo timestamp)
+      // continuam suprimidas para não duplicar o balão no chat aberto.
+      setTimeout(async () => {
+        try {
+          const defaultContact = await getDefaultContact()
+          momai.sendEvent('whatsapp_message', {
+            contact: finalDisplayName,
+            senderName: isGroup ? displayName : undefined,
+            contactJid: replyJid,
+            senderJid,
+            // Mesmo contrato do whatsapp_notification: id permite responder
+            // citando a mensagem a partir de automações e do chat da página.
+            id: msg.key?.id || undefined,
+            quoted: extractedQuoted || undefined,
+            message: text,
+            audio: audioFilename,
+            sticker: stickerFilename,
+            image: imageFilename,
+            document: documentFilename,
+            documentName,
+            video: videoFilename,
+            recentMedia,
+            contactAvatar,
+            timestamp: msg.messageTimestamp,
+            isGroup: !!isGroup,
+            isStatus: isStatusMessage,
+            statusContext,
+            groupName: isGroup ? resGroupName : undefined,
+            defaultContact: defaultContact || undefined
+          })
+        } catch (err: any) {
+          momai.log(`Error sending delayed whatsapp_message: ${err?.message || err}`)
+        }
+      }, 500)
     }
   }
 }
@@ -4474,7 +4518,7 @@ process.on('message', async (msg) => {
               result = await sendWithStatus(args.contact, args.message, null)
             }
             momai.log(
-              `send_message OK: to=${args.contact} msg="${(args.message || '').substring(0, 50)}" (t+${Date.now() - cmdStart}ms)`
+              `send_message OK: to=${args.contact} (t+${Date.now() - cmdStart}ms)`
             )
             result = result || { ok: true }
             result.directResponse = `Mensagem enviada`
@@ -5374,11 +5418,8 @@ process.on('message', async (msg) => {
           } catch (err) {
             momai.log(`disconnect session wipe failed: ${err.message}`)
           }
-          // Reset internal memory state
-          waContacts = {}
-          chatHistory = []
-          totalMessages = 0
-          _currentPhone = null
+          // Reset internal session state (contacts, history, socket refs)
+          _resetSessionState()
           momai.sendEvent('authenticated', { status: 'logged_out' })
           momai.sendEvent('connection_status', { status: 'disconnected' })
           result = { ok: true }

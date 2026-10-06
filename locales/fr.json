@@ -45,6 +45,8 @@
         }
     },
     "panel": {
+        "drag_window": "Faites glisser pour déplacer la fenêtre",
+        "cancel_reply": "Annuler la réponse",
         "title": "WhatsApp",
         "connected": "Connecté",
         "disconnected": "Déconnecté",

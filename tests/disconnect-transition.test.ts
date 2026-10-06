@@ -53,6 +53,37 @@ describe('explicit disconnect goes straight to QR', () => {
     expect(result.startGraceTimer).toBe(true)
   })
 
+  it('treats a server-side logout as pairing even with a stale local cache', () => {
+    const result = resolveStatsTransition({
+      explicitDisconnect: false,
+      isConnected: false,
+      serverHasCredentials: false,
+      localHasCredentials: true,
+      recentlyConnected: false,
+      previousStatus: 'connected'
+    })
+
+    expect(result.nextStatus).toBe('disconnected')
+    expect(result.showQrFallback).toBe(true)
+    expect(result.hasCredentials).toBe(false)
+    expect(result.startGraceTimer).toBe(false)
+  })
+
+  it('does not re-arm the grace window for a server-side logout while reconnecting', () => {
+    const result = resolveStatsTransition({
+      explicitDisconnect: false,
+      isConnected: false,
+      serverHasCredentials: false,
+      localHasCredentials: true,
+      recentlyConnected: false,
+      previousStatus: 'reconnecting'
+    })
+
+    expect(result.nextStatus).toBe('disconnected')
+    expect(result.startGraceTimer).toBe(false)
+    expect(result.showQrFallback).toBe(true)
+  })
+
   it('ignores late socket disconnected/reconnecting/logged_out events after explicit disconnect', () => {
     for (const eventStatus of ['disconnected', 'reconnecting', 'logged_out'] as const) {
       const result = resolveSocketTransition({ explicitDisconnect: true, eventStatus })

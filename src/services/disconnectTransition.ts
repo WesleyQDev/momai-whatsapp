@@ -4,6 +4,7 @@ export interface StatsTransitionInput {
   explicitDisconnect: boolean
   isConnected: boolean
   serverHasCredentials: boolean
+  /** Local UI cache (localStorage/state); never overrides the server flag. */
   localHasCredentials: boolean
   recentlyConnected: boolean
   previousStatus: DisconnectConnectionStatus
@@ -23,7 +24,6 @@ export function resolveStatsTransition(input: StatsTransitionInput): StatsTransi
     explicitDisconnect,
     isConnected,
     serverHasCredentials,
-    localHasCredentials,
     recentlyConnected,
     previousStatus
   } = input
@@ -61,7 +61,11 @@ export function resolveStatsTransition(input: StatsTransitionInput): StatsTransi
     }
   }
 
-  if (serverHasCredentials || localHasCredentials) {
+  // The server is the source of truth for session validity. A local cache hit
+  // (e.g. stale localStorage after a phone-side logout) must never keep a dead
+  // session inside the reconnect grace window: without server credentials the
+  // only valid next step is pairing again.
+  if (serverHasCredentials) {
     return {
       nextStatus: previousStatus === 'connected' ? 'reconnecting' : previousStatus,
       showQrFallback: false,

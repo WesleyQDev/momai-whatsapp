@@ -1920,13 +1920,26 @@ export default function WhatsAppView() {
       localStorage.removeItem(LOCAL_STORAGE_DELETED_JIDS_KEY)
       clearRecentConversations()
     } catch {}
+    setHistory([])
+    setPaginatedContacts([])
+    setPaginatedGroups([])
+    setTotalMessages(0)
+    setMonitoredCount(0)
+    setSyncedContacts(0)
     setRecentConversations(emptyRecentConversations())
     setQrUrl(null)
     setQrError(null)
     qrRequestInFlight.current = false
     // No `force: true` — see comment in requestQr above.
     requestQr().catch(() => {})
-  }, [clearDisconnectGraceTimer, requestQr, setHasCredentials])
+  }, [
+    clearDisconnectGraceTimer,
+    requestQr,
+    setHasCredentials,
+    setHistory,
+    setPaginatedContacts,
+    setPaginatedGroups
+  ])
 
   const loadAvatars = useCallback(async (jids: string[], opts?: { force?: boolean }) => {
     const unique = [...new Set(jids.filter((j) => typeof j === 'string' && j.includes('@')))]
@@ -2001,18 +2014,30 @@ export default function WhatsAppView() {
         setPairingActive(false)
         setHasCredentials(true)
         setShowQrFallback(false)
-      } else if (hasCreds || hasCredentials) {
+      } else if (hasCreds) {
         setConnected(false)
         setPairingActive(false)
         setShowQrFallback(false)
         setHasCredentials(true)
         setConnectionStatus((prev) => (prev === 'connected' ? 'reconnecting' : prev))
         startDisconnectGraceTimer()
-      } else if (!hasCreds && !hasCredentials) {
+      } else {
+        // Server has no valid session (remote logout / wiped credentials): the
+        // local cache must not override it, so go to pairing instead of
+        // re-arming the grace window.
+        const transition = resolveStatsTransition({
+          explicitDisconnect: false,
+          isConnected: false,
+          serverHasCredentials: false,
+          localHasCredentials: hasCredentials,
+          recentlyConnected: false,
+          previousStatus: 'disconnected'
+        })
         setConnected(false)
-        setHasCredentials(false)
-        setShowQrFallback(true)
-        setConnectionStatus('disconnected')
+        setPairingActive(transition.pairingActive)
+        setShowQrFallback(transition.showQrFallback)
+        setHasCredentials(transition.hasCredentials)
+        setConnectionStatus(transition.nextStatus)
       }
       if (explicitDisconnectRef.current && !isConnected) {
         if (data.qr) {
@@ -2039,7 +2064,7 @@ export default function WhatsAppView() {
       } catch {}
       if (data.qr) {
         pendingQrRef.current = data.qr
-        if (showQrFallback || pairingActive) {
+        if (showQrFallback || pairingActive || !_stateCache.hasCredentials) {
           applyQrString(data.qr)
         }
       }
@@ -2732,7 +2757,11 @@ export default function WhatsAppView() {
           pendingQrRef.current = event.data.qr
           // Só exibe a tela de QR code se o usuário clicou explicitamente em Gerar QR / Reconectar,
           // ou se a carência de 60s expirou / não possui credenciais salvas.
-          if (pairingActive || showQrFallback || (!hasCredentials && !connected && !disconnectGraceTimerRef.current)) {
+          if (
+            pairingActive ||
+            showQrFallback ||
+            (!_stateCache.hasCredentials && !_stateCache.connected && !disconnectGraceTimerRef.current)
+          ) {
             applyQrString(event.data.qr)
             setPairingActive(false)
           }
@@ -2768,7 +2797,7 @@ export default function WhatsAppView() {
             }
             setConnected(false)
             setConnectionStatus('reconnecting')
-            if (hasCredentials || _stateCache.hasCredentials) {
+            if (_stateCache.hasCredentials) {
               startDisconnectGraceTimer()
             }
           } else if (status === 'disconnected') {
@@ -2784,7 +2813,7 @@ export default function WhatsAppView() {
               return
             }
             setConnected(false)
-            if (hasCredentials || _stateCache.hasCredentials) {
+            if (_stateCache.hasCredentials) {
               setConnectionStatus('reconnecting')
               startDisconnectGraceTimer()
             } else {
@@ -2908,16 +2937,13 @@ export default function WhatsAppView() {
               setSyncing(false)
               return
             }
-            if (pairingActive || showQrFallback || !hasCredentials) {
-              beginPairing()
-              setConnected(false)
-              setConnectionStatus('disconnected')
-              setSyncing(false)
-            } else {
-              setConnected(false)
-              setConnectionStatus('reconnecting')
-              startDisconnectGraceTimer()
-            }
+            // Remote logout (phone unlinked / session invalidated server-side):
+            // there is no valid session left to reconnect to, so go straight to
+            // pairing instead of waiting on the reconnect grace window.
+            beginPairing()
+            setConnected(false)
+            setConnectionStatus('disconnected')
+            setSyncing(false)
           } else if (status === 'connected') {
             explicitDisconnectRef.current = false
             connectedAtRef.current = Date.now()

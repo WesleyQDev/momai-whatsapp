@@ -1482,8 +1482,11 @@ function shouldFetchGroups(
  * O store é um Map<jId, lastSeenMs> mantido pelo worker; `now` é injetável
  * para testes. Entradas sem heartbeat expiram pelo TTL (fecha-crash seguro:
  * overlay fechado sem `closed` some sozinho).
+ *
+ * O panel bate heartbeat a cada 5s; 15s dá 3 batimentos de folga e encurta a
+ * janela em que a supressão "vaza" depois que o overlay fecha sem avisar.
  */
-const HISTORY_OVERLAY_PRESENCE_TTL_MS = 30 * 1000
+const HISTORY_OVERLAY_PRESENCE_TTL_MS = 15 * 1000
 
 function cleanHistoryOverlayJid(jid) {
   const raw = String(jid || '').trim()

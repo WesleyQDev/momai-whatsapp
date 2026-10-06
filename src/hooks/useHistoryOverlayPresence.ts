@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { isSameChat } from '../utils/chatJid'
 
 const STORAGE_KEY = 'momai_wa_history_overlay_open'
-const PRESENCE_TTL_MS = 30 * 1000
+// Mesmo TTL do worker (15s) com heartbeat de 5s: se o `closed` se perder, a
+// conversa some do NOVA junto com a supressão de notificações do worker.
+const PRESENCE_TTL_MS = 15 * 1000
 
 /**
  * JIDs com overlay de contatos (chat) aberto neste momento.

@@ -2,7 +2,7 @@
   "name": "momai-whatsapp",
   "version": "0.9.0",
   "private": true,
-  "description": "ExtensÃƒÂ£o WhatsApp para MomAI",
+  "description": "Extensão WhatsApp para MomAI",
   "author": "WesleyQDev",
   "license": "MIT",
   "main": "background-worker.ts",
