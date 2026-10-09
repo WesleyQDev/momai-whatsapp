@@ -14,7 +14,7 @@ importers:
   .:
     dependencies:
       '@whiskeysockets/baileys':
-        specifier: ^6.0.0
+        specifier: 6.17.16
         version: 6.17.16(patch_hash=cf4b089c198f2c0a9bb102e2a159b12b9f1e1e432517c88b40de56002b780c55)(eslint@9.39.5)(typescript@5.9.3)
       pino:
         specifier: ^8.0.0

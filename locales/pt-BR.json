@@ -120,7 +120,14 @@
         "unknown_group": "Grupo",
         "send_error": "Erro ao enviar: {{error}}",
         "send_sticker_error": "Erro ao enviar figurinha: {{error}}",
-        "send_gif_error": "Erro ao enviar GIF: {{error}}"
+        "send_gif_error": "Erro ao enviar GIF: {{error}}",
+        "today": "Hoje",
+        "yesterday": "Ontem",
+        "deleted_for_everyone_one": "Mensagem apagada para todos",
+        "deleted_for_everyone_many": "Mensagens apagadas para todos",
+        "deleted_for_me_one": "Mensagem apagada para mim",
+        "deleted_for_me_many": "Mensagens apagadas para mim",
+        "delete_failed": "Não foi possível apagar. Tente novamente."
     },
     "page": {
         "title": "WhatsApp",

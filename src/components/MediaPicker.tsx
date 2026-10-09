@@ -26,6 +26,21 @@ const RECENT_EMOJIS_KEY = 'momai_whatsapp_recent_emojis'
 const RECENT_STICKERS_KEY = 'momai_whatsapp_recent_stickers'
 const FAV_STICKERS_KEY = 'momai_whatsapp_favorite_stickers'
 
+// Session cache (module scope) so switching tabs or reopening the picker shows
+// the previous GIF results instantly instead of loading again. Capped FIFO.
+const GIF_CACHE_MAX = 20
+const gifCache = new Map<string, GifItem[]>()
+function readGifCache(key: string): GifItem[] | null {
+  return gifCache.get(key) || null
+}
+function writeGifCache(key: string, value: GifItem[]): void {
+  if (gifCache.size >= GIF_CACHE_MAX) {
+    const oldest = gifCache.keys().next().value
+    if (oldest !== undefined) gifCache.delete(oldest)
+  }
+  gifCache.set(key, value)
+}
+
 const renderCategoryIcon = (id: string, fallback: string) => {
   switch (id) {
     case 'smileys':
@@ -156,17 +171,25 @@ export default function MediaPicker({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  // Busca de GIFs no Giphy com debounce
+  // Busca de GIFs com debounce + cache de sessão (não recarrega ao trocar de aba)
   useEffect(() => {
     if (activeTab !== 'gif') return
     let cancelled = false
+    const cacheKey = gifSearch.trim()
+    const cached = readGifCache(cacheKey)
+    if (cached) {
+      setGifs(cached)
+      setLoadingGifs(false)
+      return
+    }
     const timer = setTimeout(async () => {
       setLoadingGifs(true)
       try {
-        const results = gifSearch.trim()
-          ? await searchGifs(gifSearch.trim())
-          : await fetchTrendingGifs()
-        if (!cancelled) setGifs(results)
+        const results = cacheKey ? await searchGifs(cacheKey) : await fetchTrendingGifs()
+        if (!cancelled) {
+          setGifs(results)
+          if (results.length > 0) writeGifCache(cacheKey, results)
+        }
       } finally {
         if (!cancelled) setLoadingGifs(false)
       }
@@ -627,6 +650,13 @@ export default function MediaPicker({
                     />
                   </button>
                 ))}
+              </div>
+            )}
+            {gifs.some((gif) => gif.source === 'giphy') && (
+              <div className="mt-2 flex justify-end">
+                <span className="text-[10px] text-text-muted/70 tracking-wide">
+                  Powered by GIPHY
+                </span>
               </div>
             )}
           </div>

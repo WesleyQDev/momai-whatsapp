@@ -120,7 +120,14 @@
         "unknown_group": "Grupo",
         "send_error": "Error al enviar: {{error}}",
         "send_sticker_error": "Error al enviar sticker: {{error}}",
-        "send_gif_error": "Error al enviar GIF: {{error}}"
+        "send_gif_error": "Error al enviar GIF: {{error}}",
+        "today": "Hoy",
+        "yesterday": "Ayer",
+        "deleted_for_everyone_one": "Mensaje eliminado para todos",
+        "deleted_for_everyone_many": "Mensajes eliminados para todos",
+        "deleted_for_me_one": "Mensaje eliminado para mí",
+        "deleted_for_me_many": "Mensajes eliminados para mí",
+        "delete_failed": "No se pudo eliminar. Inténtalo de nuevo."
     },
     "page": {
         "title": "WhatsApp",

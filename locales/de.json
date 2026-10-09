@@ -120,7 +120,14 @@
         "unknown_group": "Gruppe",
         "send_error": "Senden fehlgeschlagen: {{error}}",
         "send_sticker_error": "Sticker konnte nicht gesendet werden: {{error}}",
-        "send_gif_error": "GIF konnte nicht gesendet werden: {{error}}"
+        "send_gif_error": "GIF konnte nicht gesendet werden: {{error}}",
+        "today": "Heute",
+        "yesterday": "Gestern",
+        "deleted_for_everyone_one": "Nachricht für alle gelöscht",
+        "deleted_for_everyone_many": "Nachrichten für alle gelöscht",
+        "deleted_for_me_one": "Nachricht für mich gelöscht",
+        "deleted_for_me_many": "Nachrichten für mich gelöscht",
+        "delete_failed": "Löschen fehlgeschlagen. Bitte erneut versuchen."
     },
     "page": {
         "title": "WhatsApp",

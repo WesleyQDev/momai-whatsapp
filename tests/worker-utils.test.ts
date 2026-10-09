@@ -1,4 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import utils from '../worker-utils'
 
 const {
@@ -24,7 +27,12 @@ const {
   resolveReplyQuoted,
   extractQuotedMessage,
   GROUP_FETCH_COOLDOWN_MS,
-  shouldFetchGroups
+  shouldFetchGroups,
+  sanitizeRemoteMediaUrl,
+  isPrivateNetworkHost,
+  pruneMediaDirectories,
+  MAX_ATTACHMENTS_PER_SEND,
+  MAX_MESSAGE_CHARS
 } = utils as any
 
 describe('withTimeout', () => {
@@ -195,6 +203,28 @@ describe('buildMessageContent (limite de imagem M5)', () => {
     expect(content.gifPlayback).toBe(true)
     expect(content.mimetype).toBe('video/mp4')
     expect(content.caption).toBe('nice gif')
+  })
+
+  it('sends a real .gif url as a downloadable document instead of a corrupt video', () => {
+    const gifUrl = 'https://nekos.best/api/v2/hug/abc.gif'
+    const content = buildMessageContent('nice gif', undefined, undefined, gifUrl)
+    expect(content.document).toEqual({ url: gifUrl })
+    expect(content.mimetype).toBe('image/gif')
+    expect(content.fileName).toBe('gif.gif')
+    expect(content.video).toBeUndefined()
+  })
+
+  it('sends a data:image/gif payload as a document too', () => {
+    const b64 = Buffer.from('GIF89a').toString('base64')
+    const content = buildMessageContent(
+      '',
+      undefined,
+      undefined,
+      `data:image/gif;base64,${b64}`
+    )
+    expect(Buffer.isBuffer(content.document)).toBe(true)
+    expect(content.mimetype).toBe('image/gif')
+    expect(content.fileName).toBe('gif.gif')
   })
 
   it('builds document content with Buffer', () => {
@@ -778,5 +808,126 @@ describe('extractQuotedMessage (citação recebida)', () => {
 
   it('returns null when there is no quote context', () => {
     expect(extractQuotedMessage({ conversation: 'oi' })).toBeNull()
+  })
+})
+
+describe('media path confinement (item 2)', () => {
+  it('rejects local paths outside the extension storage', () => {
+    const outside = path.join(os.tmpdir(), `momai-outside-${Date.now()}.txt`)
+    fs.writeFileSync(outside, 'secret')
+    try {
+      expect(() =>
+        buildMessageContent('', undefined, undefined, undefined, outside, {
+          allowedFileBase: path.join(os.tmpdir(), `momai-storage-${Date.now()}`)
+        })
+      ).toThrow(/fora da pasta da extensão/)
+    } finally {
+      fs.unlinkSync(outside)
+    }
+  })
+
+  it('reads a document inside the extension storage and keeps the filename', () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'momai-storage-'))
+    const docs = path.join(base, 'documents')
+    fs.mkdirSync(docs)
+    const file = path.join(docs, 'nota.txt')
+    fs.writeFileSync(file, 'hello')
+    const content = buildMessageContent('', undefined, undefined, undefined, file, {
+      allowedFileBase: base
+    })
+    expect(content.document.toString()).toBe('hello')
+    expect(content.fileName).toBe('nota.txt')
+  })
+
+  it('rejects local sticker paths outside the extension storage', () => {
+    const outside = path.join(os.tmpdir(), `momai-sticker-${Date.now()}.webp`)
+    fs.writeFileSync(outside, 'x')
+    try {
+      expect(() =>
+        buildMessageContent('', undefined, outside, undefined, undefined, {
+          allowedFileBase: path.join(os.tmpdir(), `momai-storage-${Date.now()}`)
+        })
+      ).toThrow(/fora da pasta da extensão/)
+    } finally {
+      fs.unlinkSync(outside)
+    }
+  })
+})
+
+describe('remote media url guard (item 17)', () => {
+  it('blocks non-https and private-network hosts', () => {
+    expect(sanitizeRemoteMediaUrl('http://example.com/a.gif')).toBeNull()
+    expect(sanitizeRemoteMediaUrl('https://127.0.0.1/a.gif')).toBeNull()
+    expect(sanitizeRemoteMediaUrl('https://192.168.0.10/a.gif')).toBeNull()
+    expect(sanitizeRemoteMediaUrl('https://169.254.169.254/latest/meta-data')).toBeNull()
+    expect(sanitizeRemoteMediaUrl('https://[::1]/a.gif')).toBeNull()
+    expect(sanitizeRemoteMediaUrl('not a url')).toBeNull()
+  })
+
+  it('accepts public https urls', () => {
+    expect(sanitizeRemoteMediaUrl('https://media.example.com/a.gif')).toBe(
+      'https://media.example.com/a.gif'
+    )
+  })
+
+  it('classifies private hosts', () => {
+    expect(isPrivateNetworkHost('localhost')).toBe(true)
+    expect(isPrivateNetworkHost('10.1.2.3')).toBe(true)
+    expect(isPrivateNetworkHost('172.20.0.1')).toBe(true)
+    expect(isPrivateNetworkHost('example.com')).toBe(false)
+  })
+
+  it('rejects gif urls pointing at the local network', () => {
+    expect(() =>
+      buildMessageContent('x', undefined, undefined, 'https://10.0.0.5/a.mp4')
+    ).toThrow(/gif inválido/)
+  })
+})
+
+describe('pruneMediaDirectories (item 8)', () => {
+  it('removes old files and keeps recent ones', () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'momai-prune-'))
+    const dir = path.join(base, 'images')
+    fs.mkdirSync(dir)
+    const oldFile = path.join(dir, 'old.jpg')
+    fs.writeFileSync(oldFile, 'x'.repeat(10))
+    const newFile = path.join(dir, 'new.jpg')
+    fs.writeFileSync(newFile, 'y'.repeat(10))
+    const old = Date.now() - 40 * 24 * 3600 * 1000
+    fs.utimesSync(oldFile, new Date(old), new Date(old))
+
+    const result = pruneMediaDirectories(base, {
+      now: Date.now(),
+      maxAgeMs: 30 * 24 * 3600 * 1000
+    })
+    expect(result.removed).toBe(1)
+    expect(fs.existsSync(oldFile)).toBe(false)
+    expect(fs.existsSync(newFile)).toBe(true)
+  })
+
+  it('removes the oldest files when the survivors exceed the total budget', () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'momai-prune-'))
+    const dir = path.join(base, 'videos')
+    fs.mkdirSync(dir)
+    const first = path.join(dir, 'first.mp4')
+    const second = path.join(dir, 'second.mp4')
+    fs.writeFileSync(first, 'a'.repeat(60))
+    fs.writeFileSync(second, 'b'.repeat(60))
+    const older = Date.now() - 2 * 3600 * 1000
+    fs.utimesSync(first, new Date(older), new Date(older))
+
+    const result = pruneMediaDirectories(base, {
+      now: Date.now(),
+      maxAgeMs: 365 * 24 * 3600 * 1000,
+      maxTotalBytes: 100
+    })
+    expect(result.removed).toBe(1)
+    expect(fs.existsSync(first)).toBe(false)
+    expect(fs.existsSync(second)).toBe(true)
+  })
+
+  it('exposes the IPC send limits used by the worker', () => {
+    expect(MAX_ATTACHMENTS_PER_SEND).toBeGreaterThan(0)
+    expect(MAX_MESSAGE_CHARS).toBeGreaterThan(0)
   })
 })

@@ -37,10 +37,16 @@ export interface ReplySuggestionCache {
 export const REPLY_SUGGESTIONS_CACHE_TTL_MS = 30000
 
 const MAX_HISTORY_LINES = 8
+const MAX_HISTORY_LINE_CHARS = 200
+const MAX_TRANSCRIPT_CHARS = 1500
 const MAX_SUGGESTIONS = 3
 const MAX_SUGGESTION_CHARS = 120
 const MAX_ATTEMPTS = 2
 const RETRY_DELAY_MS = 700
+
+function clipText(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max)}…` : value
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -55,14 +61,19 @@ export function buildReplySuggestionPrompt(ctx: ReplySuggestionContext): {
     .filter((line) => line && typeof line.text === 'string' && line.text.trim())
     .slice(-MAX_HISTORY_LINES)
     .map((line) => {
-      const text = String(line.text).trim()
+      const text = clipText(String(line.text).trim(), MAX_HISTORY_LINE_CHARS)
       if (line.direction === 'outgoing') return `Eu: ${text}`
       const speaker = String(line.from || '').trim()
       return isGenericSpeaker(speaker) ? text : `${speaker}: ${text}`
     })
-  const latest = String(ctx.latestMessage || '').trim()
-  const transcript =
+  const latest = clipText(String(ctx.latestMessage || '').trim(), MAX_HISTORY_LINE_CHARS)
+  const rawTranscript =
     lines.length > 0 ? lines.join('\n') : latest ? `Última mensagem recebida: "${latest}"` : ''
+  // Untrusted conversation content is delimited and size-capped so it can never
+  // be mistaken for instructions or blow the model context (item 11).
+  const transcript = rawTranscript
+    ? `<conversa>\n${clipText(rawTranscript, MAX_TRANSCRIPT_CHARS)}\n</conversa>`
+    : ''
   const counterpart = ctx.isGroup ? 'Grupo' : 'Conversa com'
   const header = ctx.contactName ? `${counterpart}: ${ctx.contactName}` : ''
 
@@ -81,12 +92,7 @@ export function buildReplySuggestionPrompt(ctx: ReplySuggestionContext): {
     .filter(Boolean)
     .join(' ')
 
-  const user = [
-    header,
-    transcript ? `Últimas mensagens:\n${transcript}` : ''
-  ]
-    .filter(Boolean)
-    .join('\n\n')
+  const user = [header, transcript].filter(Boolean).join('\n\n')
 
   return { system, user }
 }

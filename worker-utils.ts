@@ -8,6 +8,12 @@ const MAX_AUDIO_BYTES = 16 * 1024 * 1024 // 16MB (voice notes do WhatsApp)
 const MAX_STICKER_BYTES = 5 * 1024 * 1024 // 5MB (stickers WebP do WhatsApp)
 const MAX_DOCUMENT_BYTES = 25 * 1024 * 1024 // 25MB (incoming documents)
 const MAX_VIDEO_BYTES = 64 * 1024 * 1024 // 64MB (incoming videos)
+// IPC send limits: bounded fan-out per command and a per-contact rate window
+// so a single tool call cannot spam a chat with unbounded attachments (item 18).
+const MAX_ATTACHMENTS_PER_SEND = 5
+const MAX_MESSAGE_CHARS = 4096
+const SEND_RATE_WINDOW_MS = 10 * 1000
+const SEND_RATE_MAX_PER_WINDOW = 15
 
 /**
  * Races a promise against a timeout. Sempre limpa o timer depois que o race
@@ -68,41 +74,208 @@ function friendlySendError(message, contact) {
   return m
 }
 
-function _decodeB64(b64, label) {
+function _decodeB64(b64, label, maxBytes = MAX_IMAGE_BYTES) {
   const approxBytes = Math.ceil((b64.length * 3) / 4)
-  if (approxBytes > MAX_IMAGE_BYTES) {
+  if (approxBytes > maxBytes) {
     throw new Error(
       `${label} muito grande: ~${Math.round(approxBytes / 1024 / 1024)}MB ` +
-        `(máx. ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB). Envie uma ${label} menor.`
+        `(máx. ${Math.round(maxBytes / 1024 / 1024)}MB). Envie uma ${label} menor.`
     )
   }
   return Buffer.from(b64, 'base64')
 }
 
 /**
+ * True for hostnames that must never be fetched by the extension: loopback,
+ * link-local, private ranges, CGNAT, `.local` names and cloud metadata. Covers
+ * literal IPv4/IPv6 and hostnames; DNS rebinding is out of scope here.
+ */
+function isPrivateNetworkHost(hostname) {
+  const host = String(hostname || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+  if (!host) return true
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return true
+  if (host === 'metadata.google.internal' || host === 'metadata.goog') return true
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+  if (ipv4) {
+    const parts = ipv4.slice(1).map((part) => Number(part))
+    if (parts.some((part) => part > 255)) return true
+    const [a, b] = parts
+    if (a === 0 || a === 10 || a === 127) return true
+    if (a === 169 && b === 254) return true
+    if (a === 192 && b === 168) return true
+    if (a === 172 && b >= 16 && b <= 31) return true
+    if (a === 100 && b >= 64 && b <= 127) return true
+    return false
+  }
+  if (host.includes(':')) {
+    if (host === '::' || host === '::1') return true
+    if (/^fe[89ab]/.test(host)) return true
+    if (/^f[cd]/.test(host)) return true
+    const mapped = host.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/)
+    if (mapped) return isPrivateNetworkHost(mapped[1])
+  }
+  return false
+}
+
+/**
+ * Accepts only https URLs pointing at public hosts. Used before handing a
+ * media URL to Baileys (which downloads it) or returning it to the UI.
+ * Returns null when the URL is invalid, not https or points at the local
+ * network (item 17).
+ */
+function sanitizeRemoteMediaUrl(raw) {
+  if (typeof raw !== 'string' || !raw.trim()) return null
+  let parsed
+  try {
+    parsed = new URL(raw.trim())
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'https:') return null
+  if (isPrivateNetworkHost(parsed.hostname)) return null
+  return parsed.toString()
+}
+
+/**
+ * Reads a local file only when it lives inside `baseDir` and is within
+ * `maxBytes`. Path-based media is a legacy contract used by automations and
+ * the LLM; it must never read outside the extension storage (item 2).
+ * Returns null when the path does not exist or is not a regular file.
+ */
+function readConfinedFile(filePath, baseDir, maxBytes, label) {
+  if (typeof filePath !== 'string' || !filePath.trim()) return null
+  if (typeof baseDir !== 'string' || !baseDir.trim()) {
+    throw new Error(`${label}: caminho de arquivo não permitido`)
+  }
+  const path = require('path')
+  const fsSync = require('fs')
+  const resolved = path.resolve(filePath)
+  const base = path.resolve(baseDir)
+  if (resolved !== base && !resolved.startsWith(base + path.sep)) {
+    throw new Error(`${label}: acesso a arquivos fora da pasta da extensão não é permitido`)
+  }
+  let stat
+  try {
+    stat = fsSync.statSync(resolved)
+  } catch {
+    return null
+  }
+  if (!stat.isFile()) return null
+  if (stat.size > maxBytes) {
+    throw new Error(
+      `${label} muito grande: ${Math.round(stat.size / 1024 / 1024)}MB ` +
+        `(máx. ${Math.round(maxBytes / 1024 / 1024)}MB).`
+    )
+  }
+  return fsSync.readFileSync(resolved)
+}
+
+/** Media folders owned by the extension; pruned by age and total size. */
+const MEDIA_SUBDIRS = ['audio', 'images', 'stickers', 'documents', 'videos']
+const MEDIA_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
+const MEDIA_MAX_TOTAL_BYTES = 500 * 1024 * 1024
+
+/**
+ * Deletes local copies of received media (audio, images, stickers, documents,
+ * videos) older than `maxAgeMs`; when the survivors still exceed
+ * `maxTotalBytes`, removes the oldest first until under the budget. Only
+ * touches the extension storage dir — never the user's real WhatsApp (item 8).
+ */
+function pruneMediaDirectories(
+  storageDir,
+  opts: { now?: number; maxAgeMs?: number; maxTotalBytes?: number } = {}
+) {
+  const fsSync = require('fs')
+  const path = require('path')
+  const now = Number(opts.now) || Date.now()
+  const maxAgeMs = Number(opts.maxAgeMs) || MEDIA_MAX_AGE_MS
+  const maxTotalBytes = Number(opts.maxTotalBytes) || MEDIA_MAX_TOTAL_BYTES
+  const result = { removed: 0, freedBytes: 0, keptBytes: 0 }
+  if (typeof storageDir !== 'string' || !storageDir) return result
+
+  const survivors = []
+  for (const sub of MEDIA_SUBDIRS) {
+    const dir = path.join(storageDir, sub)
+    let entries = []
+    try {
+      entries = fsSync.readdirSync(dir)
+    } catch {
+      continue
+    }
+    for (const name of entries) {
+      const filePath = path.join(dir, name)
+      let stat
+      try {
+        stat = fsSync.statSync(filePath)
+      } catch {
+        continue
+      }
+      if (!stat.isFile()) continue
+      if (now - stat.mtimeMs > maxAgeMs) {
+        try {
+          fsSync.unlinkSync(filePath)
+          result.removed += 1
+          result.freedBytes += stat.size
+          continue
+        } catch {
+          // Keep the file listed when deletion fails (locked by another app).
+        }
+      }
+      survivors.push({ filePath, size: stat.size, mtimeMs: stat.mtimeMs })
+    }
+  }
+
+  let total = survivors.reduce((sum, file) => sum + file.size, 0)
+  if (total > maxTotalBytes) {
+    survivors.sort((a, b) => a.mtimeMs - b.mtimeMs)
+    for (const file of survivors) {
+      if (total <= maxTotalBytes) break
+      try {
+        fsSync.unlinkSync(file.filePath)
+        result.removed += 1
+        result.freedBytes += file.size
+        total -= file.size
+      } catch {}
+    }
+  }
+  result.keptBytes = Math.max(0, total)
+  return result
+}
+
+/**
  * Builds the Baileys message content. With an image, sends the image and uses
  * the text as the caption (MOM-117). Accepts a data URI, raw base64 or Buffer.
  * Rejects imagens acima de ~10MB com erro claro (evita mandar base64 gigante).
+ *
+ * `opts.allowedFileBase` confines path-based media to the extension storage
+ * dir: the LLM/automations may reference files already saved by the extension,
+ * never arbitrary paths from the machine (item 2).
  */
-function buildMessageContent(message, image, sticker = null, gif = null, document = null) {
+function buildMessageContent(message, image, sticker = null, gif = null, document = null, opts: any = {}) {
+  const allowedFileBase = typeof opts.allowedFileBase === 'string' ? opts.allowedFileBase : ''
   if (sticker) {
     let buffer
     if (Buffer.isBuffer(sticker)) {
       buffer = sticker
     } else if (typeof sticker === 'string' && /^data:image\/[^;]+;base64,/.test(sticker)) {
-      buffer = _decodeB64(sticker.slice(sticker.indexOf(',') + 1), 'sticker')
+      buffer = _decodeB64(sticker.slice(sticker.indexOf(',') + 1), 'sticker', MAX_STICKER_BYTES)
     } else if (
       typeof sticker === 'string' &&
       sticker.length % 4 === 0 &&
       /^[A-Za-z0-9+/=]+$/.test(sticker)
     ) {
-      buffer = _decodeB64(sticker, 'sticker')
+      buffer = _decodeB64(sticker, 'sticker', MAX_STICKER_BYTES)
     } else if (typeof sticker === 'string') {
-      const fsSync = require('fs')
-      if (fsSync.existsSync(sticker)) {
-        buffer = fsSync.readFileSync(sticker)
-      } else {
-        return { sticker: { url: sticker } }
+      buffer = readConfinedFile(sticker, allowedFileBase, MAX_STICKER_BYTES, 'sticker')
+      if (!buffer) {
+        const safeUrl = sanitizeRemoteMediaUrl(sticker)
+        if (!safeUrl) {
+          throw new Error('sticker inválida: use data URI, base64, arquivo da extensão ou URL https pública')
+        }
+        return { sticker: { url: safeUrl } }
       }
     }
     if (buffer) {
@@ -116,26 +289,52 @@ function buildMessageContent(message, image, sticker = null, gif = null, documen
   }
 
   if (gif) {
-    if (typeof gif === 'string' && (gif.startsWith('http://') || gif.startsWith('https://'))) {
+    const caption = message && message !== '[GIF]' ? message : undefined
+    if (typeof gif === 'string' && /^https?:\/\//i.test(gif)) {
+      const safeUrl = sanitizeRemoteMediaUrl(gif)
+      if (!safeUrl) {
+        throw new Error('gif inválido: use URL https pública ou data URI/base64')
+      }
+      // WhatsApp only plays GIFs as MP4 (gifPlayback). A real .gif source
+      // (keyless fallback) would upload as a corrupt video the contact cannot
+      // download, so it is sent as a downloadable image/gif document instead.
+      if (!/\.mp4(\?|#|$)/i.test(safeUrl)) {
+        return {
+          document: { url: safeUrl },
+          mimetype: 'image/gif',
+          fileName: 'gif.gif',
+          caption
+        }
+      }
       return {
-        video: { url: gif },
+        video: { url: safeUrl },
         gifPlayback: true,
         mimetype: 'video/mp4',
-        caption: message && message !== '[GIF]' ? message : undefined
+        caption
       }
     }
     let buffer
+    const gifIsRealGif =
+      typeof gif === 'string' && /^data:image\/gif[^;]*;base64,/i.test(gif)
     if (Buffer.isBuffer(gif)) {
       buffer = gif
     } else if (typeof gif === 'string' && /^data:(video|image)\/[^;]+;base64,/.test(gif)) {
-      buffer = _decodeB64(gif.slice(gif.indexOf(',') + 1), 'gif')
+      buffer = _decodeB64(gif.slice(gif.indexOf(',') + 1), 'gif', MAX_VIDEO_BYTES)
     }
     if (buffer) {
+      if (gifIsRealGif) {
+        return {
+          document: buffer,
+          mimetype: 'image/gif',
+          fileName: 'gif.gif',
+          caption
+        }
+      }
       return {
         video: buffer,
         gifPlayback: true,
         mimetype: 'video/mp4',
-        caption: message && message !== '[GIF]' ? message : undefined
+        caption
       }
     }
   }
@@ -158,37 +357,32 @@ function buildMessageContent(message, image, sticker = null, gif = null, documen
       } else if (typeof rawData === 'string' && /^data:([^;]+);base64,/.test(rawData)) {
         const match = rawData.match(/^data:([^;]+);base64,/)
         if (match && !document.mimetype && !document.type) mimetype = match[1]
-        buffer = _decodeB64(rawData.slice(rawData.indexOf(',') + 1), 'documento')
+        buffer = _decodeB64(rawData.slice(rawData.indexOf(',') + 1), 'documento', MAX_DOCUMENT_BYTES)
       } else if (
         typeof rawData === 'string' &&
         rawData.length % 4 === 0 &&
         /^[A-Za-z0-9+/=]+$/.test(rawData)
       ) {
-        buffer = _decodeB64(rawData, 'documento')
+        buffer = _decodeB64(rawData, 'documento', MAX_DOCUMENT_BYTES)
       } else if (typeof rawData === 'string') {
-        const fsSync = require('fs')
-        if (fsSync.existsSync(rawData)) {
-          buffer = fsSync.readFileSync(rawData)
-        }
+        buffer = readConfinedFile(rawData, allowedFileBase, MAX_DOCUMENT_BYTES, 'documento')
+        if (buffer && !fileName) fileName = require('path').basename(rawData) || 'documento'
       }
     } else if (Buffer.isBuffer(document)) {
       buffer = document
     } else if (typeof document === 'string' && /^data:([^;]+);base64,/.test(document)) {
       const match = document.match(/^data:([^;]+);base64,/)
       if (match) mimetype = match[1]
-      buffer = _decodeB64(document.slice(document.indexOf(',') + 1), 'documento')
+      buffer = _decodeB64(document.slice(document.indexOf(',') + 1), 'documento', MAX_DOCUMENT_BYTES)
     } else if (
       typeof document === 'string' &&
       document.length % 4 === 0 &&
       /^[A-Za-z0-9+/=]+$/.test(document)
     ) {
-      buffer = _decodeB64(document, 'documento')
+      buffer = _decodeB64(document, 'documento', MAX_DOCUMENT_BYTES)
     } else if (typeof document === 'string') {
-      const fsSync = require('fs')
-      if (fsSync.existsSync(document)) {
-        buffer = fsSync.readFileSync(document)
-        fileName = require('path').basename(document)
-      }
+      buffer = readConfinedFile(document, allowedFileBase, MAX_DOCUMENT_BYTES, 'documento')
+      if (buffer) fileName = require('path').basename(document)
     }
 
     if (buffer) {
@@ -1235,7 +1429,7 @@ function createIpcMomai(
       if (timer.unref) timer.unref()
       pending.set(requestId, { resolve, reject, timer })
       try {
-        send({ type: 'storage-request', requestId, method, args })
+        send({ type: 'storage-request', requestId, method, args, extensionId: 'momai-whatsapp' })
       } catch (e) {
         pending.delete(requestId)
         clearTimeout(timer)
@@ -1603,5 +1797,16 @@ module.exports = {
   MAX_AUDIO_BYTES,
   MAX_STICKER_BYTES,
   MAX_DOCUMENT_BYTES,
-  MAX_VIDEO_BYTES
+  MAX_VIDEO_BYTES,
+  MAX_ATTACHMENTS_PER_SEND,
+  MAX_MESSAGE_CHARS,
+  SEND_RATE_WINDOW_MS,
+  SEND_RATE_MAX_PER_WINDOW,
+  isPrivateNetworkHost,
+  sanitizeRemoteMediaUrl,
+  readConfinedFile,
+  MEDIA_SUBDIRS,
+  MEDIA_MAX_AGE_MS,
+  MEDIA_MAX_TOTAL_BYTES,
+  pruneMediaDirectories
 }

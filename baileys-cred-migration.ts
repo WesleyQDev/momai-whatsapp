@@ -12,11 +12,24 @@ const path = require('node:path')
 const { encryptForStorage, decryptFromStorage } = require('./secure-storage-bridge.ts')
 const { secureWriteFileSync } = require('./fs-permissions.ts')
 
+const AUTH_VAULT_FILE = 'auth-vault.enc'
+
 function _plainCredsPath(baseAuth) {
   return path.join(baseAuth, 'creds.json')
 }
 function _encCredsPath(baseAuth) {
   return path.join(baseAuth, 'creds.json.enc')
+}
+function _vaultPath(baseAuth) {
+  return path.join(baseAuth, AUTH_VAULT_FILE)
+}
+
+/**
+ * File names never included in the auth vault: the legacy creds backup and the
+ * vault itself. `worker.lock` is not `.json` and is naturally skipped.
+ */
+function _isVaultableName(name) {
+  return name.endsWith('.json') && name !== 'creds.json.enc' && name !== AUTH_VAULT_FILE
 }
 
 /**
@@ -119,6 +132,103 @@ function createMigration(bridge) {
         console.warn('[whatsapp] re-encryption skipped: safeStorage unavailable')
       }
       return false
+    },
+
+    /**
+     * Encrypts every auth `*.json` file (creds + Signal sessions/pre-keys) into
+     * a single OS-keychain vault and, when `deletePlain` is set, removes the
+     * plain files. Only safe after the socket is closed, so the worker calls it
+     * during clean shutdown: a copied userData folder then no longer yields a
+     * usable WhatsApp session at rest (item 1). A crash simply leaves the plain
+     * files as before — no regression.
+     */
+    async vaultAuthDir(baseAuth, { deletePlain = false } = {}) {
+      if (typeof baseAuth !== 'string' || !baseAuth || !fs.existsSync(baseAuth)) return false
+      let names = []
+      try {
+        names = fs.readdirSync(baseAuth)
+      } catch {
+        return false
+      }
+      const files: Record<string, string> = {}
+      for (const name of names) {
+        if (!_isVaultableName(name)) continue
+        const filePath = path.join(baseAuth, name)
+        try {
+          const stat = fs.statSync(filePath)
+          if (!stat.isFile()) continue
+          files[name] = fs.readFileSync(filePath).toString('base64')
+        } catch {}
+      }
+      if (Object.keys(files).length === 0) return false
+
+      const payload = JSON.stringify({ version: 1, createdAt: Date.now(), files })
+      const encrypted = await bridge.encryptForStorage(payload)
+      if (!encrypted) return false
+
+      const encPath = _vaultPath(baseAuth)
+      const tmpPath = `${encPath}.tmp`
+      try {
+        secureWriteFileSync(tmpPath, Buffer.from(encrypted, 'base64'))
+        if (fs.existsSync(encPath)) fs.unlinkSync(encPath)
+        fs.renameSync(tmpPath, encPath)
+      } catch (err) {
+        try {
+          fs.unlinkSync(tmpPath)
+        } catch {}
+        throw err
+      }
+
+      if (deletePlain) {
+        for (const name of Object.keys(files)) {
+          try {
+            fs.unlinkSync(path.join(baseAuth, name))
+          } catch {}
+        }
+      }
+      return true
+    },
+
+    /**
+     * Restores auth files from the vault when the plain `creds.json` is missing
+     * (i.e., the last shutdown was clean). Existing files are never overwritten;
+     * on failure the vault is kept untouched so the session is not lost.
+     */
+    async restoreAuthVault(baseAuth) {
+      const encPath = _vaultPath(baseAuth)
+      if (!fs.existsSync(encPath)) {
+        return { restored: 0, encryptedPresent: false, failed: false }
+      }
+      if (fs.existsSync(_plainCredsPath(baseAuth))) {
+        return { restored: 0, encryptedPresent: true, failed: false }
+      }
+      try {
+        const encrypted = fs.readFileSync(encPath).toString('base64')
+        const plainJson = await bridge.decryptFromStorage(encrypted)
+        if (!plainJson) {
+          return { restored: 0, encryptedPresent: true, failed: true }
+        }
+        const payload = JSON.parse(plainJson)
+        const files =
+          payload && typeof payload === 'object' && payload.files ? payload.files : {}
+        let restored = 0
+        for (const [name, b64] of Object.entries(files)) {
+          if (typeof name !== 'string' || typeof b64 !== 'string') continue
+          if (name.includes('/') || name.includes('\\') || name === '..') continue
+          const target = path.join(baseAuth, name)
+          if (fs.existsSync(target)) continue
+          secureWriteFileSync(target, Buffer.from(b64, 'base64'))
+          restored += 1
+        }
+        console.log(`[whatsapp] restored ${restored} auth file(s) from encrypted vault`)
+        return { restored, encryptedPresent: true, failed: false }
+      } catch (err) {
+        console.warn(
+          '[whatsapp] failed to restore auth vault:',
+          err && err.message ? err.message : err
+        )
+        return { restored: 0, encryptedPresent: true, failed: true }
+      }
     }
   }
 }

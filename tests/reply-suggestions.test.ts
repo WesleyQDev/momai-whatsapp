@@ -206,3 +206,23 @@ describe('generateReplySuggestions', () => {
     expect(complete).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('untrusted transcript handling (item 11)', () => {
+  it('delimits the conversation content passed to the model', () => {
+    const { user } = buildReplySuggestionPrompt(ctx)
+    expect(user).toContain('<conversa>')
+    expect(user).toContain('</conversa>')
+    expect(user).toContain('Qual o preço do pacote?')
+  })
+
+  it('caps each message and the whole transcript', () => {
+    const long = 'x'.repeat(5000)
+    const { user } = buildReplySuggestionPrompt({
+      ...ctx,
+      history: [],
+      latestMessage: long
+    })
+    expect(user.length).toBeLessThan(2000)
+    expect(user).toContain('…')
+  })
+})

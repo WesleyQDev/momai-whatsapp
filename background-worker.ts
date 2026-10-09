@@ -5,6 +5,10 @@ const MAX_HISTORY = 300
 const MAX_PERSISTED_CONVERSATIONS = 10
 const CHAT_HISTORY_KEY = 'chat_history'
 const UNREAD_BADGE_KEY = 'whatsapp_unread_badges'
+// Public example API key published in Giphy's own repo. It is NOT a secret and
+// can be rate-limited/blocked at any time; the host can override it with
+// MOMAI_GIPHY_API_KEY (a free Giphy beta key) without shipping a new release.
+const GIPHY_EXAMPLE_KEY = 'sXpGFDGZs0Dv1mmNFvYaGUvYwKX0PWIh'
 const unreadBadgeJids = new Set()
 let _unreadBadgesLoaded = false
 // Overlays de conversa (chat aberto por clique) anunciados pelo panel via
@@ -53,7 +57,9 @@ const fs = require('node:fs/promises')
 const {
   migratePlainCredsToEncrypted: _migratePlainCredsToEncrypted,
   decryptCredsForBaileys: _decryptCredsForBaileys,
-  reEncryptCredsAfterBaileys: _reEncryptCredsAfterBaileys
+  reEncryptCredsAfterBaileys: _reEncryptCredsAfterBaileys,
+  vaultAuthDir: _vaultAuthDir,
+  restoreAuthVault: _restoreAuthVault
 } = require('./baileys-cred-migration.ts')
 const {
   withTimeout,
@@ -108,7 +114,13 @@ const {
   MAX_DOCUMENT_BYTES,
   MAX_IMAGE_BYTES,
   MAX_STICKER_BYTES,
-  MAX_VIDEO_BYTES
+  MAX_VIDEO_BYTES,
+  MAX_ATTACHMENTS_PER_SEND,
+  MAX_MESSAGE_CHARS,
+  SEND_RATE_WINDOW_MS,
+  SEND_RATE_MAX_PER_WINDOW,
+  pruneMediaDirectories: _pruneMediaDirectories,
+  sanitizeRemoteMediaUrl: _sanitizeRemoteMediaUrl
 } = require('./worker-utils.ts')
 
 let safeStorageAvailable = true
@@ -153,6 +165,32 @@ async function reEncryptCredsAfterBaileys(baseAuth) {
     safeStorageAvailable = false
   }
   return result
+}
+
+// Auth vault (item 1): all auth files encrypted at rest on clean shutdown and
+// restored on startup. Wrappers keep the safeStorage availability flag honest.
+async function vaultAuthDir(baseAuth, opts = {}) {
+  if (!safeStorageAvailable) return false
+  try {
+    return await _vaultAuthDir(baseAuth, opts)
+  } catch (err: any) {
+    momai.log(`[whatsapp] vaultAuthDir failed: ${err?.message || err}`)
+    return false
+  }
+}
+
+async function restoreAuthVault(baseAuth) {
+  if (!safeStorageAvailable) {
+    return { restored: 0, encryptedPresent: false, failed: false }
+  }
+  try {
+    const result = await _restoreAuthVault(baseAuth)
+    if (result && result.failed) safeStorageAvailable = false
+    return result || { restored: 0, encryptedPresent: false, failed: false }
+  } catch (err: any) {
+    momai.log(`[whatsapp] restoreAuthVault failed: ${err?.message || err}`)
+    return { restored: 0, encryptedPresent: false, failed: true }
+  }
 }
 
 // Crash protection — log instead of exiting on unhandled errors
@@ -569,16 +607,18 @@ async function _persistMessageCaches() {
   await _cacheSet(momai, 'message_cache_store', storeObj)
 }
 
+const SESSION_REPAIR_COOLDOWN_MS = 300000 // 5 minutes
+
 async function repairSession(jid) {
   if (!jid) return
   const now = Date.now()
   const lastReset = lastSessionReset.get(jid) || 0
-  // Rate-limit: max 1 reset per 5 minutes (300000 ms)
-  if (now - lastReset < 300000) {
-    momai.log(`[whatsapp] Skipping session repair for ${jid} (rate limit active)`)
+  // Rate-limit: max 1 reset per 5 minutes
+  if (now - lastReset < SESSION_REPAIR_COOLDOWN_MS) {
     return
   }
   lastSessionReset.set(jid, now)
+  momai.log(`[whatsapp] Triggering session repair for ${jid} (Signal re-handshake)`)
 
   if (jid.endsWith('@g.us')) {
     await resetGroupSenderKeyMemory(jid)
@@ -703,10 +743,13 @@ function handleLogEvent(obj, msgStr = '') {
   ) {
     const jid = obj?.key?.remoteJid
     if (jid) {
-      momai.log(`[whatsapp] Detected decryption failure for ${jid}. Triggering session repair.`)
-      repairSession(jid).catch((e) => {
-        momai.log(`[whatsapp] Error repairing session for ${jid}: ${e.message}`)
-      })
+      const now = Date.now()
+      const lastReset = lastSessionReset.get(jid) || 0
+      if (now - lastReset >= SESSION_REPAIR_COOLDOWN_MS) {
+        repairSession(jid).catch((e) => {
+          momai.log(`[whatsapp] Error repairing session for ${jid}: ${e.message}`)
+        })
+      }
     }
   }
 }
@@ -2195,6 +2238,14 @@ async function main() {
   // Acquire single instance lock
   await acquireLock()
 
+  // Restore the encrypted auth vault (written on the last clean shutdown)
+  // before anything reads creds.json or per-phone data (item 1).
+  const bootAuthDir = path.join(momai.storage.storageDir, 'baileys-auth')
+  const bootRestore = await restoreAuthVault(bootAuthDir)
+  if (bootRestore.restored > 0) {
+    momai.log(`startup: restored ${bootRestore.restored} auth file(s) from encrypted vault`)
+  }
+
   // Load message caches from storage
   await loadMessageCaches()
 
@@ -2229,6 +2280,25 @@ async function main() {
   setInterval(() => {
     persistChatHistorySnapshot().catch(() => {})
   }, 30000)
+
+  // Local media housekeeping (item 8): deletes only the extension's own copies
+  // (audio/images/stickers/documents/videos), never the user's real WhatsApp.
+  const pruneMedia = () => {
+    try {
+      const result = _pruneMediaDirectories(momai.storage.storageDir)
+      if (result.removed > 0) {
+        momai.log(
+          `[whatsapp] media prune: removed ${result.removed} file(s), freed ` +
+            `${Math.round(result.freedBytes / 1024 / 1024)}MB`
+        )
+      }
+    } catch (err: any) {
+      momai.log(`[whatsapp] media prune failed: ${err?.message || err}`)
+    }
+  }
+  pruneMedia()
+  const mediaPruneTimer = setInterval(pruneMedia, 6 * 60 * 60 * 1000)
+  if (mediaPruneTimer.unref) mediaPruneTimer.unref()
 
   // Só auto-conecta se já tem creds (já escaneou QR antes). Sem QR, fica dormindo sem carregar Baileys (1.7s) até o usuário clicar em Conectar
   try {
@@ -2284,11 +2354,18 @@ async function connect() {
     // Decrypt creds.json.enc → creds.json before Baileys reads it, and
     // migrate any legacy plain creds.json to creds.json.enc on first run.
     // Trade-off: plain creds.json lives on disk while Baileys is running.
+    const restoredAuth = await restoreAuthVault(authDir)
+    if (restoredAuth.restored > 0) {
+      momai.log(`connect: restored ${restoredAuth.restored} auth file(s) from encrypted vault`)
+    }
+    if (restoredAuth.failed) {
+      momai.log('[whatsapp] WARN: auth vault could not be decrypted (safeStorage unavailable?)')
+    }
     await migratePlainCredsToEncrypted(authDir)
     const decrypted = await decryptCredsForBaileys(authDir)
-    // Guard against silent auth loss: if creds.json.enc exists but the
-    // decrypt call failed (e.g. OS keychain locked, safeStorage flipped
-    // unavailable), do NOT let useMultiFileAuthState create a fresh
+    // Guard against silent auth loss: if creds.json.enc (or the auth vault)
+    // exists but the decrypt call failed (e.g. OS keychain locked, safeStorage
+    // flipped unavailable), do NOT let useMultiFileAuthState create a fresh
     // creds.json — that would overwrite the encrypted session on the
     // next re-encrypt and silently log the user out. Surface the error
     // and exit so the host can prompt the user to re-pair.
@@ -2302,7 +2379,7 @@ async function connect() {
       () => true,
       () => false
     )
-    if (encCredsExists && !plainCredsExists && !decrypted) {
+    if ((encCredsExists || restoredAuth.encryptedPresent) && !plainCredsExists && !decrypted) {
       momai.log(
         '[whatsapp] WARN: creds.json.enc could not be decrypted ' +
           '(safeStorage unavailable?). Keeping encrypted creds; Baileys will ' +
@@ -2976,10 +3053,13 @@ async function handleMessagesUpsert({ messages, type }) {
     if (stubType === 2 || stubType === 'CIPHERTEXT') {
       const jid = msg.key?.remoteJid
       if (jid) {
-        momai.log(`[whatsapp] Message failed to decrypt (CIPHERTEXT/Bad MAC) from ${jid}. Scheduling session repair.`)
-        repairSession(jid).catch((e) => {
-          momai.log(`[whatsapp] Error repairing session for ${jid}: ${e.message}`)
-        })
+        const now = Date.now()
+        const lastReset = lastSessionReset.get(jid) || 0
+        if (now - lastReset >= SESSION_REPAIR_COOLDOWN_MS) {
+          repairSession(jid).catch((e) => {
+            momai.log(`[whatsapp] Error repairing session for ${jid}: ${e.message}`)
+          })
+        }
       }
       continue
     }
@@ -3922,13 +4002,15 @@ function openDocumentWithDefaultApp(filename) {
     if (!fsSync.existsSync(resolved)) {
       return resolve({ ok: false, error: 'Documento não encontrado. Ele pode ter expirado.' })
     }
-    const cmd =
+    // execFile (no shell): the path is passed as an argument, so a filename
+    // can never be interpreted as a command (item 16).
+    const opener =
       process.platform === 'win32'
-        ? `start "" "${resolved}"`
+        ? { file: 'cmd', args: ['/c', 'start', '', resolved] }
         : process.platform === 'darwin'
-          ? `open "${resolved}"`
-          : `xdg-open "${resolved}"`
-    require('child_process').exec(cmd, (err) => {
+          ? { file: 'open', args: [resolved] }
+          : { file: 'xdg-open', args: [resolved] }
+    require('child_process').execFile(opener.file, opener.args, (err) => {
       if (err) {
         momai.log(`[whatsapp-document] Failed to open document: ${err.message}`)
         return resolve({ ok: false, error: err.message || String(err) })
@@ -4024,8 +4106,12 @@ async function sendMessage(
     }
   }
 
-  // Valida/decodifica conteúdo antes de qualquer retry
-  const content = buildMessageContent(message, image, sticker, gif, document)
+  // Valida/decodifica conteúdo antes de qualquer retry. Apenas arquivos
+  // dentro da pasta da extensão são aceitos por caminho (item 2); a UI envia
+  // anexos como data URI/base64 e continua funcionando normalmente.
+  const content = buildMessageContent(message, image, sticker, gif, document, {
+    allowedFileBase: momai.storage.storageDir
+  })
 
   // Resposta a Status: cita a story original para o WhatsApp renderizar
   // "Nome · Status" com a prévia da mídia no destinatário. Sem a story em
@@ -4408,7 +4494,14 @@ async function shutdownWorker(reason) {
     sock = null
   }
   try {
-    await reEncryptCredsAfterBaileys(path.join(momai.storage.storageDir, 'baileys-auth')).catch(() => {})
+    const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
+    await reEncryptCredsAfterBaileys(authDir).catch(() => {})
+    // Clean shutdown: encrypt every auth file into the vault and remove the
+    // plain copies, so a copied userData folder no longer yields a usable
+    // WhatsApp session at rest (item 1). Safe here because the socket is closed.
+    await vaultAuthDir(authDir, { deletePlain: true }).catch((err) =>
+      momai.log(`[whatsapp:worker] Auth vault failed: ${err.message}`)
+    )
   } finally {
     releaseLock()
     try {
@@ -4449,9 +4542,33 @@ if (typeof process.send === 'function') {
   parentWatch.unref()
 }
 
+/**
+ * Per-contact send rate window shared by every sender (LLM tools, automations
+ * and the UI). Prevents one command from flooding a chat; the limit is
+ * generous enough for multi-attachment sends.
+ */
+const recentSendsByContact = new Map()
+function _allowSend(contact) {
+  const key = String(contact || '').trim().toLowerCase()
+  if (!key) return false
+  const now = Date.now()
+  const windowStart = now - SEND_RATE_WINDOW_MS
+  const timestamps = (recentSendsByContact.get(key) || []).filter((ts) => ts > windowStart)
+  if (timestamps.length >= SEND_RATE_MAX_PER_WINDOW) {
+    recentSendsByContact.set(key, timestamps)
+    return false
+  }
+  timestamps.push(now)
+  recentSendsByContact.set(key, timestamps)
+  if (recentSendsByContact.size > 500) {
+    const oldest = recentSendsByContact.keys().next().value
+    recentSendsByContact.delete(oldest)
+  }
+  return true
+}
+
 // IPC listener for tool execution from LLM
-process.on('message', async (msg) => {
-  if (msg.type === 'storage-response') {
+process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
     try {
       if (_storageResponseListener) _storageResponseListener(msg)
     } catch {}
@@ -4468,6 +4585,26 @@ process.on('message', async (msg) => {
         case 'send_message': {
           const args = msg.payload.args || {}
           const cmdStart = Date.now()
+          const contactArg = typeof args.contact === 'string' ? args.contact.trim() : ''
+          const messageArg = typeof args.message === 'string' ? args.message : ''
+          if (!contactArg) {
+            result = { ok: false, error: 'Destinatário não informado.' }
+            break
+          }
+          if (messageArg.length > MAX_MESSAGE_CHARS) {
+            result = {
+              ok: false,
+              error: `Mensagem muito longa (máx. ${MAX_MESSAGE_CHARS} caracteres).`
+            }
+            break
+          }
+          if (!_allowSend(contactArg)) {
+            result = {
+              ok: false,
+              error: 'Muitos envios seguidos para este contato. Aguarde alguns segundos.'
+            }
+            break
+          }
           const statusContext =
             args.statusContext && typeof args.statusContext === 'object'
               ? args.statusContext
@@ -4492,33 +4629,37 @@ process.on('message', async (msg) => {
             const rawImages = Array.isArray(args.images)
               ? args.images
               : (args.image ? [args.image] : (args.media ? [args.media] : []))
-            const images = rawImages.filter(Boolean)
             const rawDocuments = Array.isArray(args.documents)
               ? args.documents
               : (args.document ? [args.document] : [])
-            const documents = rawDocuments.filter(Boolean)
+            // Bounded fan-out: a single command never blasts an unbounded
+            // attachment list at one chat (item 18).
+            const documents = rawDocuments.filter(Boolean).slice(0, MAX_ATTACHMENTS_PER_SEND)
+            const images = rawImages
+              .filter(Boolean)
+              .slice(0, Math.max(0, MAX_ATTACHMENTS_PER_SEND - documents.length))
 
             if (args.sticker) {
-              result = await sendWithStatus(args.contact, '', null, args.sticker, null)
+              result = await sendWithStatus(contactArg, '', null, args.sticker, null)
             } else if (args.gif) {
-              result = await sendWithStatus(args.contact, args.message || '', null, null, args.gif)
+              result = await sendWithStatus(contactArg, messageArg, null, null, args.gif)
             } else if (documents.length > 0 || images.length > 0) {
               let captionAssigned = false
               for (let i = 0; i < documents.length; i++) {
-                const caption = !captionAssigned ? (args.message || '') : ''
+                const caption = !captionAssigned ? messageArg : ''
                 if (caption) captionAssigned = true
-                result = await sendWithStatus(args.contact, caption, null, null, null, documents[i])
+                result = await sendWithStatus(contactArg, caption, null, null, null, documents[i])
               }
               for (let i = 0; i < images.length; i++) {
-                const caption = !captionAssigned ? (args.message || '') : ''
+                const caption = !captionAssigned ? messageArg : ''
                 if (caption) captionAssigned = true
-                result = await sendWithStatus(args.contact, caption, images[i])
+                result = await sendWithStatus(contactArg, caption, images[i])
               }
             } else {
-              result = await sendWithStatus(args.contact, args.message, null)
+              result = await sendWithStatus(contactArg, messageArg, null)
             }
             momai.log(
-              `send_message OK: to=${args.contact} (t+${Date.now() - cmdStart}ms)`
+              `send_message OK: to=${contactArg} (t+${Date.now() - cmdStart}ms)`
             )
             result = result || { ok: true }
             result.directResponse = `Mensagem enviada`
@@ -4526,7 +4667,7 @@ process.on('message', async (msg) => {
             momai.log(
               `send_message FAILED: ${err.message} (t+${Date.now() - cmdStart}ms)`
             )
-            const friendly = friendlySendError(err.message, args.contact)
+            const friendly = friendlySendError(err.message, contactArg)
             result = {
               ok: false,
               error: friendly,
@@ -5018,36 +5159,57 @@ process.on('message', async (msg) => {
         case 'fetch_gifs': {
           const query = (msg.payload?.args?.query || '').trim()
           const limit = Math.min(Number(msg.payload?.args?.limit) || 20, 20)
-          const GIPHY_API_KEY = 'sXpGFDGZs0Dv1mmNFvYaGUvYwKX0PWIh'
+          // GIPHY is the only source that returns native MP4, which WhatsApp
+          // requires for a playable GIF. MOMAI_GIPHY_API_KEY overrides the
+          // bundled example key (public test key published by Giphy itself).
+          // When Giphy fails, the keyless Nekos fallback returns .gif files,
+          // which the send path delivers as downloadable documents.
+          const giphyKey =
+            String(process.env.MOMAI_GIPHY_API_KEY || '').trim() || GIPHY_EXAMPLE_KEY
+          const USER_AGENT = 'MomAI (https://github.com/WesleyQDev/MomAI)'
 
-          // 1. Tentar GIPHY API (retorna MP4 nativo para o WhatsApp + preview/gif)
-          try {
-            const endpoint = query
-              ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=${limit}&rating=g`
-              : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=${limit}&rating=g`
-            const resp = await fetch(endpoint)
-            if (resp.ok) {
-              const data = (await resp.json()) as any
-              if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
-                const gifs = data.data.map((item: any) => ({
-                  id: item.id || item.images?.fixed_height?.url,
-                  title: item.title || 'GIF',
-                  previewUrl:
-                    item.images?.fixed_height_small?.url ||
-                    item.images?.fixed_height?.url ||
-                    item.images?.original?.url,
-                  url: item.images?.fixed_height?.url || item.images?.original?.url,
-                  mp4Url: item.images?.fixed_height?.mp4 || item.images?.original?.mp4
-                }))
-                result = { ok: true, gifs }
-                break
+          if (giphyKey) {
+            try {
+              const endpoint = query
+                ? `https://api.giphy.com/v1/gifs/search?api_key=${encodeURIComponent(giphyKey)}&q=${encodeURIComponent(query)}&limit=${limit}&rating=g`
+                : `https://api.giphy.com/v1/gifs/trending?api_key=${encodeURIComponent(giphyKey)}&limit=${limit}&rating=g`
+              const resp = await withTimeout(
+                fetch(endpoint, { headers: { 'User-Agent': USER_AGENT } }),
+                8000,
+                'giphy timeout'
+              )
+              if (resp.ok) {
+                const data = (await resp.json()) as any
+                if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
+                  const gifs = data.data
+                    .map((item: any) => ({
+                      id: item.id || item.images?.fixed_height?.url,
+                      title: item.title || 'GIF',
+                      source: 'giphy',
+                      previewUrl: _sanitizeRemoteMediaUrl(
+                        item.images?.fixed_height_small?.url ||
+                          item.images?.fixed_height?.url ||
+                          item.images?.original?.url
+                      ),
+                      url: _sanitizeRemoteMediaUrl(
+                        item.images?.fixed_height?.url || item.images?.original?.url
+                      ),
+                      mp4Url: _sanitizeRemoteMediaUrl(
+                        item.images?.fixed_height?.mp4 || item.images?.original?.mp4
+                      )
+                    }))
+                    .filter((gif: any) => gif.url)
+                  if (gifs.length > 0) {
+                    result = { ok: true, gifs }
+                    break
+                  }
+                }
               }
+            } catch (err: any) {
+              momai.log(`[fetch_gifs] Giphy error: ${err?.message || err}`)
             }
-          } catch (err: any) {
-            momai.log(`[fetch_gifs] Giphy error: ${err.message}`)
           }
 
-          // 2. Fallback via Nekos.best
           const categoryMap: Record<string, string> = {
             abraco: 'hug',
             abraço: 'hug',
@@ -5065,20 +5227,44 @@ process.on('message', async (msg) => {
             dance: 'dance',
             tchau: 'wave',
             wave: 'wave',
+            ola: 'wave',
+            olá: 'wave',
             choro: 'cry',
             triste: 'cry',
             cry: 'cry',
+            carinho: 'cuddle',
+            pat: 'pat',
+            cafune: 'pat',
+            cafuné: 'pat',
+            palmas: 'clap',
+            clap: 'clap',
             dormir: 'sleep',
             sono: 'sleep',
+            sleep: 'sleep',
             joinha: 'thumbsup',
             ok: 'thumbsup',
+            thumbsup: 'thumbsup',
             piscar: 'wink',
-            wink: 'wink'
+            piscada: 'wink',
+            wink: 'wink',
+            bravo: 'angry',
+            raiva: 'angry',
+            angry: 'angry',
+            comendo: 'nom',
+            nom: 'nom',
+            bocejo: 'yawn',
+            yawn: 'yawn',
+            soco: 'punch',
+            punch: 'punch',
+            tapa: 'slap',
+            slap: 'slap',
+            shrug: 'shrug',
+            pensando: 'think',
+            think: 'think'
           }
 
           const qLower = query.toLowerCase()
           const matchedCategory = categoryMap[qLower]
-          const USER_AGENT = 'MomAI (https://github.com/WesleyQDev/MomAI)'
           let fetchUrl = ''
           if (matchedCategory) {
             fetchUrl = `https://nekos.best/api/v2/${matchedCategory}?amount=${limit}`
@@ -5091,18 +5277,27 @@ process.on('message', async (msg) => {
           }
 
           try {
-            const resp = await fetch(fetchUrl, {
-              headers: { 'User-Agent': USER_AGENT }
-            })
+            const resp = await withTimeout(
+              fetch(fetchUrl, { headers: { 'User-Agent': USER_AGENT } }),
+              8000,
+              'gif search timeout'
+            )
             if (resp.ok) {
               const data = (await resp.json()) as any
-              const gifs = (data?.results || []).map((item: any) => ({
-                id: item.url,
-                title: item.anime_name || 'Anime GIF',
-                previewUrl: item.url,
-                url: item.url,
-                mp4Url: item.url
-              }))
+              const gifs = (data?.results || [])
+                .map((item: any) => {
+                  const safeUrl = _sanitizeRemoteMediaUrl(item.url)
+                  if (!safeUrl) return null
+                  return {
+                    id: item.url,
+                    title: item.anime_name || 'Anime GIF',
+                    source: 'nekos',
+                    previewUrl: safeUrl,
+                    url: safeUrl,
+                    mp4Url: safeUrl
+                  }
+                })
+                .filter(Boolean)
               result = { ok: true, gifs }
             } else {
               result = { ok: false, error: `HTTP ${resp.status}`, gifs: [] }
@@ -5348,8 +5543,11 @@ process.on('message', async (msg) => {
           try {
             const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
             const reEncrypted = await reEncryptCredsAfterBaileys(authDir)
+            // Backup only: the plain files stay while the socket may still be
+            // writing. The vault that removes them runs on clean shutdown.
+            const vaulted = await vaultAuthDir(authDir)
             await flushPersistedChatHistory()
-            result = { ok: true, reEncrypted, count: chatHistory.length }
+            result = { ok: true, reEncrypted, vaulted, count: chatHistory.length }
           } catch (err) {
             momai.log(`flush_credentials failed: ${err.message}`)
             result = { ok: false, error: err.message }

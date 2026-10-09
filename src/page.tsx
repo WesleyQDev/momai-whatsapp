@@ -36,16 +36,7 @@ import {
 } from './utils/recentConversations'
 import type { QuotedMessageInfo } from './utils/quoteDisplay'
 import { copyTextToClipboard } from './utils/clipboard'
-
-const getApiBaseUrl = (): string => {
-  const fromHost =
-    (window as any)?.momaiAPI?.getApiBaseUrl?.() ||
-    (window as any)?.api?.getApiBaseUrl?.()
-  if (fromHost) return String(fromHost).replace(/\/+$/, '')
-  const fromSdk = (sdk as any)?.API_URL
-  if (fromSdk) return String(fromSdk).replace(/\/+$/, '')
-  return 'http://127.0.0.1:8050'
-}
+import { getApiBaseUrl } from './utils/apiBase'
 
 const isDirectMediaUrl = (url: string): boolean => {
   if (!url) return false

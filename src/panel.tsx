@@ -18,10 +18,12 @@ import { getChatBubbleClasses, getChatBubbleStyle, getChatBubbleTimeClasses } fr
 import { renderTextWithLinks } from './utils/linkify'
 import { useReplySuggestions } from './hooks/useReplySuggestions'
 import { writePendingShare } from './services/share-intent'
+import { useWindowDrag } from './utils/windowDrag'
 import ContextMenu from './components/ContextMenu'
 import MediaPicker from './components/MediaPicker'
 import { QuotedMessage } from './components/QuotedMessage'
 import { copyTextToClipboard } from './utils/clipboard'
+import { getApiBaseUrl } from './utils/apiBase'
 
 interface AttachedDocument {
   id: string
@@ -36,16 +38,6 @@ const formatFileSize = (bytes?: number): string => {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-const getApiBaseUrl = (): string => {
-  const fromHost =
-    (window as any)?.momaiAPI?.getApiBaseUrl?.() ||
-    (window as any)?.api?.getApiBaseUrl?.()
-  if (fromHost) return String(fromHost).replace(/\/+$/, '')
-  const fromSdk = (sdk as any)?.API_URL
-  if (fromSdk) return String(fromSdk).replace(/\/+$/, '')
-  return 'http://127.0.0.1:8050'
 }
 
 const isDirectUrl = (url: string): boolean => {
@@ -360,21 +352,16 @@ function OverlayImagePreview({
   alt,
   contactName,
   caption,
-  onClose,
-  onHeaderMouseDown,
-  onHeaderMouseMove,
-  onHeaderMouseUp
+  onClose
 }: {
   src: string
   alt: string
   contactName: string
   caption?: string | null
   onClose: () => void
-  onHeaderMouseDown?: (e: React.MouseEvent) => void
-  onHeaderMouseMove?: (e: React.MouseEvent) => void
-  onHeaderMouseUp?: (e: React.MouseEvent) => void
 }) {
   const { t } = useI18n()
+  const headerDragRef = useWindowDrag<HTMLDivElement>()
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
@@ -480,10 +467,8 @@ function OverlayImagePreview({
     >
       {/* Header */}
       <div
+        ref={headerDragRef}
         className="flex shrink-0 items-center justify-between px-4 py-3 border-b border-border/40 bg-sidebar/30 select-none cursor-move w-full min-w-0"
-        onMouseDown={onHeaderMouseDown}
-        onMouseMove={onHeaderMouseMove}
-        onMouseUp={onHeaderMouseUp}
         style={{ WebkitAppRegion: 'no-drag' } as any}
         title={t('panel.drag_window') || 'Arraste para mover a janela'}
       >
@@ -771,7 +756,11 @@ const formatHistoryTime = (ts: number, locale = 'pt-BR') => {
   return new Date(ms).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
 }
 
-const formatDateSeparator = (ts: number, locale = 'pt-BR'): string => {
+const formatDateSeparator = (
+  ts: number,
+  locale = 'pt-BR',
+  labels?: { today: string; yesterday: string }
+): string => {
   const ms = ts > 1e12 ? ts : ts * 1000
   if (!ms || isNaN(ms)) return ''
   const date = new Date(ms)
@@ -784,8 +773,8 @@ const formatDateSeparator = (ts: number, locale = 'pt-BR'): string => {
     d1.getMonth() === d2.getMonth() &&
     d1.getDate() === d2.getDate()
 
-  if (isSameDay(date, today)) return 'Hoje'
-  if (isSameDay(date, yesterday)) return 'Ontem'
+  if (isSameDay(date, today)) return labels?.today || 'Hoje'
+  if (isSameDay(date, yesterday)) return labels?.yesterday || 'Ontem'
   return date.toLocaleDateString(locale, {
     day: '2-digit',
     month: '2-digit',
@@ -1396,7 +1385,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       const timestampsToDelete = new Set(messagesToDelete.map((m) => m.timestamp))
       const idsToDelete = new Set(messagesToDelete.map((m) => m.id).filter(Boolean))
 
-      // Atualiza estado local imediatamente
+      const snapshot = localHistory
+
+      // Atualiza estado local imediatamente (com rollback se o envio falhar)
       setLocalHistory((prev) =>
         prev.filter(
           (m) =>
@@ -1412,33 +1403,15 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       setIsSelectionMode(false)
       setDeleteConfirmTarget(null)
 
-      try {
-        const bc = new BroadcastChannel('momai-whatsapp-channel')
-        bc.postMessage({
-          type: 'messages_deleted',
-          data: {
-            jid: contactJid,
-            timestamps: Array.from(timestampsToDelete),
-            ids: Array.from(idsToDelete)
-          }
-        })
-        bc.close()
-      } catch {}
-
-      showToast(
-        deleteForEveryone
-          ? messagesToDelete.length > 1
-            ? 'Mensagens apagadas para todos'
-            : 'Mensagem apagada para todos'
-          : messagesToDelete.length > 1
-            ? 'Mensagens apagadas para mim'
-            : 'Mensagem apagada para mim'
-      )
-
+      // Só confirma o sucesso depois que o WhatsApp aceitou a ordem: antes o
+      // overlay dizia "apagada para todos" mesmo quando o envio falhava (item 14).
+      let failed = false
       try {
         const base = getApiBaseUrl()
-        if (base) {
-          await fetch(`${base}/extensions/momai-whatsapp/command`, {
+        if (!base) {
+          failed = true
+        } else {
+          const res = await fetch(`${base}/extensions/momai-whatsapp/command`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1458,12 +1431,45 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
               }
             })
           })
+          if (!res.ok) {
+            failed = true
+          } else {
+            const data = await res.json().catch(() => null)
+            if (data && data.ok === false) failed = true
+          }
         }
       } catch (err) {
+        failed = true
         console.error('[whatsapp] delete messages error:', err)
       }
+
+      if (failed) {
+        setLocalHistory(snapshot)
+        showToast(t('panel.delete_failed'))
+        return
+      }
+
+      try {
+        const bc = new BroadcastChannel('momai-whatsapp-channel')
+        bc.postMessage({
+          type: 'messages_deleted',
+          data: {
+            jid: contactJid,
+            timestamps: Array.from(timestampsToDelete),
+            ids: Array.from(idsToDelete)
+          }
+        })
+        bc.close()
+      } catch {}
+
+      const many = messagesToDelete.length > 1
+      showToast(
+        deleteForEveryone
+          ? t(many ? 'panel.deleted_for_everyone_many' : 'panel.deleted_for_everyone_one')
+          : t(many ? 'panel.deleted_for_me_many' : 'panel.deleted_for_me_one')
+      )
     },
-    [contactJid, showToast]
+    [contactJid, localHistory, showToast, t]
   )
 
   const cardRef = useRef<HTMLDivElement>(null)
@@ -1764,48 +1770,15 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     })
   }, [participants, participantSearch])
 
-  const isDraggingRef = useRef(false)
-  const dragStartRef = useRef<{ mouseX: number; mouseY: number; winX: number; winY: number } | null>(null)
-
-  const handleHeaderMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return
-    isDraggingRef.current = false
-    dragStartRef.current = {
-      mouseX: e.screenX,
-      mouseY: e.screenY,
-      winX: window.screenX,
-      winY: window.screenY
-    }
-  }
-
-  const handleHeaderMouseMove = (e: React.MouseEvent) => {
-    if (!dragStartRef.current || e.buttons !== 1) return
-    const dx = e.screenX - dragStartRef.current.mouseX
-    const dy = e.screenY - dragStartRef.current.mouseY
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-      isDraggingRef.current = true
-      const moveFn =
-        (window as any).momaiAPI?.moveOverlay ||
-        (window as any).api?.moveOverlay
-      if (typeof moveFn === 'function') {
-        moveFn({
-          x: dragStartRef.current.winX + dx,
-          y: dragStartRef.current.winY + dy
-        })
-      }
-    }
-  }
-
-  const handleHeaderMouseUp = () => {
-    setTimeout(() => {
-      isDraggingRef.current = false
-      dragStartRef.current = null
-    }, 50)
-  }
+  // Overlay window drag: the SDK helper (with a local fallback for older
+  // hosts) keeps the gesture alive when the cursor outruns the window and
+  // coalesces moves to one per animation frame. Clicks after a real drag
+  // are suppressed by the helper.
+  const cardHeaderDragRef = useWindowDrag<HTMLDivElement>()
+  const videoHeaderDragRef = useWindowDrag<HTMLDivElement>()
 
   const handleHeaderClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (isDraggingRef.current) return
     if (activeRecipient.isGroup) {
       handleToggleParticipants()
     }
@@ -2477,7 +2450,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             e.stopPropagation()
           }}
           onDrop={handleDropImage}
-          className={`flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden relative ${
+          className={`flex flex-col rounded-2xl border border-border bg-card overflow-hidden relative ${
             minimized ? 'hidden' : ''
           }`}
           style={{
@@ -2526,9 +2499,6 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                 setSelectedImageUrl(null)
                 setSelectedStickerUrl(null)
               }}
-              onHeaderMouseDown={handleHeaderMouseDown}
-              onHeaderMouseMove={handleHeaderMouseMove}
-              onHeaderMouseUp={handleHeaderMouseUp}
             />
           )}
 
@@ -2539,10 +2509,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
               onClick={(e) => e.stopPropagation()}
             >
               <div
+                ref={videoHeaderDragRef}
                 className="flex shrink-0 items-center justify-between px-4 py-3 border-b border-border/40 bg-sidebar/30 select-none cursor-move w-full min-w-0"
-                onMouseDown={handleHeaderMouseDown}
-                onMouseMove={handleHeaderMouseMove}
-                onMouseUp={handleHeaderMouseUp}
                 style={{ WebkitAppRegion: 'no-drag' } as any}
                 title={t('panel.drag_window') || 'Arraste para mover a janela'}
               >
@@ -2582,10 +2550,8 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
           {/* Header */}
           <div
+            ref={cardHeaderDragRef}
             className="flex shrink-0 items-center gap-3 px-4 py-3 border-b border-border/40 bg-sidebar/30 select-none cursor-move w-full min-w-0 overflow-hidden"
-            onMouseDown={handleHeaderMouseDown}
-            onMouseMove={handleHeaderMouseMove}
-            onMouseUp={handleHeaderMouseUp}
             onClick={handleHeaderClick}
             style={{ WebkitAppRegion: 'no-drag' } as any}
             title={activeRecipient.isGroup ? 'Clique para ver os membros do grupo ou arraste para mover' : 'Arraste para mover a janela'}
@@ -2918,7 +2884,10 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                               {isNewDay && (
                                 <div className="flex justify-center my-2 select-none">
                                   <span className="px-3 py-1 text-[10px] font-medium rounded-lg bg-input/70 text-text-muted border border-border/40 shadow-xs uppercase tracking-wider">
-                                    {formatDateSeparator(line.timestamp, locale)}
+                                    {formatDateSeparator(line.timestamp, locale, {
+                                      today: t('panel.today'),
+                                      yesterday: t('panel.yesterday')
+                                    })}
                                   </span>
                                 </div>
                               )}
@@ -3094,6 +3063,61 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                         </div>
                                       ) : undefined
 
+                                      // For sticker/emoji-only messages the timestamp sits
+                                      // BELOW the media (not over it) and uses the bubble
+                                      // colors: outgoing green/white, incoming input/text.
+                                      const bubbleTimeNode = (
+                                        <div
+                                          className={`flex items-center gap-1 shrink-0 select-none px-1.5 py-0.5 rounded-md text-[10px] font-normal ${
+                                            isOutgoing
+                                              ? 'text-white'
+                                              : 'bg-input/80 border border-border/50 text-text'
+                                          }`}
+                                          style={getChatBubbleStyle(isOutgoing)}
+                                        >
+                                          {pinnedMessageTimestamps.includes(line.timestamp) && (
+                                            <span
+                                              title={t('page.pin')}
+                                              className={
+                                                isOutgoing
+                                                  ? 'text-white/80 shrink-0'
+                                                  : 'text-text-muted shrink-0'
+                                              }
+                                            >
+                                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                                <line x1="12" y1="17" x2="12" y2="22" />
+                                                <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24V17z" />
+                                              </svg>
+                                            </span>
+                                          )}
+                                          {starredMessageTimestamps.includes(line.timestamp) && (
+                                            <span
+                                              title={t('page.favorite')}
+                                              className="text-highlight shrink-0"
+                                            >
+                                              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                              </svg>
+                                            </span>
+                                          )}
+                                          <span
+                                            className={`inline-flex items-center gap-1 ${getChatBubbleTimeClasses(
+                                              isOutgoing
+                                            )}`}
+                                          >
+                                            <span>{formatHistoryTime(line.timestamp, locale)}</span>
+                                            {isOutgoing && (
+                                              <span className="shrink-0 inline-flex items-center" title="Enviada">
+                                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                  <polyline points="18 6 9 15 4 10" />
+                                                  <polyline points="22 10 13 19 11 17" />
+                                                </svg>
+                                              </span>
+                                            )}
+                                          </span>
+                                        </div>
+                                      )
+
                                       if (isGifMsg && gifUrlResolved) {
                                         return (
                                           <div className="flex flex-col gap-1 max-w-full overflow-hidden">
@@ -3176,16 +3200,12 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
                                       if (line.sticker) {
                                         return (
-                                          <div className="relative shrink-0 flex items-center justify-center group/sticker">
+                                          <div className="flex flex-col items-end gap-0.5 group/sticker">
                                             <StickerImg
                                               src={getStickerUrl(line.sticker)}
                                               onOpen={() => setSelectedStickerUrl(getStickerUrl(line.sticker!))}
                                             />
-                                            {timestampOverlayNode && (
-                                              <div className="absolute bottom-0 right-0 px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-xs text-[10px] font-normal text-white/95 flex items-center gap-1 shadow-xs pointer-events-none select-none z-10">
-                                                {timestampOverlayNode}
-                                              </div>
-                                            )}
+                                            {bubbleTimeNode}
                                           </div>
                                         )
                                       }
@@ -3210,15 +3230,11 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                               ? 'text-4xl sm:text-5xl'
                                               : 'text-3xl sm:text-4xl'
                                         return (
-                                          <div className="relative shrink-0 flex items-center justify-center group/emoji py-1.5 px-2 select-none">
-                                            <span className={`${sizeClass} select-text leading-none drop-shadow-xs tracking-normal`}>
+                                          <div className="flex flex-col items-end gap-0.5 group/emoji select-none">
+                                            <span className={`${sizeClass} select-text leading-none drop-shadow-xs tracking-normal self-center`}>
                                               {line.text.trim()}
                                             </span>
-                                            {timestampOverlayNode && (
-                                              <div className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-md bg-black/50 backdrop-blur-xs text-[10px] font-normal text-white/95 flex items-center gap-1 shadow-xs pointer-events-none select-none z-10">
-                                                {timestampOverlayNode}
-                                              </div>
-                                            )}
+                                            {bubbleTimeNode}
                                           </div>
                                         )
                                       }
@@ -4481,7 +4497,7 @@ export function WhatsAppReconnectCard({ data }: { data: any }) {
 
   return (
     <div
-      className="flex flex-col w-[320px] m-4 rounded-xl border border-border bg-card shadow-2xl p-4 select-none animate-in fade-in zoom-in-95 duration-200"
+      className="flex flex-col w-[320px] m-4 rounded-xl border border-border bg-card p-4 select-none animate-in fade-in zoom-in-95 duration-200"
       style={{ WebkitAppRegion: 'drag' } as any}
     >
       <div className="flex items-center justify-between pb-3 border-b border-border/40 mb-3">
