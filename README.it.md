@@ -10,6 +10,7 @@ L'estensione MomAI WhatsApp è stata creata affinché tu non perda mai i messagg
 
 - **Monitoraggio di Contatti Selezionati**: Scegli solo le persone o i gruppi prioritari per cui vuoi che MomAI ti avvisi quando inviano un messaggio, evitando distrazioni inutili.
 - **Invio e Risposte con la Voce o con il Testo**: Detta il tuo messaggio o chiedi all'assistente di rispondere rapidamente mentre le tue mani restano occupate sulla tastiera.
+- **Foto e Screenshot dal tuo Computer**: Chiedi di inviare un'immagine che è sul tuo computer — come uno screenshot fatto da MomAI — e l'assistente allega il file alla conversazione. La prima volta in ogni cartella chiede la tua conferma.
 - **Soprannomi Personalizzati**: Imposta soprannomi semplici per i tuoi contatti (come Mamma, Amore o Capo) affinché l'assistente riconosca i nomi in modo naturale.
 - **Riepiloghi Intelligenti**: Hai ricevuto un audio o un testo lungo? MomAI riassume l'argomento principale così capisci il messaggio in pochi secondi.
 - **Connessione Diretta e Privata**: WhatsApp comunica direttamente dal tuo computer con la rete ufficiale, senza passare da alcun server intermedio.
@@ -19,6 +20,7 @@ L'estensione MomAI WhatsApp è stata creata affinché tu non perda mai i messagg
 - "MomAI, manda un WhatsApp alla Mamma dicendo che ho finito il lavoro e sto arrivando."
 - "Ci sono messaggi nuovi su WhatsApp?"
 - "Rispondi dicendo che confermo l'orario del pranzo."
+- "Fai uno screenshot e mandalo a Giovanni su WhatsApp."
 - "Aggiungi Giovanni alla mia lista di contatti prioritari."
 
 ## Come Collegarsi
@@ -27,6 +29,8 @@ L'estensione MomAI WhatsApp è stata creata affinché tu non perda mai i messagg
 2. Sul tuo cellulare, apri WhatsApp, vai in Dispositivi collegati e tocca Collega un dispositivo.
 3. Punta la fotocamera del cellulare verso il codice che appare sullo schermo del tuo computer.
 4. Seleziona i contatti che desideri monitorare e goditi la comodità di conversare dal computer.
+
+> Suggerimento: puoi connetterti anche dalla chat — chiedi "connetti il mio WhatsApp" e il codice QR appare nella conversazione, pronto da scansionare.
 
 ## Privacy Garantita
 

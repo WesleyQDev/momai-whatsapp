@@ -55,6 +55,11 @@ function friendlySendError(message, contact) {
   if (/Invalid contact/i.test(m)) {
     return `Destinatário inválido: "${target}". Confira o nome ou número.`
   }
+  // Sessão desligada: o usuário resolve escaneando o QR, e o card de conexão
+  // acompanha esta mesma resposta (ver `_connectionQrCardNow` no worker).
+  if (/not connected/i.test(m)) {
+    return 'O WhatsApp está desconectado — escaneie o QR para reconectar.'
+  }
   // Erros já claros e acionáveis: não re-traduzir.
   if (/não registrado no WhatsApp/i.test(m) || /nem como contato/i.test(m)) {
     return m
@@ -72,6 +77,56 @@ function friendlySendError(message, contact) {
     return `O envio para "${target}" demorou demais (timeout de rede). Tente novamente.`
   }
   return m
+}
+
+// Structured-response type rendered by the extension's chat card. The card
+// module imports the same literal from src/services/connectionQr.ts; a unit
+// test asserts both stay equal so a rename can never render "unsupported".
+const CONNECTION_QR_CARD_TYPE = 'whatsapp-connection-qr'
+
+/**
+ * Builds the model instruction + chat card for the `show_connection_qr` tool.
+ * The card always goes to the chat: ready (qr + expiresIn), pending (the QR is
+ * still being generated) or an "already connected" guidance without a card.
+ * Pure so the tool contract can be unit-tested without booting the worker.
+ *
+ * @param {{ connected?: boolean, qr?: string | null, expiresIn?: number, now?: number }} input
+ * @returns {{ ok: boolean, connected?: boolean, pending?: boolean, instruction: string, structuredResponse?: { type: string, data: Record<string, unknown> } }}
+ */
+function buildConnectionQrCardResult({ connected = false, qr = null, expiresIn = 0, now = Date.now() } = {}) {
+  const generatedAt = Number(now) || Date.now()
+  if (connected) {
+    return {
+      ok: true,
+      connected: true,
+      instruction:
+        'WhatsApp is already connected. Tell the user it is ready to use and do not show QR or pairing instructions.'
+    }
+  }
+  const expiresInSeconds = Math.ceil(Number(expiresIn) || 0)
+  if (typeof qr === 'string' && qr && expiresInSeconds > 0) {
+    return {
+      ok: true,
+      instruction:
+        'A connection QR card is displayed in the chat. Ask the user to scan it with WhatsApp > Linked devices ' +
+        'and continue only after it turns connected; do not write step-by-step pairing instructions.',
+      structuredResponse: {
+        type: CONNECTION_QR_CARD_TYPE,
+        data: { state: 'ready', qr, expiresIn: expiresInSeconds, generatedAt }
+      }
+    }
+  }
+  return {
+    ok: true,
+    pending: true,
+    instruction:
+      'A QR code is being generated and the card in the chat updates automatically. Tell the user to wait a few ' +
+      'seconds and scan the code as soon as it appears; do not write step-by-step pairing instructions.',
+    structuredResponse: {
+      type: CONNECTION_QR_CARD_TYPE,
+      data: { state: 'pending', generatedAt }
+    }
+  }
 }
 
 function _decodeB64(b64, label, maxBytes = MAX_IMAGE_BYTES) {
@@ -140,6 +195,18 @@ function sanitizeRemoteMediaUrl(raw) {
 }
 
 /**
+ * True when `filePath` resolves to `baseDir` itself or a path inside it.
+ */
+function isPathInside(filePath, baseDir) {
+  if (typeof filePath !== 'string' || !filePath.trim()) return false
+  if (typeof baseDir !== 'string' || !baseDir.trim()) return false
+  const path = require('path')
+  const resolved = path.resolve(filePath)
+  const base = path.resolve(baseDir)
+  return resolved === base || resolved.startsWith(base + path.sep)
+}
+
+/**
  * Reads a local file only when it lives inside `baseDir` and is within
  * `maxBytes`. Path-based media is a legacy contract used by automations and
  * the LLM; it must never read outside the extension storage (item 2).
@@ -150,13 +217,12 @@ function readConfinedFile(filePath, baseDir, maxBytes, label) {
   if (typeof baseDir !== 'string' || !baseDir.trim()) {
     throw new Error(`${label}: caminho de arquivo não permitido`)
   }
+  if (!isPathInside(filePath, baseDir)) {
+    throw new Error(`${label}: acesso a arquivos fora da pasta da extensão não é permitido`)
+  }
   const path = require('path')
   const fsSync = require('fs')
   const resolved = path.resolve(filePath)
-  const base = path.resolve(baseDir)
-  if (resolved !== base && !resolved.startsWith(base + path.sep)) {
-    throw new Error(`${label}: acesso a arquivos fora da pasta da extensão não é permitido`)
-  }
   let stat
   try {
     stat = fsSync.statSync(resolved)
@@ -171,6 +237,117 @@ function readConfinedFile(filePath, baseDir, maxBytes, label) {
     )
   }
   return fsSync.readFileSync(resolved)
+}
+
+/** Image types WhatsApp renders inline; other files go through `document`. */
+const IMAGE_MIME_BY_EXT = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp'
+}
+const IMAGE_EXT_RE = /\.(jpe?g|png|webp)$/i
+
+function imageMimeForPath(filePath) {
+  const path = require('path')
+  return IMAGE_MIME_BY_EXT[path.extname(String(filePath || '')).toLowerCase()] || null
+}
+
+/** Strips the surrounding quotes some models add around file paths. */
+function stripPathQuotes(value) {
+  return String(value == null ? '' : value)
+    .trim()
+    .replace(/^"(.*)"$/, '$1')
+    .replace(/^'(.*)'$/, '$1')
+    .trim()
+}
+
+/**
+ * True when the value is a filesystem path to an image (absolute, drive letter
+ * or UNC), never a data URI, URL or base64 payload — raw base64 JPEG starts
+ * with "/9j/" and must keep being decoded, not read as a path.
+ */
+function looksLikeImagePath(value) {
+  if (typeof value !== 'string') return false
+  const raw = stripPathQuotes(value)
+  if (!raw || raw.startsWith('data:') || /^https?:\/\//i.test(raw)) return false
+  if (!IMAGE_EXT_RE.test(raw)) return false
+  if (/^[A-Za-z]:[\\/]/.test(raw)) return true
+  if (raw.startsWith('\\\\')) return true
+  if (raw.includes('\\')) return true
+  return raw.startsWith('/') || raw.startsWith('./') || raw.startsWith('../')
+}
+
+/**
+ * Reads an image sent by path. Inside the extension storage the legacy
+ * confined contract applies; outside it, the read only happens when the host
+ * already asked the user for this call (`allowExternal` — the worker sets it
+ * from the interactive threadId), and even then only image extensions within
+ * the size cap are accepted.
+ */
+function readImageFile(filePath, opts: any = {}) {
+  const allowedFileBase = typeof opts.allowedFileBase === 'string' ? opts.allowedFileBase : ''
+  const maxBytes = Number(opts.maxBytes) || MAX_IMAGE_BYTES
+  const target = stripPathQuotes(filePath)
+  if (!isPathInside(target, allowedFileBase)) {
+    if (opts.allowExternal !== true) {
+      // Legacy refusal path (kept for automations and non-interactive calls).
+      return readConfinedFile(target, allowedFileBase, maxBytes, 'imagem')
+    }
+    const path = require('path')
+    const fsSync = require('fs')
+    const resolved = path.resolve(target)
+    if (!imageMimeForPath(resolved)) {
+      throw new Error('imagem inválida: use um arquivo .jpg, .jpeg, .png ou .webp')
+    }
+    let stat
+    try {
+      stat = fsSync.statSync(resolved)
+    } catch {
+      throw new Error(`imagem: arquivo não encontrado (${path.basename(resolved)})`)
+    }
+    if (!stat.isFile()) throw new Error('imagem: o caminho não é um arquivo')
+    if (stat.size > maxBytes) {
+      throw new Error(
+        `imagem muito grande: ${Math.round(stat.size / 1024 / 1024)}MB ` +
+          `(máx. ${Math.round(maxBytes / 1024 / 1024)}MB).`
+      )
+    }
+    return fsSync.readFileSync(resolved)
+  }
+  const buffer = readConfinedFile(target, allowedFileBase, maxBytes, 'imagem')
+  if (!buffer) throw new Error('imagem: arquivo não encontrado')
+  return buffer
+}
+
+/**
+ * Policy hook for `send_message` (host gate): an image sent by path from
+ * outside the extension storage needs the user's OK — data URIs, base64 and
+ * confined paths run untouched. The ruleId scopes "allow always" to the
+ * folder, so prints coming from the same place only ask once.
+ */
+function evaluateMediaPathPolicy(args, storageDir) {
+  const source = args && typeof args === 'object' ? args : {}
+  const candidates = []
+  const push = (value) => {
+    if (looksLikeImagePath(value)) candidates.push(stripPathQuotes(value))
+  }
+  push(source.image)
+  if (Array.isArray(source.images)) source.images.forEach(push)
+  push(source.media)
+  const outside = candidates.filter((value) => !isPathInside(value, storageDir))
+  if (outside.length === 0) return { policy: 'allow' }
+  const path = require('path')
+  const first = outside[0]
+  const dir = path.dirname(path.resolve(first))
+  return {
+    policy: 'ask',
+    ruleId: `media-dir:${dir.toLowerCase()}`,
+    reason:
+      outside.length === 1
+        ? `Enviar um arquivo de fora da extensão: ${path.basename(first)} (${dir})`
+        : `Enviar ${outside.length} arquivos de fora da extensão (ex.: ${path.basename(first)} em ${dir})`
+  }
 }
 
 /** Media folders owned by the extension; pruned by age and total size. */
@@ -247,12 +424,16 @@ function pruneMediaDirectories(
 
 /**
  * Builds the Baileys message content. With an image, sends the image and uses
- * the text as the caption (MOM-117). Accepts a data URI, raw base64 or Buffer.
- * Rejects imagens acima de ~10MB com erro claro (evita mandar base64 gigante).
+ * the text as the caption (MOM-117). Accepts a data URI, raw base64, Buffer or
+ * a local image path (jpg/png/webp). Rejects imagens acima de ~10MB com erro
+ * claro (evita mandar base64 gigante).
  *
  * `opts.allowedFileBase` confines path-based media to the extension storage
  * dir: the LLM/automations may reference files already saved by the extension,
- * never arbitrary paths from the machine (item 2).
+ * never arbitrary paths from the machine (item 2). Image paths outside it are
+ * only read when the host already asked the user (`opts.allowExternalImagePaths`
+ * — set from the interactive thread), so a print produced by another extension
+ * can be sent with consent instead of failing.
  */
 function buildMessageContent(message, image, sticker = null, gif = null, document = null, opts: any = {}) {
   const allowedFileBase = typeof opts.allowedFileBase === 'string' ? opts.allowedFileBase : ''
@@ -404,6 +585,7 @@ function buildMessageContent(message, image, sticker = null, gif = null, documen
 
   if (!image) return { text: message }
   let buffer
+  let imageMimetype = null
   if (typeof image === 'string' && /^data:image\/[^;]+;base64,/.test(image)) {
     buffer = _decodeB64(image.slice(image.indexOf(',') + 1), 'imagem')
   } else if (
@@ -419,10 +601,18 @@ function buildMessageContent(message, image, sticker = null, gif = null, documen
       )
     }
     buffer = image
+  } else if (looksLikeImagePath(image)) {
+    buffer = readImageFile(image, {
+      allowedFileBase,
+      maxBytes: MAX_IMAGE_BYTES,
+      allowExternal: opts.allowExternalImagePaths === true
+    })
+    imageMimetype = imageMimeForPath(image)
   } else {
-    throw new Error('image inválida: use data URI, base64 ou Buffer')
+    throw new Error('image inválida: use data URI, base64, Buffer ou caminho de arquivo')
   }
   const content: any = { image: buffer }
+  if (imageMimetype) content.mimetype = imageMimetype
   if (message) content.caption = message
   return content
 }
@@ -1463,11 +1653,23 @@ function isStatusUpdate(remoteJid) {
 }
 
 /**
- * True when a status update must be skipped because the user disabled
- * status notifications. Regular chats and groups are never suppressed.
+ * True when the remote JID belongs to a WhatsApp Channel (Canais).
+ * Channel posts are broadcast-style content, not conversations; Baileys
+ * delivers them as `<id>@newsletter`.
  */
-function shouldSuppressStatusUpdate(remoteJid, statusNotificationsDisabled) {
-  if (!isStatusUpdate(remoteJid)) return false
+function isChannelUpdate(remoteJid) {
+  if (typeof remoteJid !== 'string' || remoteJid.length === 0) return false
+  return remoteJid.endsWith('@newsletter')
+}
+
+/**
+ * True when a status or channel update must be skipped because the user
+ * disabled status notifications. The status notifications switch mutes both
+ * status stories and WhatsApp Channel posts; regular chats and groups are
+ * never suppressed.
+ */
+function shouldSuppressStatusOrChannelUpdate(remoteJid, statusNotificationsDisabled) {
+  if (!isStatusUpdate(remoteJid) && !isChannelUpdate(remoteJid)) return false
   return Boolean(statusNotificationsDisabled)
 }
 
@@ -1743,6 +1945,8 @@ function isHistoryOverlayOpenFor(store, jid, now = Date.now(), ttlMs = HISTORY_O
 module.exports = {
   withTimeout,
   friendlySendError,
+  CONNECTION_QR_CARD_TYPE,
+  buildConnectionQrCardResult,
   buildMessageContent,
   sanitizeMediaFilename,
   resolveJidForSending,
@@ -1761,7 +1965,8 @@ module.exports = {
   getRecentChatMedia,
   resolveDocumentPath,
   isStatusUpdate,
-  shouldSuppressStatusUpdate,
+  isChannelUpdate,
+  shouldSuppressStatusOrChannelUpdate,
   resolveNotificationReplyJid,
   getStatusTtsText,
   resolveStatusReplyQuoted,
@@ -1805,6 +2010,11 @@ module.exports = {
   isPrivateNetworkHost,
   sanitizeRemoteMediaUrl,
   readConfinedFile,
+  isPathInside,
+  looksLikeImagePath,
+  imageMimeForPath,
+  readImageFile,
+  evaluateMediaPathPolicy,
   MEDIA_SUBDIRS,
   MEDIA_MAX_AGE_MS,
   MEDIA_MAX_TOTAL_BYTES,

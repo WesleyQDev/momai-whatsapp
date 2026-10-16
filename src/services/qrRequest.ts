@@ -1,5 +1,5 @@
 export type QrRequestOutcome =
-  | { status: 'ready'; qr: string }
+  | { status: 'ready'; qr: string; expiresIn?: number }
   | { status: 'pending' }
   | { status: 'connected' }
   | { status: 'error'; messageKey: string; detail?: string }
@@ -8,6 +8,7 @@ export interface QrCommandData {
   qr?: unknown
   connected?: unknown
   pending?: unknown
+  expiresIn?: unknown
   ok?: unknown
   error?: unknown
 }
@@ -37,7 +38,12 @@ export function resolveQrRequestOutcome(
   }
   const data = response?.data
   if (data && typeof data.qr === 'string' && data.qr.trim()) {
-    return { status: 'ready', qr: data.qr }
+    const expiresIn = Number(data.expiresIn)
+    return {
+      status: 'ready',
+      qr: data.qr,
+      ...(Number.isFinite(expiresIn) && expiresIn > 0 ? { expiresIn } : {})
+    }
   }
   if (data && data.connected === true) {
     return { status: 'connected' }

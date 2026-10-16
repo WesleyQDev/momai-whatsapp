@@ -10,6 +10,7 @@ Die MomAI WhatsApp-Erweiterung wurde dafür geschaffen, dass du dringende Nachri
 
 - **Verfolgung Ausgewählter Kontakte**: Wähle nur die prioritären Personen oder Gruppen aus, bei deren Nachrichten MomAI dich benachrichtigen soll, und vermeide so unnötige Ablenkungen.
 - **Senden und Antworten per Sprache oder Text**: Diktiere deine Nachricht oder bitte die Assistentin, schnell zu antworten, während deine Hände weiter auf der Tastatur bleiben.
+- **Fotos und Screenshots von deinem Computer**: Bitte darum, ein Bild von deinem Computer zu senden — etwa einen von MomAI erstellten Screenshot — und die Assistentin hängt die Datei an die Unterhaltung an. Beim ersten Mal in jedem Ordner fragt sie nach deiner Bestätigung.
 - **Persönliche Spitznamen**: Lege einfache Spitznamen für deine Kontakte fest (wie Mama, Schatz oder Chef), damit die Assistentin die Namen ganz natürlich erkennt.
 - **Intelligente Zusammenfassungen**: Eine lange Sprachnachricht oder einen langen Text erhalten? MomAI fasst das Hauptthema zusammen, damit du die Nachricht in wenigen Sekunden verstehst.
 - **Direkte und Private Verbindung**: WhatsApp kommuniziert direkt von deinem Computer mit dem offiziellen Netzwerk, ohne Umweg über einen Zwischenserver.
@@ -19,6 +20,7 @@ Die MomAI WhatsApp-Erweiterung wurde dafür geschaffen, dass du dringende Nachri
 - „MomAI, schick Mama eine WhatsApp-Nachricht und sag ihr, dass ich mit der Arbeit fertig bin und losfahre."
 - „Gibt es neue Nachrichten bei WhatsApp?"
 - „Antworte, dass ich die Mittagszeit bestätige."
+- „Mach einen Screenshot und schick ihn Jan per WhatsApp."
 - „Füge Jan zu meiner Liste prioritärer Kontakte hinzu."
 
 ## So Verbindest Du Dich
@@ -27,6 +29,8 @@ Die MomAI WhatsApp-Erweiterung wurde dafür geschaffen, dass du dringende Nachri
 2. Öffne WhatsApp auf deinem Handy, gehe zu Verknüpfte Geräte und tippe auf Gerät verknüpfen.
 3. Richte die Handykamera auf den Code, der auf deinem Computerbildschirm angezeigt wird.
 4. Wähle die Kontakte aus, die du überwachen möchtest, und genieße den Komfort, vom Computer aus zu chatten.
+
+> Tipp: Du kannst auch direkt im Chat verbinden — frage „Verbinde mein WhatsApp" und der QR-Code erscheint in der Unterhaltung zum Scannen.
 
 ## Garantierte Privatsphäre
 

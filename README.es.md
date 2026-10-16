@@ -10,6 +10,7 @@ La extensión MomAI WhatsApp fue creada para que nunca pierdas los mensajes urge
 
 - **Seguimiento de Contactos Seleccionados**: Elige solo a las personas o grupos prioritarios que quieres que MomAI te avise cuando envíen un mensaje, evitando distracciones innecesarias.
 - **Envío y Respuestas por Voz o Texto**: Dicta tu mensaje o pide a la asistente que responda con rapidez mientras tus manos siguen ocupadas en el teclado.
+- **Fotos y Capturas de tu Computadora**: Pide enviar una imagen que está en tu computadora — como una captura de pantalla hecha por MomAI — y la asistente adjunta el archivo en la conversación. La primera vez en cada carpeta te pide confirmación.
 - **Apodos Personalizados**: Define apodos fáciles para tus contactos (como Mamá, Amor o Jefe) para que la asistente reconozca los nombres de forma natural.
 - **Resúmenes Inteligentes**: ¿Recibiste un audio o un texto largo? MomAI resume el tema principal para que entiendas el mensaje en pocos segundos.
 - **Conexión Directa y Privada**: WhatsApp se comunica directamente desde tu computadora con la red oficial, sin pasar por ningún servidor intermediario.
@@ -19,6 +20,7 @@ La extensión MomAI WhatsApp fue creada para que nunca pierdas los mensajes urge
 - "MomAI, manda un WhatsApp a Mamá diciendo que ya terminé el trabajo y voy en camino."
 - "¿Hay algún mensaje nuevo en WhatsApp?"
 - "Responde diciendo que confirmo la hora del almuerzo."
+- "Haz una captura de pantalla y mándala a Juan por WhatsApp."
 - "Agrega a Juan a mi lista de contactos prioritarios."
 
 ## Cómo Conectar
@@ -27,6 +29,8 @@ La extensión MomAI WhatsApp fue creada para que nunca pierdas los mensajes urge
 2. En tu celular, abre WhatsApp, ve a Dispositivos vinculados y toca Vincular un dispositivo.
 3. Apunta la cámara del celular al código que aparezca en la pantalla de tu computadora.
 4. Selecciona los contactos que deseas supervisar y disfruta la comodidad de conversar desde la computadora.
+
+> Consejo: también puedes conectar desde el chat — pide "conecta mi WhatsApp" y el código QR aparece en la conversación, listo para escanear.
 
 ## Privacidad Garantizada
 

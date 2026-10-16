@@ -9,10 +9,10 @@ A extensão WhatsApp atua como um canal de comunicação bidirecional para o ass
    - **Parâmetros** (o contrato completo está em `manifest.json` → `tools`):
      - `contact`: Nome, número ou JID do contato ou grupo (ex.: `"Paixão"`, `"Família"`, `"+5511999999999"` ou `"120363xxx@g.us"`).
      - `message`: Texto da mensagem ou legenda (suporta interpolação: ex.: `"🚨 Alerta detectado: {{trigger.payload.message}}"`).
-     - `image` *(opcional)*: data URI/base64 ou `{{trigger.payload.imageDataUri}}`.
+     - `image` *(opcional)*: data URI/base64, `{{trigger.payload.imageDataUri}}` ou caminho de um arquivo de imagem local (jpg/png/webp) — em conversa, o primeiro envio de cada pasta pede a confirmação do usuário.
      - `documents` *(opcional)*: lista de documentos (data URI ou `{ dataUrl, fileName, mimetype }`).
      - `sticker` / `gif` *(opcionais)*: figurinha `.webp` ou URL de GIF.
-   - Por segurança, caminhos de arquivo locais só são aceitos dentro da pasta de dados da própria extensão; anexos escolhidos pelo usuário na interface continuam funcionando normalmente.
+   - Por segurança, automações (sem interação) só aceitam caminhos de arquivo dentro da pasta de dados da própria extensão; anexos escolhidos pelo usuário na interface continuam funcionando normalmente. Imagens de fora da pasta só são lidas em conversa, depois da confirmação do usuário.
 
 > O id canônico de qualquer ação de extensão é `momai-whatsapp.<tool>`; a lista de ações disponíveis no Hub é montada a partir do cadastro da extensão. Outras ferramentas (ex.: `momai-whatsapp.list_contacts`, `momai-whatsapp.get_history`) seguem o mesmo formato.
 

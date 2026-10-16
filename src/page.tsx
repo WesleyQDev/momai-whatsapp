@@ -4,8 +4,10 @@ import sdk from 'momai:sdk'
 import ContextMenu from './components/ContextMenu'
 import ContactAvatar from './components/ContactAvatar'
 import ConversationListItem, { RenameInput } from './components/ConversationListItem'
+import ConnectionQrCard from './components/ConnectionQrCard'
 import MonitoringDropdown from './components/MonitoringDropdown'
 import { api } from './services/api'
+import { CONNECTION_QR_CARD_TYPE } from './services/connectionQr'
 import { fetchQrOutcome } from './services/qrRequest'
 import { resolveSocketTransition, resolveStatsTransition } from './services/disconnectTransition'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
@@ -809,13 +811,13 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-zinc-950/60 shrink-0">
-          <h2 className="text-base font-bold text-white">{t('page.automations')}</h2>
+      <div className="w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-input/40 shrink-0">
+          <h2 className="text-base font-bold text-text">{t('page.automations')}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-white rounded-lg p-1.5 hover:bg-white/10 transition-colors"
+            className="text-text-muted hover:text-text rounded-lg p-1.5 hover:bg-input transition-colors"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -825,27 +827,27 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
         </div>
 
         <div className="p-5 space-y-4 overflow-y-auto custom-scrollbar flex-1">
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-text-muted">
             {t('page.automations_desc')}
           </p>
 
           {loading ? (
-            <p className="text-xs text-gray-500">{t('page.loading_actions')}</p>
+            <p className="text-xs text-text-muted">{t('page.loading_actions')}</p>
           ) : (
             <>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-300">{t('page.actions')}</span>
+                <span className="text-xs font-semibold text-text">{t('page.actions')}</span>
                 <button
                   type="button"
                   onClick={showDraft ? cancelDraft : () => setShowDraft(true)}
-                  className="text-[11px] font-medium text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-400 px-2.5 py-1 rounded-lg transition-colors"
+                  className="text-[11px] font-medium text-accent hover:text-accent-muted border border-accent/30 hover:border-accent px-2.5 py-1 rounded-lg transition-colors"
                 >
                   {showDraft ? t('page.cancel') : t('page.add_action')}
                 </button>
               </div>
 
               {actions.length === 0 && !showDraft ? (
-                <p className="text-[11px] text-gray-500">
+                <p className="text-[11px] text-text-muted">
                   {t('page.no_automations', { tokens: PLACEHOLDERS.map((p) => p.token).join(', ') })}{' '}
                   {PLACEHOLDERS.map((p) => p.token).join(', ')}
                 </p>
@@ -854,21 +856,21 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
               {actions.map((a, i) => (
                 <div
                   key={a.id || i}
-                  className="flex items-start justify-between gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2"
+                  className="flex items-start justify-between gap-2 bg-input/40 border border-border/50 rounded-xl px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <div className="text-xs font-medium text-gray-100">
+                    <div className="text-xs font-medium text-text">
                       {catalog.find((e) => e.id === a.target)?.name || a.target}
-                      <span className="text-gray-400"> / </span>
+                      <span className="text-text-muted"> / </span>
                       {toolLabel(t, a.tool)}
                     </div>
                     {a.when && Object.keys(a.when).length > 0 ? (
-                      <div className="text-[11px] text-emerald-400 truncate">
+                      <div className="text-[11px] text-accent truncate">
                         {t('page.when', { condition: formatWhenI18n(t, a.when) })}
                       </div>
                     ) : null}
                     {a.args && Object.keys(a.args).length > 0 ? (
-                      <div className="text-[11px] text-gray-500 truncate">{formatActionArgsI18n(t, a.args)}</div>
+                      <div className="text-[11px] text-text-muted truncate">{formatActionArgsI18n(t, a.args)}</div>
                     ) : null}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -877,7 +879,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                       onClick={() => startEdit(a)}
                       title={t('page.edit')}
                       aria-label={t('page.edit')}
-                      className="text-gray-500 hover:text-emerald-300 text-sm p-0.5"
+                      className="text-text-muted hover:text-accent text-sm p-0.5"
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
@@ -886,7 +888,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                     <button
                       type="button"
                       onClick={() => persist(actions.filter((_, j) => j !== i))}
-                      className="text-gray-500 hover:text-red-400 text-sm"
+                      className="text-text-muted hover:text-error text-sm"
                       aria-label={t('page.remove')}
                     >
                       ×
@@ -896,14 +898,14 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
               ))}
 
               {showDraft ? (
-                <div className="space-y-3 bg-white/5 border border-white/10 rounded-xl p-3">
+                <div className="space-y-3 bg-input/30 border border-border/50 rounded-xl p-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                    <label className="block text-[11px] font-semibold text-text-muted mb-1">
                       {t('page.trigger_label')}
                     </label>
                     <div className="space-y-2">
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">{t('page.trigger_contact')}</label>
+                        <label className="block text-[11px] font-semibold text-text-muted mb-1">{t('page.trigger_contact')}</label>
                         <SearchableInput
                           target="whatsapp"
                           paramKey="contact"
@@ -912,23 +914,23 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">{t('page.trigger_group')}</label>
+                        <label className="block text-[11px] font-semibold text-text-muted mb-1">{t('page.trigger_group')}</label>
                         <input
                           type="text"
                           value={draftWhen.groupName ?? ''}
                           onChange={(e) => setDraftWhen((d) => ({ ...d, groupName: e.target.value }))}
                           placeholder={t('page.trigger_any')}
-                          className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                          className="w-full bg-input border border-border/50 rounded-xl px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                        <label className="block text-[11px] font-semibold text-text-muted mb-1">
                           {t('page.trigger_group_type')}
                         </label>
                         <select
                           value={draftWhen.isGroup ?? ''}
                           onChange={(e) => setDraftWhen((d) => ({ ...d, isGroup: e.target.value }))}
-                          className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-emerald-500"
+                          className="w-full bg-input border border-border/50 rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-accent/50"
                         >
                           <option value="">{t('page.trigger_any')}</option>
                           <option value="true">{t('page.trigger_groups')}</option>
@@ -936,8 +938,8 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                         </select>
                       </div>
 
-                      <div className="pt-1 border-t border-white/5">
-                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                      <div className="pt-1 border-t border-border/40">
+                        <label className="block text-[11px] font-semibold text-text-muted mb-1">
                           {t('page.trigger_starts')}
                         </label>
                         <input
@@ -945,11 +947,11 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                           value={draftWhen.startsWith ?? ''}
                           onChange={(e) => setDraftWhen((d) => ({ ...d, startsWith: e.target.value }))}
                           placeholder={t('page.trigger_placeholder_starts')}
-                          className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                          className="w-full bg-input border border-border/50 rounded-xl px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                        <label className="block text-[11px] font-semibold text-text-muted mb-1">
                           {t('page.trigger_ends')}
                         </label>
                         <input
@@ -957,11 +959,11 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                           value={draftWhen.endsWith ?? ''}
                           onChange={(e) => setDraftWhen((d) => ({ ...d, endsWith: e.target.value }))}
                           placeholder={t('page.trigger_placeholder_ends')}
-                          className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                          className="w-full bg-input border border-border/50 rounded-xl px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                        <label className="block text-[11px] font-semibold text-text-muted mb-1">
                           {t('page.trigger_contains')}
                         </label>
                         <input
@@ -969,24 +971,24 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                           value={draftWhen.contains ?? ''}
                           onChange={(e) => setDraftWhen((d) => ({ ...d, contains: e.target.value }))}
                           placeholder={t('page.trigger_placeholder_contains')}
-                          className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                          className="w-full bg-input border border-border/50 rounded-xl px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50"
                         />
                       </div>
 
-                      <p className="text-[10px] text-gray-500">
+                      <p className="text-[10px] text-text-muted">
                         {t('page.trigger_hint')}
                       </p>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                    <label className="block text-[11px] font-semibold text-text-muted mb-1">
                       {t('page.target_ext')}
                     </label>
                     <select
                       value={target}
                       onChange={(e) => selectTarget(e.target.value)}
-                      className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-emerald-500"
+                      className="w-full bg-input border border-border/50 rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-accent/50"
                     >
                       {catalog.length === 0 ? (
                         <option value="">{t('page.target_none')}</option>
@@ -1002,11 +1004,11 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                   {toolDef ? (
                     <>
                       <div>
-                        <label className="block text-[11px] font-semibold text-gray-400 mb-1">{t('page.action_label')}</label>
+                        <label className="block text-[11px] font-semibold text-text-muted mb-1">{t('page.action_label')}</label>
                         <select
                           value={tool}
                           onChange={(e) => selectTool(e.target.value)}
-                          className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-emerald-500"
+                          className="w-full bg-input border border-border/50 rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-accent/50"
                         >
                           {targetExt?.tools
                             ?.filter((toolItem) => toolItem.name !== 'get_actions' && toolItem.name !== 'set_actions')
@@ -1021,7 +1023,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                       <div className="space-y-2">
                         {Object.entries(props).map(([key, param]) => (
                           <div key={key}>
-                            <label className="block text-[11px] font-semibold text-gray-400 mb-1">
+                            <label className="block text-[11px] font-semibold text-text-muted mb-1">
                               {paramLabel(t, key)}
                               {param?.default !== undefined ? t('page.action_prefilled') : ''}
                             </label>
@@ -1029,7 +1031,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                               <select
                                 value={String(draftArgs[key] ?? '')}
                                 onChange={(e) => setDraftArgs((d) => ({ ...d, [key]: e.target.value }))}
-                                className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-emerald-500"
+                                className="w-full bg-input border border-border/50 rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-accent/50"
                               >
                                 {param.enum.map((opt) => (
                                   <option key={opt} value={opt}>
@@ -1050,7 +1052,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                                 value={String(draftArgs[key] ?? '')}
                                 onChange={(e) => setDraftArgs((d) => ({ ...d, [key]: e.target.value }))}
                                 placeholder={param?.description || ''}
-                                className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+                                className="w-full bg-input border border-border/50 rounded-xl px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50"
                               />
                             )}
                           </div>
@@ -1071,7 +1073,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                                 return { ...d, [firstEmpty]: p.token }
                               })
                             }
-                            className="text-[10px] text-gray-400 border border-white/10 hover:border-emerald-500/50 hover:text-emerald-300 rounded-lg px-2 py-0.5 transition-colors"
+                            className="text-[10px] text-text-muted border border-border/50 hover:border-accent/50 hover:text-accent rounded-lg px-2 py-0.5 transition-colors"
                           >
                             {p.label} {p.token}
                           </button>
@@ -1081,7 +1083,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
                       <button
                         type="button"
                         onClick={saveDraft}
-                        className="text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg transition-colors"
+                        className="text-[11px] font-semibold bg-accent hover:bg-accent/90 text-white px-3 py-1.5 rounded-lg transition-colors"
                       >
                         {editingId ? t('page.save_changes') : t('page.use_action')}
                       </button>
@@ -1093,9 +1095,9 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-white/10 shrink-0 flex items-center justify-between gap-2">
+        <div className="px-5 py-3 border-t border-border shrink-0 flex items-center justify-between gap-2">
           <span
-            className={`text-[11px] ${saveState === 'error' ? 'text-red-400' : saveState === 'saved' ? 'text-emerald-400' : 'text-gray-500'}`}
+            className={`text-[11px] ${saveState === 'error' ? 'text-error' : saveState === 'saved' ? 'text-dev' : 'text-text-muted'}`}
           >
             {saveState === 'saving'
               ? t('page.saving')
@@ -1108,7 +1110,7 @@ function AutomationsModal({ open, onClose }: { open: boolean; onClose: () => voi
           <button
             type="button"
             onClick={onClose}
-            className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl transition-colors"
+            className="text-xs font-semibold bg-accent hover:bg-accent/90 text-white px-5 py-2 rounded-xl transition-colors"
           >
             {t('panel.close')}
           </button>
@@ -1175,10 +1177,10 @@ function SearchableInput({
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={options.length > 0 ? t('page.contact_placeholder_search') : t('page.contact_placeholder_number')}
-        className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500"
+        className="w-full bg-input border border-border/50 rounded-xl px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-accent/50"
       />
       {open && filtered.length > 0 ? (
-        <div className="absolute z-20 mt-1 w-full max-h-40 overflow-y-auto bg-zinc-800 border border-white/10 rounded-xl shadow-xl custom-scrollbar">
+        <div className="absolute z-20 mt-1 w-full max-h-40 overflow-y-auto bg-card border border-border rounded-xl shadow-xl custom-scrollbar">
           {filtered.slice(0, 30).map((opt) => (
             <button
               key={opt}
@@ -1188,7 +1190,7 @@ function SearchableInput({
                 onChange(opt)
                 setOpen(false)
               }}
-              className="block w-full text-left px-3 py-1.5 text-xs text-gray-200 hover:bg-emerald-500/10 hover:text-emerald-300 transition-colors"
+              className="block w-full text-left px-3 py-1.5 text-xs text-text hover:bg-accent/15 hover:text-accent transition-colors"
             >
               {opt}
             </button>
@@ -3332,7 +3334,7 @@ export default function WhatsAppView() {
                 className={`p-1.5 rounded-lg border transition-colors flex items-center justify-center ${
                   syncing
                     ? 'bg-accent/10 border-accent/30 text-accent cursor-wait'
-                    : 'bg-white/5 border-white/10 hover:bg-white/10 text-text-muted hover:text-text disabled:opacity-50'
+                    : 'bg-input border-border/50 hover:bg-input/80 text-text-muted hover:text-text disabled:opacity-50'
                 }`}
                 title={syncing ? t('page.syncing') : t('page.sync')}
                 aria-busy={syncing}
@@ -3436,15 +3438,15 @@ export default function WhatsAppView() {
       {showDashboard && (
         <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6 min-h-0">
           <div className="grid grid-cols-3 gap-4">
-            <div className="rounded-xl border border-white/5 bg-card p-4">
+            <div className="rounded-xl border border-border/40 bg-card p-4">
               <p className="text-2xl font-bold">{totalMessages}</p>
               <p className="text-xs text-text-muted">{t('page.stats_messages')}</p>
             </div>
-            <div className="rounded-xl border border-white/5 bg-card p-4">
+            <div className="rounded-xl border border-border/40 bg-card p-4">
               <p className="text-2xl font-bold">{monitoredCount}</p>
               <p className="text-xs text-text-muted">{t('page.stats_monitored')}</p>
             </div>
-            <div className="rounded-xl border border-white/5 bg-card p-4">
+            <div className="rounded-xl border border-border/40 bg-card p-4">
               <p className="text-2xl font-bold">
                 {connected ? t('panel.connected') : connectionStatus === 'reconnecting' ? t('panel.reconnecting') : t('panel.disconnected')}
               </p>
@@ -3469,8 +3471,8 @@ export default function WhatsAppView() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-white/5 bg-card">
-            <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between">
+          <div className="rounded-xl border border-border/40 bg-card">
+            <div className="px-4 py-3 border-b border-border/40 font-medium text-sm flex items-center justify-between">
               <span>{t('page.recent_title')}</span>
               <span className="text-xs text-text-muted">
                 {t(allConversations.length === 1 ? 'page.recent_count_one' : 'page.recent_count_other', { count: allConversations.length })} ·{' '}
@@ -3531,7 +3533,7 @@ export default function WhatsAppView() {
             })}
 
             {conversationsTotalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
+              <div className="flex items-center justify-between px-4 py-3 border-t border-border/40">
                 <span className="text-xs text-text-muted">
                   {t('page.pagination_showing', {
                     from: (conversationsPage - 1) * conversationsPerPage + 1,
@@ -3545,7 +3547,7 @@ export default function WhatsAppView() {
                     type="button"
                     onClick={() => setConversationsPage((p) => Math.max(1, p - 1))}
                     disabled={conversationsPage === 1}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="px-3 py-1.5 text-xs rounded-lg bg-input text-text hover:bg-input/80 border border-border/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     {t('page.pagination_previous')}
                   </button>
@@ -3558,7 +3560,7 @@ export default function WhatsAppView() {
                       setConversationsPage((p) => Math.min(conversationsTotalPages, p + 1))
                     }
                     disabled={conversationsPage === conversationsTotalPages}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="px-3 py-1.5 text-xs rounded-lg bg-input text-text hover:bg-input/80 border border-border/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     {t('page.pagination_next')}
                   </button>
@@ -3567,8 +3569,8 @@ export default function WhatsAppView() {
             )}
           </div>
 
-          <div className="rounded-xl border border-white/5 bg-card">
-            <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between flex-wrap gap-2">
+          <div className="rounded-xl border border-border/40 bg-card">
+            <div className="px-4 py-3 border-b border-border/40 font-medium text-sm flex items-center justify-between flex-wrap gap-2">
               <span>{t('page.groups_tab')}</span>
                   <div className="flex items-center gap-2">
                     <div className="relative w-64">
@@ -3576,7 +3578,7 @@ export default function WhatsAppView() {
                         value={groupSearch}
                         onChange={(e) => setGroupSearch(e.target.value)}
                         placeholder={t('page.search_group')}
-                        className="w-full bg-white/5 rounded-lg pl-3 pr-8 py-1.5 text-xs border border-white/10 outline-none focus:border-accent/50"
+                        className="w-full bg-input rounded-lg pl-3 pr-8 py-1.5 text-xs border border-border/50 outline-none focus:border-accent/50 text-text placeholder:text-text-muted"
                       />
                       {groupsLoading && (
                         <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
@@ -3591,7 +3593,7 @@ export default function WhatsAppView() {
                       className={`p-1.5 rounded-lg border transition-colors flex items-center justify-center ${
                         avatarsRefreshing
                           ? 'bg-accent/10 border-accent/30 text-accent cursor-wait'
-                          : 'bg-white/5 border-white/10 hover:bg-white/10 text-text-muted hover:text-text disabled:opacity-50'
+                          : 'bg-input border-border/50 hover:bg-input/80 text-text-muted hover:text-text disabled:opacity-50'
                       }`}
                       title={
                         avatarsRefreshing ? t('page.refreshing_avatars') : t('page.refresh_avatars')
@@ -3625,7 +3627,7 @@ export default function WhatsAppView() {
                     {groupsLoading ? t('page.loading_groups') : t('page.no_groups')}
                   </div>
                 ) : (
-                  <div className="divide-y divide-white/5">
+                  <div className="divide-y divide-border/40">
                     {paginatedGroups.map((c) => (
                       <div
                         key={c.id}
@@ -3652,7 +3654,7 @@ export default function WhatsAppView() {
                             openContactOrGroupOverlay(c)
                           }
                         }}
-                        className={`wa-conversation-item group relative px-4 py-3 flex items-center gap-3 border-b border-white/5 last:border-0 cursor-pointer focus:outline-none transition-colors ${
+                        className={`wa-conversation-item group relative px-4 py-3 flex items-center gap-3 border-b border-border/40 last:border-0 cursor-pointer focus:outline-none transition-colors ${
                           selectedJids.includes(c.id) ? 'bg-accent/15 ring-1 ring-accent/30' : ''
                         }`}
                         title={t('page.send_message')}
@@ -3675,7 +3677,7 @@ export default function WhatsAppView() {
                               }}
                               onSave={(val) => saveContactName(c.id, val)}
                               onCancel={handleCancelEdit}
-                              className="w-full max-w-xs bg-white/10 rounded px-2 py-0.5 text-sm border border-accent/50 outline-none text-text"
+                              className="w-full max-w-xs bg-input rounded px-2 py-0.5 text-sm border border-accent/50 outline-none text-text"
                             />
                           ) : (
                             <>
@@ -3722,7 +3724,7 @@ export default function WhatsAppView() {
                 )}
 
                 {groupsTotalPages > 1 && (
-                  <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-border/40">
                     <span className="text-xs text-text-muted">
                       {t('page.pagination_showing', {
                         from: (groupsPage - 1) * groupsPerPage + 1,
@@ -3736,7 +3738,7 @@ export default function WhatsAppView() {
                         type="button"
                         onClick={() => setGroupsPage((p) => Math.max(1, p - 1))}
                         disabled={groupsPage === 1}
-                        className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="px-3 py-1.5 text-xs rounded-lg bg-input text-text hover:bg-input/80 border border-border/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
                         {t('page.pagination_previous')}
                       </button>
@@ -3747,7 +3749,7 @@ export default function WhatsAppView() {
                         type="button"
                         onClick={() => setGroupsPage((p) => Math.min(groupsTotalPages, p + 1))}
                         disabled={groupsPage === groupsTotalPages}
-                        className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="px-3 py-1.5 text-xs rounded-lg bg-input text-text hover:bg-input/80 border border-border/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
                         {t('page.pagination_next')}
                       </button>
@@ -3756,15 +3758,15 @@ export default function WhatsAppView() {
                 )}
               </div>
 
-              <div className="rounded-xl border border-white/5 bg-card">
-                <div className="px-4 py-3 border-b border-white/5 font-medium text-sm flex items-center justify-between flex-wrap gap-2">
+              <div className="rounded-xl border border-border/40 bg-card">
+                <div className="px-4 py-3 border-b border-border/40 font-medium text-sm flex items-center justify-between flex-wrap gap-2">
                   <span>{t('page.contacts_tab')}</span>
                   <div className="relative w-64">
                     <input
                       value={contactSearch}
                       onChange={(e) => setContactSearch(e.target.value)}
                       placeholder={t('page.search_contact')}
-                      className="w-full bg-white/5 rounded-lg pl-3 pr-8 py-1.5 text-xs border border-white/10 outline-none focus:border-accent/50"
+                      className="w-full bg-input rounded-lg pl-3 pr-8 py-1.5 text-xs border border-border/50 outline-none focus:border-accent/50 text-text placeholder:text-text-muted"
                     />
                     {contactsLoading && (
                       <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
@@ -3779,7 +3781,7 @@ export default function WhatsAppView() {
                     {contactsLoading ? t('page.loading_contacts') : t('page.no_contacts')}
                   </div>
                 ) : (
-                  <div className="divide-y divide-white/5">
+                  <div className="divide-y divide-border/40">
                     {paginatedContacts.map((c) => (
                       <div
                         key={c.id}
@@ -3806,7 +3808,7 @@ export default function WhatsAppView() {
                             openContactOrGroupOverlay(c)
                           }
                         }}
-                        className={`wa-conversation-item group relative px-4 py-3 flex items-center gap-3 border-b border-white/5 last:border-0 cursor-pointer focus:outline-none transition-colors ${
+                        className={`wa-conversation-item group relative px-4 py-3 flex items-center gap-3 border-b border-border/40 last:border-0 cursor-pointer focus:outline-none transition-colors ${
                           selectedJids.includes(c.id) ? 'bg-accent/15 ring-1 ring-accent/30' : ''
                         }`}
                         title={t('page.send_message')}
@@ -3829,7 +3831,7 @@ export default function WhatsAppView() {
                               }}
                               onSave={(val) => saveContactName(c.id, val)}
                               onCancel={handleCancelEdit}
-                              className="w-full max-w-xs bg-white/10 rounded px-2 py-0.5 text-sm border border-accent/50 outline-none text-text"
+                              className="w-full max-w-xs bg-input rounded px-2 py-0.5 text-sm border border-accent/50 outline-none text-text"
                             />
                           ) : (
                             <>
@@ -3875,7 +3877,7 @@ export default function WhatsAppView() {
 
                 {/* Pagination Controls */}
                 {contactsTotalPages > 1 && (
-                  <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-border/40">
                     <span className="text-xs text-text-muted">
                       {t('page.pagination_showing', {
                         from: (contactsPage - 1) * contactsPerPage + 1,
@@ -3889,7 +3891,7 @@ export default function WhatsAppView() {
                         type="button"
                         onClick={() => setContactsPage((p) => Math.max(1, p - 1))}
                         disabled={contactsPage === 1}
-                        className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="px-3 py-1.5 text-xs rounded-lg bg-input text-text hover:bg-input/80 border border-border/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
                         {t('page.pagination_previous')}
                       </button>
@@ -3900,7 +3902,7 @@ export default function WhatsAppView() {
                         type="button"
                         onClick={() => setContactsPage((p) => Math.min(contactsTotalPages, p + 1))}
                         disabled={contactsPage === contactsTotalPages}
-                        className="px-3 py-1.5 text-xs rounded-lg bg-white/5 text-text hover:bg-white/10 border border-white/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        className="px-3 py-1.5 text-xs rounded-lg bg-input text-text hover:bg-input/80 border border-border/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
                         {t('page.pagination_next')}
                       </button>
@@ -4093,3 +4095,6 @@ export default function WhatsAppView() {
 }
 
 sdk.registry.registerRenderer('whatsapp-page', WhatsAppView)
+// Chat card for the `show_connection_qr` tool (see ConnectionQrCard); the
+// type travels with the worker's structured response.
+sdk.registry.registerRenderer(CONNECTION_QR_CARD_TYPE, ConnectionQrCard)

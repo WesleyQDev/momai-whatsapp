@@ -316,6 +316,15 @@
         "play_audio": "Play audio",
         "playback_speed": "Playback speed"
     },
+    "connectionCard": {
+        "qr_alt": "WhatsApp connection QR code",
+        "expires_in": "The code expires in {{seconds}}s",
+        "generating": "Generating QR code…",
+        "expired": "The code expired. Generate a new one to continue.",
+        "failed": "Could not generate the code. Try again.",
+        "refresh": "Generate new code",
+        "connected_title": "WhatsApp connected"
+    },
     "notification": {
         "message_from": "New message from",
         "dismiss": "Dismiss",
@@ -349,7 +358,8 @@
         "list_contacts": "List contacts",
         "remove_contact": "Remove contact",
         "get_wa_groups": "Search groups",
-        "send_message": "Send message"
+        "send_message": "Send message",
+        "show_connection_qr": "Show connection QR"
     },
     "params": {
         "media": "Image",

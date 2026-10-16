@@ -31,6 +31,7 @@ const {
   sanitizeRemoteMediaUrl,
   isPrivateNetworkHost,
   pruneMediaDirectories,
+  evaluateMediaPathPolicy,
   MAX_ATTACHMENTS_PER_SEND,
   MAX_MESSAGE_CHARS
 } = utils as any
@@ -97,6 +98,13 @@ describe('friendlySendError', () => {
     const out = friendlySendError('Invalid contact', 'X')
     expect(out).toContain('Destinatário inválido')
     expect(out).toContain('X')
+  })
+
+  it('points disconnected sends to the chat QR instead of the raw English error', () => {
+    const out = friendlySendError('WhatsApp not connected', 'Ana')
+    expect(out).toContain('desconectado')
+    expect(out).toContain('QR')
+    expect(out).not.toContain('not connected')
   })
 
   it('passes through "Número não registrado" (already actionable)', () => {
@@ -851,6 +859,135 @@ describe('media path confinement (item 2)', () => {
     } finally {
       fs.unlinkSync(outside)
     }
+  })
+
+  it('rejects image paths outside the extension storage without user approval', () => {
+    const outside = path.join(os.tmpdir(), `momai-shot-${Date.now()}.jpg`)
+    fs.writeFileSync(outside, 'jpeg-bytes')
+    try {
+      expect(() =>
+        buildMessageContent('', outside, undefined, undefined, undefined, {
+          allowedFileBase: path.join(os.tmpdir(), `momai-storage-${Date.now()}`),
+          allowExternalImagePaths: false
+        })
+      ).toThrow(/fora da pasta da extensão/)
+    } finally {
+      fs.unlinkSync(outside)
+    }
+  })
+
+  it('reads image paths outside the extension storage when the user approved', () => {
+    const outside = path.join(os.tmpdir(), `momai-shot-${Date.now()}.jpg`)
+    fs.writeFileSync(outside, 'jpeg-bytes')
+    try {
+      const content = buildMessageContent('legenda', outside, undefined, undefined, undefined, {
+        allowedFileBase: path.join(os.tmpdir(), `momai-storage-${Date.now()}`),
+        allowExternalImagePaths: true
+      })
+      expect(content.image.toString()).toBe('jpeg-bytes')
+      expect(content.mimetype).toBe('image/jpeg')
+      expect(content.caption).toBe('legenda')
+    } finally {
+      fs.unlinkSync(outside)
+    }
+  })
+
+  it('reads image paths inside the extension storage and rejects non-image files', () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'momai-storage-'))
+    const inside = path.join(base, 'print.png')
+    fs.writeFileSync(inside, 'png-bytes')
+    const content = buildMessageContent('', inside, undefined, undefined, undefined, {
+      allowedFileBase: base
+    })
+    expect(content.image.toString()).toBe('png-bytes')
+    expect(content.mimetype).toBe('image/png')
+
+    const textFile = path.join(os.tmpdir(), `momai-note-${Date.now()}.txt`)
+    fs.writeFileSync(textFile, 'segredo')
+    try {
+      expect(() =>
+        buildMessageContent('', textFile, undefined, undefined, undefined, {
+          allowedFileBase: os.tmpdir(),
+          allowExternalImagePaths: true
+        })
+      ).toThrow(/use data URI, base64, Buffer ou caminho de arquivo/)
+    } finally {
+      fs.unlinkSync(textFile)
+    }
+
+    expect(() =>
+      buildMessageContent('', path.join(os.tmpdir(), 'momai-missing.png'), undefined, undefined, undefined, {
+        allowedFileBase: base,
+        allowExternalImagePaths: true
+      })
+    ).toThrow(/arquivo não encontrado/)
+  })
+
+  it('keeps decoding raw base64 JPEG instead of reading it as a path', () => {
+    const base64 = Buffer.from('fake image bytes here').toString('base64')
+    expect(base64.startsWith('/')).toBe(false)
+    const content = buildMessageContent('', base64, undefined, undefined, undefined, {
+      allowedFileBase: os.tmpdir(),
+      allowExternalImagePaths: true
+    })
+    expect(Buffer.isBuffer(content.image)).toBe(true)
+    expect(content.image.toString()).toBe('fake image bytes here')
+  })
+
+  it('accepts quoted paths the model may send', () => {
+    const outside = path.join(os.tmpdir(), `momai-shot-${Date.now()}.png`)
+    const storage = path.join(os.tmpdir(), `momai-storage-${Date.now()}`)
+    fs.writeFileSync(outside, 'png-bytes')
+    try {
+      const content = buildMessageContent('', `"${outside}"`, undefined, undefined, undefined, {
+        allowedFileBase: storage,
+        allowExternalImagePaths: true
+      })
+      expect(content.image.toString()).toBe('png-bytes')
+      const decision: any = evaluateMediaPathPolicy({ image: `"${outside}"` }, storage)
+      expect(decision.policy).toBe('ask')
+      expect(decision.reason).toContain(path.basename(outside))
+    } finally {
+      fs.unlinkSync(outside)
+    }
+  })
+})
+
+describe('media path policy hook (send_message gate)', () => {
+  const storageDir = path.join(os.tmpdir(), 'momai-whatsapp-storage')
+
+  it('allows data URIs, base64 and files inside the extension storage', () => {
+    expect(evaluateMediaPathPolicy({ image: 'data:image/png;base64,AAA' }, storageDir)).toEqual({
+      policy: 'allow'
+    })
+    expect(evaluateMediaPathPolicy({ image: 'QUJDRA==' }, storageDir)).toEqual({ policy: 'allow' })
+    expect(
+      evaluateMediaPathPolicy({ image: path.join(storageDir, 'images', 'foto.jpg') }, storageDir)
+    ).toEqual({ policy: 'allow' })
+    expect(evaluateMediaPathPolicy({ message: 'oi' }, storageDir)).toEqual({ policy: 'allow' })
+  })
+
+  it('asks for confirmation for image paths outside the extension storage', () => {
+    const outside = path.join(os.tmpdir(), 'momai-desktop-captures', 'capture-1-d1-ab12.jpg')
+    const decision: any = evaluateMediaPathPolicy({ image: outside }, storageDir)
+    expect(decision.policy).toBe('ask')
+    expect(decision.ruleId).toBe(
+      `media-dir:${path.join(os.tmpdir(), 'momai-desktop-captures').toLowerCase()}`
+    )
+    expect(decision.reason).toContain('capture-1-d1-ab12.jpg')
+  })
+
+  it('covers the plural images/media fields and counts multiple files', () => {
+    const dir = path.join(os.tmpdir(), 'momai-desktop-captures')
+    const decision: any = evaluateMediaPathPolicy(
+      { images: [path.join(dir, 'a.jpg'), path.join(dir, 'b.png')] },
+      storageDir
+    )
+    expect(decision.policy).toBe('ask')
+    expect(decision.reason).toContain('2')
+    expect(evaluateMediaPathPolicy({ media: 'https://example.com/a.jpg' }, storageDir)).toEqual({
+      policy: 'allow'
+    })
   })
 })
 

@@ -3,7 +3,8 @@ import utils from '../worker-utils'
 
 const {
   isStatusUpdate,
-  shouldSuppressStatusUpdate,
+  isChannelUpdate,
+  shouldSuppressStatusOrChannelUpdate,
   resolveNotificationReplyJid,
   getStatusTtsText,
   resolveStatusReplyQuoted
@@ -21,16 +22,37 @@ describe('status updates (stories) overlay preference', () => {
   })
 
   it('suppresses status overlay when the user disabled status notifications', () => {
-    expect(shouldSuppressStatusUpdate('status@broadcast', true)).toBe(true)
+    expect(shouldSuppressStatusOrChannelUpdate('status@broadcast', true)).toBe(true)
   })
 
   it('allows status overlay when the user enabled status notifications', () => {
-    expect(shouldSuppressStatusUpdate('status@broadcast', false)).toBe(false)
+    expect(shouldSuppressStatusOrChannelUpdate('status@broadcast', false)).toBe(false)
   })
 
   it('never suppresses regular messages', () => {
-    expect(shouldSuppressStatusUpdate('5511999990001@s.whatsapp.net', true)).toBe(false)
-    expect(shouldSuppressStatusUpdate('120363000000000001@g.us', true)).toBe(false)
+    expect(shouldSuppressStatusOrChannelUpdate('5511999990001@s.whatsapp.net', true)).toBe(false)
+    expect(shouldSuppressStatusOrChannelUpdate('120363000000000001@g.us', true)).toBe(false)
+  })
+})
+
+describe('whatsapp channels (Canais) follow the status notifications switch', () => {
+  it('detects newsletter JIDs as channel posts', () => {
+    expect(isChannelUpdate('120363000000000001@newsletter')).toBe(true)
+  })
+
+  it('does not flag chats, groups or status as channels', () => {
+    expect(isChannelUpdate('5511999990001@s.whatsapp.net')).toBe(false)
+    expect(isChannelUpdate('120363000000000001@g.us')).toBe(false)
+    expect(isChannelUpdate('status@broadcast')).toBe(false)
+    expect(isChannelUpdate(null)).toBe(false)
+  })
+
+  it('mutes channel posts when the user disabled status notifications', () => {
+    expect(shouldSuppressStatusOrChannelUpdate('120363000000000001@newsletter', true)).toBe(true)
+  })
+
+  it('unmutes channel posts when the user enabled status notifications', () => {
+    expect(shouldSuppressStatusOrChannelUpdate('120363000000000001@newsletter', false)).toBe(false)
   })
 })
 

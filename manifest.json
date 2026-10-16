@@ -1,7 +1,7 @@
 {
   "id": "momai-whatsapp",
   "name": "MomAI WhatsApp",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "is_official": true,
   "background": true,
   "backgroundScript": "background-worker.ts",
@@ -105,6 +105,10 @@
         "get_stats": {
           "label": "Get Stats",
           "description": "Gets WhatsApp stats"
+        },
+        "show_connection_qr": {
+          "label": "Show Connection QR",
+          "description": "Shows a card with the QR code to connect WhatsApp"
         }
       }
     },
@@ -186,6 +190,10 @@
         "get_stats": {
           "label": "Obtener estadísticas",
           "description": "Obtiene estadísticas de WhatsApp"
+        },
+        "show_connection_qr": {
+          "label": "Mostrar QR de conexión",
+          "description": "Muestra una tarjeta con el código QR para conectar WhatsApp"
         }
       }
     },
@@ -267,6 +275,10 @@
         "get_stats": {
           "label": "Obtenir statistiques",
           "description": "Obtient statistiques WhatsApp"
+        },
+        "show_connection_qr": {
+          "label": "Afficher le QR de connexion",
+          "description": "Affiche une carte avec le QR code pour connecter WhatsApp"
         }
       }
     },
@@ -348,6 +360,10 @@
         "get_stats": {
           "label": "Statistiken abrufen",
           "description": "Ruft WhatsApp-Statistiken ab"
+        },
+        "show_connection_qr": {
+          "label": "Verbindungs-QR anzeigen",
+          "description": "Zeigt eine Karte mit dem QR-Code zum Verbinden von WhatsApp"
         }
       }
     },
@@ -429,6 +445,10 @@
         "get_stats": {
           "label": "Ottieni statistiche",
           "description": "Ottiene le statistiche di WhatsApp"
+        },
+        "show_connection_qr": {
+          "label": "Mostra QR di connessione",
+          "description": "Mostra una scheda con il codice QR per connettere WhatsApp"
         }
       }
     }
@@ -448,10 +468,11 @@
   "sidebar_icon_essential": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 21l1.65-3.8A9 9 0 1 1 8.05 20.1L3 21\"/><path d=\"M15.5 13.8c-.2-.1-1.2-.6-1.4-.7-.2-.1-.3-.1-.4.1-.1.2-.5.7-.6.8-.1.1-.2.1-.4 0-.2-.1-.9-.3-1.7-1-.6-.5-1-1.2-1.1-1.4-.1-.2 0-.3.1-.4.1-.1.2-.2.3-.3.1-.1.1-.2.2-.3 0-.1 0-.2 0-.3-.1-.1-.4-1.1-.6-1.5-.2-.4-.3-.3-.4-.3h-.4c-.1 0-.3.1-.5.3-.2.2-.7.7-.7 1.7 0 1 .7 2 1 2.2.1.2 1.5 2.3 3.6 3.2.5.2.9.3 1.2.4.5.2 1 .1 1.3.1.4-.1 1.2-.5 1.4-1 .2-.5.2-.9.1-1-.1-.1-.2-.1-.4-.2z\" fill=\"currentColor\" stroke=\"none\"/></svg>",
   "sidebar": true,
   "permissions": [
-    "network"
+    "network",
+    "filesystem:read"
   ],
   "sdkVersion": 1,
-  "momai_compat": ">=1.15.0",
+  "momai_compat": ">=1.17.0",
   "ui": {
     "page": "dist/page.js",
     "pageType": "whatsapp-page",
@@ -570,7 +591,10 @@
     {
       "name": "send_message",
       "label": "Enviar Mensagem no WhatsApp",
-      "description": "Envia uma mensagem para um contato ou grupo do WhatsApp. Pode incluir uma imagem (data URI ou base64) com o texto como legenda.",
+      "description": "Envia uma mensagem para um contato ou grupo do WhatsApp. Pode incluir uma imagem com o texto como legenda: data URI, base64 ou o caminho de um arquivo local (ex.: o print salvo por outra extensão — enviar arquivo de fora da extensão pede a confirmação do usuário uma vez).",
+      "permission": {
+        "policyTool": "media_path_policy"
+      },
       "parameters": {
         "type": "object",
         "required": [
@@ -591,7 +615,7 @@
           },
           "image": {
             "type": "string",
-            "description": "Imagem a enviar (data URI como data:image/jpeg;base64,... ou base64 puro). O texto vira a legenda.",
+            "description": "Imagem a enviar (data URI, base64 puro ou caminho de arquivo .jpg/.png/.webp). O texto vira a legenda.",
             "default": "{event.imageDataUri}"
           },
           "documents": {
@@ -600,11 +624,11 @@
           },
           "images": {
             "type": "array",
-            "description": "Varias imagens a enviar (forma plural de image; cada item e data URI/base64)"
+            "description": "Varias imagens a enviar (forma plural de image; cada item e data URI/base64 ou caminho de arquivo)"
           },
           "media": {
             "type": "string",
-            "description": "Midia a enviar quando image nao for usada (data URI/base64)"
+            "description": "Midia a enviar quando image nao for usada (data URI/base64 ou caminho de arquivo)"
           },
           "document": {
             "type": "string",
@@ -619,6 +643,32 @@
             "description": "URL de GIF a enviar com a mensagem como legenda"
           }
         }
+      }
+    },
+    {
+      "name": "media_path_policy",
+      "description": "Hook interno de política: decide se um envio com imagem por caminho de fora da extensão precisa da confirmação do usuário. O host chama automaticamente; não use diretamente.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "description": "Ferramenta que está sendo avaliada."
+          },
+          "args": {
+            "type": "object",
+            "description": "Argumentos da chamada avaliada."
+          }
+        }
+      }
+    },
+    {
+      "name": "show_connection_qr",
+      "label": "Mostrar QR de Conexão",
+      "description": "Mostra no chat um card com o QR code para conectar o WhatsApp. Use quando o usuário pedir para conectar (ex.: \"conecta meu WhatsApp\", \"mostra o QR\"); falhas de envio por falta de conexão já trazem o card automaticamente. O card exibe o código centralizado, mostra o tempo restante, acompanha um código novo quando o WhatsApp gera outro e avisa quando a conexão for concluída.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
       }
     },
     {
@@ -977,9 +1027,5 @@
   "theme": {
     "gradient": "from-emerald-500 to-green-600",
     "accent": "emerald"
-  },
-  "toolPriority": {
-    "label": "WHATSAPP",
-    "rule": "monitor, reply, or send WhatsApp messages via the whatsapp tools."
   }
 }

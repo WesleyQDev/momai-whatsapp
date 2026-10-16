@@ -6,6 +6,7 @@ Connect your WhatsApp to MomAI and control your messages by voice or text. This 
 
 - **Monitors Messages**: Get notifications for new messages from contacts you add to the whitelist.
 - **Sends Replies**: Reply to messages directly through MomAI, by text or voice.
+- **Photos and Screenshots from Your PC**: Ask it to send an image that is on your computer — like a screenshot taken by MomAI — and the assistant attaches the file to the chat. The first time in each folder it asks for your confirmation.
 - **Manages Contacts**: Add or remove contacts from the whitelist and set custom nicknames for easier communication.
 - **Smart Notifications**: MomAI summarizes incoming messages and suggests quick replies.
 
@@ -13,6 +14,7 @@ Connect your WhatsApp to MomAI and control your messages by voice or text. This 
 
 - "Send a WhatsApp message to John saying I'm on my way."
 - "Any new messages on WhatsApp?"
+- "Take a screenshot of my screen and send it to John on WhatsApp."
 - "Add my mom to the WhatsApp whitelist."
 - "Reply that I'll be there soon."
 
@@ -21,6 +23,8 @@ Connect your WhatsApp to MomAI and control your messages by voice or text. This 
 1. Enable the extension in the extension store.
 2. Scan the QR Code that appears in the sidebar panel using WhatsApp on your phone.
 3. Done! MomAI is now connected and monitoring your whitelisted contacts.
+
+> Tip: you can also connect from the chat — ask "connect my WhatsApp" and the QR code appears in the conversation, ready to scan.
 
 ### Security & Privacy:
 

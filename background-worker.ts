@@ -64,6 +64,7 @@ const {
 const {
   withTimeout,
   friendlySendError,
+  buildConnectionQrCardResult: _buildConnectionQrCardResult,
   buildMessageContent,
   sanitizeMediaFilename,
   resolveJidForSending: _resolveJidForSendingPure,
@@ -82,7 +83,8 @@ const {
   getRecentChatMedia: _getRecentChatMedia,
   resolveDocumentPath: _resolveDocumentPath,
   isStatusUpdate: _isStatusUpdate,
-  shouldSuppressStatusUpdate: _shouldSuppressStatusUpdate,
+  isChannelUpdate: _isChannelUpdate,
+  shouldSuppressStatusOrChannelUpdate: _shouldSuppressStatusOrChannelUpdate,
   resolveNotificationReplyJid: _resolveNotificationReplyJid,
   getStatusTtsText: _getStatusTtsText,
   resolveStatusReplyQuoted: _resolveStatusReplyQuoted,
@@ -120,7 +122,8 @@ const {
   SEND_RATE_WINDOW_MS,
   SEND_RATE_MAX_PER_WINDOW,
   pruneMediaDirectories: _pruneMediaDirectories,
-  sanitizeRemoteMediaUrl: _sanitizeRemoteMediaUrl
+  sanitizeRemoteMediaUrl: _sanitizeRemoteMediaUrl,
+  evaluateMediaPathPolicy: _evaluateMediaPathPolicy
 } = require('./worker-utils.ts')
 
 let safeStorageAvailable = true
@@ -866,6 +869,12 @@ function _markSyncingContacts() {
 
 let lastQrAt = 0
 const QR_TTL_MS = 65000
+// Bounded wait for a fresh QR while `show_connection_qr` assembles its chat
+// card: long enough for the Baileys handshake, short enough to answer the tool
+// call promptly (the host aborts calls at 120s; the card handles "pending" by
+// refreshing itself when the qr_code event arrives).
+const QR_CARD_WAIT_MS = 20000
+let qrWaiters = []
 
 let cachedBaileysVersion: any = null
 let cachedBaileysVersionAt = 0
@@ -922,6 +931,70 @@ async function getBaileysVersion() {
 
 function _qrStillValid() {
   return Boolean(lastQr && Date.now() - lastQrAt < QR_TTL_MS)
+}
+
+function _qrExpiresInSeconds() {
+  return Math.max(1, Math.ceil((QR_TTL_MS - (Date.now() - lastQrAt)) / 1000))
+}
+
+/**
+ * Resolves with the next valid QR payload (current cache or a fresh emission),
+ * or `null` when Baileys did not deliver one within `timeoutMs`. Used by the
+ * `show_connection_qr` tool so the chat card can ship with a real QR whenever
+ * the handshake cooperates.
+ */
+function _waitForQr(timeoutMs = QR_CARD_WAIT_MS) {
+  if (_qrStillValid()) return Promise.resolve(lastQr)
+  return new Promise((resolve) => {
+    const wait = {
+      resolve: (qr) => {
+        clearTimeout(wait.timer)
+        resolve(qr)
+      },
+      timer: setTimeout(() => {
+        qrWaiters = qrWaiters.filter((candidate) => candidate !== wait)
+        resolve(null)
+      }, timeoutMs)
+    }
+    qrWaiters.push(wait)
+  })
+}
+
+function _resolveQrWaiters(qr) {
+  for (const wait of qrWaiters.splice(0)) {
+    wait.resolve(qr)
+  }
+}
+
+/**
+ * Kicks off a pairing handshake when there is no usable QR. Shared by the
+ * `show_connection_qr` tool and the disconnected `send_message` failure so both
+ * paths reach the same state (connect() owns the socket lifecycle).
+ */
+function _triggerConnectionForQr() {
+  if (connected || isConnecting || _qrStillValid()) return
+  _clearReconnectTimer()
+  preventAutoReconnect = false
+  resetReconnectBackoff()
+  connect().catch((err) => momai.log(`qr connect failed: ${err.message}`))
+}
+
+/**
+ * Card for the current connection state without waiting for a fresh QR: ready
+ * when one is already cached, pending (and a newly triggered handshake) when
+ * not. The chat card follows `qr_code` events, so a pending card fills itself.
+ */
+function _connectionQrCardNow() {
+  if (_qrStillValid()) {
+    return _buildConnectionQrCardResult({
+      connected: false,
+      qr: lastQr,
+      expiresIn: _qrExpiresInSeconds(),
+      now: Date.now()
+    })
+  }
+  _triggerConnectionForQr()
+  return _buildConnectionQrCardResult({ connected: false, qr: null, expiresIn: 0, now: Date.now() })
 }
 
 // Baileys fires `creds.update` very frequently (every few hundred ms while
@@ -994,6 +1067,7 @@ function _emitQrCode(qr) {
   const elapsed = Date.now() - lastQrAt
   const expiresIn = Math.max(1, Math.ceil((QR_TTL_MS - elapsed) / 1000))
   momai.sendEvent('qr_code', { qr, expiresIn })
+  _resolveQrWaiters(qr)
 }
 
 /** 0 = name starts with a letter (A–Z, including accented); 1 = digits, symbols, emoji, etc. */
@@ -2562,6 +2636,9 @@ async function connect() {
         isConnecting = false
         lastQr = null
         lastQrAt = 0
+        // No QR arrives once the session is open: release pending
+        // `show_connection_qr` calls so they answer "connected" right away.
+        _resolveQrWaiters(null)
         connected = true
         lastConnectAtSec = Math.floor(Date.now() / 1000)
         resetReconnectBackoff()
@@ -3140,11 +3217,15 @@ async function handleMessagesUpsert({ messages, type }) {
       typeof _isStatusUpdate === 'function'
         ? _isStatusUpdate(remoteJid)
         : remoteJid === 'status@broadcast'
-    const suppressStatusMessage =
-      typeof _shouldSuppressStatusUpdate === 'function'
-        ? _shouldSuppressStatusUpdate(remoteJid, statusNotificationsDisabled)
-        : isStatusMessage && statusNotificationsDisabled
-    if (suppressStatusMessage) continue
+    const isChannelMessage =
+      typeof _isChannelUpdate === 'function'
+        ? _isChannelUpdate(remoteJid)
+        : remoteJid.endsWith('@newsletter')
+    const suppressStatusOrChannelMessage =
+      typeof _shouldSuppressStatusOrChannelUpdate === 'function'
+        ? _shouldSuppressStatusOrChannelUpdate(remoteJid, statusNotificationsDisabled)
+        : (isStatusMessage || isChannelMessage) && statusNotificationsDisabled
+    if (suppressStatusOrChannelMessage) continue
     // Guarda a story crua enquanto ela é recente: a resposta do overlay a cita
     // para o WhatsApp renderizar "Nome · Status" com a prévia da mídia.
     if (isStatusMessage) _rememberStatusMessage(msg)
@@ -4079,7 +4160,8 @@ async function sendMessage(
   gif = null,
   document = null,
   statusContext = null,
-  quoted = null
+  quoted = null,
+  mediaOpts = null
 ) {
   const t0 = Date.now()
   const stage = (label, extra = '') =>
@@ -4109,8 +4191,12 @@ async function sendMessage(
   // Valida/decodifica conteúdo antes de qualquer retry. Apenas arquivos
   // dentro da pasta da extensão são aceitos por caminho (item 2); a UI envia
   // anexos como data URI/base64 e continua funcionando normalmente.
+  // Imagem por caminho de FORA da extensão (ex.: print salvo por outra
+  // extensão) só é lida quando a chamada vem de um turno interativo — nesse
+  // caso o host já pediu a confirmação do usuário antes de executar.
   const content = buildMessageContent(message, image, sticker, gif, document, {
-    allowedFileBase: momai.storage.storageDir
+    allowedFileBase: momai.storage.storageDir,
+    allowExternalImagePaths: mediaOpts?.allowExternalImagePaths === true
   })
 
   // Resposta a Status: cita a story original para o WhatsApp renderizar
@@ -4623,8 +4709,26 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
             image = null,
             sticker = null,
             gif = null,
-            document = null
-          ) => sendMessage(contact, text, image, sticker, gif, document, statusContext, quotedParam)
+            document = null,
+            mediaOpts = null
+          ) =>
+            sendMessage(
+              contact,
+              text,
+              image,
+              sticker,
+              gif,
+              document,
+              statusContext,
+              quotedParam,
+              mediaOpts
+            )
+          // Interactive turns carry the threadId; the host's approval gate
+          // (media_path_policy) only runs for those calls, so only they may
+          // read an image from outside the extension storage.
+          const mediaOpts = {
+            allowExternalImagePaths: Boolean(msg.threadId || msg.payload?.threadId)
+          }
           try {
             const rawImages = Array.isArray(args.images)
               ? args.images
@@ -4653,7 +4757,7 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
               for (let i = 0; i < images.length; i++) {
                 const caption = !captionAssigned ? messageArg : ''
                 if (caption) captionAssigned = true
-                result = await sendWithStatus(contactArg, caption, images[i])
+                result = await sendWithStatus(contactArg, caption, images[i], null, null, null, mediaOpts)
               }
             } else {
               result = await sendWithStatus(contactArg, messageArg, null)
@@ -4668,10 +4772,17 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
               `send_message FAILED: ${err.message} (t+${Date.now() - cmdStart}ms)`
             )
             const friendly = friendlySendError(err.message, contactArg)
+            // A disconnected session is fixed by scanning the QR, so the
+            // failure itself carries the connection card: the host ends the
+            // turn with `directResponse`, and the user must never be left with
+            // only a "ask me for the QR" style message.
+            const disconnected = /not connected/i.test(String(err.message))
+            const card = disconnected ? _connectionQrCardNow() : null
             result = {
               ok: false,
               error: friendly,
-              directResponse: `Erro ao enviar: ${friendly}`
+              directResponse: `Erro ao enviar: ${friendly}`,
+              ...(card?.structuredResponse ? { structuredResponse: card.structuredResponse } : {})
             }
           }
           break
@@ -4911,6 +5022,35 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
           }
           break
         }
+        case 'show_connection_qr': {
+          // Tool for the LLM: hand the user a chat card with the connection QR
+          // instead of a wall of pairing instructions. Reuses the same QR
+          // cache/connect path as `request_qr`, but never wipes the session —
+          // a logged-out session is cleaned up by the `loggedOut` handler.
+          if (connected) {
+            result = _buildConnectionQrCardResult({ connected: true, now: Date.now() })
+            break
+          }
+          if (_qrStillValid()) {
+            result = _buildConnectionQrCardResult({
+              connected: false,
+              qr: lastQr,
+              expiresIn: _qrExpiresInSeconds(),
+              now: Date.now()
+            })
+            break
+          }
+          _triggerConnectionForQr()
+          const awaitedQr = await _waitForQr(QR_CARD_WAIT_MS)
+          const validQr = awaitedQr || (_qrStillValid() ? lastQr : null)
+          result = _buildConnectionQrCardResult({
+            connected,
+            qr: validQr,
+            expiresIn: validQr ? _qrExpiresInSeconds() : 0,
+            now: Date.now()
+          })
+          break
+        }
         case 'restart':
         case 'request_qr': {
           const forcePairing = Boolean(msg.payload.args?.force)
@@ -4920,7 +5060,7 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
           }
           if (_qrStillValid() && !forcePairing) {
             _emitQrCode(lastQr)
-            result = { ok: true, qr: lastQr }
+            result = { ok: true, qr: lastQr, expiresIn: _qrExpiresInSeconds() }
             break
           }
           // The page polls request_qr (~1s) while waiting for a QR. If a connect
@@ -5762,6 +5902,19 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
             documentName: notifDocumentName,
             video: notifVideo
           }
+          break
+        }
+        case 'media_path_policy': {
+          // Host hook: decides whether a send_message with a local image path
+          // needs the user's confirmation. The host pauses the turn only on
+          // `ask`; data URIs and paths inside the extension storage run free.
+          const hookArgs = msg.payload?.args
+          const targetArgs =
+            hookArgs && typeof hookArgs === 'object' && hookArgs.args && typeof hookArgs.args === 'object'
+              ? hookArgs.args
+              : {}
+          const decision = _evaluateMediaPathPolicy(targetArgs, momai.storage.storageDir)
+          result = { ok: true, instruction: JSON.stringify(decision) }
           break
         }
         default: {

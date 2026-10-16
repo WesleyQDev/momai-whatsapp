@@ -316,6 +316,15 @@
         "play_audio": "Audio abspielen",
         "playback_speed": "Wiedergabegeschwindigkeit"
     },
+    "connectionCard": {
+        "qr_alt": "WhatsApp-Verbindungs-QR-Code",
+        "expires_in": "Der Code läuft in {{seconds}}s ab",
+        "generating": "QR-Code wird erstellt…",
+        "expired": "Der Code ist abgelaufen. Erstelle einen neuen, um fortzufahren.",
+        "failed": "Der Code konnte nicht erstellt werden. Versuche es erneut.",
+        "refresh": "Neuen Code erstellen",
+        "connected_title": "WhatsApp verbunden"
+    },
     "notification": {
         "message_from": "Neue Nachricht von",
         "dismiss": "Verwerfen",
@@ -349,7 +358,8 @@
         "list_contacts": "Kontakte auflisten",
         "remove_contact": "Kontakt entfernen",
         "get_wa_groups": "Gruppen suchen",
-        "send_message": "Nachricht senden"
+        "send_message": "Nachricht senden",
+        "show_connection_qr": "Verbindungs-QR anzeigen"
     },
     "params": {
         "media": "Bild",
