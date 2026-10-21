@@ -346,6 +346,10 @@ describe('resolveJidForSending (mock waContacts)', () => {
     expect(resolveJidForSending('5511999990002@lid', ctx)).toBe('5511999990002@s.whatsapp.net')
   })
 
+  it('resolves a display name with a LID to the phone JID', () => {
+    expect(resolveJidForSending('João', ctx)).toBe('5511999990002@s.whatsapp.net')
+  })
+
   it('falls back to the @lid JID when there is no phone-mapped entry', () => {
     const lidOnly = {
       ...ctx,

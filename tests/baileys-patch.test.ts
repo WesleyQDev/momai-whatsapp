@@ -27,4 +27,19 @@ describe('baileys dependency pin (item 22)', () => {
     expect(patch).toContain('messages-send.js')
     expect(patch).toContain('assertSessions')
   })
+
+  it('keeps LID device servers in the direct-send path', () => {
+    const patch = fs.readFileSync(
+      path.join(root, 'patches/@whiskeysockets__baileys.patch'),
+      'utf8'
+    )
+    const patchedLoops = patch.match(
+      /for \(const \{ user, device, server: devServer \} of devices\)/g
+    )
+    expect(patchedLoops?.length ?? 0).toBeGreaterThanOrEqual(2)
+    expect(patch).toContain("devServer || (isLid ? 'lid' : 's.whatsapp.net')")
+    expect(patch).toContain('const meLidUser = authState.creds?.me?.lid?.split')
+    expect(patch).toContain('user === meUser || (!!meLidUser && user === meLidUser)')
+    expect(patch).toContain("devServer === 'lid' ? meLidUser || user")
+  })
 })

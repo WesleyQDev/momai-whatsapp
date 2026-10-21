@@ -87,6 +87,7 @@ const {
   shouldSuppressStatusOrChannelUpdate: _shouldSuppressStatusOrChannelUpdate,
   resolveNotificationReplyJid: _resolveNotificationReplyJid,
   getStatusTtsText: _getStatusTtsText,
+  getNotificationTtsText: _getNotificationTtsText,
   resolveStatusReplyQuoted: _resolveStatusReplyQuoted,
   resolveReplyQuoted: _resolveReplyQuoted,
   extractQuotedMessage: _extractQuotedMessage,
@@ -3145,6 +3146,45 @@ async function handleMessagesUpsert({ messages, type }) {
       cacheMessage(msg.key, msg.message)
     }
     const rawMsg = msg.message
+    if (rawMsg?.reactionMessage) {
+      const reaction = rawMsg.reactionMessage
+      const targetKey = reaction.key
+      const targetId = targetKey?.id
+      const emoji = reaction.text || ''
+      if (targetId) {
+        const target = chatHistory.find((m) => m.id === targetId)
+        if (target) {
+          target.reactions = target.reactions || []
+          const fromMe = Boolean(msg.key.fromMe)
+          const senderJid =
+            resolveMessageSenderJid(msg.key.remoteJid, msg.key.participant) ||
+            msg.key.participant ||
+            msg.key.remoteJid
+          const existingIdx = target.reactions.findIndex(
+            (r: any) =>
+              r.fromMe === fromMe && (fromMe || (r.senderJid && r.senderJid === senderJid))
+          )
+          if (emoji) {
+            if (existingIdx >= 0) {
+              target.reactions[existingIdx].text = emoji
+            } else {
+              target.reactions.push({ text: emoji, fromMe, senderJid })
+            }
+          } else if (existingIdx >= 0) {
+            target.reactions.splice(existingIdx, 1)
+          }
+          schedulePersistChatHistory()
+          momai.sendEvent('message_reaction', {
+            messageId: targetId,
+            jid: msg.key.remoteJid,
+            emoji,
+            fromMe
+          })
+        }
+      }
+      continue
+    }
+
     const innerMsg =
       rawMsg?.ephemeralMessage?.message ||
       rawMsg?.viewOnceMessage?.message ||
@@ -3453,6 +3493,12 @@ async function handleMessagesUpsert({ messages, type }) {
 
     const historyEntry = enrichHistoryEntry({
       id: msg.key?.id || null,
+      rawKey: msg.key ? {
+        remoteJid: msg.key.remoteJid,
+        id: msg.key.id,
+        fromMe: Boolean(msg.key.fromMe),
+        participant: msg.key.participant
+      } : undefined,
       from: displayName,
       jid: isStatusMessage && resolvedSenderJid ? resolvedSenderJid : remoteJid,
       senderJid,
@@ -3643,6 +3689,13 @@ async function handleMessagesUpsert({ messages, type }) {
           contactAvatar,
           isGroup: !!isGroup,
           isNoteToSelf,
+          fromMe: Boolean(msg.key?.fromMe),
+          rawKey: msg.key ? {
+            remoteJid: msg.key.remoteJid,
+            id: msg.key.id,
+            fromMe: Boolean(msg.key.fromMe),
+            participant: msg.key.participant
+          } : undefined,
           isStatus: isStatusMessage,
           statusContext,
           groupName: isGroup ? resGroupName : undefined,
@@ -4491,6 +4544,12 @@ async function sendMessage(
   const resolvedGroupName = isGroupMsg ? resolveContactName(jid) || 'Grupo' : null
   const historyEntry = enrichHistoryEntry({
     id: sentId,
+    rawKey: sentMessage?.key ? {
+      remoteJid: sentMessage.key.remoteJid || jid,
+      id: sentMessage.key.id || sentId,
+      fromMe: true,
+      participant: undefined
+    } : undefined,
     from: displayName,
     jid: jid,
     senderJid: jid,
@@ -4787,6 +4846,127 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
           }
           break
         }
+        case 'send_reaction':
+        case 'react_to_message': {
+          const args = msg.payload.args || {}
+          const contact = String(args.contact || args.jid || '').trim()
+          const messageId = String(args.messageId || args.id || '').trim()
+          const emoji = typeof args.emoji === 'string' ? args.emoji : ''
+          if (!contact || !messageId) {
+            result = { ok: false, error: 'Destinatário e ID da mensagem são obrigatórios.' }
+            break
+          }
+          if (!sock || !connected) {
+            result = { ok: false, error: 'WhatsApp desconectado.' }
+            break
+          }
+          let jid = resolveJidForSending(contact)
+          if (!jid || !jid.includes('@')) {
+            const groupJid = await findGroupJidByDisplayName(contact)
+            if (groupJid) jid = groupJid
+          }
+          if (!jid || !jid.includes('@')) {
+            result = { ok: false, error: `Contato "${contact}" não encontrado.` }
+            break
+          }
+          const isGroup = jid.endsWith('@g.us')
+          const myJidRaw = sock?.user?.id || sock?.authState?.creds?.me?.id
+          const myJidStandardized = resolveStandardJid(myJidRaw)
+          const myLidRaw = (sock?.user as any)?.lid || (sock?.authState?.creds?.me as any)?.lid
+          const myLidStandardized = myLidRaw?.includes(':') ? myLidRaw.split(':')[0] + '@lid' : myLidRaw
+
+          const isNoteToSelfChat = Boolean(
+            jid && (
+              jid === myJidRaw ||
+              jid === myJidStandardized ||
+              jid === myLidRaw ||
+              jid === myLidStandardized ||
+              (myJidStandardized && resolveStandardJid(jid) === myJidStandardized)
+            )
+          )
+
+          const target = chatHistory.find((m) => m.id === messageId)
+
+          let isFromMe: boolean
+          if (target && typeof target.rawKey?.fromMe === 'boolean') {
+            isFromMe = target.rawKey.fromMe
+          } else if (isNoteToSelfChat) {
+            isFromMe = true
+          } else if (target) {
+            isFromMe = target.direction === 'outgoing'
+          } else {
+            isFromMe = Boolean(args.fromMe)
+          }
+
+          let participant = isGroup
+            ? (target?.rawKey?.participant || target?.senderJid || (args.participant ? String(args.participant) : undefined))
+            : undefined
+
+          let destinationJid = jid
+          let targetRemoteJid = target?.rawKey?.remoteJid || jid
+
+          if (isNoteToSelfChat) {
+            if (target?.rawKey?.remoteJid) {
+              destinationJid = target.rawKey.remoteJid
+              targetRemoteJid = target.rawKey.remoteJid
+            } else if (myLidRaw && (jid.endsWith('@lid') || String(args.contact).includes('@lid'))) {
+              destinationJid = myLidRaw
+              targetRemoteJid = myLidRaw
+            }
+          }
+
+          const key: any = {
+            remoteJid: targetRemoteJid,
+            id: messageId,
+            fromMe: isFromMe
+          }
+          if (participant && !isFromMe) {
+            key.participant = participant
+          }
+
+          momai.log(`[whatsapp] send_reaction: emoji="${emoji}", msgId=${messageId}, destJid=${destinationJid}, remoteJid=${targetRemoteJid}, fromMe=${isFromMe}, participant=${participant || 'none'}`)
+
+          try {
+            const sent = await sock.sendMessage(destinationJid, {
+              react: {
+                text: emoji,
+                key
+              }
+            })
+            if (sent?.key?.id && sent?.message) {
+              cacheMessage(sent.key, sent.message)
+            }
+
+            const target = chatHistory.find((m) => m.id === messageId)
+            if (target) {
+              target.reactions = target.reactions || []
+              const existingIdx = target.reactions.findIndex((r: any) => r.fromMe)
+              if (emoji) {
+                if (existingIdx >= 0) {
+                  target.reactions[existingIdx].text = emoji
+                } else {
+                  target.reactions.push({ text: emoji, fromMe: true })
+                }
+              } else if (existingIdx >= 0) {
+                target.reactions.splice(existingIdx, 1)
+              }
+              schedulePersistChatHistory()
+            }
+
+            momai.sendEvent('message_reaction', {
+              messageId,
+              jid,
+              emoji,
+              fromMe: true
+            })
+
+            result = { ok: true, messageId, emoji }
+          } catch (err: any) {
+            momai.log(`send_reaction error: ${err?.message || err}`)
+            result = { ok: false, error: err?.message || 'Falha ao enviar reação.' }
+          }
+          break
+        }
         case 'set_default_contact': {
           const contact = String(msg.payload.args?.contact || '').trim()
           await momai.storage.set(DEFAULT_CONTACT_KEY, contact)
@@ -4797,26 +4977,79 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
           result = { ok: true, contact: await getDefaultContact() }
           break
         case 'list_contacts': {
+          const myJid = sock?.user?.id || sock?.authState?.creds?.me?.id
+          const meId = resolveStandardJid(myJid)
+
+          const isChannelOrBroadcast = (jid: string) => {
+            if (!jid || typeof jid !== 'string') return true
+            const lower = jid.toLowerCase()
+            return (
+              lower.endsWith('@newsletter') ||
+              lower.endsWith('@broadcast') ||
+              lower === 'status@broadcast' ||
+              lower.endsWith('@call') ||
+              lower.endsWith('@lid')
+            )
+          }
+
           const allContacts = Object.values<any>(waContacts)
-            .filter((c) => c.phone && !c.id.endsWith('@g.us'))
+            .filter((c) => {
+              if (!c?.id || typeof c.id !== 'string') return false
+              if (c.id.endsWith('@g.us')) return false
+              if (isChannelOrBroadcast(c.id)) return false
+              return Boolean(c.phone || c.id.endsWith('@s.whatsapp.net'))
+            })
             .map((c) => ({
               id: c.id,
               name: _resolveWaContactDisplayName(c, c.id),
-              phone: c.phone,
+              phone: c.phone || c.id.split('@')[0],
               monitoring: !_isContactDisabled(c.id),
-              profilePicUrl: c.profilePicUrl || null,
-              isGroup: false
+              profilePicUrl: c.profilePicUrl || resolveChatAvatarUrl(c.id, false) || null,
+              isGroup: false,
+              canSend: true
             }))
+
           const allGroups = Object.values<any>(waContacts)
-            .filter((c) => c.id && c.id.endsWith('@g.us'))
-            .map((c) => ({
-              id: c.id,
-              name: _resolveWaContactDisplayName(c, c.id),
-              phone: null,
-              monitoring: !_isContactDisabled(c.id),
-              profilePicUrl: c.profilePicUrl || null,
-              isGroup: true
-            }))
+            .filter((c) => {
+              if (!c?.id || typeof c.id !== 'string') return false
+              if (!c.id.endsWith('@g.us')) return false
+              if (isChannelOrBroadcast(c.id)) return false
+
+              const meta = groupMetaCache.get(c.id)?.data
+              if (meta?.announce) {
+                if (meId && Array.isArray(meta.participants)) {
+                  const mePart = meta.participants.find(
+                    (p: any) => resolveStandardJid(p.id) === meId
+                  )
+                  const isMeAdmin = Boolean(mePart?.admin || mePart?.isSuperAdmin)
+                  if (!isMeAdmin) return false
+                }
+              }
+              return true
+            })
+            .map((c) => {
+              const meta = groupMetaCache.get(c.id)?.data
+              let canSend = true
+              if (meta?.announce) {
+                if (meId && Array.isArray(meta.participants)) {
+                  const mePart = meta.participants.find(
+                    (p: any) => resolveStandardJid(p.id) === meId
+                  )
+                  canSend = Boolean(mePart?.admin || mePart?.isSuperAdmin)
+                }
+              }
+              return {
+                id: c.id,
+                name: _resolveWaContactDisplayName(c, c.id) || c.name || meta?.subject || 'Grupo',
+                phone: null,
+                monitoring: !_isContactDisabled(c.id),
+                profilePicUrl: c.profilePicUrl || resolveChatAvatarUrl(c.id, true) || null,
+                isGroup: true,
+                canSend
+              }
+            })
+            .filter((g) => g.canSend)
+
           result = { contacts: allContacts, groups: allGroups }
           break
         }
@@ -5783,113 +6016,17 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
           result = await getPanelData()
           break
         case 'process_notification': {
-          const notifContact = msg.payload?.args?.contact || 'Desconhecido'
-          const notifMessage = msg.payload?.args?.message || ''
           const notifAudio = msg.payload?.args?.audio || null
           const notifSticker = msg.payload?.args?.sticker || null
           const notifImage = msg.payload?.args?.image || null
           const notifDocument = msg.payload?.args?.document || null
           const notifDocumentName = msg.payload?.args?.documentName || null
           const notifVideo = msg.payload?.args?.video || null
-          const notifIsStatus = !!msg.payload?.args?.isStatus
-          const isNoteToSelf = !!msg.payload?.args?.isNoteToSelf
-          const isGroupNotif = !!msg.payload?.args?.isGroup
-          const isPhoneNumber = /^\d+$/.test(String(notifContact).replace(/\D/g, ''))
 
-          const hasEmoji = /\p{Extended_Pictographic}/u.test(notifMessage)
-          const isGif = notifMessage === '[GIF]'
-          const isSticker = notifMessage === '[Sticker]'
-          const isCall = notifMessage === '📞Chamada em curso...' || notifMessage.includes('Chamada em curso')
-          const isAudio = notifMessage === '🎙️ Áudio'
-          const isImage = notifMessage === '📷 Foto' || notifMessage.startsWith('📷')
-          const isDocument =
-            notifMessage === '📄 Documento' ||
-            notifMessage.startsWith('📄') ||
-            !!notifDocument
-
-          let ttsText
-          if (notifIsStatus && typeof _getStatusTtsText === 'function') {
-            const isVideo = notifMessage === '🎥 Vídeo' || notifMessage.startsWith('🎥') || !!notifVideo
-            const mediaKind = isVideo
-              ? 'video'
-              : isAudio
-                ? 'audio'
-                : isGif
-                  ? 'gif'
-                  : isSticker
-                    ? 'sticker'
-                    : isImage
-                      ? 'image'
-                      : isDocument
-                        ? 'document'
-                        : 'text'
-            ttsText = _getStatusTtsText({
-              contact: notifContact,
-              message: notifMessage,
-              mediaKind,
-              isNoteToSelf,
-              isPhoneNumber
-            })
-          } else if (isCall) {
-            ttsText = `Ligação pendente de contato ${notifContact}`
-          } else if (isAudio) {
-            if (isNoteToSelf) {
-              ttsText = 'Você enviou um áudio para si mesmo'
-            } else if (isPhoneNumber) {
-              ttsText = 'Um número desconhecido enviou um áudio'
-            } else {
-              ttsText = `${notifContact} enviou um áudio`
-            }
-          } else if (isGif) {
-            if (isNoteToSelf) {
-              ttsText = 'Você enviou um gif para si mesmo'
-            } else if (isPhoneNumber) {
-              ttsText = 'Um número desconhecido enviou um gif'
-            } else {
-              ttsText = `${notifContact} enviou um gif`
-            }
-          } else if (isSticker) {
-            if (isNoteToSelf) {
-              ttsText = 'Você enviou um sticker para si mesmo'
-            } else if (isPhoneNumber) {
-              ttsText = 'Um número desconhecido enviou um sticker'
-            } else {
-              ttsText = `${notifContact} enviou um sticker`
-            }
-          } else if (isImage) {
-            if (isNoteToSelf) {
-              ttsText = 'Você enviou uma foto para si mesmo'
-            } else if (isPhoneNumber) {
-              ttsText = 'Um número desconhecido enviou uma foto'
-            } else {
-              ttsText = `${notifContact} enviou uma foto`
-            }
-          } else if (isDocument) {
-            const docLabel = notifDocumentName || 'um documento'
-            if (isNoteToSelf) {
-              ttsText = `Você enviou um documento para si mesmo (${docLabel})`
-            } else if (isPhoneNumber) {
-              ttsText = `Um número desconhecido enviou um documento (${docLabel})`
-            } else {
-              ttsText = `${notifContact} enviou um documento (${docLabel})`
-            }
-          } else if (hasEmoji) {
-            if (isNoteToSelf) {
-              ttsText = 'Você enviou um emoji para si mesmo'
-            } else if (isPhoneNumber) {
-              ttsText = 'Um número desconhecido enviou um emoji'
-            } else {
-              ttsText = `${notifContact} enviou um emoji`
-            }
-          } else {
-            if (isNoteToSelf) {
-              ttsText = `Você enviou para si mesmo: ${notifMessage}`
-            } else if (isPhoneNumber) {
-              ttsText = `Um número desconhecido disse: ${notifMessage}`
-            } else {
-              ttsText = `${notifContact} disse: ${notifMessage}`
-            }
-          }
+          const ttsText =
+            typeof _getNotificationTtsText === 'function'
+              ? _getNotificationTtsText(msg.payload?.args)
+              : ''
 
           result = {
             // Suggestions are generated contextually in the panel, not here.

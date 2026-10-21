@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   '@whiskeysockets/baileys':
-    hash: cf4b089c198f2c0a9bb102e2a159b12b9f1e1e432517c88b40de56002b780c55
+    hash: cc62c1cb5609deaec63a3758e9df76a4ad41043176c8c1a4dfad75448ca9a56e
     path: patches/@whiskeysockets__baileys.patch
 
 importers:
@@ -15,7 +15,7 @@ importers:
     dependencies:
       '@whiskeysockets/baileys':
         specifier: 6.17.16
-        version: 6.17.16(patch_hash=cf4b089c198f2c0a9bb102e2a159b12b9f1e1e432517c88b40de56002b780c55)(eslint@9.39.5)(typescript@5.9.3)
+        version: 6.17.16(patch_hash=cc62c1cb5609deaec63a3758e9df76a4ad41043176c8c1a4dfad75448ca9a56e)(eslint@9.39.5)(typescript@5.9.3)
       pino:
         specifier: ^8.0.0
         version: 8.21.0
@@ -2279,7 +2279,7 @@ snapshots:
     dependencies:
       '@wasm-audio-decoders/common': 9.0.7
 
-  '@whiskeysockets/baileys@6.17.16(patch_hash=cf4b089c198f2c0a9bb102e2a159b12b9f1e1e432517c88b40de56002b780c55)(eslint@9.39.5)(typescript@5.9.3)':
+  '@whiskeysockets/baileys@6.17.16(patch_hash=cc62c1cb5609deaec63a3758e9df76a4ad41043176c8c1a4dfad75448ca9a56e)(eslint@9.39.5)(typescript@5.9.3)':
     dependencies:
       '@adiwajshing/keyed-db': 0.2.4
       '@cacheable/node-cache': 1.7.6

@@ -25,11 +25,17 @@ const getInitials = (name: string): string => {
 export default function ContactAvatar({
   src,
   name,
-  id
+  id,
+  className,
+  size = 'md',
+  disableViewer = false
 }: {
   src?: string | null
   name: string
   id: string
+  className?: string
+  size?: 'xs' | 'sm' | 'md' | 'lg'
+  disableViewer?: boolean
 }) {
   const [error, setError] = useState(false)
   const [showViewer, setShowViewer] = useState(false)
@@ -38,6 +44,17 @@ export default function ContactAvatar({
     setError(false)
   }, [src])
 
+  const sizeClasses =
+    size === 'xs'
+      ? 'w-6 h-6 text-[10px]'
+      : size === 'sm'
+        ? 'w-8 h-8 text-xs'
+        : size === 'lg'
+          ? 'w-12 h-12 text-base'
+          : 'w-10 h-10 text-sm'
+
+  const finalClass = className || sizeClasses
+
   if (src && !error) {
     return (
       <>
@@ -45,13 +62,18 @@ export default function ContactAvatar({
           src={src}
           alt={name}
           onError={() => setError(true)}
-          className="w-10 h-10 rounded-full object-cover shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+          className={`${finalClass} rounded-full object-cover shrink-0 ${
+            disableViewer ? '' : 'cursor-pointer hover:opacity-80 transition-opacity'
+          }`}
           onClick={(e) => {
+            if (disableViewer) return
             e.stopPropagation()
             setShowViewer(true)
           }}
         />
-        {showViewer && <ImageViewer src={src} alt={name} onClose={() => setShowViewer(false)} />}
+        {showViewer && !disableViewer && (
+          <ImageViewer src={src} alt={name} onClose={() => setShowViewer(false)} />
+        )}
       </>
     )
   }
@@ -61,7 +83,7 @@ export default function ContactAvatar({
     const color = getAvatarColor(id)
     return (
       <div
-        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm shrink-0"
+        className={`${finalClass} rounded-full flex items-center justify-center text-white font-semibold shrink-0`}
         style={{ backgroundColor: color }}
       >
         {initials}
@@ -70,9 +92,11 @@ export default function ContactAvatar({
   }
 
   const isPhone = /^[+\d\s().-]*$/.test(name)
-  const isGroup = id.endsWith('@g.us')
+  const isGroup = typeof id === 'string' && id.endsWith('@g.us')
   return (
-    <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-lg shrink-0">
+    <div
+      className={`${finalClass} rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0`}
+    >
       {isGroup ? '👥' : isPhone ? '📱' : '👤'}
     </div>
   )

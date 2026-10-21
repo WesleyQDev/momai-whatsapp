@@ -24,6 +24,7 @@ import MediaPicker from './components/MediaPicker'
 import { QuotedMessage } from './components/QuotedMessage'
 import { copyTextToClipboard } from './utils/clipboard'
 import { getApiBaseUrl } from './utils/apiBase'
+import ReactionPicker from './components/ReactionPicker'
 
 interface AttachedDocument {
   id: string
@@ -601,6 +602,7 @@ type HistoryLine = {
   video?: string
   gif?: string
   isGif?: boolean
+  reactions?: { text: string; fromMe?: boolean }[]
   quoted?: {
     id?: string
     text?: string
@@ -667,6 +669,7 @@ function normalizeServerLine(m: any): HistoryLine | null {
     video: m.video,
     gif: m.gif,
     isGif: m.isGif,
+    reactions: Array.isArray(m.reactions) ? m.reactions : undefined,
     quoted: normalizeIncomingQuoted(m.quoted)
   }
   if (!line.text && !line.audio && !line.sticker && !line.image && !line.document && !line.video && !line.gif && !line.isGif && !line.quoted) {
@@ -1267,6 +1270,70 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     y: number
     message: HistoryLine
   } | null>(null)
+
+  const [hoveredMsgTs, setHoveredMsgTs] = useState<number | null>(null)
+  const [reactionPicker, setReactionPicker] = useState<{
+    x: number
+    y: number
+    message: HistoryLine
+  } | null>(null)
+
+  const handleSendReaction = useCallback(
+    async (targetMessage: HistoryLine, emoji: string) => {
+      const targetId = targetMessage.id
+      const targetTs = targetMessage.timestamp
+      const chatJid = activeRecipient.jid || contactJid || ''
+      if (!chatJid) return
+
+      const existingReactions = targetMessage.reactions || []
+      const myReaction = existingReactions.find((r) => r.fromMe)
+      const newEmoji = myReaction && myReaction.text === emoji ? '' : emoji
+
+      setLocalHistory((prev) =>
+        prev.map((line) => {
+          const matches = (targetId && line.id === targetId) || line.timestamp === targetTs
+          if (!matches) return line
+          const current = line.reactions || []
+          const withoutMe = current.filter((r) => !r.fromMe)
+          const updated = newEmoji ? [...withoutMe, { text: newEmoji, fromMe: true }] : withoutMe
+          return {
+            ...line,
+            reactions: updated.length > 0 ? updated : undefined
+          }
+        })
+      )
+
+      setReactionPicker(null)
+
+      if (targetId) {
+        try {
+          const base = getApiBaseUrl()
+          if (base) {
+            await fetch(`${base}/extensions/momai-whatsapp/command`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Session-Token': (window as any)?.api?.getSessionToken?.() || ''
+              },
+              body: JSON.stringify({
+                toolName: 'send_reaction',
+                args: {
+                  contact: chatJid,
+                  messageId: targetId,
+                  emoji: newEmoji,
+                  fromMe: targetMessage.direction === 'outgoing',
+                  participant: targetMessage.senderJid
+                }
+              })
+            })
+          }
+        } catch (err) {
+          console.error('[WhatsApp Panel] Erro ao enviar reação:', err)
+        }
+      }
+    },
+    [activeRecipient.jid, contactJid]
+  )
 
   const [replyingTo, setReplyingTo] = useState<HistoryLine | null>(null)
 
@@ -1980,6 +2047,29 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
       // widgets). Versões antigas do painel liam `event.type`, o que fazia o
       // overlay aberto nunca receber mensagens novas. Aceita ambos.
       const eventType: string = String(event?.eventType || event?.type || '')
+      if (eventType === 'message_reaction') {
+        const targetId = event.data?.messageId || event.data?.targetId
+        const emoji = event.data?.emoji || ''
+        const fromMe = Boolean(event.data?.fromMe)
+        if (targetId) {
+          setLocalHistory((prev) =>
+            prev.map((line) => {
+              if (line.id !== targetId) return line
+              const current = line.reactions || []
+              const withoutSender = fromMe
+                ? current.filter((r) => !r.fromMe)
+                : current.filter((r) => r.fromMe)
+              const updated = emoji ? [...withoutSender, { text: emoji, fromMe }] : withoutSender
+              return {
+                ...line,
+                reactions: updated.length > 0 ? updated : undefined
+              }
+            })
+          )
+        }
+        return
+      }
+
       if (eventType === 'whatsapp.voice_response' || eventType === 'voice_response') {
         const eventContactJid = event.data?.contactJid || event.data?.contact
         if (eventContactJid && !isSameChat(String(eventContactJid), contactJid)) return
@@ -2739,11 +2829,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
               <div className="flex flex-col flex-1 min-w-0 w-full min-h-0 justify-between overflow-hidden">
                 {/* Upper scrollable section */}
                 <div
-                  className={`flex-1 min-w-0 w-full min-h-0 ${
-                    showHistoryView
-                      ? 'flex flex-col overflow-hidden p-0'
-                      : 'overflow-y-auto custom-scrollbar overscroll-contain pr-0.5 space-y-2'
-                  }`}
+                  className="flex-1 min-w-0 w-full min-h-0 flex flex-col overflow-hidden p-0"
                 >
                   {showHistoryView ? (
                     <>
@@ -2892,10 +2978,41 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                 </div>
                               )}
                               <div
-                                className={`flex items-center gap-2.5 w-full ${
+                                onMouseEnter={() => setHoveredMsgTs(line.timestamp)}
+                                onMouseLeave={() => setHoveredMsgTs((cur) => cur === line.timestamp ? null : cur)}
+                                className={`group/row relative flex items-center gap-2 w-full ${
                                   isOutgoing ? 'justify-end' : 'justify-start'
                                 } ${isSameSenderAsPrev ? 'mt-1' : 'mt-2.5'}`}
                               >
+                                {isOutgoing && !isSelectionMode && !isStickerMsg && !isOnlyEmojiMsg && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const rect = e.currentTarget.getBoundingClientRect()
+                                      setReactionPicker({
+                                        x: Math.max(12, rect.left - 180),
+                                        y: Math.max(12, rect.top - 54),
+                                        message: line
+                                      })
+                                    }}
+                                    style={{
+                                      opacity: hoveredMsgTs === line.timestamp ? 1 : 0,
+                                      pointerEvents: hoveredMsgTs === line.timestamp ? 'auto' : 'none',
+                                      transition: 'opacity 0.15s ease'
+                                    }}
+                                    className="p-1 rounded-full bg-card/90 hover:bg-card text-text-muted hover:text-text border border-border/60 shadow-xs cursor-pointer shrink-0 self-center hover:scale-110 active:scale-95"
+                                    title="Reagir com emoji"
+                                    aria-label="Reagir com emoji"
+                                  >
+                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <circle cx="12" cy="12" r="10" />
+                                      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                                      <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="3" />
+                                      <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="3" />
+                                    </svg>
+                                  </button>
+                                )}
                                 {isSelectionMode && (
                                   <button
                                     type="button"
@@ -2979,7 +3096,12 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                           const rect = e.currentTarget.getBoundingClientRect()
                                           setMessageContextMenu({ x: rect.left, y: rect.bottom + 4, message: line })
                                         }}
-                                        className={`absolute top-1 right-1.5 p-0.5 rounded-full opacity-0 group-hover/bubble:opacity-100 transition-opacity z-20 cursor-pointer shadow-xs ${
+                                        style={{
+                                          opacity: hoveredMsgTs === line.timestamp ? 1 : 0,
+                                          pointerEvents: hoveredMsgTs === line.timestamp ? 'auto' : 'none',
+                                          transition: 'opacity 0.15s ease'
+                                        }}
+                                        className={`absolute top-1 right-1.5 p-0.5 rounded-full z-20 cursor-pointer shadow-xs ${
                                           isOutgoing
                                             ? 'bg-black/30 hover:bg-black/50 text-white'
                                             : 'bg-card/80 hover:bg-card text-text border border-border/50'
@@ -3303,7 +3425,66 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                       </div>
                                     )}
                                   </div>
+                                  {/* Badge de reações (abaixo da imagem ou mensagem) */}
+                                  {line.reactions && line.reactions.length > 0 && (
+                                    <div className={`flex ${isOutgoing ? 'justify-end mr-1' : 'justify-start ml-1'} -mt-1 mb-1 z-10`}>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          const rect = e.currentTarget.getBoundingClientRect()
+                                          setReactionPicker({
+                                            x: Math.max(12, rect.left - 40),
+                                            y: Math.max(12, rect.top - 52),
+                                            message: line
+                                          })
+                                        }}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-card/95 border border-border/70 shadow-xs text-xs select-none backdrop-blur-xs cursor-pointer hover:scale-105 transition-transform"
+                                        title="Reações"
+                                      >
+                                        {Array.from(new Set(line.reactions.map((r) => r.text)))
+                                          .slice(0, 3)
+                                          .map((emoji, idx) => (
+                                            <span key={idx} className="leading-none text-[12px]">{emoji}</span>
+                                          ))}
+                                        {line.reactions.length > 1 && (
+                                          <span className="text-[10px] text-text-muted font-medium ml-0.5 leading-none">
+                                            {line.reactions.length}
+                                          </span>
+                                        )}
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
+                                {!isOutgoing && !isSelectionMode && !isStickerMsg && !isOnlyEmojiMsg && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const rect = e.currentTarget.getBoundingClientRect()
+                                      setReactionPicker({
+                                        x: Math.max(12, rect.left - 40),
+                                        y: Math.max(12, rect.top - 54),
+                                        message: line
+                                      })
+                                    }}
+                                    style={{
+                                      opacity: hoveredMsgTs === line.timestamp ? 1 : 0,
+                                      pointerEvents: hoveredMsgTs === line.timestamp ? 'auto' : 'none',
+                                      transition: 'opacity 0.15s ease'
+                                    }}
+                                    className="p-1.5 rounded-full bg-card/85 hover:bg-card text-text-muted hover:text-text border border-border/50 shadow-xs cursor-pointer shrink-0 self-center hover:scale-110 active:scale-95"
+                                    title="Reagir com emoji"
+                                    aria-label="Reagir com emoji"
+                                  >
+                                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <circle cx="12" cy="12" r="10" />
+                                      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                                      <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="3" />
+                                      <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="3" />
+                                    </svg>
+                                  </button>
+                                )}
                               </div>
                             </Fragment>
                           )
@@ -3400,7 +3581,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                     ) : localHistory.length > 0 ? (
                       <div
                         ref={historyScrollRef}
-                        className="flex flex-col gap-2 min-w-0 w-full min-h-0 flex-1 overflow-y-auto custom-scrollbar overscroll-contain pr-0.5 select-text"
+                        className="flex flex-col gap-2 min-w-0 w-full min-h-0 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar overscroll-contain pr-1 select-text"
                       >
                         {localHistory.map((line, i) => {
                           const isOutgoing = line.direction === 'outgoing'
@@ -3433,7 +3614,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                           return (
                             <div
                               key={line.id || `${line.timestamp}-${i}`}
-                              className="flex items-center gap-2.5 w-full shrink-0"
+                              onMouseEnter={() => setHoveredMsgTs(line.timestamp)}
+                              onMouseLeave={() => setHoveredMsgTs((cur) => cur === line.timestamp ? null : cur)}
+                              className="group/notifrow flex items-center gap-1.5 w-full shrink-0"
                             >
                               {isSelectionMode && (
                                 <button
@@ -3487,7 +3670,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                     message: line
                                   })
                                 }}
-                                className={`min-h-[4.5rem] rounded-lg bg-input/40 border p-2.5 select-text flex flex-col justify-center min-w-0 overflow-hidden flex-1 transition-all ${
+                                className={`group/bubble relative min-h-[3.6rem] rounded-lg bg-input/40 border p-2 select-text flex flex-col justify-center min-w-0 overflow-hidden flex-1 transition-all ${
                                   isSelectionMode ? 'cursor-pointer' : ''
                                 } ${
                                   selectedMessageTimestamps.includes(line.timestamp)
@@ -3495,7 +3678,29 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                     : 'border-border/30'
                                 }`}
                               >
-                                <div className="flex items-center gap-2">
+                                {!isSelectionMode && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const rect = e.currentTarget.getBoundingClientRect()
+                                      setMessageContextMenu({ x: rect.left, y: rect.bottom + 4, message: line })
+                                    }}
+                                    style={{
+                                      opacity: hoveredMsgTs === line.timestamp ? 1 : 0,
+                                      pointerEvents: hoveredMsgTs === line.timestamp ? 'auto' : 'none',
+                                      transition: 'opacity 0.15s ease'
+                                    }}
+                                    className="absolute top-1 right-1 p-0.5 rounded-full z-20 cursor-pointer shadow-xs bg-card/90 hover:bg-card text-text border border-border/50"
+                                    title="Opções da mensagem"
+                                    aria-label="Opções da mensagem"
+                                  >
+                                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="6 9 12 15 18 9" />
+                                    </svg>
+                                  </button>
+                                )}
+                                <div className="flex items-center gap-2 pr-5">
                                   <span className="text-xs font-medium text-text-muted select-text truncate">
                                     {lineSender}
                                   </span>
@@ -3677,6 +3882,66 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
                                 {line.audio && <CustomAudioPlayer src={getAudioUrl(line.audio)} />}
                               </div>
+                              {/* Badge de reações na notificação */}
+                              {line.reactions && line.reactions.length > 0 && (
+                                <div className="flex justify-start ml-1 mt-1 z-10">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const rect = e.currentTarget.getBoundingClientRect()
+                                      setReactionPicker({
+                                        x: Math.max(12, rect.left - 40),
+                                        y: Math.max(12, rect.top - 52),
+                                        message: line
+                                      })
+                                    }}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-card/95 border border-border/70 shadow-xs text-xs select-none backdrop-blur-xs cursor-pointer hover:scale-105 transition-transform"
+                                    title="Reações"
+                                  >
+                                    {Array.from(new Set(line.reactions.map((r) => r.text)))
+                                      .slice(0, 3)
+                                      .map((emoji, idx) => (
+                                        <span key={idx} className="leading-none text-[12px]">{emoji}</span>
+                                      ))}
+                                    {line.reactions.length > 1 && (
+                                      <span className="text-[10px] text-text-muted font-medium ml-0.5 leading-none">
+                                        {line.reactions.length}
+                                      </span>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
+                              {/* Botão de reação ao lado da mensagem no hover (padrão WhatsApp Web, como na foto do usuário) */}
+                              {!isSelectionMode && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    const rect = e.currentTarget.getBoundingClientRect()
+                                    setReactionPicker({
+                                      x: Math.max(12, rect.left - 180),
+                                      y: Math.max(12, rect.top - 54),
+                                      message: line
+                                    })
+                                  }}
+                                  style={{
+                                    opacity: hoveredMsgTs === line.timestamp ? 1 : 0,
+                                    pointerEvents: hoveredMsgTs === line.timestamp ? 'auto' : 'none',
+                                    transition: 'opacity 0.15s ease'
+                                  }}
+                                  className="p-1.5 rounded-full bg-card/85 hover:bg-card text-text-muted hover:text-text border border-border/50 shadow-xs cursor-pointer shrink-0 self-center hover:scale-110 active:scale-95"
+                                  title="Reagir com emoji"
+                                  aria-label="Reagir com emoji"
+                                >
+                                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                                    <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="3" />
+                                    <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="3" />
+                                  </svg>
+                                </button>
+                              )}
                             </div>
                           )
                         })}
@@ -4164,6 +4429,20 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
           y={messageContextMenu.y}
           items={[
             {
+              id: 'react',
+              label: 'Reagir',
+              icon: (
+                <span className="text-sm leading-none select-none">😊</span>
+              ),
+              onClick: () => {
+                setReactionPicker({
+                  x: messageContextMenu.x,
+                  y: messageContextMenu.y,
+                  message: messageContextMenu.message
+                })
+              }
+            },
+            {
               id: 'reply',
               label: t('page.reply'),
               icon: (
@@ -4187,7 +4466,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                 </svg>
               ),
               onClick: async () => {
+                const selection = window.getSelection()?.toString()?.trim()
                 const textToCopy =
+                  selection ||
                   messageContextMenu.message.text ||
                   messageContextMenu.message.documentName ||
                   messageContextMenu.message.document ||
@@ -4195,6 +4476,37 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                 if (textToCopy) {
                   await copyTextToClipboard(textToCopy)
                   showToast('Copiado para a área de transferência')
+                }
+              }
+            },
+            {
+              id: 'share',
+              label: t('page.share', 'Compartilhar'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                  <polyline points="16 6 12 2 8 6" />
+                  <line x1="12" y1="2" x2="12" y2="15" />
+                </svg>
+              ),
+              onClick: () => {
+                const selection = window.getSelection()?.toString()?.trim()
+                const textToShare =
+                  selection ||
+                  messageContextMenu.message.text ||
+                  messageContextMenu.message.documentName ||
+                  ''
+                if (textToShare) {
+                  const sdkAny = sdk as any
+                  if (sdkAny?.share?.open) {
+                    void sdkAny.share.open({ text: textToShare })
+                  } else if (typeof window !== 'undefined') {
+                    window.dispatchEvent(
+                      new CustomEvent('momai:share-open', {
+                        detail: { payload: { text: textToShare } }
+                      })
+                    )
+                  }
                 }
               }
             },
@@ -4443,6 +4755,15 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             </div>
           </div>
         </div>
+      )}
+      {reactionPicker && (
+        <ReactionPicker
+          x={reactionPicker.x}
+          y={reactionPicker.y}
+          currentReaction={reactionPicker.message.reactions?.find((r) => r.fromMe)?.text}
+          onSelectReaction={(emoji) => handleSendReaction(reactionPicker.message, emoji)}
+          onClose={() => setReactionPicker(null)}
+        />
       )}
     </>
   )

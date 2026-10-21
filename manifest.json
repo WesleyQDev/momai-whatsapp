@@ -961,6 +961,31 @@
           }
         }
       }
+    },
+    {
+      "name": "send_reaction",
+      "description": "Envia ou remove uma reação com emoji em uma mensagem do WhatsApp.",
+      "parameters": {
+        "type": "object",
+        "required": [
+          "contact",
+          "messageId"
+        ],
+        "properties": {
+          "contact": {
+            "type": "string",
+            "description": "JID do contato ou grupo"
+          },
+          "messageId": {
+            "type": "string",
+            "description": "ID da mensagem"
+          },
+          "emoji": {
+            "type": "string",
+            "description": "Emoji da reação"
+          }
+        }
+      }
     }
   ],
   "routes": [

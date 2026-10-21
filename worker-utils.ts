@@ -734,6 +734,8 @@ function resolveJidForSending(contact, ctx: any = {}) {
     return null
   }
 
+
+
   // Helper to find a contact in waContacts by key (ID, phone, LID, or LID digits)
   const findWaContactByKeyOrDigits = (keyStr) => {
     if (!keyStr) return null
@@ -752,7 +754,9 @@ function resolveJidForSending(contact, ctx: any = {}) {
     )
   }
 
-  // 2. If it ends with @lid, resolve to s.whatsapp.net JID from waContacts
+  // 2. If it ends with @lid, resolve to the known phone JID from waContacts.
+  // The phone JID is the chat the user sees; the Baileys patch still addresses
+  // the contact's LID device for the actual Signal session.
   if (jid.endsWith('@lid')) {
     const phoneMatched =
       Object.values<any>(waContacts).find((c) => c.lid === jid && !c.id.endsWith('@lid')) ||
@@ -772,8 +776,8 @@ function resolveJidForSending(contact, ctx: any = {}) {
     // Priority 1: Direct match in waContacts (name, notify, verifiedName, labels, phone)
     for (const [cId, c] of Object.entries<any>(waContacts)) {
       if (cId.endsWith('@lid')) continue
-      const targetPhoneJid = getPhoneJidFromContact(c)
-      if (!targetPhoneJid) continue
+      const targetJid = getPhoneJidFromContact(c)
+      if (!targetJid) continue
 
       const customName = (
         contactNames[cId] ||
@@ -794,7 +798,7 @@ function resolveJidForSending(contact, ctx: any = {}) {
         (cVerified && cVerified === cleanContact) ||
         (cPhone && cPhone === cleanContact)
       ) {
-        return targetPhoneJid
+        return targetJid
       }
     }
 
@@ -827,12 +831,12 @@ function resolveJidForSending(contact, ctx: any = {}) {
     // Priority 3: Partial match search in waContacts
     for (const [cId, c] of Object.entries<any>(waContacts)) {
       if (cId.endsWith('@lid')) continue
-      const targetPhoneJid = getPhoneJidFromContact(c)
-      if (!targetPhoneJid) continue
+      const targetJid = getPhoneJidFromContact(c)
+      if (!targetJid) continue
 
       const resolvedLabel = resolveDisplayName(c, cId).toLowerCase()
       if (resolvedLabel.includes(cleanContact)) {
-        return targetPhoneJid
+        return targetJid
       }
     }
   }
@@ -1707,8 +1711,258 @@ function getStatusTtsText(opts) {
   if (mediaKind === 'document') return `${subject} postou um status com documento`
   if (mediaKind === 'sticker') return `${subject} postou um status com figurinha`
   if (mediaKind === 'gif') return `${subject} postou um status com gif`
-  if (message) return `${subject} postou um status: ${message}`
+  if (message) {
+    const cleanedStatus = stripEmojis(message)
+    const isStatusOnlyEmoji =
+      isOnlyEmojiMessage(message) ||
+      (HAS_EMOJI_REGEX.test(message) && (!cleanedStatus || !/[a-zA-Z0-9\p{L}]/u.test(cleanedStatus)))
+    if (isStatusOnlyEmoji) return `${subject} postou um status com emoji`
+    if (cleanedStatus) return `${subject} postou um status: ${cleanedStatus}`
+    return `${subject} postou um status`
+  }
   return `${subject} postou um status`
+}
+
+const EMOJI_ONLY_REGEX =
+  /^(?:(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|\uFE0F|\uFE0E|\u200D|\p{Emoji_Modifier}|[0-9#*]\uFE0F?\u20E3)|\s)+$/u
+const HAS_EMOJI_REGEX =
+  /(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|[0-9#*]\uFE0F?\u20E3)/u
+const EMOJI_STRIP_REGEX =
+  /(?:[0-9#*]\uFE0F?\u20E3|\p{Regional_Indicator}{1,2}|\p{Extended_Pictographic}|\p{Emoji_Modifier}|[\u2600-\u27BF\u{1F300}-\u{1F9FF}\u{1FA00}-\u{1FAFF}]|[\uFE0E\uFE0F\u200D\u20E3])/gu
+
+/**
+ * Strips all emojis, modifiers, pictographic symbols, and combining selectors
+ * from a string, normalizing whitespace so TTS can read the text cleanly without
+ * reading emoji names or code points out loud.
+ */
+function stripEmojis(text) {
+  if (typeof text !== 'string') return ''
+  return text
+    .replace(EMOJI_STRIP_REGEX, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s+([.,!?;:])/g, '$1')
+    .trim()
+}
+
+/**
+ * Returns true only if the message contains one or more emojis and no other text characters.
+ */
+function isOnlyEmojiMessage(message) {
+  if (typeof message !== 'string') return false
+  const trimmed = message.trim()
+  return (
+    trimmed.length > 0 &&
+    HAS_EMOJI_REGEX.test(trimmed) &&
+    EMOJI_ONLY_REGEX.test(trimmed)
+  )
+}
+
+/**
+ * Checks if a string contains exclusively a phone number.
+ */
+function isPhoneNumberString(str) {
+  if (typeof str !== 'string') return false
+  const digitsOnly = str.replace(/\D/g, '')
+  return digitsOnly.length >= 7 && /^\+?[\d\s\-()]+$/.test(str.trim())
+}
+
+/**
+ * Builds the spoken notification alert (TTS) for WhatsApp incoming messages,
+ * media and calls.
+ *
+ * Rules:
+ * - A message is announced as "enviou um emoji" ONLY if it consists purely of emojis.
+ *   Messages containing text alongside emojis are spoken as text messages.
+ * - Group messages announce who sent them and in which group:
+ *   "contato X no grupo Y enviou [X]" instead of "Grupo Y enviou [X]".
+ */
+function getNotificationTtsText(opts) {
+  const input = opts || {}
+  const notifContact = String(input.contact || '').trim() || 'Desconhecido'
+  const notifSenderName = typeof input.senderName === 'string' ? input.senderName.trim() : ''
+  const notifGroupName = typeof input.groupName === 'string' ? input.groupName.trim() : ''
+  const notifMessage = typeof input.message === 'string' ? input.message : ''
+  const notifAudio = input.audio || null
+  const notifSticker = input.sticker || null
+  const notifImage = input.image || null
+  const notifDocument = input.document || null
+  const notifDocumentName = input.documentName || null
+  const notifVideo = input.video || null
+  const notifIsStatus = Boolean(input.isStatus)
+  const isNoteToSelf = Boolean(input.isNoteToSelf)
+  const isGroupNotif = Boolean(
+    input.isGroup ||
+    (typeof input.contactJid === 'string' && input.contactJid.endsWith('@g.us'))
+  )
+  const docLabel = notifDocumentName || 'um documento'
+
+  const isCall =
+    notifMessage === '📞Chamada em curso...' ||
+    notifMessage.includes('Chamada em curso')
+  const isAudio = notifMessage === '🎙️ Áudio' || !!notifAudio
+  const isGif = notifMessage === '[GIF]'
+  const isSticker = notifMessage === '[Sticker]' || !!notifSticker
+  const isImage =
+    notifMessage === '📷 Foto' ||
+    notifMessage.startsWith('📷') ||
+    !!notifImage
+  const isVideo =
+    notifMessage === '🎥 Vídeo' ||
+    notifMessage.startsWith('🎥') ||
+    !!notifVideo
+  const isDocument =
+    notifMessage === '📄 Documento' ||
+    notifMessage.startsWith('📄') ||
+    !!notifDocument
+
+  const trimmedMessage = notifMessage.trim()
+  const rawHasEmoji = HAS_EMOJI_REGEX.test(trimmedMessage)
+  const cleanedMessage = stripEmojis(notifMessage)
+  const hasAlphanumeric = /[a-zA-Z0-9\p{L}]/u.test(cleanedMessage)
+
+  // Pure emoji detection:
+  // 1) isOnlyEmojiMessage(notifMessage) is true, OR
+  // 2) it contained emojis and after stripping emojis no alphanumeric text remains
+  const isOnlyEmoji =
+    isOnlyEmojiMessage(notifMessage) ||
+    (rawHasEmoji && (!cleanedMessage || !hasAlphanumeric))
+
+  const spokenMessage = cleanedMessage || trimmedMessage
+
+  // 1. Status / Story
+  if (notifIsStatus && typeof getStatusTtsText === 'function') {
+    const isPhone = isPhoneNumberString(notifContact)
+    const mediaKind = isVideo
+      ? 'video'
+      : isAudio
+        ? 'audio'
+        : isGif
+          ? 'gif'
+          : isSticker
+            ? 'sticker'
+            : isImage
+              ? 'image'
+              : isDocument
+                ? 'document'
+                : 'text'
+    return getStatusTtsText({
+      contact: notifContact,
+      message: notifMessage,
+      mediaKind,
+      isNoteToSelf,
+      isPhoneNumber: isPhone
+    })
+  }
+
+  // 2. Grupo
+  if (isGroupNotif) {
+    const groupLabel = notifGroupName || notifContact || 'Grupo'
+    const groupLower = groupLabel.toLowerCase()
+    const groupPhrase =
+      groupLower === 'grupo'
+        ? 'no grupo'
+        : groupLower.startsWith('grupo ')
+          ? `no ${groupLabel}`
+          : `no ${groupLabel}`
+
+    const rawSender =
+      notifSenderName ||
+      (notifContact && notifContact !== groupLabel ? notifContact : '') ||
+      'Alguém'
+    const isSenderPhone = isPhoneNumberString(rawSender)
+
+    let senderSubject
+    if (isNoteToSelf) {
+      senderSubject = 'Você'
+    } else if (isSenderPhone) {
+      senderSubject = 'Um número desconhecido'
+    } else {
+      senderSubject = rawSender
+    }
+
+    if (isCall) {
+      return `Ligação pendente de ${senderSubject} ${groupPhrase}`
+    }
+    if (isAudio) {
+      return `${senderSubject} enviou ${groupPhrase} um áudio`
+    }
+    if (isGif) {
+      return `${senderSubject} enviou ${groupPhrase} um gif`
+    }
+    if (isSticker) {
+      return `${senderSubject} enviou ${groupPhrase} um sticker`
+    }
+    if (isImage) {
+      return `${senderSubject} enviou ${groupPhrase} uma foto`
+    }
+    if (isVideo) {
+      return `${senderSubject} enviou ${groupPhrase} um vídeo`
+    }
+    if (isDocument) {
+      return `${senderSubject} enviou ${groupPhrase} um documento (${docLabel})`
+    }
+    if (isOnlyEmoji) {
+      return `${senderSubject} enviou ${groupPhrase} um emoji`
+    }
+    if (!spokenMessage) {
+      return `${senderSubject} enviou ${groupPhrase} uma mensagem`
+    }
+    return `${senderSubject} enviou ${groupPhrase}: ${spokenMessage}`
+  }
+
+  // 3. Conversa direta
+  const isPhone = isPhoneNumberString(notifContact)
+  if (isCall) {
+    return `Ligação pendente de contato ${notifContact}`
+  }
+  if (isAudio) {
+    if (isNoteToSelf) return 'Você enviou um áudio para si mesmo'
+    if (isPhone) return 'Um número desconhecido enviou um áudio'
+    return `${notifContact} enviou um áudio`
+  }
+  if (isGif) {
+    if (isNoteToSelf) return 'Você enviou um gif para si mesmo'
+    if (isPhone) return 'Um número desconhecido enviou um gif'
+    return `${notifContact} enviou um gif`
+  }
+  if (isSticker) {
+    if (isNoteToSelf) return 'Você enviou um sticker para si mesmo'
+    if (isPhone) return 'Um número desconhecido enviou um sticker'
+    return `${notifContact} enviou um sticker`
+  }
+  if (isImage) {
+    if (isNoteToSelf) return 'Você enviou uma foto para si mesmo'
+    if (isPhone) return 'Um número desconhecido enviou uma foto'
+    return `${notifContact} enviou uma foto`
+  }
+  if (isVideo) {
+    if (isNoteToSelf) return 'Você enviou um vídeo para si mesmo'
+    if (isPhone) return 'Um número desconhecido enviou um vídeo'
+    return `${notifContact} enviou um vídeo`
+  }
+  if (isDocument) {
+    if (isNoteToSelf) return `Você enviou um documento para si mesmo (${docLabel})`
+    if (isPhone) return `Um número desconhecido enviou um documento (${docLabel})`
+    return `${notifContact} enviou um documento (${docLabel})`
+  }
+  if (isOnlyEmoji) {
+    if (isNoteToSelf) return 'Você enviou um emoji para si mesmo'
+    if (isPhone) return 'Um número desconhecido enviou um emoji'
+    return `${notifContact} enviou um emoji`
+  }
+  if (isNoteToSelf) {
+    return spokenMessage
+      ? `Você enviou para si mesmo: ${spokenMessage}`
+      : 'Você enviou uma mensagem para si mesmo'
+  }
+  if (isPhone) {
+    return spokenMessage
+      ? `Um número desconhecido disse: ${spokenMessage}`
+      : 'Um número desconhecido enviou uma mensagem'
+  }
+  return spokenMessage
+    ? `${notifContact} disse: ${spokenMessage}`
+    : `${notifContact} enviou uma mensagem`
 }
 
 /**
@@ -1969,6 +2223,10 @@ module.exports = {
   shouldSuppressStatusOrChannelUpdate,
   resolveNotificationReplyJid,
   getStatusTtsText,
+  stripEmojis,
+  isOnlyEmojiMessage,
+  isPhoneNumberString,
+  getNotificationTtsText,
   resolveStatusReplyQuoted,
   resolveReplyQuoted,
   extractQuotedMessage,
