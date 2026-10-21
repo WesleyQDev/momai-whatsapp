@@ -9,7 +9,10 @@ const stub = (file: string): string =>
 // tests resolve them to stubs.
 export default defineConfig({
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
+      react: fileURLToPath(new URL('./node_modules/react', import.meta.url)),
+      'react-dom': fileURLToPath(new URL('./node_modules/react-dom', import.meta.url)),
       'momai:sdk': stub('momai-sdk.ts'),
       'momai:events': stub('momai-events.ts'),
       'momai:image-viewer': stub('momai-image-viewer.tsx')

@@ -11,6 +11,8 @@ if (manifest.ui?.page && existsSync(path.join(__dirname, 'src/page.tsx')))
   entries.push({ in: 'src/page.tsx', out: 'page' })
 if (manifest.ui?.panel && existsSync(path.join(__dirname, 'src/panel.tsx')))
   entries.push({ in: 'src/panel.tsx', out: 'panel' })
+if (manifest.ui?.share && existsSync(path.join(__dirname, 'src/share.tsx')))
+  entries.push({ in: 'src/share.tsx', out: 'share' })
 if (Array.isArray(manifest.ui?.widgets)) {
   for (const widget of manifest.ui.widgets) {
     const entry = widget?.entry || widget?.file

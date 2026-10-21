@@ -47,6 +47,7 @@
     "panel": {
         "drag_window": "Trascina per spostare la finestra",
         "cancel_reply": "Annulla risposta",
+        "share": "Condividi",
         "title": "WhatsApp",
         "connected": "Connesso",
         "disconnected": "Disconnesso",
@@ -131,6 +132,7 @@
     },
     "page": {
         "title": "WhatsApp",
+        "share": "Condividi",
         "disconnect": "Disconnetti",
         "disconnect_confirm": "Disconnetti sessione",
         "sync": "Sincronizza contatti",

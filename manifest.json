@@ -478,6 +478,11 @@
     "pageType": "whatsapp-page",
     "panel": "dist/panel.js",
     "panelType": "whatsapp-panel",
+    "share": {
+      "entry": "dist/share.js",
+      "type": "whatsapp-share",
+      "name": "WhatsApp"
+    },
     "widgets": [
       {
         "id": "unread",

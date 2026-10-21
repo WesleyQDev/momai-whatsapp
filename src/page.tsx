@@ -3949,13 +3949,46 @@ export default function WhatsAppView() {
                 </svg>
               ),
               onClick: async () => {
+                const selection = window.getSelection()?.toString()?.trim()
                 const textToCopy =
-                  listMenu.kind === 'conversation' && listMenu.preview
+                  selection ||
+                  (listMenu.kind === 'conversation' && listMenu.preview
                     ? listMenu.preview
-                    : listMenu.label
+                    : listMenu.label)
                 if (textToCopy) {
                   await copyTextToClipboard(textToCopy)
                   showToast('Copiado para a área de transferência')
+                }
+              }
+            },
+            {
+              id: 'share',
+              label: t('page.share', 'Compartilhar'),
+              icon: (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                  <polyline points="16 6 12 2 8 6" />
+                  <line x1="12" y1="2" x2="12" y2="15" />
+                </svg>
+              ),
+              onClick: () => {
+                const selection = window.getSelection()?.toString()?.trim()
+                const textToShare =
+                  selection ||
+                  (listMenu.kind === 'conversation' && listMenu.preview
+                    ? listMenu.preview
+                    : listMenu.label)
+                if (textToShare) {
+                  const sdkAny = sdk as any
+                  if (sdkAny?.share?.open) {
+                    void sdkAny.share.open({ text: textToShare })
+                  } else if (typeof window !== 'undefined') {
+                    window.dispatchEvent(
+                      new CustomEvent('momai:share-open', {
+                        detail: { payload: { text: textToShare } }
+                      })
+                    )
+                  }
                 }
               }
             },
