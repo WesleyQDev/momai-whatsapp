@@ -1,31 +1,36 @@
-# WhatsApp (Extension)
+# MomAI WhatsApp
 
-Connect your WhatsApp to MomAI and control your messages by voice or text. This extension monitors conversations from selected contacts and lets you send replies directly through the assistant — all without picking up your phone.
+Connect WhatsApp to MomAI to follow conversations and reply without picking up your phone. The extension only reads conversations from the contacts and groups you choose.
 
-### What it does for you:
+## What you can do
 
-- **Monitors Messages**: Get notifications for new messages from contacts you add to the whitelist.
-- **Sends Replies**: Reply to messages directly through MomAI, by text or voice.
-- **Photos and Screenshots from Your PC**: Ask it to send an image that is on your computer — like a screenshot taken by MomAI — and the assistant attaches the file to the chat. The first time in each folder it asks for your confirmation.
-- **Manages Contacts**: Add or remove contacts from the whitelist and set custom nicknames for easier communication.
-- **Smart Notifications**: MomAI summarizes incoming messages and suggests quick replies.
+- Choose priority contacts and groups for alerts.
+- Send messages and replies by voice or text.
+- Send photos and screenshots from your computer. The first time you use a folder, MomAI asks for confirmation.
+- Give contacts nicknames such as Mom, Love, or Boss.
+- Ask for a summary of long audio messages and texts.
+- Connect with a QR code in the panel or in chat.
 
-### Examples of what you can ask:
+## Examples
 
-- "Send a WhatsApp message to John saying I'm on my way."
-- "Any new messages on WhatsApp?"
-- "Take a screenshot of my screen and send it to John on WhatsApp."
-- "Add my mom to the WhatsApp whitelist."
-- "Reply that I'll be there soon."
+- "Send a WhatsApp message to Mom saying I finished work."
+- "Any new WhatsApp messages?"
+- "Reply that I confirm lunch."
+- "Send John the photo I indicated."
+- "Add John to my priority contacts."
 
-### How to connect:
+## How to connect
 
-1. Enable the extension in the extension store.
-2. Scan the QR Code that appears in the sidebar panel using WhatsApp on your phone.
-3. Done! MomAI is now connected and monitoring your whitelisted contacts.
+1. Open MomAI and click the WhatsApp icon.
+2. On your phone, open WhatsApp and go to Linked devices > Link a device.
+3. Point the camera at the QR code on your computer screen.
+4. Choose the contacts and groups you want to follow.
 
-> Tip: you can also connect from the chat — ask "connect my WhatsApp" and the QR code appears in the conversation, ready to scan.
+## Privacy
 
-### Security & Privacy:
+The connection goes from your computer straight to WhatsApp, with no server in between. Conversations and the contact list stay on your computer. MomAI only reads messages from contacts you allowed.
 
-The connection is made locally on your computer via Baileys. No messages go through external servers — everything stays between your PC and WhatsApp. Only contacts added to the whitelist are monitored.
+## Permissions
+
+- **Network:** to connect to WhatsApp.
+- **Files (read):** to send images and screenshots you choose.

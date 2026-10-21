@@ -1,37 +1,36 @@
 # MomAI WhatsApp
 
-Verbinde dein WhatsApp mit MomAI, um wichtige Unterhaltungen zu verfolgen und schnelle Antworten per Sprache oder Text zu senden – ganz ohne das Handy aus der Tasche zu nehmen.
+Verbinden Sie WhatsApp mit MomAI, um Unterhaltungen zu verfolgen und zu antworten, ohne zum Handy zu greifen. Die Erweiterung liest nur die Unterhaltungen der Kontakte und Gruppen, die Sie auswählen.
 
-## Deine Unterhaltungen immer griffbereit, während du am Computer arbeitest
+## Was Sie damit machen können
 
-Die MomAI WhatsApp-Erweiterung wurde dafür geschaffen, dass du dringende Nachrichten von Familie oder Kunden während der Arbeit nie verpasst. Du wählst genau aus, wen du verfolgen möchtest, und antwortest sofort, indem du mit deiner Assistentin sprichst.
+- Prioritäre Kontakte und Gruppen für Hinweise auswählen.
+- Nachrichten und Antworten per Sprache oder Text senden.
+- Fotos und Screenshots vom Computer senden. Beim ersten Mal in einem Ordner fragt MomAI nach Ihrer Bestätigung.
+- Kontakten Spitznamen wie Mama, Schatz oder Chef geben.
+- Eine Zusammenfassung langer Sprachnachrichten und Texte anfordern.
+- Über einen QR-Code im Panel oder im Chat verbinden.
 
-### Hauptfunktionen
+## Beispiele
 
-- **Verfolgung Ausgewählter Kontakte**: Wähle nur die prioritären Personen oder Gruppen aus, bei deren Nachrichten MomAI dich benachrichtigen soll, und vermeide so unnötige Ablenkungen.
-- **Senden und Antworten per Sprache oder Text**: Diktiere deine Nachricht oder bitte die Assistentin, schnell zu antworten, während deine Hände weiter auf der Tastatur bleiben.
-- **Fotos und Screenshots von deinem Computer**: Bitte darum, ein Bild von deinem Computer zu senden — etwa einen von MomAI erstellten Screenshot — und die Assistentin hängt die Datei an die Unterhaltung an. Beim ersten Mal in jedem Ordner fragt sie nach deiner Bestätigung.
-- **Persönliche Spitznamen**: Lege einfache Spitznamen für deine Kontakte fest (wie Mama, Schatz oder Chef), damit die Assistentin die Namen ganz natürlich erkennt.
-- **Intelligente Zusammenfassungen**: Eine lange Sprachnachricht oder einen langen Text erhalten? MomAI fasst das Hauptthema zusammen, damit du die Nachricht in wenigen Sekunden verstehst.
-- **Direkte und Private Verbindung**: WhatsApp kommuniziert direkt von deinem Computer mit dem offiziellen Netzwerk, ohne Umweg über einen Zwischenserver.
+- "Schick Mama eine WhatsApp und sag, dass ich mit der Arbeit fertig bin."
+- "Gibt es neue WhatsApp-Nachrichten?"
+- "Antworte, dass ich das Mittagessen bestätige."
+- "Schick Jan das Foto, das ich ausgewählt habe."
+- "Füge Jan zu meinen prioritären Kontakten hinzu."
 
-## Was du MomAI bitten kannst
+## Verbinden
 
-- „MomAI, schick Mama eine WhatsApp-Nachricht und sag ihr, dass ich mit der Arbeit fertig bin und losfahre."
-- „Gibt es neue Nachrichten bei WhatsApp?"
-- „Antworte, dass ich die Mittagszeit bestätige."
-- „Mach einen Screenshot und schick ihn Jan per WhatsApp."
-- „Füge Jan zu meiner Liste prioritärer Kontakte hinzu."
+1. Öffnen Sie MomAI und klicken Sie auf das WhatsApp-Symbol.
+2. Öffnen Sie WhatsApp auf dem Handy und gehen Sie zu Verknüpfte Geräte > Gerät verknüpfen.
+3. Richten Sie die Kamera auf den QR-Code am Computerbildschirm.
+4. Wählen Sie die Kontakte und Gruppen aus, die Sie verfolgen möchten.
 
-## So Verbindest Du Dich
+## Datenschutz
 
-1. Öffne MomAI und klicke in der Seitenleiste auf das WhatsApp-Symbol.
-2. Öffne WhatsApp auf deinem Handy, gehe zu Verknüpfte Geräte und tippe auf Gerät verknüpfen.
-3. Richte die Handykamera auf den Code, der auf deinem Computerbildschirm angezeigt wird.
-4. Wähle die Kontakte aus, die du überwachen möchtest, und genieße den Komfort, vom Computer aus zu chatten.
+Die Verbindung geht von Ihrem Computer direkt zu WhatsApp, ohne Zwischenserver. Unterhaltungen und Kontaktliste bleiben auf Ihrem Computer. MomAI liest nur Nachrichten von Kontakten, die Sie freigegeben haben.
 
-> Tipp: Du kannst auch direkt im Chat verbinden — frage „Verbinde mein WhatsApp" und der QR-Code erscheint in der Unterhaltung zum Scannen.
+## Berechtigungen
 
-## Garantierte Privatsphäre
-
-Deine Unterhaltungen und Kontaktlisten bleiben geschützt auf deinem Computer. Nur die Nachrichten der Kontakte, die du ausdrücklich in die Prioritätenliste aufgenommen hast, werden von der Assistentin gelesen, um auf deine Anfragen zu antworten.
+- **Netzwerk:** für die Verbindung mit WhatsApp.
+- **Dateien (Lesen):** zum Senden von Bildern und Screenshots, die Sie auswählen.

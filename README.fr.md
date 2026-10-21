@@ -1,37 +1,36 @@
 # MomAI WhatsApp
 
-Connectez votre WhatsApp à MomAI pour suivre les conversations importantes et envoyer des réponses rapides par voix ou par texte, le tout sans sortir votre téléphone de votre poche.
+Connectez WhatsApp à MomAI pour suivre les conversations et répondre sans prendre votre téléphone. L'extension ne lit que les conversations des contacts et des groupes que vous choisissez.
 
-## Vos conversations à portée de main pendant que vous utilisez votre ordinateur
+## Ce que vous pouvez faire
 
-L'extension MomAI WhatsApp a été créée pour que vous ne manquiez jamais les messages urgents de votre famille ou de vos clients pendant que vous travaillez. Vous choisissez exactement qui vous souhaitez suivre et vous répondez instantanément en parlant à votre assistante.
+- Choisir des contacts et des groupes prioritaires pour les alertes.
+- Envoyer des messages et des réponses à la voix ou par texte.
+- Envoyer des photos et des captures d'écran de votre ordinateur. La première fois dans un dossier, MomAI demande votre confirmation.
+- Donner des surnoms aux contacts, comme Maman, Amour ou Chef.
+- Demander un résumé des messages audio et des textes longs.
+- Vous connecter avec un QR code dans le panneau ou dans le chat.
 
-### Fonctionnalités Principales
+## Exemples
 
-- **Suivi des Contacts Sélectionnés** : Choisissez uniquement les personnes ou groupes prioritaires pour lesquels vous voulez que MomAI vous prévienne quand ils envoient un message, en évitant les distractions inutiles.
-- **Envoi et Réponses par Voix ou par Texte** : Dictez votre message ou demandez à l'assistante de répondre rapidement pendant que vos mains restent occupées sur le clavier.
-- **Photos et Captures de votre Ordinateur** : Demandez d'envoyer une image qui se trouve sur votre ordinateur — comme une capture d'écran prise par MomAI — et l'assistante joint le fichier à la conversation. La première fois dans chaque dossier, elle demande votre confirmation.
-- **Surnoms Personnalisés** : Définissez des surnoms simples pour vos contacts (comme Maman, Mon amour ou Chef) pour que l'assistante reconnaisse les noms naturellement.
-- **Résumés Intelligents** : Vous avez reçu un audio ou un long texte ? MomAI résume le sujet principal pour que vous compreniez le message en quelques secondes.
-- **Connexion Directe et Privée** : WhatsApp communique directement depuis votre ordinateur avec le réseau officiel, sans passer par aucun serveur intermédiaire.
+- « Envoie un WhatsApp à Maman pour dire que j'ai fini le travail. »
+- « Y a-t-il de nouveaux messages WhatsApp ? »
+- « Réponds que je confirme le déjeuner. »
+- « Envoie à Jean la photo que j'ai indiquée. »
+- « Ajoute Jean à mes contacts prioritaires. »
 
-## Ce que vous pouvez demander à MomAI
+## Connexion
 
-- « MomAI, envoie un WhatsApp à Maman pour dire que j'ai fini le travail et que j'arrive. »
-- « Y a-t-il un nouveau message sur WhatsApp ? »
-- « Réponds en disant que je confirme l'heure du déjeuner. »
-- « Fais une capture d'écran et envoie-la à Jean sur WhatsApp. »
-- « Ajoute Jean à ma liste de contacts prioritaires. »
+1. Ouvrez MomAI et cliquez sur l'icône WhatsApp.
+2. Sur votre téléphone, ouvrez WhatsApp et allez dans Appareils connectés > Connecter un appareil.
+3. Pointez la caméra vers le QR code sur l'écran de l'ordinateur.
+4. Choisissez les contacts et les groupes que vous voulez suivre.
 
-## Comment Se Connecter
+## Confidentialité
 
-1. Ouvrez MomAI et cliquez sur l'icône WhatsApp dans la barre latérale.
-2. Sur votre téléphone, ouvrez WhatsApp, allez dans Appareils connectés et touchez Connecter un appareil.
-3. Pointez l'appareil photo du téléphone vers le code qui s'affiche sur l'écran de votre ordinateur.
-4. Sélectionnez les contacts que vous souhaitez surveiller et profitez du confort de discuter depuis votre ordinateur.
+La connexion va de votre ordinateur directement à WhatsApp, sans serveur intermédiaire. Les conversations et la liste de contacts restent sur votre ordinateur. MomAI ne lit que les messages des contacts que vous avez autorisés.
 
-> Astuce : vous pouvez aussi connecter depuis le chat — demandez « connecte mon WhatsApp » et le QR code apparaît dans la conversation, prêt à scanner.
+## Autorisations
 
-## Confidentialité Garantie
-
-Vos conversations et listes de contacts restent protégées sur votre ordinateur. Seuls les messages des contacts que vous aurez expressément autorisés dans la liste des priorités seront lus par l'assistante pour répondre à vos demandes.
+- **Réseau :** pour se connecter à WhatsApp.
+- **Fichiers (lecture) :** pour envoyer les images et les captures que vous choisissez.

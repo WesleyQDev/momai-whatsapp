@@ -1,37 +1,36 @@
 # MomAI WhatsApp
 
-Collega il tuo WhatsApp a MomAI per seguire le conversazioni importanti e inviare risposte rapide con la voce o con il testo, tutto senza tirare fuori il cellulare dalla tasca.
+Collega WhatsApp a MomAI per seguire le conversazioni e rispondere senza prendere il cellulare. L'estensione legge solo le conversazioni dei contatti e dei gruppi che scegli.
 
-## Le tue conversazioni a portata di mano mentre usi il computer
+## Cosa puoi fare
 
-L'estensione MomAI WhatsApp è stata creata affinché tu non perda mai i messaggi urgenti della famiglia o dei clienti mentre lavori. Scegli esattamente chi desideri seguire e rispondi all'istante parlando con la tua assistente.
+- Scegliere contatti e gruppi prioritari per ricevere avvisi.
+- Inviare messaggi e risposte con la voce o con il testo.
+- Mandare foto e screenshot che sono sul computer. La prima volta in ogni cartella, MomAI chiede la tua conferma.
+- Dare soprannomi ai contatti, come Mamma, Amore o Capo.
+- Chiedere un riepilogo di audio e testi lunghi.
+- Collegarti con un codice QR nel pannello o nella chat.
 
-### Funzionalità Principali
+## Esempi
 
-- **Monitoraggio di Contatti Selezionati**: Scegli solo le persone o i gruppi prioritari per cui vuoi che MomAI ti avvisi quando inviano un messaggio, evitando distrazioni inutili.
-- **Invio e Risposte con la Voce o con il Testo**: Detta il tuo messaggio o chiedi all'assistente di rispondere rapidamente mentre le tue mani restano occupate sulla tastiera.
-- **Foto e Screenshot dal tuo Computer**: Chiedi di inviare un'immagine che è sul tuo computer — come uno screenshot fatto da MomAI — e l'assistente allega il file alla conversazione. La prima volta in ogni cartella chiede la tua conferma.
-- **Soprannomi Personalizzati**: Imposta soprannomi semplici per i tuoi contatti (come Mamma, Amore o Capo) affinché l'assistente riconosca i nomi in modo naturale.
-- **Riepiloghi Intelligenti**: Hai ricevuto un audio o un testo lungo? MomAI riassume l'argomento principale così capisci il messaggio in pochi secondi.
-- **Connessione Diretta e Privata**: WhatsApp comunica direttamente dal tuo computer con la rete ufficiale, senza passare da alcun server intermedio.
-
-## Cosa puoi chiedere a MomAI
-
-- "MomAI, manda un WhatsApp alla Mamma dicendo che ho finito il lavoro e sto arrivando."
+- "Manda un WhatsApp alla Mamma dicendo che ho finito il lavoro."
 - "Ci sono messaggi nuovi su WhatsApp?"
-- "Rispondi dicendo che confermo l'orario del pranzo."
-- "Fai uno screenshot e mandalo a Giovanni su WhatsApp."
-- "Aggiungi Giovanni alla mia lista di contatti prioritari."
+- "Rispondi che confermo il pranzo."
+- "Manda a Giovanni la foto che ho indicato."
+- "Aggiungi Giovanni ai miei contatti prioritari."
 
-## Come Collegarsi
+## Come collegarsi
 
-1. Apri MomAI e fai clic sull'icona di WhatsApp nella barra laterale.
-2. Sul tuo cellulare, apri WhatsApp, vai in Dispositivi collegati e tocca Collega un dispositivo.
-3. Punta la fotocamera del cellulare verso il codice che appare sullo schermo del tuo computer.
-4. Seleziona i contatti che desideri monitorare e goditi la comodità di conversare dal computer.
+1. Apri MomAI e fai clic sull'icona di WhatsApp.
+2. Sul cellulare, apri WhatsApp e vai in Dispositivi collegati > Collega un dispositivo.
+3. Punta la fotocamera verso il codice QR sullo schermo del computer.
+4. Scegli i contatti e i gruppi che vuoi seguire.
 
-> Suggerimento: puoi connetterti anche dalla chat — chiedi "connetti il mio WhatsApp" e il codice QR appare nella conversazione, pronto da scansionare.
+## Privacy
 
-## Privacy Garantita
+La connessione va dal tuo computer direttamente a WhatsApp, senza server intermediari. Le conversazioni e la lista dei contatti restano sul tuo computer. MomAI legge solo i messaggi dei contatti che hai autorizzato.
 
-Le tue conversazioni e le tue liste di contatti restano protette sul tuo computer. Solo i messaggi dei contatti che hai autorizzato espressamente nella lista delle priorità saranno letti dall'assistente per rispondere alle tue richieste.
+## Permessi
+
+- **Rete:** per collegarsi a WhatsApp.
+- **File (lettura):** per inviare le immagini e gli screenshot che scegli.

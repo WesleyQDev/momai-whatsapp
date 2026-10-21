@@ -1,37 +1,36 @@
 # MomAI WhatsApp
 
-Conecte seu WhatsApp à MomAI para acompanhar conversas importantes e enviar respostas rápidas por voz ou texto, tudo sem precisar tirar o celular do bolso.
+Conecte o WhatsApp ao MomAI para acompanhar conversas e responder sem pegar o celular. A extensão lê apenas as conversas dos contatos e grupos que você escolher.
 
-## Suas conversas ao seu alcance enquanto usa o computador
+## O que você pode fazer
 
-A extensão MomAI WhatsApp foi criada para que você nunca perca recados urgentes da família ou de clientes enquanto trabalha. Você escolhe exatamente quem deseja acompanhar e responde no mesmo instante conversando com a sua assistente.
+- Escolher contatos e grupos prioritários para receber avisos.
+- Enviar mensagens e respostas por voz ou texto.
+- Mandar fotos e prints que estão no computador. Na primeira vez em cada pasta, a MomAI pede sua confirmação.
+- Dar apelidos aos contatos, como Mãe, Amor ou Chefe.
+- Pedir um resumo de áudios e textos longos.
+- Conectar pelo QR code no painel ou no chat.
 
-### Principais Recursos
+## Exemplos
 
-- **Acompanhamento de Contatos Selecionados**: Escolha apenas as pessoas ou grupos prioritários que você quer que a MomAI avise quando mandarem mensagem, evitando distrações desnecessárias.
-- **Envio e Respostas por Voz ou Texto**: Dite sua mensagem ou peça para a assistente responder com rapidez enquanto suas mãos continuam ocupadas no teclado.
-- **Fotos e Prints do Computador**: Peça para enviar uma imagem que está no seu computador — como um print da tela feito pela MomAI — e a assistente anexa o arquivo na conversa. Na primeira vez em cada pasta, ela pede a sua confirmação.
-- **Apelidos Personalizados**: Defina apelidos fáceis para os seus contatos (como Mãe, Amor ou Chefe) para que a assistente reconheça os nomes de forma natural.
-- **Resumos Inteligentes**: Recebeu um áudio ou texto comprido? A MomAI resume o assunto principal para você entender a mensagem em poucos segundos.
-- **Conexão Direta e Privada**: O WhatsApp se comunica diretamente do seu computador com a rede oficial, sem passar por nenhum servidor intermediário.
+- "Mande um WhatsApp para a Mãe dizendo que já terminei o trabalho."
+- "Tem mensagem nova no WhatsApp?"
+- "Responda que confirmo o almoço."
+- "Mande a foto que indiquei para o João."
+- "Adicione o João aos contatos prioritários."
 
-## O que você pode pedir à MomAI
+## Como conectar
 
-- "MomAI, mande um WhatsApp para a Mãe dizendo que já terminei o trabalho e estou indo."
-- "Tem alguma mensagem nova no WhatsApp?"
-- "Responda dizendo que confirmo o horário do almoço."
-- "Tire um print da tela e mande para o João no WhatsApp."
-- "Adicione o João na minha lista de contatos prioritários."
+1. Abra o MomAI e clique no ícone do WhatsApp.
+2. No celular, abra o WhatsApp e entre em Aparelhos conectados > Conectar um aparelho.
+3. Aponte a câmera para o QR code na tela do computador.
+4. Escolha os contatos e grupos que quer acompanhar.
 
-## Como Conectar
+## Privacidade
 
-1. Abra o MomAI e clique no ícone do WhatsApp na barra lateral.
-2. No seu celular, abra o WhatsApp, vá em Aparelhos Conectados e toque em Conectar um aparelho.
-3. Aponte a câmera do celular para o código que aparecer na tela do seu computador.
-4. Selecione os contatos que deseja monitorar e aproveite a facilidade de conversar pelo computador.
+A conexão vai do seu computador direto para o WhatsApp, sem servidor intermediário. As conversas e a lista de contatos ficam no seu computador. A MomAI só lê mensagens dos contatos que você autorizou.
 
-> Dica: dá para conectar pelo chat também — peça "conecte meu WhatsApp" e o QR code aparece na conversa, pronto para escanear.
+## Permissões
 
-## Privacidade Garantida
-
-Suas conversas e listas de contatos permanecem protegidas no seu computador. Apenas as mensagens dos contatos que você autorizar expressamente na lista de prioridades serão lidas pela assistente para responder aos seus pedidos.
+- **Rede:** para conectar ao WhatsApp.
+- **Arquivos (leitura):** para enviar imagens e prints que você indicar.
