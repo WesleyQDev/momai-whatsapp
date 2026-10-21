@@ -4481,7 +4481,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
             },
             {
               id: 'share',
-              label: t('page.share', 'Compartilhar'),
+              label: t('page.share'),
               icon: (
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />

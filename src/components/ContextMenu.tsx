@@ -1,7 +1,10 @@
 import React from 'react'
 import sdk from 'momai:sdk'
-import type { ContextMenuOption, ContextMenuProps } from '../types/momai-sdk'
-import { ContextMenu as SdkContextMenu } from '../../../../momai/packages/momai-sdk/src/ContextMenu'
+import {
+  ContextMenu as SdkContextMenu,
+  type ContextMenuOption,
+  type ContextMenuProps
+} from '../../../../momai/packages/momai-sdk/src/ContextMenu'
 
 export type { ContextMenuOption, ContextMenuProps }
 
