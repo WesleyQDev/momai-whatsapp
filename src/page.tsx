@@ -3083,7 +3083,7 @@ export default function WhatsAppView() {
           opacity: 1 !important;
         }
       `}</style>
-      <div className="shrink-0 px-6 pt-6 pb-4 w-full">
+      <div className="shrink-0 mt-3 px-6 pb-3 w-full">
         <div className="flex items-center gap-3">
           <WhatsAppIcon className="w-8 h-8 shrink-0" />
           <h1 className="text-xl font-semibold">{t('page.title')}</h1>

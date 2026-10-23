@@ -11,6 +11,17 @@ import {
 import { PlayIcon, PauseIcon } from '@heroicons/react/24/solid'
 import QRCode from 'qrcode'
 import sdk from 'momai:sdk'
+const FallbackInput = (props: any) => {
+  const { autocompleteOptions, containerClassName, ghostClassName, onSuggestionAccept, enableHistoryNav, recordOnEnter, ...rest } = props
+  return <input {...rest} />
+}
+const AutoInput = (sdk as any)?.AutocompleteInput || FallbackInput
+class FallbackHistoryStore {
+  constructor(public namespace: string, public maxEntries = 500) {}
+  load() { return [] }
+  save() {}
+}
+const ScopedHistoryStore = (sdk as any)?.ScopedHistoryStore || FallbackHistoryStore
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { isSameChat } from './utils/chatJid'
 import { useI18n } from './hooks/useI18n'
@@ -1544,6 +1555,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   const historyScrollRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const interactionGenRef = useRef(0)
+  const waHistoryStore = useMemo(() => new ScopedHistoryStore('whatsapp:chat', 500), [])
 
   const beginUserSend = useCallback(() => {
     interactionGenRef.current += 1
@@ -2193,6 +2205,9 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
     ) => {
       const targetJid = activeRecipient.jid
       const body = text?.trim() || ''
+      if (body) {
+        waHistoryStore.save(body)
+      }
       if (
         (!body && imagesToSend.length === 0 && documentsToSend.length === 0) ||
         gen !== interactionGenRef.current
@@ -4319,17 +4334,24 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                         }
                       }}
                     />
-                    <input
+                    <AutoInput
                       ref={inputRef}
+                      autocompleteOptions={{
+                        namespace: 'whatsapp:chat',
+                        maxEntries: 500,
+                        recordOnEnter: true
+                      }}
+                      containerClassName="flex-1 min-w-0"
+                      ghostClassName="text-text-muted/30 select-none text-xs"
                       type="text"
                       value={customText}
                       onPaste={handlePasteImage}
                       onContextMenu={handleInputContextMenu}
-                      onChange={(e) => {
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                         setCustomText(e.target.value)
                         if (sendError) setSendError('')
                       }}
-                      onKeyDown={(e) => {
+                      onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                         const hasAttachments = pastedImages.length > 0 || attachedDocuments.length > 0
                         if (e.key === 'Enter' && (customText.trim() || hasAttachments) && !sending) {
                           e.preventDefault()
