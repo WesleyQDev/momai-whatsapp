@@ -14,12 +14,16 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "6.17.16",
+    "@whiskeysockets/baileys": "6.7.24",
     "pino": "^8.0.0"
   },
   "pnpm": {
+    "overrides": {
+      "axios": "1.20.0",
+      "follow-redirects": "1.16.1"
+    },
     "patchedDependencies": {
-      "@whiskeysockets/baileys": "patches/@whiskeysockets__baileys.patch"
+      "@whiskeysockets/baileys@6.7.24": "patches/@whiskeysockets__baileys@6.7.24.patch"
     }
   },
   "devDependencies": {

@@ -1,0 +1,118 @@
+diff --git a/lib/Socket/messages-send.js b/lib/Socket/messages-send.js
+index 38bb9e04d4f1cc61c2b3512dee85d7b0b430764f..b8cbf70a6c9cf4d8b17fc442036fe446285d6eb2 100644
+--- a/lib/Socket/messages-send.js
++++ b/lib/Socket/messages-send.js	
+@@ -350,7 +350,7 @@ export const makeMessagesSocket = (config) => {
+                     const additionalDevices = await getUSyncDevices(participantsList, !!useUserDevicesCache, false);
+                     devices.push(...additionalDevices);
+                 }
+-                const patched = await patchMessageBeforeSending(message);
++                const patched = await patchMessageBeforeSending(message, devices.map(d => jidEncode(d.user, d.server || (groupData?.addressingMode === 'lid' ? 'lid' : 's.whatsapp.net'), d.device)));
+                 if (Array.isArray(patched)) {
+                     throw new Boom('Per-jid patching is not supported in groups');
+                 }
+@@ -362,8 +362,8 @@ export const makeMessagesSocket = (config) => {
+                 });
+                 const senderKeyJids = [];
+                 // ensure a connection is established with every device
+-                for (const { user, device } of devices) {
+-                    const jid = jidEncode(user, groupData?.addressingMode === 'lid' ? 'lid' : 's.whatsapp.net', device);
++                for (const { user, device, server: devServer } of devices) {
++                    const jid = jidEncode(user, devServer || (groupData?.addressingMode === 'lid' ? 'lid' : 's.whatsapp.net'), device);
+                     if (!senderKeyMap[jid] || !!participant) {
+                         senderKeyJids.push(jid);
+                         // store that this person has had the sender keys sent to them
+@@ -380,10 +380,46 @@ export const makeMessagesSocket = (config) => {
+                             groupId: destinationJid
+                         }
+                     };
+-                    await assertSessions(senderKeyJids, false);
+-                    const result = await createParticipantNodes(senderKeyJids, senderKeyMsg, extraAttrs);
+-                    shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity;
+-                    participants.push(...result.nodes);
++                    let reachableRecipients = [...senderKeyJids];
++                    try {
++                        await assertSessions(senderKeyJids, false);
++                    }
++                    catch (sessionErr) {
++                        const isRecoverable = ['not-acceptable', 'Timed Out', 'No sessions'].includes(sessionErr?.message);
++                        if (isRecoverable && senderKeyJids.length > 1) {
++                            logger.warn({ count: senderKeyJids.length, err: sessionErr?.message }, 'batch assertSessions failed; retrying per JID');
++                            reachableRecipients = [];
++                            for (const candidateJid of senderKeyJids) {
++                                try {
++                                    await assertSessions([candidateJid], false);
++                                    reachableRecipients.push(candidateJid);
++                                }
++                                catch (error) {
++                                    logger.warn({ jid: candidateJid, err: error?.message }, 'skipping unreachable participant device');
++                                }
++                            }
++                        }
++                        else {
++                            throw sessionErr;
++                        }
++                    }
++                    if (reachableRecipients.length) {
++                        let sentToAnyone = false;
++                        for (const recipient of reachableRecipients) {
++                            try {
++                                const result = await createParticipantNodes([recipient], senderKeyMsg, extraAttrs);
++                                shouldIncludeDeviceIdentity = shouldIncludeDeviceIdentity || result.shouldIncludeDeviceIdentity;
++                                participants.push(...result.nodes);
++                                sentToAnyone = true;
++                            }
++                            catch (error) {
++                                logger.warn({ jid: recipient, err: error?.message }, 'skipping participant device that cannot be encrypted');
++                            }
++                        }
++                        if (!sentToAnyone) {
++                            logger.warn({ group: destinationJid }, 'no sender-key recipient could be encrypted');
++                        }
++                    }
+                 }
+                 binaryNodeContent.push({
+                     tag: 'enc',
+@@ -394,6 +430,7 @@ export const makeMessagesSocket = (config) => {
+             }
+             else {
+                 const { user: meUser } = jidDecode(meId);
++                const meLidUser = authState.creds?.me?.lid?.split(':')[0];
+                 if (!participant) {
+                     devices.push({ user });
+                     if (user !== meUser) {
+@@ -407,9 +444,9 @@ export const makeMessagesSocket = (config) => {
+                 const allJids = [];
+                 const meJids = [];
+                 const otherJids = [];
+-                for (const { user, device } of devices) {
+-                    const isMe = user === meUser;
+-                    const jid = jidEncode(isMe && isLid ? authState.creds?.me?.lid.split(':')[0] || user : user, isLid ? 'lid' : 's.whatsapp.net', device);
++                for (const { user, device, server: devServer } of devices) {
++                    const isMe = user === meUser || (!!meLidUser && user === meLidUser);
++                    const jid = jidEncode(isMe && devServer === 'lid' ? meLidUser || user : user, devServer || (isLid ? 'lid' : 's.whatsapp.net'), device);
+                     if (isMe) {
+                         meJids.push(jid);
+                     }
+diff --git a/lib/Utils/signal.js b/lib/Utils/signal.js
+index 13bf52b8013b52842d62465cbc1ee3d3d62f296d..082be3c2502ceea078f360866cc545a4c209b818 100644
+--- a/lib/Utils/signal.js
++++ b/lib/Utils/signal.js	
+@@ -98,7 +98,7 @@ export const extractDeviceJids = (result, myJid, excludeZeroDevices) => {
+     const extracted = [];
+     for (const userResult of result) {
+         const { devices, id } = userResult;
+-        const { user } = jidDecode(id);
++        const { user, server } = jidDecode(id);
+         const deviceList = devices?.deviceList;
+         if (Array.isArray(deviceList)) {
+             for (const { id: device, keyIndex } of deviceList) {
+@@ -106,7 +106,7 @@ export const extractDeviceJids = (result, myJid, excludeZeroDevices) => {
+                     (myUser !== user || myDevice !== device) && // either different user or if me user, not this device
+                     (device === 0 || !!keyIndex) // ensure that "key-index" is specified for "non-zero" devices, produces a bad req otherwise
+                 ) {
+-                    extracted.push({ user, device });
++                    extracted.push({ user, device, server });
+                 }
+             }
+         }
