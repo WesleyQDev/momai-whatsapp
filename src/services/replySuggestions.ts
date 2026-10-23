@@ -22,7 +22,7 @@ export interface ReplySuggestionLlm {
     temperature?: number
     maxTokens?: number
     timeoutMs?: number
-  }) => Promise<{ text: string }>
+  }) => Promise<{ text: string; json?: unknown }>
 }
 
 export interface ReplySuggestionApi {
@@ -43,6 +43,13 @@ const MAX_SUGGESTIONS = 3
 const MAX_SUGGESTION_CHARS = 120
 const MAX_ATTEMPTS = 2
 const RETRY_DELAY_MS = 700
+// Reasoning models spend the output budget on hidden reasoning before writing
+// the JSON. 160 tokens were fully consumed by `reasoning_content`, leaving an
+// empty `content` and forcing the overlay into its fallback chips. Leave room
+// for the reasoning plus the three short suggestions; the retry doubles it for
+// longer chains.
+export const REPLY_SUGGESTION_MAX_TOKENS = 1200
+export const REPLY_SUGGESTION_RETRY_MAX_TOKENS = 2400
 
 function clipText(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max)}…` : value
@@ -227,13 +234,17 @@ function parseSuggestionsText(text: unknown): string[] {
 async function requestSuggestions(
   llm: ReplySuggestionLlm,
   system: string,
-  user: string
+  user: string,
+  maxTokens: number
 ): Promise<string[]> {
-  const opts = { system, user, temperature: 0.5, maxTokens: 160, timeoutMs: 15000, format: 'json' }
+  const opts = { system, user, temperature: 0.5, maxTokens, timeoutMs: 15000, format: 'json' }
   // `complete` returns the raw text, so we can parse it tolerantly even when
-  // the model does not produce strict JSON.
+  // the model does not produce strict JSON. The host also pre-parses it into
+  // `json`; use that first so a valid answer never costs a second request.
   if (typeof llm.complete === 'function' && methodAvailable(llm, 'llm.complete')) {
     const result = await llm.complete(opts)
+    const fromJson = sanitizeSuggestions(result?.json)
+    if (fromJson.length > 0) return fromJson
     const parsed = parseSuggestionsText(result?.text)
     if (parsed.length > 0) return parsed
   }
@@ -260,7 +271,8 @@ function unwrapApiResponse(response: unknown): Record<string, unknown> | null {
 async function requestSuggestionsViaApi(
   api: ReplySuggestionApi,
   system: string,
-  user: string
+  user: string,
+  maxTokens: number
 ): Promise<string[]> {
   if (!api || typeof api.post !== 'function') return []
   const response = await api.post('/extensions/llm/complete', {
@@ -268,7 +280,7 @@ async function requestSuggestionsViaApi(
     user,
     format: 'json',
     temperature: 0.5,
-    maxTokens: 160
+    maxTokens
   })
   const data = unwrapApiResponse(response)
   if (!data) return []
@@ -308,10 +320,14 @@ export async function generateReplySuggestions(
   const { system, user } = buildReplySuggestionPrompt(ctx)
   let lastError: unknown = null
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    const maxTokens =
+      attempt === 1 ? REPLY_SUGGESTION_MAX_TOKENS : REPLY_SUGGESTION_RETRY_MAX_TOKENS
     try {
-      let suggestions = canJson || canText ? await requestSuggestions(llm!, system, user) : []
+      let suggestions = canJson || canText
+        ? await requestSuggestions(llm!, system, user, maxTokens)
+        : []
       if (suggestions.length === 0 && canApi) {
-        suggestions = await requestSuggestionsViaApi(options.api!, system, user)
+        suggestions = await requestSuggestionsViaApi(options.api!, system, user, maxTokens)
       }
       if (suggestions.length > 0) {
         if (cache) cache.set(key, suggestions)

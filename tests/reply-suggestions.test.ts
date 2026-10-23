@@ -4,7 +4,9 @@ import {
   sanitizeSuggestions,
   createReplySuggestionCache,
   generateReplySuggestions,
-  REPLY_SUGGESTIONS_CACHE_TTL_MS
+  REPLY_SUGGESTIONS_CACHE_TTL_MS,
+  REPLY_SUGGESTION_MAX_TOKENS,
+  REPLY_SUGGESTION_RETRY_MAX_TOKENS
 } from '../src/services/replySuggestions'
 
 const ctx = {
@@ -175,6 +177,50 @@ describe('generateReplySuggestions', () => {
     )
     expect(result).toEqual(['Qual o valor?', 'Pode confirmar?'])
     expect(complete).toHaveBeenCalledTimes(2)
+  })
+
+  it('budgets enough output tokens for reasoning models', async () => {
+    // Reasoning models answer on `content` only after a long hidden chain.
+    // 160 tokens used to be consumed entirely by `reasoning_content`, so the
+    // overlay always fell back to the neutral chips.
+    const complete = vi.fn().mockResolvedValue({ text: '{"suggestions":["ok"]}' })
+    await generateReplySuggestions(
+      { has: (method: string) => method === 'llm.complete', complete },
+      ctx,
+      { fallback: ['neutro'] }
+    )
+    expect(complete.mock.calls[0][0].maxTokens).toBe(REPLY_SUGGESTION_MAX_TOKENS)
+    expect(REPLY_SUGGESTION_MAX_TOKENS).toBeGreaterThanOrEqual(1024)
+  })
+
+  it('raises the token budget on the retry attempt', async () => {
+    const complete = vi
+      .fn()
+      .mockResolvedValueOnce({ text: '' })
+      .mockResolvedValueOnce({ text: '{"suggestions":["ok"]}' })
+    await generateReplySuggestions(
+      { has: (method: string) => method === 'llm.complete', complete },
+      ctx,
+      { fallback: ['neutro'] }
+    )
+    expect(complete.mock.calls[1][0].maxTokens).toBe(REPLY_SUGGESTION_RETRY_MAX_TOKENS)
+    expect(REPLY_SUGGESTION_RETRY_MAX_TOKENS).toBeGreaterThan(REPLY_SUGGESTION_MAX_TOKENS)
+  })
+
+  it('uses the host pre-parsed JSON instead of issuing a second request', async () => {
+    const complete = vi.fn().mockResolvedValue({
+      text: '{"suggestions":["ok"]}',
+      json: { suggestions: ['ok'] }
+    })
+    const completeJson = vi.fn()
+    const result = await generateReplySuggestions(
+      { has: () => true, complete, completeJson },
+      ctx,
+      { fallback: ['neutro'] }
+    )
+    expect(result).toEqual(['ok'])
+    expect(complete).toHaveBeenCalledTimes(1)
+    expect(completeJson).not.toHaveBeenCalled()
   })
 
   it('uses the raw API fallback when the SDK exposes no llm module', async () => {
