@@ -2489,7 +2489,17 @@ async function connect() {
     let logger
     if (pino) {
       logger = pino(
-        { level: 'warn' },
+        {
+          level: 'warn',
+          // Baileys logs failures as `{ error }` (not `{ err }`). Pino only
+          // serializes Error under `err` by default, so `error` reached the
+          // worker as `{}` and the real cause was lost (e.g. the "error in
+          // handling message" line with reason=meta,enc). Register both keys.
+          serializers: {
+            err: pino.stdSerializers.err,
+            error: pino.stdSerializers.err
+          }
+        },
         {
           write: (msg) => {
             try {
