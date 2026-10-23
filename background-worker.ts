@@ -124,7 +124,8 @@ const {
   SEND_RATE_MAX_PER_WINDOW,
   pruneMediaDirectories: _pruneMediaDirectories,
   sanitizeRemoteMediaUrl: _sanitizeRemoteMediaUrl,
-  evaluateMediaPathPolicy: _evaluateMediaPathPolicy
+  evaluateMediaPathPolicy: _evaluateMediaPathPolicy,
+  buildSendSuccessResult
 } = require('./worker-utils.ts')
 
 let safeStorageAvailable = true
@@ -4824,8 +4825,10 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
             momai.log(
               `send_message OK: to=${contactArg} (t+${Date.now() - cmdStart}ms)`
             )
-            result = result || { ok: true }
-            result.directResponse = `Mensagem enviada`
+            // No `directResponse` here: it would end the host turn and stop
+            // the agent mid-task after every send. Keep the send as a normal
+            // tool result so the model can continue or wrap up on its own.
+            result = buildSendSuccessResult(result)
           } catch (err) {
             momai.log(
               `send_message FAILED: ${err.message} (t+${Date.now() - cmdStart}ms)`
@@ -4840,8 +4843,197 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
             result = {
               ok: false,
               error: friendly,
-              directResponse: `Erro ao enviar: ${friendly}`,
+              // Only an unconnected session ends the turn (the QR card is the
+              // next step). Other failures go back to the model as a tool
+              // error so the agent can retry or adapt within the same task.
+              ...(disconnected ? { directResponse: `Erro ao enviar: ${friendly}` } : {}),
               ...(card?.structuredResponse ? { structuredResponse: card.structuredResponse } : {})
+            }
+          }
+          break
+        }
+        case 'send_voice_note': {
+          const args = msg.payload?.args || {}
+          const contact = String(args.contact || args.jid || '').trim()
+          const text = String(args.text || args.message || '').trim()
+          const ptt = args.ptt !== false
+
+          if (!contact || !text) {
+            result = { ok: false, error: 'Destinatário e texto são obrigatórios.' }
+            break
+          }
+          if (!sock || !connected) {
+            const card = _connectionQrCardNow()
+            result = {
+              ok: false,
+              error: 'WhatsApp desconectado.',
+              directResponse: 'WhatsApp não está conectado. Conecte pelo painel ou escaneie o QR code.',
+              ...(card?.structuredResponse ? { structuredResponse: card.structuredResponse } : {})
+            }
+            break
+          }
+
+          // 1. Sintetizar áudio chamando a API de TTS da MomAI
+          const apiUrl = process.env.MOMAI_API_URL || 'http://127.0.0.1:8050'
+          const token = process.env.MOMAI_SESSION_TOKEN || ''
+          let audioBuffer: Buffer
+          let mimeType = ptt ? 'audio/ogg; codecs=opus' : 'audio/mpeg'
+
+          try {
+            const synthRes = await fetch(`${apiUrl}/voice/tts/synthesize`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'X-Session-Token': token } : {})
+              },
+              body: JSON.stringify({
+                text,
+                format: ptt ? 'ogg' : 'mp3'
+              })
+            })
+
+            if (!synthRes.ok) {
+              const errBody = (await synthRes.json().catch(() => ({}))) as any
+              throw new Error(errBody.error || `HTTP ${synthRes.status}`)
+            }
+
+            const synthData = (await synthRes.json()) as any
+            if (!synthData.audioBase64) {
+              throw new Error('Retorno do TTS sem áudio.')
+            }
+
+            audioBuffer = Buffer.from(synthData.audioBase64, 'base64')
+            mimeType = synthData.mimeType || (ptt ? 'audio/ogg; codecs=opus' : 'audio/mpeg')
+          } catch (err: any) {
+            momai.log(`[whatsapp] send_voice_note TTS failed: ${err.message}`)
+            result = {
+              ok: false,
+              error: `Falha ao sintetizar áudio com TTS: ${err.message}`,
+              directResponse: `Não foi possível gerar a voz da MomAI para o áudio: ${err.message}`
+            }
+            break
+          }
+
+          // 2. Resolver JID
+          let jid = resolveJidForSending(contact)
+          if (!jid || !jid.includes('@')) {
+            const groupJid = await findGroupJidByDisplayName(contact)
+            if (groupJid) jid = groupJid
+          }
+          if (!jid || !jid.includes('@')) {
+            result = { ok: false, error: `Contato ou grupo "${contact}" não encontrado.` }
+            break
+          }
+
+          const isGroup = jid.endsWith('@g.us')
+          const isLidJid = jid.endsWith('@lid')
+          if (isGroup) {
+            await prepareGroupForSend(jid)
+          } else if (!isLidJid && sock && typeof sock.onWhatsApp === 'function') {
+            try {
+              const owa = await withTimeout(sock.onWhatsApp(jid), 4000, 'onWhatsApp timeout')
+              const entries = Array.isArray(owa) ? owa : null
+              const entry = entries?.find((r) => r?.jid)
+              if (entry?.jid && entry.jid !== jid) {
+                momai.log(`[send_voice_note] updating target JID from "${jid}" to canonical "${entry.jid}"`)
+                jid = entry.jid
+              }
+            } catch (err: any) {
+              momai.log(`[send_voice_note] onWhatsApp check skipped/failed: ${err.message}`)
+            }
+          }
+
+          // 3. Enviar áudio via Baileys
+          try {
+            const finalMime = mimeType
+            const sent = await withTimeout(
+              sock.sendMessage(jid, {
+                audio: audioBuffer,
+                mimetype: finalMime,
+                ptt: Boolean(ptt)
+              }),
+              30000,
+              'Tempo esgotado ao enviar áudio'
+            )
+
+            // CRÍTICO: Armazena o proto no cache para que o WhatsApp consiga decifrar em retries
+            // e evitar travar na tela com "Aguardando mensagem".
+            if (sent?.key?.id && sent?.message) {
+              cacheMessage(sent.key, sent.message)
+            }
+
+            const sentId = sent?.key?.id || `out_${Date.now()}`
+            markMessageNotified(sentId)
+
+            // Salvar arquivo de áudio localmente para o painel de chat
+            let savedAudioFilename: string | null = null
+            try {
+              const fsSync = require('fs')
+              const audioDir = path.join(momai.storage.storageDir, 'audio')
+              if (!fsSync.existsSync(audioDir)) {
+                fsSync.mkdirSync(audioDir, { recursive: true })
+              }
+              const ext = mimeType.includes('ogg') ? 'ogg' : (mimeType === 'audio/wav' ? 'wav' : 'mp3')
+              savedAudioFilename = `${sanitizeMediaFilename(sentId, String(Date.now()))}.${ext}`
+              fsSync.writeFileSync(path.join(audioDir, savedAudioFilename), audioBuffer)
+            } catch (err: any) {
+              momai.log(`[whatsapp] Failed to save outgoing audio file: ${err.message}`)
+            }
+
+            const displayName = resolveContactName(jid) || contact
+            const timestamp = Math.floor(Date.now() / 1000)
+            const isGroupMsg = Boolean(isGroup)
+            const resolvedGroupName = isGroupMsg ? resolveContactName(jid) || 'Grupo' : null
+
+            const historyEntry = enrichHistoryEntry({
+              id: sentId,
+              rawKey: sent?.key ? {
+                remoteJid: sent.key.remoteJid || jid,
+                id: sent.key.id || sentId,
+                fromMe: true,
+                participant: undefined
+              } : undefined,
+              from: displayName,
+              jid: jid,
+              senderJid: jid,
+              replyJid: jid,
+              text: `🎙️ ${text}`,
+              audio: savedAudioFilename,
+              timestamp,
+              direction: 'outgoing',
+              isGroup: isGroupMsg,
+              groupName: resolvedGroupName,
+              profilePicUrl: resolveChatAvatarUrl(jid, isGroupMsg)
+            })
+
+            chatHistory.unshift(historyEntry)
+            if (chatHistory.length > MAX_HISTORY) chatHistory.pop()
+            totalMessages++
+            schedulePersistChatHistory()
+            removeUnreadBadge(jid).catch(() => {})
+
+            momai.sendEvent('message_sent', {
+              ...historyEntry,
+              contact: displayName,
+              jid,
+              id: sentId
+            })
+
+            momai.log(`[whatsapp] send_voice_note OK to ${jid} (${audioBuffer.length} bytes, ptt=${ptt})`)
+            result = {
+              ok: true,
+              contact: displayName,
+              jid,
+              ptt: Boolean(ptt),
+              text,
+              instruction: `Áudio com a voz da MomAI enviado com sucesso para ${displayName}.`
+            }
+          } catch (err: any) {
+            momai.log(`[whatsapp] send_voice_note send failed: ${err.message}`)
+            result = {
+              ok: false,
+              error: `Erro ao enviar áudio: ${err.message}`,
+              instruction: `Falha ao enviar áudio para ${contact}: ${err.message}`
             }
           }
           break

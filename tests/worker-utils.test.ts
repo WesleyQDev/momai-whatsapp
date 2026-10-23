@@ -7,6 +7,7 @@ import utils from '../worker-utils'
 const {
   withTimeout,
   friendlySendError,
+  buildSendSuccessResult,
   buildMessageContent,
   sanitizeMediaFilename,
   resolveJidForSending,
@@ -83,6 +84,18 @@ describe('withTimeout', () => {
       process.removeListener('unhandledRejection', handler)
     }
     expect(unhandled).not.toHaveBeenCalled()
+  })
+})
+
+describe('buildSendSuccessResult', () => {
+  it('keeps the Baileys result without ending the host turn', () => {
+    const out = buildSendSuccessResult({ ok: true, id: 'ABC123' })
+    expect(out).toEqual({ ok: true, id: 'ABC123' })
+    expect(out.directResponse).toBeUndefined()
+  })
+
+  it('still returns ok when the send resolved without a payload', () => {
+    expect(buildSendSuccessResult(null)).toEqual({ ok: true })
   })
 })
 

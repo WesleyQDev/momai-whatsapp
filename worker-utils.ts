@@ -79,6 +79,20 @@ function friendlySendError(message, contact) {
   return m
 }
 
+/**
+ * Shaping for a successful `send_message` result. It deliberately omits
+ * `directResponse`: that field ends the host turn, so the agent would stop
+ * mid-task after every send instead of continuing with the next step. The
+ * plain object becomes the tool result the model reads back.
+ *
+ * @param {unknown} rawResult value returned by Baileys/sendMessage
+ * @returns {Record<string, unknown>} tool result with `ok: true`
+ */
+function buildSendSuccessResult(rawResult) {
+  const base = rawResult && typeof rawResult === 'object' ? rawResult : {}
+  return { ...base, ok: true }
+}
+
 // Structured-response type rendered by the extension's chat card. The card
 // module imports the same literal from src/services/connectionQr.ts; a unit
 // test asserts both stay equal so a rename can never render "unsupported".
@@ -2199,6 +2213,7 @@ function isHistoryOverlayOpenFor(store, jid, now = Date.now(), ttlMs = HISTORY_O
 module.exports = {
   withTimeout,
   friendlySendError,
+  buildSendSuccessResult,
   CONNECTION_QR_CARD_TYPE,
   buildConnectionQrCardResult,
   buildMessageContent,

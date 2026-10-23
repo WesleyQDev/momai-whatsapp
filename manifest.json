@@ -109,6 +109,10 @@
         "show_connection_qr": {
           "label": "Show Connection QR",
           "description": "Shows a card with the QR code to connect WhatsApp"
+        },
+        "send_voice_note": {
+          "label": "Send Voice Message (TTS)",
+          "description": "Synthesizes and sends a voice audio message using MomAI TTS to a contact or group"
         }
       }
     },
@@ -983,6 +987,35 @@
           "emoji": {
             "type": "string",
             "description": "Emoji da reação"
+          }
+        }
+      }
+    },
+    {
+      "name": "send_voice_note",
+      "label": "Enviar Áudio / Mensagem de Voz (TTS)",
+      "description": "Converte um texto em áudio usando o TTS atualmente configurado na MomAI e envia como mensagem de voz ou áudio para um contato ou grupo do WhatsApp.",
+      "parameters": {
+        "type": "object",
+        "required": [
+          "contact",
+          "text"
+        ],
+        "properties": {
+          "contact": {
+            "type": "string",
+            "description": "Nome ou número do contato ou grupo",
+            "x-options-source": {
+              "tool": "list_contacts"
+            }
+          },
+          "text": {
+            "type": "string",
+            "description": "Texto a ser falado pelo TTS e enviado em áudio"
+          },
+          "ptt": {
+            "type": "boolean",
+            "description": "Se true (padrão), envia como mensagem de voz gravada no microfone (Push-To-Talk) com waveform. Se false, envia como arquivo de áudio."
           }
         }
       }
