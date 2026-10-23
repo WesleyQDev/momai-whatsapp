@@ -1,3 +1,4 @@
+import { isLightAppTheme } from '../utils/chatBubble'
 import {
   resolveQuoteSenderName,
   WHATSAPP_QUOTE_SELF_COLOR_INCOMING,
@@ -57,9 +58,12 @@ export function QuotedMessage({
   // Tonalização própria do bloco citado (como no WhatsApp Web): escurece o
   // balão de saída; no de entrada tinge na direção da cor do texto, o que
   // funciona em temas claros e escuros. As classes `bg-black/*` ficam como
-  // fallback caso o motor ignore `color-mix`.
+  // fallback caso o motor ignore `color-mix`. On the light outgoing green a
+  // softer shade keeps the quoted text readable.
   const boxBackground = isOutgoing
-    ? 'rgba(0, 0, 0, 0.22)'
+    ? isLightAppTheme()
+      ? 'rgba(0, 0, 0, 0.08)'
+      : 'rgba(0, 0, 0, 0.22)'
     : 'color-mix(in srgb, currentColor 8%, transparent)'
   const snippet =
     quoted.text ||
@@ -83,7 +87,7 @@ export function QuotedMessage({
         onOpenQuote?.(quoted.timestamp)
       }}
       className={`rounded-md px-2.5 py-1.5 mb-1.5 text-xs flex items-center justify-between gap-2 cursor-pointer transition-colors ${
-        isOutgoing ? 'bg-black/25 text-white' : 'bg-black/10 text-text'
+        isOutgoing ? 'bg-black/25 text-text' : 'bg-black/10 text-text'
       }`}
       style={{
         borderLeft: `4px solid ${barColor}`,

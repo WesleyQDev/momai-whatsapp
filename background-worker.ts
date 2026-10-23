@@ -616,6 +616,13 @@ const SESSION_REPAIR_COOLDOWN_MS = 300000 // 5 minutes
 
 async function repairSession(jid) {
   if (!jid) return
+  // Never attempt to clear or repair LID sessions directly: LIDs are device-linked
+  // identities managed automatically by WhatsApp protocol; clearing them destroys
+  // the multi-device state and causes permanent "No session record" decryption failures.
+  if (jid.endsWith('@lid')) {
+    return
+  }
+
   const now = Date.now()
   const lastReset = lastSessionReset.get(jid) || 0
   // Rate-limit: max 1 reset per 5 minutes
@@ -739,15 +746,14 @@ async function forceClearSession(jid) {
 
 function handleLogEvent(obj, msgStr = '') {
   const detail = obj?.err?.message || obj?.error || ''
-  const messageText = msgStr || obj?.msg || ''
 
-  if (
-    messageText.includes('failed to decrypt') ||
-    detail.includes('Bad MAC') ||
-    detail.includes('No matching sessions')
-  ) {
+  // Only trigger session repair on unrecoverable Signal ratchet corruption like "Bad MAC"
+  // or "No matching sessions" for regular phone JIDs (@s.whatsapp.net).
+  // Never trigger on generic "failed to decrypt message" or "No session record" on incoming messages,
+  // as Baileys' native sendRetryRequest is already handling the pre-key retry.
+  if (detail.includes('Bad MAC') || detail.includes('No matching sessions')) {
     const jid = obj?.key?.remoteJid
-    if (jid) {
+    if (jid && !jid.endsWith('@lid') && !jid.endsWith('@g.us')) {
       const now = Date.now()
       const lastReset = lastSessionReset.get(jid) || 0
       if (now - lastReset >= SESSION_REPAIR_COOLDOWN_MS) {
@@ -797,6 +803,21 @@ function _shouldLogStreamError(msgText) {
   const now = Date.now()
   if (now - lastStreamErrorAt < STREAM_ERROR_THROTTLE_MS) return false
   lastStreamErrorAt = now
+  return true
+}
+
+// Repeated `failed to decrypt message` / `No session record` fires on every retransmission (~5.5s loop),
+// so identical decryption failure errors for the same JID are throttled to one log line per 2 minutes.
+const lastDecryptErrorLog = new Map<string, number>()
+const DECRYPT_ERROR_THROTTLE_MS = 120000
+function _shouldLogDecryptError(msgText, detail, jid) {
+  const combined = String(msgText || '') + ' ' + String(detail || '')
+  if (!/failed to decrypt|No session record|no session found/i.test(combined)) return true
+  const key = String(jid || 'unknown')
+  const now = Date.now()
+  const last = lastDecryptErrorLog.get(key) || 0
+  if (now - last < DECRYPT_ERROR_THROTTLE_MS) return false
+  lastDecryptErrorLog.set(key, now)
   return true
 }
 
@@ -2547,6 +2568,10 @@ async function connect() {
             if (!_shouldLogStreamError(msgText)) {
               return
             }
+            const jid = obj?.key?.remoteJid
+            if (!_shouldLogDecryptError(msgText, rawDetail, jid)) {
+              return
+            }
             momai.log(`[Baileys:ERROR] ${msg || JSON.stringify(obj)}${detail ? ' (' + detail + ')' : ''}`)
             handleLogEvent(obj, msg)
           },
@@ -3130,16 +3155,10 @@ async function handleMessagesUpsert({ messages, type }) {
 
     const stubType = (msg as any).messageStubType
     if (stubType === 2 || stubType === 'CIPHERTEXT') {
-      const jid = msg.key?.remoteJid
-      if (jid) {
-        const now = Date.now()
-        const lastReset = lastSessionReset.get(jid) || 0
-        if (now - lastReset >= SESSION_REPAIR_COOLDOWN_MS) {
-          repairSession(jid).catch((e) => {
-            momai.log(`[whatsapp] Error repairing session for ${jid}: ${e.message}`)
-          })
-        }
-      }
+      // Message received as CIPHERTEXT stub: Baileys' internal decryptMessageNode
+      // and sendRetryRequest will automatically request a pre-key retry from the sender.
+      // We must NEVER call repairSession/forceClearSession here, as deleting the session
+      // wipes the ratchet before the sender's retry packet can arrive.
       continue
     }
 

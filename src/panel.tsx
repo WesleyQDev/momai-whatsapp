@@ -3202,12 +3202,12 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
 
                                       // For sticker/emoji-only messages the timestamp sits
                                       // BELOW the media (not over it) and uses the bubble
-                                      // colors: outgoing green/white, incoming input/text.
+                                      // colors: outgoing green with theme text, incoming input/text.
                                       const bubbleTimeNode = (
                                         <div
                                           className={`flex items-center gap-1 shrink-0 select-none px-1.5 py-0.5 rounded-md text-[10px] font-normal ${
                                             isOutgoing
-                                              ? 'text-white'
+                                              ? getChatBubbleTimeClasses(true)
                                               : 'bg-input/80 border border-border/50 text-text'
                                           }`}
                                           style={getChatBubbleStyle(isOutgoing)}
@@ -3217,7 +3217,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                               title={t('page.pin')}
                                               className={
                                                 isOutgoing
-                                                  ? 'text-white/80 shrink-0'
+                                                  ? 'opacity-80 shrink-0'
                                                   : 'text-text-muted shrink-0'
                                               }
                                             >
@@ -3429,7 +3429,7 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                         >
                                           <span>{formatHistoryTime(line.timestamp, locale)}</span>
                                           {isOutgoing && (
-                                            <span className="text-white/90 shrink-0 inline-flex items-center" title="Enviada">
+                                            <span className="shrink-0 inline-flex items-center opacity-90" title="Enviada">
                                               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                 <polyline points="18 6 9 15 4 10" />
                                                 <polyline points="22 10 13 19 11 17" />

@@ -76,6 +76,7 @@ describe('renderTextWithLinks', () => {
       root.render(<div>{renderTextWithLinks('https://momai.app', true)}</div>)
     })
     const outgoingLink = container.querySelector('a')
-    expect(outgoingLink?.className).toContain('text-white')
+    expect(outgoingLink?.className).toContain('text-text')
+    expect(outgoingLink?.className).not.toContain('text-white')
   })
 })

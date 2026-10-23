@@ -4,7 +4,8 @@ const URL_PATTERN = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s]|www\.[^\s<]+[^<.,:;"')\]
 
 /**
  * Splits plain text and renders detected URLs as clickable links.
- * Outgoing bubbles use white underline link styling; incoming bubbles use theme accent.
+ * Outgoing bubbles reuse the bubble text color with underline (readable on
+ * both the light and dark outgoing greens); incoming bubbles use theme accent.
  * Clicks prevent bubbling and open in the default system browser via Electron setWindowOpenHandler.
  */
 export function renderTextWithLinks(text?: string | null, isOutgoing = false): ReactNode {
@@ -34,7 +35,7 @@ export function renderTextWithLinks(text?: string | null, isOutgoing = false): R
             } catch {}
           }}
           className={`underline hover:opacity-80 transition-opacity cursor-pointer font-medium select-text break-all ${
-            isOutgoing ? 'text-white underline' : 'text-accent underline'
+            isOutgoing ? 'text-text underline' : 'text-accent underline'
           }`}
           title={href}
         >

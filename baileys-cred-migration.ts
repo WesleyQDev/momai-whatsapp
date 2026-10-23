@@ -78,7 +78,7 @@ function createMigration(bridge) {
             console.log('[whatsapp] (re-)encrypted creds.json → creds.json.enc (backup kept)')
             return true
           }
-          console.warn('[whatsapp] migration skipped: safeStorage unavailable')
+          console.log('[whatsapp] migration skipped: safeStorage unavailable (using plain session)')
         }
       }
       return false
@@ -129,7 +129,7 @@ function createMigration(bridge) {
           console.log('[whatsapp] re-encrypted creds.json → creds.json.enc (backup kept)')
           return true
         }
-        console.warn('[whatsapp] re-encryption skipped: safeStorage unavailable')
+        console.log('[whatsapp] re-encryption skipped: safeStorage unavailable')
       }
       return false
     },
