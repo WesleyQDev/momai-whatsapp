@@ -5,7 +5,11 @@ import { useLastMessageWidget } from './hooks/useLastMessageWidget'
 import { resolveWidgetLabel } from './services/widgetApi'
 import { WidgetLoading, WidgetState } from './components/WidgetState'
 
-export default function WhatsappLastMessageWidget(): JSX.Element {
+export default function WhatsappLastMessageWidget({
+  isEditing = false
+}: {
+  isEditing?: boolean
+}): JSX.Element {
   const { t } = useI18n()
   const { loading, error, last, avatar } = useLastMessageWidget()
 
@@ -23,8 +27,8 @@ export default function WhatsappLastMessageWidget(): JSX.Element {
         : ''
 
   return (
-    <div className="w-full h-full flex flex-col min-h-0 overflow-hidden p-3 gap-2">
-      <div className="flex items-center gap-2.5 min-w-0 shrink-0">
+    <div className="w-full h-full flex flex-col min-h-0 overflow-hidden p-3 gap-2 whatsapp-last-message-widget">
+      <div className={`flex items-center gap-2.5 min-w-0 shrink-0 widget-header-row ${isEditing ? 'pr-14' : ''}`}>
         <ContactAvatar src={avatar} name={label} id={last.jid} />
         <div className="flex-1 flex flex-col min-w-0">
           <span className="text-xs font-semibold text-text truncate">{label}</span>
@@ -40,7 +44,7 @@ export default function WhatsappLastMessageWidget(): JSX.Element {
           </span>
         )}
       </div>
-      <p className="text-xs text-text leading-snug line-clamp-4">
+      <p className="text-xs text-text leading-snug line-clamp-4 whatsapp-last-message-body">
         {outgoing && <span className="font-semibold text-text-muted">{t('page.you_label')} </span>}
         {body || t('widget.lastMessage.media')}
       </p>

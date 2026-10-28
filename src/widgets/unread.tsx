@@ -31,7 +31,7 @@ function describePreview(
   return prefix.trim()
 }
 
-export default function WhatsappUnreadWidget({ config }: WidgetProps<{ limit?: number | string }>): JSX.Element {
+export default function WhatsappUnreadWidget({ config, isEditing = false }: WidgetProps<{ limit?: number | string }>): JSX.Element {
   const { t } = useI18n()
   const { loading, connected, total, rows, error } = useUnreadWidget(resolveUnreadLimit(config))
 
@@ -44,10 +44,10 @@ export default function WhatsappUnreadWidget({ config }: WidgetProps<{ limit?: n
   const photoLabel = t('media.photo')
 
   return (
-    <div className="w-full h-full flex flex-col min-h-0 overflow-hidden p-3 gap-2">
-      <div className="flex items-center justify-between shrink-0">
-        <span className="text-xs font-bold text-text">{t('widget.unread.title')}</span>
-        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/20">
+    <div className="w-full h-full flex flex-col min-h-0 overflow-hidden p-3 gap-2 unread-widget-container">
+      <div className={`flex items-center justify-between shrink-0 widget-header-row ${isEditing ? 'pr-14' : ''}`}>
+        <span className="text-xs font-bold text-text truncate">{t('widget.unread.title')}</span>
+        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/20 shrink-0">
           {total > 0 ? total : rows.length}
         </span>
       </div>
@@ -57,7 +57,7 @@ export default function WhatsappUnreadWidget({ config }: WidgetProps<{ limit?: n
           return (
             <div
               key={message.jid}
-              className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl bg-bg/50 border border-border/20 min-w-0"
+              className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl bg-bg/50 border border-border/20 min-w-0 unread-widget-row"
             >
               <ContactAvatar src={avatar} name={label} id={message.jid} />
               <div className="flex-1 flex flex-col min-w-0">

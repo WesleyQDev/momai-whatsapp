@@ -2210,10 +2210,141 @@ function isHistoryOverlayOpenFor(store, jid, now = Date.now(), ttlMs = HISTORY_O
   return open
 }
 
+/**
+ * Returns the phone/LID user digits from a WhatsApp JID, ignoring the device
+ * suffix and the server. `211093884559589:30@lid` -> `211093884559589`.
+ * A naive `replace(/[^0-9]/g, '')` would include the `:30` device and miss the
+ * Signal session files (`session-<user>.<device>.json`).
+ */
+function normalizeJidUser(jid) {
+  if (!jid) return ''
+  const userPart = String(jid).split('@')[0].split(':')[0]
+  return userPart.replace(/[^0-9]/g, '')
+}
+
+/** True for the Baileys/libsignal decryption-failure messages we throttle. */
+function isDecryptFailureDetail(detail) {
+  return /Bad MAC|No matching sessions|No session record|failed to decrypt|no session found/i.test(
+    String(detail || '')
+  )
+}
+
+/**
+ * Self-LID repair policy. Only own messages (`key.fromMe === true`) with an
+ * unrecoverable MAC/session failure are eligible; contact LIDs are never
+ * cleared here (the v0.12.0 session-safety regression).
+ *
+ * Returns the self LID JID (`<user>@lid`) or null when no repair is allowed.
+ */
+function shouldRepairSelfLid(detail, key, meLid) {
+  if (!/Bad MAC|No matching sessions/i.test(String(detail || ''))) return null
+  if (!key || key.fromMe !== true) return null
+  const lidUser = normalizeJidUser(meLid)
+  return lidUser ? `${lidUser}@lid` : null
+}
+
+/**
+ * Builds the `authState.keys.set({ session: ... })` payload for a JID.
+ * Includes every existing session file for that user (all devices) plus the
+ * base `.0`/`.1` ids used by Baileys' cache. Null removes the entry/file via
+ * the Baileys file lock; callers must never unlink session files directly
+ * while the socket is open.
+ */
+function buildSessionClearKeys(jid, sessionFileNames = [], altJid = null) {
+  const keys = {}
+  const allowedUsers = new Set(
+    [normalizeJidUser(jid), normalizeJidUser(altJid)].filter(Boolean)
+  )
+  for (const name of sessionFileNames) {
+    if (typeof name !== 'string' || !name.startsWith('session-') || !name.endsWith('.json')) {
+      continue
+    }
+    const id = name.slice('session-'.length, -'.json'.length)
+    const user = id.split('.')[0]
+    if (id && allowedUsers.has(user)) keys[id] = null
+  }
+  const user = normalizeJidUser(jid)
+  if (user) {
+    keys[user] = null
+    keys[`${user}.0`] = null
+    keys[`${user}.1`] = null
+  }
+  return keys
+}
+
+/**
+ * Counts decrypt failures per message id and reports every `threshold`-th
+ * occurrence. The caller still owns the time-based cooldown and the actual
+ * session clear, so repeated retries cannot cause a clear storm.
+ */
+function createDecryptFailureTracker({ threshold = 3, maxEntries = 500 } = {}) {
+  const counts = new Map()
+  const step = Math.max(1, Number(threshold) || 1)
+  const max = Math.max(1, Number(maxEntries) || 1)
+  return {
+    record(id) {
+      const key = String(id || '').trim() || 'unknown'
+      const next = (counts.get(key) || 0) + 1
+      counts.set(key, next)
+      if (counts.size > max) {
+        const oldest = counts.keys().next().value
+        if (oldest !== undefined) counts.delete(oldest)
+      }
+      return next % step === 0
+    },
+    reset(id) {
+      counts.delete(String(id || '').trim() || 'unknown')
+    },
+    clear() {
+      counts.clear()
+    },
+    get size() {
+      return counts.size
+    }
+  }
+}
+
+/**
+ * Sliding-window budget for destructive repairs. Prevents a clear/recreate
+ * loop when the peer never re-handshakes: at most `max` repairs per key in
+ * `windowMs`; `exhausted` means the caller should stop and surface a re-pair
+ * hint instead of clearing again.
+ */
+function createRepairBudget({ max = 2, windowMs = 60 * 60 * 1000 } = {}) {
+  const attempts = new Map()
+  const limit = Math.max(1, Number(max) || 1)
+  const window = Math.max(1, Number(windowMs) || 1)
+  return {
+    tryAcquire(key, now = Date.now()) {
+      const id = String(key || '').trim() || 'unknown'
+      const recent = (attempts.get(id) || []).filter((ts) => now - ts < window)
+      if (recent.length >= limit) {
+        attempts.set(id, recent)
+        return { allowed: false, exhausted: true, attempts: recent.length }
+      }
+      recent.push(now)
+      attempts.set(id, recent)
+      return { allowed: true, exhausted: false, attempts: recent.length }
+    },
+    reset(key) {
+      attempts.delete(String(key || '').trim() || 'unknown')
+    },
+    clear() {
+      attempts.clear()
+    }
+  }
+}
+
 module.exports = {
   withTimeout,
   friendlySendError,
   buildSendSuccessResult,
+  normalizeJidUser,
+  isDecryptFailureDetail,
+  shouldRepairSelfLid,
+  buildSessionClearKeys,
+  createDecryptFailureTracker,
+  createRepairBudget,
   CONNECTION_QR_CARD_TYPE,
   buildConnectionQrCardResult,
   buildMessageContent,

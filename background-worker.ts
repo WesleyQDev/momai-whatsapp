@@ -125,7 +125,13 @@ const {
   pruneMediaDirectories: _pruneMediaDirectories,
   sanitizeRemoteMediaUrl: _sanitizeRemoteMediaUrl,
   evaluateMediaPathPolicy: _evaluateMediaPathPolicy,
-  buildSendSuccessResult
+  buildSendSuccessResult,
+  normalizeJidUser,
+  isDecryptFailureDetail,
+  shouldRepairSelfLid,
+  buildSessionClearKeys,
+  createDecryptFailureTracker,
+  createRepairBudget
 } = require('./worker-utils.ts')
 
 let safeStorageAvailable = true
@@ -486,6 +492,13 @@ const msgRetryCounterCache = new MessageRetryCache()
 
 const fsSync = require('fs')
 const lastSessionReset = new Map()
+// A stuck own-device session retries the same message every ~5.5s. Only clear
+// after a few failures so a transient decrypt error never destroys a session.
+const selfLidFailureTracker = createDecryptFailureTracker({ threshold: 3, maxEntries: 500 })
+// At most two own-LID clears per hour. If the phone never re-handshakes, the
+// user needs a fresh pairing; stop hammering the session store.
+const selfLidRepairBudget = createRepairBudget({ max: 2, windowMs: 60 * 60 * 1000 })
+const selfLidRepairWarned = new Set()
 
 function isPidRunning(pid) {
   try {
@@ -616,9 +629,10 @@ const SESSION_REPAIR_COOLDOWN_MS = 300000 // 5 minutes
 
 async function repairSession(jid) {
   if (!jid) return
-  // Never attempt to clear or repair LID sessions directly: LIDs are device-linked
-  // identities managed automatically by WhatsApp protocol; clearing them destroys
-  // the multi-device state and causes permanent "No session record" decryption failures.
+  // Contact LID sessions are owned by WhatsApp's multi-device protocol and must
+  // never be cleared here: that destroys the multi-device state and causes
+  // permanent "No session record" failures. Own-LID recovery is handled
+  // separately by repairSelfLidSession(), gated by fromMe + a retry threshold.
   if (jid.endsWith('@lid')) {
     return
   }
@@ -642,7 +656,7 @@ async function repairSession(jid) {
 
 function getAltJid(jid) {
   if (!jid || typeof jid !== 'string' || !jid.endsWith('@s.whatsapp.net')) return null
-  const digits = jid.replace(/[^0-9]/g, '')
+  const digits = normalizeJidUser(jid)
   if (digits.startsWith('55') && digits.length === 13 && digits[4] === '9') {
     const altDigits = digits.slice(0, 4) + digits.slice(5)
     return `${altDigits}@s.whatsapp.net`
@@ -655,13 +669,13 @@ function getAltJid(jid) {
 
 function getSessionFiles(authDir, jid) {
   if (!jid || !fsSync.existsSync(authDir)) return []
-  const digits = jid.replace(/[^0-9]/g, '')
+  const digits = normalizeJidUser(jid)
   if (!digits) return []
 
   const targetDigitsList = [digits]
   const alt = getAltJid(jid)
   if (alt) {
-    const altDigits = alt.replace(/[^0-9]/g, '')
+    const altDigits = normalizeJidUser(alt)
     if (altDigits) targetDigitsList.push(altDigits)
   }
 
@@ -701,21 +715,17 @@ async function forceClearSession(jid) {
 
   const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
   const sessionFiles = getSessionFiles(authDir, jid)
-  const digits = jid.replace(/[^0-9]/g, '')
+  const digits = normalizeJidUser(jid)
   const alt = getAltJid(jid)
-  const altDigits = alt ? alt.replace(/[^0-9]/g, '') : null
+  const altDigits = alt ? normalizeJidUser(alt) : null
 
   if (sock?.authState?.keys?.set) {
     try {
-      const keysToNull: Record<string, null> = {}
-
-      for (const file of sessionFiles) {
-        const base = path.basename(file)
-        const keyId = base.replace(/^session-/, '').replace(/\.json$/, '')
-        if (keyId) {
-          keysToNull[keyId] = null
-        }
-      }
+      const keysToNull: Record<string, null> = buildSessionClearKeys(
+        jid,
+        sessionFiles.map((file) => path.basename(file)),
+        alt
+      ) as Record<string, null>
 
       for (const d of [digits, altDigits].filter(Boolean)) {
         keysToNull[`${d}`] = null
@@ -744,23 +754,73 @@ async function forceClearSession(jid) {
   }
 }
 
+function getSelfLidUser() {
+  const lid = sock?.user?.lid || sock?.authState?.creds?.me?.lid || ''
+  return normalizeJidUser(lid)
+}
+
+/**
+ * Clears the Signal sessions with our own LID devices (phone + other linked
+ * devices) so the next retry includes a fresh PreKey bundle. This is the only
+ * LID case the extension repairs: contact LIDs are owned by WhatsApp's
+ * multi-device protocol and must never be cleared here (v0.12.0 regression).
+ */
+async function repairSelfLidSession(reason) {
+  const lidUser = getSelfLidUser()
+  if (!lidUser) return
+  const cooldownKey = `self-lid:${lidUser}`
+  const now = Date.now()
+  const lastReset = lastSessionReset.get(cooldownKey) || 0
+  if (now - lastReset < SESSION_REPAIR_COOLDOWN_MS) return
+  const budget = selfLidRepairBudget.tryAcquire(lidUser, now)
+  if (!budget.allowed) {
+    if (!selfLidRepairWarned.has(lidUser)) {
+      selfLidRepairWarned.add(lidUser)
+      momai.log(
+        `[whatsapp] Own LID session for ${lidUser} still failing after ${budget.attempts} repairs; ` +
+          'a new WhatsApp pairing may be required'
+      )
+    }
+    return
+  }
+  lastSessionReset.set(cooldownKey, now)
+  momai.log(`[whatsapp] Clearing own LID sessions for ${lidUser} (${reason})`)
+  await forceClearSession(`${lidUser}@lid`)
+}
+
 function handleLogEvent(obj, msgStr = '') {
   const detail = obj?.err?.message || obj?.error || ''
+  const key = obj?.key || {}
 
-  // Only trigger session repair on unrecoverable Signal ratchet corruption like "Bad MAC"
-  // or "No matching sessions" for regular phone JIDs (@s.whatsapp.net).
-  // Never trigger on generic "failed to decrypt message" or "No session record" on incoming messages,
-  // as Baileys' native sendRetryRequest is already handling the pre-key retry.
-  if (detail.includes('Bad MAC') || detail.includes('No matching sessions')) {
-    const jid = obj?.key?.remoteJid
-    if (jid && !jid.endsWith('@lid') && !jid.endsWith('@g.us')) {
-      const now = Date.now()
-      const lastReset = lastSessionReset.get(jid) || 0
-      if (now - lastReset >= SESSION_REPAIR_COOLDOWN_MS) {
-        repairSession(jid).catch((e) => {
-          momai.log(`[whatsapp] Error repairing session for ${jid}: ${e.message}`)
-        })
-      }
+  if (!isDecryptFailureDetail(detail)) return
+
+  // Own message (fromMe): the sender is one of our devices, addressed through
+  // our LID. Handle this before remoteJid, which for a self-sent DM is the
+  // recipient and for a group is @g.us (neither is the failing session).
+  const selfLidJid = shouldRepairSelfLid(detail, key, getSelfLidUser())
+  if (selfLidJid) {
+    const messageId = key.id ? String(key.id) : 'unknown'
+    if (selfLidFailureTracker.record(messageId)) {
+      repairSelfLidSession('own message decrypt failure').catch((e) => {
+        momai.log(`[whatsapp] Error repairing own LID session: ${e.message}`)
+      })
+    }
+    return
+  }
+
+  // Only trigger contact repair on unrecoverable Signal ratchet corruption like
+  // "Bad MAC" or "No matching sessions" for regular phone JIDs. Never on
+  // generic "failed to decrypt message" / "No session record": Baileys'
+  // native sendRetryRequest already handles the pre-key retry.
+  if (!/Bad MAC|No matching sessions/i.test(String(detail))) return
+  const jid = key.remoteJid
+  if (jid && !jid.endsWith('@lid') && !jid.endsWith('@g.us')) {
+    const now = Date.now()
+    const lastReset = lastSessionReset.get(jid) || 0
+    if (now - lastReset >= SESSION_REPAIR_COOLDOWN_MS) {
+      repairSession(jid).catch((e) => {
+        momai.log(`[whatsapp] Error repairing session for ${jid}: ${e.message}`)
+      })
     }
   }
 }
@@ -812,13 +872,28 @@ const lastDecryptErrorLog = new Map<string, number>()
 const DECRYPT_ERROR_THROTTLE_MS = 120000
 function _shouldLogDecryptError(msgText, detail, jid) {
   const combined = String(msgText || '') + ' ' + String(detail || '')
-  if (!/failed to decrypt|No session record|no session found/i.test(combined)) return true
+  if (!isDecryptFailureDetail(combined)) return true
   const key = String(jid || 'unknown')
   const now = Date.now()
   const last = lastDecryptErrorLog.get(key) || 0
   if (now - last < DECRYPT_ERROR_THROTTLE_MS) return false
   lastDecryptErrorLog.set(key, now)
   return true
+}
+
+// libsignal logs decrypt failures directly with console.error, bypassing the
+// pino logger and its throttle. Keep the worker stderr quiet without hiding
+// unrelated errors; the canonical line still comes from `[Baileys:ERROR]`.
+const _originalConsoleError = console.error.bind(console)
+let _lastLibsignalDecryptErrorAt = 0
+console.error = (...args) => {
+  const text = args.map((arg) => (typeof arg === 'string' ? arg : '')).join(' ')
+  if (/Failed to decrypt message with any known session|Session error:.*Bad MAC/i.test(text)) {
+    const now = Date.now()
+    if (now - _lastLibsignalDecryptErrorAt < DECRYPT_ERROR_THROTTLE_MS) return
+    _lastLibsignalDecryptErrorAt = now
+  }
+  _originalConsoleError(...args)
 }
 
 function _clearReconnectTimer() {
@@ -2526,7 +2601,10 @@ async function connect() {
               if (!_shouldLogStreamError(msgText)) {
                 return
               }
-              momai.log(`[Baileys:${levelStr}] ${parsed.msg} ${detail ? '(' + detail + ')' : ''}`)
+              const jid = parsed.key?.remoteJid
+              if (_shouldLogDecryptError(msgText, rawDetail, jid)) {
+                momai.log(`[Baileys:${levelStr}] ${parsed.msg} ${detail ? '(' + detail + ')' : ''}`)
+              }
               if (parsed.level >= 40) {
                 handleLogEvent(parsed)
               }
@@ -2579,10 +2657,9 @@ async function connect() {
               return
             }
             const jid = obj?.key?.remoteJid
-            if (!_shouldLogDecryptError(msgText, rawDetail, jid)) {
-              return
+            if (_shouldLogDecryptError(msgText, rawDetail, jid)) {
+              momai.log(`[Baileys:ERROR] ${msg || JSON.stringify(obj)}${detail ? ' (' + detail + ')' : ''}`)
             }
-            momai.log(`[Baileys:ERROR] ${msg || JSON.stringify(obj)}${detail ? ' (' + detail + ')' : ''}`)
             handleLogEvent(obj, msg)
           },
           trace: () => {},
@@ -2680,6 +2757,9 @@ async function connect() {
         lastConnectAtSec = Math.floor(Date.now() / 1000)
         resetReconnectBackoff()
         groupMetaCache.clear()
+        selfLidFailureTracker.clear()
+        selfLidRepairBudget.clear()
+        selfLidRepairWarned.clear()
         _markSyncingContacts()
 
         // Diagnóstico (só log, não muda fluxo): sessão com registro incompleto no
@@ -3160,17 +3240,18 @@ async function handleMessagesUpsert({ messages, type }) {
   const isHistoryAppend = type && type !== 'notify'
   for (const msg of messages) {
     const messageId = msg.key?.id ? String(msg.key.id) : null
-    if (messageId && notifiedMessageIds.has(messageId)) continue
-    markMessageNotified(messageId)
-
     const stubType = (msg as any).messageStubType
     if (stubType === 2 || stubType === 'CIPHERTEXT') {
-      // Message received as CIPHERTEXT stub: Baileys' internal decryptMessageNode
-      // and sendRetryRequest will automatically request a pre-key retry from the sender.
-      // We must NEVER call repairSession/forceClearSession here, as deleting the session
-      // wipes the ratchet before the sender's retry packet can arrive.
+      // CIPHERTEXT stub: Baileys' sendRetryRequest already asks the sender for
+      // a pre-key retry. The retry is counted once by handleLogEvent; do not
+      // count it here as well or the threshold fires too early.
       continue
     }
+
+    if (messageId && notifiedMessageIds.has(messageId)) continue
+    markMessageNotified(messageId)
+    // Successful decrypt: a later failure with the same id starts a new count.
+    if (messageId) selfLidFailureTracker.reset(messageId)
 
     if (msg.message && msg.key?.id) {
       cacheMessage(msg.key, msg.message)
