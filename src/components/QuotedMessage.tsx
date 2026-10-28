@@ -80,6 +80,14 @@ export function QuotedMessage({
               ? '🏷️ Figurinha'
               : 'Mensagem')
 
+  const previewImgUrl =
+    typeof quoted.image === 'string' &&
+    quoted.image.trim() &&
+    quoted.image !== 'true' &&
+    getImageUrl
+      ? getImageUrl(quoted.image)
+      : null
+
   return (
     <div
       onClick={(e) => {
@@ -103,9 +111,9 @@ export function QuotedMessage({
         </p>
         <p className="text-[11px] opacity-90 truncate mt-0.5 select-text font-normal">{snippet}</p>
       </div>
-      {quoted.image && getImageUrl && (
+      {previewImgUrl && (
         <img
-          src={getImageUrl(quoted.image)}
+          src={previewImgUrl}
           alt="Preview"
           className="w-8 h-8 object-cover rounded shrink-0 border border-border/40"
         />

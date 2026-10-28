@@ -52,8 +52,8 @@ const formatFileSize = (bytes?: number): string => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const isDirectUrl = (url: string): boolean => {
-  if (!url) return false
+const isDirectUrl = (url: unknown): boolean => {
+  if (typeof url !== 'string' || !url) return false
   return (
     url.startsWith('data:') ||
     url.startsWith('blob:') ||
@@ -63,29 +63,29 @@ const isDirectUrl = (url: string): boolean => {
   )
 }
 
-const getAudioUrl = (filename: string): string => {
-  if (!filename) return ''
+const getAudioUrl = (filename: unknown): string => {
+  if (typeof filename !== 'string' || !filename || filename === 'true') return ''
   if (isDirectUrl(filename)) return filename
   const base = getApiBaseUrl()
   return `${base}${sdk.media.url('momai-whatsapp', `audio/${encodeURIComponent(filename)}`)}`
 }
 
-const getStickerUrl = (filename: string): string => {
-  if (!filename) return ''
+const getStickerUrl = (filename: unknown): string => {
+  if (typeof filename !== 'string' || !filename || filename === 'true') return ''
   if (isDirectUrl(filename)) return filename
   const base = getApiBaseUrl()
   return `${base}${sdk.media.url('momai-whatsapp', `stickers/${encodeURIComponent(filename)}`)}`
 }
 
-const getImageUrl = (filename: string): string => {
-  if (!filename) return ''
+const getImageUrl = (filename: unknown): string => {
+  if (typeof filename !== 'string' || !filename || filename === 'true') return ''
   if (isDirectUrl(filename)) return filename
   const base = getApiBaseUrl()
   return `${base}${sdk.media.url('momai-whatsapp', `images/${encodeURIComponent(filename)}`)}`
 }
 
-const getVideoUrl = (filename: string): string => {
-  if (!filename) return ''
+const getVideoUrl = (filename: unknown): string => {
+  if (typeof filename !== 'string' || !filename || filename === 'true') return ''
   if (isDirectUrl(filename)) return filename
   const base = getApiBaseUrl()
   return `${base}${sdk.media.url('momai-whatsapp', `videos/${encodeURIComponent(filename)}`)}`
@@ -104,8 +104,8 @@ const isMediaPlaceholder = (text: string): boolean =>
   text === '[GIF]' ||
   text === '[Sticker]'
 
-const isGifUrl = (text?: string): boolean => {
-  if (!text) return false
+const isGifUrl = (text?: unknown): boolean => {
+  if (typeof text !== 'string' || !text) return false
   const t = text.trim()
   return (
     /^(https?:\/\/|data:image\/gif|data:video\/mp4)[^\s]+\.(gif|mp4)(\?[^\s]*)?$/i.test(t) ||
@@ -1563,6 +1563,17 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
   }, [])
 
   const handleInputContextMenu = useCallback((e: React.MouseEvent) => {
+    const isDesktop =
+      typeof window !== 'undefined' &&
+      Boolean((window as any).momaiAPI && !(window as any).momaiAPI?.isWeb?.())
+    if (isDesktop) {
+      return
+    }
+    const selection = window.getSelection()
+    const selectedText = selection?.toString() || ''
+    if (!selectedText.trim()) {
+      return
+    }
     e.preventDefault()
     e.stopPropagation()
     setInputContextMenu({ x: e.clientX, y: e.clientY })
@@ -3157,13 +3168,14 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                                           (line.image && isGifUrl(line.image)) ||
                                           isGifUrl(line.text)
                                       )
+                                      const gifStr = typeof line.gif === 'string' ? line.gif : ''
                                       const gifUrlResolved =
-                                        (line.gif
-                                          ? isDirectUrl(line.gif)
-                                            ? line.gif
-                                            : line.gif.endsWith('.mp4') || line.gif.includes('.mp4?') || line.gif.includes('/mp4')
-                                              ? getVideoUrl(line.gif)
-                                              : getImageUrl(line.gif)
+                                        (gifStr
+                                          ? isDirectUrl(gifStr)
+                                            ? gifStr
+                                            : gifStr.endsWith('.mp4') || gifStr.includes('.mp4?') || gifStr.includes('/mp4')
+                                              ? getVideoUrl(gifStr)
+                                              : getImageUrl(gifStr)
                                           : '') ||
                                         (line.video && isGifMsg ? getVideoUrl(line.video) : '') ||
                                         (line.image && isGifMsg ? getImageUrl(line.image) : '') ||
@@ -3612,15 +3624,16 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                               (line.image && isGifUrl(line.image)) ||
                               isGifUrl(line.text)
                           )
+                          const notifGifStr = typeof line.gif === 'string' ? line.gif : ''
                           const notifGifUrl =
-                            (line.gif
-                              ? isDirectUrl(line.gif)
-                                ? line.gif
-                                : line.gif.endsWith('.mp4') ||
-                                    line.gif.includes('.mp4?') ||
-                                    line.gif.includes('/mp4')
-                                  ? getVideoUrl(line.gif)
-                                  : getImageUrl(line.gif)
+                            (notifGifStr
+                              ? isDirectUrl(notifGifStr)
+                                ? notifGifStr
+                                : notifGifStr.endsWith('.mp4') ||
+                                    notifGifStr.includes('.mp4?') ||
+                                    notifGifStr.includes('/mp4')
+                                  ? getVideoUrl(notifGifStr)
+                                  : getImageUrl(notifGifStr)
                               : '') ||
                             (line.video && isGifNotif ? getVideoUrl(line.video) : '') ||
                             (line.image && isGifNotif ? getImageUrl(line.image) : '') ||
@@ -4081,14 +4094,18 @@ export default function WhatsAppNotificationCard({ data }: { data: any }) {
                       </p>
                     </div>
 
-                    {replyingTo.image && (
+                    {typeof replyingTo.image === 'string' &&
+                      replyingTo.image &&
+                      replyingTo.image !== 'true' && (
                       <img
                         src={getImageUrl(replyingTo.image)}
                         alt="Preview"
                         className="w-9 h-9 object-cover rounded shrink-0 border border-border/40"
                       />
                     )}
-                    {replyingTo.sticker && (
+                    {typeof replyingTo.sticker === 'string' &&
+                      replyingTo.sticker &&
+                      replyingTo.sticker !== 'true' && (
                       <img
                         src={getStickerUrl(replyingTo.sticker)}
                         alt="Sticker Preview"

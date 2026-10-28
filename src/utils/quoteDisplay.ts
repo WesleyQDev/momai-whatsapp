@@ -13,13 +13,13 @@ export type QuotedMessageInfo = {
   senderJid?: string | null
   timestamp?: number | null
   text?: string | null
-  image?: string | null
-  video?: string | null
-  audio?: string | null
-  sticker?: string | null
-  document?: string | null
+  image?: string | boolean | null
+  video?: string | boolean | null
+  audio?: string | boolean | null
+  sticker?: string | boolean | null
+  document?: string | boolean | null
   documentName?: string | null
-  gif?: string | null
+  gif?: string | boolean | null
   isGif?: boolean | null
 }
 

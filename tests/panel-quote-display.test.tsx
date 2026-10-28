@@ -420,4 +420,59 @@ describe('bloco de citação no overlay (padrão WhatsApp Web)', () => {
     expect(sentBody.args.quoted).toBeUndefined()
     expect(sentBody.args.quotedMessageId).toBeUndefined()
   })
+
+  it('não quebra ao renderizar citação com imagem booleana (image: true)', async () => {
+    // Quando uma citação no WhatsApp referencia uma imagem, o worker extrai `image: true`.
+    // QuotedMessage e getImageUrl não devem quebrar com "url.startsWith is not a function".
+    await renderOverlay([
+      {
+        id: 'reply-bool-img',
+        timestamp: 5000,
+        direction: 'incoming',
+        text: 'resposta para foto',
+        from: 'Lucas',
+        quoted: {
+          id: 'orig-img',
+          text: '📷 Foto',
+          from: 'Você',
+          image: true
+        }
+      }
+    ])
+    await flush()
+
+    const text = container.textContent || ''
+    expect(text).toContain('resposta para foto')
+    expect(text).toContain('📷 Foto')
+    // Não deve renderizar <img> quebrada sem caminho válido
+    const quoteEl = container.querySelector('#msg-5000')
+    expect(quoteEl).not.toBeNull()
+    const imgInQuote = quoteEl!.querySelector('div.rounded-md img')
+    expect(imgInQuote).toBeNull()
+  })
+
+  it('renderiza thumbnail da imagem citada quando há caminho de arquivo válido', async () => {
+    await renderOverlay([
+      {
+        id: 'reply-str-img',
+        timestamp: 6000,
+        direction: 'incoming',
+        text: 'olha a foto',
+        from: 'Lucas',
+        quoted: {
+          id: 'orig-str-img',
+          text: '📷 Foto',
+          from: 'Lucas',
+          image: 'preview.jpg'
+        }
+      }
+    ])
+    await flush()
+
+    const quoteEl = container.querySelector('#msg-6000')
+    expect(quoteEl).not.toBeNull()
+    const imgInQuote = quoteEl!.querySelector('div.rounded-md img') as HTMLImageElement | null
+    expect(imgInQuote).not.toBeNull()
+    expect(imgInQuote!.src).toContain('preview.jpg')
+  })
 })

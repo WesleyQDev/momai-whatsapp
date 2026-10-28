@@ -40,8 +40,8 @@ import type { QuotedMessageInfo } from './utils/quoteDisplay'
 import { copyTextToClipboard } from './utils/clipboard'
 import { getApiBaseUrl } from './utils/apiBase'
 
-const isDirectMediaUrl = (url: string): boolean => {
-  if (!url) return false
+const isDirectMediaUrl = (url: unknown): boolean => {
+  if (typeof url !== 'string' || !url) return false
   return (
     url.startsWith('data:') ||
     url.startsWith('blob:') ||
@@ -51,8 +51,8 @@ const isDirectMediaUrl = (url: string): boolean => {
   )
 }
 
-const getStickerUrl = (filename: string): string => {
-  if (!filename) return ''
+const getStickerUrl = (filename: unknown): string => {
+  if (typeof filename !== 'string' || !filename || filename === 'true') return ''
   if (isDirectMediaUrl(filename)) return filename
   const base = getApiBaseUrl()
   return `${base}${sdk.media.url('momai-whatsapp', `stickers/${encodeURIComponent(filename)}`)}`
