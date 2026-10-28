@@ -1,7 +1,7 @@
 {
   "id": "momai-whatsapp",
   "name": "MomAI WhatsApp",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "is_official": true,
   "background": true,
   "backgroundScript": "background-worker.ts",
@@ -476,7 +476,7 @@
     "filesystem:read"
   ],
   "sdkVersion": 1,
-  "momai_compat": ">=1.17.1",
+  "momai_compat": ">=1.18.0",
   "ui": {
     "page": "dist/page.js",
     "pageType": "whatsapp-page",
