@@ -79,6 +79,9 @@
         },
         "message_sent": {
           "label": "Message Sent"
+        },
+        "message_status": {
+          "label": "Message Status Updated"
         }
       },
       "tools": {
@@ -168,6 +171,9 @@
         },
         "message_sent": {
           "label": "Mensaje enviado"
+        },
+        "message_status": {
+          "label": "Estado del mensaje actualizado"
         }
       },
       "tools": {
@@ -253,6 +259,9 @@
         },
         "message_sent": {
           "label": "Message envoyé"
+        },
+        "message_status": {
+          "label": "Statut du message mis à jour"
         }
       },
       "tools": {
@@ -338,6 +347,9 @@
         },
         "message_sent": {
           "label": "Nachricht gesendet"
+        },
+        "message_status": {
+          "label": "Nachrichtenstatus aktualisiert"
         }
       },
       "tools": {
@@ -423,6 +435,9 @@
         },
         "message_sent": {
           "label": "Messaggio inviato"
+        },
+        "message_status": {
+          "label": "Stato del messaggio aggiornato"
         }
       },
       "tools": {
@@ -594,6 +609,33 @@
     },
     "message_sent": {
       "label": "Mensagem Enviada"
+    },
+    "message_status": {
+      "label": "Status da Mensagem Atualizado"
+    },
+    "presence_update": {
+      "label": "Presença do Contato Atualizada",
+      "fields": {
+        "jid": {
+          "label": "Contato",
+          "type": "string",
+          "description": "JID do contato cuja presença mudou",
+          "x-options-source": {
+            "tool": "list_contacts"
+          }
+        },
+        "online": {
+          "label": "Online",
+          "type": "boolean"
+        },
+        "lastSeen": {
+          "label": "Visto por Último",
+          "type": "number"
+        }
+      }
+    },
+    "presence_privacy_updated": {
+      "label": "Privacidade de Presença Alterada"
     }
   },
   "tools": [
@@ -839,11 +881,119 @@
             "items": {
               "type": "string"
             },
-            "description": "Lista de JIDs WhatsApp (@s.whatsapp.net ou @g.us)"
+            "description": "Lista de JIDs WhatsApp (@s.whatsapp.net, @lid ou @g.us)"
           },
           "force": {
             "type": "boolean",
             "description": "Forca buscar a foto no telefone em vez de usar o cache"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_presence",
+      "label": "Ver Online e Visto por Último",
+      "description": "Retorna se os contatos estão online e o horário do último acesso. Só devolve os campos que as regras de privacidade da extensão permitem (Todos, Meus contatos, Exceto..., Ninguém).",
+      "parameters": {
+        "type": "object",
+        "required": [
+          "jids"
+        ],
+        "properties": {
+          "jids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "JIDs, LIDs ou números dos contatos (@s.whatsapp.net ou @lid)"
+          },
+          "force": {
+            "type": "boolean",
+            "description": "Refaz a assinatura de presença ignorando o cache da sessão"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_group_presence",
+      "label": "Ver Quantos Participantes do Grupo Estão Online",
+      "description": "Conta quantos participantes do grupo estão online agora (e devolve a presença de cada um que as regras de privacidade permitirem).",
+      "parameters": {
+        "type": "object",
+        "required": [
+          "jid"
+        ],
+        "properties": {
+          "jid": {
+            "type": "string",
+            "description": "JID do grupo (@g.us)"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_presence_privacy",
+      "label": "Consultar Privacidade de Presença",
+      "description": "Mostra as regras locais de presença (online e visto por último) e as categorias de privacidade do próprio WhatsApp da conta conectada.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "set_presence_privacy",
+      "label": "Alterar Privacidade de Presença",
+      "description": "Altera as regras de visibilidade de presença. Modos: all (Todos), contacts (Meus contatos), except (Meus contatos exceto...), none (Ninguém). Aceita policy completa, feature+rule ou contact+feature+rule para exceções por contato.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "feature": {
+            "type": "string",
+            "enum": [
+              "online",
+              "lastSeen"
+            ],
+            "description": "Campo de presença a alterar"
+          },
+          "rule": {
+            "type": "object",
+            "description": "Regra no formato { mode, exceptions }. Use null junto de contact para remover a exceção daquele contato.",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "all",
+                  "contacts",
+                  "except",
+                  "none"
+                ]
+              },
+              "exceptions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "JIDs ou números excluídos quando mode = except"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "contact": {
+            "type": "string",
+            "description": "Contato (JID ou número) para uma exceção individual",
+            "x-options-source": {
+              "tool": "list_contacts"
+            }
+          },
+          "policy": {
+            "type": "object",
+            "description": "Policy completa: { online, lastSeen, perContact }"
+          },
+          "reset": {
+            "type": "boolean",
+            "description": "Volta a espelhar as categorias de privacidade do WhatsApp da conta"
           }
         }
       }

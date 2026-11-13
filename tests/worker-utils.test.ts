@@ -27,6 +27,7 @@ const {
   resolveDocumentPath,
   resolveReplyQuoted,
   extractQuotedMessage,
+  toUnixTimestamp,
   GROUP_FETCH_COOLDOWN_MS,
   shouldFetchGroups,
   sanitizeRemoteMediaUrl,
@@ -1083,5 +1084,39 @@ describe('pruneMediaDirectories (item 8)', () => {
   it('exposes the IPC send limits used by the worker', () => {
     expect(MAX_ATTACHMENTS_PER_SEND).toBeGreaterThan(0)
     expect(MAX_MESSAGE_CHARS).toBeGreaterThan(0)
+  })
+})
+
+describe('toUnixTimestamp', () => {
+  it('parses number timestamps directly', () => {
+    expect(toUnixTimestamp(1794242010)).toBe(1794242010)
+    expect(toUnixTimestamp(1794242010.8)).toBe(1794242010)
+  })
+
+  it('parses numeric strings', () => {
+    expect(toUnixTimestamp('1794242010')).toBe(1794242010)
+  })
+
+  it('extracts numeric value from Baileys / protobuf Long objects with toNumber', () => {
+    const long = { toNumber: () => 1794242010 }
+    expect(toUnixTimestamp(long)).toBe(1794242010)
+  })
+
+  it('extracts numeric value from plain Long-like objects with low and high properties', () => {
+    const longObj = { low: 1794242010, high: 0, unsigned: true }
+    expect(toUnixTimestamp(longObj)).toBe(1794242010)
+  })
+
+  it('extracts numeric value from object with seconds property', () => {
+    expect(toUnixTimestamp({ seconds: 1794242010 })).toBe(1794242010)
+  })
+
+  it('returns fallback or 0 when value is null, undefined or empty', () => {
+    expect(toUnixTimestamp(null)).toBe(0)
+    expect(toUnixTimestamp(undefined)).toBe(0)
+    expect(toUnixTimestamp(null, 999)).toBe(999)
+    expect(toUnixTimestamp(undefined, 888)).toBe(888)
+    expect(toUnixTimestamp({}, 777)).toBe(777)
+    expect(toUnixTimestamp('not-a-number', 666)).toBe(666)
   })
 })

@@ -128,7 +128,13 @@
         "deleted_for_everyone_many": "Mensajes eliminados para todos",
         "deleted_for_me_one": "Mensaje eliminado para mí",
         "deleted_for_me_many": "Mensajes eliminados para mí",
-        "delete_failed": "No se pudo eliminar. Inténtalo de nuevo."
+        "delete_failed": "No se pudo eliminar. Inténtalo de nuevo.",
+        "presence_online": "en línea",
+        "presence_last_seen": "última conexión a las {{time}}",
+        "presence_last_seen_date": "última conexión el {{date}}",
+        "group_participants": "{{total}} participantes • clic para ver",
+        "group_participants_online": "{{total}} participantes • {{online}} en línea",
+        "group_members_hint": "Grupo • clic para ver miembros"
     },
     "page": {
         "title": "WhatsApp",
@@ -253,7 +259,20 @@
         "delete_conversation": "Eliminar conversación",
         "trigger_placeholder_starts": "Ej.: \"apaga\"",
         "trigger_placeholder_ends": "Ej.: \"la luz\"",
-        "trigger_placeholder_contains": "Ej.: \"enciende\""
+        "trigger_placeholder_contains": "Ej.: \"enciende\"",
+        "presence_title": "Privacidad de presencia",
+        "presence_hint": "Elige quién puede mostrarse como en línea y con última conexión.",
+        "presence_online": "En línea",
+        "presence_last_seen": "Última conexión",
+        "presence_mode_all": "Todos",
+        "presence_mode_contacts": "Mis contactos",
+        "presence_mode_except": "Mis contactos excepto...",
+        "presence_mode_none": "Nadie",
+        "presence_exceptions": "Excepciones (números o JID separados por comas)",
+        "presence_saved": "Privacidad de presencia actualizada",
+        "presence_load_failed": "No se pudo cargar la privacidad de presencia",
+        "presence_wa_source": "Cuenta de WhatsApp: última conexión = {{lastSeen}}, en línea = {{online}}",
+        "presence_mode_match_last_seen": "igual que la última conexión"
     },
     "automations": {
         "contact": "contacto {{contact}}",
@@ -361,7 +380,11 @@
         "remove_contact": "Eliminar contacto",
         "get_wa_groups": "Buscar grupos",
         "send_message": "Enviar mensaje",
-        "show_connection_qr": "Mostrar QR de conexión"
+        "show_connection_qr": "Mostrar QR de conexión",
+        "get_presence": "Ver en línea y última conexión",
+        "get_presence_privacy": "Consultar privacidad de presencia",
+        "set_presence_privacy": "Cambiar privacidad de presencia",
+        "get_group_presence": "Ver participantes en línea del grupo"
     },
     "params": {
         "media": "Imagen",

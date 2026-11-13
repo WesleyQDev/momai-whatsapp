@@ -128,7 +128,13 @@
         "deleted_for_everyone_many": "Nachrichten für alle gelöscht",
         "deleted_for_me_one": "Nachricht für mich gelöscht",
         "deleted_for_me_many": "Nachrichten für mich gelöscht",
-        "delete_failed": "Löschen fehlgeschlagen. Bitte erneut versuchen."
+        "delete_failed": "Löschen fehlgeschlagen. Bitte erneut versuchen.",
+        "presence_online": "online",
+        "presence_last_seen": "zuletzt gesehen um {{time}}",
+        "presence_last_seen_date": "zuletzt gesehen am {{date}}",
+        "group_participants": "{{total}} Teilnehmer • zum Ansehen klicken",
+        "group_participants_online": "{{total}} Teilnehmer • {{online}} online",
+        "group_members_hint": "Gruppe • zum Ansehen der Mitglieder klicken"
     },
     "page": {
         "title": "WhatsApp",
@@ -253,7 +259,20 @@
         "delete_conversation": "Unterhaltung löschen",
         "trigger_placeholder_starts": "Z. B. \"ausschalten\"",
         "trigger_placeholder_ends": "Z. B. \"das Licht\"",
-        "trigger_placeholder_contains": "Z. B. \"einschalten\""
+        "trigger_placeholder_contains": "Z. B. \"einschalten\"",
+        "presence_title": "Präsenz-Datenschutz",
+        "presence_hint": "Wähle, wer als online und mit „zuletzt gesehen\" angezeigt werden darf.",
+        "presence_online": "Online",
+        "presence_last_seen": "Zuletzt gesehen",
+        "presence_mode_all": "Alle",
+        "presence_mode_contacts": "Meine Kontakte",
+        "presence_mode_except": "Meine Kontakte außer...",
+        "presence_mode_none": "Niemand",
+        "presence_exceptions": "Ausnahmen (Nummern oder JIDs, durch Kommas getrennt)",
+        "presence_saved": "Präsenz-Datenschutz aktualisiert",
+        "presence_load_failed": "Präsenz-Datenschutz konnte nicht geladen werden",
+        "presence_wa_source": "WhatsApp-Konto: zuletzt gesehen = {{lastSeen}}, online = {{online}}",
+        "presence_mode_match_last_seen": "wie zuletzt gesehen"
     },
     "automations": {
         "contact": "Kontakt {{contact}}",
@@ -361,7 +380,11 @@
         "remove_contact": "Kontakt entfernen",
         "get_wa_groups": "Gruppen suchen",
         "send_message": "Nachricht senden",
-        "show_connection_qr": "Verbindungs-QR anzeigen"
+        "show_connection_qr": "Verbindungs-QR anzeigen",
+        "get_presence": "Online und zuletzt gesehen anzeigen",
+        "get_presence_privacy": "Präsenz-Datenschutz abfragen",
+        "set_presence_privacy": "Präsenz-Datenschutz ändern",
+        "get_group_presence": "Online-Teilnehmer der Gruppe anzeigen"
     },
     "params": {
         "media": "Bild",

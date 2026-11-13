@@ -144,6 +144,7 @@ function createMigration(bridge) {
      */
     async vaultAuthDir(baseAuth, { deletePlain = false } = {}) {
       if (typeof baseAuth !== 'string' || !baseAuth || !fs.existsSync(baseAuth)) return false
+      const shouldDelete = Boolean(deletePlain)
       let names = []
       try {
         names = fs.readdirSync(baseAuth)
@@ -179,7 +180,7 @@ function createMigration(bridge) {
         throw err
       }
 
-      if (deletePlain) {
+      if (shouldDelete) {
         for (const name of Object.keys(files)) {
           try {
             fs.unlinkSync(path.join(baseAuth, name))

@@ -2114,6 +2114,36 @@ function extractQuotedMessage(innerMsg) {
   }
 }
 
+/**
+ * Normalizes a Baileys / protobuf timestamp to unix seconds.
+ * Baileys timestamps can arrive as a number, a numeric string, or a Long-like
+ * object ({ low, high, unsigned } or with a .toNumber() method).
+ * Number(Long) returns NaN in JS, so this helper extracts the numeric value safely.
+ */
+function toUnixTimestamp(ts: unknown, fallback?: number): number {
+  if (typeof ts === 'number' && Number.isFinite(ts) && ts > 0) return Math.floor(ts)
+  if (typeof ts === 'string' && ts.trim() !== '') {
+    const parsed = Number(ts)
+    if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed)
+  }
+  if (ts && typeof ts === 'object') {
+    const maybe = ts as { toNumber?: unknown; low?: unknown; seconds?: unknown }
+    if (typeof maybe.toNumber === 'function') {
+      try {
+        const parsed = Number((maybe.toNumber as () => unknown)())
+        if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed)
+      } catch {}
+    }
+    if (typeof maybe.low === 'number' && Number.isFinite(maybe.low) && maybe.low > 0) {
+      return Math.floor(maybe.low)
+    }
+    if (typeof maybe.seconds === 'number' && Number.isFinite(maybe.seconds) && maybe.seconds > 0) {
+      return Math.floor(maybe.seconds)
+    }
+  }
+  return fallback !== undefined ? fallback : 0
+}
+
 /** Cooldown / debounce threshold for WhatsApp group fetching (3 minutes). */
 const GROUP_FETCH_COOLDOWN_MS = 3 * 60 * 1000
 
@@ -2376,6 +2406,7 @@ module.exports = {
   resolveStatusReplyQuoted,
   resolveReplyQuoted,
   extractQuotedMessage,
+  toUnixTimestamp,
   cacheGet,
   cacheSet,
   MESSAGES_COLLECTION,

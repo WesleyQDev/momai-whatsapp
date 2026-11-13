@@ -11,6 +11,22 @@ const UNREAD_BADGE_KEY = 'whatsapp_unread_badges'
 const GIPHY_EXAMPLE_KEY = 'sXpGFDGZs0Dv1mmNFvYaGUvYwKX0PWIh'
 const unreadBadgeJids = new Set()
 let _unreadBadgesLoaded = false
+// Presence (online / visto por último) + privacy policy.
+// `presenceState` only ever holds fields the policy allowed at write time; the
+// payload builders re-check before emitting so a policy change hides instantly.
+const PRESENCE_POLICY_KEY = 'presence_privacy'
+const PRESENCE_CACHE_KEY = 'whatsapp_presence_cache'
+const WA_PRIVACY_SETTINGS_KEY = 'whatsapp_privacy_settings'
+// Presença é orientada a eventos: o servidor manda "available" quando o contato
+// entra e "unavailable" quando sai. Um TTL curto marcava como offline quem
+// estava online e apenas inativo (contagem menor que no WhatsApp). Mantemos só
+// uma válvula de segurança longa para casos de socket perdido.
+const PRESENCE_ONLINE_TTL_MS = 30 * 60 * 1000
+// Reenvia a assinatura de presença depois desse tempo: assinaturas podem expirar
+// silenciosamente no servidor e aí as mudanças param de chegar.
+const PRESENCE_RESUBSCRIBE_MS = 90 * 1000
+const PRESENCE_SUBSCRIBE_LIMIT = 40
+const PRESENCE_RECENT_CONVERSATIONS = 20
 // Overlays de conversa (chat aberto por clique) anunciados pelo panel via
 // `history_overlay_presence` (opened/heartbeat/closed). Enquanto algum
 // estiver aberto, `whatsapp_notification` é suprimido: a notificação abriria
@@ -42,13 +58,13 @@ function loadBaileys() {
       baileys.makeCacheableSignalKeyStore || baileys.default?.makeCacheableSignalKeyStore
     try {
       pino = require('pino')
-    } catch (e) {}
+    } catch (e) { }
     baileysLoaded = true
     process.send({ type: 'log', message: `Baileys loaded successfully in ${Date.now() - start}ms (lazy)` })
   } catch (err) {
     try {
       process.send({ type: 'log', message: `Baileys load error: ${err.message}` })
-    } catch {}
+    } catch { }
     process.exit(1)
   }
 }
@@ -91,6 +107,7 @@ const {
   resolveStatusReplyQuoted: _resolveStatusReplyQuoted,
   resolveReplyQuoted: _resolveReplyQuoted,
   extractQuotedMessage: _extractQuotedMessage,
+  toUnixTimestamp,
   cacheGet: _cacheGet,
   cacheSet: _cacheSet,
   trackHistoryMessage: _trackHistoryMessage,
@@ -133,6 +150,22 @@ const {
   createDecryptFailureTracker,
   createRepairBudget
 } = require('./worker-utils.ts')
+
+// Presence visibility rules (Todos / Meus contatos / Exceto... / Ninguém).
+// Kept in a pure module so the same decision gates the event stream, the
+// `get_presence` tool and the subscriptions.
+const {
+  normalizePhone: _normalizePrivacyPhone,
+  normalizePolicy: _normalizePresencePolicy,
+  normalizeRule: _normalizePresenceRule,
+  policyAllows: _presencePolicyAllows,
+  shouldSubscribePresence: _shouldSubscribePresence,
+  derivePolicyFromWhatsAppPrivacy: _derivePresencePolicy,
+  createDefaultPolicy: _createDefaultPresencePolicy,
+  applyPresencePolicy: _applyPresencePolicy,
+  isPresenceFresh: _isPresenceFresh,
+  normalizeSubjectKey: _normalizePresenceSubjectKey
+} = require('./presence-privacy.ts')
 
 let safeStorageAvailable = true
 
@@ -208,12 +241,12 @@ async function restoreAuthVault(baseAuth) {
 process.on('uncaughtException', (err) => {
   try {
     process.send({ type: 'log', message: `UNCAUGHT: ${err.message}` })
-  } catch {}
+  } catch { }
 })
 process.on('unhandledRejection', (err) => {
   try {
     process.send({ type: 'log', message: `UNHANDLED: ${(err && err.message) || err}` })
-  } catch {}
+  } catch { }
 })
 
 const DISABLED_CONTACTS_KEY = 'disabled_contacts'
@@ -285,9 +318,9 @@ async function loadDeletedConversationNames() {
             if (cur > prev) deletedConversationNames[norm] = cur
           }
         }
-      } catch {}
+      } catch { }
     }
-  } catch {}
+  } catch { }
 }
 async function saveDeletedConversationNames() {
   try {
@@ -332,7 +365,7 @@ const _ipcMomai = _createIpcMomai({
       if (typeof process.send === 'function' && process.connected !== false) {
         process.send(msg)
       }
-    } catch {}
+    } catch { }
   },
   onResponse: (fn) => {
     _storageResponseListener = fn
@@ -343,7 +376,7 @@ const _ipcMomai = _createIpcMomai({
       if (typeof process.send === 'function' && process.connected !== false) {
         process.send({ type: 'log', message: String(msg) })
       }
-    } catch {}
+    } catch { }
   }
 })
 
@@ -353,21 +386,21 @@ const momai = {
       if (typeof process.send === 'function' && process.connected !== false) {
         process.send({ type: 'log', message: String(msg) })
       }
-    } catch {}
+    } catch { }
   },
   sendEvent: (eventType, data) => {
     try {
       if (typeof process.send === 'function' && process.connected !== false) {
         process.send({ type: 'event', eventType: String(eventType), data })
       }
-    } catch {}
+    } catch { }
   },
   sendStructuredResponse: (data) => {
     try {
       if (typeof process.send === 'function' && process.connected !== false) {
         process.send({ type: 'structured_response', data })
       }
-    } catch {}
+    } catch { }
   },
   storage: _ipcMomai.storage,
   collections: _ipcMomai.collections,
@@ -515,40 +548,58 @@ async function acquireLock() {
   if (!fsSync.existsSync(authDir)) {
     fsSync.mkdirSync(authDir, { recursive: true })
   }
+  let currentThreadId = 0
+  try {
+    const wt = require('node:worker_threads')
+    currentThreadId = wt.threadId || 0
+  } catch { }
+  const myLockToken = currentThreadId ? `${process.pid}:${currentThreadId}` : String(process.pid)
+
   // A worker restart (host hot-reload / health restart) can briefly overlap with
   // the previous worker still releasing the lock. Retry a few times before giving
   // up so we don't kill ourselves mid-shutdown and trigger another restart storm.
-  const MAX_ATTEMPTS = 4
+  const MAX_ATTEMPTS = 6
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     let busy = false
     if (fsSync.existsSync(lockFile)) {
       try {
         const content = fsSync.readFileSync(lockFile, 'utf-8').trim()
-        const existingPid = parseInt(content, 10)
-        if (!isNaN(existingPid) && existingPid !== process.pid && isPidRunning(existingPid)) {
-          busy = true
-          if (attempt < MAX_ATTEMPTS) {
+        if (content && content !== myLockToken) {
+          const [pidStr, threadStr] = content.split(':')
+          const existingPid = parseInt(pidStr, 10)
+          const existingThread = threadStr ? parseInt(threadStr, 10) : null
+          const isSameProcessDifferentThread =
+            existingPid === process.pid &&
+            existingThread !== null &&
+            existingThread !== currentThreadId
+          const isOtherProcessRunning =
+            !isNaN(existingPid) && existingPid !== process.pid && isPidRunning(existingPid)
+
+          if (isSameProcessDifferentThread || isOtherProcessRunning) {
+            busy = true
+            if (attempt < MAX_ATTEMPTS) {
+              momai.log(
+                `[whatsapp] Another instance is running (${content}); retrying lock (${attempt}/${MAX_ATTEMPTS - 1})...`
+              )
+              await new Promise((r) => setTimeout(r, 1000))
+              continue
+            }
             momai.log(
-              `[whatsapp] Another instance is running (PID: ${existingPid}); retrying lock (${attempt}/${MAX_ATTEMPTS - 1})...`
+              `[whatsapp] Lock held by ${content} timed out after ${MAX_ATTEMPTS} attempts; overriding stale lock.`
             )
-            await new Promise((r) => setTimeout(r, 1000))
-            continue
+            busy = false
           }
-          momai.log(
-            `[whatsapp] Lock held by PID ${existingPid} timed out after ${MAX_ATTEMPTS} attempts; overriding stale lock.`
-          )
-          busy = false
         }
-      } catch (err) {
+      } catch (err: any) {
         momai.log(`[whatsapp] Error reading lockfile: ${err.message}. Overwriting.`)
       }
     }
     if (!busy) break
   }
   try {
-    fsSync.writeFileSync(lockFile, String(process.pid), 'utf-8')
-    momai.log(`[whatsapp] Acquired worker lock (PID: ${process.pid})`)
-  } catch (err) {
+    fsSync.writeFileSync(lockFile, myLockToken, 'utf-8')
+    momai.log(`[whatsapp] Acquired worker lock (${myLockToken})`)
+  } catch (err: any) {
     momai.log(`[whatsapp] Failed to write lockfile: ${err.message}`)
   }
 }
@@ -556,16 +607,24 @@ async function acquireLock() {
 function releaseLock() {
   const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
   const lockFile = path.join(authDir, 'worker.lock')
+  let currentThreadId = 0
+  try {
+    const wt = require('node:worker_threads')
+    currentThreadId = wt.threadId || 0
+  } catch { }
+  const myLockToken = currentThreadId ? `${process.pid}:${currentThreadId}` : String(process.pid)
+
   try {
     if (fsSync.existsSync(lockFile)) {
       const content = fsSync.readFileSync(lockFile, 'utf-8').trim()
-      const pid = parseInt(content, 10)
-      if (pid === process.pid) {
+      const [pidStr] = content.split(':')
+      const pid = parseInt(pidStr, 10)
+      if (pid === process.pid || content === myLockToken) {
         fsSync.unlinkSync(lockFile)
-        momai.log(`[whatsapp] Released worker lock (PID: ${process.pid})`)
+        momai.log(`[whatsapp] Released worker lock (${myLockToken})`)
       }
     }
-  } catch (err) {
+  } catch (err: any) {
     momai.log(`[whatsapp] Failed to release lockfile: ${err.message}`)
   }
 }
@@ -778,7 +837,7 @@ async function repairSelfLidSession(reason) {
       selfLidRepairWarned.add(lidUser)
       momai.log(
         `[whatsapp] Own LID session for ${lidUser} still failing after ${budget.attempts} repairs; ` +
-          'a new WhatsApp pairing may be required'
+        'a new WhatsApp pairing may be required'
       )
     }
     return
@@ -809,10 +868,11 @@ function handleLogEvent(obj, msgStr = '') {
   }
 
   // Only trigger contact repair on unrecoverable Signal ratchet corruption like
-  // "Bad MAC" or "No matching sessions" for regular phone JIDs. Never on
-  // generic "failed to decrypt message" / "No session record": Baileys'
-  // native sendRetryRequest already handles the pre-key retry.
-  if (!/Bad MAC|No matching sessions/i.test(String(detail))) return
+  // "Bad MAC" for regular phone JIDs. Never on transient "No matching sessions"
+  // or generic "failed to decrypt message" / "No session record": Baileys'
+  // native sendRetryRequest already handles the pre-key retry. Wiping the session
+  // immediately destroys the ratchet and breaks message reception and delivery.
+  if (!/Bad MAC/i.test(String(detail))) return
   const jid = key.remoteJid
   if (jid && !jid.endsWith('@lid') && !jid.endsWith('@g.us')) {
     const now = Date.now()
@@ -916,7 +976,10 @@ function _resetSessionState() {
       sock.ev.removeAllListeners('connection.update')
       sock.ev.removeAllListeners('creds.update')
       sock.ev.removeAllListeners('messages.upsert')
-    } catch {}
+      sock.ev.removeAllListeners('messages.update')
+      sock.ev.removeAllListeners('message-receipt.update')
+      sock.ev.removeAllListeners('call')
+    } catch { }
   }
   sock = null
   connected = false
@@ -926,6 +989,11 @@ function _resetSessionState() {
   chatHistory = []
   totalMessages = 0
   _currentPhone = null
+  presenceState.clear()
+  presenceSubscribed.clear()
+  presenceGatedLogged.clear()
+  waPrivacySettings = {}
+  if (!presencePolicy?.customized) presencePolicy = _createDefaultPresencePolicy()
 }
 
 let disabledContacts: any[] = []
@@ -935,6 +1003,14 @@ let notificationsDisabled = false
 let statusNotificationsDisabled = true
 let connected = false
 let lastQr: any = null
+// Presence state keyed by conversation jid. Entries contain only the fields the
+// privacy policy allowed when the update arrived.
+const presenceState = new Map()
+// jid -> timestamp da última assinatura (assinaturas expiram e são renovadas).
+const presenceSubscribed = new Map()
+const presenceGatedLogged = new Set()
+let presencePolicy: any = _createDefaultPresencePolicy()
+let waPrivacySettings: Record<string, any> = {}
 
 // Últimas mensagens de Status (stories) recebidas, por id, mantidas apenas em
 // memória. A resposta do overlay cita a story original para o destinatário ver
@@ -1275,7 +1351,7 @@ async function _fetchPaginatedWaEntries({ groupsOnly, search, page, perPage }) {
           perPage: perPageNum
         }
       }
-    } catch {}
+    } catch { }
   }
 
   let entries = Object.values<any>(waContacts).filter((c) =>
@@ -1326,8 +1402,8 @@ async function _fetchPaginatedWaEntries({ groupsOnly, search, page, perPage }) {
       const digitsMatched = Boolean(
         qDigits.length >= 2 &&
         (phoneDigits.includes(qDigits) ||
-         jidDigits.includes(qDigits) ||
-         (lidDigits && lidDigits.includes(qDigits)))
+          jidDigits.includes(qDigits) ||
+          (lidDigits && lidDigits.includes(qDigits)))
       )
 
       return textMatched || digitsMatched
@@ -1744,7 +1820,7 @@ async function loadDeletedConversations() {
   }
   try {
     await loadDeletedConversationNames()
-  } catch {}
+  } catch { }
 }
 
 function isMessageFromDeletedConversation(jid: string | null | undefined, timestampSec: number, messageId?: string | null): boolean {
@@ -1899,32 +1975,40 @@ async function flushPersistedChatHistory() {
   }
 }
 
+let _loadChatHistoryPromise: Promise<boolean> | null = null
+
 async function loadChatHistory() {
   if (chatHistory.length > 0) return true
-  try {
-    await loadDeletedConversations()
-    const sources = [
-      ...new Set([_currentPhone ? _getChatHistoryKey() : null, CHAT_HISTORY_KEY].filter(Boolean))
-    ].map((key) => ({
-      key,
-      phone: key === CHAT_HISTORY_KEY ? null : _currentPhone || null
-    }))
-    const saved = await _loadHistoryMessages(momai, { sources, phone: _currentPhone || null })
-    if (!Array.isArray(saved) || saved.length === 0) return false
-    const validSaved = saved.filter(
-      (m: any) =>
-        !isMessageFromDeletedConversation(m.jid, Number(m.timestamp) || 0) &&
-        !isNameDeleted([m.from, m.groupName, m.senderName, m.pushName], Number(m.timestamp) || 0)
-    )
-    chatHistory = validSaved.map(enrichHistoryEntry)
-    totalMessages = Math.max(totalMessages, chatHistory.length)
-    momai.log(`loadChatHistory: ${chatHistory.length} msgs from collection/legacy`)
-    schedulePersistChatHistory()
-    return true
-  } catch (e: any) {
-    momai.log(`loadChatHistory: ${e?.message || e}`)
-  }
-  return false
+  if (_loadChatHistoryPromise) return _loadChatHistoryPromise
+  _loadChatHistoryPromise = (async () => {
+    try {
+      await loadDeletedConversations()
+      const sources = [
+        ...new Set([_currentPhone ? _getChatHistoryKey() : null, CHAT_HISTORY_KEY].filter(Boolean))
+      ].map((key) => ({
+        key,
+        phone: key === CHAT_HISTORY_KEY ? null : _currentPhone || null
+      }))
+      const saved = await _loadHistoryMessages(momai, { sources, phone: _currentPhone || null })
+      if (!Array.isArray(saved) || saved.length === 0) return false
+      const validSaved = saved.filter(
+        (m: any) =>
+          !isMessageFromDeletedConversation(m.jid, Number(m.timestamp) || 0) &&
+          !isNameDeleted([m.from, m.groupName, m.senderName, m.pushName], Number(m.timestamp) || 0)
+      )
+      chatHistory = validSaved.map(enrichHistoryEntry)
+      totalMessages = Math.max(totalMessages, chatHistory.length)
+      momai.log(`loadChatHistory: ${chatHistory.length} msgs from collection/legacy`)
+      schedulePersistChatHistory()
+      return true
+    } catch (e: any) {
+      momai.log(`loadChatHistory: ${e?.message || e}`)
+    } finally {
+      _loadChatHistoryPromise = null
+    }
+    return false
+  })()
+  return _loadChatHistoryPromise
 }
 
 let _persistHistoryTimer = null
@@ -1932,7 +2016,7 @@ function schedulePersistChatHistory() {
   if (_persistHistoryTimer) clearTimeout(_persistHistoryTimer)
   _persistHistoryTimer = setTimeout(() => {
     _persistHistoryTimer = null
-    persistChatHistorySnapshot().catch(() => {})
+    persistChatHistorySnapshot().catch(() => { })
   }, 2000)
 }
 
@@ -1964,8 +2048,8 @@ async function loadUnreadBadges() {
 
 function persistUnreadBadges() {
   try {
-    momai.storage.set(_getUnreadBadgeKey(), [...unreadBadgeJids]).catch(() => {})
-  } catch {}
+    momai.storage.set(_getUnreadBadgeKey(), [...unreadBadgeJids]).catch(() => { })
+  } catch { }
 }
 
 function unreadBadgeMatches(entry, jid) {
@@ -2085,7 +2169,7 @@ function enrichHistoryEntry(h) {
 
   const replyJid = isGroupChat ? remoteJid : resolveStandardJid(remoteJid) || remoteJid
 
-  const timestamp = h.timestamp ? Number(h.timestamp) : Math.floor(Date.now() / 1000)
+  const timestamp = toUnixTimestamp(h.timestamp, Math.floor(Date.now() / 1000))
 
   const groupLabel = _pickContactLabel(
     contactNames[remoteJid],
@@ -2120,6 +2204,7 @@ function enrichHistoryEntry(h) {
     replyJid,
     timestamp,
     from,
+    status: h.status !== undefined && h.status !== null ? h.status : undefined,
     isGroup: isGroupChat,
     groupName: resolvedGroupName,
     profilePicUrl: resolveChatAvatarUrl(remoteJid, isGroupChat, senderJid)
@@ -2205,7 +2290,7 @@ function isProfilePicUrlExpired(url: string | null | undefined): boolean {
       // Expired or expiring within 1 hour: treat as expired
       return Date.now() >= (expSec - 3600) * 1000
     }
-  } catch {}
+  } catch { }
   return false
 }
 
@@ -2254,6 +2339,17 @@ async function ensureAvatarForJid(jid, opts: any = {}) {
         name: 'Grupo',
         phone: effectiveJid.split('@')[0]
       }
+    } else if (effectiveJid.endsWith('@lid')) {
+      // Conversas endereçadas por LID não têm JID de telefone conhecido.
+      // Guardar a entrada é o que permite cachear foto/nome dessa conversa.
+      waContacts[effectiveJid] = {
+        id: effectiveJid,
+        name: null,
+        notify: null,
+        verifiedName: null,
+        phone: effectiveJid.split('@')[0].replace(/\D/g, ''),
+        lid: null
+      }
     } else if (effectiveJid.endsWith('@s.whatsapp.net')) {
       waContacts[effectiveJid] = {
         id: effectiveJid,
@@ -2280,9 +2376,13 @@ async function ensureAvatarForJid(jid, opts: any = {}) {
     return entry?.profilePicUrl || cached
   }
 
-  // Baileys profilePictureUrl only works for standard phone JIDs (@s.whatsapp.net) and groups (@g.us)
-  const queryJid = !standardJid.endsWith('@lid') ? standardJid : (!jid.endsWith('@lid') ? jid : null)
-  if (!queryJid) {
+  // `profilePictureUrl` aceita JID de telefone, grupo e LID (o mesmo caminho já
+  // usado em `messages.upsert` para contatos endereçados por LID). Só não há o
+  // que consultar quando nem o JID recebido nem o resolvido são utilizáveis.
+  const queryJid = !standardJid.endsWith('@lid')
+    ? standardJid
+    : (!jid.endsWith('@lid') ? jid : standardJid)
+  if (!queryJid || !queryJid.includes('@')) {
     return cached
   }
 
@@ -2337,28 +2437,402 @@ function _normalizeContactId(raw) {
 function _cleanupStaleContacts() {
   let changed = false
   for (const [key, contact] of Object.entries<any>(waContacts)) {
-    if (key.endsWith('@lid')) {
-      const standardMatch = Object.values<any>(waContacts).find(
-        (c) =>
-          c.id &&
-          c.id.endsWith('@s.whatsapp.net') &&
-          ((contact.name && c.name === contact.name) ||
-            (contact.notify && c.notify === contact.notify) ||
-            (contact.verifiedName && c.verifiedName === contact.verifiedName))
-      )
-      if (standardMatch && !standardMatch.lid) {
-        standardMatch.lid = key
-      }
-      delete waContacts[key]
+    if (!key.endsWith('@lid')) continue
+    const standardMatch = Object.values<any>(waContacts).find(
+      (c) =>
+        c.id &&
+        c.id.endsWith('@s.whatsapp.net') &&
+        ((contact.name && c.name === contact.name) ||
+          (contact.notify && c.notify === contact.notify) ||
+          (contact.verifiedName && c.verifiedName === contact.verifiedName))
+    )
+    // Sem contato padrão equivalente, a entrada @lid é a ÚNICA chave daquela
+    // conversa (WhatsApp endereça parte dos DMs por LID). Apagá-la derrubava
+    // nome, foto e vínculo até a próxima mensagem — manter o cache é o correto.
+    if (!standardMatch) continue
+    if (!standardMatch.lid) {
+      standardMatch.lid = key
       changed = true
-      delete contactNames[key]
-      const rawNumber = key.split('@')[0]
-      if (rawNumber) {
-        delete contactNames[rawNumber]
-      }
+    }
+    // Preserva o que a entrada LID tinha de melhor (foto/nome) antes de sair.
+    if (!standardMatch.profilePicUrl && contact.profilePicUrl) {
+      standardMatch.profilePicUrl = contact.profilePicUrl
+      standardMatch.profilePicCheckedAt = contact.profilePicCheckedAt || Date.now()
+      changed = true
+    }
+    if (!standardMatch.name && contact.name) {
+      standardMatch.name = contact.name
+      changed = true
+    }
+    if (!standardMatch.notify && contact.notify) {
+      standardMatch.notify = contact.notify
+      changed = true
+    }
+    delete waContacts[key]
+    changed = true
+    delete contactNames[key]
+    const rawNumber = key.split('@')[0]
+    if (rawNumber) {
+      delete contactNames[rawNumber]
     }
   }
   return changed
+}
+
+// ---------------------------------------------------------------------------
+// Presence (online / visto por último) + privacy policy
+// ---------------------------------------------------------------------------
+
+function _getPresencePolicyKey() {
+  return _currentPhone ? `${PRESENCE_POLICY_KEY}-${_currentPhone}` : PRESENCE_POLICY_KEY
+}
+
+function _getPresenceCacheKey() {
+  return _currentPhone ? `${PRESENCE_CACHE_KEY}-${_currentPhone}` : PRESENCE_CACHE_KEY
+}
+
+function _getWaPrivacySettingsKey() {
+  return _currentPhone ? `${WA_PRIVACY_SETTINGS_KEY}-${_currentPhone}` : WA_PRIVACY_SETTINGS_KEY
+}
+
+/**
+ * Builds the subject used by the privacy rules. `isContact` mirrors WhatsApp's
+ * "Meus contatos": only entries with an address-book name (or a business
+ * verified name) count — a push name alone does not.
+ */
+function _presenceSubjectFor(jid) {
+  const raw = String(jid || '').trim()
+  const standard = resolveStandardJid(raw) || raw
+  const digits = _normalizePrivacyPhone(raw)
+  let entry = waContacts[raw] || (standard !== raw ? waContacts[standard] : null)
+  if (!entry && digits) {
+    entry = Object.values<any>(waContacts).find((c) => c && c.phone === digits) || null
+  }
+  // "Meus contatos" = nome vindo da agenda (contacts.upsert) ou nome salvo pelo
+  // usuário na própria extensão. `notify` (push name) sozinho não conta.
+  const savedName =
+    contactNames[raw] ||
+    (digits ? contactNames[digits] : null) ||
+    (standard !== raw ? contactNames[standard] : null) ||
+    entry?.name ||
+    null
+  const isContact = Boolean(savedName || entry?.verifiedName)
+  return { jid: raw, phone: digits, isContact }
+}
+
+/**
+ * Every key that represents the same conversation: the jid used by the chat,
+ * the resolved phone jid and the LID known for that contact. Presence stanzas
+ * can arrive under any of them, while the UI asks with the chat jid.
+ */
+function _presenceAliases(jid) {
+  const raw = String(jid || '').trim()
+  const keys = new Set([raw])
+  if (!raw) return []
+  const standard = resolveStandardJid(raw)
+  if (standard && standard !== raw) keys.add(standard)
+  for (const key of [...keys]) {
+    const linked = waContacts[key]?.lid
+    if (typeof linked === 'string' && linked.includes('@')) keys.add(linked)
+  }
+  return [...keys].filter((key) => typeof key === 'string' && key.includes('@'))
+}
+
+/** Finds a stored presence entry by exact jid, alias or digits (jid variants). */
+function _findPresenceEntry(jid) {
+  for (const key of _presenceAliases(jid)) {
+    if (presenceState.has(key)) return presenceState.get(key)
+  }
+  const digits = _normalizePrivacyPhone(jid)
+  if (!digits) return null
+  for (const [key, entry] of presenceState) {
+    if (_normalizePrivacyPhone(key) === digits) return entry
+  }
+  return null
+}
+
+/**
+ * Public shape of a presence entry, re-gated by the CURRENT policy: a rule
+ * change hides a field immediately, even for data already in memory.
+ */
+function _presencePayload(jid, now = Date.now()) {
+  const raw = String(jid || '').trim()
+  if (!raw) return null
+  const entry = _findPresenceEntry(raw)
+  if (!entry) return null
+  const subject = _presenceSubjectFor(raw)
+  const payload: any = { jid: raw }
+  let hasField = false
+  if (_presencePolicyAllows(presencePolicy, 'online', subject)) {
+    // Sem atualização recente, "online" vira offline: socket morto não deixa
+    // contato eternamente verde.
+    payload.online = _isPresenceFresh(entry, now, PRESENCE_ONLINE_TTL_MS)
+      ? Boolean(entry.online)
+      : false
+    hasField = true
+  }
+  if (_presencePolicyAllows(presencePolicy, 'lastSeen', subject)) {
+    const lastSeen = Number(entry.lastSeen) || null
+    // `lastSeen` vazio só acompanha um payload que já tenha outro campo;
+    // sozinho, não vale emitir um evento sem informação.
+    if (hasField || lastSeen) payload.lastSeen = lastSeen
+    if (lastSeen) hasField = true
+  }
+  if (!hasField) return null
+  payload.updatedAt = Number(entry.updatedAt) || now
+  return payload
+}
+
+function _emitPresenceUpdate(jid) {
+  const aliases = _presenceAliases(jid)
+  const targets = aliases.length > 0 ? aliases : [jid]
+  for (const target of targets) {
+    const payload = _presencePayload(target)
+    if (payload) momai.sendEvent('presence_update', { ...payload, jid: target })
+  }
+}
+
+/** Stores only the fields the policy allows; returns false when nothing may be kept. */
+function _storePresenceEntry(jid, data, now) {
+  const subject = _presenceSubjectFor(jid)
+  const gated = _applyPresencePolicy(presencePolicy, subject, data)
+  const hasOnline = Object.prototype.hasOwnProperty.call(gated, 'online')
+  const hasLastSeen = Object.prototype.hasOwnProperty.call(gated, 'lastSeen')
+  if (!hasOnline && !hasLastSeen) {
+    presenceState.delete(jid)
+    return false
+  }
+  const previous = presenceState.get(jid) || {}
+  const next: any = { updatedAt: now }
+  next.online = hasOnline ? gated.online : Boolean(previous.online)
+  next.lastSeen = hasLastSeen ? gated.lastSeen : previous.lastSeen || null
+  // Grava também nos JIDs equivalentes (telefone <-> LID) para a conversa
+  // encontrar a presença independente de qual chave o servidor usou.
+  for (const alias of _presenceAliases(jid)) presenceState.set(alias, next)
+  if (!presenceState.has(jid)) presenceState.set(jid, next)
+  if (presenceState.size > 500) {
+    let oldestKey = null
+    let oldestAt = Infinity
+    for (const [key, entry] of presenceState) {
+      const at = Number(entry?.updatedAt) || 0
+      if (at < oldestAt) {
+        oldestAt = at
+        oldestKey = key
+      }
+    }
+    if (oldestKey) presenceState.delete(oldestKey)
+  }
+  // Só avisa quando um campo visível mudou: `composing`/`recording` chegam em
+  // rajada e mudariam apenas o "frescor" do estado.
+  const visibleChanged =
+    !previous.updatedAt ||
+    (hasOnline && next.online !== Boolean(previous.online)) ||
+    (hasLastSeen && next.lastSeen !== (previous.lastSeen || null))
+  if (hasLastSeen && next.lastSeen && next.lastSeen !== (previous.lastSeen || null)) {
+    _schedulePersistPresenceCache()
+  }
+  return visibleChanged
+}
+
+let _persistPresenceTimer: any = null
+function _schedulePersistPresenceCache() {
+  if (_persistPresenceTimer) return
+  _persistPresenceTimer = setTimeout(async () => {
+    _persistPresenceTimer = null
+    try {
+      const serialized: Record<string, { lastSeen: number; updatedAt: number }> = {}
+      for (const [key, entry] of presenceState) {
+        if (entry?.lastSeen) {
+          serialized[key] = {
+            lastSeen: Number(entry.lastSeen),
+            updatedAt: Number(entry.updatedAt) || Date.now()
+          }
+        }
+      }
+      await momai.storage.set(_getPresenceCacheKey(), serialized)
+    } catch (err: any) {
+      momai.log(`[presence] persistPresenceCache failed: ${err?.message || err}`)
+    }
+  }, 2000)
+}
+
+async function _loadPresenceCache() {
+  try {
+    const keys = [
+      ...new Set([_currentPhone ? _getPresenceCacheKey() : null, PRESENCE_CACHE_KEY].filter(Boolean))
+    ]
+    for (const key of keys) {
+      const saved = await momai.storage.get(key as string)
+      if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+        for (const [jid, entry] of Object.entries<any>(saved)) {
+          if (!entry || !entry.lastSeen) continue
+          const normJid = String(jid).trim()
+          if (!normJid) continue
+          if (!presenceState.has(normJid)) {
+            presenceState.set(normJid, {
+              online: false,
+              lastSeen: Number(entry.lastSeen) || null,
+              updatedAt: Number(entry.updatedAt) || Date.now()
+            })
+          }
+        }
+      }
+    }
+    momai.log(`[presence] loaded cached presence for ${presenceState.size} contact(s)`)
+  } catch (err: any) {
+    momai.log(`[presence] loadPresenceCache failed: ${err?.message || err}`)
+  }
+}
+
+async function _loadWaPrivacySettings() {
+  try {
+    const keys = [
+      ...new Set([_currentPhone ? _getWaPrivacySettingsKey() : null, WA_PRIVACY_SETTINGS_KEY].filter(Boolean))
+    ]
+    for (const key of keys) {
+      const saved = await momai.storage.get(key as string)
+      if (saved && typeof saved === 'object' && Object.keys(saved).length > 0) {
+        waPrivacySettings = saved
+        if (!presencePolicy?.customized) {
+          presencePolicy = _derivePresencePolicy(saved)
+        }
+        break
+      }
+    }
+  } catch (err: any) {
+    momai.log(`[presence] loadWaPrivacySettings failed: ${err?.message || err}`)
+  }
+}
+
+/** Re-evaluates everything in memory after a rule change. */
+function _replayPresenceForPolicy() {
+  for (const jid of [...presenceState.keys()]) {
+    if (!_presencePayload(jid)) {
+      presenceState.delete(jid)
+      continue
+    }
+    _emitPresenceUpdate(jid)
+  }
+}
+
+async function _loadPresencePolicy() {
+  try {
+    const stored = await momai.storage.get(_getPresencePolicyKey())
+    if (stored) presencePolicy = _normalizePresencePolicy(stored)
+  } catch (e) {
+    momai.log(`loadPresencePolicy: ${e?.message || e}`)
+  }
+}
+
+async function _persistPresencePolicy() {
+  try {
+    await momai.storage.set(_getPresencePolicyKey(), presencePolicy)
+  } catch (e) {
+    momai.log(`persistPresencePolicy: ${e?.message || e}`)
+  }
+}
+
+/**
+ * Mirrors the account's own WhatsApp privacy categories. When the user never
+ * customized the policy, the derived one (all/contacts/except/none) is applied
+ * verbatim, so no visibility rule is invented by the extension.
+ */
+async function _syncAccountPrivacies(force) {
+  if (!sock || !connected) return
+  try {
+    const settings = await withTimeout(sock.fetchPrivacySettings(force === true), 8000)
+    if (settings && typeof settings === 'object') {
+      waPrivacySettings = settings
+      void momai.storage.set(_getWaPrivacySettingsKey(), settings)
+      momai.log(
+        `[presence] whatsapp privacy: last=${settings.last || '-'} online=${settings.online || '-'} profile=${settings.profile || '-'}`
+      )
+      if (!presencePolicy?.customized) {
+        presencePolicy = _derivePresencePolicy(settings)
+        _replayPresenceForPolicy()
+        momai.log(
+          `[presence] derived policy: online=${presencePolicy.online.mode} lastSeen=${presencePolicy.lastSeen.mode}`
+        )
+      }
+    }
+  } catch (e) {
+    momai.log(`[presence] fetchPrivacySettings failed: ${e?.message || e}`)
+  }
+}
+
+/** Last conversations seen locally, used to warm the presence subscriptions. */
+function _recentPresenceTargets() {
+  const targets = []
+  const seen = new Set()
+  for (let i = chatHistory.length - 1; i >= 0 && targets.length < PRESENCE_RECENT_CONVERSATIONS; i--) {
+    const m = chatHistory[i]
+    const jid = m?.replyJid || m?.jid
+    if (typeof jid !== 'string' || !jid.includes('@')) continue
+    if (jid.endsWith('@g.us') || jid.endsWith('@newsletter')) continue
+    if (seen.has(jid)) continue
+    seen.add(jid)
+    targets.push(jid)
+  }
+  return targets
+}
+
+/**
+ * Subscribes to presence only for subjects the policy allows and that are
+ * monitored. `force` re-subscribes even if we already did it this session.
+ */
+async function _subscribePresence(jids, opts: any = {}) {
+  if (!sock || !connected) return []
+  const force = opts?.force === true
+  const limit = Math.max(1, Number(opts?.limit) || PRESENCE_SUBSCRIBE_LIMIT)
+  // Sem minAge explícito, não renova: assina uma vez por sessão.
+  const minAgeMs = Number.isFinite(Number(opts?.minAgeMs))
+    ? Math.max(0, Number(opts.minAgeMs))
+    : Infinity
+  const now = Date.now()
+  const accepted = []
+  const targets = new Set()
+  for (const raw of Array.isArray(jids) ? jids : []) {
+    if (typeof raw !== 'string' || !raw.includes('@')) continue
+    const jid = raw.trim()
+    if (!jid || jid.endsWith('@g.us') || jid.endsWith('@newsletter')) continue
+    if (_isContactDisabled(jid)) continue
+    const subject = _presenceSubjectFor(jid)
+    if (!_shouldSubscribePresence(presencePolicy, subject)) continue
+    if (accepted.length >= limit) break
+    if (!force && now - (presenceSubscribed.get(jid) || 0) < minAgeMs) continue
+    accepted.push(jid)
+    // A stanza pode chegar pelo JID de telefone mesmo quando a conversa é LID
+    // (e vice-versa): assina também a forma equivalente quando conhecida.
+    for (const alias of _presenceAliases(jid).slice(0, 2)) {
+      if (!force && now - (presenceSubscribed.get(alias) || 0) < minAgeMs) continue
+      targets.add(alias)
+    }
+  }
+  if (targets.size === 0) return accepted
+  await _mapWithConcurrency([...targets], 3, async (jid) => {
+    try {
+      await withTimeout(sock.presenceSubscribe(jid), 5000)
+      presenceSubscribed.set(jid, Date.now())
+    } catch (e) {
+      momai.log(`presenceSubscribe ${jid}: ${e?.message || e}`)
+    }
+  })
+  return accepted
+}
+
+async function _initPresence() {
+  await _loadPresencePolicy()
+  if (Object.keys(waPrivacySettings).length === 0) {
+    await _syncAccountPrivacies(true)
+  } else {
+    void _syncAccountPrivacies(false)
+  }
+  const targets = _recentPresenceTargets()
+  const subscribed = await _subscribePresence(targets)
+  momai.log(
+    `[presence] init: online=${presencePolicy.online.mode} lastSeen=${presencePolicy.lastSeen.mode} ` +
+    `targets=${targets.length} subscribed=${subscribed.length}`
+  )
 }
 
 async function _loadPerPhoneData() {
@@ -2388,6 +2862,10 @@ async function _loadPerPhoneData() {
           statusNotificationsDisabled = st.statusNotificationsDisabled
         }
       }
+      // Presença: preferências são por telefone (o `_currentPhone` já existe).
+      await _loadPresencePolicy()
+      await _loadPresenceCache()
+      await _loadWaPrivacySettings()
 
       let storageDirty = false
       if (_cleanupStaleContacts()) storageDirty = true
@@ -2450,25 +2928,27 @@ async function main() {
   process.send({ type: 'ready' })
 
   setInterval(() => {
-    persistChatHistorySnapshot().catch(() => {})
+    persistChatHistorySnapshot().catch(() => { })
   }, 30000)
 
   // Local media housekeeping (item 8): deletes only the extension's own copies
   // (audio/images/stickers/documents/videos), never the user's real WhatsApp.
+  // Postponed to run after startup/connection so it doesn't hold disk I/O on boot.
   const pruneMedia = () => {
     try {
       const result = _pruneMediaDirectories(momai.storage.storageDir)
       if (result.removed > 0) {
         momai.log(
           `[whatsapp] media prune: removed ${result.removed} file(s), freed ` +
-            `${Math.round(result.freedBytes / 1024 / 1024)}MB`
+          `${Math.round(result.freedBytes / 1024 / 1024)}MB`
         )
       }
     } catch (err: any) {
       momai.log(`[whatsapp] media prune failed: ${err?.message || err}`)
     }
   }
-  pruneMedia()
+  const initialPruneTimer = setTimeout(pruneMedia, 20000)
+  if (initialPruneTimer.unref) initialPruneTimer.unref()
   const mediaPruneTimer = setInterval(pruneMedia, 6 * 60 * 60 * 1000)
   if (mediaPruneTimer.unref) mediaPruneTimer.unref()
 
@@ -2515,6 +2995,9 @@ async function connect() {
       } catch (e) {
         momai.log(`Error closing old socket: ${e.message}`)
       }
+      try {
+        sock.ws?.close()
+      } catch { }
       sock = null
     }
 
@@ -2554,8 +3037,8 @@ async function connect() {
     if ((encCredsExists || restoredAuth.encryptedPresent) && !plainCredsExists && !decrypted) {
       momai.log(
         '[whatsapp] WARN: creds.json.enc could not be decrypted ' +
-          '(safeStorage unavailable?). Keeping encrypted creds; Baileys will ' +
-          'request a new QR if it cannot use them.'
+        '(safeStorage unavailable?). Keeping encrypted creds; Baileys will ' +
+        'request a new QR if it cannot use them.'
       )
     }
     const { state, saveCreds } = await useMultiFileAuthState(authDir)
@@ -2617,8 +3100,8 @@ async function connect() {
     } else {
       const makeMockLogger = () => {
         const mock = {
-          info: () => {},
-          debug: () => {},
+          info: () => { },
+          debug: () => { },
           warn: (obj, msg) => {
             const warnText = msg || obj?.msg || ''
             const warnRaw =
@@ -2658,11 +3141,14 @@ async function connect() {
             }
             const jid = obj?.key?.remoteJid
             if (_shouldLogDecryptError(msgText, rawDetail, jid)) {
-              momai.log(`[Baileys:ERROR] ${msg || JSON.stringify(obj)}${detail ? ' (' + detail + ')' : ''}`)
+              const keyMeta = obj?.key
+                ? ` [remoteJid=${obj.key.remoteJid || 'unknown'}${obj.key.participant ? ` participant=${obj.key.participant}` : ''} fromMe=${Boolean(obj.key.fromMe)}${obj.key.id ? ` id=${obj.key.id}` : ''}]`
+                : ''
+              momai.log(`[Baileys:ERROR] ${msg || JSON.stringify(obj)}${detail ? ' (' + detail + ')' : ''}${keyMeta}`)
             }
             handleLogEvent(obj, msg)
           },
-          trace: () => {},
+          trace: () => { },
           child: () => mock
         }
         return mock
@@ -2701,7 +3187,7 @@ async function connect() {
         return undefined
       },
       getMessage: async (key) => {
-        if (!key?.id) return { conversation: '' }
+        if (!key?.id) return undefined
         const composite = _messageCacheKey(key)
         if (composite && messageStore.has(composite)) {
           return messageStore.get(composite)
@@ -2721,15 +3207,47 @@ async function connect() {
             }
           }
         }
-        // Proto vazio: deixa o Baileys completar retries de mensagens enviadas
-        // (sendMessagesAgain) em vez de travar no relógio "Aguardando mensagem".
-        return { conversation: '' }
+        // Fallback para chatHistory: permite que retries de mensagens enviadas
+        // (sendMessagesAgain) após reinício do worker entreguem o texto real em vez
+        // de vazio ou falhar permanentemente em "Aguardando mensagem".
+        const historyMsg = chatHistory.find((m: any) => m && m.id === key.id)
+        if (historyMsg && historyMsg.message) {
+          return { conversation: historyMsg.message }
+        }
+        return undefined
       }
     })
 
     sock.ev.on('creds.update', () => {
       saveCreds()
       _scheduleReEncrypt()
+    })
+
+    // Presença: o servidor só envia o que o contato permite ver. Ainda assim,
+    // todo campo passa pelas regras locais antes de virar evento/estado.
+    sock.ev.on('presence.update', (update) => {
+      try {
+        const now = Date.now()
+        const id = String(update?.id || '').trim()
+        const presences = update?.presences && typeof update.presences === 'object' ? update.presences : {}
+        for (const [participant, data] of Object.entries(presences)) {
+          const jid = String(participant || id || '').trim()
+          if (!jid || jid.endsWith('@g.us') || jid.endsWith('@newsletter')) continue
+          if (!_storePresenceEntry(jid, data as any, now)) {
+            if (!presenceGatedLogged.has(jid)) {
+              presenceGatedLogged.add(jid)
+              momai.log(
+                `[presence] gated ${jid} lastKnown=${(data as any)?.lastKnownPresence || '-'} ` +
+                `(online=${presencePolicy.online.mode} lastSeen=${presencePolicy.lastSeen.mode})`
+              )
+            }
+            continue
+          }
+          _emitPresenceUpdate(jid)
+        }
+      } catch (e) {
+        momai.log(`presence.update handler: ${e?.message || e}`)
+      }
     })
 
     sock.ev.on('connection.update', async (update) => {
@@ -2750,6 +3268,12 @@ async function connect() {
         isConnecting = false
         lastQr = null
         lastQrAt = 0
+        // Nova sessão: atualiza status online anterior (re-valida com a nova conexão)
+        // e limpa assinaturas ativas para re-assinar, preservando lastSeen em memória.
+        for (const entry of presenceState.values()) {
+          if (entry) entry.online = false
+        }
+        presenceSubscribed.clear()
         // No QR arrives once the session is open: release pending
         // `show_connection_qr` calls so they answer "connected" right away.
         _resolveQrWaiters(null)
@@ -2770,7 +3294,7 @@ async function connect() {
         if (!registered) {
           momai.log(
             '[whatsapp] WARN: creds.registered=false — sessão não registrada no servidor. ' +
-              'Envio de grupo pode não entregar. Reconecte o WhatsApp (Desconectar → Reconectar) e confirme no celular.'
+            'Envio de grupo pode não entregar. Reconecte o WhatsApp (Desconectar → Reconectar) e confirme no celular.'
           )
           // Auto-heal for LID accounts where phone hasn't yet confirmed registration
           // but session is already open and has me.id — mark as registered to prevent
@@ -2780,7 +3304,7 @@ async function connect() {
               sock.authState.creds.registered = true
               saveCreds()
               momai.log('[whatsapp] Auto-healed creds.registered -> true (me.id present)')
-            } catch {}
+            } catch { }
           }
         }
 
@@ -2839,8 +3363,10 @@ async function connect() {
           if (phone && !chatHistory.length) {
             await loadChatHistory()
           }
+          await _loadPresenceCache()
+          await _loadWaPrivacySettings()
           populateContactsFromChatHistory()
-          fetchAndStoreGroups().catch(() => {})
+          fetchAndStoreGroups().catch(() => { })
           // Retry único: se o fetch de grupos inicial falhou ou veio vazio,
           // tenta de novo em seguida — o envio por NOME de grupo depende do
           // cache populado (a resolução sob demanda do send é o segundo plano).
@@ -2848,14 +3374,17 @@ async function connect() {
             const hasGroups = Object.values<any>(waContacts).some(
               (c) => c && c.id && c.id.endsWith('@g.us')
             )
-            if (!hasGroups) fetchAndStoreGroups().catch(() => {})
+            if (!hasGroups) fetchAndStoreGroups().catch(() => { })
           }, 10000)
           _notifyContactsUpdated()
-        } catch {}
+        } catch { }
         momai.sendEvent('authenticated', { status: 'connected' })
         momai.sendEvent('connection_status', { status: 'connected' })
         momai.sendEvent('history_loaded', { count: chatHistory.length })
         momai.log('WhatsApp connected')
+        // Presença: espelha as categorias de privacidade da conta e assina os
+        // contatos que as regras permitem ver (online/visto por último).
+        void _initPresence()
 
         // Notify contacts sync complete without destructively deleting existing contacts
         setTimeout(async () => {
@@ -2871,6 +3400,10 @@ async function connect() {
       } else if (connection === 'close') {
         connected = false
         isConnecting = false
+        // Sem socket não há como confirmar "online": ninguém fica verde.
+        for (const entry of presenceState.values()) {
+          if (entry) entry.online = false
+        }
         // Move creds back to encrypted-at-rest before the next reconnect.
         reEncryptCredsAfterBaileys(authDir).catch((err) =>
           momai.log(`post-close re-encrypt failed: ${err.message}`)
@@ -3062,7 +3595,7 @@ async function connect() {
         _scheduleWaContactsPersist()
         momai.log(
           `Contacts stored: ${added} new, ${updated} updated, ${historyAdded} from history, ${Object.keys(waContacts).length} total` +
-            (lidCount > 0 ? ` (${lidCount} lid)` : '')
+          (lidCount > 0 ? ` (${lidCount} lid)` : '')
         )
       }
       const total = Object.keys(waContacts).length
@@ -3226,6 +3759,8 @@ async function connect() {
     })
 
     sock.ev.on('messages.upsert', handleMessagesUpsert)
+    sock.ev.on('messages.update', handleMessagesUpdate)
+    sock.ev.on('message-receipt.update', handleMessageReceiptUpdate)
     sock.ev.on('call', handleIncomingCalls)
   } catch (err) {
     isConnecting = false
@@ -3233,6 +3768,70 @@ async function connect() {
     _clearReconnectTimer()
     const delay = nextReconnectDelay()
     reconnectTimer = setTimeout(connect, delay)
+  }
+}
+
+async function handleMessagesUpdate(updates: any[]) {
+  if (!Array.isArray(updates)) return
+  let updatedAny = false
+  for (const item of updates) {
+    const id = item?.key?.id ? String(item.key.id) : null
+    const nextStatus = item?.update?.status
+    if (!id || nextStatus === undefined || nextStatus === null) continue
+    const numericStatus = typeof nextStatus === 'number' ? nextStatus : Number(nextStatus)
+    const validStatus = !isNaN(numericStatus) ? numericStatus : nextStatus
+
+    const target = chatHistory.find((m) => m && (m.id === id || String(m.id) === id))
+    if (target) {
+      const curNum = typeof target.status === 'number' ? target.status : Number(target.status)
+      if (isNaN(curNum) || (typeof validStatus === 'number' && validStatus >= curNum) || target.status !== validStatus) {
+        target.status = validStatus
+        updatedAny = true
+      }
+    }
+
+    const jid = target?.jid || item?.key?.remoteJid || null
+    momai.log(`[whatsapp] message_status (update): id=${id} status=${validStatus} jid=${jid}`)
+    momai.sendEvent('message_status', {
+      id,
+      jid,
+      status: validStatus
+    })
+  }
+  if (updatedAny) {
+    schedulePersistChatHistory()
+  }
+}
+
+async function handleMessageReceiptUpdate(receiptUpdates: any[]) {
+  if (!Array.isArray(receiptUpdates)) return
+  let updatedAny = false
+  for (const item of receiptUpdates) {
+    const id = item?.key?.id ? String(item.key.id) : null
+    const receipt = item?.receipt
+    if (!id || !receipt) continue
+    const newStatus = receipt.readTimestamp ? 4 : receipt.receiptTimestamp ? 3 : null
+    if (!newStatus) continue
+
+    const target = chatHistory.find((m) => m && (m.id === id || String(m.id) === id))
+    if (target) {
+      const curNum = typeof target.status === 'number' ? target.status : Number(target.status)
+      if (isNaN(curNum) || newStatus >= curNum) {
+        target.status = newStatus
+        updatedAny = true
+      }
+    }
+
+    const jid = target?.jid || item?.key?.remoteJid || null
+    momai.log(`[whatsapp] message_status (receipt): id=${id} status=${newStatus} jid=${jid}`)
+    momai.sendEvent('message_status', {
+      id,
+      jid,
+      status: newStatus
+    })
+  }
+  if (updatedAny) {
+    schedulePersistChatHistory()
   }
 }
 
@@ -3409,19 +4008,19 @@ async function handleMessagesUpsert({ messages, type }) {
 
     // Now resolve standard JID for lookups
     const resolvedSenderJid = resolveStandardJid(senderJid) || senderJid
-    const messageTs = Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000)
+    const messageTs = toUnixTimestamp(msg.messageTimestamp, Math.floor(Date.now() / 1000))
 
     const msgId = msg.key?.id
     const isDeleted = isGroup
       ? isMessageFromDeletedConversation(remoteJid, messageTs, msgId)
       : isMessageFromDeletedConversation(remoteJid, messageTs, msgId) ||
-        (resolvedSenderJid && isMessageFromDeletedConversation(resolvedSenderJid, messageTs, msgId))
+      (resolvedSenderJid && isMessageFromDeletedConversation(resolvedSenderJid, messageTs, msgId))
     // Nome também bloqueia (divergência @lid vs @s.whatsapp.net entre delete e reload)
     let nameDeleted = false
     try {
       const grpSubject = isGroup ? groupMetaCache.get(remoteJid)?.data?.subject : null
       nameDeleted = isNameDeleted([msg.pushName, grpSubject], messageTs)
-    } catch {}
+    } catch { }
 
     if (isDeleted || nameDeleted) {
       continue
@@ -3449,11 +4048,18 @@ async function handleMessagesUpsert({ messages, type }) {
             notify: _isUsableDisplayName(msg.pushName) ? String(msg.pushName).trim() : null,
             verifiedName: null,
             phone,
-            ...(remoteJid.endsWith('@lid') ? { lid: remoteJid } : {})
+            // `lid` só faz sentido num contato de telefone; numa chave @lid o
+            // campo apontaria para ela mesma e poluiria resolveStandardJid.
+            ...(remoteJid.endsWith('@lid') ? {} : { lid: null })
           }
           _scheduleWaContactsPersist()
         }
-      } else if (remoteJid.endsWith('@lid') && waContacts[storeJid] && !waContacts[storeJid].lid) {
+      } else if (
+        remoteJid.endsWith('@lid') &&
+        !storeJid.endsWith('@lid') &&
+        waContacts[storeJid] &&
+        !waContacts[storeJid].lid
+      ) {
         waContacts[storeJid].lid = remoteJid
         _scheduleWaContactsPersist()
       }
@@ -3549,15 +4155,15 @@ async function handleMessagesUpsert({ messages, type }) {
 
     const resGroupName = isGroup
       ? resolveContactName(remoteJid) ||
-        _pickContactLabel(waContacts[remoteJid]?.name, waContacts[remoteJid]?.verifiedName) ||
-        'Grupo'
+      _pickContactLabel(waContacts[remoteJid]?.name, waContacts[remoteJid]?.verifiedName) ||
+      'Grupo'
       : null
     const pushDisplayName = _isUsableDisplayName(msg.pushName) ? String(msg.pushName).trim() : null
     const displayName = isFromMe
       ? resolvedSenderJid.split('@')[0] || resolvedSenderJid
       : resolveContactName(resolvedSenderJid, pushDisplayName) ||
-        pushDisplayName ||
-        (resolvedSenderJid ? resolvedSenderJid.split('@')[0] : 'Participante')
+      pushDisplayName ||
+      (resolvedSenderJid ? resolvedSenderJid.split('@')[0] : 'Participante')
 
     if (isGroup && !isFromMe && resolvedSenderJid && pushDisplayName && !waContacts[resolvedSenderJid]) {
       const phone = resolvedSenderJid.split('@')[0].replace(/\D/g, '')
@@ -3624,28 +4230,41 @@ async function handleMessagesUpsert({ messages, type }) {
       gif: isGif ? videoFilename : undefined,
       isGif: Boolean(isGif),
       quoted: extractedQuoted || undefined,
-      timestamp: msg.messageTimestamp
-        ? Number(msg.messageTimestamp)
-        : Math.floor(Date.now() / 1000),
+      timestamp: toUnixTimestamp(msg.messageTimestamp, Math.floor(Date.now() / 1000)),
       direction: isFromMe ? 'outgoing' : 'incoming',
+      status: (msg.status !== undefined && msg.status !== null) ? msg.status : (isFromMe ? 2 : undefined),
       isGroup,
       groupName: resGroupName,
       forceUpdateNames: true
     })
     chatHistory.unshift(historyEntry)
-    _trackHistoryMessage(momai, historyEntry, _currentPhone).catch(() => {})
+    _trackHistoryMessage(momai, historyEntry, _currentPhone).catch(() => { })
     if (chatHistory.length > MAX_HISTORY) chatHistory.pop()
     totalMessages++
     schedulePersistChatHistory()
     if (isFromMe && replyJid) {
-      removeUnreadBadge(replyJid).catch(() => {})
+      removeUnreadBadge(replyJid).catch(() => { })
     }
     momai.log(`Message tracked: from=${displayName} total=${totalMessages}`)
     if (isFromMe && !isHistoryAppend) {
+      const recipientStd = resolveStandardJid(remoteJid) || remoteJid
+      const recipientLid =
+        waContacts[remoteJid]?.lid ||
+        waContacts[recipientStd]?.lid ||
+        (remoteJid.endsWith('@lid') ? remoteJid : undefined)
+      const recipientName = isGroup
+        ? resGroupName
+        : resolveContactName(remoteJid) || resolveContactName(recipientStd) || displayName
       momai.sendEvent('message_sent', {
         ...historyEntry,
-        contact: displayName,
+        contact: recipientName,
+        contactName: recipientName,
+        contactJid: recipientStd,
+        recipientJid: remoteJid,
         jid: remoteJid,
+        replyJid: historyEntry.replyJid || recipientStd,
+        lid: recipientLid,
+        altJids: [remoteJid, recipientStd, recipientLid].filter(Boolean),
         id: msg.key?.id || null
       })
     }
@@ -3666,7 +4285,7 @@ async function handleMessagesUpsert({ messages, type }) {
         remoteJid === myLidStandardized ||
         standardizedRemoteJid === myJidStandardized)
 
-    const isOldMessage = msg.messageTimestamp && Number(msg.messageTimestamp) < workerStartTime
+    const isOldMessage = toUnixTimestamp(msg.messageTimestamp) > 0 && toUnixTimestamp(msg.messageTimestamp) < workerStartTime
     const isBacklog = messageTs < lastConnectAtSec
 
 
@@ -3796,7 +4415,7 @@ async function handleMessagesUpsert({ messages, type }) {
           documentName,
           video: videoFilename,
           recentMedia,
-          timestamp: msg.messageTimestamp,
+          timestamp: toUnixTimestamp(msg.messageTimestamp, messageTs),
           contactAvatar,
           isGroup: !!isGroup,
           isNoteToSelf,
@@ -3840,7 +4459,7 @@ async function handleMessagesUpsert({ messages, type }) {
             video: videoFilename,
             recentMedia,
             contactAvatar,
-            timestamp: msg.messageTimestamp,
+            timestamp: toUnixTimestamp(msg.messageTimestamp, messageTs),
             isGroup: !!isGroup,
             isStatus: isStatusMessage,
             statusContext,
@@ -4007,7 +4626,14 @@ async function saveIncomingSticker(msg) {
   return null
 }
 
+const failedImageDecryptIds = new Set<string>()
+const MAX_FAILED_IMAGE_DECRYPT_IDS = 500
+
 async function saveIncomingImage(msg) {
+  const msgId = String(msg?.key?.id || '').trim()
+  if (msgId && failedImageDecryptIds.has(msgId)) {
+    return null
+  }
   try {
     const rawMsg = msg.message
     const innerMsg =
@@ -4072,7 +4698,19 @@ async function saveIncomingImage(msg) {
       return filename
     }
   } catch (err) {
-    momai.log(`[whatsapp-image] Failed to download image: ${err.message}`)
+    const errMsg = String(err?.message || err || '')
+    const isPermanentMediaError =
+      errMsg.includes('BAD_DECRYPT') || errMsg.includes('410') || errMsg.includes('404')
+    if (isPermanentMediaError && msgId) {
+      if (failedImageDecryptIds.size >= MAX_FAILED_IMAGE_DECRYPT_IDS) {
+        const oldest = failedImageDecryptIds.values().next().value
+        if (oldest) failedImageDecryptIds.delete(oldest)
+      }
+      failedImageDecryptIds.add(msgId)
+      momai.log(`[whatsapp-image] Skipping expired/undecryptable image (${msgId}): ${errMsg}`)
+    } else {
+      momai.log(`[whatsapp-image] Failed to download image: ${errMsg}`)
+    }
   }
   return null
 }
@@ -4316,6 +4954,27 @@ function _groupNameMatches(contact, clean) {
 // Builds the Baileys message content (with image → caption). Implementação em
 // worker-utils.ts (validada por testes) e importada no topo deste arquivo.
 
+/**
+ * Aguarda o WhatsApp ficar conectado caso uma sessão já pareada esteja em processo
+ * de conexão/handshake no boot (evita erro "not connected" se o usuário enviar mensagem
+ * logo no primeiro segundo após abrir a MomAI).
+ */
+async function waitForConnection(maxWaitMs = 8000): Promise<boolean> {
+  if (connected && sock?.ws?.isOpen) return true
+  if (!_hasSavedSession()) return false
+
+  const start = Date.now()
+  momai.log(`[whatsapp] Aguardando conexão ativa do WhatsApp antes de enviar (máx ${maxWaitMs / 1000}s)...`)
+  while (Date.now() - start < maxWaitMs) {
+    if (connected && sock?.ws?.isOpen) {
+      momai.log(`[whatsapp] Conexão pronta após ${Date.now() - start}ms`)
+      return true
+    }
+    await new Promise((r) => setTimeout(r, 200))
+  }
+  return Boolean(connected && sock?.ws?.isOpen)
+}
+
 async function sendMessage(
   contact,
   message,
@@ -4330,7 +4989,13 @@ async function sendMessage(
   const t0 = Date.now()
   const stage = (label, extra = '') =>
     momai.log(`[send] ${label}${extra ? ' ' + extra : ''} (t+${Date.now() - t0}ms)`)
-  if (!sock || !connected) throw new Error('WhatsApp not connected')
+
+  if (!sock || !connected) {
+    const ready = await waitForConnection(8000)
+    if (!ready || !sock || !connected) {
+      throw new Error('WhatsApp not connected')
+    }
+  }
   stage(
     'enter',
     `to="${contact}" msg="${(message || '').substring(0, 40)}" image=${image ? 'yes' : 'no'} sticker=${sticker ? 'yes' : 'no'} gif=${gif ? 'yes' : 'no'} document=${document ? 'yes' : 'no'} quoted=${quoted ? 'yes' : 'no'} connected=${connected}`
@@ -4402,7 +5067,7 @@ async function sendMessage(
     if (attempt < MAX_RESOLVE_RETRIES) {
       momai.log(
         `sendMessage: destino "${contact}" ainda não resolvido (tentativa ${attempt}/${MAX_RESOLVE_RETRIES}); ` +
-          `aguardando sync de contatos...`
+        `aguardando sync de contatos...`
       )
       await new Promise((r) => setTimeout(r, attempt * 1500))
     }
@@ -4515,8 +5180,8 @@ async function sendMessage(
             rFromLid && rFromLid !== rRaw ? String(rFromLid).replace(/[^0-9]/g, '') : ''
           return Boolean(
             (rJid && jidDigits && (rJid === jidDigits || rJid.endsWith(jidDigits))) ||
-              (rResolved && jidDigits && rResolved === jidDigits) ||
-              (rLid && jidDigits && (rLid === jidDigits || jidDigits.endsWith(rLid)))
+            (rResolved && jidDigits && rResolved === jidDigits) ||
+            (rLid && jidDigits && (rLid === jidDigits || jidDigits.endsWith(rLid)))
           )
         })
         const anyLidEntry =
@@ -4530,7 +5195,7 @@ async function sendMessage(
           if (syncingContacts) {
             momai.log(
               `sendMessage: onWhatsApp vazio para ${jid} durante sync de contatos — ` +
-                `procedendo (contato pode ainda não estar carregado)`
+              `procedendo (contato pode ainda não estar carregado)`
             )
           } else {
             throw new Error(`Número não registrado no WhatsApp: "${contact}"`)
@@ -4640,7 +5305,36 @@ async function sendMessage(
 
   const displayName = resolveContactName(jid)
   const stickerFilename = sticker && typeof sticker === 'string' ? path.basename(sticker) : null
-  const imageFilename = typeof image === 'string' ? image : null
+  let imageFilename = typeof image === 'string' ? image : null
+  if (imageFilename && !/^https?:\/\//i.test(imageFilename) && Buffer.isBuffer(content.image)) {
+    const looksLikeExternalPath =
+      imageFilename.startsWith('data:') || imageFilename.includes('/') || imageFilename.includes('\\')
+    if (looksLikeExternalPath) {
+      try {
+        const fsSync = require('fs')
+        const imageDir = path.join(momai.storage.storageDir, 'images')
+        if (!fsSync.existsSync(imageDir)) {
+          fsSync.mkdirSync(imageDir, { recursive: true })
+        }
+        const rawExt = !imageFilename.startsWith('data:') ? path.extname(imageFilename).toLowerCase() : ''
+        const ext = rawExt === '.png' || rawExt === '.webp' || rawExt === '.jpg' || rawExt === '.jpeg'
+          ? rawExt
+          : '.jpg'
+        const baseSeed = sanitizeMediaFilename(
+          sentMessage?.key?.id || (!imageFilename.startsWith('data:') ? path.basename(imageFilename, rawExt) : ''),
+          `sent-${Date.now()}`
+        )
+        const storedName = `${baseSeed}${ext}`
+        const destPath = path.join(imageDir, storedName)
+        if (!fsSync.existsSync(destPath)) {
+          fsSync.writeFileSync(destPath, content.image)
+        }
+        imageFilename = storedName
+      } catch {
+        imageFilename = null
+      }
+    }
+  }
   const documentFilename = typeof document === 'string' ? document : null
   const documentDisplayName =
     document && typeof document === 'object' && (document as any).fileName
@@ -4683,21 +5377,22 @@ async function sendMessage(
     isGif: Boolean(gif),
     quoted: quoted && typeof quoted === 'object'
       ? {
-          id: quoted.id || quoted.stanzaId || null,
-          text: quoted.text || quoted.documentName || '',
-          from: quoted.from || null,
-          senderJid: quoted.senderJid || null,
-          timestamp: quoted.timestamp || null,
-          image: quoted.image,
-          video: quoted.video,
-          audio: quoted.audio,
-          sticker: quoted.sticker,
-          document: quoted.document,
-          documentName: quoted.documentName
-        }
+        id: quoted.id || quoted.stanzaId || null,
+        text: quoted.text || quoted.documentName || '',
+        from: quoted.from || null,
+        senderJid: quoted.senderJid || null,
+        timestamp: quoted.timestamp || null,
+        image: quoted.image,
+        video: quoted.video,
+        audio: quoted.audio,
+        sticker: quoted.sticker,
+        document: quoted.document,
+        documentName: quoted.documentName
+      }
       : undefined,
     timestamp,
     direction: 'outgoing',
+    status: (sentMessage?.status !== undefined && sentMessage?.status !== null) ? sentMessage.status : 2,
     isGroup: isGroupMsg,
     groupName: resolvedGroupName,
     profilePicUrl: resolveChatAvatarUrl(jid, isGroupMsg)
@@ -4707,7 +5402,7 @@ async function sendMessage(
   totalMessages++
   schedulePersistChatHistory()
   if (jid) {
-    removeUnreadBadge(jid).catch(() => {})
+    removeUnreadBadge(jid).catch(() => { })
   }
 
   momai.sendEvent('message_sent', {
@@ -4723,7 +5418,7 @@ async function sendMessage(
 }
 
 async function getPanelData() {
-  const validContacts = Object.values<any>(waContacts).filter((c) => c.phone && !c.id.endsWith('@g.us'))
+  const validContacts = Object.values<any>(waContacts).filter((c) => c.phone && !c.id.endsWith('@g.us') && !c.id.endsWith('@lid'))
   return {
     connected,
     syncedContacts: validContacts.length,
@@ -4737,32 +5432,34 @@ async function shutdownWorker(reason) {
   shuttingDown = true
   try {
     momai.log(`[whatsapp:worker] Shutting down (${reason})...`)
-  } catch {}
+  } catch { }
   _clearReconnectTimer()
   preventAutoReconnect = true
   if (sock) {
     try {
       sock.end(undefined)
-    } catch {}
+    } catch { }
     try {
       sock.ws?.close()
-    } catch {}
+    } catch { }
     sock = null
   }
   try {
     const authDir = path.join(momai.storage.storageDir, 'baileys-auth')
-    await reEncryptCredsAfterBaileys(authDir).catch(() => {})
-    // Clean shutdown: encrypt every auth file into the vault and remove the
-    // plain copies, so a copied userData folder no longer yields a usable
-    // WhatsApp session at rest (item 1). Safe here because the socket is closed.
-    await vaultAuthDir(authDir, { deletePlain: true }).catch((err) =>
+    await reEncryptCredsAfterBaileys(authDir).catch(() => { })
+    // Clean shutdown: backup auth files into the vault. In dev mode (pnpm run dev,
+    // server reload, hot reload), never delete working plain files so Baileys
+    // preserves its cryptographic Signal ratchets and never gets stuck in "Aguardando mensagem".
+    const isDev = process.env.MOMAI_IS_DEV === '1' || process.env.NODE_ENV !== 'production'
+    await vaultAuthDir(authDir, { deletePlain: !isDev }).catch((err) =>
       momai.log(`[whatsapp:worker] Auth vault failed: ${err.message}`)
     )
   } finally {
     releaseLock()
     try {
-      await flushPersistedChatHistory().catch(() => {})
-      await flushPersistedContacts().catch(() => {})
+      await _persistMessageCaches().catch(() => { })
+      await flushPersistedChatHistory().catch(() => { })
+      await flushPersistedContacts().catch(() => { })
     } finally {
       process.exit(0)
     }
@@ -4824,10 +5521,11 @@ function _allowSend(contact) {
 }
 
 // IPC listener for tool execution from LLM
-process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
+process.on('message', async (msg) => {
+  if (msg.type === 'storage-response') {
     try {
       if (_storageResponseListener) _storageResponseListener(msg)
-    } catch {}
+    } catch { }
     return
   }
   if (msg.type === 'shutdown') {
@@ -4973,14 +5671,17 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
             break
           }
           if (!sock || !connected) {
-            const card = _connectionQrCardNow()
-            result = {
-              ok: false,
-              error: 'WhatsApp desconectado.',
-              directResponse: 'WhatsApp não está conectado. Conecte pelo painel ou escaneie o QR code.',
-              ...(card?.structuredResponse ? { structuredResponse: card.structuredResponse } : {})
+            const ready = await waitForConnection(8000)
+            if (!ready || !sock || !connected) {
+              const card = _connectionQrCardNow()
+              result = {
+                ok: false,
+                error: 'WhatsApp desconectado.',
+                directResponse: 'WhatsApp não está conectado. Conecte pelo painel ou escaneie o QR code.',
+                ...(card?.structuredResponse ? { structuredResponse: card.structuredResponse } : {})
+              }
+              break
             }
-            break
           }
 
           // 1. Sintetizar áudio chamando a API de TTS da MomAI
@@ -5111,6 +5812,7 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
               audio: savedAudioFilename,
               timestamp,
               direction: 'outgoing',
+              status: (sent?.status !== undefined && sent?.status !== null) ? sent.status : 2,
               isGroup: isGroupMsg,
               groupName: resolvedGroupName,
               profilePicUrl: resolveChatAvatarUrl(jid, isGroupMsg)
@@ -5120,7 +5822,7 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
             if (chatHistory.length > MAX_HISTORY) chatHistory.pop()
             totalMessages++
             schedulePersistChatHistory()
-            removeUnreadBadge(jid).catch(() => {})
+            removeUnreadBadge(jid).catch(() => { })
 
             momai.sendEvent('message_sent', {
               ...historyEntry,
@@ -5407,10 +6109,10 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
                 }
               }
               if (untombstoned) {
-                await momai.storage.set(_getDeletedConversationsKey(), deletedConversations).catch(() => {})
-                await momai.storage.set(DELETED_CONVERSATIONS_KEY, deletedConversations).catch(() => {})
+                await momai.storage.set(_getDeletedConversationsKey(), deletedConversations).catch(() => { })
+                await momai.storage.set(DELETED_CONVERSATIONS_KEY, deletedConversations).catch(() => { })
               }
-            } catch {}
+            } catch { }
             result = {
               ok: true,
               contact: raw,
@@ -5439,12 +6141,12 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
           }
           const actions = Array.isArray(incoming)
             ? incoming.filter(
-                (a) =>
-                  a &&
-                  typeof a === 'object' &&
-                  typeof a.target === 'string' &&
-                  typeof a.tool === 'string'
-              )
+              (a) =>
+                a &&
+                typeof a === 'object' &&
+                typeof a.target === 'string' &&
+                typeof a.tool === 'string'
+            )
             : []
           await saveActionsConfig(actions)
           result = { ok: true, actions: await getActionsConfig() }
@@ -5532,7 +6234,7 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
         case 'get_stats': {
           const allEntries = Object.values<any>(waContacts)
           const validContacts = allEntries.filter(
-            (c) => c.phone && !c.id.endsWith('@g.us')
+            (c) => c.phone && !c.id.endsWith('@g.us') && !c.id.endsWith('@lid')
           )
           const syncedContactsCount = validContacts.length
           const monitoredContactsCount = allEntries.filter(
@@ -5550,9 +6252,9 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
             monitoredCount: monitoredContactsCount,
             ...(!connected && _qrStillValid()
               ? {
-                  qr: lastQr,
-                  qrExpiresIn: Math.max(1, Math.ceil((QR_TTL_MS - (Date.now() - lastQrAt)) / 1000))
-                }
+                qr: lastQr,
+                qrExpiresIn: Math.max(1, Math.ceil((QR_TTL_MS - (Date.now() - lastQrAt)) / 1000))
+              }
               : {})
           }
           break
@@ -5626,7 +6328,7 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
           if (sock) {
             try {
               sock.end(undefined)
-            } catch {}
+            } catch { }
             sock = null
           }
           preventAutoReconnect = false
@@ -5671,7 +6373,7 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
           _scheduleWaContactsPersist()
 
           const total = Object.values<any>(waContacts).filter(
-            (c) => c.phone && !c.id.endsWith('@g.us')
+            (c) => c.phone && !c.id.endsWith('@g.us') && !c.id.endsWith('@lid')
           ).length
           momai.sendEvent('contacts_synced', { count: total, isFinal: true })
           _notifyContactsUpdated()
@@ -5762,22 +6464,22 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
 
           const filtered = rawJid
             ? unDeletedHistory.filter((m) => {
-                const jid = String(m.jid || '')
-                const senderJid = String(m.senderJid || '')
-                const replyJid = String(m.replyJid || '')
-                if (jid === rawJid || senderJid === rawJid || replyJid === rawJid) return true
-                if (jid === targetStandard || senderJid === targetStandard || replyJid === targetStandard) return true
-                if (rawJid.endsWith('@g.us')) return _isSameChat(rawJid, jid)
-                if (_isSameChat(rawJid, jid) || _isSameChat(rawJid, senderJid) || _isSameChat(rawJid, replyJid)) return true
-                if (targetStandard && (_isSameChat(targetStandard, jid) || _isSameChat(targetStandard, senderJid) || _isSameChat(targetStandard, replyJid))) return true
-                if (rawDigits.length >= 7) {
-                  const mDigits = jid.split('@')[0].replace(/\D/g, '')
-                  const sDigits = senderJid.split('@')[0].replace(/\D/g, '')
-                  const rDigits = replyJid.split('@')[0].replace(/\D/g, '')
-                  if (mDigits === rawDigits || sDigits === rawDigits || rDigits === rawDigits) return true
-                }
-                return false
-              })
+              const jid = String(m.jid || '')
+              const senderJid = String(m.senderJid || '')
+              const replyJid = String(m.replyJid || '')
+              if (jid === rawJid || senderJid === rawJid || replyJid === rawJid) return true
+              if (jid === targetStandard || senderJid === targetStandard || replyJid === targetStandard) return true
+              if (rawJid.endsWith('@g.us')) return _isSameChat(rawJid, jid)
+              if (_isSameChat(rawJid, jid) || _isSameChat(rawJid, senderJid) || _isSameChat(rawJid, replyJid)) return true
+              if (targetStandard && (_isSameChat(targetStandard, jid) || _isSameChat(targetStandard, senderJid) || _isSameChat(targetStandard, replyJid))) return true
+              if (rawDigits.length >= 7) {
+                const mDigits = jid.split('@')[0].replace(/\D/g, '')
+                const sDigits = senderJid.split('@')[0].replace(/\D/g, '')
+                const rDigits = replyJid.split('@')[0].replace(/\D/g, '')
+                if (mDigits === rawDigits || sDigits === rawDigits || rDigits === rawDigits) return true
+              }
+              return false
+            })
             : unDeletedHistory
           result = {
             history: filtered.slice(0, limit).map(enrichHistoryEntry)
@@ -5863,8 +6565,8 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
                       source: 'giphy',
                       previewUrl: _sanitizeRemoteMediaUrl(
                         item.images?.fixed_height_small?.url ||
-                          item.images?.fixed_height?.url ||
-                          item.images?.original?.url
+                        item.images?.fixed_height?.url ||
+                        item.images?.original?.url
                       ),
                       url: _sanitizeRemoteMediaUrl(
                         item.images?.fixed_height?.url || item.images?.original?.url
@@ -6049,10 +6751,10 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
                 namesChanged = true
               }
             }
-            if (namesChanged) saveDeletedConversationNames().catch(() => {})
-          } catch {}
-          await momai.storage.set(_getDeletedConversationsKey(), deletedConversations).catch(() => {})
-          await momai.storage.set(DELETED_CONVERSATIONS_KEY, deletedConversations).catch(() => {})
+            if (namesChanged) saveDeletedConversationNames().catch(() => { })
+          } catch { }
+          await momai.storage.set(_getDeletedConversationsKey(), deletedConversations).catch(() => { })
+          await momai.storage.set(DELETED_CONVERSATIONS_KEY, deletedConversations).catch(() => { })
 
 
           const before = chatHistory.length
@@ -6082,12 +6784,12 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
           await _deleteHistoryMessages(momai, [...targetJids], { sources: legacySources, phone: _currentPhone || null })
 
           if (_currentPhone) {
-            await momai.storage.set(_getChatHistoryKey(), chatHistory).catch(() => {})
+            await momai.storage.set(_getChatHistoryKey(), chatHistory).catch(() => { })
           }
-          await momai.storage.set(CHAT_HISTORY_KEY, chatHistory).catch(() => {})
+          await momai.storage.set(CHAT_HISTORY_KEY, chatHistory).catch(() => { })
 
           for (const target of targetJids) {
-            await removeUnreadBadge(target).catch(() => {})
+            await removeUnreadBadge(target).catch(() => { })
           }
 
           if (deleted > 0) {
@@ -6163,7 +6865,7 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
                       messages: [{ id: msgId, fromMe, timestamp: Number(item.timestamp) || Date.now() }]
                     }
                   }, targetSendJid)
-                } catch {}
+                } catch { }
               }
             }
           }
@@ -6182,8 +6884,8 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
           for (const key of deleteKeys) {
             deletedConversations[`msg_${key}`] = Math.floor(Date.now() / 1000)
           }
-          await momai.storage.set(_getDeletedConversationsKey(), deletedConversations).catch(() => {})
-          await momai.storage.set(DELETED_CONVERSATIONS_KEY, deletedConversations).catch(() => {})
+          await momai.storage.set(_getDeletedConversationsKey(), deletedConversations).catch(() => { })
+          await momai.storage.set(DELETED_CONVERSATIONS_KEY, deletedConversations).catch(() => { })
 
           // 3. Remove matching messages from in-memory chatHistory
           const before = chatHistory.length
@@ -6243,6 +6945,183 @@ process.on('message', async (msg) => {  if (msg.type === 'storage-response') {
             }
           )
           result = { avatars }
+          break
+        }
+        case 'get_presence': {
+          const args = msg.payload?.args || {}
+          const rawJids = Array.isArray(args.jids)
+            ? args.jids
+            : typeof args.jids === 'string'
+              ? [args.jids]
+              : typeof args.jid === 'string'
+                ? [args.jid]
+                : []
+          const unique: string[] = [
+            ...new Set<string>(
+              (rawJids as unknown[]).filter(
+                (j): j is string =>
+                  typeof j === 'string' && j.includes('@') && !j.endsWith('@g.us')
+              )
+            )
+          ]
+          // Primeira chamada da sessão: sem as categorias da conta não há como
+          // decidir visibilidade. Se não temos cache, sincroniza.
+          if (sock && connected && Object.keys(waPrivacySettings).length === 0) {
+            await _syncAccountPrivacies(true)
+          }
+          const subscribed = await _subscribePresence(unique, {
+            force: args.force === true,
+            minAgeMs: PRESENCE_RESUBSCRIBE_MS
+          })
+          // Se acabamos de assinar e ainda não temos dados em memória, aguarda brevemente (até 600ms)
+          // a chegada da stanza assíncrona do WhatsApp para responder com dados frescos
+          if (sock && connected && subscribed.length > 0 && unique.some((jid) => !_findPresenceEntry(jid))) {
+            const startWait = Date.now()
+            while (Date.now() - startWait < 600) {
+              if (unique.every((jid) => _findPresenceEntry(jid))) break
+              await new Promise((r) => setTimeout(r, 80))
+            }
+          }
+          const presences = {}
+          for (const jid of unique) {
+            // `_presencePayload` re-applies the rules: nunca devolve campo proibido.
+            const payload = _presencePayload(jid)
+            if (!payload) continue
+            presences[jid] = { online: payload.online, lastSeen: payload.lastSeen ?? null }
+          }
+          result = {
+            ok: true,
+            connected,
+            presences,
+            subscribed,
+            policy: presencePolicy,
+            whatsappPrivacy: waPrivacySettings
+          }
+          if (subscribed.length > 0 || process.env.MOMAI_DEBUG_PRESENCE === '1') {
+            momai.log(
+              `[presence] get requested=${unique.length} subscribed=${subscribed.length} returned=${Object.keys(presences).length}`
+            )
+          }
+          break
+        }
+        case 'get_group_presence': {
+          const args = msg.payload?.args || {}
+          const groupJid = String(args.jid || args.groupJid || '').trim()
+          if (!groupJid.endsWith('@g.us')) {
+            result = { ok: false, error: 'Grupo inválido.' }
+            break
+          }
+          if (!sock || !connected) {
+            result = { ok: false, error: 'WhatsApp desconectado.', connected: false }
+            break
+          }
+          if (Object.keys(waPrivacySettings).length === 0) {
+            await _syncAccountPrivacies(true)
+          }
+          let meta: any = null
+          const cachedMeta = groupMetaCache.get(groupJid)
+          if (cachedMeta?.data && Date.now() - cachedMeta.fetchedAt < 2 * 60 * 1000) {
+            meta = cachedMeta.data
+          } else {
+            try {
+              meta = await withTimeout(sock.groupMetadata(groupJid), 5000)
+              if (meta) groupMetaCache.set(groupJid, { data: meta, fetchedAt: Date.now() })
+            } catch (e) {
+              momai.log(`[presence] groupMetadata ${groupJid}: ${e?.message || e}`)
+              meta = cachedMeta?.data || null
+            }
+          }
+          const participants: string[] = []
+          for (const participant of meta?.participants || []) {
+            const jid = String(participant?.id || '')
+            if (!jid || !jid.includes('@')) continue
+            if (jid.endsWith('@g.us') || jid.endsWith('@newsletter')) continue
+            if (!participants.includes(jid)) participants.push(jid)
+          }
+          // Assina o grupo inteiro e renova as assinaturas periodicamente:
+          // assinaturas podem expirar em silêncio e aí a contagem cai.
+          await _subscribePresence(participants, { limit: 250, minAgeMs: PRESENCE_RESUBSCRIBE_MS })
+          const presences = {}
+          let online = 0
+          for (const jid of participants) {
+            const payload = _presencePayload(jid)
+            if (!payload) continue
+            presences[jid] = { online: payload.online, lastSeen: payload.lastSeen ?? null }
+            if (payload.online === true) online++
+          }
+          result = {
+            ok: true,
+            groupJid,
+            total: participants.length,
+            online,
+            participants: presences
+          }
+          momai.log(
+            `[presence] group ${groupJid} total=${participants.length} online=${online} known=${Object.keys(presences).length}`
+          )
+          break
+        }
+        case 'get_presence_privacy': {
+          if (sock && connected && Object.keys(waPrivacySettings).length === 0) {
+            await _syncAccountPrivacies(true)
+          }
+          result = {
+            ok: true,
+            policy: presencePolicy,
+            whatsappPrivacy: waPrivacySettings
+          }
+          break
+        }
+        case 'set_presence_privacy': {
+          const args = msg.payload?.args || {}
+          const features = ['online', 'lastSeen']
+          let next: any = presencePolicy
+          if (args.reset === true) {
+            // Volta a espelhar as categorias do próprio WhatsApp.
+            if (sock && connected && Object.keys(waPrivacySettings).length === 0) {
+              await _syncAccountPrivacies(true)
+            }
+            next = _derivePresencePolicy(waPrivacySettings)
+          } else if (args.contact && args.feature) {
+            const feature = String(args.feature)
+            if (!features.includes(feature)) {
+              result = { ok: false, error: `Feature de presença inválida: ${feature}` }
+              break
+            }
+            const key = _normalizePresenceSubjectKey(args.contact)
+            if (!key) {
+              result = { ok: false, error: 'Contato inválido para a regra de presença.' }
+              break
+            }
+            const perContact = { ...(next.perContact || {}) }
+            const override = { ...(perContact[key] || {}) }
+            if (args.rule === null || args.rule === undefined) {
+              delete override[feature]
+            } else {
+              override[feature] = _normalizePresenceRule(args.rule)
+            }
+            if (Object.keys(override).length > 0) perContact[key] = override
+            else delete perContact[key]
+            next = { ...next, perContact }
+          } else if (args.feature || args.rule) {
+            const feature = String(args.feature || '')
+            if (!features.includes(feature)) {
+              result = { ok: false, error: `Feature de presença inválida: ${feature}` }
+              break
+            }
+            next = { ...next, [feature]: _normalizePresenceRule(args.rule) }
+          } else if (args.policy) {
+            next = { ...next, ..._normalizePresencePolicy(args.policy) }
+          } else {
+            result = { ok: false, error: 'Informe policy, feature+rule ou contact+feature+rule.' }
+            break
+          }
+          presencePolicy = _normalizePresencePolicy({ ...next, customized: args.reset !== true })
+          await _persistPresencePolicy()
+          presenceSubscribed.clear()
+          _replayPresenceForPolicy()
+          momai.sendEvent('presence_privacy_updated', { policy: presencePolicy })
+          result = { ok: true, policy: presencePolicy, whatsappPrivacy: waPrivacySettings }
           break
         }
         case 'open_document': {

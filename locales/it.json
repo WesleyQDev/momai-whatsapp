@@ -128,7 +128,13 @@
         "deleted_for_everyone_many": "Messaggi eliminati per tutti",
         "deleted_for_me_one": "Messaggio eliminato per me",
         "deleted_for_me_many": "Messaggi eliminati per me",
-        "delete_failed": "Impossibile eliminare. Riprova."
+        "delete_failed": "Impossibile eliminare. Riprova.",
+        "presence_online": "online",
+        "presence_last_seen": "ultimo accesso alle {{time}}",
+        "presence_last_seen_date": "ultimo accesso il {{date}}",
+        "group_participants": "{{total}} partecipanti • clicca per vedere",
+        "group_participants_online": "{{total}} partecipanti • {{online}} online",
+        "group_members_hint": "Gruppo • clicca per vedere i membri"
     },
     "page": {
         "title": "WhatsApp",
@@ -253,7 +259,20 @@
         "delete_conversation": "Elimina conversazione",
         "trigger_placeholder_starts": "Es.: \"spegni\"",
         "trigger_placeholder_ends": "Es.: \"la luce\"",
-        "trigger_placeholder_contains": "Es.: \"accendi\""
+        "trigger_placeholder_contains": "Es.: \"accendi\"",
+        "presence_title": "Privacy di presenza",
+        "presence_hint": "Scegli chi può apparire online e con l'ultimo accesso.",
+        "presence_online": "Online",
+        "presence_last_seen": "Ultimo accesso",
+        "presence_mode_all": "Tutti",
+        "presence_mode_contacts": "I miei contatti",
+        "presence_mode_except": "I miei contatti tranne...",
+        "presence_mode_none": "Nessuno",
+        "presence_exceptions": "Eccezioni (numeri o JID separati da virgole)",
+        "presence_saved": "Privacy di presenza aggiornata",
+        "presence_load_failed": "Impossibile caricare la privacy di presenza",
+        "presence_wa_source": "Account WhatsApp: ultimo accesso = {{lastSeen}}, online = {{online}}",
+        "presence_mode_match_last_seen": "come l'ultimo accesso"
     },
     "automations": {
         "contact": "contatto {{contact}}",
@@ -361,7 +380,11 @@
         "remove_contact": "Rimuovi contatto",
         "get_wa_groups": "Cerca gruppi",
         "send_message": "Invia messaggio",
-        "show_connection_qr": "Mostra QR di connessione"
+        "show_connection_qr": "Mostra QR di connessione",
+        "get_presence": "Vedi online e ultimo accesso",
+        "get_presence_privacy": "Consulta privacy di presenza",
+        "set_presence_privacy": "Modifica privacy di presenza",
+        "get_group_presence": "Vedi partecipanti online del gruppo"
     },
     "params": {
         "media": "Immagine",

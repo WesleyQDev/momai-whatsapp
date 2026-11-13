@@ -34,6 +34,10 @@ A extensão WhatsApp atua como um canal de comunicação bidirecional para o ass
      - `recentMedia`: Últimas mídias dessa conversa (fotos/documentos/vídeos)
    - O evento irmão `momai-whatsapp.whatsapp_notification` é usado pelo overlay de notificação; para automações, use `whatsapp_message`.
 
+2. **`momai-whatsapp.presence_update`**
+   - Disparado quando o online / "visto por último" de um contato muda.
+   - **Campos do Payload (`trigger.payload`)**: `jid`, `online` (booleano) e `lastSeen` (ms). Cada campo só é enviado se as regras de privacidade da extensão permitirem (`get_presence_privacy`/`set_presence_privacy`); sem permissão, o evento nem é emitido.
+
 ## Padrões de Uso no Hub de Automações
 
 - **Como Canal de Alerta e Notificação**:

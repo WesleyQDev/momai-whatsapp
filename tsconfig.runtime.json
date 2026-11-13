@@ -16,6 +16,7 @@
     "runtime.ts",
     "background-worker.ts",
     "worker-utils.ts",
+    "presence-privacy.ts",
     "baileys-cred-migration.ts",
     "fs-permissions.ts",
     "secure-storage-bridge.ts",

@@ -128,7 +128,13 @@
         "deleted_for_everyone_many": "Messages deleted for everyone",
         "deleted_for_me_one": "Message deleted for me",
         "deleted_for_me_many": "Messages deleted for me",
-        "delete_failed": "Could not delete. Please try again."
+        "delete_failed": "Could not delete. Please try again.",
+        "presence_online": "online",
+        "presence_last_seen": "last seen at {{time}}",
+        "presence_last_seen_date": "last seen on {{date}}",
+        "group_participants": "{{total}} participants • click to view",
+        "group_participants_online": "{{total}} participants • {{online}} online",
+        "group_members_hint": "Group • click to view members"
     },
     "page": {
         "title": "WhatsApp",
@@ -253,7 +259,20 @@
         "delete_conversation": "Delete conversation",
         "trigger_placeholder_starts": "E.g. \"turn off\"",
         "trigger_placeholder_ends": "E.g. \"the light\"",
-        "trigger_placeholder_contains": "E.g. \"turn on\""
+        "trigger_placeholder_contains": "E.g. \"turn on\"",
+        "presence_title": "Presence privacy",
+        "presence_hint": "Choose who the extension may show as online and with last seen.",
+        "presence_online": "Online",
+        "presence_last_seen": "Last seen",
+        "presence_mode_all": "Everyone",
+        "presence_mode_contacts": "My contacts",
+        "presence_mode_except": "My contacts except...",
+        "presence_mode_none": "Nobody",
+        "presence_exceptions": "Exceptions (numbers or JIDs separated by commas)",
+        "presence_saved": "Presence privacy updated",
+        "presence_load_failed": "Could not load presence privacy",
+        "presence_wa_source": "WhatsApp account: last seen = {{lastSeen}}, online = {{online}}",
+        "presence_mode_match_last_seen": "same as last seen"
     },
     "automations": {
         "contact": "contact {{contact}}",
@@ -361,7 +380,11 @@
         "remove_contact": "Remove contact",
         "get_wa_groups": "Search groups",
         "send_message": "Send message",
-        "show_connection_qr": "Show connection QR"
+        "show_connection_qr": "Show connection QR",
+        "get_presence": "View Online and Last Seen",
+        "get_presence_privacy": "Check Presence Privacy",
+        "set_presence_privacy": "Change Presence Privacy",
+        "get_group_presence": "View Online Group Participants"
     },
     "params": {
         "media": "Image",
