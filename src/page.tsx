@@ -12,6 +12,7 @@ import { fetchQrOutcome } from './services/qrRequest'
 import { resolveSocketTransition, resolveStatsTransition } from './services/disconnectTransition'
 import { useExtensionEvents } from './hooks/useExtensionEvents'
 import { useI18n } from './hooks/useI18n'
+import { usePresence } from './hooks/usePresence'
 import { useUnreadConversations } from './hooks/useUnreadConversations'
 import { isSameChat } from './utils/chatJid'
 import { resolveWhatsAppChannel } from './utils/whatsappChannel'
@@ -69,6 +70,9 @@ function isProfilePicUrlExpired(url: string | null | undefined): boolean {
   } catch {}
   return false
 }
+
+// Modos de privacidade de presença, iguais às categorias do WhatsApp.
+const PRESENCE_MODES = ['all', 'contacts', 'except', 'none'] as const
 
 interface Message {
   id?: string | null
@@ -1807,6 +1811,83 @@ export default function WhatsAppView() {
     })
   }, [conversationSummaries, recentConversations, paginatedContacts, avatarByJid, pinnedJids])
 
+  const [presencePolicy, setPresencePolicy] = useState<any>(null)
+  const [presenceWhatsApp, setPresenceWhatsApp] = useState<Record<string, string> | null>(null)
+  const [presenceExceptions, setPresenceExceptions] = useState<Record<'online' | 'lastSeen', string>>({
+    online: '',
+    lastSeen: ''
+  })
+  const [presenceSaving, setPresenceSaving] = useState(false)
+
+  const applyPresencePolicy = useCallback((policy: any, whatsappPrivacy?: Record<string, string>) => {
+    setPresencePolicy(policy || null)
+    if (whatsappPrivacy && typeof whatsappPrivacy === 'object') {
+      setPresenceWhatsApp(whatsappPrivacy)
+    }
+    setPresenceExceptions({
+      online: Array.isArray(policy?.online?.exceptions) ? policy.online.exceptions.join(', ') : '',
+      lastSeen: Array.isArray(policy?.lastSeen?.exceptions)
+        ? policy.lastSeen.exceptions.join(', ')
+        : ''
+    })
+  }, [])
+
+  const presenceSourceLabel = useCallback(
+    (value?: string): string => {
+      if (!value) return '—'
+      if (value === 'match_last_seen') return t('page.presence_mode_match_last_seen')
+      if (value === 'contact_blacklist') return t('page.presence_mode_except')
+      if ((PRESENCE_MODES as readonly string[]).includes(value)) {
+        return t(`page.presence_mode_${value}`)
+      }
+      return value
+    },
+    [t]
+  )
+
+  const loadPresencePolicy = useCallback(async () => {
+    try {
+      const { data } = await api.post('/extensions/whatsapp/command', {
+        toolName: 'get_presence_privacy',
+        args: {}
+      })
+      if (data?.policy) applyPresencePolicy(data.policy, data.whatsappPrivacy)
+    } catch {}
+  }, [applyPresencePolicy])
+
+  useEffect(() => {
+    void loadPresencePolicy()
+  }, [loadPresencePolicy])
+
+  const savePresenceRule = useCallback(
+    async (feature: 'online' | 'lastSeen', mode: string) => {
+      if (!presencePolicy) return
+      setPresenceSaving(true)
+      try {
+        const exceptions = (presenceExceptions[feature] || '')
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+        const { data } = await api.post('/extensions/whatsapp/command', {
+          toolName: 'set_presence_privacy',
+          args: {
+            feature,
+            rule: { mode, exceptions: mode === 'except' ? exceptions : [] }
+          }
+        })
+        if (data?.ok && data.policy) {
+          applyPresencePolicy(data.policy, data.whatsappPrivacy)
+          showToast(t('page.presence_saved'))
+        }
+      } catch {
+        showToast(t('page.presence_load_failed'))
+      } finally {
+        setPresenceSaving(false)
+      }
+    },
+    [presencePolicy, presenceExceptions, applyPresencePolicy, showToast, t]
+  )
+
   const conversationsTotalPages = Math.max(
     1,
     Math.ceil(allConversations.length / conversationsPerPage)
@@ -1816,6 +1897,14 @@ export default function WhatsAppView() {
     const start = (conversationsPage - 1) * conversationsPerPage
     return allConversations.slice(start, start + conversationsPerPage)
   }, [allConversations, conversationsPage, conversationsPerPage])
+
+  // Presença (online / visto por último) das conversas diretas visíveis. O
+  // worker já aplica as regras de privacidade antes de devolver qualquer campo.
+  const presenceJids = useMemo(
+    () => conversations.filter((c) => !c.isGroup).map((c) => c.jid),
+    [conversations]
+  )
+  const { presences } = usePresence(presenceJids)
 
   useEffect(() => {
     if (conversationsPage > conversationsTotalPages) {
@@ -2452,12 +2541,14 @@ export default function WhatsAppView() {
       .catch(() => {})
 
     const isGroupChat = jid.endsWith('@g.us')
-    const replyJid =
-      !isGroupChat && contextMsg.senderJid && !contextMsg.senderJid.endsWith('@g.us')
-        ? contextMsg.senderJid
-        : jid
+    const primaryContactJid =
+      !isGroupChat && jid.endsWith('@s.whatsapp.net')
+        ? jid
+        : !isGroupChat && contextMsg.senderJid && !contextMsg.senderJid.endsWith('@g.us')
+          ? contextMsg.senderJid
+          : jid
     const { contactJid, isGroup, groupName } = resolveWhatsAppChannel({
-      contactJid: replyJid,
+      contactJid: primaryContactJid,
       isGroup: isGroupChat,
       groupName: isGroupChat ? contextMsg.groupName : undefined
     })
@@ -2473,7 +2564,7 @@ export default function WhatsAppView() {
     const contactAvatar =
       convo.profilePicUrl ||
       avatarByJid[jid] ||
-      avatarByJid[replyJid] ||
+      avatarByJid[contextMsg.senderJid || ''] ||
       avatarByJid[contactJid] ||
       null
 
@@ -2489,6 +2580,11 @@ export default function WhatsAppView() {
         data: {
           contact: convo.contactLabel,
           contactJid,
+          jid,
+          conversationJid: jid,
+          replyJid: contextMsg.senderJid || jid,
+          lid: contextMsg.senderJid?.endsWith('@lid') ? contextMsg.senderJid : (convo as any).lid || undefined,
+          altJids: [jid, contextMsg.senderJid, contactJid].filter(Boolean),
           message: contextMsg.text,
           initialDraft: initialDraft ?? undefined,
           isGroup,
@@ -2556,6 +2652,10 @@ export default function WhatsAppView() {
           data: {
             contact: contactLabel,
             contactJid,
+            jid: item.id,
+            conversationJid: item.id,
+            lid: item.lid || undefined,
+            altJids: [item.id, item.lid].filter(Boolean),
             message: '',
             initialDraft: initialDraft ?? undefined,
             isGroup,
@@ -2873,6 +2973,22 @@ export default function WhatsAppView() {
                 return [outgoingMsg, ...prev].slice(0, 100)
               })
               if (jid) void loadAvatars([jid])
+
+              try {
+                const bc = new BroadcastChannel('momai-whatsapp-channel')
+                bc.postMessage({
+                  type: 'message_sent_sync',
+                  data: {
+                    ...d,
+                    ...outgoingMsg,
+                    contact: d.contact || d.contactName || outgoingMsg.from,
+                    contactName: d.contactName || d.contact,
+                    contactJid: jid,
+                    jid
+                  }
+                })
+                bc.close()
+              } catch {}
             }
           }
           if (event.eventType === 'whatsapp_notification' && event.data) {
@@ -3500,6 +3616,7 @@ export default function WhatsAppView() {
                     convo.isGroup ? convo.groupName || t('panel.unknown_group') : convo.contactLabel
                   }
                   avatarSrc={convo.profilePicUrl}
+                  presence={presences[convo.jid]}
                   preview={lastMsg}
                   stickerSrc={lastMsg.sticker ? getStickerUrl(lastMsg.sticker) : null}
                   timeLabel={formatTime(lastMsg.timestamp, locale)}
@@ -3908,6 +4025,68 @@ export default function WhatsAppView() {
                       </button>
                     </div>
                   </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-border/40 bg-card">
+                <div className="px-4 py-3 border-b border-border/40 font-medium text-sm flex items-center justify-between flex-wrap gap-2">
+                  <span>{t('page.presence_title')}</span>
+                  <span className="text-xs text-text-muted">{t('page.presence_hint')}</span>
+                </div>
+                <div className="p-4 space-y-3">
+                  {(['online', 'lastSeen'] as const).map((feature) => {
+                    const rule = presencePolicy?.[feature]
+                    return (
+                      <div
+                        key={feature}
+                        className="grid gap-2 sm:grid-cols-[170px_220px_1fr] sm:items-center"
+                      >
+                        <span className="text-xs font-medium text-text">
+                          {t(
+                            feature === 'online'
+                              ? 'page.presence_online'
+                              : 'page.presence_last_seen'
+                          )}
+                        </span>
+                        <select
+                          value={rule?.mode || 'none'}
+                          onChange={(e) => void savePresenceRule(feature, e.target.value)}
+                          disabled={presenceSaving || !presencePolicy}
+                          className="bg-input rounded-lg px-3 py-1.5 text-xs border border-border/50 outline-none focus:border-accent/50 text-text disabled:opacity-50"
+                        >
+                          {PRESENCE_MODES.map((mode) => (
+                            <option key={mode} value={mode}>
+                              {t(`page.presence_mode_${mode}`)}
+                            </option>
+                          ))}
+                        </select>
+                        {rule?.mode === 'except' ? (
+                          <input
+                            value={presenceExceptions[feature]}
+                            onChange={(e) =>
+                              setPresenceExceptions((prev) => ({
+                                ...prev,
+                                [feature]: e.target.value
+                              }))
+                            }
+                            onBlur={() => void savePresenceRule(feature, 'except')}
+                            placeholder={t('page.presence_exceptions')}
+                            className="w-full bg-input rounded-lg px-3 py-1.5 text-xs border border-border/50 outline-none focus:border-accent/50 text-text placeholder:text-text-muted"
+                          />
+                        ) : (
+                          <span />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                {(presenceWhatsApp?.last || presenceWhatsApp?.online) && (
+                  <p className="text-[11px] text-text-muted px-4 pb-3">
+                    {t('page.presence_wa_source', {
+                      lastSeen: presenceSourceLabel(presenceWhatsApp?.last),
+                      online: presenceSourceLabel(presenceWhatsApp?.online)
+                    })}
+                  </p>
                 )}
               </div>
         </div>

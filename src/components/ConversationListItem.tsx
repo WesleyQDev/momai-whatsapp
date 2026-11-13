@@ -82,6 +82,7 @@ export interface ConversationListItemProps {
   contactLabel: string
   avatarName: string
   avatarSrc?: string | null
+  presence?: { online?: boolean }
   preview: ConversationListItemPreview
   stickerSrc?: string | null
   timeLabel: string
@@ -109,6 +110,7 @@ export default function ConversationListItem({
   contactLabel,
   avatarName,
   avatarSrc,
+  presence,
   preview,
   stickerSrc,
   timeLabel,
@@ -156,8 +158,15 @@ export default function ConversationListItem({
       title={t('page.view_conversation')}
     >
       <div className="flex gap-3">
-        <div onClick={(e) => e.stopPropagation()}>
+        <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
           <ContactAvatar src={avatarSrc} name={avatarName} id={jid} />
+          {presence?.online === true && (
+            <span
+              className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-card"
+              title={t('panel.presence_online')}
+              aria-label={t('panel.presence_online')}
+            />
+          )}
         </div>
         <div
           className="flex-1 min-w-0 grid gap-x-2"
