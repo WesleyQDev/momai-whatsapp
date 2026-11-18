@@ -1,7 +1,5 @@
 # MomAI WhatsApp
 
-[English](README.md) · **Português** · [Español](README.es.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [Deutsch](README.de.md)
-
 Conecte o WhatsApp ao MomAI para acompanhar conversas e responder sem pegar o celular. A extensão lê apenas as conversas dos contatos e grupos que você escolher.
 
 ## O que você pode fazer

@@ -1,7 +1,5 @@
 # MomAI WhatsApp
 
-[English](README.md) · [Português](README.pt-BR.md) · [Español](README.es.md) · [Français](README.fr.md) · [Italiano](README.it.md) · **Deutsch**
-
 Verbinden Sie WhatsApp mit MomAI, um Unterhaltungen zu verfolgen und zu antworten, ohne zum Handy zu greifen. Die Erweiterung liest nur die Unterhaltungen der Kontakte und Gruppen, die Sie auswählen.
 
 ## Was Sie damit machen können
